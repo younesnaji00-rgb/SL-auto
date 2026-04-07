@@ -1,0 +1,92 @@
+
+{
+  "entities": {
+    "Dossier": {
+      "title": "Dossier",
+      "description": "A claim folder containing insurance details and status.",
+      "type": "object",
+      "properties": {
+        "refExpert": { "type": "string" },
+        "assure": { "type": "object" },
+        "nature": { "type": "string" },
+        "statut": { "type": "string" },
+        "matricule": { "type": "string" },
+        "dateSinistre": { "type": "string", "format": "date-time" },
+        "dateRequete": { "type": "string", "format": "date-time" },
+        "compagnie": { "type": "string" },
+        "modeDossier": { "type": "string", "enum": ["Normal", "Forfait", "Prise en charge", "Contradictoire", "Collégiale"] }
+      },
+      "required": ["refExpert", "statut"]
+    },
+    "Compagnie": {
+      "title": "Compagnie",
+      "description": "An insurance company partner.",
+      "type": "object",
+      "properties": {
+        "nom": { "type": "string" },
+        "couleur": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nom"]
+    },
+    "Chiffreur": {
+      "title": "Chiffreur",
+      "description": "A cost estimator for claim folders.",
+      "type": "object",
+      "properties": {
+        "nom": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["nom", "email", "active"]
+    },
+    "Chiffrage": {
+      "title": "Chiffrage",
+      "description": "An estimation task sent to a specific chiffreur.",
+      "type": "object",
+      "properties": {
+        "dossierId": { "type": "string" },
+        "dossierNom": { "type": "string" },
+        "assignedChiffreurId": { "type": "string" },
+        "assignedChiffreurNom": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "processing", "done", "error"] },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "storagePath": { "type": "string" },
+              "type": { "type": "string" },
+              "status": { "type": "string" },
+              "recognizedText": { "type": "string" },
+              "pdfUrl": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "auth": {
+    "providers": ["password"]
+  },
+  "firestore": {
+    "/dossiers/{dossierId}": {
+      "schema": "Dossier",
+      "description": "Collection of dossiers managed in the admin dashboard."
+    },
+    "/compagnies/{compagnieId}": {
+      "schema": "Compagnie",
+      "description": "Collection of insurance companies."
+    },
+    "/chiffreurs/{chiffreurId}": {
+      "schema": "Chiffreur",
+      "description": "Collection of cost estimators."
+    },
+    "/chiffrages/{chiffrageId}": {
+      "schema": "Chiffrage",
+      "description": "Collection of estimation tasks."
+    }
+  }
+}

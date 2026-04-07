@@ -1,0 +1,173 @@
+'use client';
+
+import React, { useState, useMemo } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { ChiffreurDialog } from '@/components/modals/chiffreur-dialog';
+import { useFirestore, useAuth, useDoc } from '@/firebase';
+import { doc, collection, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import { logHistorique, logWorkflow } from './log-historique';
+import { Loader2, Send } from 'lucide-react';
+import { sendToChiffrage, ChiffrageFile } from '@/lib/send-to-chiffrage';
+import { useChiffreurs } from '@/hooks/use-chiffreurs';
+
+type ModalChiffrageProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  dossierId: string;
+};
+
+export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalChiffrageProps) {
+  const db = useFirestore();
+  const auth = useAuth();
+  const { toast } = useToast();
+  const { chiffreurs, loading: loadingChiffreurs } = useChiffreurs();
+  
+  const dossierRef = useMemo(() => (db && dossierId ? doc(db, 'dossiers', dossierId) : null), [db, dossierId]);
+  const { data: dossier } = useDoc(dossierRef);
+
+  const [selectedChiffreurId, setSelectedChiffreurId] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAssign = async () => {
+    if (loadingChiffreurs || isSubmitting || !db || !dossierId) return;
+
+    if (!selectedChiffreurId) {
+      toast({ 
+        variant: 'destructive', 
+        title: "Sélection requise", 
+        description: "Veuillez choisir un chiffreur dans la liste." 
+      });
+      return;
+    }
+
+    const chiffreur = chiffreurs.find(c => c.id === selectedChiffreurId);
+    const user = auth?.currentUser;
+
+    if (!chiffreur) {
+      toast({ 
+        variant: 'destructive', 
+        title: "Erreur", 
+        description: "Impossible de procéder à l'assignation. Les données du chiffreur sont manquantes." 
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
+    const userEmail = user?.email || 'admin@dashflow.com';
+    const userId = user?.uid || 'admin-guest';
+
+    try {
+      // Fetch both photos AND documents to ensure the rapport PDF is included
+      const [photosSnap, docsSnap] = await Promise.all([
+        getDocs(collection(db, 'dossiers', dossierId, 'photos')),
+        getDocs(collection(db, 'dossiers', dossierId, 'documents'))
+      ]);
+
+      const photoFiles: ChiffrageFile[] = photosSnap.docs.map(d => {
+        const data = d.data();
+        return {
+          name: data.name || 'photo.jpg',
+          storagePath: data.storagePath || '',
+          type: 'photo' as const,
+        };
+      });
+
+      const docFiles: ChiffrageFile[] = docsSnap.docs.map(d => {
+        const data = d.data();
+        return {
+          name: data.nom || data.name || 'document.pdf',
+          storagePath: data.storagePath || '',
+          type: 'rapport' as const,
+        };
+      });
+
+      const allFiles = [...photoFiles, ...docFiles];
+
+      if (allFiles.length === 0) {
+        throw new Error("Le dossier ne contient aucun fichier (photo ou document). L'expertise terrain ou le rapport est nécessaire avant le chiffrage.");
+      }
+
+      const chiffrageId = await sendToChiffrage({
+        db,
+        dossierId,
+        dossierNom: dossier?.refExpert || dossierId,
+        assignedChiffreurId: chiffreur.id,
+        assignedChiffreurNom: chiffreur.nom,
+        files: allFiles,
+        sentByUid: userId,
+        sentByEmail: userEmail,
+      });
+
+      if (dossierRef) {
+        updateDoc(dossierRef, {
+          statut: 'Assigné au chiffrage',
+          currentChiffrageId: chiffrageId,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      await logHistorique(
+        db, 
+        dossierId, 
+        'Assignation Chiffrage', 
+        userEmail, 
+        `Dossier envoyé au chiffreur : ${chiffreur.nom} (${allFiles.length} fichiers)`, 
+        'assignation'
+      );
+
+      // SYNC TO WORKFLOW
+      await logWorkflow(db, dossierId, 'Assignation Chiffrage', userEmail, userId, 'done');
+
+      toast({ title: "Dossier envoyé", description: "Le dossier est maintenant en cours de chiffrage." });
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Assignment error:', error);
+      toast({ 
+        variant: 'destructive', 
+        title: "Erreur lors de l'envoi", 
+        description: error.message || "Une erreur est survenue." 
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Envoyer vers Chiffrage</DialogTitle>
+          <DialogDescription>
+            Sélectionnez le chiffreur qui sera en charge de ce dossier. Tous les documents et photos du dossier lui seront transmis.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="space-y-2">
+            <Label>Chiffreur responsable</Label>
+            <ChiffreurDialog 
+              selectedId={selectedChiffreurId}
+              onSelectId={setSelectedChiffreurId}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
+          <Button onClick={handleAssign} disabled={isSubmitting || !selectedChiffreurId || loadingChiffreurs}>
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+            Confirmer l'envoi
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

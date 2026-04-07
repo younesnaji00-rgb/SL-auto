@@ -1,0 +1,16 @@
+{
+  "placeholderImages": [
+    {
+      "id": "avatar1",
+      "description": "User avatar for navigation",
+      "imageUrl": "https://images.unsplash.com/flagged/photo-1570612861542-284f4c12e75f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxwZXJzb24lMjBmYWNlfGVufDB8fHx8MTc3MTk3MzY3NHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person face"
+    },
+    {
+      "id": "car_wireframe",
+      "description": "Car wireframe blueprint for impact points",
+      "imageUrl": "https://images.unsplash.com/photo-1632155338219-f2a5bec4fca9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxjYXIlMjB3aXJlZnJhbWUlMjBibHVlcHJpbnR8ZW58MHx8fHwxNzcyMTE0MzI1fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "car wireframe blueprint"
+    }
+  ]
+}
