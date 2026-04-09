@@ -17,7 +17,7 @@ export type Piece = {
   createdAt: any;
 };
 
-export async function generateRapportPDF(db: any, dossierId: string) {
+export async function generateRapportPDF(db: any, dossierId: string, typeRapport?: string) {
   if (!db || !dossierId) return;
 
   // FIX 2 — Broaden the Firestore data fetch
@@ -64,10 +64,15 @@ export async function generateRapportPDF(db: any, dossierId: string) {
   pdf.setFillColor(PRIMARY_BLUE[0], PRIMARY_BLUE[1], PRIMARY_BLUE[2]);
   pdf.rect(0, 0, 210, 40, 'F');
   
+  // Build title from rapport type: e.g. "Définitif" → "RAPPORT DÉFINITIF"
+  const rapportTitle = typeRapport
+    ? `RAPPORT ${typeRapport.toUpperCase()}`
+    : 'RAPPORT D\'EXPERTISE';
+
   pdf.setFontSize(24);
   pdf.setTextColor(255);
   pdf.setFont("helvetica", "bold");
-  pdf.text('RAPPORT D\'EXPERTISE', 14, 25);
+  pdf.text(rapportTitle, 14, 25);
   
   pdf.setFontSize(10);
   pdf.text(`Réf: ${refExpert}`, 14, 32);
@@ -357,10 +362,12 @@ export async function generateRapportPDF(db: any, dossierId: string) {
     pdf.setTextColor(150);
     pdf.setDrawColor(230);
     pdf.line(14, 285, 196, 285);
-    pdf.text(`Rapport d'Expertise Automobile - Dossier #${refExpert}`, 14, 290);
+    const footerLabel = typeRapport ? `Rapport ${typeRapport}` : "Rapport d'Expertise Automobile";
+    pdf.text(`${footerLabel} - Dossier #${refExpert}`, 14, 290);
     pdf.text(`Page ${i} / ${pageCount}`, 105, 290, { align: 'center' });
     pdf.text(`DashFlow Admin System`, 196, 290, { align: 'right' });
   }
 
-  pdf.save(`Rapport_Expertise_${refExpert}_${today.replace(/\//g, '-')}.pdf`);
+  const fileLabel = typeRapport ? `Rapport_${typeRapport.replace(/\s+/g, '_')}` : 'Rapport_Expertise';
+  pdf.save(`${fileLabel}_${refExpert}_${today.replace(/\//g, '-')}.pdf`);
 }

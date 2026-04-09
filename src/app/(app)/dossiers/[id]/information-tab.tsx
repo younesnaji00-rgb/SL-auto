@@ -461,7 +461,15 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
                     <TableCell className="text-xs">{p.agentTerrain || <span className="text-muted-foreground italic">Non assigné</span>}</TableCell>
                     <TableCell className="text-xs">{p.zone || '-'}</TableCell>
                     <TableCell className="text-xs max-w-[150px]"><span className="truncate block">{p.adresse || '-'}</span></TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[150px]"><span className="truncate block">{p.observation || '-'}</span></TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[200px]">
+                      <span className="truncate block">{p.observation || '-'}</span>
+                      {p.observationUpdatedAt && (
+                        <span className="flex items-center gap-1 text-[10px] text-amber-600 mt-0.5 font-medium">
+                          <Clock className="h-3 w-3" />
+                          MAJ ATG: {p.observationUpdatedAt.toDate ? format(p.observationUpdatedAt.toDate(), 'dd/MM HH:mm', { locale: fr }) : '-'}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeletePlanification(p.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
@@ -535,13 +543,18 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
               </div>
 
               {expandedPlan.observation && (
-                <div className="space-y-1 p-3 rounded-lg bg-muted/30 border border-dashed">
+                <div className={cn("space-y-1 p-3 rounded-lg border border-dashed", expandedPlan.observationUpdatedAt ? "bg-amber-50/50 border-amber-300 dark:bg-amber-900/10" : "bg-muted/30")}>
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                     <Info className="h-3 w-3" /> Observation / Notes
                   </p>
                   <p className="text-sm italic text-muted-foreground leading-relaxed whitespace-pre-wrap">
                     {expandedPlan.observation}
                   </p>
+                  {expandedPlan.observationUpdatedAt && (
+                    <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 mt-1">
+                      Mis à jour par ATG le {expandedPlan.observationUpdatedAt.toDate ? format(expandedPlan.observationUpdatedAt.toDate(), "dd/MM/yyyy 'à' HH:mm", { locale: fr }) : '-'}
+                    </Badge>
+                  )}
                 </div>
               )}
 

@@ -27,7 +27,7 @@ import { useFirestore, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { logHistorique } from './log-historique';
+import { logHistorique, logWorkflow } from './log-historique';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -40,9 +40,10 @@ type ModalPlanificationProps = {
   onOpenChange: (open: boolean) => void;
   initialData?: any;
   dossierId: string;
+  dossierData?: { refExpert?: string; assure?: any; compagnie?: string; expertRank?: string };
 };
 
-export default function ModalPlanification({ open, onOpenChange, initialData, dossierId }: ModalPlanificationProps) {
+export default function ModalPlanification({ open, onOpenChange, initialData, dossierId, dossierData }: ModalPlanificationProps) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -91,6 +92,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     if (!db) return;
     setLoading(true);
     const userEmail = auth?.currentUser?.email || 'Admin';
+    const userId = auth?.currentUser?.uid || 'Admin';
 
     try {
       let finalRDV = null;
@@ -111,15 +113,21 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         modifiedAt: serverTimestamp(),
         modifiedBy: auth?.currentUser?.uid || 'Admin',
         modifiedByName: userEmail,
+        dossierNom: dossierData?.refExpert || '',
+        assureNom: `${dossierData?.assure?.nom || ''} ${dossierData?.assure?.prenom || ''}`.trim(),
+        compagnie: dossierData?.compagnie || '',
+        expertRank: dossierData?.expertRank || '',
       };
 
       if (initialData?.id) {
         await updateDoc(doc(db, 'dossiers', dossierId, 'planifications', initialData.id), payload);
         await logHistorique(db, dossierId, 'Planification modifiée', userEmail, `Mission ${formData.typeMission} mise à jour pour ${formData.agentTerrain}.`, 'planification');
+        await logWorkflow(db, dossierId, 'Planification modifiée', userEmail, userId, 'done');
         toast({ title: "Planification mise à jour" });
       } else {
-        await addDoc(collection(db, 'dossiers', dossierId, 'planifications'), { ...payload, createdAt: serverTimestamp(), active: true });
+        await addDoc(collection(db, 'dossiers', dossierId, 'planifications'), { ...payload, dossierId, createdAt: serverTimestamp(), active: true });
         await logHistorique(db, dossierId, 'Planification ajoutée', userEmail, `Nouvelle mission ${formData.typeMission} créée pour ${formData.agentTerrain}.`, 'planification');
+        await logWorkflow(db, dossierId, 'Création de planification', userEmail, userId, 'done');
         toast({ title: "Nouvelle planification créée" });
       }
       onOpenChange(false);

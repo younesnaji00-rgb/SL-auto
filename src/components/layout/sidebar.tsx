@@ -35,7 +35,9 @@ import {
   LayoutDashboard,
   FolderOpen,
   Users,
-  Building2
+  Building2,
+  Calculator,
+  UserCheck,
 } from 'lucide-react';
 import Logo from '@/components/logo';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -63,6 +65,8 @@ const AppSidebar = () => {
   const navItems = [
     { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
     { href: '/dossiers', icon: FolderOpen, label: 'Dossiers' },
+    { href: '/assignations-chiffrage', icon: Calculator, label: 'Assignations Chiffrage' },
+    { href: '/assignations-atg', icon: UserCheck, label: 'Assignations ATG' },
     { href: '/utilisateurs', icon: Users, label: 'Utilisateurs' },
     { href: '/compagnies', icon: Building2, label: 'Compagnies' },
   ];

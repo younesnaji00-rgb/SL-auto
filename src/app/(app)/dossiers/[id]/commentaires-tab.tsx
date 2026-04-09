@@ -16,14 +16,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { 
-  collection, 
-  query, 
-  addDoc, 
-  deleteDoc, 
-  doc, 
+import {
+  collection,
+  query,
+  addDoc,
+  deleteDoc,
+  doc,
   updateDoc,
-  serverTimestamp 
+  serverTimestamp,
+  where,
+  getDocs,
 } from 'firebase/firestore';
 import {
   ref,
@@ -47,6 +49,8 @@ type Comment = {
   id: string;
   contenu: string;
   auteur: string;
+  auteurNom?: string;
+  auteurRole?: string;
   date: any;
   pieceJointe: PieceJointe | null;
   // Support for legacy data fields
@@ -150,9 +154,25 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
         }
       }
 
+      // Look up user name and role from the users collection
+      let auteurNom = userEmail;
+      let auteurRole = '';
+      try {
+        const usersSnap = await getDocs(query(collection(db, 'users'), where('email', '==', userEmail)));
+        if (!usersSnap.empty) {
+          const userData = usersSnap.docs[0].data();
+          auteurNom = userData.nom || userEmail;
+          auteurRole = userData.role || '';
+        }
+      } catch (e) {
+        console.warn('Could not fetch user details for comment:', e);
+      }
+
       await addDoc(collection(db, 'dossiers', dossierId, 'commentaires'), {
         contenu: commentText,
         auteur: userEmail,
+        auteurNom,
+        auteurRole,
         date: serverTimestamp(),
         pieceJointe: pieceJointeData,
         _localCreatedAt: Date.now(),
@@ -331,17 +351,23 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
             <div key={comment.id} className="flex gap-4 group">
               <Avatar className="h-10 w-10 shrink-0 border">
                 <AvatarFallback className="bg-primary/5 text-primary">
-                  {(comment.auteur || comment.authorName || 'U').charAt(0).toUpperCase()}
+                  {(comment.auteurNom || comment.auteur || comment.authorName || 'U').charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 space-y-2">
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">{comment.auteur || comment.authorName}</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm">{comment.auteurNom || comment.auteur || comment.authorName}</span>
+                      {comment.auteurRole && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium">{comment.auteurRole}</Badge>
+                      )}
                       <span className="text-xs text-muted-foreground">•</span>
                       <span className="text-xs text-muted-foreground">{formatDate(comment.date || comment.createdAt)}</span>
                     </div>
+                    {comment.auteurNom && comment.auteur && comment.auteurNom !== comment.auteur && (
+                      <div className="text-[10px] text-muted-foreground">{comment.auteur}</div>
+                    )}
                   </div>
                   
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

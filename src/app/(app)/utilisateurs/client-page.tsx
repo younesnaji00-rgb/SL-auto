@@ -44,7 +44,7 @@ import { MultiSelect } from '@/components/ui/multi-select';
 import { roles as defaultRoles, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection } from '@/firebase';
-import { collection, addDoc, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 
@@ -67,6 +67,7 @@ export default function UtilisateursClientPage() {
   
   const { options: dbRoles } = useOptions('options_roles', [...defaultRoles]);
   const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
+  const { options: dbAgentsRaw } = useOptions('options_agents', []);
 
   const roles = useMemo(() => dbRoles.length > 0 ? dbRoles : defaultRoles.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbRoles]);
   const compagniesOptions = useMemo(() => dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbCompagnies]);
@@ -106,6 +107,34 @@ export default function UtilisateursClientPage() {
             createdAt: serverTimestamp(),
             lastLogin: null
         });
+
+        // Sync to role-specific collections so dropdowns across the app update
+        if (data.role === 'Agent de Terrain') {
+          const existingAgents = await getDocs(query(collection(db, 'options_agents'), where('label', '==', data.nom)));
+          if (existingAgents.empty) {
+            const maxOrder = Math.max(0, ...dbAgentsRaw.map(o => o.order));
+            await addDoc(collection(db, 'options_agents'), {
+              label: data.nom,
+              order: maxOrder + 1,
+              active: true,
+              createdAt: serverTimestamp(),
+            });
+          }
+        }
+
+        if (data.role === 'Chiffreur') {
+          const existingChiffreurs = await getDocs(query(collection(db, 'chiffreurs'), where('nom', '==', data.nom)));
+          if (existingChiffreurs.empty) {
+            await addDoc(collection(db, 'chiffreurs'), {
+              nom: data.nom,
+              email: data.email,
+              phone: '',
+              active: true,
+              createdAt: serverTimestamp(),
+            });
+          }
+        }
+
         toast({
             title: "Utilisateur ajouté",
             description: `${data.nom} a été ajouté avec succès.`,
@@ -122,7 +151,21 @@ export default function UtilisateursClientPage() {
   const handleDelete = async (userId: string) => {
     if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) return;
     try {
+        const user = userList?.find((u: any) => u.id === userId);
         await deleteDoc(doc(db, 'users', userId));
+
+        // Clean up role-specific collections
+        if (user) {
+          if (user.role === 'Agent de Terrain') {
+            const snap = await getDocs(query(collection(db, 'options_agents'), where('label', '==', user.nom)));
+            for (const d of snap.docs) await deleteDoc(d.ref);
+          }
+          if (user.role === 'Chiffreur') {
+            const snap = await getDocs(query(collection(db, 'chiffreurs'), where('nom', '==', user.nom)));
+            for (const d of snap.docs) await deleteDoc(d.ref);
+          }
+        }
+
         toast({ title: "Utilisateur supprimé" });
     } catch (error) {
         console.error(error);

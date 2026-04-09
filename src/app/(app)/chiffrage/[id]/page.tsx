@@ -131,13 +131,9 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
           </p>
         </div>
         <div className="ml-auto">
-          <Button
-            className="bg-primary shadow-lg shadow-primary/20"
-            onClick={() => router.push(`/editor?chiffrageId=${id}&dossierId=${chiffrage.dossierId}`)}
-          >
-            <PencilLine className="h-4 w-4 mr-2" />
-            Ouvrir l&apos;Editeur
-          </Button>
+          <Badge variant={chiffrage.status === 'done' ? 'expertise' : 'secondary'} className="gap-1.5 py-1 px-3">
+            {chiffrage.status === 'done' ? 'Termine' : 'En cours'}
+          </Badge>
         </div>
       </div>
 
@@ -145,7 +141,8 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
         {chiffrage.files.map((file, i) => (
           <div
             key={`${file.storagePath}-${i}`}
-            className="border rounded-xl p-4 flex flex-col sm:flex-row gap-4 items-start bg-card shadow-sm hover:shadow-md transition-all group"
+            className="border rounded-xl p-4 flex flex-col sm:flex-row gap-4 items-start bg-card shadow-sm hover:shadow-md transition-all group cursor-pointer"
+            onClick={() => router.push(`/viewer?chiffrageId=${id}&dossierId=${chiffrage.dossierId}&fileIndex=${i}`)}
           >
             <div className="w-28 h-28 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden border shadow-inner relative">
               {downloadUrls[i] && (file.type === "photo" || file.name.match(/\.(jpg|jpeg|png)$/i)) ? (

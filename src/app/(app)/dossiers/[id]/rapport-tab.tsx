@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  Plus, 
+import {
+  Plus,
   Minus,
-  Trash2, 
+  Trash2,
   Calculator,
   Loader2,
   CheckCircle2,
@@ -15,6 +15,8 @@ import {
   Pencil,
   CheckCircle,
   XCircle,
+  FileUp,
+  Sparkles,
 } from 'lucide-react';
 import { 
   collection, 
@@ -99,6 +101,8 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
+  const [isScanning, setIsScanning] = useState(false);
+  const scanInputRef = useRef<HTMLInputElement>(null);
 
   const pieces = useMemo(() => {
     return allPieces
@@ -133,6 +137,12 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
     AVG: false, AVD: false, AV: false,
     Toit: false
   });
+  // Rapport type
+  const { options: dbRapportTypes } = useOptions('options_types_rapport', []);
+  const rapportTypes = useMemo(() => dbRapportTypes.length > 0 ? dbRapportTypes : [], [dbRapportTypes]);
+  const [selectedRapportType, setSelectedRapportType] = useState('');
+  const rapportTypeInitialLoaded = useRef(false);
+
   const [pointsChocDessous, setPointsChocDessous] = useState<Record<string, boolean>>({
     suspensionAV: false, soubassementAV: false, plancher: false,
     transmission: false, differentiel: false,
@@ -178,6 +188,11 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           if (data.observationExpert !== undefined) setObservationExpert(data.observationExpert);
           setDossierMode(data.modeDossier || 'Procédure normale');
           observationInitialLoaded.current = true;
+        }
+
+        if (!rapportTypeInitialLoaded.current) {
+          if (data.typeRapport) setSelectedRapportType(data.typeRapport);
+          rapportTypeInitialLoaded.current = true;
         }
       }
     });
@@ -287,6 +302,111 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
     }
   };
 
+  const handleRapportTypeChange = async (value: string) => {
+    setSelectedRapportType(value);
+    if (db) {
+      try {
+        await updateDoc(doc(db, 'dossiers', dossierId), { typeRapport: value });
+      } catch { /* silent */ }
+    }
+  };
+
+  const handleScanImport = async (file: File) => {
+    if (!db) return;
+    setIsScanning(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch('/api/scan-rapport', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileBase64: base64, contentType: file.type }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Erreur lors du scan');
+      }
+
+      const { data } = await res.json();
+
+      // 1. Add pieces to Firestore
+      if (data.pieces && data.pieces.length > 0) {
+        for (const piece of data.pieces) {
+          await addDoc(collection(db, 'dossiers', dossierId, 'rapport_pieces'), {
+            designation: piece.designation || '',
+            operation: piece.operation || 'Echange',
+            typePiece: piece.typePiece || 'P.Ps',
+            vetuste: Number(piece.vetuste) || 0,
+            quantite: Number(piece.quantite) || 1,
+            puHT: Number(piece.puHT) || 0,
+            remise: Number(piece.remise) || 0,
+            tva: piece.tva !== false,
+            typeChoc: piece.typeChoc || 'Choc 1',
+            createdAt: serverTimestamp(),
+          });
+        }
+      }
+
+      // 2. Update main d'oeuvre
+      if (data.mainOeuvre) {
+        const mo: Record<string, MOItem> = {};
+        for (const [key, val] of Object.entries(data.mainOeuvre)) {
+          const v = val as any;
+          mo[key.toLowerCase()] = { nbrH: Number(v?.nbrH) || 0, pu: Number(v?.pu) || 80 };
+        }
+        if (Object.keys(mo).length > 0) {
+          setMainOeuvre(prev => ({ ...prev, ...mo }));
+          await updateDoc(doc(db, 'dossiers', dossierId), { mainOeuvre: mo });
+        }
+      }
+
+      // 3. Update points de choc
+      if (data.pointsChoc) {
+        setPointsChoc(prev => {
+          const updated = { ...prev };
+          for (const [key, val] of Object.entries(data.pointsChoc)) {
+            if (key in updated) updated[key] = Boolean(val);
+          }
+          return updated;
+        });
+      }
+      if (data.pointsChocDessous) {
+        setPointsChocDessous(prev => {
+          const updated = { ...prev };
+          for (const [key, val] of Object.entries(data.pointsChocDessous)) {
+            if (key in updated) updated[key] = Boolean(val);
+          }
+          return updated;
+        });
+      }
+
+      // 4. Update observation
+      if (data.observationExpert) {
+        setObservationExpert(data.observationExpert);
+      }
+
+      toast({
+        title: 'Importation réussie',
+        description: `${data.pieces?.length || 0} pièce(s) extraite(s) par l'IA. Vous pouvez maintenant modifier chaque élément.`,
+      });
+    } catch (error: any) {
+      console.error('Scan rapport error:', error);
+      toast({ variant: 'destructive', title: "Erreur lors de l'importation", description: error.message });
+    } finally {
+      setIsScanning(false);
+      if (scanInputRef.current) scanInputRef.current.value = '';
+    }
+  };
+
   const updateMO = (key: string, field: keyof MOItem, value: number) => {
     const val = Math.max(0, value);
     setMainOeuvre(prev => ({ ...prev, [key]: { ...prev[key], [field]: val } }));
@@ -333,7 +453,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
     try {
-      await generateRapportPDF(db, dossierId);
+      await generateRapportPDF(db, dossierId, selectedRapportType || undefined);
       toast({ title: "Rapport PDF généré" });
     } catch (error: any) {
       console.error(error);
@@ -358,6 +478,69 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
   return (
     <div className="space-y-8 pb-32">
+      {/* RAPPORT TYPE + AI IMPORT */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <Card className="flex-1 shadow-sm">
+          <CardContent className="flex items-center gap-3 py-4">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-3">
+                <Settings className="h-4 w-4 text-muted-foreground" />
+                <Label className="font-semibold text-sm whitespace-nowrap">Type de Rapport</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select value={selectedRapportType} onValueChange={handleRapportTypeChange}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Choisir le type de rapport" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rapportTypes.map((t: any) => (
+                      <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <OptionsManagerModal collectionName="options_types_rapport" title="Types de rapport" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="flex-1 border-dashed border-2 border-primary/20 bg-primary/5 shadow-sm">
+          <CardContent className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-3">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <div>
+                <p className="font-semibold text-sm">Importation IA</p>
+                <p className="text-xs text-muted-foreground">Importez un document et l'IA remplira le rapport.</p>
+              </div>
+            </div>
+            <div>
+              <input
+                ref={scanInputRef}
+                type="file"
+                accept="image/*,application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleScanImport(file);
+                }}
+              />
+              <Button
+                variant="outline"
+                className="gap-2"
+                disabled={isScanning}
+                onClick={() => scanInputRef.current?.click()}
+              >
+                {isScanning ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Analyse en cours...</>
+                ) : (
+                  <><FileUp className="h-4 w-4" /> Importer</>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* SECTION 1 — FOURNITURE */}
       <Card className="border-primary/10 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/30">

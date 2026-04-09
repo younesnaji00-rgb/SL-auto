@@ -134,9 +134,11 @@ export default function DashboardPage() {
 
   // Derive Stats
   const total = dossiers.length;
-  const nouveauCount = dossiers.filter((d) => d.statut === 'Nouveau' || d.statut === 'Création de mission').length;
-  const enCoursCount = dossiers.filter((d) => d.statut?.toLowerCase().includes('cours') || d.statut === 'En cours').length;
-  const clotureCount = dossiers.filter((d) => d.statut === 'Cloture' || d.statut === 'Clôture' || d.statut === 'Dossier signé' || d.statut === 'Rapport Validé').length;
+  const CLOTURE_STATUSES = ['Cloture', 'Clôture', 'Dossier signé', 'Rapport Validé', 'Mission annulée'];
+  const NOUVEAU_STATUSES = ['Nouveau', 'Création de mission'];
+  const clotureCount = dossiers.filter((d) => CLOTURE_STATUSES.includes(d.statut)).length;
+  const nouveauCount = dossiers.filter((d) => NOUVEAU_STATUSES.includes(d.statut)).length;
+  const enCoursCount = total - clotureCount - nouveauCount;
 
   // Deadline tracking: count dossiers by age (days since creation)
   const now = new Date();
@@ -239,9 +241,20 @@ export default function DashboardPage() {
       }));
   }, [dossiers]);
 
-  const barChartConfig = {
-    value: { label: 'Dossiers', color: 'hsl(var(--primary))' },
-  };
+  const barChartConfig = useMemo(() => {
+    const chartColors = [
+      'hsl(var(--chart-1))',
+      'hsl(var(--chart-2))',
+      'hsl(var(--chart-3))',
+      'hsl(var(--chart-4))',
+      'hsl(var(--chart-5))',
+    ];
+    const config: any = { value: { label: 'Dossiers' } };
+    compagnieData.forEach((item, index) => {
+      config[item.name] = { label: item.name, color: chartColors[index % chartColors.length] };
+    });
+    return config;
+  }, [compagnieData]);
 
   const getStatusBadgeStyles = (status: string) => {
     const s = status || '';
@@ -641,7 +654,7 @@ export default function DashboardPage() {
                     cx="50%"
                     cy="50%"
                     outerRadius={90}
-                    innerRadius={0}
+                    innerRadius={45}
                     paddingAngle={2}
                     label={renderPieLabel}
                     labelLine={false}

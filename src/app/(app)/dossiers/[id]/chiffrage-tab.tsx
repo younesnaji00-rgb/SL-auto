@@ -199,19 +199,10 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
             Correcteur responsable : <span className="font-bold text-foreground">{chiffrage?.assignedChiffreurNom}</span>
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button
-            className="shadow-sm"
-            onClick={() => router.push(`/editor?chiffrageId=${chiffrageId}&dossierId=${dossierId}`)}
-          >
-            <PencilLine className="h-4 w-4 mr-2" />
-            Ouvrir l&apos;Editeur
-          </Button>
-          <Badge variant={chiffrage?.status === 'done' ? 'expertise' : 'secondary'} className="gap-1.5 py-1 px-3">
-            {chiffrage?.status === 'done' ? <CheckCircle2 className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
-            {chiffrage?.status === 'done' ? 'Terminé' : 'En cours'}
-          </Badge>
-        </div>
+        <Badge variant={chiffrage?.status === 'done' ? 'expertise' : 'secondary'} className="gap-1.5 py-1 px-3">
+          {chiffrage?.status === 'done' ? <CheckCircle2 className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
+          {chiffrage?.status === 'done' ? 'Terminé' : 'En cours'}
+        </Badge>
       </div>
 
       <div className="space-y-4">
@@ -231,11 +222,12 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
                 {group.files.map(({ file, index: i }) => (
                   <div
                     key={`${file.storagePath}-${i}`}
-                    className="border rounded-xl p-4 flex gap-4 items-start bg-card shadow-sm hover:shadow-md transition-all group"
+                    className="border rounded-xl p-4 flex gap-4 items-start bg-card shadow-sm hover:shadow-md transition-all group cursor-pointer"
+                    onClick={() => router.push(`/viewer?chiffrageId=${chiffrageId}&dossierId=${dossierId}&fileIndex=${i}`)}
                   >
                     <div
                       className="w-24 h-24 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden border shadow-inner cursor-pointer relative"
-                      onClick={() => downloadUrls[i] && setPreviewIndex(i)}
+                      onClick={(e) => { e.stopPropagation(); if (downloadUrls[i]) setPreviewIndex(i); }}
                     >
                       {downloadUrls[i] && (file.type === 'photo' || file.name.match(/\.(jpg|jpeg|png)$/i)) ? (
                         <img src={downloadUrls[i]} alt={file.name} loading="lazy" decoding="async" className="object-cover w-full h-full" />
