@@ -3,27 +3,32 @@
 
 import React, { useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { 
-  Building2, 
-  FileText, 
+import {
+  Building2,
+  FileText,
   ChevronRight,
   ExternalLink,
   Loader2,
-  Inbox
+  Inbox,
+  Upload,
 } from 'lucide-react';
 import { useCompagnies } from '@/hooks/use-compagnies';
 import { useDossiers } from '@/hooks/use-dossiers';
+import { useStorage, useFirestore } from '@/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
+import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Link from 'next/link';
@@ -34,6 +39,23 @@ export default function CompagniesClientPage() {
   const selectedId = searchParams.get('selected');
   
   const { compagnies, loading: loadingCompagnies } = useCompagnies();
+  const storage = useStorage();
+  const db = useFirestore();
+  const { toast } = useToast();
+
+  const handleLogoUpload = async (compagnieId: string, file: File) => {
+    if (!storage || !db) return;
+    try {
+      const storagePath = `compagnies/${compagnieId}/logo/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, storagePath);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      await updateDoc(doc(db, 'compagnies', compagnieId), { logoUrl: url });
+      toast({ title: 'Logo mis à jour' });
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
+    }
+  };
   
   const selectedCompagnie = useMemo(() => 
     compagnies.find(c => c.id === selectedId),
@@ -71,9 +93,9 @@ export default function CompagniesClientPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {compagnies.map((c) => (
-            <Card 
-              key={c.id} 
-              className="hover:shadow-lg transition-all cursor-pointer group border-l-4 overflow-hidden relative" 
+            <Card
+              key={c.id}
+              className="hover:shadow-lg transition-all cursor-pointer group border-l-4 overflow-hidden relative"
               style={{ borderLeftColor: c.couleur }}
               onClick={() => router.push(`/compagnies?selected=${c.id}`)}
             >
@@ -82,8 +104,29 @@ export default function CompagniesClientPage() {
               </div>
               <CardHeader className="pb-4">
                 <div className="flex justify-between items-center">
-                  <div className="p-2.5 rounded-xl bg-muted group-hover:bg-primary/10 transition-colors">
-                    <Building2 className="h-6 w-6 text-muted-foreground group-hover:text-primary" />
+                  <div
+                    className="relative p-2.5 rounded-xl bg-muted group-hover:bg-primary/10 transition-colors overflow-hidden"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = 'image/*';
+                      input.onchange = (ev) => {
+                        const file = (ev.target as HTMLInputElement).files?.[0];
+                        if (file) handleLogoUpload(c.id, file);
+                      };
+                      input.click();
+                    }}
+                    title="Cliquez pour importer un logo"
+                  >
+                    {c.logoUrl ? (
+                      <img src={c.logoUrl} alt={c.nom} className="h-6 w-6 object-contain" />
+                    ) : (
+                      <Building2 className="h-6 w-6 text-muted-foreground group-hover:text-primary" />
+                    )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+                      <Upload className="h-3.5 w-3.5 text-white" />
+                    </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground transform group-hover:translate-x-1 transition-all" />
                 </div>
@@ -107,18 +150,34 @@ export default function CompagniesClientPage() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b pb-6">
         <div className="flex items-center gap-5">
-          <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl" onClick={() => router.push('/compagnies')}>
-            <Building2 className="h-6 w-6" />
-          </Button>
+          <div
+            className="relative h-12 w-12 rounded-xl bg-muted flex items-center justify-center overflow-hidden cursor-pointer border hover:border-primary/30 transition-colors"
+            onClick={() => {
+              const input = document.createElement('input');
+              input.type = 'file';
+              input.accept = 'image/*';
+              input.onchange = (ev) => {
+                const file = (ev.target as HTMLInputElement).files?.[0];
+                if (file && selectedCompagnie) handleLogoUpload(selectedCompagnie.id, file);
+              };
+              input.click();
+            }}
+            title="Cliquez pour modifier le logo"
+          >
+            {selectedCompagnie.logoUrl ? (
+              <img src={selectedCompagnie.logoUrl} alt={selectedCompagnie.nom} className="h-full w-full object-contain p-1" />
+            ) : (
+              <Building2 className="h-6 w-6 text-muted-foreground" />
+            )}
+            <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+              <Upload className="h-4 w-4 text-white" />
+            </div>
+          </div>
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-black tracking-tight">
                 {selectedCompagnie.nom}
               </h1>
-              <span 
-                className="h-4 w-4 rounded-full ring-4 ring-background" 
-                style={{ backgroundColor: selectedCompagnie.couleur, boxShadow: `0 0 10px ${selectedCompagnie.couleur}40` }} 
-              />
             </div>
             <p className="text-muted-foreground font-medium">Tableau de bord opérationnel</p>
           </div>

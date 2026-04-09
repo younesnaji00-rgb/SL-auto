@@ -2,6 +2,7 @@ import React from 'react';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/layout/sidebar';
 import Header from '@/components/layout/header';
+import { OfflineIndicator } from '@/components/offline-indicator';
 
 export default function AppLayout({
   children,
@@ -14,6 +15,7 @@ export default function AppLayout({
         <AppSidebar />
         <SidebarInset className="flex flex-col transition-all duration-300 ease-in-out">
           <Header />
+          <OfflineIndicator />
           <main className="flex-1 overflow-y-auto bg-background/50">
             <div className="p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto">
               {children}

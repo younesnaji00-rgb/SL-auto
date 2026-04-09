@@ -3,16 +3,37 @@ import type { LucideIcon } from 'lucide-react';
 export type Dossier = {
   id: string;
   refExpert: string;
-  assure: any;
-  nature: string;
+  expertRank: string;
   statut: string;
+  createdAt: any;
+  createdBy: string;
+  // Dossier info
+  compagnie: string;
+  typeDossier: string;
+  nature: string;
+  modeDossier: string;
   matricule: string;
+  policeNumber: string;
+  referenceCompagnie: string;
+  repairerType: string;
+  garageName: string;
   dateSinistre: any;
   dateRequete: any;
-  compagnie: string;
-  createdAt: any;
-  vehicule?: any;
-  partieAdverse?: any;
+  // Structured objects
+  assure: { nom: string; prenom: string; telephone: string; whatsapp: string; telephone2: string; email: string; adresse: string; cin: string } | string;
+  vehicule: { marque: string; modele: string; immatriculation: string; serie: string; energie: string; puissance: string; mec: any; km: string };
+  partieAdverse: { assure: string; matricule: string; marque: string; police: string; compagnie: string };
+  // Adverse flat fields
+  adverseNom: string;
+  adverseMatricule: string;
+  adverseCompagnie: string;
+  // Intermédiaire flat fields
+  intermediaireNom: string;
+  intermediaireEmail: string;
+  // Experts
+  experts: { designation1er: string; designation2eme: string; designationArbitrage: string };
+  secondExpertName: string;
+  secondExpertCompany: string;
 };
 
 export const statuses = [

@@ -120,8 +120,8 @@ export default function ModalTelecharger({
               key={docType.id}
               className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
                 selected.has(docType.id)
-                  ? 'border-blue-400 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-primary bg-primary/10'
+                  : 'border-border hover:border-muted-foreground/30'
               }`}
               onClick={() => handleSelectOne(docType.id, !selected.has(docType.id))}
             >

@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, User, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useFirestore, useCollection } from '@/firebase';
-import { collection, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { Badge } from '@/components/ui/badge';
+import { useFirestore, useAuth, useCollection } from '@/firebase';
+import { collection, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,16 +14,29 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DatePicker } from '@/components/ui/date-picker';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
     const db = useFirestore();
+    const auth = useAuth();
     const { toast } = useToast();
-    const reclamationsRef = useMemo(() => collection(db, 'dossiers', dossierId, 'reclamations'), [db, dossierId]);
-    const { data: list, loading } = useCollection(reclamationsRef);
+    const reclamationsQuery = useMemo(() => query(collection(db, 'dossiers', dossierId, 'reclamations'), orderBy('createdAt', 'desc')), [db, dossierId]);
+    const { data: list, loading } = useCollection(reclamationsQuery);
 
     const handleAdd = async () => {
         const id = Date.now().toString();
-        const newRec = { id, date: new Date().toISOString().split('T')[0], objet: '', description: '', statut: 'Ouverte', reponse: '' };
+        const userEmail = auth?.currentUser?.email || 'Admin';
+        const newRec = {
+            id,
+            date: new Date().toISOString().split('T')[0],
+            objet: '',
+            description: '',
+            statut: 'Ouverte',
+            reponse: '',
+            createdAt: serverTimestamp(),
+            createdBy: userEmail,
+        };
         await setDoc(doc(db, 'dossiers', dossierId, 'reclamations', id), newRec);
     };
 
@@ -34,6 +48,12 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
         if (!confirm('Supprimer cette réclamation ?')) return;
         await deleteDoc(doc(db, 'dossiers', dossierId, 'reclamations', id));
         toast({ title: 'Réclamation supprimée' });
+    };
+
+    const formatTimestamp = (ts: any) => {
+        if (!ts) return null;
+        const date = ts.toDate ? ts.toDate() : new Date(ts);
+        return format(date, "d MMM yyyy 'à' HH:mm", { locale: fr });
     };
 
     if (loading) return <Skeleton className="h-[400px] w-full" />;
@@ -51,20 +71,34 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
                     ) : (
                         list.map((r: any) => (
                             <div key={r.id} className="p-4 border rounded-lg space-y-4 group relative">
-                                <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="absolute top-2 right-2 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={() => handleDelete(r.id)}
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                        {r.createdBy && (
+                                            <span className="flex items-center gap-1">
+                                                <User className="h-3 w-3" /> {r.createdBy}
+                                            </span>
+                                        )}
+                                        {r.createdAt && (
+                                            <span className="flex items-center gap-1">
+                                                <Clock className="h-3 w-3" /> {formatTimestamp(r.createdAt)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7"
+                                        onClick={() => handleDelete(r.id)}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="space-y-1">
                                         <Label>Date</Label>
-                                        <DatePicker 
-                                            value={r.date ? new Date(r.date) : null} 
-                                            onChange={d => handleUpdate(r.id, 'date', d ? d.toISOString().split('T')[0] : '')} 
+                                        <DatePicker
+                                            value={r.date ? new Date(r.date) : null}
+                                            onChange={d => handleUpdate(r.id, 'date', d ? d.toISOString().split('T')[0] : '')}
                                         />
                                     </div>
                                     <div className="space-y-1 md:col-span-2"><Label>Objet</Label><Input value={r.objet} onChange={e => handleUpdate(r.id, 'objet', e.target.value)} /></div>

@@ -8,6 +8,7 @@ export type Compagnie = {
   id: string;
   nom: string;
   couleur: string;
+  logoUrl?: string;
   createdAt: any;
 };
 
@@ -31,21 +32,24 @@ export function useCompagnies() {
   useEffect(() => {
     if (!db) return;
     const colRef = collection(db, 'compagnies');
-    const q = query(colRef, orderBy('nom', 'asc'));
+    const q = query(colRef, orderBy('order', 'asc'));
 
     const unsub = onSnapshot(q, async (snap) => {
       if (snap.docs.length === 0 && !seeded.current) {
         seeded.current = true;
-        for (const c of DEFAULT_COMPAGNIES) {
-          await addDoc(colRef, { nom: c.nom, couleur: c.couleur, createdAt: serverTimestamp() });
+        for (let i = 0; i < DEFAULT_COMPAGNIES.length; i++) {
+          const c = DEFAULT_COMPAGNIES[i];
+          // Write both `label` (for useOptions compatibility) and `nom` (for this hook)
+          await addDoc(colRef, { label: c.nom, nom: c.nom, couleur: c.couleur, order: i, active: true, createdAt: serverTimestamp() });
         }
         return;
       }
       setCompagnies(
         snap.docs.map((d) => ({
           id: d.id,
-          nom: d.data().nom ?? '',
+          nom: d.data().label || d.data().nom || '',
           couleur: d.data().couleur ?? '#6b7280',
+          logoUrl: d.data().logoUrl || undefined,
           createdAt: d.data().createdAt,
         }))
       );
@@ -56,9 +60,14 @@ export function useCompagnies() {
 
   const addCompagnie = async (nom: string, couleur?: string) => {
     if (!db || !nom.trim()) return;
-    await addDoc(collection(db, 'compagnies'), {
+    const colRef = collection(db, 'compagnies');
+    // Write both `label` and `nom` for cross-hook compatibility
+    await addDoc(colRef, {
+      label: nom.trim(),
       nom: nom.trim(),
       couleur: couleur ?? '#6b7280',
+      order: compagnies.length,
+      active: true,
       createdAt: serverTimestamp(),
     });
   };
@@ -70,7 +79,10 @@ export function useCompagnies() {
 
   const updateCompagnie = async (id: string, data: Partial<{ nom: string; couleur: string }>) => {
     if (!db) return;
-    await updateDoc(doc(db, 'compagnies', id), data);
+    // Sync both `label` and `nom` fields
+    const update: any = { ...data };
+    if (data.nom) update.label = data.nom;
+    await updateDoc(doc(db, 'compagnies', id), update);
   };
 
   return { compagnies, loading, addCompagnie, deleteCompagnie, updateCompagnie };

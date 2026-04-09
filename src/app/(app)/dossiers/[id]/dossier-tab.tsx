@@ -20,7 +20,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { cn } from '@/lib/utils';
 
 const defaultDossierTypes = ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'];
-const defaultRepairerTypes = ['Particulier', 'Garage'];
+const defaultRepairerTypes = ['Agréé', 'Normal'];
 const dossierModes = ['Procédure normale', 'Forfait', 'Prise en charge', 'Contradictoire', 'Collégiale'];
 
 export default function DossierTab({ dossierId }: { dossierId: string }) {
@@ -69,7 +69,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
     },
     referenceCompagnie: '',
     policeNumber: '',
-    repairerType: 'Particulier',
+    repairerType: 'Agréé',
     garageName: '',
   });
 
@@ -112,7 +112,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
         },
         referenceCompagnie: dossier.referenceCompagnie || '',
         policeNumber: dossier.policeNumber || '',
-        repairerType: dossier.repairerType || 'Particulier',
+        repairerType: dossier.repairerType || 'Agréé',
         garageName: dossier.garageName || '',
       });
     }
@@ -159,7 +159,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                   onValueChange={(v) => setFormValues({...formValues, expertRank: v})}
                   className="flex flex-wrap gap-4"
                 >
-                  {['1er expert', '2eme expert', '3eme expert'].map((rank) => (
+                  {['1er expert', '2eme expert', 'Arbitre'].map((rank) => (
                     <div key={rank} className="flex items-center space-x-2 bg-muted/30 px-3 py-2 rounded-md border border-transparent hover:border-primary/20 transition-colors">
                       <RadioGroupItem value={rank} id={rank} />
                       <Label htmlFor={rank} className="cursor-pointer capitalize">{rank}</Label>

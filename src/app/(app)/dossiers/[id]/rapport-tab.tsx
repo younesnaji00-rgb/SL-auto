@@ -54,6 +54,8 @@ import { cn } from '@/lib/utils';
 import { generateRapportPDF, type Piece } from '@/lib/generate-rapport-pdf';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
+import CarSvgTop from '@/components/car-svg-top';
+import CarSvgBottom from '@/components/car-svg-bottom';
 
 type MOItem = { nbrH: number; pu: number };
 
@@ -205,7 +207,9 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
     let totalHT = 0;
     let totalTVA = 0;
     Object.values(mainOeuvre).forEach(item => {
-      const rowHT = item.nbrH * item.pu;
+      const nbrH = Number(item?.nbrH) || 0;
+      const pu = Number(item?.pu) || 0;
+      const rowHT = nbrH * pu;
       totalHT += rowHT;
       totalTVA += rowHT * 0.20;
     });
@@ -357,12 +361,8 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
       {/* SECTION 1 — FOURNITURE */}
       <Card className="border-primary/10 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/30">
-          <div className="space-y-1">
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              <Calculator className="h-5 w-5 text-primary" />
-              Rapport Chiffrage
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">Fourniture et pièces de rechange.</p>
+          <div>
+            <CardTitle className="text-xl font-bold">Fourniture et pieces de rechange</CardTitle>
           </div>
           <div className="flex items-center gap-4 bg-background px-4 py-2 rounded-lg border shadow-sm">
             <Label className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Type Choc:</Label>
@@ -505,7 +505,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
               {mdoTypes.map((type) => {
                 const key = type.label.toLowerCase();
                 const item = mainOeuvre[key] || { nbrH: 0, pu: 80 };
-                const totalHT = item.nbrH * item.pu;
+                const totalHT = (Number(item.nbrH) || 0) * (Number(item.pu) || 0);
                 const tva = totalHT * 0.20;
                 const ttc = totalHT + tva;
                 return (
@@ -580,18 +580,8 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           <div className="space-y-6">
             <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-l-4 border-blue-500 pl-3">Vue de dessus</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              <div className="relative w-full max-w-[300px] h-[400px] mx-auto">
-                <div className="absolute inset-0 bg-blue-100 dark:bg-blue-900/20 rounded-[3rem] border-2 border-blue-200 dark:border-blue-800" />
-                <div className="absolute inset-x-8 top-8 bottom-8 bg-blue-300 dark:bg-blue-800/40 rounded-[2rem]" />
-                <button onClick={() => handleToggleZone('Toit')} className={cn("absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-3 py-1 rounded border text-[10px] font-black transition-all", pointsChoc.Toit ? "bg-red-500 text-white border-red-600 scale-110 shadow-lg" : "bg-white text-black border-slate-200")}>TOIT</button>
-                <button onClick={() => handleToggleZone('AV')} className={cn("absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded border text-[10px] font-black transition-all", pointsChoc.AV ? "bg-red-500 text-white border-red-600" : "bg-white text-black border-slate-200")}>AV</button>
-                <button onClick={() => handleToggleZone('AR')} className={cn("absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded border text-[10px] font-black transition-all", pointsChoc.AR ? "bg-red-500 text-white border-red-600" : "bg-white text-black border-slate-200")}>AR</button>
-                <button onClick={() => handleToggleZone('LATG')} className={cn("absolute top-1/2 left-[-20px] -translate-y-1/2 px-3 py-1 rounded border text-[10px] font-black transition-all -rotate-90", pointsChoc.LATG ? "bg-red-500 text-white border-red-600" : "bg-white text-black border-slate-200")}>LATG</button>
-                <button onClick={() => handleToggleZone('LATD')} className={cn("absolute top-1/2 right-[-20px] -translate-y-1/2 px-3 py-1 rounded border text-[10px] font-black transition-all rotate-90", pointsChoc.LATD ? "bg-red-500 text-white border-red-600" : "bg-white text-black border-slate-200")}>LATD</button>
-                <button onClick={() => handleToggleZone('AVG')} className={cn("absolute top-12 left-4 px-2 py-1 rounded border text-[10px] font-black transition-all", pointsChoc.AVG ? "bg-red-500 text-white border-red-600" : "bg-white text-black border-slate-200")}>AVG</button>
-                <button onClick={() => handleToggleZone('AVD')} className={cn("absolute top-12 right-4 px-2 py-1 rounded border text-[10px] font-black transition-all", pointsChoc.AVD ? "bg-red-500 text-white border-red-600" : "bg-white text-black border-slate-200")}>AVD</button>
-                <button onClick={() => handleToggleZone('ARG')} className={cn("absolute bottom-12 left-4 px-2 py-1 rounded border text-[10px] font-black transition-all", pointsChoc.ARG ? "bg-red-500 text-white border-red-600" : "bg-white text-black border-slate-200")}>ARG</button>
-                <button onClick={() => handleToggleZone('ARD')} className={cn("absolute bottom-12 right-4 px-2 py-1 rounded border text-[10px] font-black transition-all", pointsChoc.ARD ? "bg-red-500 text-white border-red-600" : "bg-white text-black border-slate-200")}>ARD</button>
+              <div className="mx-auto">
+                <CarSvgTop zones={pointsChoc} onToggleZone={(zone) => handleToggleZone(zone)} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 {Object.keys(pointsChoc).map(zone => (
@@ -606,13 +596,8 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           <div className="space-y-6 pt-12 border-t border-dashed">
             <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-l-4 border-blue-500 pl-3">Vue de dessous</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              <div className="relative w-full max-w-[300px] h-[450px] mx-auto">
-                <div className="absolute inset-0 bg-blue-400 dark:bg-blue-900/40 rounded-[2rem] border-2 border-blue-500 shadow-xl" />
-                <button onClick={() => handleToggleZone('suspensionAV', true)} className={cn("absolute top-8 left-4 px-2 py-1 rounded border text-[9px] font-black transition-all", pointsChocDessous.suspensionAV ? "bg-red-500 text-white border-red-600" : "bg-white text-black border-slate-200")}>SUSPENSION AV</button>
-                <button onClick={() => handleToggleZone('plancher', true)} className={cn("absolute top-1/4 left-1/2 -translate-x-1/2 px-2 py-1 rounded border text-[9px] font-black transition-all", pointsChocDessous.plancher ? "bg-red-500 text-white border-red-600" : "bg-white text-black border-slate-200")}>PLANCHER</button>
-                <button onClick={() => handleToggleZone('transmission', true)} className={cn("absolute top-1/2 left-1/2 -translate-x-1/2 px-2 py-1 rounded border text-[9px] font-black transition-all", pointsChocDessous.transmission ? "bg-red-500 text-white border-red-600" : "bg-white text-black border-slate-200")}>TRANSMISSION</button>
-                <button onClick={() => handleToggleZone('echappement', true)} className={cn("absolute bottom-12 left-1/2 -translate-x-1/2 px-2 py-1 rounded border text-[9px] font-black transition-all", pointsChocDessous.echappement ? "bg-red-500 text-white border-red-600" : "bg-white text-black border-slate-200")}>ECHAPPEMENT</button>
-                <button onClick={() => handleToggleZone('reservoir', true)} className={cn("absolute bottom-12 right-4 px-2 py-1 rounded border text-[9px] font-black transition-all", pointsChocDessous.reservoir ? "bg-red-500 text-white border-red-600" : "bg-white text-black border-slate-200")}>RESERVOIR</button>
+              <div className="mx-auto">
+                <CarSvgBottom zones={pointsChocDessous} onToggleZone={(zone) => handleToggleZone(zone, true)} />
               </div>
               <div className="grid grid-cols-1 gap-3">
                 {Object.keys(pointsChocDessous).map(zone => (

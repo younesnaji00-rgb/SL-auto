@@ -143,7 +143,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="space-y-1">
         <h2 className="text-xl font-bold">État du dossier</h2>
-        <p className="text-sm text-gray-500">Suivez la progression du dossier étape par étape.</p>
+        <p className="text-sm text-muted-foreground">Suivez la progression du dossier étape par étape.</p>
       </div>
 
       {/* SINISTRE DOUTEUX APPROVAL BANNER */}
@@ -156,7 +156,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
               </div>
               <div className="flex-1 space-y-1">
                 <h3 className="font-bold text-red-800 dark:text-red-400">Sinistre Douteux - En attente de validation</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-muted-foreground">
                   Demandé par <span className="font-semibold">{dossier.sinistreDouteux.demandePar || 'N/A'}</span> le {formatDate(dossier.sinistreDouteux.dateDemande)}
                 </p>
                 {dossier.sinistreDouteux.motif && (
@@ -188,27 +188,27 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
 
       {/* TIMELINE */}
       {entries.length === 0 ? (
-        <div className="text-center py-20 text-gray-500 italic">
+        <div className="text-center py-20 text-muted-foreground italic">
           Aucun historique disponible pour ce dossier.
         </div>
       ) : (
         <div className="relative pl-8 pt-4">
           {/* Vertical line */}
-          <div className="absolute left-[5px] top-0 bottom-0 w-0.5 bg-gray-300 dark:bg-gray-600" />
+          <div className="absolute left-[5px] top-0 bottom-0 w-0.5 bg-border" />
           
           <div className="space-y-10">
             {entries.map((entry) => (
               <div key={entry.id} className="relative">
                 {/* Bullet */}
-                <div className="absolute -left-[27px] top-1.5 w-3 h-3 rounded-full bg-gray-400 border-2 border-white dark:border-gray-800 z-10" />
+                <div className="absolute -left-[27px] top-1.5 w-3 h-3 rounded-full bg-muted-foreground border-2 border-background z-10" />
                 
                 <div className="space-y-1">
                   <p className="font-semibold text-base">{entry.action}</p>
-                  <p className="text-sm text-gray-500">
-                    {formatDate(entry.date)} par <span className="font-bold text-gray-700 dark:text-gray-300">{entry.user}</span>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDate(entry.date)} par <span className="font-bold text-foreground">{entry.user}</span>
                   </p>
                   {entry.details && (
-                    <div className="mt-2 pl-4 border-l-2 border-blue-400 text-sm italic text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/30 py-2 rounded-r-md">
+                    <div className="mt-2 pl-4 border-l-2 border-primary/40 text-sm italic text-muted-foreground bg-muted/50 py-2 rounded-r-md">
                       &quot;{entry.details}&quot;
                     </div>
                   )}

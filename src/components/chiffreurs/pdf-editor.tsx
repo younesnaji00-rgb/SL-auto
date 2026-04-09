@@ -32,6 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { enqueueUpload } from '@/lib/offline/upload-queue';
 import { cn } from '@/lib/utils';
 
 type Tool = 'select' | 'line' | 'text';
@@ -223,18 +224,44 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
       
       const pdfBlob = pdf.output('blob');
       const storagePath = `chiffrages/${chiffrageId}/correction_manual_${Date.now()}.pdf`;
-      const storageRef = ref(storage!, storagePath);
-      
-      await uploadBytes(storageRef, pdfBlob, { contentType: 'application/pdf' });
-      const exportUrl = await getDownloadURL(storageRef);
 
-      const docRef = doc(db!, 'chiffrages', chiffrageId);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        const updatedFiles = [...(data.files || [])];
-        updatedFiles[fileIndex] = { ...updatedFiles[fileIndex], pdfUrl: exportUrl, status: 'done', annotations };
-        await updateDoc(docRef, { files: updatedFiles, status: 'done', updatedAt: serverTimestamp() });
+      if (navigator.onLine) {
+        try {
+          const storageRef = ref(storage!, storagePath);
+          await uploadBytes(storageRef, pdfBlob, { contentType: 'application/pdf' });
+          const exportUrl = await getDownloadURL(storageRef);
+
+          const docRef = doc(db!, 'chiffrages', chiffrageId);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            const data = snap.data();
+            const updatedFiles = [...(data.files || [])];
+            updatedFiles[fileIndex] = { ...updatedFiles[fileIndex], pdfUrl: exportUrl, status: 'done', annotations };
+            await updateDoc(docRef, { files: updatedFiles, status: 'done', updatedAt: serverTimestamp() });
+          }
+        } catch {
+          await enqueueUpload({
+            fileBlob: pdfBlob,
+            fileName: `correction_manual_${Date.now()}.pdf`,
+            fileSize: pdfBlob.size,
+            contentType: 'application/pdf',
+            storagePath,
+            firestoreDocPath: 'chiffrages',
+            firestoreMetadata: { _chiffrageId: chiffrageId, _fileIndex: fileIndex, _type: 'chiffrage-correction', annotations },
+          });
+          toast({ title: 'Fichier mis en file d\'attente', description: 'Il sera synchronisé une fois en ligne.' });
+        }
+      } else {
+        await enqueueUpload({
+          fileBlob: pdfBlob,
+          fileName: `correction_manual_${Date.now()}.pdf`,
+          fileSize: pdfBlob.size,
+          contentType: 'application/pdf',
+          storagePath,
+          firestoreDocPath: 'chiffrages',
+          firestoreMetadata: { _chiffrageId: chiffrageId, _fileIndex: fileIndex, _type: 'chiffrage-correction', annotations },
+        });
+        toast({ title: 'Fichier mis en file d\'attente', description: 'Il sera synchronisé une fois en ligne.' });
       }
 
       const a = document.createElement('a');
@@ -258,7 +285,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-[98vw] w-full h-[98vh] flex flex-col p-0 gap-0 border-none shadow-2xl overflow-hidden rounded-none bg-slate-100">
-        <DialogHeader className="px-6 py-3 border-b bg-white shrink-0 z-50 shadow-sm">
+        <DialogHeader className="px-6 py-3 border-b bg-card shrink-0 z-50 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <DialogTitle className="text-lg font-bold flex items-center gap-2">
@@ -448,7 +475,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-2 border-t bg-white shrink-0">
+        <DialogFooter className="px-6 py-2 border-t bg-card shrink-0">
           <div className="flex items-center justify-between w-full">
             <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest opacity-40">
               DashFlow Canvas Engine — Mode "Correction Native" Manuel

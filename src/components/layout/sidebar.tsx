@@ -103,7 +103,11 @@ const AppSidebar = () => {
                           <SidebarMenuSubItem key={c.id}>
                             <SidebarMenuSubButton asChild isActive={pathname.includes(`selected=${c.id}`)}>
                               <NextLink href={`/compagnies?selected=${c.id}`} className="group flex items-center gap-2">
-                                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: c.couleur }} />
+                                {c.logoUrl ? (
+                                  <img src={c.logoUrl} alt="" className="h-4 w-4 rounded-sm object-contain shrink-0" />
+                                ) : (
+                                  <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: c.couleur }} />
+                                )}
                                 <span className="flex-1 truncate">{c.nom}</span>
                                 {!isCollapsed && (
                                   <button

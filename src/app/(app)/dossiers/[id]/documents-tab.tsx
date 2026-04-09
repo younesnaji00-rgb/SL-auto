@@ -1,14 +1,15 @@
 'use client';
 
 import React, { useState, useMemo, useRef } from 'react';
-import { 
-  Upload, 
-  Download, 
-  Trash2, 
+import {
+  Upload,
+  Download,
+  Trash2,
   Filter,
   Loader2,
   FileIcon,
-  Settings
+  Settings,
+  Eye,
 } from 'lucide-react';
 import { 
   Table, 
@@ -46,12 +47,11 @@ import {
   doc, 
   serverTimestamp 
 } from 'firebase/firestore';
-import { 
-  ref, 
-  uploadBytes, 
-  getDownloadURL, 
-  deleteObject 
+import {
+  ref,
+  deleteObject
 } from 'firebase/storage';
+import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -77,6 +77,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   const [filterType, setFilterType] = useState<string>('all');
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{ url: string; nom: string } | null>(null);
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadType, setUploadType] = useState<string>('');
@@ -129,23 +130,23 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
     try {
       const timestamp = Date.now();
       const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${selectedFile.name}`;
-      const storageRef = ref(storage, storagePath);
 
-      // Direct upload
-      await uploadBytes(storageRef, selectedFile);
-      
-      // Get URL
-      const downloadURL = await getDownloadURL(storageRef);
-      
-      // Save metadata
-      await addDoc(collection(db, 'dossiers', dossierId, 'documents'), {
-        nom: selectedFile.name,
-        type: uploadType,
-        url: downloadURL,
-        taille: selectedFile.size,
-        uploadePar: userEmail,
-        dateUpload: serverTimestamp(),
+      // Upload with offline support
+      await uploadFileWithOfflineSupport({
+        storage,
+        db,
+        file: selectedFile,
+        fileName: selectedFile.name,
         storagePath,
+        firestoreDocPath: `dossiers/${dossierId}/documents`,
+        firestoreMetadata: {
+          nom: selectedFile.name,
+          type: uploadType,
+          taille: selectedFile.size,
+          uploadePar: userEmail,
+          storagePath,
+          _localCreatedAt: timestamp,
+        },
       });
 
       await logHistorique(db, dossierId, 'Upload document', userEmail, `Document "${selectedFile.name}" uploadé.`, 'document');
@@ -301,6 +302,9 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                       <div className="flex items-center gap-2">
                         <FileIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <span className="truncate max-w-[200px]">{item.nom || item.fileName}</span>
+                        {item.pendingUpload && (
+                          <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">En attente</Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -321,8 +325,19 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                           variant="ghost"
                           size="icon"
                           type="button"
+                          onClick={() => !item.pendingUpload && item.url && setPreviewDoc({ url: item.url, nom: item.nom || 'document' })}
+                          title={item.pendingUpload ? 'En attente de synchronisation' : 'Apercu'}
+                          disabled={!!item.pendingUpload}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          type="button"
                           onClick={() => handleDownload(item.url, item.nom || 'document')}
-                          title="Télécharger"
+                          title={item.pendingUpload ? 'En attente de synchronisation' : 'Telecharger'}
+                          disabled={!!item.pendingUpload}
                         >
                           <Download className="h-4 w-4" />
                         </Button>
@@ -336,8 +351,8 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                             e.stopPropagation();
                             handleDelete(item);
                           }}
-                          disabled={isDeleting === item.id}
-                          title="Supprimer"
+                          disabled={isDeleting === item.id || !!item.pendingUpload}
+                          title={item.pendingUpload ? 'En attente de synchronisation' : 'Supprimer'}
                         >
                           {isDeleting === item.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -408,6 +423,24 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Preview Modal */}
+      {previewDoc && (
+        <Dialog open onOpenChange={() => setPreviewDoc(null)}>
+          <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-4 py-3 border-b shrink-0">
+              <DialogTitle className="text-sm truncate">{previewDoc.nom}</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
+              {previewDoc.nom.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                <img src={previewDoc.url} className="max-w-full max-h-full object-contain" alt={previewDoc.nom} />
+              ) : (
+                <iframe src={previewDoc.url} className="w-full h-full border-none" title={previewDoc.nom} />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

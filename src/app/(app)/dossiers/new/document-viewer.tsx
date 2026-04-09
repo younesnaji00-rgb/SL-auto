@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -26,11 +26,23 @@ export default function DocumentViewer({ files, currentStep, visible, onToggle }
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [zoom, setZoom] = useState(100);
 
+  // Memoize blob URLs so they don't get recreated on every render
+  const blobUrls = useMemo(() => {
+    return files.map(f => {
+      if (f.file.type === 'application/pdf') {
+        return URL.createObjectURL(f.file);
+      }
+      return f.preview;
+    });
+  }, [files]);
+
   if (files.length === 0) return null;
 
   const currentFile = files[currentFileIndex];
   const isPdf = currentFile?.file.type === 'application/pdf';
   const labels = stepFieldLabels[currentStep] || [];
+  const currentUrl = blobUrls[currentFileIndex] || '';
+  const scale = zoom / 100;
 
   return (
     <div className="relative h-full flex flex-col">
@@ -47,11 +59,11 @@ export default function DocumentViewer({ files, currentStep, visible, onToggle }
       </Button>
 
       {visible && (
-        <div className="flex flex-col h-full border rounded-lg bg-card shadow-sm overflow-hidden">
+        <div className="flex flex-col border rounded-lg bg-card shadow-sm overflow-hidden" style={{ height: 'calc(100vh - 120px)' }}>
           {/* Header */}
           <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30 shrink-0">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold truncate max-w-[150px]">{currentFile?.file.name}</span>
+              <span className="text-xs font-semibold truncate max-w-[200px]">{currentFile?.file.name}</span>
               <span className="text-[10px] text-muted-foreground">
                 {currentFileIndex + 1}/{files.length}
               </span>
@@ -90,28 +102,37 @@ export default function DocumentViewer({ files, currentStep, visible, onToggle }
             </div>
           )}
 
-          {/* Document Display */}
-          <div className="flex-1 overflow-auto bg-muted/10 p-2">
-            <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center', transition: 'transform 0.2s' }}>
-              {isPdf ? (
-                <iframe
-                  src={URL.createObjectURL(currentFile.file)}
-                  className="w-full border-0 rounded"
-                  style={{ height: '600px' }}
-                  title="Document PDF"
-                />
-              ) : currentFile.preview ? (
+          {/* Document Display — overflow scroll to handle zoom without cropping */}
+          <div className="flex-1 overflow-auto bg-muted/10">
+            {isPdf ? (
+              <iframe
+                src={currentUrl}
+                className="border-0"
+                style={{
+                  width: `${scale * 100}%`,
+                  height: `${scale * 100}%`,
+                  minHeight: '100%',
+                  transformOrigin: 'top left',
+                }}
+                title="Document PDF"
+              />
+            ) : currentFile.preview ? (
+              <div className="p-2">
                 <img
-                  src={currentFile.preview}
+                  src={currentUrl}
                   alt="Document"
-                  className="w-full rounded shadow-sm"
+                  className="rounded shadow-sm"
+                  style={{
+                    width: `${scale * 100}%`,
+                    transformOrigin: 'top left',
+                  }}
                 />
-              ) : (
-                <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
-                  Aperçu non disponible
-                </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
+                Aperçu non disponible
+              </div>
+            )}
           </div>
 
           {/* Current Step Field Indicators */}

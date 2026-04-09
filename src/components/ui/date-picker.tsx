@@ -44,21 +44,25 @@ export function DatePicker({
             className
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4 text-blue-600 dark:text-blue-400" />
+          <CalendarIcon className="mr-2 h-4 w-4 text-primary shrink-0" />
           {value
             ? format(value, "dd MMMM yyyy", { locale: fr })
             : <span>{placeholder}</span>}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent
+        className="w-auto p-0 shadow-lg border"
+        align="start"
+        sideOffset={8}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <Calendar
-          mode="single"
           selected={value || undefined}
           onSelect={(date) => {
             onChange?.(date || null)
             setOpen(false)
           }}
-          initialFocus
         />
       </PopoverContent>
     </Popover>

@@ -32,7 +32,7 @@ import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
 
-const defaultMissionTypes = ['Expertise', 'Constat', 'Contre-expertise', 'Visite technique'];
+const defaultRDVTypes = ['Avant', 'En cours', 'Après'];
 const defaultAgents = ['Agent 1', 'Agent 2'];
 
 type ModalPlanificationProps = {
@@ -48,8 +48,8 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
-  const { options: dbMissionTypes } = useOptions('options_types_mission', defaultMissionTypes);
-  const missionTypes = useMemo(() => dbMissionTypes.length > 0 ? dbMissionTypes : defaultMissionTypes.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbMissionTypes]);
+  const { options: dbRDVTypes } = useOptions('options_types_rdv', defaultRDVTypes);
+  const rdvTypes = useMemo(() => dbRDVTypes.length > 0 ? dbRDVTypes : defaultRDVTypes.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbRDVTypes]);
 
   const { options: dbAgents } = useOptions('options_agents', defaultAgents);
   const agents = useMemo(() => dbAgents.length > 0 ? dbAgents : defaultAgents.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbAgents]);
@@ -75,7 +75,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
       }
       setFormData({
         agentTerrain: initialData.agentTerrain || '',
-        typeMission: initialData.typeMission || 'Expertise',
+        typeMission: initialData.typeMission || 'Avant',
         dateRDV,
         timeRDV,
         zone: initialData.zone || '',
@@ -83,7 +83,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         observation: initialData.observation || '',
       });
     } else if (open) {
-      setFormData({ agentTerrain: '', typeMission: 'Expertise', dateRDV: null, timeRDV: '09:00', zone: '', adresse: '', observation: '' });
+      setFormData({ agentTerrain: '', typeMission: 'Avant', dateRDV: null, timeRDV: '09:00', zone: '', adresse: '', observation: '' });
     }
   }, [initialData, open]);
 
@@ -158,13 +158,13 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Type de mission</Label>
-                <OptionsManagerModal collectionName="options_types_mission" title="Types de mission" defaultValues={defaultMissionTypes} />
+                <Label>Type de RDV</Label>
+                <OptionsManagerModal collectionName="options_types_rdv" title="Types de RDV" defaultValues={defaultRDVTypes} />
               </div>
               <Select value={formData.typeMission} onValueChange={(v) => setFormData({...formData, typeMission: v})}>
                 <SelectTrigger><SelectValue placeholder="Choisir un type" /></SelectTrigger>
                 <SelectContent>
-                  {missionTypes.map(type => (
+                  {rdvTypes.map(type => (
                     <SelectItem key={type.id} value={type.label}>{type.label}</SelectItem>
                   ))}
                 </SelectContent>

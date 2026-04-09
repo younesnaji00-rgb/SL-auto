@@ -1,19 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   type DocumentReference,
   onSnapshot,
-  type DocumentSnapshot,
   type DocumentData,
 } from 'firebase/firestore';
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
+import { subscribe } from './listener-cache';
 
 export function useDoc<T = DocumentData>(ref: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const pathRef = useRef<string>('');
 
   useEffect(() => {
     if (!ref) {
@@ -21,27 +22,45 @@ export function useDoc<T = DocumentData>(ref: DocumentReference<T> | null) {
       return;
     }
 
-    setLoading(true);
-    const unsubscribe = onSnapshot(
-      ref,
-      (doc: DocumentSnapshot<T>) => {
-        if (doc.exists()) {
-          setData({ ...doc.data(), id: doc.id } as T);
-        } else {
-          setData(null);
-        }
+    const key = `doc:${ref.path}`;
+    pathRef.current = ref.path;
+
+    const { unsubscribe, cachedData, hasCache } = subscribe<T | null>(
+      key,
+      (onData, onError) =>
+        onSnapshot(
+          ref,
+          (doc) => {
+            if (doc.exists()) {
+              onData({ ...doc.data(), id: doc.id } as T);
+            } else {
+              onData(null);
+            }
+          },
+          (serverError) => {
+            const permissionError = new FirestorePermissionError({
+              path: ref.path,
+              operation: 'get',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            onError(serverError);
+          }
+        ),
+      (d) => {
+        setData(d);
         setLoading(false);
       },
-      async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: ref.path,
-          operation: 'get',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        setError(serverError);
+      (err) => {
+        setError(err);
         setLoading(false);
       }
     );
+
+    // If we got cached data from a shared listener, use it immediately
+    if (hasCache) {
+      setData(cachedData ?? null);
+      setLoading(false);
+    }
 
     return () => unsubscribe();
   }, [ref]);

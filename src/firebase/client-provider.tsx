@@ -21,12 +21,22 @@ export function FirebaseClientProvider({ children }: { children: React.ReactNode
     const { app, db, auth, storage } = initializeFirebase();
     setInstances({ app, db, auth, storage });
     
-    // Trigger global seed once on startup
-    seedAllOptions(db).catch(err => console.warn('Global seed failed:', err));
+    // Trigger global seed once on startup (skip when offline to prevent duplicate seeds)
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      seedAllOptions(db).catch(err => console.warn('Global seed failed:', err));
+    }
   }, []);
 
   if (!instances) {
-    return null; // Or a loading spinner
+    // Show minimal shell while Firebase initializes — prevents blank screen flash
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-xs text-muted-foreground animate-pulse">Initialisation...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -170,7 +170,7 @@ export default function ModalPlanificationHistory({ open, onOpenChange, dossierI
                         <p className="flex items-center gap-2"><Calendar className="h-3 w-3" /> {formatTimestamp(entry.dateRDV)}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Mission</p>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Type de RDV</p>
                         <p className="capitalize">{entry.typeMission}</p>
                       </div>
                       <div className="space-y-1">

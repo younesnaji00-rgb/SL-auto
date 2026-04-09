@@ -1,15 +1,16 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Upload, 
-  Loader2, 
-  ChevronDown, 
-  ChevronRight, 
-  Download, 
-  Pencil, 
-  X, 
-  Check 
+import {
+  Upload,
+  Loader2,
+  ChevronDown,
+  ChevronRight,
+  Download,
+  Pencil,
+  X,
+  Check,
+  Eye,
 } from 'lucide-react';
 import { 
   collection, 
@@ -20,18 +21,23 @@ import {
   serverTimestamp, 
   updateDoc 
 } from 'firebase/firestore';
-import { 
-  ref, 
-  uploadBytes, 
-  getDownloadURL, 
-  deleteObject 
+import {
+  ref,
+  deleteObject
 } from 'firebase/storage';
+import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { useFirestore, useAuth, useStorage } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { logHistorique } from './log-historique';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
@@ -69,6 +75,7 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [previewPhoto, setPreviewPhoto] = useState<Photo | null>(null);
 
   const fileInputRefs = useRef<Record<PhotoCategory, HTMLInputElement | null>>({
     avant: null,
@@ -108,18 +115,23 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
       for (const file of Array.from(files)) {
         const timestamp = Date.now();
         const storagePath = `dossiers/${dossierId}/photos/${cat}/${timestamp}_${file.name}`;
-        const storageRef = ref(storage, storagePath);
-        const snap = await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(snap.ref);
-        await addDoc(collection(db, 'dossiers', dossierId, 'photos'), {
-          url,
-          name: file.name,
-          category: cat,
-          uploadedAt: serverTimestamp(),
-          uploadedBy: userEmail,
+        await uploadFileWithOfflineSupport({
+          storage,
+          db,
+          file,
+          fileName: file.name,
           storagePath,
+          firestoreDocPath: `dossiers/${dossierId}/photos`,
+          firestoreMetadata: {
+            name: file.name,
+            category: cat,
+            uploadedAt: serverTimestamp(),
+            uploadedBy: userEmail,
+            storagePath,
+            _localCreatedAt: timestamp,
+          },
         });
-        
+
         await logHistorique(db, dossierId, 'Upload photo', userEmail, `Photo "${file.name}" uploadée dans la section ${cat}.`, 'photo');
       }
       toast({ title: 'Photo(s) uploadée(s) avec succès' });
@@ -260,21 +272,40 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
                         <div key={photo.id} className="group relative bg-muted/30 rounded-md border border-border overflow-hidden transition-all hover:shadow-md">
                           {/* Thumbnail */}
                           <div className="aspect-square w-full relative overflow-hidden bg-black/5">
+                            {photo.pendingUpload ? (
+                              <div className="w-full h-full flex flex-col items-center justify-center text-amber-600 bg-amber-50 dark:bg-amber-950/30">
+                                <Upload className="h-8 w-8 mb-2 opacity-60" />
+                                <span className="text-xs font-medium">En attente</span>
+                              </div>
+                            ) : (
                             <img
                               src={photo.url}
                               alt={photo.name}
+                              loading="lazy"
+                              decoding="async"
                               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                             />
+                            )}
                             
+                            {/* Click to preview */}
+                            {!photo.pendingUpload && (
+                              <div
+                                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                                onClick={() => setPreviewPhoto(photo)}
+                              >
+                                <Eye className="h-6 w-6 text-white" />
+                              </div>
+                            )}
+
                             {/* Hover Actions */}
                             {!isEditing && (
-                              <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                 <Button
                                   size="icon"
                                   variant="secondary"
                                   className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
                                   onClick={() => handleDownload(photo)}
-                                  title="Télécharger"
+                                  title="Telecharger"
                                 >
                                   <Download className="h-3.5 w-3.5" />
                                 </Button>
@@ -352,6 +383,20 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
           </div>
         );
       })}
+
+      {/* Preview Modal */}
+      {previewPhoto && (
+        <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
+          <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-4 py-3 border-b shrink-0">
+              <DialogTitle className="text-sm truncate">{previewPhoto.name}</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
+              <img src={previewPhoto.url} className="max-w-full max-h-full object-contain" alt={previewPhoto.name} />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

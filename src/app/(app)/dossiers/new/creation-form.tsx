@@ -1,18 +1,19 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useNetworkStatus } from '@/hooks/use-network-status';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Check, AlertCircle, Loader2, ScanSearch, SkipForward } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useFirebaseApp, useAuth } from '@/firebase';
+import { useFirestore, useFirebaseApp, useAuth, useUser } from '@/firebase';
 import { getStorage } from 'firebase/storage';
 
 import {
@@ -54,13 +55,13 @@ const formSchema = z.object({
   model: z.string().optional(),
   registration: z.string().optional(),
   registrationW: z.string().optional(),
-  dateOfLoss: z.date().optional().nullable(),
-  dateOfMEC: z.date().optional().nullable(),
+  dateOfLoss: z.any().optional(),
+  dateOfMEC: z.any().optional(),
   // Intermédiaire & Refs
   intermediaryName: z.string().optional(),
   intermediaryEmail: z.string().optional(),
   refExpert: z.string().optional(),
-  dateOfRequest: z.date().optional().nullable(),
+  dateOfRequest: z.any().optional(),
   companyRef: z.string().optional(),
   policyNumber: z.string().optional(),
   repairerType: z.string().optional(),
@@ -78,7 +79,7 @@ const formSchema = z.object({
   // Planification
   planAgentTerrain: z.string().optional(),
   planTypeMission: z.string().optional(),
-  planDateRDV: z.date().optional().nullable(),
+  planDateRDV: z.any().optional(),
   planTimeRDV: z.string().optional(),
   planZone: z.string().optional(),
   planAdresse: z.string().optional(),
@@ -109,20 +110,23 @@ export default function DossierCreationForm() {
   const [missingFieldsList, setMissingFieldsList] = useState<string[]>([]);
   const [tempFormData, setTempFormData] = useState<DossierFormData | null>(null);
 
-  // Document state - split into scan vs normal
+  // Document state
   const [scanFiles, setScanFiles] = useState<UploadedFile[]>([]);
-  const [normalFiles, setNormalFiles] = useState<UploadedFile[]>([]);
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
   const [showDocViewer, setShowDocViewer] = useState(true);
   const [scanComplete, setScanComplete] = useState(false);
+
+  const sectionRefs = useRef<(HTMLElement | null)[]>([null, null, null, null]);
 
   const { toast } = useToast();
   const db = useFirestore();
   const app = useFirebaseApp();
   const auth = useAuth();
+  const { user: currentUser, loading: authLoading } = useUser();
   const router = useRouter();
+  const isOnline = useNetworkStatus();
 
-  const allFiles = [...scanFiles, ...normalFiles];
+  const allFiles = scanFiles;
 
   const form = useForm<DossierFormData>({
     resolver: zodResolver(formSchema),
@@ -149,7 +153,7 @@ export default function DossierCreationForm() {
       designation2emeExpert: '',
       designationExpertArbitrage: '',
       planAgentTerrain: '',
-      planTypeMission: 'Expertise',
+      planTypeMission: 'Avant',
       planTimeRDV: '09:00',
       planZone: '',
       planAdresse: '',
@@ -157,8 +161,42 @@ export default function DossierCreationForm() {
     },
   });
 
-  const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, steps.length));
-  const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
+  // ----- IntersectionObserver to track active section -----
+  useEffect(() => {
+    const observers: IntersectionObserver[] = [];
+
+    const handleIntersection = (entries: IntersectionObserverEntry[]) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          const id = entry.target.getAttribute('id');
+          if (id) {
+            const stepNum = parseInt(id.replace('step-', ''), 10);
+            if (!isNaN(stepNum)) {
+              setCurrentStep(stepNum);
+            }
+          }
+        }
+      }
+    };
+
+    const observer = new IntersectionObserver(handleIntersection, {
+      rootMargin: '-20% 0px -60% 0px',
+      threshold: 0,
+    });
+
+    sectionRefs.current.forEach((ref) => {
+      if (ref) observer.observe(ref);
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  // ----- Click to scroll -----
+  const scrollToStep = (stepId: number) => {
+    document.getElementById(`step-${stepId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   // ----- AI SCAN (only scan files) -----
   const handleScanDocuments = useCallback(async () => {
@@ -211,14 +249,16 @@ export default function DossierCreationForm() {
       toast({ variant: 'destructive', title: 'Erreur de scan', description: error.message || 'Erreur.' });
     } finally {
       setIsScanning(false);
-      setCurrentStep(2);
+      // After scan, scroll to the Informations section
+      document.getElementById('step-2')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [scanFiles, form, toast]);
 
   const handleSkipScan = () => {
     setScanComplete(false);
     setAutoFilledFields(new Set());
-    setCurrentStep(2);
+    // Scroll to Informations section
+    document.getElementById('step-2')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   // ----- SUBMISSION -----
@@ -235,6 +275,7 @@ export default function DossierCreationForm() {
   };
 
   const handleSubmitClick = (data: DossierFormData) => {
+    console.log('[DossierCreation] handleSubmitClick called', data);
     const missing = checkEmptyFields(data);
     if (missing.length > 0) {
       setMissingFieldsList(missing);
@@ -246,53 +287,55 @@ export default function DossierCreationForm() {
   };
 
   const executeCreation = async (data: DossierFormData) => {
-    if (!db || !app || !auth?.currentUser) return;
+    if (!db || !app) {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Services Firebase non disponibles. Rechargez la page.' });
+      return;
+    }
     setIsSubmitting(true);
     const storage = getStorage(app);
-    const userEmail = auth.currentUser.email || 'Admin';
-    const userId = auth.currentUser.uid;
+    const userEmail = currentUser?.email || auth?.currentUser?.email || 'Admin';
+    const userId = currentUser?.uid || auth?.currentUser?.uid || 'system';
 
     try {
       const refCode = data.refExpert || `EXP-${Date.now().toString().slice(-6)}`;
 
-      const dossierData = {
-        ...data,
-        dateOfLoss: data.dateOfLoss ? data.dateOfLoss.toISOString() : null,
-        dateOfRequest: data.dateOfRequest ? data.dateOfRequest.toISOString() : null,
-        dateOfMEC: data.dateOfMEC?.toISOString() || null,
+      // Build clean dossier document — only structured fields, no orphan form fields
+      const cleanDossierData: Record<string, any> = {
         statut: 'Création de mission',
         createdAt: serverTimestamp(),
         createdBy: userId,
         refExpert: refCode,
-        // Structured fields for unified information tab
-        assure: { nom: data.insuredName || '', prenom: '', telephone: data.insuredPhone || '', whatsapp: data.insuredWhatsapp || '', telephone2: data.insuredOtherPhone || '', email: '', adresse: '', cin: '' },
-        nature: data.nature || '',
+        expertRank: data.expertRank || '1er expert',
+        secondExpertName: data.secondExpertName || '',
+        secondExpertCompany: data.secondExpertCompany || '',
+        // Dossier info
+        compagnie: data.company || '',
         typeDossier: data.dossierType || '',
+        nature: data.nature || '',
         modeDossier: data.dossierMode || '',
         matricule: data.registration || '',
         policeNumber: data.policyNumber || '',
         referenceCompagnie: data.companyRef || '',
-        dateSinistre: data.dateOfLoss ? data.dateOfLoss.toISOString() : null,
-        dateRequete: data.dateOfRequest ? data.dateOfRequest.toISOString() : null,
-        compagnie: data.company || '',
-        vehicule: { marque: data.brand || '', modele: data.model || '', immatriculation: data.registration || '', serie: '', energie: '', puissance: '', mec: data.dateOfMEC?.toISOString() || '', km: '' },
-        // Partie adverse (flat fields for unified tab)
+        repairerType: data.repairerType || '',
+        garageName: data.garageName || '',
+        // Dates as Firestore Timestamps for consistency
+        dateSinistre: data.dateOfLoss ? Timestamp.fromDate(data.dateOfLoss instanceof Date ? data.dateOfLoss : new Date(data.dateOfLoss)) : null,
+        dateRequete: data.dateOfRequest ? Timestamp.fromDate(data.dateOfRequest instanceof Date ? data.dateOfRequest : new Date(data.dateOfRequest)) : null,
+        // Assuré (structured)
+        assure: { nom: data.insuredName || '', prenom: '', telephone: data.insuredPhone || '', whatsapp: data.insuredWhatsapp || '', telephone2: data.insuredOtherPhone || '', email: '', adresse: '', cin: '' },
+        // Véhicule (structured)
+        vehicule: { marque: data.brand || '', modele: data.model || '', immatriculation: data.registration || '', serie: '', energie: '', puissance: '', mec: data.dateOfMEC ? (data.dateOfMEC instanceof Date ? data.dateOfMEC : new Date(data.dateOfMEC)).toISOString() : '', km: '' },
+        // Partie adverse (flat + structured for compatibility)
         adverseNom: data.adversaireAssure || '',
         adverseMatricule: data.adversaireMatricule || '',
         adverseCompagnie: data.adversaireCompagnie || '',
         partieAdverse: { assure: data.adversaireAssure || '', matricule: data.adversaireMatricule || '', marque: data.adversaireMarque || '', police: data.adversairePolice || '', compagnie: data.adversaireCompagnie || '' },
-        // Intermédiaire (flat fields for unified tab)
+        // Intermédiaire (flat fields matching information-tab reads)
         intermediaireNom: data.intermediaryName || '',
         intermediaireEmail: data.intermediaryEmail || '',
         // Expert designations
         experts: { designation1er: data.designation1erExpert || '', designation2eme: data.designation2emeExpert || '', designationArbitrage: data.designationExpertArbitrage || '' },
-        expertRank: data.expertRank || '1er expert',
-        secondExpertName: data.secondExpertName || '',
-        secondExpertCompany: data.secondExpertCompany || '',
       };
-
-      // Remove plan fields from dossier doc (they go in subcollection)
-      const { planAgentTerrain, planTypeMission, planDateRDV, planTimeRDV, planZone, planAdresse, planObservation, ...cleanDossierData } = dossierData as any;
 
       const docRef = await addDoc(collection(db, 'dossiers'), cleanDossierData);
       const dossierId = docRef.id;
@@ -318,7 +361,7 @@ export default function DossierCreationForm() {
         }
         await addDoc(collection(db, 'dossiers', dossierId, 'planifications'), {
           agentTerrain: data.planAgentTerrain || '',
-          typeMission: data.planTypeMission || 'Expertise',
+          typeMission: data.planTypeMission || 'Avant',
           dateRDV: finalRDV,
           zone: data.planZone || '',
           adresse: data.planAdresse || '',
@@ -331,20 +374,25 @@ export default function DossierCreationForm() {
         });
       }
 
-      // Upload ALL files (scan + normal)
+      // Upload ALL files (scan + normal) — with offline support
       for (const uf of allFiles) {
-        const storagePath = `dossiers/${dossierId}/documents/${uf.file.name}`;
-        const fileRef = ref(storage, storagePath);
-        await uploadBytes(fileRef, uf.file);
-        const downloadUrl = await getDownloadURL(fileRef);
-        await addDoc(collection(db, 'dossiers', dossierId, 'documents'), {
-          nom: uf.file.name,
-          type: 'Autre',
-          url: downloadUrl,
-          taille: uf.file.size,
-          uploadePar: userEmail,
-          dateUpload: serverTimestamp(),
+        const timestamp = Date.now();
+        const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${uf.file.name}`;
+        await uploadFileWithOfflineSupport({
+          storage,
+          db,
+          file: uf.file,
+          fileName: uf.file.name,
           storagePath,
+          firestoreDocPath: `dossiers/${dossierId}/documents`,
+          firestoreMetadata: {
+            nom: uf.file.name,
+            type: 'Autre',
+            taille: uf.file.size,
+            uploadePar: userEmail,
+            storagePath,
+            _localCreatedAt: timestamp,
+          },
         });
       }
 
@@ -359,101 +407,178 @@ export default function DossierCreationForm() {
   };
 
   const hasDocuments = allFiles.length > 0;
-  const showSideViewer = hasDocuments && currentStep >= 2 && showDocViewer;
+  const showSideViewer = hasDocuments && showDocViewer;
 
   return (
     <FormProvider {...form}>
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Stepper */}
-        <div className="relative flex justify-between px-4 max-w-3xl mx-auto">
-          <div className="absolute top-5 left-8 right-8 h-0.5 bg-muted -z-10" />
-          {steps.map((step) => {
-            const isCompleted = currentStep > step.id;
-            const isActive = currentStep === step.id;
-            return (
-              <button key={step.id} type="button" onClick={() => setCurrentStep(step.id)}
-                className="flex flex-col items-center gap-2 bg-background group">
-                <div className={cn(
-                  "w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all duration-300 bg-background",
-                  isCompleted && "bg-blue-600 border-blue-600 text-white",
-                  isActive && "border-blue-600 ring-4 ring-blue-600/10",
-                  !isActive && !isCompleted && "border-muted text-muted-foreground"
-                )}>
-                  {isCompleted ? <Check className="w-6 h-6" /> : <span>{step.id}</span>}
-                </div>
-                <span className={cn("text-xs font-medium transition-colors hidden sm:block", isActive ? "text-blue-600" : "text-muted-foreground")}>
-                  {step.name}
-                </span>
-              </button>
-            );
-          })}
+      <div>
+        {/* Sticky Stepper Navigation — full-width, outside max-w container */}
+        <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b py-4 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8">
+          <div className="relative flex justify-between px-4 max-w-3xl mx-auto">
+            <div className="absolute top-5 left-8 right-8 h-0.5 bg-muted -z-10" />
+            {steps.map((step) => {
+              const isCompleted = currentStep > step.id;
+              const isActive = currentStep === step.id;
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => scrollToStep(step.id)}
+                  className="flex flex-col items-center gap-2 bg-transparent group"
+                >
+                  <div className={cn(
+                    "w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all duration-300 bg-background",
+                    isCompleted && "bg-blue-600 border-blue-600 text-white",
+                    isActive && "border-blue-600 ring-4 ring-blue-600/10",
+                    !isActive && !isCompleted && "border-muted text-muted-foreground"
+                  )}>
+                    {isCompleted ? <Check className="w-6 h-6" /> : <span>{step.id}</span>}
+                  </div>
+                  <span className={cn("text-xs font-medium transition-colors hidden sm:block", isActive ? "text-blue-600" : "text-muted-foreground")}>
+                    {step.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
+        <div className="max-w-7xl mx-auto mt-8">
         {/* Main Content: Split layout */}
         <div className={cn("flex gap-6", showSideViewer ? "items-start" : "")}>
           {/* Form Side */}
           <div className={cn("transition-all duration-300", showSideViewer ? "flex-1 min-w-0" : "w-full max-w-4xl mx-auto")}>
-            <Card className="shadow-lg border-blue-600/5">
-              <CardContent className="p-8">
-                <form onSubmit={form.handleSubmit(handleSubmitClick)} className="space-y-8">
-                  <div className="min-h-[400px]">
-                    {currentStep === 1 && (
+            <form onSubmit={form.handleSubmit(handleSubmitClick, (errors) => {
+              console.error('Form validation errors:', errors);
+              const fieldNames = Object.keys(errors).join(', ');
+              toast({ variant: 'destructive', title: 'Erreur de validation', description: `Champs invalides : ${fieldNames}` });
+            })} className="space-y-0">
+
+              {/* ===== Step 1: Documents ===== */}
+              <section
+                id="step-1"
+                ref={el => { sectionRefs.current[0] = el; }}
+                className="scroll-mt-24"
+              >
+                <Card className="shadow-lg border-blue-600/5">
+                  <CardContent className="p-8">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">1</div>
+                      <h2 className="text-lg font-semibold">Documents</h2>
+                    </div>
+                    <div className="border-l-4 border-blue-600 pl-6">
                       <StepDocuments
                         scanFiles={scanFiles}
-                        normalFiles={normalFiles}
                         onScanFilesChange={setScanFiles}
-                        onNormalFilesChange={setNormalFiles}
                       />
-                    )}
-                    {currentStep === 2 && <Step1 autoFilledFields={autoFilledFields} />}
-                    {currentStep === 3 && <StepPlanification />}
-                    {currentStep === 4 && <Step4Confirmation />}
-                  </div>
-
-                  {/* Auto-fill indicator */}
-                  {currentStep === 2 && autoFilledFields.size > 0 && scanComplete && (
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-sm">
-                      <ScanSearch className="h-4 w-4 text-amber-600 shrink-0" />
-                      <span className="text-amber-700 dark:text-amber-400">
-                        <strong>{autoFilledFields.size} champ(s)</strong> pré-rempli(s) par l'IA (marqués <span className="text-[9px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-semibold">AUTO</span>). Veuillez vérifier.
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Navigation */}
-                  <div className="flex justify-between pt-6 border-t">
-                    <Button type="button" variant="outline" onClick={prevStep} disabled={currentStep === 1 || isSubmitting || isScanning}>
-                      Précédent
-                    </Button>
-                    <div className="flex gap-3">
-                      {currentStep === 1 && (
-                        <>
-                          <Button type="button" variant="outline" onClick={handleSkipScan} className="gap-2">
-                            <SkipForward className="h-4 w-4" /> Passer le scan
-                          </Button>
-                          <Button type="button" onClick={handleScanDocuments} disabled={isScanning || scanFiles.length === 0} className="gap-2 bg-blue-600 hover:bg-blue-700">
-                            {isScanning ? (<><Loader2 className="h-4 w-4 animate-spin" /> Scan en cours...</>) : (<><ScanSearch className="h-4 w-4" /> Scanner & Continuer</>)}
-                          </Button>
-                        </>
-                      )}
-                      {currentStep > 1 && currentStep < steps.length && (
-                        <Button type="button" onClick={nextStep}>Suivant</Button>
-                      )}
-                      {currentStep === steps.length && (
-                        <Button type="submit" disabled={isSubmitting} className="min-w-[150px] bg-blue-600 hover:bg-blue-700">
-                          {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Création...</>) : "Créer le dossier"}
+                      {/* Scan buttons */}
+                      <div className="flex gap-3 mt-6">
+                        <Button type="button" variant="outline" onClick={handleSkipScan} className="gap-2">
+                          <SkipForward className="h-4 w-4" /> Passer le scan
                         </Button>
-                      )}
+                        <Button
+                          type="button"
+                          onClick={handleScanDocuments}
+                          disabled={isScanning || scanFiles.length === 0 || !isOnline}
+                          className="gap-2 bg-blue-600 hover:bg-blue-700"
+                          title={!isOnline ? 'Scanner non disponible hors ligne' : undefined}
+                        >
+                          {isScanning ? (
+                            <><Loader2 className="h-4 w-4 animate-spin" /> Scan en cours...</>
+                          ) : (
+                            <><ScanSearch className="h-4 w-4" /> {!isOnline ? 'Scan (hors ligne)' : 'Scanner & Continuer'}</>
+                          )}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              </section>
+
+              <hr className="my-10 border-muted" />
+
+              {/* ===== Step 2: Informations ===== */}
+              <section
+                id="step-2"
+                ref={el => { sectionRefs.current[1] = el; }}
+                className="scroll-mt-24"
+              >
+                <Card className="shadow-lg border-blue-600/5">
+                  <CardContent className="p-8">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">2</div>
+                      <h2 className="text-lg font-semibold">Informations</h2>
+                    </div>
+                    <div className="border-l-4 border-blue-600 pl-6">
+                      <Step1 autoFilledFields={autoFilledFields} />
+                    </div>
+                    {/* Auto-fill indicator */}
+                    {autoFilledFields.size > 0 && scanComplete && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-sm mt-6">
+                        <ScanSearch className="h-4 w-4 text-amber-600 shrink-0" />
+                        <span className="text-amber-700 dark:text-amber-400">
+                          <strong>{autoFilledFields.size} champ(s)</strong> pré-rempli(s) par l&apos;IA (marqués <span className="text-[9px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-semibold">AUTO</span>). Veuillez vérifier.
+                        </span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </section>
+
+              <hr className="my-10 border-muted" />
+
+              {/* ===== Step 3: Planification ===== */}
+              <section
+                id="step-3"
+                ref={el => { sectionRefs.current[2] = el; }}
+                className="scroll-mt-24"
+              >
+                <Card className="shadow-lg border-blue-600/5">
+                  <CardContent className="p-8">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">3</div>
+                      <h2 className="text-lg font-semibold">Planification</h2>
+                    </div>
+                    <div className="border-l-4 border-blue-600 pl-6">
+                      <StepPlanification />
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+
+              <hr className="my-10 border-muted" />
+
+              {/* ===== Step 4: Confirmation ===== */}
+              <section
+                id="step-4"
+                ref={el => { sectionRefs.current[3] = el; }}
+                className="scroll-mt-24"
+              >
+                <Card className="shadow-lg border-blue-600/5">
+                  <CardContent className="p-8">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">4</div>
+                      <h2 className="text-lg font-semibold">Confirmation</h2>
+                    </div>
+                    <div className="border-l-4 border-blue-600 pl-6">
+                      <Step4Confirmation />
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+
+              {/* Submit button at the bottom */}
+              <div className="flex justify-end pt-8 pb-4">
+                <Button type="submit" disabled={isSubmitting} className="min-w-[150px] bg-blue-600 hover:bg-blue-700">
+                  {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Création...</>) : "Créer le dossier"}
+                </Button>
+              </div>
+            </form>
           </div>
 
-          {/* Document Viewer Side */}
-          {hasDocuments && currentStep >= 2 && (
-            <div className={cn("transition-all duration-300 shrink-0 sticky top-4", showDocViewer ? "w-[400px]" : "w-10")}>
+          {/* Document Viewer Side - sticky sidebar visible when files are uploaded */}
+          {hasDocuments && (
+            <div className={cn("transition-all duration-300 shrink-0 sticky top-24", showDocViewer ? "w-1/2" : "w-10")}>
               <DocumentViewer files={allFiles} currentStep={currentStep} visible={showDocViewer} onToggle={() => setShowDocViewer(v => !v)} />
             </div>
           )}
@@ -464,10 +589,12 @@ export default function DossierCreationForm() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2 text-amber-600"><AlertCircle className="h-5 w-5" /> Dossier incomplet</AlertDialogTitle>
-              <AlertDialogDescription>
-                Certains champs importants sont encore vides :
-                <ul className="list-disc pl-5 mt-2 font-semibold">{missingFieldsList.map((f, i) => <li key={i}>{f}</li>)}</ul>
-                <p className="mt-4">Voulez-vous créer le dossier quand même ?</p>
+              <AlertDialogDescription asChild>
+                <div className="text-sm text-muted-foreground">
+                  Certains champs importants sont encore vides :
+                  <ul className="list-disc pl-5 mt-2 font-semibold">{missingFieldsList.map((f, i) => <li key={i}>{f}</li>)}</ul>
+                  <p className="mt-4">Voulez-vous créer le dossier quand même ?</p>
+                </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -478,6 +605,7 @@ export default function DossierCreationForm() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        </div>
       </div>
     </FormProvider>
   );

@@ -4,9 +4,6 @@ import React, { useState, useMemo, use } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
-  Calendar as CalendarIcon,
-  FileText,
-  Download,
   Send,
   Calculator,
   Camera,
@@ -15,6 +12,8 @@ import {
   BarChart2,
   History,
   AlertCircle,
+  FileText,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -35,15 +34,14 @@ import HistoriqueTab from './historique-tab';
 // ── Modals ────────────────────────────────────────────────────────────────────
 import ModalPlanification from './modal-planification';
 import ModalChiffrage from './modal-chiffrage';
-import ModalTelecharger from './modal-telecharger';
 import ModalReclamation from './modal-reclamation';
-import ModalPlanificationHistory from './modal-planification-history';
-import DossierEditModal from '@/components/modals/dossier-edit-modal';
+import ModalExportPdf from './modal-export-pdf';
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 const TABS = [
   { id: 'informations',  label: 'Informations',   icon: ClipboardList },
   { id: 'photos',        label: 'Photos',         icon: Camera },
+  { id: 'documents',     label: 'Documents',      icon: FileText },
   { id: 'chiffrage',     label: 'Chiffrage',      icon: Calculator },
   { id: 'rapport',       label: 'Rapport',        icon: BarChart2 },
   { id: 'historique',    label: 'Historique',     icon: History },
@@ -73,11 +71,9 @@ export default function DossierDetailPage({
   // Modal states
   const [isPlanificationModalOpen, setPlanificationModalOpen] = useState(false);
   const [planificationInitialData, setPlanificationInitialData] = useState<any>(null);
-  const [isHistoryModalOpen, setHistoryModalOpen] = useState(false);
   const [isChiffrageModalOpen, setChiffrageModalOpen] = useState(false);
-  const [isTelechargerModalOpen, setTelechargerModalOpen] = useState(false);
   const [isReclamationModalOpen, setReclamationModalOpen] = useState(false);
-  const [isDossierModalOpen, setIsDossierModalOpen] = useState(false);
+  const [isExportModalOpen, setExportModalOpen] = useState(false);
 
   const renderAssure = (assure: any) => {
     if (!assure) return 'N/A';
@@ -152,17 +148,11 @@ export default function DossierDetailPage({
 
       {/* ACTION BUTTONS ROW */}
       <div className="bg-card border-b px-6 py-2 flex flex-wrap gap-2 items-center">
-        <Button variant="outline" size="sm" onClick={handleNewPlanification} className="h-8 text-xs gap-1.5">
-          <CalendarIcon className="h-3.5 w-3.5" /> Planification
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => setIsDossierModalOpen(true)} className="h-8 text-xs gap-1.5">
-          <FileText className="h-3.5 w-3.5" /> Dossier
-        </Button>
         <Button variant="outline" size="sm" onClick={() => setChiffrageModalOpen(true)} className="h-8 text-xs gap-1.5">
           <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
         </Button>
-        <Button variant="outline" size="sm" onClick={() => setTelechargerModalOpen(true)} className="h-8 text-xs gap-1.5">
-          <Download className="h-3.5 w-3.5" /> Télécharger
+        <Button variant="outline" size="sm" onClick={() => setExportModalOpen(true)} className="h-8 text-xs gap-1.5">
+          <Download className="h-3.5 w-3.5" /> Exporter PDF
         </Button>
         <Button variant="outline" size="sm" onClick={() => setReclamationModalOpen(true)} className="h-8 text-xs gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700">
           <AlertTriangle className="h-3.5 w-3.5" /> Réclamation
@@ -196,12 +186,12 @@ export default function DossierDetailPage({
       <div className="flex-1 p-6">
         {activeTab === 'informations' && (
           <div className="flex flex-col gap-6">
-            <InformationTab dossier={dossier} dossierRef={dossierRef} dossierId={id} onOpenHistory={() => setHistoryModalOpen(true)} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />
-            <Card><CardContent className="pt-5"><h2 className="text-base font-semibold mb-4">Documents et Photos</h2><DocumentsTab dossierId={id} /></CardContent></Card>
+            <InformationTab dossier={dossier} dossierRef={dossierRef} dossierId={id} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />
             <Card><CardContent className="pt-5"><h2 className="text-base font-semibold mb-4">Discussion</h2><CommentairesTab dossierId={id} /></CardContent></Card>
           </div>
         )}
         {activeTab === 'photos'     && <PhotosTab    dossierId={id} />}
+        {activeTab === 'documents'  && <DocumentsTab dossierId={id} />}
         {activeTab === 'chiffrage'  && <ChiffrageTab dossierId={id} />}
         {activeTab === 'rapport'    && <RapportTab   dossierId={id} />}
         {activeTab === 'historique' && <HistoriqueTab dossierId={id} />}
@@ -209,11 +199,9 @@ export default function DossierDetailPage({
 
       {/* MODALS */}
       <ModalPlanification open={isPlanificationModalOpen} onOpenChange={setPlanificationModalOpen} dossierId={id} initialData={planificationInitialData} />
-      <ModalPlanificationHistory open={isHistoryModalOpen} onOpenChange={setHistoryModalOpen} dossierId={id} />
       <ModalChiffrage open={isChiffrageModalOpen} onOpenChange={setChiffrageModalOpen} dossierId={id} />
-      <ModalTelecharger open={isTelechargerModalOpen} onOpenChange={setTelechargerModalOpen} dossierId={id} />
       <ModalReclamation open={isReclamationModalOpen} onOpenChange={setReclamationModalOpen} dossierId={id} />
-      <DossierEditModal isOpen={isDossierModalOpen} onClose={() => setIsDossierModalOpen(false)} dossierId={id} />
+      <ModalExportPdf open={isExportModalOpen} onOpenChange={setExportModalOpen} dossierId={id} />
     </div>
   );
 }

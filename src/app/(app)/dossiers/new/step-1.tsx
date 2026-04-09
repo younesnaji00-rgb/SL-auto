@@ -24,6 +24,7 @@ import { natures as defaultNatures, compagnies as defaultCompagnies, marques as 
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { cn } from '@/lib/utils';
+import { FileText, Car, Users, Swords, Award } from 'lucide-react';
 
 const dossierTypes = ['Normale', 'Classique', 'Agrée', 'Forfait'];
 const dossierModes = ['Procédure normale', 'Forfait', 'Prise en charge', 'Contradictoire', 'Collégiale'];
@@ -50,174 +51,193 @@ export default function Step1({ autoFilledFields }: Step1Props) {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
       {/* Expert Rank */}
-      <FormField control={control} name="expertRank" render={({ field }) => (
-        <FormItem className="space-y-3">
-          <FormControl>
-            <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-8">
-              <FormItem className="flex items-center space-x-2 space-y-0">
-                <FormControl><RadioGroupItem value="1er expert" /></FormControl>
-                <FormLabel className="font-normal">1er expert</FormLabel>
-              </FormItem>
-              <FormItem className="flex items-center space-x-2 space-y-0">
-                <FormControl><RadioGroupItem value="2eme expert" /></FormControl>
-                <FormLabel className="font-normal">2ème expert</FormLabel>
-              </FormItem>
-              <FormItem className="flex items-center space-x-2 space-y-0">
-                <FormControl><RadioGroupItem value="Arbitre" /></FormControl>
-                <FormLabel className="font-normal">Arbitre</FormLabel>
-              </FormItem>
-            </RadioGroup>
-          </FormControl>
-        </FormItem>
-      )} />
-
-      {expertRank === '2eme expert' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg border bg-muted/20">
-          <FormField control={control} name="secondExpertName" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Nom du 2ème expert</FormLabel>
-              <FormControl><Input placeholder="Saisir le nom de l'expert" {...field} /></FormControl>
+      <Card className="border">
+        <CardHeader className="bg-muted/30 border-b py-3">
+          <CardTitle className="text-sm flex items-center gap-2"><Award className="h-4 w-4 text-primary" /> Rang Expert</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          <FormField control={control} name="expertRank" render={({ field }) => (
+            <FormItem className="space-y-3">
+              <FormControl>
+                <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-8">
+                  <FormItem className="flex items-center space-x-2 space-y-0">
+                    <FormControl><RadioGroupItem value="1er expert" /></FormControl>
+                    <FormLabel className="font-normal">1er expert</FormLabel>
+                  </FormItem>
+                  <FormItem className="flex items-center space-x-2 space-y-0">
+                    <FormControl><RadioGroupItem value="2eme expert" /></FormControl>
+                    <FormLabel className="font-normal">2ème expert</FormLabel>
+                  </FormItem>
+                  <FormItem className="flex items-center space-x-2 space-y-0">
+                    <FormControl><RadioGroupItem value="Arbitre" /></FormControl>
+                    <FormLabel className="font-normal">Arbitre</FormLabel>
+                  </FormItem>
+                </RadioGroup>
+              </FormControl>
             </FormItem>
           )} />
-          <FormField control={control} name="secondExpertCompany" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Compagnie du 2ème expert</FormLabel>
-              <FormControl><Input placeholder="Nom de la compagnie" {...field} /></FormControl>
-            </FormItem>
-          )} />
-        </div>
-      )}
 
-      {/* Two-Column Dossier + Intermédiaire */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+          {expertRank === '2eme expert' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 p-4 rounded-lg border bg-muted/20">
+              <FormField control={control} name="secondExpertName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nom du 2ème expert</FormLabel>
+                  <FormControl><Input placeholder="Saisir le nom de l'expert" {...field} /></FormControl>
+                </FormItem>
+              )} />
+              <FormField control={control} name="secondExpertCompany" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Compagnie du 2ème expert</FormLabel>
+                  <FormControl><Input placeholder="Nom de la compagnie" {...field} /></FormControl>
+                </FormItem>
+              )} />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dossier & Intermédiaire - Two Columns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* LEFT: Dossier info */}
-        <div className="space-y-5">
-          <FormField control={control} name="dossierType" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Type Dossier <span className="text-red-500">*</span> {aL('dossierType')}</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl><SelectTrigger className={aS('dossierType')}><SelectValue placeholder="Sélectionnez" /></SelectTrigger></FormControl>
-                <SelectContent>{dossierTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-              </Select>
-            </FormItem>
-          )} />
-          <FormField control={control} name="nature" render={({ field }) => (
-            <FormItem>
-              <div className="flex items-center justify-between">
-                <FormLabel>Nature de Dossier <span className="text-red-500">*</span> {aL('nature')}</FormLabel>
-                <OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />
-              </div>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl><SelectTrigger className={aS('nature')}><SelectValue placeholder="Sélectionnez" /></SelectTrigger></FormControl>
-                <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </FormItem>
-          )} />
-          <FormField control={control} name="dossierMode" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Mode dossier {aL('dossierMode')}</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl><SelectTrigger className={aS('dossierMode')}><SelectValue placeholder="Sélectionnez un mode" /></SelectTrigger></FormControl>
-                <SelectContent>{dossierModes.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-              </Select>
-            </FormItem>
-          )} />
-          <FormField control={control} name="company" render={({ field }) => (
-            <FormItem>
-              <div className="flex items-center justify-between">
-                <FormLabel>Compagnie {aL('company')}</FormLabel>
-                <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
-              </div>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl><SelectTrigger className={aS('company')}><SelectValue placeholder="Sélectionnez" /></SelectTrigger></FormControl>
-                <SelectContent>{compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </FormItem>
-          )} />
-          <FormField control={control} name="dateOfRequest" render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Date Requête <span className="text-red-500">*</span> {aL('dateOfRequest')}</FormLabel>
-              <FormControl><DatePicker value={field.value} onChange={field.onChange} className={aS('dateOfRequest')} /></FormControl>
-            </FormItem>
-          )} />
-          <FormField control={control} name="refExpert" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Ref Expert {aL('refExpert')}</FormLabel>
-              <FormControl><Input placeholder="Référence expert" className={aS('refExpert')} {...field} /></FormControl>
-            </FormItem>
-          )} />
-        </div>
+        <Card className="border">
+          <CardHeader className="bg-muted/30 border-b py-3">
+            <CardTitle className="text-sm flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /> Informations Dossier</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 space-y-4">
+            <FormField control={control} name="dossierType" render={({ field }) => (
+              <FormItem className="p-3 rounded-md border bg-background">
+                <FormLabel>Type Dossier <span className="text-red-500">*</span> {aL('dossierType')}</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl><SelectTrigger className={aS('dossierType')}><SelectValue placeholder="Sélectionnez" /></SelectTrigger></FormControl>
+                  <SelectContent>{dossierTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormItem>
+            )} />
+            <FormField control={control} name="nature" render={({ field }) => (
+              <FormItem className="p-3 rounded-md border bg-background">
+                <div className="flex items-center justify-between">
+                  <FormLabel>Nature de Dossier <span className="text-red-500">*</span> {aL('nature')}</FormLabel>
+                  <OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />
+                </div>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl><SelectTrigger className={aS('nature')}><SelectValue placeholder="Sélectionnez" /></SelectTrigger></FormControl>
+                  <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormItem>
+            )} />
+            <FormField control={control} name="dossierMode" render={({ field }) => (
+              <FormItem className="p-3 rounded-md border bg-background">
+                <FormLabel>Mode dossier {aL('dossierMode')}</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl><SelectTrigger className={aS('dossierMode')}><SelectValue placeholder="Sélectionnez un mode" /></SelectTrigger></FormControl>
+                  <SelectContent>{dossierModes.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormItem>
+            )} />
+            <FormField control={control} name="company" render={({ field }) => (
+              <FormItem className="p-3 rounded-md border bg-background">
+                <div className="flex items-center justify-between">
+                  <FormLabel>Compagnie {aL('company')}</FormLabel>
+                  <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
+                </div>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl><SelectTrigger className={aS('company')}><SelectValue placeholder="Sélectionnez" /></SelectTrigger></FormControl>
+                  <SelectContent>{compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormItem>
+            )} />
+            <FormField control={control} name="dateOfRequest" render={({ field }) => (
+              <FormItem className="flex flex-col p-3 rounded-md border bg-background">
+                <FormLabel>Date Requête <span className="text-red-500">*</span> {aL('dateOfRequest')}</FormLabel>
+                <FormControl><DatePicker value={field.value} onChange={field.onChange} className={aS('dateOfRequest')} /></FormControl>
+              </FormItem>
+            )} />
+            <FormField control={control} name="refExpert" render={({ field }) => (
+              <FormItem className="p-3 rounded-md border bg-background">
+                <FormLabel>Ref Expert {aL('refExpert')}</FormLabel>
+                <FormControl><Input placeholder="Référence expert" className={aS('refExpert')} {...field} /></FormControl>
+              </FormItem>
+            )} />
+          </CardContent>
+        </Card>
 
         {/* RIGHT: Intermédiaire & Refs */}
-        <div className="space-y-5">
-          <FormField control={control} name="intermediaryName" render={({ field }) => (
-            <FormItem>
-              <div className="flex items-center justify-between">
-                <FormLabel>Intermédiaire <span className="text-red-500">*</span> {aL('intermediaryName')}</FormLabel>
-                <OptionsManagerModal collectionName="options_intermediaires" title="Intermédiaires" />
-              </div>
-              {intermediaires.length > 0 ? (
+        <Card className="border">
+          <CardHeader className="bg-muted/30 border-b py-3">
+            <CardTitle className="text-sm flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /> Intermédiaire & Références</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 space-y-4">
+            <FormField control={control} name="intermediaryName" render={({ field }) => (
+              <FormItem className="p-3 rounded-md border bg-background">
+                <div className="flex items-center justify-between">
+                  <FormLabel>Intermédiaire <span className="text-red-500">*</span> {aL('intermediaryName')}</FormLabel>
+                  <OptionsManagerModal collectionName="options_intermediaires" title="Intermédiaires" />
+                </div>
+                {intermediaires.length > 0 ? (
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl><SelectTrigger className={aS('intermediaryName')}><SelectValue placeholder="Sélectionnez un élément" /></SelectTrigger></FormControl>
+                    <SelectContent>{intermediaires.map(i => <SelectItem key={i.id} value={i.label}>{i.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                ) : (
+                  <FormControl><Input placeholder="Nom de l'intermédiaire" className={aS('intermediaryName')} {...field} /></FormControl>
+                )}
+              </FormItem>
+            )} />
+            <FormField control={control} name="intermediaryEmail" render={({ field }) => (
+              <FormItem className="p-3 rounded-md border bg-background">
+                <FormLabel>E-mail Intermédiaire {aL('intermediaryEmail')}</FormLabel>
+                <FormControl><Input placeholder="email@example.com" className={aS('intermediaryEmail')} {...field} /></FormControl>
+              </FormItem>
+            )} />
+            <FormField control={control} name="companyRef" render={({ field }) => (
+              <FormItem className="p-3 rounded-md border bg-background">
+                <FormLabel>Ref Compagnie {aL('companyRef')}</FormLabel>
+                <FormControl><Input placeholder="Référence compagnie" className={aS('companyRef')} {...field} /></FormControl>
+              </FormItem>
+            )} />
+            <FormField control={control} name="policyNumber" render={({ field }) => (
+              <FormItem className="p-3 rounded-md border bg-background">
+                <FormLabel>N° de Police {aL('policyNumber')}</FormLabel>
+                <FormControl><Input placeholder="Numéro de police" className={aS('policyNumber')} {...field} /></FormControl>
+              </FormItem>
+            )} />
+            <FormField control={control} name="repairerType" render={({ field }) => (
+              <FormItem className="p-3 rounded-md border bg-background">
+                <FormLabel>Réparateur <span className="text-red-500">*</span> {aL('repairerType')}</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl><SelectTrigger className={aS('intermediaryName')}><SelectValue placeholder="Sélectionnez un élément" /></SelectTrigger></FormControl>
-                  <SelectContent>{intermediaires.map(i => <SelectItem key={i.id} value={i.label}>{i.label}</SelectItem>)}</SelectContent>
+                  <FormControl><SelectTrigger className={cn("h-10", aS('repairerType'))}><SelectValue /></SelectTrigger></FormControl>
+                  <SelectContent>
+                    <SelectItem value="Agréé">Agréé</SelectItem>
+                    <SelectItem value="Normal">Normal</SelectItem>
+                  </SelectContent>
                 </Select>
-              ) : (
-                <FormControl><Input placeholder="Nom de l'intermédiaire" className={aS('intermediaryName')} {...field} /></FormControl>
-              )}
-            </FormItem>
-          )} />
-          <FormField control={control} name="intermediaryEmail" render={({ field }) => (
-            <FormItem>
-              <FormLabel>E-mail Intermédiaire {aL('intermediaryEmail')}</FormLabel>
-              <FormControl><Input placeholder="email@example.com" className={aS('intermediaryEmail')} {...field} /></FormControl>
-            </FormItem>
-          )} />
-          <FormField control={control} name="companyRef" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Ref Compagnie {aL('companyRef')}</FormLabel>
-              <FormControl><Input placeholder="Référence compagnie" className={aS('companyRef')} {...field} /></FormControl>
-            </FormItem>
-          )} />
-          <FormField control={control} name="policyNumber" render={({ field }) => (
-            <FormItem>
-              <FormLabel>N° de Police {aL('policyNumber')}</FormLabel>
-              <FormControl><Input placeholder="Numéro de police" className={aS('policyNumber')} {...field} /></FormControl>
-            </FormItem>
-          )} />
-          <FormField control={control} name="repairerType" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Réparateur <span className="text-red-500">*</span> {aL('repairerType')}</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl><SelectTrigger className={cn("h-10", aS('repairerType'))}><SelectValue /></SelectTrigger></FormControl>
-                <SelectContent>
-                  <SelectItem value="Agréé">Agréé</SelectItem>
-                  <SelectItem value="Normal">Normal</SelectItem>
-                </SelectContent>
-              </Select>
-            </FormItem>
-          )} />
-          <FormField control={control} name="garageName" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Nom Garage {aL('garageName')}</FormLabel>
-              <FormControl><Input placeholder="Nom du garage" className={aS('garageName')} {...field} value={field.value ?? ''} /></FormControl>
-            </FormItem>
-          )} />
-        </div>
+              </FormItem>
+            )} />
+            <FormField control={control} name="garageName" render={({ field }) => (
+              <FormItem className="p-3 rounded-md border bg-background">
+                <FormLabel>Nom Garage {aL('garageName')}</FormLabel>
+                <FormControl><Input placeholder="Nom du garage" className={aS('garageName')} {...field} value={field.value ?? ''} /></FormControl>
+              </FormItem>
+            )} />
+          </CardContent>
+        </Card>
       </div>
 
       {/* Véhicule & Assuré */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader><CardTitle>Informations Assuré</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
+        <Card className="border">
+          <CardHeader className="bg-muted/30 border-b py-3">
+            <CardTitle className="text-sm flex items-center gap-2"><Users className="h-4 w-4 text-primary" /> Informations Assuré</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 space-y-4">
             <FormField control={control} name="insuredName" render={({ field }) => (
-              <FormItem>
+              <FormItem className="p-3 rounded-md border bg-background">
                 <FormLabel>Assuré <span className="text-red-500">*</span> {aL('insuredName')}</FormLabel>
                 <FormControl><Input placeholder="Nom et prénom" className={aS('insuredName')} {...field} /></FormControl>
               </FormItem>
             )} />
             <FormField control={control} name="insuredPhone" render={({ field }) => (
-              <FormItem>
+              <FormItem className="p-3 rounded-md border bg-background">
                 <FormLabel>Tel Assuré {aL('insuredPhone')}</FormLabel>
                 <FormControl>
                   <div className="flex">
@@ -228,13 +248,13 @@ export default function Step1({ autoFilledFields }: Step1Props) {
               </FormItem>
             )} />
             <FormField control={control} name="insuredWhatsapp" render={({ field }) => (
-              <FormItem>
+              <FormItem className="p-3 rounded-md border bg-background">
                 <FormLabel>Tel Whatsapp</FormLabel>
                 <FormControl><Input placeholder="+212 6 00 00 00 00" {...field} /></FormControl>
               </FormItem>
             )} />
             <FormField control={control} name="insuredOtherPhone" render={({ field }) => (
-              <FormItem>
+              <FormItem className="p-3 rounded-md border bg-background">
                 <FormLabel>Autre Tel</FormLabel>
                 <FormControl><Input placeholder="Autre numéro" {...field} /></FormControl>
               </FormItem>
@@ -242,11 +262,13 @@ export default function Step1({ autoFilledFields }: Step1Props) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle>Informations Véhicule</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
+        <Card className="border">
+          <CardHeader className="bg-muted/30 border-b py-3">
+            <CardTitle className="text-sm flex items-center gap-2"><Car className="h-4 w-4 text-primary" /> Informations Véhicule</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 space-y-4">
             <FormField control={control} name="brand" render={({ field }) => (
-              <FormItem>
+              <FormItem className="p-3 rounded-md border bg-background">
                 <FormLabel>Marque <span className="text-red-500">*</span> {aL('brand')}</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl><SelectTrigger className={aS('brand')}><SelectValue placeholder="Sélectionnez un élément" /></SelectTrigger></FormControl>
@@ -255,20 +277,20 @@ export default function Step1({ autoFilledFields }: Step1Props) {
               </FormItem>
             )} />
             <FormField control={control} name="model" render={({ field }) => (
-              <FormItem>
+              <FormItem className="p-3 rounded-md border bg-background">
                 <FormLabel>Modèle {aL('model')}</FormLabel>
                 <FormControl><Input placeholder="ex: Clio" className={aS('model')} {...field} /></FormControl>
               </FormItem>
             )} />
             <div className="grid grid-cols-2 gap-4">
               <FormField control={control} name="registration" render={({ field }) => (
-                <FormItem>
+                <FormItem className="p-3 rounded-md border bg-background">
                   <FormLabel>Matricule <span className="text-red-500">*</span> {aL('registration')}</FormLabel>
                   <FormControl><Input placeholder="12345 | A | 1" className={aS('registration')} {...field} /></FormControl>
                 </FormItem>
               )} />
               <FormField control={control} name="registrationW" render={({ field }) => (
-                <FormItem>
+                <FormItem className="p-3 rounded-md border bg-background">
                   <FormLabel>Matricule W {aL('registrationW')}</FormLabel>
                   <FormControl>
                     <div className="flex">
@@ -281,13 +303,13 @@ export default function Step1({ autoFilledFields }: Step1Props) {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <FormField control={control} name="dateOfLoss" render={({ field }) => (
-                <FormItem className="flex flex-col">
+                <FormItem className="flex flex-col p-3 rounded-md border bg-background">
                   <FormLabel>Date Sinistre <span className="text-red-500">*</span> {aL('dateOfLoss')}</FormLabel>
                   <FormControl><DatePicker value={field.value} onChange={field.onChange} className={aS('dateOfLoss')} /></FormControl>
                 </FormItem>
               )} />
               <FormField control={control} name="dateOfMEC" render={({ field }) => (
-                <FormItem className="flex flex-col">
+                <FormItem className="flex flex-col p-3 rounded-md border bg-background">
                   <FormLabel>Date de MEC {aL('dateOfMEC')}</FormLabel>
                   <FormControl><DatePicker value={field.value} onChange={field.onChange} className={aS('dateOfMEC')} /></FormControl>
                 </FormItem>
@@ -298,18 +320,20 @@ export default function Step1({ autoFilledFields }: Step1Props) {
       </div>
 
       {/* Information Adversaire */}
-      <Card>
-        <CardHeader className="pb-3"><CardTitle>Information Adversaire</CardTitle></CardHeader>
-        <CardContent>
+      <Card className="border">
+        <CardHeader className="bg-muted/30 border-b py-3">
+          <CardTitle className="text-sm flex items-center gap-2"><Swords className="h-4 w-4 text-primary" /> Information Adversaire</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <FormField control={control} name="adversaireAssure" render={({ field }) => (
-              <FormItem><FormLabel className="text-xs font-semibold">Assuré Adversaire</FormLabel><FormControl><Input className={aS('adversaireAssure')} {...field} /></FormControl></FormItem>
+              <FormItem className="p-3 rounded-md border bg-background"><FormLabel className="text-xs font-semibold">Assuré Adversaire</FormLabel><FormControl><Input className={aS('adversaireAssure')} {...field} /></FormControl></FormItem>
             )} />
             <FormField control={control} name="adversaireMatricule" render={({ field }) => (
-              <FormItem><FormLabel className="text-xs font-semibold">Matricule Adversaire</FormLabel><FormControl><Input className={aS('adversaireMatricule')} {...field} /></FormControl></FormItem>
+              <FormItem className="p-3 rounded-md border bg-background"><FormLabel className="text-xs font-semibold">Matricule Adversaire</FormLabel><FormControl><Input className={aS('adversaireMatricule')} {...field} /></FormControl></FormItem>
             )} />
             <FormField control={control} name="adversaireMarque" render={({ field }) => (
-              <FormItem>
+              <FormItem className="p-3 rounded-md border bg-background">
                 <FormLabel className="text-xs font-semibold">Marque Adversaire</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl><SelectTrigger className={aS('adversaireMarque')}><SelectValue placeholder="Sélectionnez" /></SelectTrigger></FormControl>
@@ -318,10 +342,10 @@ export default function Step1({ autoFilledFields }: Step1Props) {
               </FormItem>
             )} />
             <FormField control={control} name="adversairePolice" render={({ field }) => (
-              <FormItem><FormLabel className="text-xs font-semibold">N° Police</FormLabel><FormControl><Input className={aS('adversairePolice')} {...field} /></FormControl></FormItem>
+              <FormItem className="p-3 rounded-md border bg-background"><FormLabel className="text-xs font-semibold">N° Police</FormLabel><FormControl><Input className={aS('adversairePolice')} {...field} /></FormControl></FormItem>
             )} />
             <FormField control={control} name="adversaireCompagnie" render={({ field }) => (
-              <FormItem>
+              <FormItem className="p-3 rounded-md border bg-background">
                 <FormLabel className="text-xs font-semibold">Compagnie Adversaire</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl><SelectTrigger className={aS('adversaireCompagnie')}><SelectValue placeholder="" /></SelectTrigger></FormControl>
@@ -334,13 +358,15 @@ export default function Step1({ autoFilledFields }: Step1Props) {
       </Card>
 
       {/* Information Expert */}
-      <Card>
-        <CardHeader className="pb-3"><CardTitle>Information Expert</CardTitle></CardHeader>
-        <CardContent>
+      <Card className="border">
+        <CardHeader className="bg-muted/30 border-b py-3">
+          <CardTitle className="text-sm flex items-center gap-2"><Award className="h-4 w-4 text-primary" /> Information Expert</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="bg-muted/30">
-              <CardHeader className="pb-2"><CardTitle className="text-sm text-blue-600 dark:text-blue-400">1er Expert</CardTitle></CardHeader>
-              <CardContent>
+            <Card className="bg-muted/20 border">
+              <CardHeader className="pb-2 border-b"><CardTitle className="text-sm text-blue-600 dark:text-blue-400">1er Expert</CardTitle></CardHeader>
+              <CardContent className="p-3">
                 <FormField control={control} name="designation1erExpert" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-xs font-semibold">Désignation 1er Expert</FormLabel>
@@ -352,9 +378,9 @@ export default function Step1({ autoFilledFields }: Step1Props) {
                 )} />
               </CardContent>
             </Card>
-            <Card className="bg-muted/30">
-              <CardHeader className="pb-2"><CardTitle className="text-sm text-blue-600 dark:text-blue-400">2eme Expert</CardTitle></CardHeader>
-              <CardContent>
+            <Card className="bg-muted/20 border">
+              <CardHeader className="pb-2 border-b"><CardTitle className="text-sm text-blue-600 dark:text-blue-400">2eme Expert</CardTitle></CardHeader>
+              <CardContent className="p-3">
                 <FormField control={control} name="designation2emeExpert" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-xs font-semibold">Désignation 2ème Expert</FormLabel>
@@ -366,9 +392,9 @@ export default function Step1({ autoFilledFields }: Step1Props) {
                 )} />
               </CardContent>
             </Card>
-            <Card className="bg-muted/30">
-              <CardHeader className="pb-2"><CardTitle className="text-sm text-blue-600 dark:text-blue-400">Expert Arbitre</CardTitle></CardHeader>
-              <CardContent>
+            <Card className="bg-muted/20 border">
+              <CardHeader className="pb-2 border-b"><CardTitle className="text-sm text-blue-600 dark:text-blue-400">Expert Arbitre</CardTitle></CardHeader>
+              <CardContent className="p-3">
                 <FormField control={control} name="designationExpertArbitrage" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-xs font-semibold">Désignation Expert Arbitrage</FormLabel>

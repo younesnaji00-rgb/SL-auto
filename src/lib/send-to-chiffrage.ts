@@ -9,6 +9,10 @@ export interface ChiffrageFile {
   name: string;
   storagePath: string;
   type: "photo" | "rapport";
+  /** Document type label (e.g. "Carte grise", "PV") for rapport files */
+  docType?: string;
+  /** Photo category (avant, en_cours, apres) for photo files */
+  category?: string;
 }
 
 export interface SendToChiffrageParams {
@@ -50,6 +54,8 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
       name: f.name,
       storagePath: f.storagePath,
       type: f.type,
+      ...(f.docType ? { docType: f.docType } : {}),
+      ...(f.category ? { category: f.category } : {}),
       status: "pending",
       recognizedText: null,
       pdfUrl: null,

@@ -25,12 +25,11 @@ import {
   updateDoc,
   serverTimestamp 
 } from 'firebase/firestore';
-import { 
-  ref, 
-  uploadBytes, 
-  getDownloadURL, 
-  deleteObject 
+import {
+  ref,
+  deleteObject
 } from 'firebase/storage';
+import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { useFirestore, useAuth, useCollection, useStorage } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -116,24 +115,47 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
       if (selectedFile) {
         const timestamp = Date.now();
         const storagePath = `dossiers/${dossierId}/commentaires/${timestamp}_${selectedFile.name}`;
-        const storageRef = ref(storage, storagePath);
-        
-        await uploadBytes(storageRef, selectedFile);
-        const downloadURL = await getDownloadURL(storageRef);
-        
-        pieceJointeData = {
-          nom: selectedFile.name,
-          url: downloadURL,
-          taille: selectedFile.size,
-          storagePath
-        };
+
+        const result = await uploadFileWithOfflineSupport({
+          storage,
+          db,
+          file: selectedFile,
+          fileName: selectedFile.name,
+          storagePath,
+          // We use the commentaires collection but the helper creates a placeholder doc.
+          // For comments, we handle attachment inline, so we pass a dummy path and handle below.
+          firestoreDocPath: `dossiers/${dossierId}/_pending_attachments`,
+          firestoreMetadata: {
+            nom: selectedFile.name,
+            taille: selectedFile.size,
+            storagePath,
+          },
+        });
+
+        if (result.queued) {
+          pieceJointeData = {
+            nom: selectedFile.name,
+            url: null,
+            taille: selectedFile.size,
+            storagePath,
+            pendingUpload: true,
+          };
+        } else {
+          pieceJointeData = {
+            nom: selectedFile.name,
+            url: result.url,
+            taille: selectedFile.size,
+            storagePath,
+          };
+        }
       }
 
       await addDoc(collection(db, 'dossiers', dossierId, 'commentaires'), {
         contenu: commentText,
         auteur: userEmail,
         date: serverTimestamp(),
-        pieceJointe: pieceJointeData
+        pieceJointe: pieceJointeData,
+        _localCreatedAt: Date.now(),
       });
 
       await logHistorique(db, dossierId, 'Commentaire ajouté', userEmail, 'Un nouveau commentaire a été posté.', 'commentaire');

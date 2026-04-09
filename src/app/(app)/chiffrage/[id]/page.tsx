@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowLeft, FileType, PencilLine, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { PdfEditor } from '@/components/chiffreurs/pdf-editor';
 import Link from 'next/link';
 
 interface ChiffrageFileDoc {
@@ -41,7 +40,6 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
 
   const [chiffrage, setChiffrage] = useState<ChiffrageDoc | null>(null);
   const [downloadUrls, setDownloadUrls] = useState<Record<number, string>>({});
-  const [editorIndex, setEditorIndex] = useState<number | null>(null);
   const [pageReady, setPageReady] = useState(false);
   
   const hasLoadedRef = useRef(false);
@@ -95,9 +93,27 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
 
   if (!pageReady || !chiffrage) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
-        <Loader2 className="animate-spin h-8 w-8 text-primary" />
-        <p className="text-sm text-muted-foreground animate-pulse">Chargement de la plateforme de correction...</p>
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        <div className="flex items-center gap-4">
+          <div className="h-10 w-10 rounded-lg animate-pulse bg-muted" />
+          <div className="space-y-2 flex-1">
+            <div className="h-6 w-48 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-64 animate-pulse rounded bg-muted" />
+          </div>
+          <div className="h-10 w-40 animate-pulse rounded-lg bg-muted" />
+        </div>
+        <div className="grid gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="border rounded-xl p-4 flex gap-4 items-start bg-card">
+              <div className="w-28 h-28 rounded-lg animate-pulse bg-muted shrink-0" />
+              <div className="flex-1 space-y-3">
+                <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-full animate-pulse rounded bg-muted" />
+                <div className="h-8 w-32 animate-pulse rounded bg-muted" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -114,6 +130,15 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
             Correcteur assigné : {chiffrage.assignedChiffreurNom}
           </p>
         </div>
+        <div className="ml-auto">
+          <Button
+            className="bg-primary shadow-lg shadow-primary/20"
+            onClick={() => router.push(`/editor?chiffrageId=${id}&dossierId=${chiffrage.dossierId}`)}
+          >
+            <PencilLine className="h-4 w-4 mr-2" />
+            Ouvrir l&apos;Editeur
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4">
@@ -127,6 +152,8 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
                 <img
                   src={downloadUrls[i]}
                   alt={file.name}
+                  loading="lazy"
+                  decoding="async"
                   className="object-cover w-full h-full"
                 />
               ) : (
@@ -151,15 +178,6 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
               </p>
 
               <div className="flex gap-2 flex-wrap pt-2">
-                <Button
-                  size="sm"
-                  onClick={() => setEditorIndex(i)}
-                  className="bg-primary shadow-lg shadow-primary/20"
-                >
-                  <PencilLine className="h-4 w-4 mr-2" />
-                  Ouvrir l'Éditeur / Corriger
-                </Button>
-
                 {file.pdfUrl && (
                   <Button
                     size="sm"
@@ -175,15 +193,6 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
         ))}
       </div>
 
-      {editorIndex !== null && chiffrage.files[editorIndex] && (
-        <PdfEditor
-          chiffrageId={id}
-          fileIndex={editorIndex}
-          fileName={chiffrage.files[editorIndex].name}
-          fileUrl={downloadUrls[editorIndex]}
-          onClose={() => setEditorIndex(null)}
-        />
-      )}
     </div>
   );
 }

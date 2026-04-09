@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Loader2, FileText, CheckCircle2, FileType,
-  Trash2, Eye, PencilLine
+  Trash2, Eye, PencilLine, ChevronDown, ChevronRight, ImageIcon
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -22,11 +22,14 @@ import {
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { cn } from '@/lib/utils';
 
 interface ChiffrageFileDoc {
   name: string;
   storagePath: string;
   type: 'photo' | 'rapport';
+  docType?: string;
+  category?: string;
   status: 'pending' | 'processing' | 'done' | 'error';
   pdfUrl: string | null;
   annotations?: any[];
@@ -61,6 +64,46 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
   const [loadingChiffrage, setLoadingChiffrage] = useState(false);
 
   const fetchedPathsRef = useRef<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['all']));
+
+  const toggleGroup = (group: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  };
+
+  // Group files by type
+  const groupedFiles = useMemo(() => {
+    if (!chiffrage?.files) return [];
+    const groups: Record<string, { label: string; icon: 'photo' | 'doc'; files: { file: ChiffrageFileDoc; index: number }[] }> = {};
+    chiffrage.files.forEach((file, i) => {
+      let groupKey: string;
+      let groupLabel: string;
+      let icon: 'photo' | 'doc';
+      if (file.type === 'photo') {
+        const cat = file.category || 'avant';
+        const catLabels: Record<string, string> = { avant: 'Photos - Avant', en_cours: 'Photos - En cours', apres: 'Photos - Après' };
+        groupKey = `photo_${cat}`;
+        groupLabel = catLabels[cat] || `Photos - ${cat}`;
+        icon = 'photo';
+      } else {
+        groupKey = `doc_${file.docType || 'Autre'}`;
+        groupLabel = file.docType || 'Documents - Autre';
+        icon = 'doc';
+      }
+      if (!groups[groupKey]) groups[groupKey] = { label: groupLabel, icon, files: [] };
+      groups[groupKey].files.push({ file, index: i });
+    });
+    // Expand all groups by default on first load
+    if (expandedGroups.size === 1 && expandedGroups.has('all')) {
+      const allKeys = Object.keys(groups);
+      setExpandedGroups(new Set(allKeys));
+    }
+    return Object.entries(groups);
+  }, [chiffrage?.files]);
 
   useEffect(() => {
     if (!db || !chiffrageId) { setChiffrage(null); return; }
@@ -108,9 +151,29 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
 
   if (dossierLoading || loadingChiffrage) {
     return (
-      <div className="flex flex-col items-center justify-center p-20 gap-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground italic">Chargement de l'espace correction...</p>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between border-b pb-4">
+          <div className="space-y-2">
+            <div className="h-5 w-56 animate-pulse rounded bg-muted" />
+            <div className="h-3 w-40 animate-pulse rounded bg-muted" />
+          </div>
+          <div className="flex gap-3">
+            <div className="h-9 w-36 animate-pulse rounded-lg bg-muted" />
+            <div className="h-6 w-20 animate-pulse rounded-full bg-muted" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="border rounded-xl p-4 flex gap-4 items-start bg-card">
+              <div className="w-24 h-24 rounded-lg animate-pulse bg-muted shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-full animate-pulse rounded bg-muted" />
+                <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -136,66 +199,82 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
             Correcteur responsable : <span className="font-bold text-foreground">{chiffrage?.assignedChiffreurNom}</span>
           </p>
         </div>
-        <Badge variant={chiffrage?.status === 'done' ? 'expertise' : 'secondary'} className="gap-1.5 py-1 px-3">
-          {chiffrage?.status === 'done' ? <CheckCircle2 className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
-          {chiffrage?.status === 'done' ? 'Terminé' : 'En cours'}
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Button
+            className="shadow-sm"
+            onClick={() => router.push(`/editor?chiffrageId=${chiffrageId}&dossierId=${dossierId}`)}
+          >
+            <PencilLine className="h-4 w-4 mr-2" />
+            Ouvrir l&apos;Editeur
+          </Button>
+          <Badge variant={chiffrage?.status === 'done' ? 'expertise' : 'secondary'} className="gap-1.5 py-1 px-3">
+            {chiffrage?.status === 'done' ? <CheckCircle2 className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
+            {chiffrage?.status === 'done' ? 'Terminé' : 'En cours'}
+          </Badge>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {chiffrage?.files.map((file, i) => (
-          <div
-            key={`${file.storagePath}-${i}`}
-            className="border rounded-xl p-4 flex gap-4 items-start bg-card shadow-sm hover:shadow-md transition-all group"
-          >
-            <div
-              className="w-24 h-24 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden border shadow-inner cursor-pointer relative"
-              onClick={() => downloadUrls[i] && setPreviewIndex(i)}
+      <div className="space-y-4">
+        {groupedFiles.map(([groupKey, group]) => (
+          <div key={groupKey} className="border rounded-xl overflow-hidden bg-card shadow-sm">
+            <button
+              onClick={() => toggleGroup(groupKey)}
+              className="w-full flex items-center gap-2 px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
             >
-              {downloadUrls[i] && (file.type === 'photo' || file.name.match(/\.(jpg|jpeg|png)$/i)) ? (
-                <img src={downloadUrls[i]} alt={file.name} className="object-cover w-full h-full" />
-              ) : (
-                <div className="flex flex-col items-center gap-1">
-                  <FileType className="h-6 w-6 text-muted-foreground opacity-40" />
-                  <span className="text-[8px] uppercase font-black text-muted-foreground">{file.type}</span>
-                </div>
-              )}
-              <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
-                <Eye className="h-5 w-5 text-white" />
-              </div>
-            </div>
+              {expandedGroups.has(groupKey) ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+              {group.icon === 'photo' ? <ImageIcon className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-4 w-4 text-muted-foreground" />}
+              <span className="text-sm font-bold flex-1">{group.label}</span>
+              <Badge variant="secondary" className="text-[10px] font-mono">{group.files.length}</Badge>
+            </button>
+            {expandedGroups.has(groupKey) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                {group.files.map(({ file, index: i }) => (
+                  <div
+                    key={`${file.storagePath}-${i}`}
+                    className="border rounded-xl p-4 flex gap-4 items-start bg-card shadow-sm hover:shadow-md transition-all group"
+                  >
+                    <div
+                      className="w-24 h-24 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden border shadow-inner cursor-pointer relative"
+                      onClick={() => downloadUrls[i] && setPreviewIndex(i)}
+                    >
+                      {downloadUrls[i] && (file.type === 'photo' || file.name.match(/\.(jpg|jpeg|png)$/i)) ? (
+                        <img src={downloadUrls[i]} alt={file.name} loading="lazy" decoding="async" className="object-cover w-full h-full" />
+                      ) : (
+                        <div className="flex flex-col items-center gap-1">
+                          <FileType className="h-6 w-6 text-muted-foreground opacity-40" />
+                          <span className="text-[8px] uppercase font-black text-muted-foreground">{file.type}</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                        <Eye className="h-5 w-5 text-white" />
+                      </div>
+                    </div>
 
-            <div className="flex-1 space-y-2 overflow-hidden">
-              <div className="flex items-center gap-2 flex-wrap justify-between">
-                <span className="font-bold text-xs truncate max-w-[150px]">{file.name}</span>
-                <StatusBadge status={file.status} hasAnnotations={!!file.annotations?.length} />
-              </div>
+                    <div className="flex-1 space-y-2 overflow-hidden">
+                      <div className="flex items-center gap-2 flex-wrap justify-between">
+                        <span className="font-bold text-xs truncate max-w-[150px]">{file.name}</span>
+                        <StatusBadge status={file.status} hasAnnotations={!!file.annotations?.length} />
+                      </div>
 
-              <div className="bg-muted/30 p-2 rounded text-[10px] text-muted-foreground italic line-clamp-2 leading-relaxed">
-                Mode Correcteur : Ajoutez vos annotations, barrez les prix et modifiez les valeurs directement sur l'image.
-              </div>
+                      <div className="bg-muted/30 p-2 rounded text-[10px] text-muted-foreground italic line-clamp-2 leading-relaxed">
+                        Mode Correcteur : Ajoutez vos annotations, barrez les prix et modifiez les valeurs directement sur l'image.
+                      </div>
 
-              <div className="flex gap-1.5 flex-wrap pt-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-[10px] px-2.5 font-bold bg-primary text-white hover:bg-primary/90 border-none shadow-sm"
-                  onClick={() => router.push(`/editor?chiffrageId=${chiffrageId}&fileIndex=${i}&dossierId=${dossierId}`)}
-                >
-                  <PencilLine className="h-3 w-3 mr-1.5" />
-                  Ouvrir l'Éditeur
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 ml-auto opacity-0 group-hover:opacity-100"
-                  onClick={() => setDeletingIndex(i)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                      <div className="flex gap-1.5 flex-wrap pt-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 ml-auto opacity-0 group-hover:opacity-100"
+                          onClick={() => setDeletingIndex(i)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
           </div>
         ))}
       </div>
@@ -223,7 +302,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deletingIndex !== null && handleDelete(deletingIndex)}
             >
               Supprimer
