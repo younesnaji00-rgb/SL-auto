@@ -91,11 +91,9 @@ const AppSidebar = () => {
 
   return (
     <Sidebar collapsible="icon" className="border-r shadow-xl z-50">
-      <SidebarHeader className="h-14 border-b flex flex-row items-center justify-between px-4 shrink-0 bg-background">
-        <div className={cn("flex items-center gap-2 overflow-hidden transition-all duration-300", isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100")}>
-          <Logo />
-        </div>
-        <SidebarTrigger className="h-8 w-8" />
+      <SidebarHeader className={cn("border-b flex shrink-0 bg-background px-4", isCollapsed ? "flex-col items-center gap-2 py-3" : "flex-row items-center justify-between h-14")}>
+        <Logo collapsed={isCollapsed} />
+        <SidebarTrigger className="h-8 w-8 shrink-0" />
       </SidebarHeader>
 
       <SidebarContent className="bg-background/50">

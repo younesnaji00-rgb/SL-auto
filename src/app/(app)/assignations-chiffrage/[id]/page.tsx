@@ -9,7 +9,7 @@ import { useFirestore, useStorage } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  Dialog, DialogContent,
+  Dialog, DialogContent, DialogTitle,
 } from '@/components/ui/dialog';
 import {
   ArrowLeft, FileType, Eye, CheckCircle2, Loader2,
@@ -243,6 +243,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       {previewIndex !== null && chiffrage && downloadUrls[previewIndex] && (
         <Dialog open onOpenChange={() => setPreviewIndex(null)}>
           <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
+            <DialogTitle className="sr-only">Apercu du fichier</DialogTitle>
             <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
               {chiffrage.files[previewIndex].name.match(/\.(jpg|jpeg|png|webp)$/i) ? (
                 <img src={downloadUrls[previewIndex]} className="max-w-full max-h-full object-contain" alt="Apercu" />
