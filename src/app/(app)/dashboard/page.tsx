@@ -13,6 +13,8 @@ import {
   Filter,
   X,
   ArrowLeft,
+  Search,
+  FolderOpen,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -62,9 +64,11 @@ const Cell = dynamic(() => import('recharts').then(m => ({ default: m.Cell })), 
 const Label = dynamic(() => import('recharts').then(m => ({ default: m.Label })), { ssr: false }) as any;
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 export default function DashboardPage() {
   const db = useFirestore();
+  const { profile } = useCurrentUser();
   const [dossiers, setDossiers] = useState<any[]>([]);
   const [workflowLogs, setWorkflowLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +80,8 @@ export default function DashboardPage() {
   // Changements filters
   const [changementsDateFilter, setChangementsDateFilter] = useState('');
   const [changementsUserFilter, setChangementsUserFilter] = useState('all');
+  const [changementsSearchField, setChangementsSearchField] = useState<string>('all');
+  const [changementsSearchValue, setChangementsSearchValue] = useState('');
 
   // Deadline card drill-down
   const [selectedAgeFilter, setSelectedAgeFilter] = useState<number | null>(null);
@@ -103,9 +109,16 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!db) return;
 
+    const userCompagnies = profile?.compagnies || [];
+    const allowedLower = userCompagnies.map((c: string) => c.toLowerCase().trim());
+
     const qDossiers = query(collection(db, 'dossiers'), orderBy('createdAt', 'desc'));
     const unsubDossiers = onSnapshot(qDossiers, (snap) => {
-      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      let data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // Filter by user's assigned companies
+      if (allowedLower.length > 0) {
+        data = data.filter((d: any) => allowedLower.includes((d.compagnie || '').toLowerCase().trim()));
+      }
       setDossiers(data);
       setLoading(false);
     }, (error) => {
@@ -120,7 +133,11 @@ export default function DashboardPage() {
       firestoreLimit(200)
     );
     const unsubWorkflow = onSnapshot(qWorkflow, (snap) => {
-      const logs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const logs = snap.docs.map(d => ({
+        id: d.id,
+        ...d.data(),
+        _dossierId: d.ref.parent.parent?.id || '',
+      }));
       setWorkflowLogs(logs);
     }, (error) => {
       console.warn("Workflow group sync error:", error);
@@ -130,7 +147,7 @@ export default function DashboardPage() {
       unsubDossiers();
       unsubWorkflow();
     };
-  }, [db]);
+  }, [db, profile]);
 
   // Derive Stats
   const total = dossiers.length;
@@ -173,6 +190,13 @@ export default function DashboardPage() {
     return Array.from(users).sort();
   }, [workflowLogs]);
 
+  // Dossier lookup map for search filtering
+  const dossierMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    dossiers.forEach((d) => { map[d.id] = d; });
+    return map;
+  }, [dossiers]);
+
   // Filtered changements
   const filteredWorkflowLogs = useMemo(() => {
     let filtered = workflowLogs;
@@ -195,8 +219,34 @@ export default function DashboardPage() {
       });
     }
 
+    if (changementsSearchValue.trim()) {
+      const q = changementsSearchValue.trim().toLowerCase();
+      filtered = filtered.filter((log) => {
+        const dossier = dossierMap[log._dossierId];
+        if (!dossier) return false;
+        const field = changementsSearchField;
+        if (field === 'all' || field === 'reference') {
+          if ((dossier.refExpert || '').toLowerCase().includes(q)) return true;
+        }
+        if (field === 'all' || field === 'assure') {
+          const nom = `${dossier.assure?.nom || ''} ${dossier.assure?.prenom || ''}`.toLowerCase();
+          if (nom.includes(q)) return true;
+        }
+        if (field === 'all' || field === 'compagnie') {
+          if ((dossier.compagnie || '').toLowerCase().includes(q)) return true;
+        }
+        if (field === 'all' || field === 'statut') {
+          if ((dossier.statut || '').toLowerCase().includes(q)) return true;
+        }
+        if (field === 'all' || field === 'matricule') {
+          if ((dossier.vehicule?.immatriculation || '').toLowerCase().includes(q)) return true;
+        }
+        return false;
+      });
+    }
+
     return filtered;
-  }, [workflowLogs, changementsDateFilter, changementsUserFilter]);
+  }, [workflowLogs, changementsDateFilter, changementsUserFilter, changementsSearchField, changementsSearchValue, dossierMap]);
 
   // Chart data: Volume par Statut (Pie Chart with percentages)
   const pieStatusData = useMemo(() => {
@@ -559,43 +609,76 @@ export default function DashboardPage() {
           <div className={cn("grid transition-all duration-300 ease-in-out", isChangementsOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
             <div className="overflow-hidden">
               {/* Filters */}
-              <div className="px-4 pt-4 pb-2 flex flex-col sm:flex-row gap-2 border-b">
-                <div className="flex-1">
-                  <Input
-                    type="date"
-                    value={changementsDateFilter}
-                    onChange={(e) => setChangementsDateFilter(e.target.value)}
-                    className="h-8 text-xs"
-                    placeholder="Filtrer par date"
-                  />
+              <div className="px-4 pt-4 pb-2 flex flex-col gap-2 border-b">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="flex-1">
+                    <Input
+                      type="date"
+                      value={changementsDateFilter}
+                      onChange={(e) => setChangementsDateFilter(e.target.value)}
+                      className="h-8 text-xs"
+                      placeholder="Filtrer par date"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <Select value={changementsUserFilter} onValueChange={setChangementsUserFilter}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Tous les utilisateurs" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tous les utilisateurs</SelectItem>
+                        {uniqueUsers.map((user) => (
+                          <SelectItem key={user} value={user}>{user}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {(changementsDateFilter || changementsUserFilter !== 'all' || changementsSearchValue) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setChangementsDateFilter('');
+                        setChangementsUserFilter('all');
+                        setChangementsSearchField('all');
+                        setChangementsSearchValue('');
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
-                <div className="flex-1">
-                  <Select value={changementsUserFilter} onValueChange={setChangementsUserFilter}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Tous les utilisateurs" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tous les utilisateurs</SelectItem>
-                      {uniqueUsers.map((user) => (
-                        <SelectItem key={user} value={user}>{user}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="w-full sm:w-[180px]">
+                    <Select value={changementsSearchField} onValueChange={setChangementsSearchField}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <Search className="h-3 w-3 text-muted-foreground" />
+                          <SelectValue placeholder="Filtrer par..." />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tous les champs</SelectItem>
+                        <SelectItem value="reference">Référence</SelectItem>
+                        <SelectItem value="assure">Nom assuré</SelectItem>
+                        <SelectItem value="compagnie">Compagnie</SelectItem>
+                        <SelectItem value="statut">Statut</SelectItem>
+                        <SelectItem value="matricule">Matricule</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1">
+                    <Input
+                      type="text"
+                      value={changementsSearchValue}
+                      onChange={(e) => setChangementsSearchValue(e.target.value)}
+                      className="h-8 text-xs"
+                      placeholder={changementsSearchField === 'all' ? 'Rechercher...' : `Rechercher par ${changementsSearchField === 'reference' ? 'référence' : changementsSearchField === 'assure' ? 'nom assuré' : changementsSearchField === 'compagnie' ? 'compagnie' : changementsSearchField === 'statut' ? 'statut' : 'matricule'}...`}
+                    />
+                  </div>
                 </div>
-                {(changementsDateFilter || changementsUserFilter !== 'all') && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setChangementsDateFilter('');
-                      setChangementsUserFilter('all');
-                    }}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                )}
               </div>
 
               <CardContent className="pt-4">
@@ -606,26 +689,39 @@ export default function DashboardPage() {
                       <p className="text-xs italic">Aucune activite recente.</p>
                     </div>
                   ) : (
-                    filteredWorkflowLogs.map((log) => (
-                      <div key={log.id} className="relative pl-6 pb-6 last:pb-0 border-l border-muted ml-2">
-                        <div className={cn(
-                          "absolute -left-1.5 top-1 w-3 h-3 rounded-full ring-4 ring-background",
-                          log.status === 'done' ? "bg-green-500" : "bg-orange-500"
-                        )} />
-                        <div className="flex flex-col gap-1">
-                          <div className="flex justify-between items-start">
-                            <p className="text-xs font-bold leading-tight">{log.action}</p>
-                            <span className="text-[9px] font-medium text-muted-foreground whitespace-nowrap ml-2 bg-muted px-1.5 py-0.5 rounded">
-                              {formatDate(log.date)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                            <UserIcon className="h-2.5 w-2.5" />
-                            <span>par <span className="font-bold text-foreground">{log.user || 'Admin'}</span></span>
+                    filteredWorkflowLogs.map((log) => {
+                      const dossier = dossierMap[log._dossierId];
+                      const dossierLabel = log.dossierRef || dossier?.refExpert || '';
+                      return (
+                        <div key={log.id} className="relative pl-6 pb-6 last:pb-0 border-l border-muted ml-2">
+                          <div className={cn(
+                            "absolute -left-1.5 top-1 w-3 h-3 rounded-full ring-4 ring-background",
+                            log.status === 'done' ? "bg-green-500" : "bg-orange-500"
+                          )} />
+                          <div className="flex flex-col gap-1">
+                            <div className="flex justify-between items-start">
+                              <p className="text-xs font-bold leading-tight">{log.action}</p>
+                              <span className="text-[9px] font-medium text-muted-foreground whitespace-nowrap ml-2 bg-muted px-1.5 py-0.5 rounded">
+                                {formatDate(log.date)}
+                              </span>
+                            </div>
+                            {dossierLabel && (
+                              <div className="flex items-center gap-1.5 text-[10px] text-primary">
+                                <FolderOpen className="h-2.5 w-2.5" />
+                                <span className="font-semibold">{dossierLabel}</span>
+                              </div>
+                            )}
+                            {log.details && (
+                              <p className="text-[10px] text-muted-foreground italic leading-snug">{log.details}</p>
+                            )}
+                            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                              <UserIcon className="h-2.5 w-2.5" />
+                              <span>par <span className="font-bold text-foreground">{log.user || 'Admin'}</span></span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </CardContent>

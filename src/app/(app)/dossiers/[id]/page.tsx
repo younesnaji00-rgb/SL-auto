@@ -21,6 +21,7 @@ import { useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 import InformationTab from './information-tab';
@@ -65,6 +66,8 @@ export default function DossierDetailPage({
   const db = useFirestore();
   const dossierRef = useMemo(() => doc(db, 'dossiers', id), [db, id]);
   const { data: dossier, loading } = useDoc(dossierRef);
+  const { canWrite } = useCurrentUser();
+  const readOnly = !canWrite('dossiers');
 
   const [activeTab, setActiveTab] = useState<TabId>('informations');
 
@@ -147,6 +150,7 @@ export default function DossierDetailPage({
       </div>
 
       {/* ACTION BUTTONS ROW */}
+      {!readOnly && (
       <div className="bg-card border-b px-6 py-2 flex flex-wrap gap-2 items-center">
         <Button variant="outline" size="sm" onClick={() => setChiffrageModalOpen(true)} className="h-8 text-xs gap-1.5">
           <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
@@ -158,6 +162,7 @@ export default function DossierDetailPage({
           <AlertTriangle className="h-3.5 w-3.5" /> Réclamation
         </Button>
       </div>
+      )}
 
       {/* TABS */}
       <div className="bg-card border-b shadow-sm sticky top-0 z-20">

@@ -18,6 +18,7 @@ import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
 import { cn } from '@/lib/utils';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 const defaultDossierTypes = ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'];
 const defaultRepairerTypes = ['Agréé', 'Normal'];
@@ -27,6 +28,8 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
+  const { canWrite } = useCurrentUser();
+  const canEdit = canWrite('dossiers');
   
   const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
   const { options: dbNatures } = useOptions('options_natures', defaultNatures);
@@ -398,14 +401,16 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
             + Information Expert
           </Button>
         </div>
-        <div className="flex gap-3">
-          <Button variant="ghost" onClick={() => window.location.reload()}>
-            Annuler
-          </Button>
-          <Button onClick={handleSave} disabled={isSaving} className="min-w-[140px] shadow-lg shadow-primary/20">
-            {isSaving ? "Mise à jour..." : "Mettre à jour"}
-          </Button>
-        </div>
+        {canEdit && (
+          <div className="flex gap-3">
+            <Button variant="ghost" onClick={() => window.location.reload()}>
+              Annuler
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving} className="min-w-[140px] shadow-lg shadow-primary/20">
+              {isSaving ? "Mise à jour..." : "Mettre à jour"}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

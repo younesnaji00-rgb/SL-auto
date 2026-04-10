@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { useFirestore, useAuth, useCollection } from '@/firebase';
 import { addDoc, collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { logWorkflow } from './log-historique';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, User, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
@@ -138,6 +139,9 @@ export default function ModalReclamation({ open, onOpenChange, dossierId }: Moda
         date: serverTimestamp(),
         type: 'reclamation'
       });
+
+      const userId = auth?.currentUser?.uid || 'unknown';
+      await logWorkflow(db, dossierId, 'Réclamation ajoutée', userEmail, userId, 'done', { details: reclamationText.trim().substring(0, 100) });
 
       toast({ title: "Réclamation soumise" });
       setReclamationText('');

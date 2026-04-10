@@ -14,7 +14,7 @@ const Breadcrumb = () => {
       <ol className="flex items-center gap-2 text-sm text-muted-foreground">
         <li>
           <Link href="/dashboard" className="hover:text-foreground font-semibold text-foreground">
-            DashFlow
+            SL-auto
           </Link>
         </li>
         {segments.map((segment, index) => {

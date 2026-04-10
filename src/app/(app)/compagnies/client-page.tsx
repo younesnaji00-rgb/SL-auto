@@ -62,7 +62,7 @@ export default function CompagniesClientPage() {
     [compagnies, selectedId]
   );
 
-  const { dossiers, loading: loadingDossiers } = useDossiers(selectedCompagnie?.nom);
+  const { dossiers, loading: loadingDossiers } = useDossiers(selectedCompagnie?.nom ? [selectedCompagnie.nom] : undefined);
 
   const stats = useMemo(() => {
     if (!dossiers) return { total: 0, nouveau: 0, enCours: 0, clos: 0 };

@@ -1,9 +1,6 @@
 import React from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import Breadcrumb from '@/components/breadcrumb';
-import GlobalSearch from '@/components/global-search';
-import Notifications from '@/components/layout/notifications';
-import UserNav from '@/components/layout/user-nav';
 
 const Header = () => {
   return (
@@ -13,13 +10,6 @@ const Header = () => {
         <div className="hidden md:block">
           <Breadcrumb />
         </div>
-      </div>
-      
-      <div className="flex items-center gap-4">
-        <GlobalSearch />
-        <Notifications />
-        <div className="h-8 w-px bg-border mx-1" />
-        <UserNav />
       </div>
     </header>
   );

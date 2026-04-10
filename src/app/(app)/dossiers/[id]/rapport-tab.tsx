@@ -27,7 +27,7 @@ import {
   onSnapshot, 
   serverTimestamp,
 } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,8 +54,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { generateRapportPDF, type Piece } from '@/lib/generate-rapport-pdf';
+import { logWorkflow } from './log-historique';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import CarSvgTop from '@/components/car-svg-top';
 import CarSvgBottom from '@/components/car-svg-bottom';
 
@@ -71,7 +73,10 @@ const TYPE_CHOC_OPTIONS = [
 
 export default function RapportTab({ dossierId }: { dossierId: string }) {
   const db = useFirestore();
+  const auth = useAuth();
   const { toast } = useToast();
+  const { canWrite } = useCurrentUser();
+  const canEditDossiers = canWrite('dossiers');
 
   const { options: dbTypePieces } = useOptions('options_rapport_types_pieces', defaultTypePieceOptions);
   const { options: dbOperations } = useOptions('options_rapport_operations', defaultOperationOptions);
@@ -394,6 +399,10 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
         setObservationExpert(data.observationExpert);
       }
 
+      const userEmail = auth?.currentUser?.email || 'Admin';
+      const userId = auth?.currentUser?.uid || 'unknown';
+      await logWorkflow(db, dossierId, 'Rapport mis à jour', userEmail, userId, 'done', { details: `Importation IA : ${data.pieces?.length || 0} pièce(s) extraite(s)` });
+
       toast({
         title: 'Importation réussie',
         description: `${data.pieces?.length || 0} pièce(s) extraite(s) par l'IA. Vous pouvez maintenant modifier chaque élément.`,
@@ -441,6 +450,9 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
         observationExpert,
         statut: 'Rapport Validé'
       });
+      const userEmail = auth?.currentUser?.email || 'Admin';
+      const userId = auth?.currentUser?.uid || 'unknown';
+      await logWorkflow(db, dossierId, 'Rapport validé', userEmail, userId, 'done', { details: 'Rapport d\'expertise validé' });
       toast({ title: "Rapport validé avec succès" });
     } catch (e) {
       console.error(e);
@@ -479,6 +491,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   return (
     <div className="space-y-8 pb-32">
       {/* RAPPORT TYPE + AI IMPORT */}
+      {canEditDossiers && (
       <div className="flex flex-col sm:flex-row gap-4">
         <Card className="flex-1 shadow-sm">
           <CardContent className="flex items-center gap-3 py-4">
@@ -540,6 +553,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           </CardContent>
         </Card>
       </div>
+      )}
 
       {/* SECTION 1 — FOURNITURE */}
       <Card className="border-primary/10 shadow-sm">
@@ -562,7 +576,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="p-4 bg-muted/10 border-b space-y-4">
+          {canEditDossiers && <div className="p-4 bg-muted/10 border-b space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-end">
               <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase">Désignation</Label><Input value={newPiece.designation} onChange={e => setNewPiece({...newPiece, designation: e.target.value})} className="bg-background" /></div>
               <div className="space-y-1.5">
@@ -600,7 +614,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
                 + Ajouter la pièce
               </Button>
             </div>
-          </div>
+          </div>}
 
           <Table>
             <TableHeader><TableRow className="bg-muted/50"><TableHead className="text-[10px] font-bold uppercase">Désignation</TableHead><TableHead className="text-[10px] font-bold uppercase">Type</TableHead><TableHead className="text-[10px] font-bold uppercase">Vét.</TableHead><TableHead className="text-[10px] font-bold uppercase">Qte</TableHead><TableHead className="text-[10px] font-bold uppercase">PU HT</TableHead><TableHead className="text-[10px] font-bold uppercase">Rem.</TableHead><TableHead className="text-[10px] font-bold uppercase">Total HT</TableHead><TableHead className="text-[10px] font-bold uppercase w-[80px]">TVA</TableHead><TableHead className="text-[10px] font-bold uppercase">TTC</TableHead><TableHead className="w-[100px] text-right">Action</TableHead></TableRow></TableHeader>
@@ -638,7 +652,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
                         {isEditing ? <Input type="number" value={editForm.remise} onChange={e => setEditForm({...editForm, remise: Number(e.target.value)})} className="h-8 w-16" /> : `${piece.remise}%`}
                       </TableCell>
                       <TableCell className="font-mono text-xs">{rowHT.toFixed(2)}</TableCell>
-                      <TableCell className="text-center"><Checkbox checked={piece.tva} onCheckedChange={() => handleToggleTVA(piece.id, piece.tva)} /></TableCell>
+                      <TableCell className="text-center"><Checkbox checked={piece.tva} onCheckedChange={() => handleToggleTVA(piece.id, piece.tva)} disabled={!canEditDossiers} /></TableCell>
                       <TableCell className="font-bold font-mono text-xs">{(rowHT + tvaAmount).toFixed(2)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
@@ -649,8 +663,10 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
                             </>
                           ) : (
                             <>
-                              <Button variant="ghost" size="icon" onClick={() => handleEditClick(piece)} className="h-8 w-8 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Pencil className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleDeletePiece(piece.id)} className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="h-4 w-4" /></Button>
+                              {canEditDossiers && <>
+                                <Button variant="ghost" size="icon" onClick={() => handleEditClick(piece)} className="h-8 w-8 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Pencil className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDeletePiece(piece.id)} className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="h-4 w-4" /></Button>
+                              </>}
                             </>
                           )}
                         </div>
@@ -694,8 +710,8 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
                 return (
                   <TableRow key={type.id}>
                     <TableCell className="font-semibold">{type.label}</TableCell>
-                    <TableCell><div className="flex items-center gap-1 justify-center"><Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'nbrH', item.nbrH - 1)}><Minus className="h-3 w-3" /></Button><Input type="number" className="h-8 w-16 text-center" value={item.nbrH} onChange={e => updateMO(key, 'nbrH', Number(e.target.value))} /><Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'nbrH', item.nbrH + 1)}><Plus className="h-3 w-3" /></Button></div></TableCell>
-                    <TableCell><div className="flex items-center gap-1 justify-center"><Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'pu', item.pu - 5)}><Minus className="h-3 w-3" /></Button><Input type="number" className="h-8 w-16 text-center" value={item.pu} onChange={e => updateMO(key, 'pu', Number(e.target.value))} /><Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'pu', item.pu + 5)}><Plus className="h-3 w-3" /></Button></div></TableCell>
+                    <TableCell><div className="flex items-center gap-1 justify-center">{canEditDossiers && <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'nbrH', item.nbrH - 1)}><Minus className="h-3 w-3" /></Button>}<Input type="number" className="h-8 w-16 text-center" value={item.nbrH} onChange={e => updateMO(key, 'nbrH', Number(e.target.value))} readOnly={!canEditDossiers} />{canEditDossiers && <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'nbrH', item.nbrH + 1)}><Plus className="h-3 w-3" /></Button>}</div></TableCell>
+                    <TableCell><div className="flex items-center gap-1 justify-center">{canEditDossiers && <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'pu', item.pu - 5)}><Minus className="h-3 w-3" /></Button>}<Input type="number" className="h-8 w-16 text-center" value={item.pu} onChange={e => updateMO(key, 'pu', Number(e.target.value))} readOnly={!canEditDossiers} />{canEditDossiers && <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'pu', item.pu + 5)}><Plus className="h-3 w-3" /></Button>}</div></TableCell>
                     <TableCell className="font-mono text-xs">{totalHT.toFixed(2)}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{tva.toFixed(2)}</TableCell>
                     <TableCell className="font-bold font-mono text-xs">{ttc.toFixed(2)}</TableCell>
@@ -712,12 +728,14 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
               </TableRow>
             </TableFooter>
           </Table>
-          <div className="p-4 flex justify-end">
-            <Button onClick={handleSaveMO} disabled={isSavingMO} className="bg-blue-600 hover:bg-blue-700">
-              {isSavingMO ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              Enregistrer Main d'œuvre
-            </Button>
-          </div>
+          {canEditDossiers && (
+            <div className="p-4 flex justify-end">
+              <Button onClick={handleSaveMO} disabled={isSavingMO} className="bg-blue-600 hover:bg-blue-700">
+                {isSavingMO ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                Enregistrer Main d'œuvre
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -762,34 +780,38 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
         <CardContent className="p-6 space-y-12">
           <div className="space-y-6">
             <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-l-4 border-blue-500 pl-3">Vue de dessus</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              <div className="mx-auto">
-                <CarSvgTop zones={pointsChoc} onToggleZone={(zone) => handleToggleZone(zone)} />
+            <div className={cn("grid gap-12 items-center", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1 max-w-md mx-auto")}>
+              <div className={cn("mx-auto", !canEditDossiers && "pointer-events-none")}>
+                <CarSvgTop zones={pointsChoc} onToggleZone={canEditDossiers ? (zone) => handleToggleZone(zone) : () => {}} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                {Object.keys(pointsChoc).map(zone => (
-                  <div key={zone} className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-primary/20 transition-colors">
-                    <Checkbox id={`top-${zone}`} checked={pointsChoc[zone]} onCheckedChange={() => handleToggleZone(zone)} />
-                    <Label htmlFor={`top-${zone}`} className="text-xs font-bold cursor-pointer">{zone}</Label>
-                  </div>
-                ))}
-              </div>
+              {canEditDossiers && (
+                <div className="grid grid-cols-2 gap-4">
+                  {Object.keys(pointsChoc).map(zone => (
+                    <div key={zone} className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-primary/20 transition-colors">
+                      <Checkbox id={`top-${zone}`} checked={pointsChoc[zone]} onCheckedChange={() => handleToggleZone(zone)} />
+                      <Label htmlFor={`top-${zone}`} className="text-xs font-bold cursor-pointer">{zone}</Label>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <div className="space-y-6 pt-12 border-t border-dashed">
             <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-l-4 border-blue-500 pl-3">Vue de dessous</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              <div className="mx-auto">
-                <CarSvgBottom zones={pointsChocDessous} onToggleZone={(zone) => handleToggleZone(zone, true)} />
+            <div className={cn("grid gap-12 items-center", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1 max-w-md mx-auto")}>
+              <div className={cn("mx-auto", !canEditDossiers && "pointer-events-none")}>
+                <CarSvgBottom zones={pointsChocDessous} onToggleZone={canEditDossiers ? (zone) => handleToggleZone(zone, true) : () => {}} />
               </div>
-              <div className="grid grid-cols-1 gap-3">
-                {Object.keys(pointsChocDessous).map(zone => (
-                  <div key={zone} className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-primary/20 transition-colors">
-                    <Checkbox id={`bot-${zone}`} checked={pointsChocDessous[zone]} onCheckedChange={() => handleToggleZone(zone, true)} />
-                    <Label htmlFor={`bot-${zone}`} className="text-xs font-bold cursor-pointer capitalize">{zone.replace(/([A-Z])/g, ' $1')}</Label>
-                  </div>
-                ))}
-              </div>
+              {canEditDossiers && (
+                <div className="grid grid-cols-1 gap-3">
+                  {Object.keys(pointsChocDessous).map(zone => (
+                    <div key={zone} className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-primary/20 transition-colors">
+                      <Checkbox id={`bot-${zone}`} checked={pointsChocDessous[zone]} onCheckedChange={() => handleToggleZone(zone, true)} />
+                      <Label htmlFor={`bot-${zone}`} className="text-xs font-bold cursor-pointer capitalize">{zone.replace(/([A-Z])/g, ' $1')}</Label>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -800,17 +822,19 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
         <CardHeader className="bg-muted/30 border-b"><CardTitle className="text-xl font-bold flex items-center gap-2"><Settings className="h-5 w-5 text-primary" />Observation expert</CardTitle></CardHeader>
         <CardContent className="p-6 space-y-4">
           <div className="flex items-center gap-2 bg-primary/5 p-3 rounded-md border border-primary/10"><Settings className="h-4 w-4 text-primary" /><span className="text-xs font-bold uppercase tracking-wider text-primary">Mode dossier: {dossierMode}</span></div>
-          <Textarea placeholder="Ajouter une observation au rapport (optionnel)..." className="min-h-[150px] resize-none focus-visible:ring-primary text-sm leading-relaxed" value={observationExpert} onChange={(e) => setObservationExpert(e.target.value)} />
+          <Textarea placeholder="Ajouter une observation au rapport (optionnel)..." className="min-h-[150px] resize-none focus-visible:ring-primary text-sm leading-relaxed" value={observationExpert} onChange={(e) => setObservationExpert(e.target.value)} readOnly={!canEditDossiers} />
         </CardContent>
       </Card>
 
       {/* STICKY BOTTOM BAR */}
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t p-4 flex items-center justify-between z-50 md:left-[16rem] shadow-2xl">
         <div className="flex gap-2">
-          <Button onClick={handleValidateReport} disabled={isValidating} className="bg-green-600 hover:bg-green-700 text-white font-bold px-8 shadow-lg shadow-green-500/20">
-            {isValidating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} 
-            VALIDER LE RAPPORT
-          </Button>
+          {canEditDossiers && (
+            <Button onClick={handleValidateReport} disabled={isValidating} className="bg-green-600 hover:bg-green-700 text-white font-bold px-8 shadow-lg shadow-green-500/20">
+              {isValidating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+              VALIDER LE RAPPORT
+            </Button>
+          )}
         </div>
         <div className="flex flex-col items-center">
           <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Total Général Estimé</span>

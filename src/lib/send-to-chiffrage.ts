@@ -24,6 +24,7 @@ export interface SendToChiffrageParams {
   files: ChiffrageFile[];
   sentByUid: string;
   sentByEmail: string;
+  sentByNom: string;
 }
 
 /**
@@ -39,6 +40,7 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
     files,
     sentByUid,
     sentByEmail,
+    sentByNom,
   } = params;
 
   if (!assignedChiffreurId) throw new Error("Aucun chiffreur sélectionné.");
@@ -63,6 +65,7 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
     status: "pending",
     sentByUid,
     sentByEmail,
+    sentByNom,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

@@ -13,6 +13,7 @@ import { UserCheck, Loader2, Calendar, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 interface PlanificationItem {
   id: string;
@@ -41,6 +42,7 @@ const MISSION_TABS = [
 export default function AssignationsATGPage() {
   const db = useFirestore();
   const router = useRouter();
+  const { profile } = useCurrentUser();
   const [planifications, setPlanifications] = useState<PlanificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Avant');
@@ -113,11 +115,17 @@ export default function AssignationsATGPage() {
         });
       }
 
-      setPlanifications(items);
+      // ATG users only see their own assignments
+      if (profile?.role === 'Agent de Terrain' && profile?.nom) {
+        const myName = profile.nom.toLowerCase().trim();
+        setPlanifications(items.filter(p => p.agentTerrain.toLowerCase().trim() === myName));
+      } else {
+        setPlanifications(items);
+      }
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();
-  }, [db]);
+  }, [db, profile?.role, profile?.nom]);
 
   const countByType = useMemo(() => {
     const counts: Record<string, number> = { 'Avant': 0, 'En cours': 0, 'Après': 0 };

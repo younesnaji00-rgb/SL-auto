@@ -16,6 +16,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { logHistorique, logWorkflow } from './log-historique';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { DatePicker } from '@/components/ui/date-picker';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -23,6 +24,8 @@ import { fr } from 'date-fns/locale';
 const defaultDossierTypes = ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'];
 
 export default function RequeteTab({ dossier, dossierRef }: { dossier: any; dossierRef: DocumentReference }) {
+  const { canWrite } = useCurrentUser();
+  const canEdit = canWrite('dossiers');
     const db = useFirestore();
     const auth = useAuth();
     const { toast } = useToast();
@@ -141,7 +144,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
             
             if (formValues.statut !== dossier.statut) {
                 await logHistorique(db, dossierId, formValues.statut, userEmail, `Statut changé en "${formValues.statut}".`, 'statut');
-                await logWorkflow(db, dossierId, formValues.statut, userEmail, userId, 'done');
+                await logWorkflow(db, dossierId, `Changement de statut : ${formValues.statut}`, userEmail, userId, 'done', { dossierRef: dossier.refExpert || dossierId, details: `Statut changé en "${formValues.statut}"` });
             }
             if (formValues.modeDossier !== dossier.modeDossier) {
                 await logHistorique(db, dossierId, 'Changement de mode', userEmail, `Mode changé en "${formValues.modeDossier}".`, 'mode');
@@ -192,7 +195,8 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-end gap-2">
+            {canEdit && (
+              <div className="flex justify-end gap-2">
                 {!editing ? (
                     <button type="button" onClick={() => setEditing(true)}
                         className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold">
@@ -210,7 +214,8 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
                         </button>
                     </>
                 )}
-            </div>
+              </div>
+            )}
 
             <Card className="border-primary/5 shadow-sm">
                 <CardHeader className="bg-muted/30 py-3"><CardTitle className="text-sm font-bold uppercase tracking-wider">Informations Dossier</CardTitle></CardHeader>

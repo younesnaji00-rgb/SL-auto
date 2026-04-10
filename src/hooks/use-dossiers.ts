@@ -1,31 +1,35 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs } from 'firebase/firestore';
 import { ref, deleteObject, listAll } from 'firebase/storage';
 import { useFirestore, useStorage } from '@/firebase';
 import type { Dossier } from '@/lib/dossiers-data';
 
-export function useDossiers(compagnieNom?: string) {
+export function useDossiers(allowedCompagnies?: string[]) {
     const db = useFirestore();
     const storage = useStorage();
     const [dossiers, setDossiers] = useState<Dossier[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Stabilize the array reference to avoid re-subscribing on every render
+    const compagniesKey = allowedCompagnies ? JSON.stringify(allowedCompagnies.map(c => c.toLowerCase().trim()).sort()) : '';
+    const allowed = useMemo(() => compagniesKey ? JSON.parse(compagniesKey) as string[] : null, [compagniesKey]);
+
     useEffect(() => {
         if (!db) return;
         setLoading(true);
         const q = query(collection(db, 'dossiers'), orderBy('createdAt', 'desc'));
-        
+
         const unsub = onSnapshot(q,
             (snapshot) => {
                 let results = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Dossier));
-                
-                if (compagnieNom) {
-                    const companyLower = (compagnieNom || '').toLowerCase().trim();
-                    results = results.filter(d => (d.compagnie || '').toLowerCase().trim() === companyLower);
+
+                // Filter by user's allowed companies
+                if (allowed && allowed.length > 0) {
+                    results = results.filter(d => allowed.includes((d.compagnie || '').toLowerCase().trim()));
                 }
-                
+
                 setDossiers(results);
                 setLoading(false);
                 setError(null);
@@ -36,9 +40,9 @@ export function useDossiers(compagnieNom?: string) {
                 setLoading(false);
             }
         );
-        
+
         return () => unsub();
-    }, [db, compagnieNom]);
+    }, [db, allowed]);
 
     const deleteDossier = async (dossierId: string): Promise<void> => {
         if (!db) throw new Error('DB not initialized');

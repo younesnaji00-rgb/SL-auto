@@ -105,17 +105,25 @@ export default function DocumentViewer({ files, currentStep, visible, onToggle }
           {/* Document Display — overflow scroll to handle zoom without cropping */}
           <div className="flex-1 overflow-auto bg-muted/10">
             {isPdf ? (
-              <iframe
-                src={currentUrl}
-                className="border-0"
+              <div
                 style={{
                   width: `${scale * 100}%`,
                   height: `${scale * 100}%`,
                   minHeight: '100%',
-                  transformOrigin: 'top left',
                 }}
-                title="Document PDF"
-              />
+              >
+                <iframe
+                  src={currentUrl}
+                  className="border-0"
+                  style={{
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'top left',
+                    width: `${100 / scale}%`,
+                    height: `${100 / scale}%`,
+                  }}
+                  title="Document PDF"
+                />
+              </div>
             ) : currentFile.preview ? (
               <div className="p-2">
                 <img

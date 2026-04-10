@@ -1,3 +1,6 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,28 +12,42 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CreditCard, LogOut, Settings, User } from "lucide-react";
+import { LogOut, Settings, User } from "lucide-react";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 export default function UserNav() {
   const avatarImage = PlaceHolderImages.find(img => img.id === 'avatar1');
+  const { profile, signOut } = useCurrentUser();
+  const router = useRouter();
+
+  const displayName = profile?.nom || 'Utilisateur';
+  const displayRole = profile?.role || '';
+  const initials = profile
+    ? (profile.prenom ? profile.prenom[0] : '') + (profile.nom ? profile.nom[0] : 'U')
+    : 'U';
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/login');
+  };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-9 w-9 rounded-full">
           <Avatar className="h-9 w-9">
-            {avatarImage && <AvatarImage src={avatarImage.imageUrl} alt="Admin" data-ai-hint={avatarImage.imageHint} />}
-            <AvatarFallback>A</AvatarFallback>
+            {avatarImage && <AvatarImage src={avatarImage.imageUrl} alt={displayName} data-ai-hint={avatarImage.imageHint} />}
+            <AvatarFallback>{initials.toUpperCase()}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">Admin</p>
+            <p className="text-sm font-medium leading-none">{displayName}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              admin@dashflow.com
+              {displayRole}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -41,18 +58,14 @@ export default function UserNav() {
             <span>Profile</span>
           </DropdownMenuItem>
           <DropdownMenuItem>
-            <CreditCard className="mr-2 h-4 w-4" />
-            <span>Billing</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem>
             <Settings className="mr-2 h-4 w-4" />
-            <span>Settings</span>
+            <span>Paramètres</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
           <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
+          <span>Déconnexion</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -20,6 +20,7 @@ import { logHistorique, logWorkflow } from './log-historique';
 import { Loader2, Send, ImageIcon, FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { sendToChiffrage, ChiffrageFile } from '@/lib/send-to-chiffrage';
 import { useChiffreurs } from '@/hooks/use-chiffreurs';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { cn } from '@/lib/utils';
 
 type ModalChiffrageProps = {
@@ -41,6 +42,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
+  const { profile } = useCurrentUser();
   const { chiffreurs, loading: loadingChiffreurs } = useChiffreurs();
 
   const dossierRef = useMemo(() => (db && dossierId ? doc(db, 'dossiers', dossierId) : null), [db, dossierId]);
@@ -164,6 +166,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
         files: selectedFiles,
         sentByUid: userId,
         sentByEmail: userEmail,
+        sentByNom: profile?.nom || userEmail,
       });
 
       if (dossierRef) {
@@ -175,7 +178,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
       }
 
       await logHistorique(db, dossierId, 'Assignation Chiffrage', userEmail, `Dossier envoyé au chiffreur : ${chiffreur.nom} (${selectedFiles.length} fichiers)`, 'assignation');
-      await logWorkflow(db, dossierId, 'Assignation Chiffrage', userEmail, userId, 'done');
+      await logWorkflow(db, dossierId, 'Dossier envoyé vers chiffrage', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Envoyé au chiffreur : ${chiffreur.nom} (${selectedFiles.length} fichiers)` });
 
       toast({ title: "Dossier envoyé", description: `${selectedFiles.length} fichier(s) transmis au chiffreur.` });
       onOpenChange(false);

@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Settings, Trash2, Plus, Check, X, Loader2 } from 'lucide-react';
 import { useOptions } from '@/hooks/use-options';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 interface OptionsManagerModalProps {
   collectionName: string;
@@ -28,8 +29,12 @@ export function OptionsManagerModal({
   defaultValues = [],
   trigger 
 }: OptionsManagerModalProps) {
+  const { isAdmin } = useCurrentUser();
   const { options, addOption, updateOption, deleteOption, loading } = useOptions(collectionName, defaultValues);
   const { toast } = useToast();
+
+  // Only admins can manage options
+  if (!isAdmin) return null;
   
   const [newOption, setNewOption] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);

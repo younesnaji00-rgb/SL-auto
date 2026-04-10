@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Pencil, Check, X, User, Car, Users, PenLine, Calendar as CalendarIcon, MapPin, Info, Plus, Download, Clock, Trash2 } from 'lucide-react';
+import { Pencil, Check, X, User, Car, Users, PenLine, Calendar as CalendarIcon, MapPin, Info, Plus, Download, Clock, Trash2, ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +27,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { generateRapportPDF } from '@/lib/generate-rapport-pdf';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 const defaultDossierTypes = ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'];
 
@@ -43,6 +44,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
+  const { canWrite } = useCurrentUser();
+  const canEdit = canWrite('dossiers');
 
   const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
   const { options: dbStatuses } = useOptions('options_statuts', defaultStatuses);
@@ -61,6 +64,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
   ), [db, dossierId]);
   const { data: plans, loading: planLoading } = useCollection<any>(planQuery);
   const [expandedPlan, setExpandedPlan] = useState<any>(null);
+  const [previewPreuvePhotos, setPreviewPreuvePhotos] = useState<{ urls: string[]; index: number } | null>(null);
 
   const handleDeletePlanification = async (planId: string) => {
     if (!db || !confirm('Supprimer cette planification ?')) return;
@@ -169,11 +173,13 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
 
     try {
       await updateDoc(dossierRef, payload);
+      const ref = dossier.refExpert || dossierId;
       if (form.statut !== dossier.statut) {
         await logHistorique(db, dossierId, form.statut, userEmail, `Statut changé en "${form.statut}".`, 'statut');
-        await logWorkflow(db, dossierId, form.statut, userEmail, userId, 'done');
+        await logWorkflow(db, dossierId, `Changement de statut : ${form.statut}`, userEmail, userId, 'done', { dossierRef: ref, details: `Statut changé en "${form.statut}"` });
       } else {
         await logHistorique(db, dossierId, 'Mise à jour', userEmail, 'Informations du dossier mises à jour.', 'autre');
+        await logWorkflow(db, dossierId, 'Modification de dossier', userEmail, userId, 'done', { dossierRef: ref, details: 'Informations du dossier mises à jour' });
       }
       toast({ title: 'Informations mises à jour' });
       setEditing(false);
@@ -238,25 +244,27 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
   return (
     <div className="space-y-6">
       {/* Edit/Save bar */}
-      <div className="flex justify-end gap-2">
-        {!editing ? (
-          <button type="button" onClick={() => setEditing(true)}
-            className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold">
-            <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Modifier
-          </button>
-        ) : (
-          <>
-            <button type="button" onClick={handleSave} disabled={saving}
-              className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-colors font-semibold shadow-sm">
-              {saving ? <Check className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />} Enregistrer
-            </button>
-            <button type="button" onClick={handleCancel}
+      {canEdit && (
+        <div className="flex justify-end gap-2">
+          {!editing ? (
+            <button type="button" onClick={() => setEditing(true)}
               className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold">
-              <X className="h-3.5 w-3.5 text-muted-foreground" /> Annuler
+              <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Modifier
             </button>
-          </>
-        )}
-      </div>
+          ) : (
+            <>
+              <button type="button" onClick={handleSave} disabled={saving}
+                className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-colors font-semibold shadow-sm">
+                {saving ? <Check className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />} Enregistrer
+              </button>
+              <button type="button" onClick={handleCancel}
+                className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold">
+                <X className="h-3.5 w-3.5 text-muted-foreground" /> Annuler
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── DOSSIER ── */}
       <Card className="shadow-sm overflow-hidden">
@@ -418,9 +426,11 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
             <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
               <CalendarIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Planification
             </CardTitle>
-            <Button size="sm" className="h-7 text-xs" onClick={onNewPlanification}>
-              <Plus className="mr-1.5 h-3 w-3" /> Nouvelle
-            </Button>
+            {canEdit && (
+              <Button size="sm" className="h-7 text-xs" onClick={onNewPlanification}>
+                <Plus className="mr-1.5 h-3 w-3" /> Nouvelle
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -430,7 +440,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <CalendarIcon className="h-10 w-10 text-muted-foreground mb-3" />
               <p className="text-sm font-medium text-muted-foreground">Aucune planification programmée</p>
-              <Button variant="outline" size="sm" className="mt-4" onClick={onNewPlanification}>Programmer une mission</Button>
+              {canEdit && <Button variant="outline" size="sm" className="mt-4" onClick={onNewPlanification}>Programmer une mission</Button>}
             </div>
           ) : (
             <Table>
@@ -466,15 +476,23 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
                       {p.observationUpdatedAt && (
                         <span className="flex items-center gap-1 text-[10px] text-amber-600 mt-0.5 font-medium">
                           <Clock className="h-3 w-3" />
-                          MAJ ATG: {p.observationUpdatedAt.toDate ? format(p.observationUpdatedAt.toDate(), 'dd/MM HH:mm', { locale: fr }) : '-'}
+                          MAJ {p.observationSource === 'ATG' ? 'Agent de Terrain' : p.observationSource === 'Gestionnaire' ? 'Gestionnaire' : 'ATG'}{p.observationUpdatedBy ? ` (${p.observationUpdatedBy})` : ''} — {p.observationUpdatedAt.toDate ? format(p.observationUpdatedAt.toDate(), 'dd/MM HH:mm', { locale: fr }) : '-'}
+                        </span>
+                      )}
+                      {p.preuvePhotos && p.preuvePhotos.length > 0 && (
+                        <span className="flex items-center gap-1 text-[10px] text-blue-600 mt-0.5 font-medium">
+                          <ImageIcon className="h-3 w-3" />
+                          {p.preuvePhotos.length} preuve{p.preuvePhotos.length > 1 ? 's' : ''}
                         </span>
                       )}
                     </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeletePlanification(p.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </TableCell>
+                    {canEdit && (
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeletePlanification(p.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -552,19 +570,90 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
                   </p>
                   {expandedPlan.observationUpdatedAt && (
                     <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 mt-1">
-                      Mis à jour par ATG le {expandedPlan.observationUpdatedAt.toDate ? format(expandedPlan.observationUpdatedAt.toDate(), "dd/MM/yyyy 'à' HH:mm", { locale: fr }) : '-'}
+                      Mis à jour par {expandedPlan.observationSource === 'ATG' ? 'Agent de Terrain' : expandedPlan.observationSource === 'Gestionnaire' ? 'Gestionnaire' : 'ATG'}{expandedPlan.observationUpdatedBy ? ` (${expandedPlan.observationUpdatedBy})` : ''} le {expandedPlan.observationUpdatedAt.toDate ? format(expandedPlan.observationUpdatedAt.toDate(), "dd/MM/yyyy 'à' HH:mm", { locale: fr }) : '-'}
                     </Badge>
                   )}
                 </div>
               )}
 
-              <div className="flex justify-between pt-2">
-                <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleDeletePlanification(expandedPlan.id)}>
-                  <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Supprimer
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => { setExpandedPlan(null); onEditPlanification(expandedPlan); }}>
-                  <Pencil className="mr-1.5 h-3.5 w-3.5" /> Modifier
-                </Button>
+              {expandedPlan.preuvePhotos && expandedPlan.preuvePhotos.length > 0 && (
+                <div className="space-y-2 p-3 rounded-lg bg-blue-50/50 border border-blue-200 dark:bg-blue-900/10 dark:border-blue-800">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                    <ImageIcon className="h-3 w-3" /> Photos Preuve ATG ({expandedPlan.preuvePhotos.length})
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {expandedPlan.preuvePhotos.map((url: string, idx: number) => (
+                      <button
+                        key={idx}
+                        className="relative h-16 w-16 rounded-md overflow-hidden border hover:ring-2 hover:ring-primary transition-all"
+                        onClick={() => setPreviewPreuvePhotos({ urls: expandedPlan.preuvePhotos, index: idx })}
+                      >
+                        <img src={url} alt={`Preuve ${idx + 1}`} className="h-full w-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {canEdit && (
+                <div className="flex justify-between pt-2">
+                  <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleDeletePlanification(expandedPlan.id)}>
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Supprimer
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => { setExpandedPlan(null); onEditPlanification(expandedPlan); }}>
+                    <Pencil className="mr-1.5 h-3.5 w-3.5" /> Modifier
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Preuve photo lightbox */}
+      <Dialog open={!!previewPreuvePhotos} onOpenChange={(open) => { if (!open) setPreviewPreuvePhotos(null); }}>
+        <DialogContent className="sm:max-w-[700px] p-2">
+          {previewPreuvePhotos && (
+            <div className="relative flex flex-col items-center gap-2">
+              <img
+                src={previewPreuvePhotos.urls[previewPreuvePhotos.index]}
+                alt={`Preuve ${previewPreuvePhotos.index + 1}`}
+                className="max-h-[70vh] w-auto rounded-lg object-contain"
+              />
+              {previewPreuvePhotos.urls.length > 1 && (
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline" size="icon" className="h-8 w-8"
+                    disabled={previewPreuvePhotos.index === 0}
+                    onClick={() => setPreviewPreuvePhotos({ ...previewPreuvePhotos, index: previewPreuvePhotos.index - 1 })}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {previewPreuvePhotos.index + 1} / {previewPreuvePhotos.urls.length}
+                  </span>
+                  <Button
+                    variant="outline" size="icon" className="h-8 w-8"
+                    disabled={previewPreuvePhotos.index === previewPreuvePhotos.urls.length - 1}
+                    onClick={() => setPreviewPreuvePhotos({ ...previewPreuvePhotos, index: previewPreuvePhotos.index + 1 })}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+              <div className="flex gap-1.5 flex-wrap justify-center">
+                {previewPreuvePhotos.urls.map((url: string, idx: number) => (
+                  <button
+                    key={idx}
+                    className={cn(
+                      "h-12 w-12 rounded overflow-hidden border-2 transition-all",
+                      idx === previewPreuvePhotos.index ? "border-primary ring-1 ring-primary" : "border-transparent opacity-60 hover:opacity-100"
+                    )}
+                    onClick={() => setPreviewPreuvePhotos({ ...previewPreuvePhotos, index: idx })}
+                  >
+                    <img src={url} alt={`Thumb ${idx + 1}`} className="h-full w-full object-cover" />
+                  </button>
+                ))}
               </div>
             </div>
           )}

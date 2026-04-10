@@ -35,7 +35,8 @@ export async function logWorkflow(
   action: string,
   user: string,
   userId: string,
-  status: 'done' | 'pending' = 'done'
+  status: 'done' | 'pending' = 'done',
+  extra?: { dossierRef?: string; details?: string }
 ) {
   if (!db || !dossierId) return;
 
@@ -45,7 +46,9 @@ export async function logWorkflow(
       date: serverTimestamp(),
       user: user || 'Admin',
       userId: userId || 'unknown',
-      status
+      status,
+      ...(extra?.dossierRef && { dossierRef: extra.dossierRef }),
+      ...(extra?.details && { details: extra.details }),
     });
   } catch (err) {
     console.error('Failed to log workflow step:', err);

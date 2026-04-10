@@ -55,9 +55,10 @@ import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { logHistorique } from './log-historique';
+import { logHistorique, logWorkflow } from './log-historique';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 type DocumentsTabProps = {
   dossierId: string;
@@ -65,6 +66,8 @@ type DocumentsTabProps = {
 
 export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   const db = useFirestore();
+  const { canWrite } = useCurrentUser();
+  const canEdit = canWrite('dossiers');
   const auth = useAuth();
   const storage = useStorage();
   const { toast } = useToast();
@@ -150,6 +153,8 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
       });
 
       await logHistorique(db, dossierId, 'Upload document', userEmail, `Document "${selectedFile.name}" uploadé.`, 'document');
+      const userId = auth?.currentUser?.uid || 'unknown';
+      await logWorkflow(db, dossierId, 'Nouveau document ajouté', userEmail, userId, 'done', { details: `Document "${selectedFile.name}" ajouté (par gestionnaire)` });
 
       toast({ title: 'Document uploadé avec succès' });
       setUploadModalOpen(false);
@@ -260,13 +265,15 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
           </Select>
           <OptionsManagerModal collectionName="options_types_documents" title="Types de documents" defaultValues={[...defaultDocTypes]} />
         </div>
-        <Button 
-          onClick={() => fileInputRef.current?.click()} 
-          className="w-full sm:w-auto"
-        >
-          <Upload className="mr-2 h-4 w-4" />
-          Ajouter un document
-        </Button>
+        {canEdit && (
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full sm:w-auto"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Ajouter un document
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -341,25 +348,27 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                         >
                           <Download className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          type="button"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/5"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleDelete(item);
-                          }}
-                          disabled={isDeleting === item.id || !!item.pendingUpload}
-                          title={item.pendingUpload ? 'En attente de synchronisation' : 'Supprimer'}
-                        >
-                          {isDeleting === item.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          )}
-                        </Button>
+                        {canEdit && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            type="button"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/5"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleDelete(item);
+                            }}
+                            disabled={isDeleting === item.id || !!item.pendingUpload}
+                            title={item.pendingUpload ? 'En attente de synchronisation' : 'Supprimer'}
+                          >
+                            {isDeleting === item.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            )}
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

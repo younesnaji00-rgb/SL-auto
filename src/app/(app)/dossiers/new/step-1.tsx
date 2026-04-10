@@ -53,7 +53,7 @@ export default function Step1({ autoFilledFields }: Step1Props) {
       {/* Expert Rank */}
       <Card className="border">
         <CardHeader className="bg-muted/30 border-b py-3">
-          <CardTitle className="text-sm flex items-center gap-2"><Award className="h-4 w-4 text-primary" /> Rang Expert</CardTitle>
+          <CardTitle className="text-sm flex items-center gap-2"><Award className="h-4 w-4 text-primary" /> Type d&apos;expert</CardTitle>
         </CardHeader>
         <CardContent className="p-4">
           <FormField control={control} name="expertRank" render={({ field }) => (
@@ -325,7 +325,7 @@ export default function Step1({ autoFilledFields }: Step1Props) {
           <CardTitle className="text-sm flex items-center gap-2"><Swords className="h-4 w-4 text-primary" /> Information Adversaire</CardTitle>
         </CardHeader>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             <FormField control={control} name="adversaireAssure" render={({ field }) => (
               <FormItem className="p-3 rounded-md border bg-background"><FormLabel className="text-xs font-semibold">Assuré Adversaire</FormLabel><FormControl><Input className={aS('adversaireAssure')} {...field} /></FormControl></FormItem>
             )} />

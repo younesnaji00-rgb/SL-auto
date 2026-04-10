@@ -1,13 +1,22 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { AlertCircle, CheckCircle2, Pencil, Plus } from 'lucide-react';
+import { useOptions } from '@/hooks/use-options';
+import { natures as defaultNatures, compagnies as defaultCompagnies, marques as defaultMarques } from '@/lib/dossiers-data';
 
 const requiredFields: Record<string, string> = {
   company: 'Compagnie',
@@ -26,11 +35,13 @@ const EditableSummaryField = ({
   label,
   required,
   type = 'text',
+  options,
 }: {
   fieldName: string;
   label: string;
   required?: boolean;
-  type?: 'text' | 'date';
+  type?: 'text' | 'date' | 'select';
+  options?: string[];
 }) => {
   const { watch, setValue } = useFormContext();
   const value = watch(fieldName);
@@ -64,8 +75,10 @@ const EditableSummaryField = ({
     setValue(fieldName, e.target.value, { shouldValidate: true, shouldDirty: true });
   };
 
-  const handleDateChange = (date: Date) => {
-    setValue(fieldName, date, { shouldValidate: true, shouldDirty: true });
+  const handleDateChange = (date: Date | null) => {
+    if (date) {
+      setValue(fieldName, date, { shouldValidate: true, shouldDirty: true });
+    }
     setIsEditing(false);
   };
 
@@ -81,6 +94,23 @@ const EditableSummaryField = ({
             value={value instanceof Date ? value : value ? new Date(value) : null}
             onChange={handleDateChange}
           />
+        ) : type === 'select' && options ? (
+          <Select
+            value={typeof value === 'string' ? value : ''}
+            onValueChange={(val) => {
+              setValue(fieldName, val, { shouldValidate: true, shouldDirty: true });
+              setIsEditing(false);
+            }}
+          >
+            <SelectTrigger className="h-7 text-sm w-full max-w-[250px] min-w-0">
+              <SelectValue placeholder="Sélectionnez" />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((opt) => (
+                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         ) : (
           <Input
             ref={inputRef}
@@ -88,7 +118,7 @@ const EditableSummaryField = ({
             onChange={handleTextChange}
             onBlur={() => setIsEditing(false)}
             onKeyDown={handleKeyDown}
-            className="h-7 text-sm max-w-[250px] text-right"
+            className="h-7 text-sm w-full max-w-[250px] min-w-0 text-right"
           />
         )}
       </div>
@@ -112,7 +142,7 @@ const EditableSummaryField = ({
           </span>
         ) : (
           <>
-            <span className="text-sm font-medium text-right max-w-[250px] break-words flex items-center gap-1.5">
+            <span className="text-sm font-medium text-right max-w-[250px] min-w-0 truncate flex items-center gap-1.5">
               <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
               {displayValue}
             </span>
@@ -165,9 +195,24 @@ const FieldWrapper = ({ fieldName, children }: { fieldName: string; children: Re
   <div data-field={fieldName}>{children}</div>
 );
 
+const dossierTypes = ['Normale', 'Classique', 'Agrée', 'Forfait'];
+const dossierModes = ['Procédure normale', 'Forfait', 'Prise en charge', 'Contradictoire', 'Collégiale'];
+const expertRanks = ['1er expert', '2eme expert', 'Arbitre'];
+const repairerTypes = ['Agréé', 'Normal'];
+
 export default function Step4() {
   const { watch } = useFormContext();
   const data = watch();
+
+  const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
+  const { options: dbNatures } = useOptions('options_natures', defaultNatures);
+  const { options: dbAgents } = useOptions('options_agents', ['Agent 1', 'Agent 2']);
+  const { options: dbRDVTypes } = useOptions('options_types_rdv', ['Avant', 'En cours', 'Après']);
+
+  const compagnieLabels = useMemo(() => dbCompagnies.length > 0 ? dbCompagnies.map(c => c.label) : defaultCompagnies, [dbCompagnies]);
+  const natureLabels = useMemo(() => dbNatures.length > 0 ? dbNatures.map(n => n.label) : defaultNatures, [dbNatures]);
+  const agentLabels = useMemo(() => dbAgents.map(a => a.label), [dbAgents]);
+  const rdvTypeLabels = useMemo(() => dbRDVTypes.length > 0 ? dbRDVTypes.map(t => t.label) : ['Avant', 'En cours', 'Après'], [dbRDVTypes]);
 
   const missingCount = Object.keys(requiredFields).filter(key => {
     const val = (data as any)[key];
@@ -219,9 +264,9 @@ export default function Step4() {
           {/* Informations Générales */}
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-primary mb-3">Informations générales</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-0.5 min-w-0">
               <FieldWrapper fieldName="expertRank">
-                <EditableSummaryField fieldName="expertRank" label="Rang de l'expert" />
+                <EditableSummaryField fieldName="expertRank" label="Type d'expert" type="select" options={expertRanks} />
               </FieldWrapper>
               {data.expertRank === '2eme expert' && (
                 <FieldWrapper fieldName="secondExpertName">
@@ -234,16 +279,16 @@ export default function Step4() {
                 </FieldWrapper>
               )}
               <FieldWrapper fieldName="dossierType">
-                <EditableSummaryField fieldName="dossierType" label="Type Dossier" required />
+                <EditableSummaryField fieldName="dossierType" label="Type Dossier" required type="select" options={dossierTypes} />
               </FieldWrapper>
               <FieldWrapper fieldName="nature">
-                <EditableSummaryField fieldName="nature" label="Nature" required />
+                <EditableSummaryField fieldName="nature" label="Nature" required type="select" options={natureLabels} />
               </FieldWrapper>
               <FieldWrapper fieldName="dossierMode">
-                <EditableSummaryField fieldName="dossierMode" label="Mode dossier" />
+                <EditableSummaryField fieldName="dossierMode" label="Mode dossier" type="select" options={dossierModes} />
               </FieldWrapper>
               <FieldWrapper fieldName="company">
-                <EditableSummaryField fieldName="company" label="Compagnie" required />
+                <EditableSummaryField fieldName="company" label="Compagnie" required type="select" options={compagnieLabels} />
               </FieldWrapper>
               <FieldWrapper fieldName="dateOfRequest">
                 <EditableSummaryField fieldName="dateOfRequest" label="Date Requête" required type="date" />
@@ -259,7 +304,7 @@ export default function Step4() {
           {/* Intermédiaire & Références */}
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-primary mb-3">Intermédiaire & Références</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-0.5 min-w-0">
               <FieldWrapper fieldName="intermediaryName">
                 <EditableSummaryField fieldName="intermediaryName" label="Intermédiaire" required />
               </FieldWrapper>
@@ -273,7 +318,7 @@ export default function Step4() {
                 <EditableSummaryField fieldName="policyNumber" label="N° de Police" />
               </FieldWrapper>
               <FieldWrapper fieldName="repairerType">
-                <EditableSummaryField fieldName="repairerType" label="Réparateur" />
+                <EditableSummaryField fieldName="repairerType" label="Réparateur" type="select" options={repairerTypes} />
               </FieldWrapper>
               <FieldWrapper fieldName="garageName">
                 <EditableSummaryField fieldName="garageName" label="Nom Garage" />
@@ -286,7 +331,7 @@ export default function Step4() {
           {/* Assuré & Véhicule */}
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-primary mb-3">Véhicule & Assuré</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-0.5 min-w-0">
               <FieldWrapper fieldName="insuredName">
                 <EditableSummaryField fieldName="insuredName" label="Assuré" required />
               </FieldWrapper>
@@ -300,7 +345,7 @@ export default function Step4() {
                 <EditableSummaryField fieldName="insuredOtherPhone" label="Autre Tel" />
               </FieldWrapper>
               <FieldWrapper fieldName="brand">
-                <EditableSummaryField fieldName="brand" label="Marque" required />
+                <EditableSummaryField fieldName="brand" label="Marque" required type="select" options={defaultMarques} />
               </FieldWrapper>
               <FieldWrapper fieldName="model">
                 <EditableSummaryField fieldName="model" label="Modèle" />
@@ -326,7 +371,7 @@ export default function Step4() {
               <Separator />
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-primary mb-3">Information Adversaire</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-0.5 min-w-0">
                   <FieldWrapper fieldName="adversaireAssure">
                     <EditableSummaryField fieldName="adversaireAssure" label="Assuré Adversaire" />
                   </FieldWrapper>
@@ -334,13 +379,13 @@ export default function Step4() {
                     <EditableSummaryField fieldName="adversaireMatricule" label="Matricule Adversaire" />
                   </FieldWrapper>
                   <FieldWrapper fieldName="adversaireMarque">
-                    <EditableSummaryField fieldName="adversaireMarque" label="Marque Adversaire" />
+                    <EditableSummaryField fieldName="adversaireMarque" label="Marque Adversaire" type="select" options={defaultMarques} />
                   </FieldWrapper>
                   <FieldWrapper fieldName="adversairePolice">
                     <EditableSummaryField fieldName="adversairePolice" label="N° Police Adversaire" />
                   </FieldWrapper>
                   <FieldWrapper fieldName="adversaireCompagnie">
-                    <EditableSummaryField fieldName="adversaireCompagnie" label="Compagnie Adversaire" />
+                    <EditableSummaryField fieldName="adversaireCompagnie" label="Compagnie Adversaire" type="select" options={compagnieLabels} />
                   </FieldWrapper>
                 </div>
               </div>
@@ -359,7 +404,7 @@ export default function Step4() {
               <Separator />
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-primary mb-3">Information Expert</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-0.5 min-w-0">
                   <FieldWrapper fieldName="designation1erExpert">
                     <EditableSummaryField fieldName="designation1erExpert" label="Désignation 1er Expert" />
                   </FieldWrapper>
@@ -386,12 +431,12 @@ export default function Step4() {
               <Separator />
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-primary mb-3">Planification</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-0.5 min-w-0">
                   <FieldWrapper fieldName="planAgentTerrain">
-                    <EditableSummaryField fieldName="planAgentTerrain" label="Agent de Terrain" />
+                    <EditableSummaryField fieldName="planAgentTerrain" label="Agent de Terrain" type="select" options={agentLabels} />
                   </FieldWrapper>
                   <FieldWrapper fieldName="planTypeMission">
-                    <EditableSummaryField fieldName="planTypeMission" label="Type de mission" />
+                    <EditableSummaryField fieldName="planTypeMission" label="Type de mission" type="select" options={rdvTypeLabels} />
                   </FieldWrapper>
                   <FieldWrapper fieldName="planDateRDV">
                     <EditableSummaryField fieldName="planDateRDV" label="Date RDV" type="date" />

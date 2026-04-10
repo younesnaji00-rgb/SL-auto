@@ -6,8 +6,8 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
-  title: 'DashFlow Admin',
-  description: 'Admin Dashboard for DashFlow',
+  title: 'SL-auto',
+  description: 'SL-auto - Système de gestion',
 };
 
 export default function RootLayout({

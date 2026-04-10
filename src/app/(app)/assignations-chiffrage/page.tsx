@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calculator, Loader2, CheckCircle2, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 interface ChiffrageItem {
   id: string;
@@ -21,10 +22,13 @@ interface ChiffrageItem {
   status: string;
   files: any[];
   createdAt: any;
+  sentByNom?: string;
+  sentByEmail?: string;
 }
 
 export default function AssignationsChiffragePage() {
   const db = useFirestore();
+  const { profile } = useCurrentUser();
   const [chiffrages, setChiffrages] = useState<ChiffrageItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -32,11 +36,17 @@ export default function AssignationsChiffragePage() {
     if (!db) return;
     const q = query(collection(db, 'chiffrages'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
-      setChiffrages(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChiffrageItem)).filter(c => c.files && c.files.length > 0));
+      let items = snap.docs.map(d => ({ id: d.id, ...d.data() } as ChiffrageItem)).filter(c => c.files && c.files.length > 0);
+      // Chiffreur users only see their own assignments
+      if (profile?.role === 'Chiffreur' && profile?.nom) {
+        const myName = profile.nom.toLowerCase().trim();
+        items = items.filter(c => c.assignedChiffreurNom?.toLowerCase().trim() === myName);
+      }
+      setChiffrages(items);
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();
-  }, [db]);
+  }, [db, profile?.role, profile?.nom]);
 
   const formatDate = (ts: any) => {
     if (!ts) return '-';
@@ -62,19 +72,20 @@ export default function AssignationsChiffragePage() {
                 <TableHead className="font-bold text-xs">Chiffreur</TableHead>
                 <TableHead className="font-bold text-xs">Fichiers</TableHead>
                 <TableHead className="font-bold text-xs">Statut</TableHead>
+                <TableHead className="font-bold text-xs">Assigné par</TableHead>
                 <TableHead className="font-bold text-xs text-right">Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12">
+                  <TableCell colSpan={6} className="text-center py-12">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                   </TableCell>
                 </TableRow>
               ) : chiffrages.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                     <FileText className="h-8 w-8 mx-auto mb-2 opacity-20" />
                     Aucune assignation au chiffrage.
                   </TableCell>
@@ -106,6 +117,7 @@ export default function AssignationsChiffragePage() {
                         )}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{c.sentByNom || c.sentByEmail || '-'}</TableCell>
                     <TableCell className="text-right text-xs text-muted-foreground">
                       {formatDate(c.createdAt)}
                     </TableCell>

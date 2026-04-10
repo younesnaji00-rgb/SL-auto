@@ -33,6 +33,7 @@ import StepPlanification from './step-planification';
 import Step4Confirmation from './step-4';
 import DocumentViewer from './document-viewer';
 import { cn } from '@/lib/utils';
+import { useSidebar } from '@/components/ui/sidebar';
 import { logWorkflow } from '../[id]/log-historique';
 
 const formSchema = z.object({
@@ -125,6 +126,9 @@ export default function DossierCreationForm() {
   const { user: currentUser, loading: authLoading } = useUser();
   const router = useRouter();
   const isOnline = useNetworkStatus();
+
+  const { open: sidebarOpen, setOpen: setSidebarOpen } = useSidebar();
+  const previousSidebarState = useRef<boolean | null>(null);
 
   const allFiles = scanFiles;
 
@@ -357,7 +361,7 @@ export default function DossierCreationForm() {
         details: `Dossier créé (Réf: ${refCode})`,
       });
 
-      await logWorkflow(db, dossierId, 'Création de mission', userEmail, userId, 'done');
+      await logWorkflow(db, dossierId, 'Création de dossier', userEmail, userId, 'done', { dossierRef: refCode, details: `Nouveau dossier créé (Réf: ${refCode})` });
 
       // Create planification if any field was filled
       if (data.planAgentTerrain || data.planDateRDV || data.planZone) {
@@ -418,11 +422,35 @@ export default function DossierCreationForm() {
   const hasDocuments = allFiles.length > 0;
   const showSideViewer = hasDocuments && showDocViewer;
 
+  // Auto-collapse sidebar when document viewer is open to maximize space
+  useEffect(() => {
+    if (showSideViewer) {
+      if (previousSidebarState.current === null) {
+        previousSidebarState.current = sidebarOpen;
+      }
+      setSidebarOpen(false);
+    } else if (previousSidebarState.current !== null) {
+      setSidebarOpen(previousSidebarState.current);
+      previousSidebarState.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSideViewer]);
+
+  // Restore sidebar on unmount
+  useEffect(() => {
+    return () => {
+      if (previousSidebarState.current !== null) {
+        setSidebarOpen(previousSidebarState.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <FormProvider {...form}>
-      <div>
-        {/* Sticky Stepper Navigation — full-width, outside max-w container */}
-        <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b py-4 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8">
+      <div className="flex flex-col -mx-4 md:-mx-6 lg:-mx-8 -mb-4 md:-mb-6 lg:-mb-8" style={{ height: 'calc(100vh - 130px)' }}>
+        {/* Fixed Stepper Navigation — always visible toolbar */}
+        <div className="shrink-0 z-30 bg-background/95 backdrop-blur border-b py-4 px-4 md:px-6 lg:px-8">
           <div className="relative flex justify-between px-4 max-w-3xl mx-auto">
             <div className="absolute top-5 left-8 right-8 h-0.5 bg-muted -z-10" />
             {steps.map((step) => {
@@ -452,6 +480,8 @@ export default function DossierCreationForm() {
           </div>
         </div>
 
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto px-4 md:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto mt-8">
         {/* Main Content: Split layout */}
         <div className={cn("flex gap-6", showSideViewer ? "items-start" : "")}>
@@ -467,7 +497,7 @@ export default function DossierCreationForm() {
               <section
                 id="step-1"
                 ref={el => { sectionRefs.current[0] = el; }}
-                className="scroll-mt-24"
+                className="scroll-mt-4"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -510,7 +540,7 @@ export default function DossierCreationForm() {
               <section
                 id="step-2"
                 ref={el => { sectionRefs.current[1] = el; }}
-                className="scroll-mt-24"
+                className="scroll-mt-4"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -540,7 +570,7 @@ export default function DossierCreationForm() {
               <section
                 id="step-3"
                 ref={el => { sectionRefs.current[2] = el; }}
-                className="scroll-mt-24"
+                className="scroll-mt-4"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -561,7 +591,7 @@ export default function DossierCreationForm() {
               <section
                 id="step-4"
                 ref={el => { sectionRefs.current[3] = el; }}
-                className="scroll-mt-24"
+                className="scroll-mt-4"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -615,6 +645,7 @@ export default function DossierCreationForm() {
           </AlertDialogContent>
         </AlertDialog>
         </div>
+        </div>{/* close scrollable content area */}
       </div>
     </FormProvider>
   );

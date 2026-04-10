@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   doc, collection, query, orderBy, onSnapshot, updateDoc, serverTimestamp,
 } from 'firebase/firestore';
-import { ref, getDownloadURL } from 'firebase/storage';
+import { ref, getDownloadURL, uploadBytes } from 'firebase/storage';
 import { useFirestore, useStorage, useAuth, useDoc, useCollection } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,15 +18,16 @@ import {
   Dialog, DialogContent,
 } from '@/components/ui/dialog';
 import {
-  ArrowLeft, Loader2, Calendar, MapPin, Upload, Eye, Check, X, Pencil, ImageIcon,
+  ArrowLeft, Loader2, Calendar, MapPin, Upload, Eye, Check, X, Pencil, ImageIcon, Camera, Paperclip,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
-import { logHistorique } from '../../dossiers/[id]/log-historique';
+import { logHistorique, logWorkflow } from '../../dossiers/[id]/log-historique';
 import Link from 'next/link';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -60,6 +61,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const storage = useStorage();
   const auth = useAuth();
   const { toast } = useToast();
+  const { canWrite, profile } = useCurrentUser();
+  const canEdit = canWrite('assignations-atg');
 
   const [activeTab, setActiveTab] = useState('Avant');
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -67,7 +70,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const [previewPhoto, setPreviewPhoto] = useState<Photo | null>(null);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [editObservation, setEditObservation] = useState('');
+  const [uploadingPreuveId, setUploadingPreuveId] = useState<string | null>(null);
+  const [previewPreuvePhotos, setPreviewPreuvePhotos] = useState<{ urls: string[]; index: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const preuveInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Dossier data
   const dossierRef = useMemo(() => (db ? doc(db, 'dossiers', dossierId) : null), [db, dossierId]);
@@ -135,9 +141,12 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       await updateDoc(doc(db, 'dossiers', dossierId, 'planifications', planId), {
         observation: editObservation,
         observationUpdatedAt: serverTimestamp(),
-        observationUpdatedBy: userEmail,
+        observationUpdatedBy: profile?.nom || userEmail,
+        observationSource: 'ATG',
       });
       await logHistorique(db, dossierId, 'Observation ATG mise à jour', userEmail, `Observation mise à jour pour la planification.`, 'planification');
+      const userId = auth?.currentUser?.uid || 'unknown';
+      await logWorkflow(db, dossierId, 'ATG : remarque ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Observation mise à jour par ATG` });
       toast({ title: 'Observation enregistrée' });
       setEditingPlanId(null);
     } catch {
@@ -170,12 +179,51 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         });
         await logHistorique(db, dossierId, 'Upload photo ATG', userEmail, `Photo "${file.name}" uploadée (${currentCategory}).`, 'photo');
       }
+      const catLabel = currentCategory === 'avant' ? 'Avant' : currentCategory === 'en_cours' ? 'En cours' : 'Après';
+      const userId = auth?.currentUser?.uid || 'unknown';
+      await logWorkflow(db, dossierId, 'ATG : photos ajoutées en planification', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Photos ${catLabel} ajoutées par ATG` });
       toast({ title: 'Photos uploadées avec succès' });
     } catch {
       toast({ variant: 'destructive', title: "Erreur lors de l'upload" });
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Upload preuve photos (from gallery, stored as URLs on planification document)
+  const handleUploadPreuve = async (planId: string, files: FileList) => {
+    if (!db || !storage) return;
+    setUploadingPreuveId(planId);
+    try {
+      const newUrls: string[] = [];
+      for (const file of Array.from(files)) {
+        const timestamp = Date.now();
+        const storagePath = `dossiers/${dossierId}/preuves/${planId}/${timestamp}_${file.name}`;
+        const fileRef = ref(storage, storagePath);
+        await uploadBytes(fileRef, file);
+        const url = await getDownloadURL(fileRef);
+        newUrls.push(url);
+      }
+      // Update the planification document with preuve URLs
+      const plan = (plans || []).find((p: any) => p.id === planId);
+      const existingPreuves: string[] = plan?.preuvePhotos || [];
+      await updateDoc(doc(db, 'dossiers', dossierId, 'planifications', planId), {
+        preuvePhotos: [...existingPreuves, ...newUrls],
+        preuveUpdatedAt: serverTimestamp(),
+        preuveUpdatedBy: userEmail,
+      });
+      await logHistorique(db, dossierId, 'Preuve ATG ajoutée', userEmail, `${newUrls.length} photo(s) de preuve ajoutée(s).`, 'planification');
+      const userId = auth?.currentUser?.uid || 'unknown';
+      await logWorkflow(db, dossierId, 'ATG : preuve ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${newUrls.length} photo(s) de preuve ajoutée(s) par ATG` });
+      toast({ title: 'Preuve(s) uploadée(s)' });
+    } catch (err) {
+      console.error('Preuve upload error:', err);
+      toast({ variant: 'destructive', title: "Erreur lors de l'upload de preuve" });
+    } finally {
+      setUploadingPreuveId(null);
+      const input = preuveInputRefs.current[planId];
+      if (input) input.value = '';
     }
   };
 
@@ -301,23 +349,77 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                             <span className="text-muted-foreground">{p.observation || '-'}</span>
                             {p.observationUpdatedAt && (
                               <span className="block text-[10px] text-amber-600 mt-0.5">
-                                MAJ: {formatDate(p.observationUpdatedAt)}
+                                MAJ {p.observationSource === 'ATG' ? 'Agent de Terrain' : p.observationSource === 'Gestionnaire' ? 'Gestionnaire' : ''}{p.observationUpdatedBy ? ` (${p.observationUpdatedBy})` : ''} — {formatDate(p.observationUpdatedAt)}
                               </span>
                             )}
                           </div>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 shrink-0"
-                            onClick={() => {
-                              setEditingPlanId(p.id);
-                              setEditObservation(p.observation || '');
-                            }}
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </Button>
+                          {canEdit && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 shrink-0"
+                              onClick={() => {
+                                setEditingPlanId(p.id);
+                                setEditObservation(p.observation || '');
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          )}
                         </div>
                       )}
+
+                      {/* Preuve section */}
+                      <div className="mt-2 pt-2 border-t border-dashed">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                            <Paperclip className="h-3 w-3" /> Preuve
+                          </span>
+                          {canEdit && (
+                            <div>
+                              <input
+                                ref={(el) => { preuveInputRefs.current[p.id] = el; }}
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                className="hidden"
+                                onChange={(e) => e.target.files && handleUploadPreuve(p.id, e.target.files)}
+                              />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 text-[10px] gap-1 px-2"
+                                disabled={uploadingPreuveId === p.id}
+                                onClick={() => preuveInputRefs.current[p.id]?.click()}
+                              >
+                                {uploadingPreuveId === p.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <><Upload className="h-3 w-3" /> Ajouter</>
+                                )}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                        {p.preuvePhotos && p.preuvePhotos.length > 0 ? (
+                          <div className="flex gap-1.5 flex-wrap">
+                            {p.preuvePhotos.map((url: string, idx: number) => (
+                              <div
+                                key={idx}
+                                className="relative w-12 h-12 rounded border overflow-hidden cursor-pointer group/preuve"
+                                onClick={() => setPreviewPreuvePhotos({ urls: p.preuvePhotos, index: idx })}
+                              >
+                                <img src={url} alt={`Preuve ${idx + 1}`} className="object-cover w-full h-full" />
+                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/preuve:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Eye className="h-3 w-3 text-white" />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-muted-foreground italic">Aucune preuve jointe</p>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -336,33 +438,42 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               Photos — {activeTab}
               <Badge variant="secondary" className="text-[10px] font-mono">{filteredPhotos.length}</Badge>
             </h3>
-            <div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => e.target.files && handleUpload(e.target.files)}
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                disabled={isUploading}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                Ajouter des photos
-              </Button>
-            </div>
+            {canEdit && (
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => e.target.files && handleUpload(e.target.files)}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={isUploading}
+                  onClick={() => {
+                    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+                    if (!isMobile) {
+                      toast({ variant: 'destructive', title: 'Appareil incompatible', description: 'Cette fonctionnalité nécessite un appareil mobile avec caméra.' });
+                      return;
+                    }
+                    fileInputRef.current?.click();
+                  }}
+                >
+                  {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                  Prendre une photo
+                </Button>
+              </div>
+            )}
           </div>
 
           {filteredPhotos.length === 0 ? (
             <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
               <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-20" />
               <p className="text-sm">Aucune photo {activeTab.toLowerCase()} pour le moment.</p>
-              <p className="text-xs mt-1">Cliquez sur "Ajouter des photos" pour uploader.</p>
+              <p className="text-xs mt-1">Utilisez le bouton "Prendre une photo" pour capturer.</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -399,6 +510,37 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
               <img src={previewPhoto.url} className="max-w-full max-h-full object-contain" alt={previewPhoto.name} />
             </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Preuve preview dialog */}
+      {previewPreuvePhotos && (
+        <Dialog open onOpenChange={() => setPreviewPreuvePhotos(null)}>
+          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
+            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center relative">
+              <img
+                src={previewPreuvePhotos.urls[previewPreuvePhotos.index]}
+                className="max-w-full max-h-full object-contain"
+                alt={`Preuve ${previewPreuvePhotos.index + 1}`}
+              />
+            </div>
+            {previewPreuvePhotos.urls.length > 1 && (
+              <div className="flex items-center justify-center gap-2 p-3 bg-background border-t">
+                {previewPreuvePhotos.urls.map((url, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setPreviewPreuvePhotos({ ...previewPreuvePhotos, index: idx })}
+                    className={cn(
+                      "w-14 h-14 rounded border-2 overflow-hidden transition-all",
+                      idx === previewPreuvePhotos.index ? "border-primary ring-2 ring-primary/30" : "border-muted opacity-60 hover:opacity-100"
+                    )}
+                  >
+                    <img src={url} className="object-cover w-full h-full" alt="" />
+                  </button>
+                ))}
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       )}

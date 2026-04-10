@@ -96,7 +96,7 @@ export const compagnies = [
     'Allianz', 'RMA', 'Sanlam', 'Wafa', 'ATLANTA', 'CP', 'Fès RMA', 'Fès ATLANTASANAD', 'Fès Sanlam', 'Wafa Assurance', 'RMA Assurance', 'Zurich Assurance', 'Saham Assurance', 'Atlanta Assurance', 'AXA Assurance'
 ];
 
-export const roles = ['Admin', 'Responsable technique', 'Responsable d\'équipe', 'Gestionnaire', 'Chiffreur', 'Agent de Terrain'] as const;
+export const roles = ['Admin', 'Responsable d\'équipe', 'Gestionnaire', 'Chiffreur', 'Agent de Terrain'] as const;
 export type Role = typeof roles[number];
 
 export type User = {
@@ -109,7 +109,7 @@ export type User = {
 
 export const users: User[] = [
     { id: 'USR-001', nom: 'Admin User', email: 'admin@dashflow.com', role: 'Admin', compagnies: ['Allianz', 'RMA', 'Sanlam'] },
-    { id: 'USR-002', nom: 'GOTTA El Mehdi', email: 'mehdi@dashflow.com', role: 'Responsable technique', compagnies: ['Wafa', 'ATLANTA'] },
+    { id: 'USR-002', nom: 'GOTTA El Mehdi', email: 'mehdi@dashflow.com', role: 'Gestionnaire', compagnies: ['Wafa', 'ATLANTA'] },
     { id: 'USR-003', nom: 'Agent Smith', email: 'smith@dashflow.com', role: 'Agent de Terrain', compagnies: ['CP'] },
     { id: 'USR-004', nom: 'John Chiffreur', email: 'john@dashflow.com', role: 'Chiffreur', compagnies: ['Fès RMA', 'Fès Sanlam'] },
 ];

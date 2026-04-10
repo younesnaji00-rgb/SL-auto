@@ -13,10 +13,11 @@ import {
 } from '@/components/ui/dialog';
 import {
   ArrowLeft, FileType, Eye, CheckCircle2, Loader2,
-  ChevronDown, ChevronRight, ImageIcon, FileText, ExternalLink,
+  ChevronDown, ChevronRight, ImageIcon, FileText, ExternalLink, PenLine,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -43,6 +44,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
+  const { canWrite } = useCurrentUser();
+  const canEdit = canWrite('assignations-chiffrage');
 
   const [chiffrage, setChiffrage] = useState<ChiffrageDoc | null>(null);
   const [downloadUrls, setDownloadUrls] = useState<Record<number, string>>({});
@@ -151,6 +154,17 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             Correcteur : <span className="font-bold text-foreground">{chiffrage.assignedChiffreurNom}</span>
           </p>
         </div>
+        {canEdit && (
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => router.push(`/editor?chiffrageId=${id}&dossierId=${chiffrage.dossierId}&fileIndex=0`)}
+          >
+            <PenLine className="h-3.5 w-3.5" />
+            Ouvrir l&apos;éditeur
+          </Button>
+        )}
         <Badge variant={chiffrage.status === 'done' ? 'expertise' : 'secondary'} className="gap-1.5 py-1 px-3">
           {chiffrage.status === 'done' ? <CheckCircle2 className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
           {chiffrage.status === 'done' ? 'Termine' : 'En cours'}

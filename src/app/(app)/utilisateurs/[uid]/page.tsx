@@ -72,7 +72,10 @@ import {
   getDocs,
   collectionGroup
 } from 'firebase/firestore';
-import { roles, type Role } from '@/lib/dossiers-data';
+import { roles, type Role, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
+import { Eye, EyeOff } from 'lucide-react';
+import { MultiSelect } from '@/components/ui/multi-select';
+import { useOptions } from '@/hooks/use-options';
 
 export default function UserDetailPage({ params }: { params: Promise<{ uid: string }> }) {
   const { uid } = React.use(params);
@@ -83,6 +86,12 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const userRef = useMemo(() => doc(db, 'users', uid), [db, uid]);
   const { data: userData, loading: userLoading } = useDoc(userRef);
 
+  const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
+  const companyOptions = useMemo(() => {
+    const opts = dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true }));
+    return opts.map(c => ({ value: c.label, label: c.label }));
+  }, [dbCompagnies]);
+
   // States
   const [assignedDossiers, setAssignedDossiers] = useState<any[]>([]);
   const [dossiersLoading, setDossiersLoading] = useState(true);
@@ -92,23 +101,32 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     nom: '',
     prenom: '',
     email: '',
     telephone: '',
+    password: '',
     role: '' as Role | '',
-    statut: '' as 'Actif' | 'Inactif' | ''
+    statut: '' as 'Actif' | 'Inactif' | '',
+    compagnies: [] as string[],
   });
 
-  // Fetch assigned dossiers
+  // Fetch assigned dossiers (by assignedTo or createdBy)
   useEffect(() => {
     if (!db || !uid) return;
     const fetchDossiers = async () => {
       try {
-        const q = query(collection(db, 'dossiers'), where('assignedTo', '==', uid), limit(10));
-        const snap = await getDocs(q);
-        setAssignedDossiers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        // Try both assignedTo and createdBy
+        const [snap1, snap2] = await Promise.all([
+          getDocs(query(collection(db, 'dossiers'), where('assignedTo', '==', uid), limit(20))),
+          getDocs(query(collection(db, 'dossiers'), where('createdBy', '==', uid), limit(20))),
+        ]);
+        const map = new Map<string, any>();
+        snap1.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
+        snap2.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
+        setAssignedDossiers(Array.from(map.values()));
       } catch (e) {
         console.warn("Failed to fetch assigned dossiers", e);
       } finally {
@@ -150,8 +168,10 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         prenom: userData.prenom || '',
         email: userData.email || '',
         telephone: userData.telephone || '',
+        password: userData.password || '',
         role: userData.role || '',
-        statut: userData.statut || 'Actif'
+        statut: userData.statut || 'Actif',
+        compagnies: userData.compagnies || [],
       });
     }
   }, [userData]);
@@ -173,7 +193,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     const newStatus = formData.statut === 'Actif' ? 'Inactif' : 'Actif';
     try {
       await updateDoc(userRef, { statut: newStatus });
-      toast({ 
+      setFormData(p => ({ ...p, statut: newStatus as 'Actif' | 'Inactif' }));
+      toast({
         title: newStatus === 'Actif' ? "Utilisateur activé" : "Utilisateur désactivé",
         description: `Le statut de l'utilisateur a été mis à jour avec succès.`
       });
@@ -186,6 +207,16 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const handleDeleteUser = async () => {
     setIsDeleting(true);
     try {
+      // Clean up role-specific collections
+      if (formData.role === 'Agent de Terrain' && formData.nom) {
+        const snap = await getDocs(query(collection(db, 'options_agents'), where('label', '==', formData.nom)));
+        for (const d of snap.docs) await deleteDoc(d.ref);
+      }
+      if (formData.role === 'Chiffreur' && formData.nom) {
+        const snap = await getDocs(query(collection(db, 'chiffreurs'), where('nom', '==', formData.nom)));
+        for (const d of snap.docs) await deleteDoc(d.ref);
+      }
+
       await deleteDoc(userRef);
       toast({ title: "Utilisateur supprimé" });
       router.push('/utilisateurs');
@@ -297,6 +328,26 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   </div>
                 </div>
                 <div className="space-y-2">
+                  <Label>Mot de passe</Label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      value={formData.password}
+                      readOnly
+                      className="pr-10 bg-muted/50 font-mono"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                      onClick={() => setShowPassword(v => !v)}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
                   <Label>Rôle</Label>
                   <Select value={formData.role} onValueChange={v => setFormData(p => ({...p, role: v as Role}))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -315,6 +366,19 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Compagnies d&apos;assurance affiliées</Label>
+                <MultiSelect
+                  options={companyOptions}
+                  selected={formData.compagnies}
+                  onChange={(vals) => setFormData(p => ({...p, compagnies: vals}))}
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  L&apos;utilisateur ne verra que les dossiers des compagnies sélectionnées. Si aucune n&apos;est sélectionnée, il verra tous les dossiers.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
@@ -363,21 +427,24 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {assignedDossiers.map((d: any) => (
-                        <TableRow key={d.id}>
-                          <TableCell className="font-mono text-xs">{d.refExpert}</TableCell>
-                          <TableCell>{d.assure}</TableCell>
-                          <TableCell>{d.nature}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{d.statut}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" asChild>
-                              <Link href={`/dossiers/${d.id}`}><ExternalLink className="h-4 w-4" /></Link>
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {assignedDossiers.map((d: any) => {
+                        const assureName = typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim() || 'N/A';
+                        return (
+                          <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/dossiers/${d.id}`)}>
+                            <TableCell className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">{d.refExpert || '-'}</TableCell>
+                            <TableCell>{assureName}</TableCell>
+                            <TableCell>{d.nature || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{d.statut || 'Nouveau'}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="sm" asChild>
+                                <Link href={`/dossiers/${d.id}`}><ExternalLink className="h-4 w-4" /></Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>

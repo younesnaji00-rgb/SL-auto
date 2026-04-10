@@ -5,8 +5,8 @@ import DossierCreationForm from './creation-form';
 
 export default function NewDossierPage() {
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
+    <div>
+      <div className="flex items-center gap-4 mb-6">
          <Button variant="outline" size="icon" asChild>
             <Link href="/dossiers">
                 <ArrowLeft className="h-4 w-4" />

@@ -38,7 +38,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { logHistorique } from './log-historique';
+import { logHistorique, logWorkflow } from './log-historique';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -63,6 +64,8 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
   const auth = useAuth();
   const storage = useStorage();
   const { toast } = useToast();
+  const { canWrite } = useCurrentUser();
+  const canEdit = canWrite('dossiers');
 
   const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,6 +137,8 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
 
         await logHistorique(db, dossierId, 'Upload photo', userEmail, `Photo "${file.name}" uploadée dans la section ${cat}.`, 'photo');
       }
+      const userId = auth?.currentUser?.uid || 'unknown';
+      await logWorkflow(db, dossierId, 'Nouvelle photo ajoutée', userEmail, userId, 'done', { details: `Photo ajoutée dans la section ${cat} (par gestionnaire)` });
       toast({ title: 'Photo(s) uploadée(s) avec succès' });
     } catch (err: any) {
       console.error('Upload error:', err);
@@ -154,6 +159,10 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
         await deleteObject(storageRef).catch(e => console.warn('Storage delete warn:', e));
       }
       await deleteDoc(doc(db, 'dossiers', dossierId, 'photos', photo.id));
+      const userEmail = auth?.currentUser?.email || 'Admin';
+      const userId = auth?.currentUser?.uid || 'unknown';
+      await logHistorique(db, dossierId, 'Suppression photo', userEmail, `Photo "${photo.name || 'inconnue'}" supprimée.`, 'photo');
+      await logWorkflow(db, dossierId, 'Photo supprimée', userEmail, userId, 'done', { details: `Photo "${photo.name || 'inconnue'}" supprimée (par gestionnaire)` });
       toast({ title: 'Photo supprimée' });
     } catch (err: any) {
       console.error('Delete error:', err);
@@ -238,21 +247,23 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
                   ref={el => { fileInputRefs.current[cat.id] = el; }}
                   onChange={e => e.target.files && handleUpload(cat.id, e.target.files)}
                 />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs gap-2 bg-background hover:bg-muted"
-                  disabled={isUploading === cat.id}
-                  onClick={() => fileInputRefs.current[cat.id]?.click()}
-                >
-                  {isUploading === cat.id ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Upload className="h-3 w-3" />
-                  )}
-                  Ajouter
-                </Button>
+                {canEdit && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-2 bg-background hover:bg-muted"
+                    disabled={isUploading === cat.id}
+                    onClick={() => fileInputRefs.current[cat.id]?.click()}
+                  >
+                    {isUploading === cat.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Upload className="h-3 w-3" />
+                    )}
+                    Ajouter
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -318,20 +329,22 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
                                 </Button>
-                                <Button
-                                  size="icon"
-                                  variant="destructive"
-                                  className="h-7 w-7 rounded-full shadow-lg"
-                                  disabled={isDeleting === photo.id}
-                                  onClick={() => handleDelete(photo)}
-                                  title="Supprimer"
-                                >
-                                  {isDeleting === photo.id ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <X className="h-3.5 w-3.5" />
-                                  )}
-                                </Button>
+                                {canEdit && (
+                                  <Button
+                                    size="icon"
+                                    variant="destructive"
+                                    className="h-7 w-7 rounded-full shadow-lg"
+                                    disabled={isDeleting === photo.id}
+                                    onClick={() => handleDelete(photo)}
+                                    title="Supprimer"
+                                  >
+                                    {isDeleting === photo.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <X className="h-3.5 w-3.5" />
+                                    )}
+                                  </Button>
+                                )}
                               </div>
                             )}
                           </div>

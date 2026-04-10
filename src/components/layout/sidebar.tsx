@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import {
   Sidebar,
@@ -22,15 +22,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { 
-  Settings, 
-  Moon, 
-  Sun, 
-  Plus, 
-  X, 
-  LogOut, 
+import {
+  Settings,
+  Moon,
+  Sun,
+  Plus,
+  X,
+  LogOut,
   ChevronDown,
   LayoutDashboard,
   FolderOpen,
@@ -40,36 +39,55 @@ import {
   UserCheck,
 } from 'lucide-react';
 import Logo from '@/components/logo';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useCompagnies } from '@/hooks/use-compagnies';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import NextLink from 'next/link';
 import { cn } from '@/lib/utils';
 
 const AppSidebar = () => {
   const pathname = usePathname();
+  const router = useRouter();
   const { state } = useSidebar();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const { compagnies, addCompagnie, deleteCompagnie } = useCompagnies();
-  
+  const { profile, isAdmin, signOut } = useCurrentUser();
+
   const [showAddInput, setShowAddInput] = useState(false);
   const [newName, setNewName] = useState('');
 
-  const avatarImage = PlaceHolderImages.find(img => img.id === 'avatar1');
   const isCollapsed = state === 'collapsed';
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const navItems = [
-    { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
-    { href: '/dossiers', icon: FolderOpen, label: 'Dossiers' },
-    { href: '/assignations-chiffrage', icon: Calculator, label: 'Assignations Chiffrage' },
-    { href: '/assignations-atg', icon: UserCheck, label: 'Assignations ATG' },
-    { href: '/utilisateurs', icon: Users, label: 'Utilisateurs' },
-    { href: '/compagnies', icon: Building2, label: 'Compagnies' },
+  const allNavItems = [
+    { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: null },
+    { href: '/dossiers', icon: FolderOpen, label: 'Gestion des dossiers', roles: null },
+    { href: '/assignations-chiffrage', icon: Calculator, label: 'Assignations Chiffrage', roles: null },
+    { href: '/assignations-atg', icon: UserCheck, label: 'Assignations ATG', roles: null },
+    { href: '/utilisateurs', icon: Users, label: 'Utilisateurs', roles: ['Admin'] as string[] },
+    { href: '/compagnies', icon: Building2, label: 'Compagnies', roles: null },
   ];
+
+  // Filter nav items by role — null means visible to all, otherwise only listed roles
+  const navItems = allNavItems.filter(item => {
+    if (!item.roles) return true;
+    return profile && item.roles.includes(profile.role);
+  });
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/login');
+  };
+
+  const userInitials = profile
+    ? (profile.prenom ? profile.prenom[0] : '') + (profile.nom ? profile.nom[0] : '')
+    : 'U';
+
+  const displayName = profile?.nom || 'Utilisateur';
+  const displayRole = profile?.role || '';
 
   return (
     <Sidebar collapsible="icon" className="border-r shadow-xl z-50">
@@ -88,10 +106,10 @@ const AppSidebar = () => {
 
             if (item.label === 'Compagnies') {
               return (
-                <Collapsible key={item.href} defaultOpen className="group/collapsible">
+                <Collapsible key={item.href} className="group/collapsible">
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
-                      <SidebarMenuButton 
+                      <SidebarMenuButton
                         isActive={isActive}
                         tooltip={item.label}
                         className="transition-all duration-200"
@@ -125,7 +143,7 @@ const AppSidebar = () => {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         ))}
-                        
+
                         {!isCollapsed && (
                           <SidebarMenuSubItem>
                             {showAddInput ? (
@@ -194,15 +212,13 @@ const AppSidebar = () => {
         )}
 
         <div className={cn("flex items-center gap-3 p-2 rounded-lg bg-primary/5 border border-primary/10 overflow-hidden transition-all duration-300", isCollapsed && "p-1 justify-center")}>
-          <Avatar className={cn("h-8 w-8 border transition-all", isCollapsed ? "h-6 w-6" : "h-8 w-8")}>
-            {avatarImage && <AvatarImage src={avatarImage.imageUrl} data-ai-hint={avatarImage.imageHint} />}
-            <AvatarFallback>AD</AvatarFallback>
-          </Avatar>
-          {!isCollapsed && (
+          {!isCollapsed ? (
             <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-xs font-bold truncate">Admin</span>
-              <span className="text-[10px] text-muted-foreground truncate uppercase font-black">Administrateur</span>
+              <span className="text-xs font-bold truncate">{displayName}</span>
+              <span className="text-[10px] text-muted-foreground truncate uppercase font-black">{displayRole}</span>
             </div>
+          ) : (
+            <span className="text-[10px] font-bold">{userInitials.toUpperCase()}</span>
           )}
         </div>
 
@@ -210,7 +226,13 @@ const AppSidebar = () => {
           <Button variant="ghost" size="icon" className="h-8 w-full justify-center text-muted-foreground hover:text-foreground" title="Paramètres">
             <Settings className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-full justify-center text-muted-foreground hover:text-destructive" title="Déconnexion">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-full justify-center text-muted-foreground hover:text-destructive"
+            title="Déconnexion"
+            onClick={handleSignOut}
+          >
             <LogOut className="h-4 w-4" />
           </Button>
         </div>

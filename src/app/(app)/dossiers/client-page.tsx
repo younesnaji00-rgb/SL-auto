@@ -13,23 +13,39 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { natures as defaultNatures, statuses as defaultStatuses, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 import { useToast } from '@/hooks/use-toast';
 import { useDossiers } from '@/hooks/use-dossiers';
+import { useAuth, useFirestore } from '@/firebase';
+import { logWorkflow } from './[id]/log-historique';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import WorkflowStatusSheet from './workflow-status-sheet';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 export default function DossiersClientPage() {
   const router = useRouter();
   const { toast } = useToast();
-  
+  const auth = useAuth();
+  const db = useFirestore();
+  const { profile, canWrite } = useCurrentUser();
+  const canEditDossiers = canWrite('dossiers');
+
   const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
   const { options: dbNatures } = useOptions('options_natures', defaultNatures);
   const { options: dbStatuses } = useOptions('options_statuts', defaultStatuses);
 
-  const compagnies = useMemo(() => dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbCompagnies]);
+  const allCompagnies = useMemo(() => dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbCompagnies]);
   const natures = useMemo(() => dbNatures.length > 0 ? dbNatures : defaultNatures.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbNatures]);
   const statuses = useMemo(() => dbStatuses.length > 0 ? dbStatuses : defaultStatuses.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbStatuses]);
-  
-  const { dossiers: allDossiers, loading, error: fetchError, deleteDossier } = useDossiers();
+
+  const userCompagnies = profile?.compagnies || [];
+
+  // Filter company dropdown to only show user's assigned companies
+  const compagnies = useMemo(() => {
+    if (userCompagnies.length === 0) return allCompagnies;
+    const allowed = userCompagnies.map(c => c.toLowerCase().trim());
+    return allCompagnies.filter(c => allowed.includes(c.label.toLowerCase().trim()));
+  }, [allCompagnies, userCompagnies]);
+
+  const { dossiers: allDossiers, loading, error: fetchError, deleteDossier } = useDossiers(userCompagnies.length > 0 ? userCompagnies : undefined);
   
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -57,6 +73,11 @@ export default function DossiersClientPage() {
     
     setDeletingId(dossierId);
     try {
+      const dossier = allDossiers.find(d => d.id === dossierId);
+      const userEmail = auth?.currentUser?.email || 'Admin';
+      const userId = auth?.currentUser?.uid || 'unknown';
+      const dossierRef = (dossier as any)?.refExpert || dossierId;
+      await logWorkflow(db, dossierId, 'Suppression de dossier', userEmail, userId, 'done', { dossierRef, details: `Dossier "${dossierRef}" supprimé définitivement` });
       await deleteDossier(dossierId);
       toast({ title: 'Dossier supprimé', description: 'Le dossier et ses données ont été purgés.' });
     } catch (err: any) {
@@ -193,23 +214,25 @@ export default function DossiersClientPage() {
                       >
                         <History className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Supprimer"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/5"
-                        disabled={deletingId === d.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteDossier(d.id);
-                        }}
-                      >
-                        {deletingId === d.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
+                      {canEditDossiers && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Supprimer"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/5"
+                          disabled={deletingId === d.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteDossier(d.id);
+                          }}
+                        >
+                          {deletingId === d.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
