@@ -615,7 +615,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                   <p className="text-xs mt-1">Utilisez le bouton &quot;Prendre une photo&quot; pour capturer.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
                   {filteredPhotos.map((photo) => (
                     <div
                       key={photo.id}
@@ -814,9 +814,12 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         onOpenChange={setDecisionStatusOpen}
         dossierId={dossierId}
         currentStatus={dossier?.statut || 'Nouveau'}
-        assureEmail={typeof dossier?.assure === 'object' ? (dossier?.assure?.email || '') : ''}
-        assureNom={typeof dossier?.assure === 'object' ? (dossier?.assure?.nom || '') : (dossier?.assure || '')}
         dossierRef={dossier?.refExpert || dossierId}
+        currentObservation={dossier?.observationDecision || ''}
+        currentObservationUpdatedAt={dossier?.observationDecisionUpdatedAt}
+        currentObservationUpdatedBy={dossier?.observationDecisionUpdatedBy}
+        assureEmail={typeof dossier?.assure === 'object' ? dossier?.assure?.email || '' : ''}
+        assureNom={typeof dossier?.assure === 'object' ? `${dossier?.assure?.nom || ''} ${dossier?.assure?.prenom || ''}`.trim() : dossier?.assure || ''}
       />
     </div>
   );

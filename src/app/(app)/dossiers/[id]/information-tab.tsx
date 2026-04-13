@@ -26,6 +26,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { getStatusDotColor } from '@/lib/status-colors';
 import { generateRapportPDF } from '@/lib/generate-rapport-pdf';
 import { useCurrentUser } from '@/hooks/use-current-user';
 
@@ -221,17 +222,17 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
       : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4';
     return (
       <>
-        <div className={cn('grid bg-muted/70', colClass)}>
+        <div className={cn('grid', colClass)}>
           {fields.map((f, i) => (
-            <div key={i} className={cn("px-6 py-2 flex items-center justify-between border-b border-border/60", i < fields.length - 1 && "border-r border-border/60")}>
+            <div key={i} className={cn("px-6 py-2 flex items-center justify-between bg-card", i < fields.length - 1 && "border-r border-border/10")}>
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{f.label}</span>
               {editing && f.modal}
             </div>
           ))}
         </div>
-        <div className={cn('grid border-b border-border/60', colClass)}>
+        <div className={cn('grid border-b border-border/10', colClass)}>
           {fields.map((f, i) => (
-            <div key={i} className={cn("px-6 py-3 min-h-[44px] flex items-center", i < fields.length - 1 && "border-r border-border/60")}>
+            <div key={i} className={cn("px-6 py-3 min-h-[44px] flex items-center bg-card", i < fields.length - 1 && "border-r border-border/10")}>
               {editing && f.edit ? <div className="w-full">{f.edit}</div> : <span className="text-sm font-medium">{f.value || '-'}</span>}
             </div>
           ))}
@@ -266,8 +267,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
       )}
 
       {/* ── DOSSIER ── */}
-      <Card className="shadow-sm overflow-hidden">
-        <CardHeader className="bg-muted py-3 border-b border-border">
+      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
+        <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider">Informations Dossier</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -308,7 +309,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
               edit: (
                 <Select value={form.statut} onValueChange={(v) => handleChange('statut', v)}>
                   <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
-                  <SelectContent className="max-h-[300px]">{statuses.map(s => <SelectItem key={s.id} value={s.label}>{s.label}</SelectItem>)}</SelectContent>
+                  <SelectContent className="max-h-[300px]">{statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}</SelectContent>
                 </Select>
               ),
             },
@@ -326,9 +327,27 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
         </CardContent>
       </Card>
 
+      {/* ── OBSERVATION DÉCISION ── */}
+      {dossier.observationDecision && (
+        <div className={cn("space-y-1 p-4 rounded-xl border border-dashed shadow-sm", dossier.observationDecisionUpdatedAt ? "bg-amber-50/50 border-amber-300 dark:bg-amber-900/10 dark:border-amber-700" : "bg-muted/30")}>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+            <Info className="h-3 w-3" /> Observation — Décision de statut
+          </p>
+          <p className="text-sm italic text-muted-foreground leading-relaxed whitespace-pre-wrap">
+            {dossier.observationDecision}
+          </p>
+          {dossier.observationDecisionUpdatedAt && (
+            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 mt-1">
+              <Clock className="h-3 w-3 mr-1" />
+              Par {dossier.observationDecisionUpdatedBy || 'N/A'} le {dossier.observationDecisionUpdatedAt?.toDate ? format(dossier.observationDecisionUpdatedAt.toDate(), "dd/MM/yyyy 'à' HH:mm", { locale: fr }) : '-'}
+            </Badge>
+          )}
+        </div>
+      )}
+
       {/* ── ASSURÉ ── */}
-      <Card className="shadow-sm overflow-hidden">
-        <CardHeader className="bg-muted py-3 border-b border-border">
+      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
+        <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
             <User className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Informations Assuré
           </CardTitle>
@@ -350,8 +369,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
       </Card>
 
       {/* ── VÉHICULE ── */}
-      <Card className="shadow-sm overflow-hidden">
-        <CardHeader className="bg-muted py-3 border-b border-border">
+      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
+        <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
             <Car className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Véhicule
           </CardTitle>
@@ -373,8 +392,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
       </Card>
 
       {/* ── INTERMÉDIAIRE ── */}
-      <Card className="shadow-sm overflow-hidden">
-        <CardHeader className="bg-muted py-3 border-b border-border">
+      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
+        <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
             <PenLine className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Intermédiaire
           </CardTitle>
@@ -396,8 +415,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
       </Card>
 
       {/* ── PARTIE ADVERSE ── */}
-      <Card className="shadow-sm overflow-hidden">
-        <CardHeader className="bg-muted py-3 border-b border-border">
+      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
+        <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
             <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Partie Adverse
           </CardTitle>
@@ -419,8 +438,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
       </Card>
 
       {/* ── PLANIFICATION ── */}
-      <Card className="shadow-sm overflow-hidden">
-        <CardHeader className="bg-muted py-3 border-b border-border">
+      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
+        <CardHeader className="bg-heading-bg py-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
               <CalendarIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Planification

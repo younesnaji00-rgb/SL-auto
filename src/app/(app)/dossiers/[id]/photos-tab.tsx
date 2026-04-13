@@ -275,7 +275,7 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
                     <p className="text-sm text-muted-foreground italic">Aucune photo dans cette section.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
                     {catPhotos.map(photo => {
                       const isEditing = editingId === photo.id;
 

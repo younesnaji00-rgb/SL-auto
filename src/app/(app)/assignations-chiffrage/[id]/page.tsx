@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { cn } from '@/lib/utils';
+import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import ModalDecisionStatus from '../../dossiers/[id]/modal-decision-status';
 
 interface ChiffrageFileDoc {
@@ -189,7 +191,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             Ouvrir l&apos;éditeur
           </Button>
         )}
-        <Badge variant="outline" className="gap-1.5 py-1 px-3">
+        <Badge variant="outline" className={cn("gap-1.5 py-1 px-3 rounded-full border font-semibold", getStatusBadgeStyles(dossierStatut))}>
           {dossierStatut}
         </Badge>
       </div>
@@ -217,7 +219,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
                   >
                     {/* Thumbnail */}
                     <div
-                      className="w-24 h-24 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden border shadow-inner cursor-pointer relative"
+                      className="w-12 h-12 rounded-md bg-muted flex items-center justify-center shrink-0 overflow-hidden shadow-inner cursor-pointer relative"
                       onClick={(e) => { e.stopPropagation(); if (downloadUrls[i]) setPreviewIndex(i); }}
                     >
                       {downloadUrls[i] && (file.type === 'photo' || file.name.match(/\.(jpg|jpeg|png)$/i)) ? (
@@ -284,9 +286,12 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         onOpenChange={setDecisionStatusOpen}
         dossierId={chiffrage.dossierId}
         currentStatus={dossierStatut}
-        assureEmail={typeof dossier?.assure === 'object' ? (dossier?.assure?.email || '') : ''}
-        assureNom={typeof dossier?.assure === 'object' ? (dossier?.assure?.nom || '') : (dossier?.assure || '')}
         dossierRef={chiffrage.dossierNom || id}
+        currentObservation={dossier?.observationDecision || ''}
+        currentObservationUpdatedAt={dossier?.observationDecisionUpdatedAt}
+        currentObservationUpdatedBy={dossier?.observationDecisionUpdatedBy}
+        assureEmail={typeof dossier?.assure === 'object' ? dossier?.assure?.email || '' : ''}
+        assureNom={typeof dossier?.assure === 'object' ? `${dossier?.assure?.nom || ''} ${dossier?.assure?.prenom || ''}`.trim() : dossier?.assure || ''}
       />
     </div>
   );

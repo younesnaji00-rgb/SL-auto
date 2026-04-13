@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Building2,
@@ -29,6 +29,7 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { DateRangeFilter } from '@/components/date-range-filter';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Link from 'next/link';
@@ -62,7 +63,31 @@ export default function CompagniesClientPage() {
     [compagnies, selectedId]
   );
 
-  const { dossiers, loading: loadingDossiers } = useDossiers(selectedCompagnie?.nom ? [selectedCompagnie.nom] : undefined);
+  const { dossiers: allDossiers, loading: loadingDossiers } = useDossiers(selectedCompagnie?.nom ? [selectedCompagnie.nom] : undefined);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const dossiers = useMemo(() => {
+    let results = [...allDossiers];
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      results = results.filter(d => {
+        if (!d.dateRequete) return false;
+        const date = d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete);
+        return date >= from;
+      });
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      results = results.filter(d => {
+        if (!d.dateRequete) return false;
+        const date = d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete);
+        return date <= to;
+      });
+    }
+    return results;
+  }, [allDossiers, dateFrom, dateTo]);
 
   const stats = useMemo(() => {
     if (!dossiers) return { total: 0, nouveau: 0, enCours: 0, clos: 0 };
@@ -213,15 +238,13 @@ export default function CompagniesClientPage() {
       </div>
 
       <Card className="shadow-md overflow-hidden border-none">
-        <CardHeader className="bg-muted/30 border-b py-4">
-          <div className="flex items-center justify-between">
+        <CardHeader className="bg-heading-bg border-b py-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
               <CardTitle className="text-lg">Portefeuille Dossiers</CardTitle>
               <CardDescription>Extraction en temps réel des missions {selectedCompagnie.nom}.</CardDescription>
             </div>
-            <Badge variant="secondary" className="px-3 py-1 font-mono text-[10px]">
-              SYNC ACTIVE
-            </Badge>
+            <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
           </div>
         </CardHeader>
         <CardContent className="p-0">

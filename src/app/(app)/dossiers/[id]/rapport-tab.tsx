@@ -605,7 +605,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
       {/* SECTION 1 — FOURNITURE */}
       <Card className={cn("border-primary/10 shadow-sm", isReforme && "opacity-60")}>
-        <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/30">
+        <CardHeader className="flex flex-row items-center justify-between border-b bg-heading-bg">
           <div>
             <CardTitle className="text-xl font-bold">Fourniture et pieces de rechange</CardTitle>
             {isReforme && <p className="text-xs text-amber-600 font-medium mt-1">Réforme sélectionnée — fourniture verrouillée à zéro</p>}
@@ -742,7 +742,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
       {/* SECTION 2: MAIN D'OEUVRE */}
       <Card className={cn("border-primary/10 shadow-sm", isReforme && "opacity-60")}>
-        <CardHeader className="border-b bg-muted/30 flex flex-row items-center justify-between">
+        <CardHeader className="border-b bg-heading-bg flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-xl font-bold">Main d'œuvre</CardTitle>
             {isReforme && <p className="text-xs text-amber-600 font-medium mt-1">Réforme sélectionnée — main d'œuvre verrouillée à zéro</p>}
@@ -831,7 +831,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
       {/* SECTION 4: POINTS DE CHOC */}
       <Card className="border-primary/10 shadow-sm">
-        <CardHeader className="border-b bg-muted/30"><CardTitle className="text-xl font-bold">Points de choc</CardTitle></CardHeader>
+        <CardHeader className="border-b bg-heading-bg"><CardTitle className="text-xl font-bold">Points de choc</CardTitle></CardHeader>
         <CardContent className="p-6 space-y-12">
           <div className="space-y-6">
             <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-l-4 border-blue-500 pl-3">Vue de dessus</h3>
@@ -874,7 +874,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
       {/* SECTION 5: OBSERVATION EXPERT */}
       <Card className="border-primary/10 shadow-sm overflow-hidden">
-        <CardHeader className="bg-muted/30 border-b"><CardTitle className="text-xl font-bold flex items-center gap-2"><Settings className="h-5 w-5 text-primary" />Observation expert</CardTitle></CardHeader>
+        <CardHeader className="bg-heading-bg border-b"><CardTitle className="text-xl font-bold flex items-center gap-2"><Settings className="h-5 w-5 text-primary" />Observation expert</CardTitle></CardHeader>
         <CardContent className="p-6 space-y-4">
           <Textarea placeholder="Ajouter une observation au rapport (optionnel)..." className="min-h-[150px] resize-none focus-visible:ring-primary text-sm leading-relaxed" value={observationExpert} onChange={(e) => setObservationExpert(e.target.value)} readOnly={!canEditDossiers} />
         </CardContent>

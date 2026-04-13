@@ -129,7 +129,7 @@ export default function PartieAdverseTab({ dossier, dossierRef }: { dossier: any
       </div>
 
       <Card className="border-primary/5 shadow-sm">
-        <CardHeader className="bg-muted/30 py-3">
+        <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider">
             Détails de la partie adverse
           </CardTitle>

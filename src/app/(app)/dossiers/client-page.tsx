@@ -18,8 +18,11 @@ import { logWorkflow } from './[id]/log-historique';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import WorkflowStatusSheet from './workflow-status-sheet';
+import { DateRangeFilter } from '@/components/date-range-filter';
 import AssignmentHistorySheet from './assignment-history-sheet';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { cn } from '@/lib/utils';
 
 export default function DossiersClientPage() {
   const router = useRouter();
@@ -50,7 +53,7 @@ export default function DossiersClientPage() {
   
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [filters, setFilters] = useState({ search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes' });
+  const [filters, setFilters] = useState({ search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', dateFrom: '', dateTo: '' });
   const [workflowDossier, setWorkflowDossier] = useState<any>(null);
   const [assignmentDossier, setAssignmentDossier] = useState<any>(null);
 
@@ -66,6 +69,23 @@ export default function DossiersClientPage() {
         (typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`).toLowerCase().includes(s) ||
         d.matricule?.toLowerCase().includes(s)
       );
+    }
+    if (filters.dateFrom) {
+      const from = new Date(filters.dateFrom);
+      results = results.filter(d => {
+        if (!d.dateRequete) return false;
+        const date = d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete);
+        return date >= from;
+      });
+    }
+    if (filters.dateTo) {
+      const to = new Date(filters.dateTo);
+      to.setHours(23, 59, 59, 999);
+      results = results.filter(d => {
+        if (!d.dateRequete) return false;
+        const date = d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete);
+        return date <= to;
+      });
     }
     return results;
   }, [allDossiers, filters]);
@@ -139,7 +159,7 @@ export default function DossiersClientPage() {
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Statut" /></SelectTrigger>
             <SelectContent className="max-h-[300px]">
               <SelectItem value="Tous">Tous les statuts</SelectItem>
-              {statuses.map(s => <SelectItem key={s.id} value={s.label}>{s.label}</SelectItem>)}
+              {statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
             </SelectContent>
           </Select>
           <OptionsManagerModal collectionName="options_statuts" title="Statuts" defaultValues={defaultStatuses} />
@@ -155,6 +175,13 @@ export default function DossiersClientPage() {
           </Select>
           <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
         </div>
+
+        <DateRangeFilter
+          dateFrom={filters.dateFrom}
+          dateTo={filters.dateTo}
+          onDateFromChange={v => setFilters(f => ({ ...f, dateFrom: v }))}
+          onDateToChange={v => setFilters(f => ({ ...f, dateTo: v }))}
+        />
       </div>
 
       <Card className="overflow-hidden border rounded-lg">
@@ -163,6 +190,7 @@ export default function DossiersClientPage() {
             <TableRow className="bg-muted/50">
               <TableHead>Réf Expert</TableHead>
               <TableHead>Assuré</TableHead>
+              <TableHead>Compagnie</TableHead>
               <TableHead>Nature</TableHead>
               <TableHead>Type Dossier</TableHead>
               <TableHead>Statut</TableHead>
@@ -173,9 +201,9 @@ export default function DossiersClientPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={8} className="h-32 text-center text-muted-foreground">Chargement des dossiers...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="h-32 text-center text-muted-foreground">Chargement des dossiers...</TableCell></TableRow>
             ) : dossierList.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="h-32 text-center text-muted-foreground italic">Aucun dossier trouvé.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="h-32 text-center text-muted-foreground italic">Aucun dossier trouvé.</TableCell></TableRow>
             ) : (
               dossierList.slice(0, rowsPerPage).map(d => (
                 <TableRow
@@ -185,9 +213,10 @@ export default function DossiersClientPage() {
                 >
                   <TableCell className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400">{d.refExpert}</TableCell>
                   <TableCell>{renderAssure(d.assure)}</TableCell>
+                  <TableCell>{d.compagnie || '-'}</TableCell>
                   <TableCell>{d.nature || '-'}</TableCell>
                   <TableCell>{d.typeDossier || '-'}</TableCell>
-                  <TableCell><Badge variant="outline">{d.statut || 'Nouveau'}</Badge></TableCell>
+                  <TableCell><Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{d.statut || 'Nouveau'}</Badge></TableCell>
                   <TableCell className="font-mono text-xs">{d.matricule || '-'}</TableCell>
                   <TableCell>{formatDate(d.dateRequete)}</TableCell>
 

@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Loader2, Mail, CheckCircle2 } from 'lucide-react';
+import { Loader2, Info, Clock, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -22,20 +21,34 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useFirestore, useAuth, useUser } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
 import { useOptions } from '@/hooks/use-options';
 import { statuses as defaultStatuses } from '@/lib/dossiers-data';
 import { logHistorique, logWorkflow } from './log-historique';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
+import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { Badge } from '@/components/ui/badge';
 
 interface ModalDecisionStatusProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   dossierId: string;
   currentStatus: string;
-  assureEmail: string;
-  assureNom: string;
   dossierRef: string;
+  /** Current observation saved on the dossier */
+  currentObservation?: string;
+  currentObservationUpdatedAt?: any;
+  currentObservationUpdatedBy?: string;
+  /** Insured person's email (from dossier.assure.email) */
+  assureEmail?: string;
+  /** Insured person's name (from dossier.assure.nom) */
+  assureNom?: string;
 }
 
 export default function ModalDecisionStatus({
@@ -43,14 +56,18 @@ export default function ModalDecisionStatus({
   onOpenChange,
   dossierId,
   currentStatus,
-  assureEmail,
-  assureNom,
   dossierRef,
+  currentObservation,
+  currentObservationUpdatedAt,
+  currentObservationUpdatedBy,
+  assureEmail = '',
+  assureNom = '',
 }: ModalDecisionStatusProps) {
   const db = useFirestore();
   const auth = useAuth();
   const { user: currentUser } = useUser();
   const { toast } = useToast();
+  const { profile } = useCurrentUser();
 
   const { options: dbStatuses } = useOptions('options_statuts', defaultStatuses);
   const statusOptions = useMemo(
@@ -63,17 +80,17 @@ export default function ModalDecisionStatus({
 
   const [selectedStatus, setSelectedStatus] = useState('');
   const [observation, setObservation] = useState('');
-  const [email, setEmail] = useState(assureEmail || '');
-  const [sendEmail, setSendEmail] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [sendEmail, setSendEmail] = useState(true);
+  const [email, setEmail] = useState(assureEmail);
 
   // Reset form when modal opens
   React.useEffect(() => {
     if (open) {
       setSelectedStatus('');
       setObservation('');
-      setEmail(assureEmail || '');
-      setSendEmail(!!assureEmail);
+      setSendEmail(true);
+      setEmail(assureEmail);
     }
   }, [open, assureEmail]);
 
@@ -87,11 +104,20 @@ export default function ModalDecisionStatus({
     setIsSaving(true);
     const userEmail = currentUser?.email || auth?.currentUser?.email || 'Admin';
     const userId = currentUser?.uid || auth?.currentUser?.uid || 'system';
+    const userName = profile?.nom || userEmail;
 
     try {
-      // Update dossier status
+      // Update dossier status + observation
       const dossierDocRef = doc(db, 'dossiers', dossierId);
-      await updateDoc(dossierDocRef, { statut: selectedStatus });
+      const updatePayload: Record<string, any> = { statut: selectedStatus };
+
+      if (observation.trim()) {
+        updatePayload.observationDecision = observation.trim();
+        updatePayload.observationDecisionUpdatedAt = serverTimestamp();
+        updatePayload.observationDecisionUpdatedBy = userName;
+      }
+
+      await updateDoc(dossierDocRef, updatePayload);
 
       // Log historique
       await logHistorique(
@@ -109,50 +135,27 @@ export default function ModalDecisionStatus({
         details: observation || `Statut changé en "${selectedStatus}"`,
       });
 
-      // Send email notification if enabled and email provided
+      // Open Gmail compose with pre-filled email if enabled
       if (sendEmail && email.trim()) {
-        try {
-          await fetch('/api/send-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: email.trim(),
-              subject: `Mise à jour de votre dossier ${dossierRef} — ${selectedStatus}`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                  <h2 style="color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">
-                    Mise à jour de votre dossier
-                  </h2>
-                  <p>Bonjour <strong>${assureNom || 'Madame, Monsieur'}</strong>,</p>
-                  <p>Nous vous informons que le statut de votre dossier <strong>${dossierRef}</strong> a été mis à jour :</p>
-                  <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-                    <tr>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb; background: #f9fafb; font-weight: bold;">Ancien statut</td>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${currentStatus || 'N/A'}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb; background: #f9fafb; font-weight: bold;">Nouveau statut</td>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb; color: #1e40af; font-weight: bold;">${selectedStatus}</td>
-                    </tr>
-                    ${observation ? `
-                    <tr>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb; background: #f9fafb; font-weight: bold;">Observation</td>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${observation}</td>
-                    </tr>` : ''}
-                  </table>
-                  <p>Cordialement,<br/><strong>Service Expertise</strong></p>
-                </div>
-              `,
-            }),
-          });
-          toast({ title: 'Statut mis à jour', description: `Notification envoyée à ${email}.` });
-        } catch {
-          toast({ title: 'Statut mis à jour', description: "Le statut a été changé mais l'email n'a pas pu être envoyé." });
-        }
-      } else {
-        toast({ title: 'Statut mis à jour', description: `Le statut a été changé en "${selectedStatus}".` });
+        const subject = `Mise à jour de votre dossier ${dossierRef} — ${selectedStatus}`;
+        const body = [
+          `Bonjour ${assureNom || 'Madame, Monsieur'},`,
+          '',
+          `Nous vous informons que le statut de votre dossier ${dossierRef} a été mis à jour.`,
+          '',
+          `Ancien statut : ${currentStatus}`,
+          `Nouveau statut : ${selectedStatus}`,
+          observation ? `\nObservation : ${observation}` : '',
+          '',
+          'Cordialement,',
+          'Service Expertise — SL Auto',
+        ].filter(Boolean).join('\n');
+
+        const gmailUrl = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(email.trim())}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.open(gmailUrl, '_blank');
       }
 
+      toast({ title: 'Statut mis à jour', description: `Le statut a été changé en "${selectedStatus}".` });
       onOpenChange(false);
     } catch (error: any) {
       console.error('Decision status error:', error);
@@ -168,11 +171,29 @@ export default function ModalDecisionStatus({
         <DialogHeader>
           <DialogTitle>Décision de statut</DialogTitle>
           <DialogDescription>
-            Changer le statut du dossier et notifier l&apos;assuré par email.
+            Changer le statut du dossier et ajouter une observation.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Previous observation */}
+          {currentObservation && (
+            <div className={cn("space-y-1 p-3 rounded-lg border border-dashed", currentObservationUpdatedAt ? "bg-amber-50/50 border-amber-300 dark:bg-amber-900/10" : "bg-muted/30")}>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                <Info className="h-3 w-3" /> Observation précédente
+              </p>
+              <p className="text-sm italic text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                {currentObservation}
+              </p>
+              {currentObservationUpdatedAt && (
+                <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 mt-1">
+                  <Clock className="h-3 w-3 mr-1" />
+                  Par {currentObservationUpdatedBy || 'N/A'} le {currentObservationUpdatedAt?.toDate ? format(currentObservationUpdatedAt.toDate(), "dd/MM/yyyy 'à' HH:mm", { locale: fr }) : '-'}
+                </Badge>
+              )}
+            </div>
+          )}
+
           {/* Status selector */}
           <div className="space-y-2">
             <Label>Nouveau statut <span className="text-red-500">*</span></Label>
@@ -182,14 +203,22 @@ export default function ModalDecisionStatus({
               </SelectTrigger>
               <SelectContent className="max-h-60">
                 {statusOptions.map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                  <SelectItem key={s} value={s}>
+                    <span className="flex items-center gap-2">
+                      <span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s))} />
+                      {s}
+                    </span>
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {currentStatus && (
-              <p className="text-xs text-muted-foreground">
-                Statut actuel : <span className="font-medium">{currentStatus}</span>
-              </p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                Statut actuel :
+                <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(currentStatus))}>
+                  {currentStatus}
+                </Badge>
+              </div>
             )}
           </div>
 
@@ -205,42 +234,31 @@ export default function ModalDecisionStatus({
           </div>
 
           {/* Email notification */}
-          <div className="space-y-3 p-4 rounded-lg border bg-muted/20">
+          <div className="space-y-3 rounded-lg border p-3">
             <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-primary" />
-                Notification par email
-              </Label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-blue-600" />
+                <Label className="font-medium">Notification par email</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="sendEmail"
                   checked={sendEmail}
-                  onChange={(e) => setSendEmail(e.target.checked)}
-                  className="rounded border-input"
+                  onCheckedChange={(v) => setSendEmail(v === true)}
                 />
-                <span className="text-sm text-muted-foreground">Envoyer</span>
-              </label>
+                <Label htmlFor="sendEmail" className="text-sm cursor-pointer">Envoyer</Label>
+              </div>
             </div>
             {sendEmail && (
-              <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Email de l&apos;assuré</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="email@example.com"
-                    className="flex-1"
-                  />
-                  {assureEmail && email === assureEmail && (
-                    <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                  )}
-                </div>
-                {!email.trim() && (
-                  <p className="text-xs text-amber-600">
-                    Aucun email renseigné. L&apos;email ne sera pas envoyé.
-                  </p>
-                )}
+                <Input
+                  type="email"
+                  placeholder="email@exemple.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-9"
+                />
               </div>
             )}
           </div>

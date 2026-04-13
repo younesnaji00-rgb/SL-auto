@@ -49,7 +49,7 @@ export default function StepPlanification() {
       </div>
 
       <Card className="border">
-        <CardHeader className="bg-primary/5 border-b">
+        <CardHeader className="bg-heading-bg border-b">
           <CardTitle className="text-base flex items-center gap-2 text-primary">
             <Calendar className="h-4 w-4" /> Détails du rendez-vous
           </CardTitle>

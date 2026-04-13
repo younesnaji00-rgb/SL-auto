@@ -52,7 +52,7 @@ export default function Step1({ autoFilledFields, onReopenExpertModal }: Step1Pr
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
       {/* Expert Rank (read-only, set via modal) */}
       <Card className="border">
-        <CardHeader className="bg-muted/30 border-b py-3">
+        <CardHeader className="bg-heading-bg border-b py-3">
           <CardTitle className="text-sm flex items-center gap-2"><Award className="h-4 w-4 text-primary" /> Type d&apos;expert</CardTitle>
         </CardHeader>
         <CardContent className="p-4">
@@ -79,7 +79,7 @@ export default function Step1({ autoFilledFields, onReopenExpertModal }: Step1Pr
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* LEFT: Dossier info */}
         <Card className="border">
-          <CardHeader className="bg-muted/30 border-b py-3">
+          <CardHeader className="bg-heading-bg border-b py-3">
             <CardTitle className="text-sm flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /> Informations Dossier</CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
@@ -133,7 +133,7 @@ export default function Step1({ autoFilledFields, onReopenExpertModal }: Step1Pr
 
         {/* RIGHT: Intermédiaire & Refs */}
         <Card className="border">
-          <CardHeader className="bg-muted/30 border-b py-3">
+          <CardHeader className="bg-heading-bg border-b py-3">
             <CardTitle className="text-sm flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /> Intermédiaire & Références</CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
@@ -196,7 +196,7 @@ export default function Step1({ autoFilledFields, onReopenExpertModal }: Step1Pr
       {/* Véhicule & Assuré */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="border">
-          <CardHeader className="bg-muted/30 border-b py-3">
+          <CardHeader className="bg-heading-bg border-b py-3">
             <CardTitle className="text-sm flex items-center gap-2"><Users className="h-4 w-4 text-primary" /> Informations Assuré</CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
@@ -233,7 +233,7 @@ export default function Step1({ autoFilledFields, onReopenExpertModal }: Step1Pr
         </Card>
 
         <Card className="border">
-          <CardHeader className="bg-muted/30 border-b py-3">
+          <CardHeader className="bg-heading-bg border-b py-3">
             <CardTitle className="text-sm flex items-center gap-2"><Car className="h-4 w-4 text-primary" /> Informations Véhicule</CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
@@ -291,7 +291,7 @@ export default function Step1({ autoFilledFields, onReopenExpertModal }: Step1Pr
 
       {/* Information Adversaire */}
       <Card className="border">
-        <CardHeader className="bg-muted/30 border-b py-3">
+        <CardHeader className="bg-heading-bg border-b py-3">
           <CardTitle className="text-sm flex items-center gap-2"><Swords className="h-4 w-4 text-primary" /> Information Adversaire</CardTitle>
         </CardHeader>
         <CardContent className="p-4">
@@ -329,7 +329,7 @@ export default function Step1({ autoFilledFields, onReopenExpertModal }: Step1Pr
 
       {/* Information Expert */}
       <Card className="border">
-        <CardHeader className="bg-muted/30 border-b py-3">
+        <CardHeader className="bg-heading-bg border-b py-3">
           <CardTitle className="text-sm flex items-center gap-2"><Award className="h-4 w-4 text-primary" /> Information Expert</CardTitle>
         </CardHeader>
         <CardContent className="p-4">

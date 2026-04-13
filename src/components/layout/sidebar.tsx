@@ -92,8 +92,8 @@ const AppSidebar = () => {
   const displayRole = profile?.role || '';
 
   return (
-    <Sidebar collapsible="icon" className="border-r shadow-xl z-50">
-      <SidebarHeader className={cn("border-b flex shrink-0 bg-background px-4", isCollapsed ? "flex-col items-center gap-2 py-3" : "flex-row items-center justify-between h-14")}>
+    <Sidebar collapsible="icon" className="shadow-xl z-50">
+      <SidebarHeader className={cn("flex shrink-0 bg-background px-4", isCollapsed ? "flex-col items-center gap-2 py-3" : "flex-row items-center justify-between h-14")}>
         <Logo collapsed={isCollapsed} />
         <SidebarTrigger className="h-8 w-8 shrink-0" />
       </SidebarHeader>
@@ -120,7 +120,7 @@ const AppSidebar = () => {
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
-                      <SidebarMenuSub className="ml-4 mr-2 border-l-2 border-primary/10">
+                      <SidebarMenuSub className="ml-4 mr-2">
                         {compagnies.map((c) => (
                           <SidebarMenuSubItem key={c.id}>
                             <SidebarMenuSubButton asChild isActive={pathname.includes(`selected=${c.id}`)}>
@@ -198,7 +198,7 @@ const AppSidebar = () => {
         </SidebarMenu>
       </SidebarContent>
 
-      <SidebarFooter className="border-t bg-background shrink-0 p-2 gap-2">
+      <SidebarFooter className="bg-muted/20 shrink-0 p-2 gap-2">
         {mounted && (
           <Button
             variant="ghost"
@@ -211,7 +211,7 @@ const AppSidebar = () => {
           </Button>
         )}
 
-        <div className={cn("flex items-center gap-3 p-2 rounded-lg bg-primary/5 border border-primary/10 overflow-hidden transition-all duration-300", isCollapsed && "p-1 justify-center")}>
+        <div className={cn("flex items-center gap-3 p-2 rounded-lg bg-primary/5 overflow-hidden transition-all duration-300", isCollapsed && "p-1 justify-center")}>
           {!isCollapsed ? (
             <div className="flex flex-col min-w-0 flex-1">
               <span className="text-xs font-bold truncate">{displayName}</span>

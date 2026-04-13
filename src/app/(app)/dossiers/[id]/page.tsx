@@ -215,9 +215,12 @@ export default function DossierDetailPage({
         onOpenChange={setDecisionStatusOpen}
         dossierId={id}
         currentStatus={dossier.statut || 'Nouveau'}
-        assureEmail={typeof dossier.assure === 'object' ? (dossier.assure?.email || '') : ''}
-        assureNom={typeof dossier.assure === 'object' ? (dossier.assure?.nom || '') : (dossier.assure || '')}
         dossierRef={dossier.refExpert || id}
+        currentObservation={dossier.observationDecision || ''}
+        currentObservationUpdatedAt={dossier.observationDecisionUpdatedAt}
+        currentObservationUpdatedBy={dossier.observationDecisionUpdatedBy}
+        assureEmail={typeof dossier.assure === 'object' ? dossier.assure?.email || '' : ''}
+        assureNom={typeof dossier.assure === 'object' ? `${dossier.assure?.nom || ''} ${dossier.assure?.prenom || ''}`.trim() : dossier.assure || ''}
       />
     </div>
   );

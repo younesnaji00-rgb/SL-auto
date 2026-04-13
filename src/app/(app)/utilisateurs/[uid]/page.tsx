@@ -76,6 +76,8 @@ import { roles, type Role, compagnies as defaultCompagnies } from '@/lib/dossier
 import { Eye, EyeOff } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useOptions } from '@/hooks/use-options';
+import { cn } from '@/lib/utils';
+import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 
 export default function UserDetailPage({ params }: { params: Promise<{ uid: string }> }) {
   const { uid } = React.use(params);
@@ -435,7 +437,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                             <TableCell>{assureName}</TableCell>
                             <TableCell>{d.nature || '-'}</TableCell>
                             <TableCell>
-                              <Badge variant="outline">{d.statut || 'Nouveau'}</Badge>
+                              <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{d.statut || 'Nouveau'}</Badge>
                             </TableCell>
                             <TableCell className="text-right">
                               <Button variant="ghost" size="sm" asChild>

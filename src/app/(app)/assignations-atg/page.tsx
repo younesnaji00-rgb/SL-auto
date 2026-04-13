@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import { UserCheck, Loader2, Calendar, MapPin } from 'lucide-react';
+import { DateRangeFilter } from '@/components/date-range-filter';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -46,6 +47,8 @@ export default function AssignationsATGPage() {
   const [planifications, setPlanifications] = useState<PlanificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Avant');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   useEffect(() => {
     if (!db) return;
@@ -137,8 +140,28 @@ export default function AssignationsATGPage() {
   }, [planifications]);
 
   const filteredPlanifications = useMemo(() => {
-    return planifications.filter(p => normalizeType(p.typeMission) === activeTab);
-  }, [planifications, activeTab]);
+    let results = planifications.filter(p => normalizeType(p.typeMission) === activeTab);
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      results = results.filter(p => {
+        const raw = p.dateRDV || p.createdAt;
+        if (!raw) return false;
+        const date = raw.toDate ? raw.toDate() : new Date(raw);
+        return date >= from;
+      });
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      results = results.filter(p => {
+        const raw = p.dateRDV || p.createdAt;
+        if (!raw) return false;
+        const date = raw.toDate ? raw.toDate() : new Date(raw);
+        return date <= to;
+      });
+    }
+    return results;
+  }, [planifications, activeTab, dateFrom, dateTo]);
 
   const formatDate = (ts: any) => {
     if (!ts) return '-';
@@ -149,10 +172,13 @@ export default function AssignationsATGPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <UserCheck className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold">Assignations Agent de Terrain</h1>
-        <Badge variant="secondary" className="ml-2">{countByType['Avant'] + countByType['En cours'] + countByType['Après']}</Badge>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <UserCheck className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold">Assignations Agent de Terrain</h1>
+          <Badge variant="secondary" className="ml-2">{countByType['Avant'] + countByType['En cours'] + countByType['Après']}</Badge>
+        </div>
+        <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
       </div>
 
       {/* Mission type tabs */}

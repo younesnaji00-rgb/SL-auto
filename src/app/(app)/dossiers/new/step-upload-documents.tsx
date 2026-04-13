@@ -81,7 +81,7 @@ export default function StepUploadDocuments({
           const files = categorizedFiles[typeLabel] || [];
           return (
             <Card key={typeLabel} className="border">
-              <CardHeader className="py-3 px-4 bg-muted/30 border-b">
+              <CardHeader className="py-3 px-4 bg-heading-bg border-b">
                 <CardTitle className="text-sm flex items-center justify-between">
                   <span className="truncate">{typeLabel}</span>
                   {files.length > 0 && (

@@ -10,7 +10,10 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import { Calculator, Loader2, FileText, ChevronDown, ChevronRight, ImageIcon } from 'lucide-react';
+import { DateRangeFilter } from '@/components/date-range-filter';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { fr } from 'date-fns/locale';
 import { useCurrentUser } from '@/hooks/use-current-user';
 
@@ -56,6 +59,8 @@ export default function AssignationsChiffragePage() {
   const [dossierStatuts, setDossierStatuts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Record<string, Set<string>>>({});
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Listen to chiffrages
   useEffect(() => {
@@ -88,6 +93,28 @@ export default function AssignationsChiffragePage() {
     return () => unsubs.forEach(u => u());
   }, [db, dossierIds.join(',')]);
 
+  const filteredChiffrages = useMemo(() => {
+    let results = [...chiffrages];
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      results = results.filter(c => {
+        if (!c.createdAt) return false;
+        const date = c.createdAt.toDate ? c.createdAt.toDate() : new Date(c.createdAt);
+        return date >= from;
+      });
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      results = results.filter(c => {
+        if (!c.createdAt) return false;
+        const date = c.createdAt.toDate ? c.createdAt.toDate() : new Date(c.createdAt);
+        return date <= to;
+      });
+    }
+    return results;
+  }, [chiffrages, dateFrom, dateTo]);
+
   const formatDate = (ts: any) => {
     if (!ts) return '-';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
@@ -106,9 +133,12 @@ export default function AssignationsChiffragePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Calculator className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold">Assignations au Chiffrage</h1>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <Calculator className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold">Assignations au Chiffrage</h1>
+        </div>
+        <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
       </div>
 
       <Card className="shadow-sm overflow-hidden">
@@ -131,7 +161,7 @@ export default function AssignationsChiffragePage() {
                     <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                   </TableCell>
                 </TableRow>
-              ) : chiffrages.length === 0 ? (
+              ) : filteredChiffrages.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                     <FileText className="h-8 w-8 mx-auto mb-2 opacity-20" />
@@ -139,7 +169,7 @@ export default function AssignationsChiffragePage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                chiffrages.map((c) => {
+                filteredChiffrages.map((c) => {
                   const { photos, docs } = computeFileCounts(c.files);
                   const expanded = expandedRows[c.id] || new Set<string>();
                   const statut = dossierStatuts[c.dossierId] || 'Nouveau';
@@ -192,7 +222,7 @@ export default function AssignationsChiffragePage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{statut}</Badge>
+                        <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut))}>{statut}</Badge>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{c.sentByNom || c.sentByEmail || '-'}</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">

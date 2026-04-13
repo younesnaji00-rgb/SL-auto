@@ -37,6 +37,8 @@
     --sidebar-accent-foreground: 224 71.4% 4.1%;
     --sidebar-border: 220 16% 80%;
     --sidebar-ring: 222 83% 58%;
+    --heading-bg: 220 40% 90%;
+    --heading-fg: 220 50% 30%;
   }
   .dark {
     --background: 222 47% 4%;
@@ -71,6 +73,8 @@
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 217 32% 12%;
     --sidebar-ring: 222 83% 58%;
+    --heading-bg: 220 30% 22%;
+    --heading-fg: 220 40% 85%;
   }
 }
 
@@ -81,13 +85,39 @@
   body {
     @apply bg-background text-foreground;
   }
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-heading-fg;
+  }
   .dark {
     color-scheme: dark;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
   }
   /* Fix native date/time inputs in dark mode */
   .dark input[type="date"],
   .dark input[type="time"],
   .dark input[type="datetime-local"] {
     color-scheme: dark;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted));
+    border-radius: 9999px;
   }
 }

@@ -18,6 +18,8 @@ import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { DatePicker } from '@/components/ui/date-picker';
+import { cn } from '@/lib/utils';
+import { getStatusDotColor } from '@/lib/status-colors';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -212,7 +214,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
             )}
 
             <Card className="border-primary/5 shadow-sm">
-                <CardHeader className="bg-muted/30 py-3"><CardTitle className="text-sm font-bold uppercase tracking-wider">Informations Dossier</CardTitle></CardHeader>
+                <CardHeader className="bg-heading-bg py-3"><CardTitle className="text-sm font-bold uppercase tracking-wider">Informations Dossier</CardTitle></CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-6 pt-6">
                     <Field 
                       label="Compagnie" 
@@ -258,7 +260,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
                         <Select value={formValues.statut} onValueChange={(v) => handleFormChange('statut', v)}>
                             <SelectTrigger className="h-9"><SelectValue placeholder="Choisir un statut" /></SelectTrigger>
                             <SelectContent className="max-h-[300px]">
-                                {statuses.map(s => <SelectItem key={s.id} value={s.label}>{s.label}</SelectItem>)}
+                                {statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
                             </SelectContent>
                         </Select>
                     </Field>
@@ -300,7 +302,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
             </Card>
 
             <Card className="border-primary/5 shadow-sm">
-                <CardHeader className="bg-muted/30 py-3">
+                <CardHeader className="bg-heading-bg py-3">
                     <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
                         <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         Informations Assuré

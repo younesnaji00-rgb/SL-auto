@@ -236,8 +236,8 @@ export default function UtilisateursClientPage() {
       <div className="md:col-span-1">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
-            <Card>
-              <CardHeader>
+            <Card className="border-0 shadow-sm rounded-xl">
+              <CardHeader className="bg-heading-bg rounded-t-xl">
                 <CardTitle>Ajouter un utilisateur</CardTitle>
                 <CardDescription>Créez un nouveau profil utilisateur.</CardDescription>
               </CardHeader>
@@ -327,8 +327,8 @@ export default function UtilisateursClientPage() {
       </div>
 
       <div className="md:col-span-2">
-        <Card>
-          <CardHeader>
+        <Card className="border-0 shadow-sm rounded-xl">
+          <CardHeader className="bg-heading-bg rounded-t-xl">
             <CardTitle>Gérer les utilisateurs</CardTitle>
             <CardDescription>Modifiez ou supprimez des profils existants.</CardDescription>
           </CardHeader>
@@ -353,10 +353,10 @@ export default function UtilisateursClientPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="rounded-lg border">
+            <div className="rounded-lg overflow-hidden bg-muted/10">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-muted/30 border-0">
                     <TableHead>Nom</TableHead>
                     <TableHead>Mot de passe</TableHead>
                     <TableHead>Rôle</TableHead>
