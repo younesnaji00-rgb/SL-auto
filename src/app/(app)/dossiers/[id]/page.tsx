@@ -9,11 +9,11 @@ import {
   Camera,
   AlertTriangle,
   ClipboardList,
-  BarChart2,
   History,
   AlertCircle,
   FileText,
   Download,
+  GitBranch,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,7 +27,6 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import InformationTab from './information-tab';
 import DocumentsTab from './documents-tab';
 import PhotosTab from './photos-tab';
-import ChiffrageTab from './chiffrage-tab';
 import CommentairesTab from './commentaires-tab';
 import RapportTab from './rapport-tab';
 import HistoriqueTab from './historique-tab';
@@ -37,6 +36,7 @@ import ModalPlanification from './modal-planification';
 import ModalChiffrage from './modal-chiffrage';
 import ModalReclamation from './modal-reclamation';
 import ModalExportPdf from './modal-export-pdf';
+import ModalDecisionStatus from './modal-decision-status';
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 const TABS = [
@@ -44,7 +44,6 @@ const TABS = [
   { id: 'photos',        label: 'Photos',         icon: Camera },
   { id: 'documents',     label: 'Documents',      icon: FileText },
   { id: 'chiffrage',     label: 'Chiffrage',      icon: Calculator },
-  { id: 'rapport',       label: 'Rapport',        icon: BarChart2 },
   { id: 'historique',    label: 'Historique',     icon: History },
 ] as const;
 
@@ -77,6 +76,7 @@ export default function DossierDetailPage({
   const [isChiffrageModalOpen, setChiffrageModalOpen] = useState(false);
   const [isReclamationModalOpen, setReclamationModalOpen] = useState(false);
   const [isExportModalOpen, setExportModalOpen] = useState(false);
+  const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
 
   const renderAssure = (assure: any) => {
     if (!assure) return 'N/A';
@@ -161,6 +161,10 @@ export default function DossierDetailPage({
         <Button variant="outline" size="sm" onClick={() => setReclamationModalOpen(true)} className="h-8 text-xs gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700">
           <AlertTriangle className="h-3.5 w-3.5" /> Réclamation
         </Button>
+        <div className="flex-1" />
+        <Button variant="default" size="sm" onClick={() => setDecisionStatusOpen(true)} className="h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700">
+          <GitBranch className="h-3.5 w-3.5" /> Décision de statut
+        </Button>
       </div>
       )}
 
@@ -197,8 +201,7 @@ export default function DossierDetailPage({
         )}
         {activeTab === 'photos'     && <PhotosTab    dossierId={id} />}
         {activeTab === 'documents'  && <DocumentsTab dossierId={id} />}
-        {activeTab === 'chiffrage'  && <ChiffrageTab dossierId={id} />}
-        {activeTab === 'rapport'    && <RapportTab   dossierId={id} />}
+        {activeTab === 'chiffrage'  && <RapportTab   dossierId={id} />}
         {activeTab === 'historique' && <HistoriqueTab dossierId={id} />}
       </div>
 
@@ -207,6 +210,15 @@ export default function DossierDetailPage({
       <ModalChiffrage open={isChiffrageModalOpen} onOpenChange={setChiffrageModalOpen} dossierId={id} />
       <ModalReclamation open={isReclamationModalOpen} onOpenChange={setReclamationModalOpen} dossierId={id} />
       <ModalExportPdf open={isExportModalOpen} onOpenChange={setExportModalOpen} dossierId={id} />
+      <ModalDecisionStatus
+        open={isDecisionStatusOpen}
+        onOpenChange={setDecisionStatusOpen}
+        dossierId={id}
+        currentStatus={dossier.statut || 'Nouveau'}
+        assureEmail={typeof dossier.assure === 'object' ? (dossier.assure?.email || '') : ''}
+        assureNom={typeof dossier.assure === 'object' ? (dossier.assure?.nom || '') : (dossier.assure || '')}
+        dossierRef={dossier.refExpert || id}
+      />
     </div>
   );
 }

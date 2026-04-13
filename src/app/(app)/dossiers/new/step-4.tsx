@@ -196,7 +196,6 @@ const FieldWrapper = ({ fieldName, children }: { fieldName: string; children: Re
 );
 
 const dossierTypes = ['Normale', 'Classique', 'Agrée', 'Forfait'];
-const dossierModes = ['Procédure normale', 'Forfait', 'Prise en charge', 'Contradictoire', 'Collégiale'];
 const expertRanks = ['1er expert', '2eme expert', 'Arbitre'];
 const repairerTypes = ['Agréé', 'Normal'];
 
@@ -270,12 +269,12 @@ export default function Step4() {
               </FieldWrapper>
               {data.expertRank === '2eme expert' && (
                 <FieldWrapper fieldName="secondExpertName">
-                  <EditableSummaryField fieldName="secondExpertName" label="Nom 2ème expert" />
+                  <EditableSummaryField fieldName="secondExpertName" label="Nom du 1er expert" />
                 </FieldWrapper>
               )}
               {data.expertRank === '2eme expert' && (
                 <FieldWrapper fieldName="secondExpertCompany">
-                  <EditableSummaryField fieldName="secondExpertCompany" label="Compagnie 2ème expert" />
+                  <EditableSummaryField fieldName="secondExpertCompany" label="Compagnie du 1er expert" />
                 </FieldWrapper>
               )}
               <FieldWrapper fieldName="dossierType">
@@ -284,14 +283,19 @@ export default function Step4() {
               <FieldWrapper fieldName="nature">
                 <EditableSummaryField fieldName="nature" label="Nature" required type="select" options={natureLabels} />
               </FieldWrapper>
-              <FieldWrapper fieldName="dossierMode">
-                <EditableSummaryField fieldName="dossierMode" label="Mode dossier" type="select" options={dossierModes} />
-              </FieldWrapper>
               <FieldWrapper fieldName="company">
                 <EditableSummaryField fieldName="company" label="Compagnie" required type="select" options={compagnieLabels} />
               </FieldWrapper>
               <FieldWrapper fieldName="dateOfRequest">
-                <EditableSummaryField fieldName="dateOfRequest" label="Date Requête" required type="date" />
+                <div className="flex justify-between items-center py-2 px-3 rounded-md">
+                  <span className="text-sm text-muted-foreground">Date Requête <span className="text-red-500 ml-0.5">*</span></span>
+                  <span className="text-sm font-medium flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                    {data.dateOfRequest instanceof Date
+                      ? format(data.dateOfRequest, 'd LLL, y', { locale: fr })
+                      : data.dateOfRequest ? format(new Date(data.dateOfRequest), 'd LLL, y', { locale: fr }) : 'Aujourd\'hui'}
+                  </span>
+                </div>
               </FieldWrapper>
               <FieldWrapper fieldName="refExpert">
                 <EditableSummaryField fieldName="refExpert" label="Ref Expert" />

@@ -400,7 +400,7 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
       {/* Preview Modal */}
       {previewPhoto && (
         <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
-          <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
+          <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
             <DialogHeader className="px-4 py-3 border-b shrink-0">
               <DialogTitle className="text-sm truncate">{previewPhoto.name}</DialogTitle>
             </DialogHeader>

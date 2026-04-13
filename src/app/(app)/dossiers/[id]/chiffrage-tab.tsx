@@ -273,7 +273,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
 
       {previewIndex !== null && chiffrage && downloadUrls[previewIndex] && (
         <Dialog open onOpenChange={() => setPreviewIndex(null)}>
-          <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
+          <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
             <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
               {chiffrage.files[previewIndex].name.match(/\.(jpg|jpeg|png|webp)$/i) ? (
                 <img src={downloadUrls[previewIndex]} className="max-w-full max-h-full object-contain" alt="Aperçu" />

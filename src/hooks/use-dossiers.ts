@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where } from 'firebase/firestore';
 import { ref, deleteObject, listAll } from 'firebase/storage';
 import { useFirestore, useStorage } from '@/firebase';
 import type { Dossier } from '@/lib/dossiers-data';
@@ -49,21 +49,22 @@ export function useDossiers(allowedCompagnies?: string[]) {
 
         // List of subcollections to purge manually because Firestore doesn't auto-delete nested data
         const subcollections = [
-            'documents', 
-            'photos', 
-            'commentaires', 
-            'chiffrage', 
-            'missions', 
-            'reclamations', 
-            'planifications', 
-            'planificationHistory', 
-            'historique', 
-            'rapport_pieces'
+            'documents',
+            'photos',
+            'commentaires',
+            'chiffrage',
+            'missions',
+            'reclamations',
+            'planifications',
+            'planificationHistory',
+            'historique',
+            'rapport_pieces',
+            'workflow',
         ];
 
         try {
             console.log(`Starting cleanup for dossier: ${dossierId}`);
-            
+
             // 1. Delete all subcollections items
             for (const sub of subcollections) {
                 const subRef = collection(db, 'dossiers', dossierId, sub);
@@ -72,7 +73,11 @@ export function useDossiers(allowedCompagnies?: string[]) {
                 await Promise.all(deletePromises);
             }
 
-            // 2. Recursive cleanup of Storage folder
+            // 2. Delete related chiffrages from root collection
+            const chiffragesSnap = await getDocs(query(collection(db, 'chiffrages'), where('dossierId', '==', dossierId))).catch(() => ({ docs: [] }));
+            await Promise.all((chiffragesSnap as any).docs.map((d: any) => deleteDoc(d.ref)));
+
+            // 3. Recursive cleanup of Storage folder
             if (storage) {
                 const storagePath = `dossiers/${dossierId}`;
                 const storageRef = ref(storage, storagePath);
@@ -93,7 +98,7 @@ export function useDossiers(allowedCompagnies?: string[]) {
                 await deleteStorageFolder(storageRef).catch(e => console.warn('Storage cleanup skipped:', e));
             }
 
-            // 3. Delete the main document
+            // 4. Delete the main document
             const mainRef = doc(db, 'dossiers', dossierId);
             await deleteDoc(mainRef);
             

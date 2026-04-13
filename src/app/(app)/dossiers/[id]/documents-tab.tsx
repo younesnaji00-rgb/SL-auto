@@ -436,7 +436,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
       {/* Preview Modal */}
       {previewDoc && (
         <Dialog open onOpenChange={() => setPreviewDoc(null)}>
-          <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
+          <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
             <DialogHeader className="px-4 py-3 border-b shrink-0">
               <DialogTitle className="text-sm truncate">{previewDoc.nom}</DialogTitle>
             </DialogHeader>

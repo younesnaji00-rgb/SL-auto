@@ -46,7 +46,6 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
 
     const [formValues, setFormValues] = useState<any>({
         compagnie: '',
-        modeDossier: '',
         statut: '',
         refExpert: '',
         matricule: '',
@@ -83,7 +82,6 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
 
         return {
             compagnie: data.compagnie || '',
-            modeDossier: data.modeDossier || 'Normal',
             statut: data.statut || 'Nouveau',
             refExpert: data.refExpert || '',
             matricule: data.matricule || '',
@@ -146,11 +144,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
                 await logHistorique(db, dossierId, formValues.statut, userEmail, `Statut changé en "${formValues.statut}".`, 'statut');
                 await logWorkflow(db, dossierId, `Changement de statut : ${formValues.statut}`, userEmail, userId, 'done', { dossierRef: dossier.refExpert || dossierId, details: `Statut changé en "${formValues.statut}"` });
             }
-            if (formValues.modeDossier !== dossier.modeDossier) {
-                await logHistorique(db, dossierId, 'Changement de mode', userEmail, `Mode changé en "${formValues.modeDossier}".`, 'mode');
-            } else {
-                await logHistorique(db, dossierId, 'Mise à jour requête', userEmail, 'Informations générales du dossier mises à jour.', 'autre');
-            }
+            await logHistorique(db, dossierId, 'Mise à jour requête', userEmail, 'Informations générales du dossier mises à jour.', 'autre');
 
             toast({ title: "Requête mise à jour" });
             setEditing(false);

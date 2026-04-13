@@ -37,6 +37,7 @@ import {
   Building2,
   Calculator,
   UserCheck,
+  BookOpen,
 } from 'lucide-react';
 import Logo from '@/components/logo';
 import { useCompagnies } from '@/hooks/use-compagnies';
@@ -63,12 +64,13 @@ const AppSidebar = () => {
   }, []);
 
   const allNavItems = [
-    { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: null },
-    { href: '/dossiers', icon: FolderOpen, label: 'Gestion des dossiers', roles: null },
-    { href: '/assignations-chiffrage', icon: Calculator, label: 'Assignations Chiffrage', roles: null },
+    { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Chiffreur'] as string[] },
+    { href: '/dossiers', icon: FolderOpen, label: 'Gestion des dossiers', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Chiffreur'] as string[] },
+    { href: '/consultation', icon: BookOpen, label: 'Consultation', roles: null },
+    { href: '/assignations-chiffrage', icon: Calculator, label: 'Assignations Chiffrage', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Chiffreur'] as string[] },
     { href: '/assignations-atg', icon: UserCheck, label: 'Assignations ATG', roles: null },
     { href: '/utilisateurs', icon: Users, label: 'Utilisateurs', roles: ['Admin'] as string[] },
-    { href: '/compagnies', icon: Building2, label: 'Compagnies', roles: null },
+    { href: '/compagnies', icon: Building2, label: 'Compagnies', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Chiffreur'] as string[] },
   ];
 
   // Filter nav items by role — null means visible to all, otherwise only listed roles

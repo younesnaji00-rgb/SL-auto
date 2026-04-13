@@ -15,7 +15,7 @@ import { getApp } from 'firebase/app';
 const _seeded = new Set<string>();
 
 const ALL_DEFAULTS: Record<string, string[]> = {
-  options_natures: ['Automobile', 'Incendie', 'Classique', 'Contradictoire', 'Arbitrage', 'Réforme', 'Collégiale', 'Forfait'],
+  options_natures: ['Automobile', 'Incendie', 'Classique', 'Contradictoire', 'Arbitrage', 'Réforme', 'Collégiale', 'Forfait', 'Appréciation', 'EAD'],
   options_statuts: ['Accord devis', 'Accord devis rectifié 2', 'Accord devis refusé', 'Accord facture garage', 'Att Signature 2ème expert', 'Avis de réforme', 'Avis dommage', 'Assigné au chiffrage', 'Expertise programmée en cours'],
   options_types_rdv: ['Avant', 'En cours', 'Après'],
   options_types_documents: ['Rapport d\'expertise', 'Devis', 'Facture', 'Photos avant expertise', 'Photos après expertise', 'Photos au moment du sinistre', 'PV de constat', 'Carte grise', 'Permis de conduire', 'Attestation d\'assurance'],

@@ -11,7 +11,6 @@ export type Dossier = {
   compagnie: string;
   typeDossier: string;
   nature: string;
-  modeDossier: string;
   matricule: string;
   policeNumber: string;
   referenceCompagnie: string;
@@ -89,7 +88,7 @@ export const marques = [
 ];
 
 export const natures = [
-    'Automobile', 'Incendie', 'Classique', 'Contradictoire', 'Arbitrage', 'Réforme', 'Collégiale', 'Forfait'
+    'Automobile', 'Incendie', 'Classique', 'Contradictoire', 'Arbitrage', 'Réforme', 'Collégiale', 'Forfait', 'Appréciation', 'EAD'
 ];
 
 export const compagnies = [

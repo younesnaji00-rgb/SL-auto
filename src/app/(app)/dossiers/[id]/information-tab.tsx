@@ -83,7 +83,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
 
   // ── Unified form state ──
   const [form, setForm] = useState<any>({
-    compagnie: '', modeDossier: '', statut: '', refExpert: '', matricule: '',
+    compagnie: '', statut: '', refExpert: '', matricule: '',
     policeNumber: '', dateSinistre: null, dateRequete: null, referenceCompagnie: '',
     typeDossier: '', nature: '',
     assure: { nom: '', prenom: '', telephone: '', whatsapp: '', telephone2: '', email: '', adresse: '', cin: '' },
@@ -106,7 +106,6 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
       const v = dossier.vehicule || {};
       setForm({
         compagnie: dossier.compagnie || '',
-        modeDossier: dossier.modeDossier || 'Normal',
         statut: dossier.statut || 'Nouveau',
         refExpert: dossier.refExpert || '',
         matricule: dossier.matricule || '',

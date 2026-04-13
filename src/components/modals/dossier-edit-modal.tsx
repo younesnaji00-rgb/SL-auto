@@ -31,7 +31,6 @@ import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
 import { natures as defaultNatures, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 
-const dossierModes = ['Procédure normale', 'Forfait', 'Prise en charge', 'Contradictoire', 'Collégiale'];
 const defaultDossierTypes = ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'];
 
 interface DossierEditModalProps {
@@ -57,7 +56,6 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
 
   const [formData, setFormData] = useState<any>({
     expertRank: '1er expert',
-    modeDossier: 'Procédure normale',
     compagnie: '',
     typeDossier: '',
     nature: '',
@@ -91,7 +89,6 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
 
             setFormData({
               expertRank: data.expertRank || '1er expert',
-              modeDossier: data.modeDossier || 'Procédure normale',
               compagnie: data.compagnie || '',
               typeDossier: data.typeDossier || '',
               nature: data.nature || '',
@@ -136,7 +133,6 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
     try {
       const payload: Record<string, any> = {
         expertRank: formData.expertRank,
-        modeDossier: formData.modeDossier,
         compagnie: formData.compagnie,
         typeDossier: formData.typeDossier,
         nature: formData.nature,
@@ -207,28 +203,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
                 </RadioGroup>
               </div>
 
-              <div className="space-y-3">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mode Dossier</Label>
-                <div className="flex flex-wrap gap-2">
-                  {dossierModes.map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, modeDossier: mode })}
-                      className={cn(
-                        "px-4 py-2 rounded-full text-xs font-bold border transition-all duration-200",
-                        formData.modeDossier === mode
-                          ? "bg-primary text-primary-foreground border-primary shadow-md"
-                          : "bg-background text-muted-foreground border-input hover:border-foreground hover:bg-accent"
-                      )}
-                    >
-                      {mode}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
+<div className="grid grid-cols-2 gap-6">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs text-muted-foreground font-semibold">Compagnie</Label>

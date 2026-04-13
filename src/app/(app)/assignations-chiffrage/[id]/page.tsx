@@ -12,12 +12,12 @@ import {
   Dialog, DialogContent, DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  ArrowLeft, FileType, Eye, CheckCircle2, Loader2,
-  ChevronDown, ChevronRight, ImageIcon, FileText, ExternalLink, PenLine,
+  ArrowLeft, FileType, Eye, Loader2,
+  ChevronDown, ChevronRight, ImageIcon, FileText, ExternalLink, PenLine, GitBranch,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import ModalDecisionStatus from '../../dossiers/[id]/modal-decision-status';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -48,13 +48,16 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const canEdit = canWrite('assignations-chiffrage');
 
   const [chiffrage, setChiffrage] = useState<ChiffrageDoc | null>(null);
+  const [dossier, setDossier] = useState<any>(null);
   const [downloadUrls, setDownloadUrls] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['all']));
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
 
   const fetchedPathsRef = useRef<Set<string>>(new Set());
 
+  // Listen to chiffrage doc
   useEffect(() => {
     if (!db || !id) return;
     const unsub = onSnapshot(doc(db, 'chiffrages', id), (snap) => {
@@ -68,6 +71,17 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     }, () => setLoading(false));
     return () => unsub();
   }, [db, id]);
+
+  // Listen to parent dossier doc for status + modal props
+  useEffect(() => {
+    if (!db || !chiffrage?.dossierId) return;
+    const unsub = onSnapshot(doc(db, 'dossiers', chiffrage.dossierId), (snap) => {
+      if (snap.exists()) {
+        setDossier({ id: snap.id, ...snap.data() });
+      }
+    });
+    return () => unsub();
+  }, [db, chiffrage?.dossierId]);
 
   useEffect(() => {
     if (!chiffrage || !storage) return;
@@ -102,9 +116,6 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       if (!groups[groupKey]) groups[groupKey] = { label: groupLabel, icon, files: [] };
       groups[groupKey].files.push({ file, index: i });
     });
-    if (expandedGroups.size === 1 && expandedGroups.has('all')) {
-      setExpandedGroups(new Set(Object.keys(groups)));
-    }
     return Object.entries(groups);
   }, [chiffrage?.files]);
 
@@ -115,6 +126,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       return next;
     });
   };
+
+  const dossierStatut = dossier?.statut || 'Nouveau';
 
   if (loading || !chiffrage) {
     return (
@@ -158,6 +171,17 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           <Button
             variant="default"
             size="sm"
+            className="gap-1.5 bg-blue-600 hover:bg-blue-700"
+            onClick={() => setDecisionStatusOpen(true)}
+          >
+            <GitBranch className="h-3.5 w-3.5" />
+            Décision de statut
+          </Button>
+        )}
+        {canEdit && (
+          <Button
+            variant="default"
+            size="sm"
             className="gap-1.5"
             onClick={() => router.push(`/editor?chiffrageId=${id}&dossierId=${chiffrage.dossierId}&fileIndex=0`)}
           >
@@ -165,13 +189,12 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             Ouvrir l&apos;éditeur
           </Button>
         )}
-        <Badge variant={chiffrage.status === 'done' ? 'expertise' : 'secondary'} className="gap-1.5 py-1 px-3">
-          {chiffrage.status === 'done' ? <CheckCircle2 className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
-          {chiffrage.status === 'done' ? 'Termine' : 'En cours'}
+        <Badge variant="outline" className="gap-1.5 py-1 px-3">
+          {dossierStatut}
         </Badge>
       </div>
 
-      {/* File groups */}
+      {/* File groups — collapsed by default */}
       <div className="space-y-4">
         {groupedFiles.map(([groupKey, group]) => (
           <div key={groupKey} className="border rounded-xl overflow-hidden bg-card shadow-sm">
@@ -242,7 +265,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       {/* Lightbox preview */}
       {previewIndex !== null && chiffrage && downloadUrls[previewIndex] && (
         <Dialog open onOpenChange={() => setPreviewIndex(null)}>
-          <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
+          <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
             <DialogTitle className="sr-only">Apercu du fichier</DialogTitle>
             <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
               {chiffrage.files[previewIndex].name.match(/\.(jpg|jpeg|png|webp)$/i) ? (
@@ -254,11 +277,22 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Decision Status Modal */}
+      <ModalDecisionStatus
+        open={isDecisionStatusOpen}
+        onOpenChange={setDecisionStatusOpen}
+        dossierId={chiffrage.dossierId}
+        currentStatus={dossierStatut}
+        assureEmail={typeof dossier?.assure === 'object' ? (dossier?.assure?.email || '') : ''}
+        assureNom={typeof dossier?.assure === 'object' ? (dossier?.assure?.nom || '') : (dossier?.assure || '')}
+        dossierRef={chiffrage.dossierNom || id}
+      />
     </div>
   );
 }
 
-function StatusBadge({ status, hasAnnotations }: { status: string; hasAnnotations: boolean }) {
+function StatusBadge({ hasAnnotations }: { status: string; hasAnnotations: boolean }) {
   if (hasAnnotations) {
     return <Badge variant="expertise" className="text-[9px] py-0 h-4 uppercase font-black">CORRIGE</Badge>;
   }

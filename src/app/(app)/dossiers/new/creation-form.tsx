@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useNetworkStatus } from '@/hooks/use-network-status';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -27,9 +27,22 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
 import StepDocuments from './step-documents';
 import Step1 from './step-1';
 import StepPlanification from './step-planification';
+import StepUploadDocuments from './step-upload-documents';
 import Step4Confirmation from './step-4';
 import DocumentViewer from './document-viewer';
 import { cn } from '@/lib/utils';
@@ -42,7 +55,6 @@ const formSchema = z.object({
   secondExpertName: z.string().optional(),
   secondExpertCompany: z.string().optional(),
   // Dossier
-  dossierMode: z.string().optional(),
   company: z.string().optional(),
   dossierType: z.string().optional(),
   nature: z.string().optional(),
@@ -100,7 +112,8 @@ const steps = [
   { id: 1, name: 'Documents', label: 'Étape 1' },
   { id: 2, name: 'Informations', label: 'Étape 2' },
   { id: 3, name: 'Planification', label: 'Étape 3' },
-  { id: 4, name: 'Confirmation', label: 'Étape 4' },
+  { id: 4, name: 'Pièces jointes', label: 'Étape 4' },
+  { id: 5, name: 'Confirmation', label: 'Étape 5' },
 ];
 
 export default function DossierCreationForm() {
@@ -111,13 +124,22 @@ export default function DossierCreationForm() {
   const [missingFieldsList, setMissingFieldsList] = useState<string[]>([]);
   const [tempFormData, setTempFormData] = useState<DossierFormData | null>(null);
 
+  // Categorized document upload state
+  const [categorizedFiles, setCategorizedFiles] = useState<Record<string, UploadedFile[]>>({});
+
+  // Expert modal state
+  const [expertModalOpen, setExpertModalOpen] = useState(true);
+  const [pendingExpertRank, setPendingExpertRank] = useState('1er expert');
+  const [pendingFirstExpertName, setPendingFirstExpertName] = useState('');
+  const [pendingFirstExpertCompany, setPendingFirstExpertCompany] = useState('');
+
   // Document state
   const [scanFiles, setScanFiles] = useState<UploadedFile[]>([]);
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
   const [showDocViewer, setShowDocViewer] = useState(true);
   const [scanComplete, setScanComplete] = useState(false);
 
-  const sectionRefs = useRef<(HTMLElement | null)[]>([null, null, null, null]);
+  const sectionRefs = useRef<(HTMLElement | null)[]>([null, null, null, null, null]);
 
   const { toast } = useToast();
   const db = useFirestore();
@@ -136,10 +158,10 @@ export default function DossierCreationForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       expertRank: '1er expert',
-      dossierMode: 'Procédure normale',
       repairerType: 'Agréé',
       secondExpertName: '',
       secondExpertCompany: '',
+      dateOfRequest: new Date(),
       company: '',
       dossierType: '',
       nature: '',
@@ -242,8 +264,10 @@ export default function DossierCreationForm() {
 
       if (data && fieldsFound > 0) {
         const dateFields = ['dateOfLoss', 'dateOfRequest', 'dateOfMEC'];
+        const skipScanFields = new Set(['dateOfRequest']);
         for (const [key, value] of Object.entries(data)) {
           if (value === null || value === undefined) continue;
+          if (skipScanFields.has(key)) continue;
           if (dateFields.includes(key) && typeof value === 'string') {
             const parsed = new Date(value);
             if (!isNaN(parsed.getTime())) { form.setValue(key as any, parsed); filled.add(key); }
@@ -325,7 +349,7 @@ export default function DossierCreationForm() {
         compagnie: data.company || '',
         typeDossier: data.dossierType || '',
         nature: data.nature || '',
-        modeDossier: data.dossierMode || '',
+        modeDossier: '',
         matricule: data.registration || '',
         policeNumber: data.policyNumber || '',
         referenceCompagnie: data.companyRef || '',
@@ -409,6 +433,30 @@ export default function DossierCreationForm() {
         });
       }
 
+      // Upload categorized documents with their type metadata
+      for (const [typeLabel, files] of Object.entries(categorizedFiles)) {
+        for (const uf of files) {
+          const timestamp = Date.now();
+          const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${uf.file.name}`;
+          await uploadFileWithOfflineSupport({
+            storage,
+            db,
+            file: uf.file,
+            fileName: uf.file.name,
+            storagePath,
+            firestoreDocPath: `dossiers/${dossierId}/documents`,
+            firestoreMetadata: {
+              nom: uf.file.name,
+              type: typeLabel,
+              taille: uf.file.size,
+              uploadePar: userEmail,
+              storagePath,
+              _localCreatedAt: timestamp,
+            },
+          });
+        }
+      }
+
       toast({ title: "Dossier Créé", description: `Le dossier ${refCode} a été enregistré avec succès.` });
       router.push('/dossiers');
     } catch (error: any) {
@@ -417,6 +465,25 @@ export default function DossierCreationForm() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleExpertModalConfirm = () => {
+    form.setValue('expertRank', pendingExpertRank);
+    if (pendingExpertRank === '2eme expert') {
+      form.setValue('secondExpertName', pendingFirstExpertName);
+      form.setValue('secondExpertCompany', pendingFirstExpertCompany);
+    } else {
+      form.setValue('secondExpertName', '');
+      form.setValue('secondExpertCompany', '');
+    }
+    setExpertModalOpen(false);
+  };
+
+  const handleReopenExpertModal = () => {
+    setPendingExpertRank(form.getValues('expertRank') || '1er expert');
+    setPendingFirstExpertName(form.getValues('secondExpertName') || '');
+    setPendingFirstExpertCompany(form.getValues('secondExpertCompany') || '');
+    setExpertModalOpen(true);
   };
 
   const hasDocuments = allFiles.length > 0;
@@ -549,7 +616,7 @@ export default function DossierCreationForm() {
                       <h2 className="text-lg font-semibold">Informations</h2>
                     </div>
                     <div className="border-l-4 border-blue-600 pl-6">
-                      <Step1 autoFilledFields={autoFilledFields} />
+                      <Step1 autoFilledFields={autoFilledFields} onReopenExpertModal={handleReopenExpertModal} />
                     </div>
                     {/* Auto-fill indicator */}
                     {autoFilledFields.size > 0 && scanComplete && (
@@ -587,7 +654,7 @@ export default function DossierCreationForm() {
 
               <hr className="my-10 border-muted" />
 
-              {/* ===== Step 4: Confirmation ===== */}
+              {/* ===== Step 4: Pièces jointes ===== */}
               <section
                 id="step-4"
                 ref={el => { sectionRefs.current[3] = el; }}
@@ -597,6 +664,30 @@ export default function DossierCreationForm() {
                   <CardContent className="p-8">
                     <div className="flex items-center gap-3 mb-6">
                       <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">4</div>
+                      <h2 className="text-lg font-semibold">Pièces jointes</h2>
+                    </div>
+                    <div className="border-l-4 border-blue-600 pl-6">
+                      <StepUploadDocuments
+                        categorizedFiles={categorizedFiles}
+                        onCategorizedFilesChange={setCategorizedFiles}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+
+              <hr className="my-10 border-muted" />
+
+              {/* ===== Step 5: Confirmation ===== */}
+              <section
+                id="step-5"
+                ref={el => { sectionRefs.current[4] = el; }}
+                className="scroll-mt-4"
+              >
+                <Card className="shadow-lg border-blue-600/5">
+                  <CardContent className="p-8">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">5</div>
                       <h2 className="text-lg font-semibold">Confirmation</h2>
                     </div>
                     <div className="border-l-4 border-blue-600 pl-6">
@@ -647,6 +738,65 @@ export default function DossierCreationForm() {
         </div>
         </div>{/* close scrollable content area */}
       </div>
+
+      {/* Expert Type Selection Modal */}
+      <Dialog open={expertModalOpen} onOpenChange={() => {}}>
+        <DialogContent
+          className="sm:max-w-md"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          hideCloseButton
+        >
+          <DialogHeader>
+            <DialogTitle>Type d&apos;expert</DialogTitle>
+            <DialogDescription>Choisissez votre type d&apos;expert avant de commencer.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <RadioGroup value={pendingExpertRank} onValueChange={setPendingExpertRank} className="space-y-3">
+              <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer">
+                <RadioGroupItem value="1er expert" id="expert-1er" />
+                <Label htmlFor="expert-1er" className="cursor-pointer flex-1">1er expert</Label>
+              </div>
+              <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer">
+                <RadioGroupItem value="2eme expert" id="expert-2eme" />
+                <Label htmlFor="expert-2eme" className="cursor-pointer flex-1">2ème expert</Label>
+              </div>
+              <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer">
+                <RadioGroupItem value="Arbitre" id="expert-arbitre" />
+                <Label htmlFor="expert-arbitre" className="cursor-pointer flex-1">Arbitre</Label>
+              </div>
+            </RadioGroup>
+
+            {pendingExpertRank === '2eme expert' && (
+              <div className="space-y-3 p-4 rounded-lg border bg-muted/20 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="space-y-2">
+                  <Label htmlFor="first-expert-name">Nom du 1er expert</Label>
+                  <Input
+                    id="first-expert-name"
+                    placeholder="Saisir le nom du 1er expert"
+                    value={pendingFirstExpertName}
+                    onChange={(e) => setPendingFirstExpertName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="first-expert-company">Compagnie du 1er expert</Label>
+                  <Input
+                    id="first-expert-company"
+                    placeholder="Nom de la compagnie du 1er expert"
+                    value={pendingFirstExpertCompany}
+                    onChange={(e) => setPendingFirstExpertCompany(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={handleExpertModalConfirm} className="w-full bg-blue-600 hover:bg-blue-700">
+              Continuer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </FormProvider>
   );
 }

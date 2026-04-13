@@ -236,11 +236,13 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
 
           <div className="space-y-2">
             <Label>Observation</Label>
-            <Textarea 
-              placeholder="Notes ou instructions pour l'agent..." 
-              rows={3} 
-              value={formData.observation} 
-              onChange={(e) => setFormData({...formData, observation: e.target.value})} 
+            <Textarea
+              placeholder="Aucune observation"
+              rows={3}
+              value={formData.observation}
+              readOnly
+              disabled
+              className="opacity-70 cursor-not-allowed"
             />
           </div>
         </div>

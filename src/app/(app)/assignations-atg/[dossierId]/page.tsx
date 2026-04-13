@@ -15,10 +15,15 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import {
-  Dialog, DialogContent,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import {
-  ArrowLeft, Loader2, Calendar, MapPin, Upload, Eye, Check, X, Pencil, ImageIcon, Camera, Paperclip,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  ArrowLeft, Loader2, Calendar, MapPin, Upload, Eye, Check, X, Pencil, ImageIcon, Camera, Paperclip, GitBranch, FileText,
+  ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -28,6 +33,9 @@ import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { logHistorique, logWorkflow } from '../../dossiers/[id]/log-historique';
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import ModalDecisionStatus from '../../dossiers/[id]/modal-decision-status';
+import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
+import { useOptions } from '@/hooks/use-options';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -72,8 +80,21 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const [editObservation, setEditObservation] = useState('');
   const [uploadingPreuveId, setUploadingPreuveId] = useState<string | null>(null);
   const [previewPreuvePhotos, setPreviewPreuvePhotos] = useState<{ urls: string[]; index: number } | null>(null);
+  const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
+  // Document upload state
+  const [isDocUploading, setIsDocUploading] = useState(false);
+  const [isDocUploadModalOpen, setDocUploadModalOpen] = useState(false);
+  const [selectedDocFile, setSelectedDocFile] = useState<File | null>(null);
+  const [docUploadType, setDocUploadType] = useState<string>('');
+  const [documents, setDocuments] = useState<any[]>([]);
+  // Section toggles
+  const [isPhotosOpen, setIsPhotosOpen] = useState(false);
+  const [isDocsOpen, setIsDocsOpen] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const preuveInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const docFileInputRef = useRef<HTMLInputElement>(null);
+  const docCameraInputRef = useRef<HTMLInputElement>(null);
 
   // Dossier data
   const dossierRef = useMemo(() => (db ? doc(db, 'dossiers', dossierId) : null), [db, dossierId]);
@@ -86,12 +107,26 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   );
   const { data: plans, loading: plansLoading } = useCollection<any>(plansQuery);
 
+  // Document types
+  const { options: dbDocTypes } = useOptions('options_types_documents', [...defaultDocTypes]);
+  const docTypes = useMemo(() => dbDocTypes.length > 0 ? dbDocTypes : defaultDocTypes.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbDocTypes]);
+
   // Photos listener
   useEffect(() => {
     if (!db) return;
     const unsub = onSnapshot(collection(db, 'dossiers', dossierId, 'photos'), (snap) => {
       const items: Photo[] = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Photo));
       setPhotos(items);
+    });
+    return () => unsub();
+  }, [db, dossierId]);
+
+  // Documents listener
+  useEffect(() => {
+    if (!db) return;
+    const unsub = onSnapshot(collection(db, 'dossiers', dossierId, 'documents'), (snap) => {
+      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setDocuments(items);
     });
     return () => unsub();
   }, [db, dossierId]);
@@ -227,6 +262,53 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     }
   };
 
+  // Document file select (opens type-selection modal)
+  const handleDocFileSelect = (file: File) => {
+    setSelectedDocFile(file);
+    // Keep docUploadType if pre-set from grid click, otherwise clear it
+    if (!docUploadType) setDocUploadType('');
+    setDocUploadModalOpen(true);
+  };
+
+  // Document upload handler
+  const handleDocUpload = async () => {
+    if (!selectedDocFile || !docUploadType || !db || !storage) return;
+    setIsDocUploading(true);
+    try {
+      const timestamp = Date.now();
+      const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${selectedDocFile.name}`;
+      await uploadFileWithOfflineSupport({
+        storage,
+        db,
+        file: selectedDocFile,
+        fileName: selectedDocFile.name,
+        storagePath,
+        firestoreDocPath: `dossiers/${dossierId}/documents`,
+        firestoreMetadata: {
+          nom: selectedDocFile.name,
+          type: docUploadType,
+          taille: selectedDocFile.size,
+          uploadePar: userEmail,
+          storagePath,
+          _localCreatedAt: timestamp,
+          uploadSource: 'ATG',
+        },
+      });
+      await logHistorique(db, dossierId, 'Upload document ATG', userEmail, `Document "${selectedDocFile.name}" uploadé (type: ${docUploadType}).`, 'document');
+      const userId = auth?.currentUser?.uid || 'unknown';
+      await logWorkflow(db, dossierId, 'ATG : document ajouté', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Document "${selectedDocFile.name}" ajouté par ATG (${docUploadType})` });
+      toast({ title: 'Document uploadé avec succès' });
+      setDocUploadModalOpen(false);
+      setSelectedDocFile(null);
+      setDocUploadType('');
+    } catch (error: any) {
+      console.error('Document upload error:', error);
+      toast({ variant: 'destructive', title: "Erreur lors de l'upload du document", description: error.message || 'Une erreur est survenue.' });
+    } finally {
+      setIsDocUploading(false);
+    }
+  };
+
   const assureNom = dossier ? `${dossier.assure?.nom || ''} ${dossier.assure?.prenom || ''}`.trim() : '';
 
   if (dossierLoading || plansLoading) {
@@ -263,6 +345,21 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           </div>
         </div>
       </div>
+
+      {/* Action toolbar */}
+      {canEdit && (
+        <div className="bg-card border rounded-xl shadow-sm px-4 py-2 flex flex-wrap gap-2 items-center">
+          <div className="flex-1" />
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setDecisionStatusOpen(true)}
+            className="h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700"
+          >
+            <GitBranch className="h-3.5 w-3.5" /> Décision de statut
+          </Button>
+        </div>
+      )}
 
       {/* Mission type tabs */}
       <div className="bg-card border rounded-xl shadow-sm sticky top-0 z-20">
@@ -429,84 +526,250 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         </CardContent>
       </Card>
 
-      {/* Photo upload section */}
-      <Card className="shadow-sm">
-        <CardContent className="pt-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold flex items-center gap-2">
-              <ImageIcon className="h-4 w-4 text-muted-foreground" />
-              Photos — {activeTab}
-              <Badge variant="secondary" className="text-[10px] font-mono">{filteredPhotos.length}</Badge>
-            </h3>
-            {canEdit && (
-              <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={(e) => e.target.files && handleUpload(e.target.files)}
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5"
-                  disabled={isUploading}
-                  onClick={() => {
-                    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-                    if (!isMobile) {
-                      toast({ variant: 'destructive', title: 'Appareil incompatible', description: 'Cette fonctionnalité nécessite un appareil mobile avec caméra.' });
-                      return;
-                    }
-                    fileInputRef.current?.click();
-                  }}
-                >
-                  {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                  Prendre une photo
-                </Button>
+      {/* Photos & Documents toggle row */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Photos toggle */}
+        <button
+          onClick={() => setIsPhotosOpen(!isPhotosOpen)}
+          className={cn(
+            'flex items-center gap-3 px-5 py-4 rounded-xl border shadow-sm transition-all text-left',
+            isPhotosOpen
+              ? 'bg-primary/5 border-primary/30 ring-1 ring-primary/20'
+              : 'bg-card hover:bg-muted/50'
+          )}
+        >
+          {isPhotosOpen ? <ChevronDown className="h-5 w-5 text-primary shrink-0" /> : <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />}
+          <ImageIcon className={cn('h-5 w-5 shrink-0', isPhotosOpen ? 'text-primary' : 'text-muted-foreground')} />
+          <div className="flex-1">
+            <span className={cn('text-sm font-bold', isPhotosOpen && 'text-primary')}>Photos</span>
+            <Badge variant="secondary" className="text-[10px] font-mono ml-2">{photos.length}</Badge>
+          </div>
+        </button>
+
+        {/* Documents toggle */}
+        <button
+          onClick={() => setIsDocsOpen(!isDocsOpen)}
+          className={cn(
+            'flex items-center gap-3 px-5 py-4 rounded-xl border shadow-sm transition-all text-left',
+            isDocsOpen
+              ? 'bg-primary/5 border-primary/30 ring-1 ring-primary/20'
+              : 'bg-card hover:bg-muted/50'
+          )}
+        >
+          {isDocsOpen ? <ChevronDown className="h-5 w-5 text-primary shrink-0" /> : <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />}
+          <FileText className={cn('h-5 w-5 shrink-0', isDocsOpen ? 'text-primary' : 'text-muted-foreground')} />
+          <div className="flex-1">
+            <span className={cn('text-sm font-bold', isDocsOpen && 'text-primary')}>Documents</span>
+            <Badge variant="secondary" className="text-[10px] font-mono ml-2">{documents.length}</Badge>
+          </div>
+        </button>
+      </div>
+
+      {/* Photos section (revealed when toggled) */}
+      {isPhotosOpen && (
+        <>
+          {/* Photo upload section */}
+          <Card className="shadow-sm">
+            <CardContent className="pt-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                  Photos — {activeTab}
+                  <Badge variant="secondary" className="text-[10px] font-mono">{filteredPhotos.length}</Badge>
+                </h3>
+                {canEdit && (
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => e.target.files && handleUpload(e.target.files)}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      disabled={isUploading}
+                      onClick={() => {
+                        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+                        if (!isMobile) {
+                          toast({ variant: 'destructive', title: 'Appareil incompatible', description: 'Cette fonctionnalité nécessite un appareil mobile avec caméra.' });
+                          return;
+                        }
+                        fileInputRef.current?.click();
+                      }}
+                    >
+                      {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                      Prendre une photo
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {filteredPhotos.length === 0 ? (
+                <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
+                  <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">Aucune photo {activeTab.toLowerCase()} pour le moment.</p>
+                  <p className="text-xs mt-1">Utilisez le bouton &quot;Prendre une photo&quot; pour capturer.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {filteredPhotos.map((photo) => (
+                    <div
+                      key={photo.id}
+                      className="group relative aspect-square rounded-lg overflow-hidden border bg-muted cursor-pointer"
+                      onClick={() => setPreviewPhoto(photo)}
+                    >
+                      <img
+                        src={photo.url}
+                        alt={photo.name}
+                        loading="lazy"
+                        decoding="async"
+                        className="object-cover w-full h-full"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Eye className="h-5 w-5 text-white" />
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1.5">
+                        <p className="text-[10px] text-white truncate">{photo.name}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Documents section (revealed when toggled) */}
+      {isDocsOpen && (
+        <Card className="shadow-sm">
+          <CardContent className="pt-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                Pieces jointes
+              </h3>
+            </div>
+
+            {/* Hidden file inputs */}
+            <input
+              ref={docFileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files?.[0]) handleDocFileSelect(e.target.files[0]);
+                if (docFileInputRef.current) docFileInputRef.current.value = '';
+              }}
+            />
+            <input
+              ref={docCameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files?.[0]) handleDocFileSelect(e.target.files[0]);
+                if (docCameraInputRef.current) docCameraInputRef.current.value = '';
+              }}
+            />
+
+            {/* Document type grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {docTypes.map((dt) => {
+                const docsOfType = documents.filter((d: any) => d.type === dt.label);
+                return (
+                  <div key={dt.id} className="border rounded-xl p-4 bg-card space-y-3">
+                    <h4 className="text-sm font-bold">{dt.label}</h4>
+
+                    {/* Existing documents of this type */}
+                    {docsOfType.length > 0 && (
+                      <div className="space-y-1.5">
+                        {docsOfType.map((item: any) => (
+                          <div key={item.id} className="flex items-center gap-2 p-1.5 rounded border bg-muted/30 text-xs">
+                            <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                            <span className="flex-1 truncate">{item.nom || item.name}</span>
+                            {item.pendingUpload && (
+                              <Badge variant="outline" className="text-amber-600 border-amber-300 text-[9px]">En attente</Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Upload button */}
+                    {canEdit && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full gap-1.5 h-9 text-xs border-dashed"
+                        onClick={() => {
+                          setDocUploadType(dt.label);
+                          docFileInputRef.current?.click();
+                        }}
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        Ajouter
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Document type selection modal */}
+      <Dialog open={isDocUploadModalOpen} onOpenChange={(open) => { if (!open) { setDocUploadModalOpen(false); setSelectedDocFile(null); } }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Catégorie du document</DialogTitle>
+            <DialogDescription>
+              Fichier: <span className="font-semibold text-foreground">{selectedDocFile?.name}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Type de document</Label>
+              <Select value={docUploadType} onValueChange={setDocUploadType} disabled={isDocUploading}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choisir une catégorie" />
+                </SelectTrigger>
+                <SelectContent>
+                  {docTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.label}>{type.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {isDocUploading && (
+              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Envoi en cours...</span>
               </div>
             )}
           </div>
-
-          {filteredPhotos.length === 0 ? (
-            <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
-              <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-20" />
-              <p className="text-sm">Aucune photo {activeTab.toLowerCase()} pour le moment.</p>
-              <p className="text-xs mt-1">Utilisez le bouton "Prendre une photo" pour capturer.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {filteredPhotos.map((photo) => (
-                <div
-                  key={photo.id}
-                  className="group relative aspect-square rounded-lg overflow-hidden border bg-muted cursor-pointer"
-                  onClick={() => setPreviewPhoto(photo)}
-                >
-                  <img
-                    src={photo.url}
-                    alt={photo.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="object-cover w-full h-full"
-                  />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Eye className="h-5 w-5 text-white" />
-                  </div>
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1.5">
-                    <p className="text-[10px] text-white truncate">{photo.name}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDocUploadModalOpen(false); setSelectedDocFile(null); }} disabled={isDocUploading}>
+              Annuler
+            </Button>
+            <Button onClick={handleDocUpload} disabled={!selectedDocFile || !docUploadType || isDocUploading}>
+              {isDocUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {isDocUploading ? 'Transfert...' : 'Uploader'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Photo preview dialog */}
       {previewPhoto && (
         <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
-          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
+          <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
             <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
               <img src={previewPhoto.url} className="max-w-full max-h-full object-contain" alt={previewPhoto.name} />
             </div>
@@ -517,7 +780,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       {/* Preuve preview dialog */}
       {previewPreuvePhotos && (
         <Dialog open onOpenChange={() => setPreviewPreuvePhotos(null)}>
-          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
+          <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
             <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center relative">
               <img
                 src={previewPreuvePhotos.urls[previewPreuvePhotos.index]}
@@ -544,6 +807,17 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Decision Status Modal */}
+      <ModalDecisionStatus
+        open={isDecisionStatusOpen}
+        onOpenChange={setDecisionStatusOpen}
+        dossierId={dossierId}
+        currentStatus={dossier?.statut || 'Nouveau'}
+        assureEmail={typeof dossier?.assure === 'object' ? (dossier?.assure?.email || '') : ''}
+        assureNom={typeof dossier?.assure === 'object' ? (dossier?.assure?.nom || '') : (dossier?.assure || '')}
+        dossierRef={dossier?.refExpert || dossierId}
+      />
     </div>
   );
 }

@@ -90,6 +90,12 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   const [isValidating, setIsValidating] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
+  // Chiffrage type state
+  const [typeChiffrage, setTypeChiffrage] = useState<'Réparation' | 'Réforme' | ''>('');
+  const [sousTypeChiffrage, setSousTypeChiffrage] = useState('');
+  const typeChiffrageInitialLoaded = useRef(false);
+  const isReforme = typeChiffrage === 'Réforme';
+
   // Section 1 State: Fourniture
   const [selectedChoc, setSelectedChoc] = useState('Choc 1');
   const [allPieces, setAllPieces] = useState<Piece[]>([]);
@@ -143,8 +149,6 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
     Toit: false
   });
   // Rapport type
-  const { options: dbRapportTypes } = useOptions('options_types_rapport', []);
-  const rapportTypes = useMemo(() => dbRapportTypes.length > 0 ? dbRapportTypes : [], [dbRapportTypes]);
   const [selectedRapportType, setSelectedRapportType] = useState('');
   const rapportTypeInitialLoaded = useRef(false);
 
@@ -154,7 +158,6 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
     suspensionAR: false, echappement: false, reservoir: false
   });
   const [observationExpert, setObservationExpert] = useState('');
-  const [dossierMode, setDossierMode] = useState('Procédure normale');
   const pointsChocInitialLoaded = useRef(false);
   const observationInitialLoaded = useRef(false);
 
@@ -191,13 +194,18 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
         if (!observationInitialLoaded.current) {
           if (data.observationExpert !== undefined) setObservationExpert(data.observationExpert);
-          setDossierMode(data.modeDossier || 'Procédure normale');
           observationInitialLoaded.current = true;
         }
 
         if (!rapportTypeInitialLoaded.current) {
           if (data.typeRapport) setSelectedRapportType(data.typeRapport);
           rapportTypeInitialLoaded.current = true;
+        }
+
+        if (!typeChiffrageInitialLoaded.current) {
+          if (data.typeChiffrage) setTypeChiffrage(data.typeChiffrage);
+          if (data.sousTypeChiffrage) setSousTypeChiffrage(data.sousTypeChiffrage);
+          typeChiffrageInitialLoaded.current = true;
         }
       }
     });
@@ -213,6 +221,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   };
 
   const fournitureTotals = useMemo(() => {
+    if (isReforme) return { ht: 0, tva: 0, ttc: 0 };
     let totalHT = 0;
     let totalTVA = 0;
     pieces.forEach(p => {
@@ -221,9 +230,10 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
       if (p.tva) totalTVA += rowHT * 0.20;
     });
     return { ht: totalHT, tva: totalTVA, ttc: totalHT + totalTVA };
-  }, [pieces]);
+  }, [pieces, isReforme]);
 
   const moTotals = useMemo(() => {
+    if (isReforme) return { ht: 0, tva: 0, ttc: 0 };
     let totalHT = 0;
     let totalTVA = 0;
     Object.values(mainOeuvre).forEach(item => {
@@ -234,9 +244,10 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
       totalTVA += rowHT * 0.20;
     });
     return { ht: totalHT, tva: totalTVA, ttc: totalHT + totalTVA };
-  }, [mainOeuvre]);
+  }, [mainOeuvre, isReforme]);
 
   const stats = useMemo(() => {
+    if (isReforme) return { fTTC: 0, moTTC: 0, total: 0, fPercent: 0, moPercent: 0, totalH: 0, piecesCount: 0 };
     const fTTC = allPieces.reduce((acc, p) => {
       const ht = calculatePieceRowHT(p);
       return acc + ht + (p.tva ? ht * 0.2 : 0);
@@ -246,7 +257,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
     const moPercent = total > 0 ? 100 - fPercent : 0;
     const totalH = Object.values(mainOeuvre).reduce((acc, item) => acc + item.nbrH, 0);
     return { fTTC, moTTC: moTotals.ttc, total, fPercent, moPercent, totalH, piecesCount: allPieces.length };
-  }, [allPieces, moTotals, mainOeuvre]);
+  }, [allPieces, moTotals, mainOeuvre, isReforme]);
 
   const handleAddPiece = async () => {
     if (!newPiece.designation.trim() || !db) return;
@@ -307,11 +318,21 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
     }
   };
 
-  const handleRapportTypeChange = async (value: string) => {
-    setSelectedRapportType(value);
+  const handleTypeChiffrageChange = async (value: 'Réparation' | 'Réforme') => {
+    setTypeChiffrage(value);
+    setSousTypeChiffrage('');
     if (db) {
       try {
-        await updateDoc(doc(db, 'dossiers', dossierId), { typeRapport: value });
+        await updateDoc(doc(db, 'dossiers', dossierId), { typeChiffrage: value, sousTypeChiffrage: '' });
+      } catch { /* silent */ }
+    }
+  };
+
+  const handleSousTypeChange = async (value: string) => {
+    setSousTypeChiffrage(value);
+    if (db) {
+      try {
+        await updateDoc(doc(db, 'dossiers', dossierId), { sousTypeChiffrage: value });
       } catch { /* silent */ }
     }
   };
@@ -465,7 +486,11 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
     try {
-      await generateRapportPDF(db, dossierId, selectedRapportType || undefined);
+      // Build PDF title from chiffrage type if set, otherwise fall back to rapport type
+      const chiffrageLabel = typeChiffrage && sousTypeChiffrage
+        ? `${typeChiffrage} ${sousTypeChiffrage}`
+        : undefined;
+      await generateRapportPDF(db, dossierId, chiffrageLabel || selectedRapportType || undefined);
       toast({ title: "Rapport PDF généré" });
     } catch (error: any) {
       console.error(error);
@@ -490,33 +515,56 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
   return (
     <div className="space-y-8 pb-32">
-      {/* RAPPORT TYPE + AI IMPORT */}
+      {/* CHIFFRAGE TYPE SELECTOR */}
+      <Card className="shadow-sm border-primary/10">
+        <CardContent className="flex items-center gap-4 py-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Calculator className="h-4 w-4 text-primary" />
+            <Label className="font-semibold text-sm whitespace-nowrap">Type de Chiffrage</Label>
+          </div>
+          <Select value={typeChiffrage} onValueChange={(v) => handleTypeChiffrageChange(v as 'Réparation' | 'Réforme')} disabled={!canEditDossiers}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Choisir le type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Réparation">Réparation</SelectItem>
+              <SelectItem value="Réforme">Réforme</SelectItem>
+            </SelectContent>
+          </Select>
+          {typeChiffrage === 'Réparation' && (
+            <Select value={sousTypeChiffrage} onValueChange={handleSousTypeChange} disabled={!canEditDossiers}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Choisir le sous-type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Rapport">Rapport</SelectItem>
+                <SelectItem value="Devis">Devis</SelectItem>
+                <SelectItem value="Estimation">Estimation</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          {typeChiffrage === 'Réforme' && (
+            <Select value={sousTypeChiffrage} onValueChange={handleSousTypeChange} disabled={!canEditDossiers}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Choisir le sous-type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Économique">Économique</SelectItem>
+                <SelectItem value="Technique">Technique</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          {typeChiffrage && sousTypeChiffrage && (
+            <span className="ml-auto text-xs font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-full">
+              {typeChiffrage} {sousTypeChiffrage}
+            </span>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* AI IMPORT */}
       {canEditDossiers && (
       <div className="flex flex-col sm:flex-row gap-4">
-        <Card className="flex-1 shadow-sm">
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-3">
-                <Settings className="h-4 w-4 text-muted-foreground" />
-                <Label className="font-semibold text-sm whitespace-nowrap">Type de Rapport</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Select value={selectedRapportType} onValueChange={handleRapportTypeChange}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Choisir le type de rapport" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {rapportTypes.map((t: any) => (
-                      <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <OptionsManagerModal collectionName="options_types_rapport" title="Types de rapport" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         <Card className="flex-1 border-dashed border-2 border-primary/20 bg-primary/5 shadow-sm">
           <CardContent className="flex items-center justify-between py-4">
             <div className="flex items-center gap-3">
@@ -556,10 +604,11 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
       )}
 
       {/* SECTION 1 — FOURNITURE */}
-      <Card className="border-primary/10 shadow-sm">
+      <Card className={cn("border-primary/10 shadow-sm", isReforme && "opacity-60")}>
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/30">
           <div>
             <CardTitle className="text-xl font-bold">Fourniture et pieces de rechange</CardTitle>
+            {isReforme && <p className="text-xs text-amber-600 font-medium mt-1">Réforme sélectionnée — fourniture verrouillée à zéro</p>}
           </div>
           <div className="flex items-center gap-4 bg-background px-4 py-2 rounded-lg border shadow-sm">
             <Label className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Type Choc:</Label>
@@ -576,7 +625,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {canEditDossiers && <div className="p-4 bg-muted/10 border-b space-y-4">
+          {canEditDossiers && !isReforme && <div className="p-4 bg-muted/10 border-b space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-end">
               <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase">Désignation</Label><Input value={newPiece.designation} onChange={e => setNewPiece({...newPiece, designation: e.target.value})} className="bg-background" /></div>
               <div className="space-y-1.5">
@@ -652,7 +701,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
                         {isEditing ? <Input type="number" value={editForm.remise} onChange={e => setEditForm({...editForm, remise: Number(e.target.value)})} className="h-8 w-16" /> : `${piece.remise}%`}
                       </TableCell>
                       <TableCell className="font-mono text-xs">{rowHT.toFixed(2)}</TableCell>
-                      <TableCell className="text-center"><Checkbox checked={piece.tva} onCheckedChange={() => handleToggleTVA(piece.id, piece.tva)} disabled={!canEditDossiers} /></TableCell>
+                      <TableCell className="text-center"><Checkbox checked={piece.tva} onCheckedChange={() => handleToggleTVA(piece.id, piece.tva)} disabled={!canEditDossiers || isReforme} /></TableCell>
                       <TableCell className="font-bold font-mono text-xs">{(rowHT + tvaAmount).toFixed(2)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
@@ -663,7 +712,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
                             </>
                           ) : (
                             <>
-                              {canEditDossiers && <>
+                              {canEditDossiers && !isReforme && <>
                                 <Button variant="ghost" size="icon" onClick={() => handleEditClick(piece)} className="h-8 w-8 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Pencil className="h-4 w-4" /></Button>
                                 <Button variant="ghost" size="icon" onClick={() => handleDeletePiece(piece.id)} className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="h-4 w-4" /></Button>
                               </>}
@@ -692,9 +741,12 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
       </Card>
 
       {/* SECTION 2: MAIN D'OEUVRE */}
-      <Card className="border-primary/10 shadow-sm">
+      <Card className={cn("border-primary/10 shadow-sm", isReforme && "opacity-60")}>
         <CardHeader className="border-b bg-muted/30 flex flex-row items-center justify-between">
-          <CardTitle className="text-xl font-bold">Main d'œuvre</CardTitle>
+          <div>
+            <CardTitle className="text-xl font-bold">Main d'œuvre</CardTitle>
+            {isReforme && <p className="text-xs text-amber-600 font-medium mt-1">Réforme sélectionnée — main d'œuvre verrouillée à zéro</p>}
+          </div>
           <OptionsManagerModal collectionName="options_mdo_types" title="Rubriques MDO" defaultValues={defaultMdoTypes} />
         </CardHeader>
         <CardContent className="p-0">
@@ -704,14 +756,17 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
               {mdoTypes.map((type) => {
                 const key = type.label.toLowerCase();
                 const item = mainOeuvre[key] || { nbrH: 0, pu: 80 };
-                const totalHT = (Number(item.nbrH) || 0) * (Number(item.pu) || 0);
+                const displayNbrH = isReforme ? 0 : (Number(item.nbrH) || 0);
+                const displayPu = isReforme ? 0 : (Number(item.pu) || 0);
+                const totalHT = displayNbrH * displayPu;
                 const tva = totalHT * 0.20;
                 const ttc = totalHT + tva;
+                const moEditable = canEditDossiers && !isReforme;
                 return (
                   <TableRow key={type.id}>
                     <TableCell className="font-semibold">{type.label}</TableCell>
-                    <TableCell><div className="flex items-center gap-1 justify-center">{canEditDossiers && <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'nbrH', item.nbrH - 1)}><Minus className="h-3 w-3" /></Button>}<Input type="number" className="h-8 w-16 text-center" value={item.nbrH} onChange={e => updateMO(key, 'nbrH', Number(e.target.value))} readOnly={!canEditDossiers} />{canEditDossiers && <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'nbrH', item.nbrH + 1)}><Plus className="h-3 w-3" /></Button>}</div></TableCell>
-                    <TableCell><div className="flex items-center gap-1 justify-center">{canEditDossiers && <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'pu', item.pu - 5)}><Minus className="h-3 w-3" /></Button>}<Input type="number" className="h-8 w-16 text-center" value={item.pu} onChange={e => updateMO(key, 'pu', Number(e.target.value))} readOnly={!canEditDossiers} />{canEditDossiers && <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'pu', item.pu + 5)}><Plus className="h-3 w-3" /></Button>}</div></TableCell>
+                    <TableCell><div className="flex items-center gap-1 justify-center">{moEditable && <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'nbrH', item.nbrH - 1)}><Minus className="h-3 w-3" /></Button>}<Input type="number" className="h-8 w-16 text-center" value={displayNbrH} onChange={e => updateMO(key, 'nbrH', Number(e.target.value))} readOnly={!moEditable} />{moEditable && <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'nbrH', item.nbrH + 1)}><Plus className="h-3 w-3" /></Button>}</div></TableCell>
+                    <TableCell><div className="flex items-center gap-1 justify-center">{moEditable && <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'pu', item.pu - 5)}><Minus className="h-3 w-3" /></Button>}<Input type="number" className="h-8 w-16 text-center" value={displayPu} onChange={e => updateMO(key, 'pu', Number(e.target.value))} readOnly={!moEditable} />{moEditable && <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateMO(key, 'pu', item.pu + 5)}><Plus className="h-3 w-3" /></Button>}</div></TableCell>
                     <TableCell className="font-mono text-xs">{totalHT.toFixed(2)}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{tva.toFixed(2)}</TableCell>
                     <TableCell className="font-bold font-mono text-xs">{ttc.toFixed(2)}</TableCell>
@@ -728,7 +783,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
               </TableRow>
             </TableFooter>
           </Table>
-          {canEditDossiers && (
+          {canEditDossiers && !isReforme && (
             <div className="p-4 flex justify-end">
               <Button onClick={handleSaveMO} disabled={isSavingMO} className="bg-blue-600 hover:bg-blue-700">
                 {isSavingMO ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
@@ -821,7 +876,6 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
       <Card className="border-primary/10 shadow-sm overflow-hidden">
         <CardHeader className="bg-muted/30 border-b"><CardTitle className="text-xl font-bold flex items-center gap-2"><Settings className="h-5 w-5 text-primary" />Observation expert</CardTitle></CardHeader>
         <CardContent className="p-6 space-y-4">
-          <div className="flex items-center gap-2 bg-primary/5 p-3 rounded-md border border-primary/10"><Settings className="h-4 w-4 text-primary" /><span className="text-xs font-bold uppercase tracking-wider text-primary">Mode dossier: {dossierMode}</span></div>
           <Textarea placeholder="Ajouter une observation au rapport (optionnel)..." className="min-h-[150px] resize-none focus-visible:ring-primary text-sm leading-relaxed" value={observationExpert} onChange={(e) => setObservationExpert(e.target.value)} readOnly={!canEditDossiers} />
         </CardContent>
       </Card>

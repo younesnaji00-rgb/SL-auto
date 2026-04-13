@@ -9,7 +9,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -24,16 +23,17 @@ import { natures as defaultNatures, compagnies as defaultCompagnies, marques as 
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { cn } from '@/lib/utils';
-import { FileText, Car, Users, Swords, Award } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { FileText, Car, Users, Swords, Award, Pencil } from 'lucide-react';
 
 const dossierTypes = ['Normale', 'Classique', 'Agrée', 'Forfait'];
-const dossierModes = ['Procédure normale', 'Forfait', 'Prise en charge', 'Contradictoire', 'Collégiale'];
-
 interface Step1Props {
   autoFilledFields?: Set<string>;
+  onReopenExpertModal?: () => void;
 }
 
-export default function Step1({ autoFilledFields }: Step1Props) {
+export default function Step1({ autoFilledFields, onReopenExpertModal }: Step1Props) {
   const { control, watch } = useFormContext();
   const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
   const { options: dbNatures } = useOptions('options_natures', defaultNatures);
@@ -50,49 +50,28 @@ export default function Step1({ autoFilledFields }: Step1Props) {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-      {/* Expert Rank */}
+      {/* Expert Rank (read-only, set via modal) */}
       <Card className="border">
         <CardHeader className="bg-muted/30 border-b py-3">
           <CardTitle className="text-sm flex items-center gap-2"><Award className="h-4 w-4 text-primary" /> Type d&apos;expert</CardTitle>
         </CardHeader>
         <CardContent className="p-4">
-          <FormField control={control} name="expertRank" render={({ field }) => (
-            <FormItem className="space-y-3">
-              <FormControl>
-                <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-8">
-                  <FormItem className="flex items-center space-x-2 space-y-0">
-                    <FormControl><RadioGroupItem value="1er expert" /></FormControl>
-                    <FormLabel className="font-normal">1er expert</FormLabel>
-                  </FormItem>
-                  <FormItem className="flex items-center space-x-2 space-y-0">
-                    <FormControl><RadioGroupItem value="2eme expert" /></FormControl>
-                    <FormLabel className="font-normal">2ème expert</FormLabel>
-                  </FormItem>
-                  <FormItem className="flex items-center space-x-2 space-y-0">
-                    <FormControl><RadioGroupItem value="Arbitre" /></FormControl>
-                    <FormLabel className="font-normal">Arbitre</FormLabel>
-                  </FormItem>
-                </RadioGroup>
-              </FormControl>
-            </FormItem>
-          )} />
-
-          {expertRank === '2eme expert' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 p-4 rounded-lg border bg-muted/20">
-              <FormField control={control} name="secondExpertName" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nom du 2ème expert</FormLabel>
-                  <FormControl><Input placeholder="Saisir le nom de l'expert" {...field} /></FormControl>
-                </FormItem>
-              )} />
-              <FormField control={control} name="secondExpertCompany" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Compagnie du 2ème expert</FormLabel>
-                  <FormControl><Input placeholder="Nom de la compagnie" {...field} /></FormControl>
-                </FormItem>
-              )} />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Badge variant="secondary" className="text-sm px-3 py-1">{expertRank || '1er expert'}</Badge>
+              {expertRank === '2eme expert' && watch('secondExpertName') && (
+                <span className="text-sm text-muted-foreground">
+                  1er expert : <span className="font-medium text-foreground">{watch('secondExpertName')}</span>
+                  {watch('secondExpertCompany') && <> &mdash; {watch('secondExpertCompany')}</>}
+                </span>
+              )}
             </div>
-          )}
+            {onReopenExpertModal && (
+              <Button type="button" variant="ghost" size="sm" onClick={onReopenExpertModal} className="gap-1.5 text-muted-foreground">
+                <Pencil className="h-3.5 w-3.5" /> Modifier
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -125,16 +104,7 @@ export default function Step1({ autoFilledFields }: Step1Props) {
                 </Select>
               </FormItem>
             )} />
-            <FormField control={control} name="dossierMode" render={({ field }) => (
-              <FormItem className="p-3 rounded-md border bg-background">
-                <FormLabel>Mode dossier {aL('dossierMode')}</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl><SelectTrigger className={aS('dossierMode')}><SelectValue placeholder="Sélectionnez un mode" /></SelectTrigger></FormControl>
-                  <SelectContent>{dossierModes.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                </Select>
-              </FormItem>
-            )} />
-            <FormField control={control} name="company" render={({ field }) => (
+<FormField control={control} name="company" render={({ field }) => (
               <FormItem className="p-3 rounded-md border bg-background">
                 <div className="flex items-center justify-between">
                   <FormLabel>Compagnie {aL('company')}</FormLabel>
@@ -148,8 +118,8 @@ export default function Step1({ autoFilledFields }: Step1Props) {
             )} />
             <FormField control={control} name="dateOfRequest" render={({ field }) => (
               <FormItem className="flex flex-col p-3 rounded-md border bg-background">
-                <FormLabel>Date Requête <span className="text-red-500">*</span> {aL('dateOfRequest')}</FormLabel>
-                <FormControl><DatePicker value={field.value} onChange={field.onChange} className={aS('dateOfRequest')} /></FormControl>
+                <FormLabel>Date Requête <span className="text-red-500">*</span></FormLabel>
+                <FormControl><DatePicker value={field.value} onChange={field.onChange} disabled={true} className={aS('dateOfRequest')} /></FormControl>
               </FormItem>
             )} />
             <FormField control={control} name="refExpert" render={({ field }) => (

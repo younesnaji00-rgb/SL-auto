@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, Loader2, Settings } from 'lucide-react';
+import { Search, Trash2, AlertCircle, Eye, History, Loader2, Settings, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import { logWorkflow } from './[id]/log-historique';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import WorkflowStatusSheet from './workflow-status-sheet';
+import AssignmentHistorySheet from './assignment-history-sheet';
 import { useCurrentUser } from '@/hooks/use-current-user';
 
 export default function DossiersClientPage() {
@@ -51,6 +52,7 @@ export default function DossiersClientPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [filters, setFilters] = useState({ search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes' });
   const [workflowDossier, setWorkflowDossier] = useState<any>(null);
+  const [assignmentDossier, setAssignmentDossier] = useState<any>(null);
 
   const dossierList = useMemo(() => {
     let results = [...allDossiers];
@@ -162,6 +164,7 @@ export default function DossiersClientPage() {
               <TableHead>Réf Expert</TableHead>
               <TableHead>Assuré</TableHead>
               <TableHead>Nature</TableHead>
+              <TableHead>Type Dossier</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead>Matricule</TableHead>
               <TableHead>Date Requête</TableHead>
@@ -170,9 +173,9 @@ export default function DossiersClientPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={7} className="h-32 text-center text-muted-foreground">Chargement des dossiers...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="h-32 text-center text-muted-foreground">Chargement des dossiers...</TableCell></TableRow>
             ) : dossierList.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="h-32 text-center text-muted-foreground italic">Aucun dossier trouvé.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="h-32 text-center text-muted-foreground italic">Aucun dossier trouvé.</TableCell></TableRow>
             ) : (
               dossierList.slice(0, rowsPerPage).map(d => (
                 <TableRow
@@ -183,6 +186,7 @@ export default function DossiersClientPage() {
                   <TableCell className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400">{d.refExpert}</TableCell>
                   <TableCell>{renderAssure(d.assure)}</TableCell>
                   <TableCell>{d.nature || '-'}</TableCell>
+                  <TableCell>{d.typeDossier || '-'}</TableCell>
                   <TableCell><Badge variant="outline">{d.statut || 'Nouveau'}</Badge></TableCell>
                   <TableCell className="font-mono text-xs">{d.matricule || '-'}</TableCell>
                   <TableCell>{formatDate(d.dateRequete)}</TableCell>
@@ -202,6 +206,17 @@ export default function DossiersClientPage() {
                         }}
                       >
                         <Eye className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Assignations"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAssignmentDossier(d);
+                        }}
+                      >
+                        <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -259,6 +274,11 @@ export default function DossiersClientPage() {
         open={!!workflowDossier}
         onOpenChange={(open) => !open && setWorkflowDossier(null)}
         dossier={workflowDossier}
+      />
+      <AssignmentHistorySheet
+        open={!!assignmentDossier}
+        onOpenChange={(open) => !open && setAssignmentDossier(null)}
+        dossier={assignmentDossier}
       />
     </div>
   );

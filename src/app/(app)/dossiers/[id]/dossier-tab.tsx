@@ -22,7 +22,6 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 
 const defaultDossierTypes = ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'];
 const defaultRepairerTypes = ['Agréé', 'Normal'];
-const dossierModes = ['Procédure normale', 'Forfait', 'Prise en charge', 'Contradictoire', 'Collégiale'];
 
 export default function DossierTab({ dossierId }: { dossierId: string }) {
   const db = useFirestore();
@@ -47,7 +46,6 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
   const [isSaving, setIsSaving] = useState(false);
   const [formValues, setFormValues] = useState<any>({
     expertRank: '1er expert',
-    modeDossier: 'Procédure normale',
     compagnie: '',
     typeDossier: '',
     nature: '',
@@ -90,7 +88,6 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
 
       setFormValues({
         expertRank: dossier.expertRank || '1er expert',
-        modeDossier: dossier.modeDossier || 'Procédure normale',
         compagnie: dossier.compagnie || '',
         typeDossier: dossier.typeDossier || '',
         nature: dossier.nature || '',
@@ -171,27 +168,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                 </RadioGroup>
               </div>
 
-              <div className="space-y-3">
-                <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Mode Dossier</Label>
-                <div className="flex flex-wrap gap-2">
-                  {dossierModes.map((mode) => (
-                    <button
-                      key={mode}
-                      onClick={() => setFormValues({...formValues, modeDossier: mode})}
-                      className={cn(
-                        "px-4 py-2 rounded-full text-xs font-medium border transition-all",
-                        formValues.modeDossier === mode 
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm scale-105" 
-                          : "bg-background text-muted-foreground border-input hover:bg-muted"
-                      )}
-                    >
-                      {mode}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Compagnie d'assurance</Label>

@@ -36,7 +36,6 @@ SCHÉMA JSON STRICT — renvoie exactement cette structure:
   "expertRank": "1er expert" | "2eme expert" | "Arbitre" | null,
   "dossierType": "Normale" | "Classique" | "Agrée" | "Forfait" | null,
   "nature": string | null,
-  "dossierMode": "Procédure normale" | "Forfait" | "Prise en charge" | "Contradictoire" | "Collégiale" | null,
   "company": string | null,
   "insuredName": string | null,
   "insuredPhone": string | null,

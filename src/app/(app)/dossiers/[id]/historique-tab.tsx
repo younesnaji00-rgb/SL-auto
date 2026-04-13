@@ -186,38 +186,41 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
         </Card>
       )}
 
-      {/* TIMELINE */}
-      {entries.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground italic">
-          Aucun historique disponible pour ce dossier.
-        </div>
-      ) : (
-        <div className="relative pl-8 pt-4">
-          {/* Vertical line */}
-          <div className="absolute left-[5px] top-0 bottom-0 w-0.5 bg-border" />
-          
-          <div className="space-y-10">
-            {entries.map((entry) => (
-              <div key={entry.id} className="relative">
-                {/* Bullet */}
-                <div className="absolute -left-[27px] top-1.5 w-3 h-3 rounded-full bg-muted-foreground border-2 border-background z-10" />
-                
-                <div className="space-y-1">
-                  <p className="font-semibold text-base">{entry.action}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatDate(entry.date)} par <span className="font-bold text-foreground">{entry.user}</span>
-                  </p>
-                  {entry.details && (
-                    <div className="mt-2 pl-4 border-l-2 border-primary/40 text-sm italic text-muted-foreground bg-muted/50 py-2 rounded-r-md">
-                      &quot;{entry.details}&quot;
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+      {/* TIMELINE — only status changes */}
+      {(() => {
+        const statusEntries = entries.filter((e) => e.type === 'statut' || e.type === 'sinistre_douteux');
+        return statusEntries.length === 0 ? (
+          <div className="text-center py-20 text-muted-foreground italic">
+            Aucun changement de statut enregistré pour ce dossier.
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="relative pl-8 pt-4">
+            {/* Vertical line */}
+            <div className="absolute left-[5px] top-0 bottom-0 w-0.5 bg-border" />
+
+            <div className="space-y-10">
+              {statusEntries.map((entry) => (
+                <div key={entry.id} className="relative">
+                  {/* Bullet */}
+                  <div className="absolute -left-[27px] top-1.5 w-3 h-3 rounded-full bg-muted-foreground border-2 border-background z-10" />
+
+                  <div className="space-y-1">
+                    <p className="font-semibold text-base">{entry.action}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatDate(entry.date)} par <span className="font-bold text-foreground">{entry.user}</span>
+                    </p>
+                    {entry.details && (
+                      <div className="mt-2 pl-4 border-l-2 border-primary/40 text-sm italic text-muted-foreground bg-muted/50 py-2 rounded-r-md">
+                        &quot;{entry.details}&quot;
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
