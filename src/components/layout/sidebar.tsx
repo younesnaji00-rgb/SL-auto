@@ -65,13 +65,13 @@ const AppSidebar = () => {
   }, []);
 
   const allNavItems = [
-    { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Chiffreur'] as string[] },
-    { href: '/dossiers', icon: FolderOpen, label: 'Gestion des dossiers', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Chiffreur'] as string[] },
+    { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'] as string[] },
+    { href: '/dossiers', icon: FolderOpen, label: 'Gestion des dossiers', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'] as string[] },
     { href: '/consultation', icon: BookOpen, label: 'Consultation', roles: null },
     { href: '/assignations-chiffrage', icon: Calculator, label: 'Assignations Chiffrage', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Chiffreur'] as string[] },
-    { href: '/assignations-atg', icon: UserCheck, label: 'Assignations ATG', roles: null },
+    { href: '/assignations-atg', icon: UserCheck, label: 'Assignations ATG', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Agent de Terrain'] as string[] },
     { href: '/utilisateurs', icon: Users, label: 'Utilisateurs', roles: ['Admin'] as string[] },
-    { href: '/compagnies', icon: Building2, label: 'Compagnies', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Chiffreur'] as string[] },
+    { href: '/compagnies', icon: Building2, label: 'Compagnies', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'] as string[] },
     { href: '/signaler-bug', icon: Bug, label: 'Signaler un bug', roles: null },
   ];
 
