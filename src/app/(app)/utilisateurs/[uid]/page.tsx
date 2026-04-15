@@ -423,7 +423,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                       <TableRow>
                         <TableHead>Réf Expert</TableHead>
                         <TableHead>Assuré</TableHead>
-                        <TableHead>Nature</TableHead>
+                        <TableHead>Nature du dossier</TableHead>
                         <TableHead>Statut</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>

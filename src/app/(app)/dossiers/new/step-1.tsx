@@ -95,7 +95,7 @@ export default function Step1({ autoFilledFields, onReopenExpertModal }: Step1Pr
             <FormField control={control} name="nature" render={({ field }) => (
               <FormItem className="p-3 rounded-md border bg-background">
                 <div className="flex items-center justify-between">
-                  <FormLabel>Nature de Dossier <span className="text-red-500">*</span> {aL('nature')}</FormLabel>
+                  <FormLabel>Nature du dossier <span className="text-red-500">*</span> {aL('nature')}</FormLabel>
                   <OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />
                 </div>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>

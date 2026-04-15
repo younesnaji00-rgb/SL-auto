@@ -39,7 +39,7 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Pencil, Trash2, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Search, Pencil, Trash2, Loader2, Eye, EyeOff, X } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { roles as defaultRoles, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 import { useToast } from '@/hooks/use-toast';
@@ -49,6 +49,7 @@ import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
+import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 
 const userFormSchema = z.object({
   nom: z.string().min(1, "Le nom complet est requis."),
@@ -91,7 +92,8 @@ export default function UtilisateursClientPage() {
   const usersQuery = useMemo(() => collection(db, 'users'), [db]);
   const { data: userList, loading } = useCollection<any>(usersQuery);
 
-  const [filters, setFilters] = useState({ search: '', role: 'Tous' });
+  const filterDefaults = { search: '', role: 'Tous' };
+  const [filters, setFilters, clearFilter] = usePersistedFilters('utilisateurs', filterDefaults);
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -340,18 +342,25 @@ export default function UtilisateursClientPage() {
                   placeholder="Rechercher par nom..."
                   className="pl-10"
                   value={filters.search}
-                  onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+                  onChange={e => setFilters({ search: e.target.value })}
                 />
               </div>
-              <Select value={filters.role} onValueChange={value => setFilters(f => ({ ...f, role: value }))}>
-                <SelectTrigger className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="Filtrer par rôle" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Tous">Tous les rôles</SelectItem>
-                  {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="relative">
+                <Select value={filters.role} onValueChange={value => setFilters({ role: value })}>
+                  <SelectTrigger className="w-full sm:w-[200px]">
+                    <SelectValue placeholder="Filtrer par rôle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Tous">Tous les rôles</SelectItem>
+                    {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {filters.role !== 'Tous' && (
+                  <button onClick={() => clearFilter('role')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="rounded-lg overflow-hidden bg-muted/10">
               <Table>

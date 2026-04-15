@@ -20,7 +20,7 @@ import { natures as defaultNatures, compagnies as defaultCompagnies, marques as 
 
 const requiredFields: Record<string, string> = {
   company: 'Compagnie',
-  nature: 'Nature',
+  nature: 'Nature du dossier',
   dossierType: 'Type Dossier',
   insuredName: 'Assuré',
   brand: 'Marque',
@@ -281,7 +281,7 @@ export default function Step4() {
                 <EditableSummaryField fieldName="dossierType" label="Type Dossier" required type="select" options={dossierTypes} />
               </FieldWrapper>
               <FieldWrapper fieldName="nature">
-                <EditableSummaryField fieldName="nature" label="Nature" required type="select" options={natureLabels} />
+                <EditableSummaryField fieldName="nature" label="Nature du dossier" required type="select" options={natureLabels} />
               </FieldWrapper>
               <FieldWrapper fieldName="company">
                 <EditableSummaryField fieldName="company" label="Compagnie" required type="select" options={compagnieLabels} />

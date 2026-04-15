@@ -14,6 +14,8 @@ import {
   FileText,
   Download,
   GitBranch,
+  MessageSquare,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,6 +24,8 @@ import { doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useToast } from '@/hooks/use-toast';
+import { generateRapportPDF } from '@/lib/generate-rapport-pdf';
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 import InformationTab from './information-tab';
@@ -30,17 +34,18 @@ import PhotosTab from './photos-tab';
 import CommentairesTab from './commentaires-tab';
 import RapportTab from './rapport-tab';
 import HistoriqueTab from './historique-tab';
+import ObservationsTab from '@/components/observations-tab';
 
 // ── Modals ────────────────────────────────────────────────────────────────────
 import ModalPlanification from './modal-planification';
 import ModalChiffrage from './modal-chiffrage';
 import ModalReclamation from './modal-reclamation';
-import ModalExportPdf from './modal-export-pdf';
 import ModalDecisionStatus from './modal-decision-status';
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 const TABS = [
   { id: 'informations',  label: 'Informations',   icon: ClipboardList },
+  { id: 'observations',  label: 'Observations',   icon: MessageSquare },
   { id: 'photos',        label: 'Photos',         icon: Camera },
   { id: 'documents',     label: 'Documents',      icon: FileText },
   { id: 'chiffrage',     label: 'Chiffrage',      icon: Calculator },
@@ -66,6 +71,7 @@ export default function DossierDetailPage({
   const dossierRef = useMemo(() => doc(db, 'dossiers', id), [db, id]);
   const { data: dossier, loading } = useDoc(dossierRef);
   const { canWrite } = useCurrentUser();
+  const { toast } = useToast();
   const readOnly = !canWrite('dossiers');
 
   const [activeTab, setActiveTab] = useState<TabId>('informations');
@@ -75,7 +81,7 @@ export default function DossierDetailPage({
   const [planificationInitialData, setPlanificationInitialData] = useState<any>(null);
   const [isChiffrageModalOpen, setChiffrageModalOpen] = useState(false);
   const [isReclamationModalOpen, setReclamationModalOpen] = useState(false);
-  const [isExportModalOpen, setExportModalOpen] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
 
   const renderAssure = (assure: any) => {
@@ -155,8 +161,18 @@ export default function DossierDetailPage({
         <Button variant="outline" size="sm" onClick={() => setChiffrageModalOpen(true)} className="h-8 text-xs gap-1.5">
           <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
         </Button>
-        <Button variant="outline" size="sm" onClick={() => setExportModalOpen(true)} className="h-8 text-xs gap-1.5">
-          <Download className="h-3.5 w-3.5" /> Exporter PDF
+        <Button variant="outline" size="sm" disabled={isExportingPdf} onClick={async () => {
+          setIsExportingPdf(true);
+          try {
+            await generateRapportPDF(db, id);
+            toast({ title: 'PDF exporté avec succès' });
+          } catch (e: any) {
+            toast({ variant: 'destructive', title: "Erreur d'export", description: e.message });
+          } finally {
+            setIsExportingPdf(false);
+          }
+        }} className="h-8 text-xs gap-1.5">
+          {isExportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Exporter PDF
         </Button>
         <Button variant="outline" size="sm" onClick={() => setReclamationModalOpen(true)} className="h-8 text-xs gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700">
           <AlertTriangle className="h-3.5 w-3.5" /> Réclamation
@@ -199,6 +215,7 @@ export default function DossierDetailPage({
             <Card><CardContent className="pt-5"><h2 className="text-base font-semibold mb-4">Discussion</h2><CommentairesTab dossierId={id} /></CardContent></Card>
           </div>
         )}
+        {activeTab === 'observations' && <ObservationsTab dossierId={id} section="dossiers" />}
         {activeTab === 'photos'     && <PhotosTab    dossierId={id} />}
         {activeTab === 'documents'  && <DocumentsTab dossierId={id} />}
         {activeTab === 'chiffrage'  && <RapportTab   dossierId={id} />}
@@ -209,7 +226,6 @@ export default function DossierDetailPage({
       <ModalPlanification open={isPlanificationModalOpen} onOpenChange={setPlanificationModalOpen} dossierId={id} initialData={planificationInitialData} dossierData={dossier} />
       <ModalChiffrage open={isChiffrageModalOpen} onOpenChange={setChiffrageModalOpen} dossierId={id} />
       <ModalReclamation open={isReclamationModalOpen} onOpenChange={setReclamationModalOpen} dossierId={id} />
-      <ModalExportPdf open={isExportModalOpen} onOpenChange={setExportModalOpen} dossierId={id} />
       <ModalDecisionStatus
         open={isDecisionStatusOpen}
         onOpenChange={setDecisionStatusOpen}
@@ -219,8 +235,7 @@ export default function DossierDetailPage({
         currentObservation={dossier.observationDecision || ''}
         currentObservationUpdatedAt={dossier.observationDecisionUpdatedAt}
         currentObservationUpdatedBy={dossier.observationDecisionUpdatedBy}
-        assureEmail={typeof dossier.assure === 'object' ? dossier.assure?.email || '' : ''}
-        assureNom={typeof dossier.assure === 'object' ? `${dossier.assure?.nom || ''} ${dossier.assure?.prenom || ''}`.trim() : dossier.assure || ''}
+        source="dossiers"
       />
     </div>
   );

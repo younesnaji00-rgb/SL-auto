@@ -226,7 +226,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
                 </div>
                 <div className="col-span-2 space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground font-semibold">Nature de Dossier</Label>
+                    <Label className="text-xs text-muted-foreground font-semibold">Nature du dossier</Label>
                     <OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />
                   </div>
                   <Select value={formData.nature} onValueChange={(v) => setFormData({ ...formData, nature: v })}>

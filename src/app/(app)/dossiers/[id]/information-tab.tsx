@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Pencil, Check, X, User, Car, Users, PenLine, Calendar as CalendarIcon, MapPin, Info, Plus, Download, Clock, Trash2, ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Pencil, Check, X, User, Car, Users, PenLine, Calendar as CalendarIcon, MapPin, Info, Plus, Clock, Trash2, ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,7 +27,6 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { getStatusDotColor } from '@/lib/status-colors';
-import { generateRapportPDF } from '@/lib/generate-rapport-pdf';
 import { useCurrentUser } from '@/hooks/use-current-user';
 
 const defaultDossierTypes = ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'];
@@ -294,7 +293,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
               ),
             },
             {
-              label: 'Nature de Dossier', value: form.nature,
+              label: 'Nature du dossier', value: form.nature,
               modal: <OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />,
               edit: (
                 <Select value={form.nature} onValueChange={(v) => handleChange('nature', v)}>
@@ -678,25 +677,6 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
         </DialogContent>
       </Dialog>
 
-      {/* Export PDF */}
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={async () => {
-            try {
-              await generateRapportPDF(db, dossierId);
-              toast({ title: 'PDF exporté avec succès' });
-            } catch (e: any) {
-              toast({ variant: 'destructive', title: "Erreur d'export", description: e.message });
-            }
-          }}
-        >
-          <Download className="h-3.5 w-3.5" />
-          Exporter PDF
-        </Button>
-      </div>
     </div>
   );
 }

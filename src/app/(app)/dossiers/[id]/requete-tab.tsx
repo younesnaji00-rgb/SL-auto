@@ -241,7 +241,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
                         </Select>
                     </Field>
                     <Field 
-                      label="Nature de Dossier" 
+                      label="Nature du dossier" 
                       value={formValues.nature}
                       managerModal={<OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />}
                     >

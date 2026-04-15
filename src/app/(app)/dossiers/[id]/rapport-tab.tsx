@@ -8,7 +8,6 @@ import {
   Calculator,
   Loader2,
   CheckCircle2,
-  Download,
   Save,
   Wrench,
   Settings,
@@ -53,8 +52,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { generateRapportPDF, type Piece } from '@/lib/generate-rapport-pdf';
+import { type Piece } from '@/lib/generate-rapport-pdf';
 import { logWorkflow } from './log-historique';
+import { addObservation } from './log-observation';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -75,7 +75,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
-  const { canWrite } = useCurrentUser();
+  const { canWrite, profile } = useCurrentUser();
   const canEditDossiers = canWrite('dossiers');
 
   const { options: dbTypePieces } = useOptions('options_rapport_types_pieces', defaultTypePieceOptions);
@@ -88,7 +88,6 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
   const [loading, setLoading] = useState(true);
   const [isValidating, setIsValidating] = useState(false);
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   // Chiffrage type state
   const [typeChiffrage, setTypeChiffrage] = useState<'Réparation' | 'Réforme' | ''>('');
@@ -474,6 +473,12 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
       const userEmail = auth?.currentUser?.email || 'Admin';
       const userId = auth?.currentUser?.uid || 'unknown';
       await logWorkflow(db, dossierId, 'Rapport validé', userEmail, userId, 'done', { details: 'Rapport d\'expertise validé' });
+
+      // Persist expert observation to subcollection for history
+      if (observationExpert.trim()) {
+        await addObservation(db, dossierId, observationExpert.trim(), 'Expert', profile?.nom || userEmail, userEmail, profile?.role || 'Gestionnaire', 'dossiers');
+      }
+
       toast({ title: "Rapport validé avec succès" });
     } catch (e) {
       console.error(e);
@@ -483,26 +488,6 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
     }
   };
 
-  const handleDownloadPDF = async () => {
-    setIsGeneratingPDF(true);
-    try {
-      // Build PDF title from chiffrage type if set, otherwise fall back to rapport type
-      const chiffrageLabel = typeChiffrage && sousTypeChiffrage
-        ? `${typeChiffrage} ${sousTypeChiffrage}`
-        : undefined;
-      await generateRapportPDF(db, dossierId, chiffrageLabel || selectedRapportType || undefined);
-      toast({ title: "Rapport PDF généré" });
-    } catch (error: any) {
-      console.error(error);
-      toast({ 
-        variant: 'destructive', 
-        title: "Erreur lors de la génération", 
-        description: error.message 
-      });
-    } finally {
-      setIsGeneratingPDF(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -625,7 +610,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {canEditDossiers && !isReforme && <div className="p-4 bg-muted/10 border-b space-y-4">
+          {canEditDossiers && !isReforme && <form onSubmit={(e) => { e.preventDefault(); handleAddPiece(); }} className="p-4 bg-muted/10 border-b space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-end">
               <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase">Désignation</Label><Input value={newPiece.designation} onChange={e => setNewPiece({...newPiece, designation: e.target.value})} className="bg-background" /></div>
               <div className="space-y-1.5">
@@ -658,12 +643,12 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
               <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase">Remise %</Label><Input type="number" value={newPiece.remise} onChange={e => setNewPiece({...newPiece, remise: Number(e.target.value)})} className="bg-background" /></div>
             </div>
             <div className="flex justify-end">
-              <Button onClick={handleAddPiece} disabled={isAdding || !newPiece.designation} className="gap-2">
+              <Button type="submit" disabled={isAdding || !newPiece.designation} className="gap-2">
                 {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 + Ajouter la pièce
               </Button>
             </div>
-          </div>}
+          </form>}
 
           <Table>
             <TableHeader><TableRow className="bg-muted/50"><TableHead className="text-[10px] font-bold uppercase">Désignation</TableHead><TableHead className="text-[10px] font-bold uppercase">Type</TableHead><TableHead className="text-[10px] font-bold uppercase">Vét.</TableHead><TableHead className="text-[10px] font-bold uppercase">Qte</TableHead><TableHead className="text-[10px] font-bold uppercase">PU HT</TableHead><TableHead className="text-[10px] font-bold uppercase">Rem.</TableHead><TableHead className="text-[10px] font-bold uppercase">Total HT</TableHead><TableHead className="text-[10px] font-bold uppercase w-[80px]">TVA</TableHead><TableHead className="text-[10px] font-bold uppercase">TTC</TableHead><TableHead className="w-[100px] text-right">Action</TableHead></TableRow></TableHeader>
@@ -895,12 +880,6 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           <div className="text-2xl font-black text-primary tabular-nums">
             {stats.total.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} <span className="text-xs font-normal">MAD</span>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleDownloadPDF} disabled={isGeneratingPDF} className="gap-2 font-semibold border-primary/20 hover:bg-primary/5">
-            {isGeneratingPDF ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Exporter PDF
-          </Button>
         </div>
       </div>
     </div>

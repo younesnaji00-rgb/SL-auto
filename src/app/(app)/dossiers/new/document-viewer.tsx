@@ -18,7 +18,7 @@ interface DocumentViewerProps {
 }
 
 const stepFieldLabels: Record<number, string[]> = {
-  2: ['Expert', 'Type Dossier', 'Nature', 'Mode', 'Compagnie', 'Intermédiaire', 'Ref Expert', 'Ref Compagnie', 'N° Police', 'Date Requête', 'Réparateur', 'Adversaire', 'Assuré', 'Téléphone', 'Marque', 'Modèle', 'Matricule', 'Date Sinistre', 'Date MEC'],
+  2: ['Expert', 'Type Dossier', 'Nature du dossier', 'Mode', 'Compagnie', 'Intermédiaire', 'Ref Expert', 'Ref Compagnie', 'N° Police', 'Date Requête', 'Réparateur', 'Adversaire', 'Assuré', 'Téléphone', 'Marque', 'Modèle', 'Matricule', 'Date Sinistre', 'Date MEC'],
   3: ['Agent de Terrain', 'Type Mission', 'Date RDV', 'Heure', 'Zone', 'Adresse', 'Observation'],
 };
 

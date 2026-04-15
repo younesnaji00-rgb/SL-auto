@@ -3,9 +3,9 @@
 import React, { use, useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  doc, collection, query, orderBy, onSnapshot, updateDoc, serverTimestamp,
+  doc, collection, query, orderBy, onSnapshot, updateDoc, serverTimestamp, deleteDoc,
 } from 'firebase/firestore';
-import { ref, getDownloadURL, uploadBytes } from 'firebase/storage';
+import { ref, getDownloadURL, uploadBytes, deleteObject } from 'firebase/storage';
 import { useFirestore, useStorage, useAuth, useDoc, useCollection } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import {
   ArrowLeft, Loader2, Calendar, MapPin, Upload, Eye, Check, X, Pencil, ImageIcon, Camera, Paperclip, GitBranch, FileText,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, Trash2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -31,9 +31,12 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { logHistorique, logWorkflow } from '../../dossiers/[id]/log-historique';
+import { addObservation } from '../../dossiers/[id]/log-observation';
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import ModalDecisionStatus from '../../dossiers/[id]/modal-decision-status';
+import ObservationsTab from '@/components/observations-tab';
+import CameraCapture from '@/components/camera-capture';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
 import { useOptions } from '@/hooks/use-options';
 
@@ -90,6 +93,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   // Section toggles
   const [isPhotosOpen, setIsPhotosOpen] = useState(false);
   const [isDocsOpen, setIsDocsOpen] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isDeletingPhoto, setIsDeletingPhoto] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const preuveInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -182,6 +187,12 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       await logHistorique(db, dossierId, 'Observation ATG mise à jour', userEmail, `Observation mise à jour pour la planification.`, 'planification');
       const userId = auth?.currentUser?.uid || 'unknown';
       await logWorkflow(db, dossierId, 'ATG : remarque ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Observation mise à jour par ATG` });
+
+      // Persist observation to subcollection for history
+      if (editObservation.trim()) {
+        await addObservation(db, dossierId, editObservation.trim(), 'Planification', profile?.nom || userEmail, userEmail, profile?.role || 'Agent de Terrain', 'assignations-atg');
+      }
+
       toast({ title: 'Observation enregistrée' });
       setEditingPlanId(null);
     } catch {
@@ -189,12 +200,12 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     }
   };
 
-  // Upload photos
-  const handleUpload = async (files: FileList) => {
-    if (!db || !storage) return;
+  // Upload photos (from camera capture)
+  const handleUploadFiles = async (files: File[]) => {
+    if (!db || !storage || files.length === 0) return;
     setIsUploading(true);
     try {
-      for (const file of Array.from(files)) {
+      for (const file of files) {
         const timestamp = Date.now();
         const storagePath = `dossiers/${dossierId}/photos/${currentCategory}/${timestamp}_${file.name}`;
         await uploadFileWithOfflineSupport({
@@ -216,14 +227,46 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       }
       const catLabel = currentCategory === 'avant' ? 'Avant' : currentCategory === 'en_cours' ? 'En cours' : 'Après';
       const userId = auth?.currentUser?.uid || 'unknown';
-      await logWorkflow(db, dossierId, 'ATG : photos ajoutées en planification', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Photos ${catLabel} ajoutées par ATG` });
-      toast({ title: 'Photos uploadées avec succès' });
+      await logWorkflow(db, dossierId, 'ATG : photos ajoutées en planification', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${files.length} photos ${catLabel} ajoutées par ATG` });
+      toast({ title: `${files.length} photo${files.length > 1 ? 's' : ''} uploadée${files.length > 1 ? 's' : ''} avec succès` });
     } catch {
       toast({ variant: 'destructive', title: "Erreur lors de l'upload" });
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  // Handle camera confirm — close camera then upload
+  const handleCameraConfirm = (files: File[]) => {
+    setIsCameraOpen(false);
+    handleUploadFiles(files);
+  };
+
+  // Delete photo
+  const handleDeletePhoto = async (photo: Photo) => {
+    if (!db || !storage) return;
+    setIsDeletingPhoto(photo.id);
+    try {
+      if (photo.storagePath) {
+        const storageRef = ref(storage, photo.storagePath);
+        await deleteObject(storageRef).catch(e => console.warn('Storage delete warn:', e));
+      }
+      await deleteDoc(doc(db, 'dossiers', dossierId, 'photos', photo.id));
+      const userId = auth?.currentUser?.uid || 'unknown';
+      await logHistorique(db, dossierId, 'Suppression photo ATG', userEmail, `Photo "${photo.name || 'inconnue'}" supprimée.`, 'photo');
+      await logWorkflow(db, dossierId, 'Photo supprimée par ATG', userEmail, userId, 'done', { details: `Photo "${photo.name || 'inconnue'}" supprimée` });
+      toast({ title: 'Photo supprimée' });
+    } catch (err: any) {
+      console.error('Delete error:', err);
+      toast({ variant: 'destructive', title: 'Erreur lors de la suppression' });
+    } finally {
+      setIsDeletingPhoto(null);
+    }
+  };
+
+  // Legacy upload handler (for FileList from input)
+  const handleUpload = async (files: FileList) => {
+    await handleUploadFiles(Array.from(files));
   };
 
   // Upload preuve photos (from gallery, stored as URLs on planification document)
@@ -578,33 +621,16 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                   <Badge variant="secondary" className="text-[10px] font-mono">{filteredPhotos.length}</Badge>
                 </h3>
                 {canEdit && (
-                  <div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => e.target.files && handleUpload(e.target.files)}
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5"
-                      disabled={isUploading}
-                      onClick={() => {
-                        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-                        if (!isMobile) {
-                          toast({ variant: 'destructive', title: 'Appareil incompatible', description: 'Cette fonctionnalité nécessite un appareil mobile avec caméra.' });
-                          return;
-                        }
-                        fileInputRef.current?.click();
-                      }}
-                    >
-                      {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                      Prendre une photo
-                    </Button>
-                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    disabled={isUploading}
+                    onClick={() => setIsCameraOpen(true)}
+                  >
+                    {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                    {isUploading ? 'Upload en cours...' : 'Prendre des photos'}
+                  </Button>
                 )}
               </div>
 
@@ -632,6 +658,17 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <Eye className="h-5 w-5 text-white" />
                       </div>
+                      {canEdit && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeletePhoto(photo); }}
+                          disabled={isDeletingPhoto === photo.id}
+                          className="absolute top-1 right-1 bg-red-600/80 hover:bg-red-600 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        >
+                          {isDeletingPhoto === photo.id
+                            ? <Loader2 className="h-3 w-3 text-white animate-spin" />
+                            : <Trash2 className="h-3 w-3 text-white" />}
+                        </button>
+                      )}
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1.5">
                         <p className="text-[10px] text-white truncate">{photo.name}</p>
                       </div>
@@ -724,6 +761,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         </Card>
       )}
 
+      {/* Observations section */}
+      <ObservationsTab dossierId={dossierId} section="assignations-atg" variant="collapsible" />
+
       {/* Document type selection modal */}
       <Dialog open={isDocUploadModalOpen} onOpenChange={(open) => { if (!open) { setDocUploadModalOpen(false); setSelectedDocFile(null); } }}>
         <DialogContent className="sm:max-w-[425px]">
@@ -808,6 +848,13 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         </Dialog>
       )}
 
+      {/* Camera capture */}
+      <CameraCapture
+        open={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onConfirm={handleCameraConfirm}
+      />
+
       {/* Decision Status Modal */}
       <ModalDecisionStatus
         open={isDecisionStatusOpen}
@@ -818,8 +865,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         currentObservation={dossier?.observationDecision || ''}
         currentObservationUpdatedAt={dossier?.observationDecisionUpdatedAt}
         currentObservationUpdatedBy={dossier?.observationDecisionUpdatedBy}
-        assureEmail={typeof dossier?.assure === 'object' ? dossier?.assure?.email || '' : ''}
-        assureNom={typeof dossier?.assure === 'object' ? `${dossier?.assure?.nom || ''} ${dossier?.assure?.prenom || ''}`.trim() : dossier?.assure || ''}
+        source="assignations-atg"
       />
     </div>
   );

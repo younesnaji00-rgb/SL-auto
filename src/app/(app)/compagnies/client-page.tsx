@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { DateRangeFilter } from '@/components/date-range-filter';
+import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Link from 'next/link';
@@ -64,8 +65,9 @@ export default function CompagniesClientPage() {
   );
 
   const { dossiers: allDossiers, loading: loadingDossiers } = useDossiers(selectedCompagnie?.nom ? [selectedCompagnie.nom] : undefined);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const filterDefaults = { dateFrom: '', dateTo: '' };
+  const [filters, setFilters] = usePersistedFilters('compagnies', filterDefaults);
+  const { dateFrom, dateTo } = filters;
 
   const dossiers = useMemo(() => {
     let results = [...allDossiers];
@@ -244,7 +246,7 @@ export default function CompagniesClientPage() {
               <CardTitle className="text-lg">Portefeuille Dossiers</CardTitle>
               <CardDescription>Extraction en temps réel des missions {selectedCompagnie.nom}.</CardDescription>
             </div>
-            <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
+            <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
           </div>
         </CardHeader>
         <CardContent className="p-0">

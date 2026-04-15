@@ -29,6 +29,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useOptions } from '@/hooks/use-options';
 import { statuses as defaultStatuses } from '@/lib/dossiers-data';
 import { logHistorique, logWorkflow } from './log-historique';
+import { addObservation } from './log-observation';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
@@ -45,10 +46,8 @@ interface ModalDecisionStatusProps {
   currentObservation?: string;
   currentObservationUpdatedAt?: any;
   currentObservationUpdatedBy?: string;
-  /** Insured person's email (from dossier.assure.email) */
-  assureEmail?: string;
-  /** Insured person's name (from dossier.assure.nom) */
-  assureNom?: string;
+  /** Which section context is invoking this modal */
+  source?: 'dossiers' | 'assignations-atg' | 'assignations-chiffrage';
 }
 
 export default function ModalDecisionStatus({
@@ -60,8 +59,7 @@ export default function ModalDecisionStatus({
   currentObservation,
   currentObservationUpdatedAt,
   currentObservationUpdatedBy,
-  assureEmail = '',
-  assureNom = '',
+  source = 'dossiers',
 }: ModalDecisionStatusProps) {
   const db = useFirestore();
   const auth = useAuth();
@@ -82,17 +80,17 @@ export default function ModalDecisionStatus({
   const [observation, setObservation] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
-  const [email, setEmail] = useState(assureEmail);
+  const [email, setEmail] = useState('');
 
   // Reset form when modal opens
   React.useEffect(() => {
     if (open) {
       setSelectedStatus('');
       setObservation('');
-      setSendEmail(true);
-      setEmail(assureEmail);
+      setSendEmail(source === 'dossiers');
+      setEmail('');
     }
-  }, [open, assureEmail]);
+  }, [open, source]);
 
   const handleConfirm = async () => {
     if (!selectedStatus) {
@@ -119,6 +117,11 @@ export default function ModalDecisionStatus({
 
       await updateDoc(dossierDocRef, updatePayload);
 
+      // Persist observation to subcollection for history
+      if (observation.trim()) {
+        await addObservation(db, dossierId, observation.trim(), 'Décision de statut', userName, userEmail, profile?.role || 'Admin', source);
+      }
+
       // Log historique
       await logHistorique(
         db,
@@ -139,7 +142,7 @@ export default function ModalDecisionStatus({
       if (sendEmail && email.trim()) {
         const subject = `Mise à jour de votre dossier ${dossierRef} — ${selectedStatus}`;
         const body = [
-          `Bonjour ${assureNom || 'Madame, Monsieur'},`,
+          `Bonjour Madame, Monsieur,`,
           '',
           `Nous vous informons que le statut de votre dossier ${dossierRef} a été mis à jour.`,
           '',
@@ -233,35 +236,37 @@ export default function ModalDecisionStatus({
             />
           </div>
 
-          {/* Email notification */}
-          <div className="space-y-3 rounded-lg border p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-blue-600" />
-                <Label className="font-medium">Notification par email</Label>
+          {/* Email notification — only for gestionnaire des dossiers */}
+          {source === 'dossiers' && (
+            <div className="space-y-3 rounded-lg border p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-blue-600" />
+                  <Label className="font-medium">Notification par email</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="sendEmail"
+                    checked={sendEmail}
+                    onCheckedChange={(v) => setSendEmail(v === true)}
+                  />
+                  <Label htmlFor="sendEmail" className="text-sm cursor-pointer">Envoyer</Label>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="sendEmail"
-                  checked={sendEmail}
-                  onCheckedChange={(v) => setSendEmail(v === true)}
-                />
-                <Label htmlFor="sendEmail" className="text-sm cursor-pointer">Envoyer</Label>
-              </div>
+              {sendEmail && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Email de la compagnie</Label>
+                  <Input
+                    type="email"
+                    placeholder="email@exemple.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+              )}
             </div>
-            {sendEmail && (
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Email de l&apos;assuré</Label>
-                <Input
-                  type="email"
-                  placeholder="email@exemple.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-9"
-                />
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
         <DialogFooter>

@@ -28,6 +28,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { logHistorique, logWorkflow } from './log-historique';
+import { addObservation } from './log-observation';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -139,6 +140,12 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         await logWorkflow(db, dossierId, 'Création de planification', userEmail, userId, 'done', { dossierRef: dossierData?.refExpert || dossierId, details: `Mission ${formData.typeMission} pour ${formData.agentTerrain}` });
         toast({ title: "Nouvelle planification créée" });
       }
+
+      // Persist observation to subcollection for history
+      if (formData.observation) {
+        await addObservation(db, dossierId, formData.observation, 'Planification', profile?.nom || userEmail, userEmail, profile?.role || 'Gestionnaire', 'dossiers');
+      }
+
       onOpenChange(false);
     } catch (error: any) {
       console.error('Planification save error:', error);

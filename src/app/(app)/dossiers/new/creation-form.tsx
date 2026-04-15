@@ -302,7 +302,7 @@ export default function DossierCreationForm() {
   const checkEmptyFields = (data: DossierFormData) => {
     const missing: string[] = [];
     if (!data.company) missing.push("Compagnie");
-    if (!data.nature) missing.push("Nature");
+    if (!data.nature) missing.push("Nature du dossier");
     if (!data.brand) missing.push("Marque véhicule");
     if (!data.registration) missing.push("Immatriculation");
     if (!data.insuredName) missing.push("Nom assuré");

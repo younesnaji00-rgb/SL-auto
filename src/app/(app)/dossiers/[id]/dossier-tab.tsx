@@ -195,7 +195,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <div className="flex items-center justify-between">
-                    <Label>Nature de Dossier</Label>
+                    <Label>Nature du dossier</Label>
                     <OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />
                   </div>
                   <Select value={formValues.nature} onValueChange={(v) => setFormValues({...formValues, nature: v})}>

@@ -1,14 +1,11 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import {
-  Clock,
-  AlertCircle,
   User as UserIcon,
   Activity,
   Inbox,
-  Filter,
   X,
   FolderOpen,
   Plus,
@@ -41,10 +38,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { collection, onSnapshot, query, orderBy, collectionGroup } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
-import { format, differenceInDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart } from 'recharts';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -52,30 +48,6 @@ import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { statuses as ALL_STATUSES } from '@/lib/dossiers-data';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { DatePicker } from '@/components/ui/date-picker';
-
-/** Animated number that counts from 0 to `end` over `duration` ms */
-function CountUp({ end, duration = 600 }: { end: number; duration?: number }) {
-  const [value, setValue] = useState(0);
-  const frameRef = useRef<number>(0);
-  const startRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (end === 0) { setValue(0); return; }
-    startRef.current = performance.now();
-    const step = (now: number) => {
-      const elapsed = now - startRef.current;
-      const progress = Math.min(elapsed / duration, 1);
-      // ease-out cubic
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(Math.round(eased * end));
-      if (progress < 1) frameRef.current = requestAnimationFrame(step);
-    };
-    frameRef.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frameRef.current);
-  }, [end, duration]);
-
-  return <>{value}</>;
-}
 
 export default function DashboardPage() {
   const db = useFirestore();
@@ -88,14 +60,13 @@ export default function DashboardPage() {
   const [changements1DateFilter, setChangements1DateFilter] = useState('');
   const [changements1UserFilter, setChangements1UserFilter] = useState('all');
   const [changements1ActionFilter, setChangements1ActionFilter] = useState<string>('all');
+  const [changements1NatureFilter, setChangements1NatureFilter] = useState<string>('all');
 
   // Changements panel 2 filters
   const [changements2DateFilter, setChangements2DateFilter] = useState('');
   const [changements2UserFilter, setChangements2UserFilter] = useState('all');
   const [changements2ActionFilter, setChangements2ActionFilter] = useState<string>('statut');
-
-  // Deadline card drill-down
-  const [selectedAgeFilter, setSelectedAgeFilter] = useState<number | null>(null);
+  const [changements2NatureFilter, setChangements2NatureFilter] = useState<string>('all');
 
   // Volume par statut — selected status filter
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
@@ -154,29 +125,6 @@ export default function DashboardPage() {
     };
   }, [db, profile]);
 
-  // Deadline tracking
-  const now = new Date();
-  const getAgeDays = (d: any) => {
-    if (!d.createdAt) return -1;
-    const created = d.createdAt.toDate ? d.createdAt.toDate() : new Date(d.createdAt);
-    return differenceInDays(now, created);
-  };
-  const CLOTURE_STATUSES = ['Cloture', 'Clôture', 'Dossier signé', 'Rapport Validé', 'Mission annulée'];
-  const activeDossiers = dossiers.filter((d) => !CLOTURE_STATUSES.includes(d.statut));
-  const jourZeroCount = activeDossiers.filter((d) => getAgeDays(d) === 0).length;
-  const jourUnCount = activeDossiers.filter((d) => getAgeDays(d) === 1).length;
-  const jourDeuxCount = activeDossiers.filter((d) => getAgeDays(d) === 2).length;
-  const jourTroisCount = activeDossiers.filter((d) => getAgeDays(d) >= 3).length;
-
-  const filteredByAgeDossiers = useMemo(() => {
-    if (selectedAgeFilter === null) return [];
-    return activeDossiers.filter((d) => {
-      const age = getAgeDays(d);
-      if (selectedAgeFilter === 3) return age >= 3;
-      return age === selectedAgeFilter;
-    });
-  }, [selectedAgeFilter, activeDossiers]);
-
   // Unique users for changements filter
   const uniqueUsers = useMemo(() => {
     const users = new Set<string>();
@@ -191,8 +139,15 @@ export default function DashboardPage() {
     return map;
   }, [dossiers]);
 
+  // Unique natures for changements filter
+  const uniqueNatures = useMemo(() => {
+    const natures = new Set<string>();
+    dossiers.forEach((d) => { if (d.nature) natures.add(d.nature); });
+    return Array.from(natures).sort();
+  }, [dossiers]);
+
   // Shared filter helper for changements panels
-  const filterChangements = (actionFilter: string, dateFilter: string, userFilter: string) => {
+  const filterChangements = (actionFilter: string, dateFilter: string, userFilter: string, natureFilter: string) => {
     let filtered = workflowLogs;
 
     if (actionFilter !== 'all') {
@@ -224,11 +179,18 @@ export default function DashboardPage() {
       filtered = filtered.filter((log) => (log.user || 'Admin') === userFilter);
     }
 
+    if (natureFilter && natureFilter !== 'all') {
+      filtered = filtered.filter((log) => {
+        const dossier = dossierMap[log._dossierId];
+        return dossier?.nature === natureFilter;
+      });
+    }
+
     return filtered;
   };
 
-  const filteredLogs1 = useMemo(() => filterChangements(changements1ActionFilter, changements1DateFilter, changements1UserFilter), [workflowLogs, changements1ActionFilter, changements1DateFilter, changements1UserFilter]);
-  const filteredLogs2 = useMemo(() => filterChangements(changements2ActionFilter, changements2DateFilter, changements2UserFilter), [workflowLogs, changements2ActionFilter, changements2DateFilter, changements2UserFilter]);
+  const filteredLogs1 = useMemo(() => filterChangements(changements1ActionFilter, changements1DateFilter, changements1UserFilter, changements1NatureFilter), [workflowLogs, changements1ActionFilter, changements1DateFilter, changements1UserFilter, changements1NatureFilter, dossierMap]);
+  const filteredLogs2 = useMemo(() => filterChangements(changements2ActionFilter, changements2DateFilter, changements2UserFilter, changements2NatureFilter), [workflowLogs, changements2ActionFilter, changements2DateFilter, changements2UserFilter, changements2NatureFilter, dossierMap]);
 
   const actionFilterLabels: Record<string, string> = {
     all: 'Tous',
@@ -339,34 +301,21 @@ export default function DashboardPage() {
     return logDate > lastVisitRef.current;
   };
 
-  const handleCardClick = (age: number) => {
-    setSelectedAgeFilter(prev => prev === age ? null : age);
-  };
-
-  const ageFilterLabel = selectedAgeFilter === null ? '' :
-    selectedAgeFilter === 0 ? "Aujourd'hui" :
-    selectedAgeFilter === 1 ? "Il y a 1 jour" :
-    selectedAgeFilter === 2 ? "Il y a 2 jours" :
-    "Il y a 3 jours ou plus";
-
   if (loading) {
     return (
       <div className="flex-1 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="h-9 w-56 animate-pulse rounded-md bg-muted" />
-          <div className="h-7 w-40 animate-pulse rounded-full bg-muted" />
+        <div className="grid gap-6 lg:grid-cols-5">
+          <div className="lg:col-span-2 border rounded-xl p-6 bg-card space-y-4">
+            <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+            <div className="h-[250px] w-full animate-pulse rounded-lg bg-muted" />
+          </div>
+          <div className="lg:col-span-3 border rounded-xl p-6 bg-card space-y-4">
+            <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+            <div className="h-[250px] w-full animate-pulse rounded-lg bg-muted" />
+          </div>
         </div>
-        <div className="grid gap-6 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="border rounded-xl p-4 space-y-3 bg-card">
-              <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-              <div className="h-8 w-16 animate-pulse rounded bg-muted" />
-              <div className="h-3 w-32 animate-pulse rounded bg-muted" />
-            </div>
-          ))}
-        </div>
-        <div className="grid gap-6 md:grid-cols-2">
-          {Array.from({ length: 2 }).map((_, i) => (
+        <div className="grid gap-6 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="border rounded-xl p-6 bg-card space-y-4">
               <div className="h-5 w-40 animate-pulse rounded bg-muted" />
               <div className="h-[200px] w-full animate-pulse rounded-lg bg-muted" />
@@ -383,6 +332,7 @@ export default function DashboardPage() {
     actionFilter: string, setActionFilter: (v: string) => void,
     dateFilter: string, setDateFilter: (v: string) => void,
     userFilter: string, setUserFilter: (v: string) => void,
+    natureFilter: string, setNatureFilter: (v: string) => void,
   ) => (
     <Card className="shadow-sm border-0 h-fit hover:shadow-md transition-shadow rounded-xl opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: panelKey === '1' ? '100ms' : '200ms' }}>
       <CardHeader className="bg-heading-bg py-3 rounded-t-xl">
@@ -393,7 +343,7 @@ export default function DashboardPage() {
         </CardTitle>
       </CardHeader>
       <div className="px-3 pt-3 pb-2 bg-muted/10">
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-4 gap-1.5">
           <DatePicker
             value={dateFilter ? new Date(dateFilter) : null}
             onChange={(date) => {
@@ -435,8 +385,19 @@ export default function DashboardPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={natureFilter} onValueChange={setNatureFilter}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Toutes les natures" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les natures</SelectItem>
+              {uniqueNatures.map((nature) => (
+                <SelectItem key={`${panelKey}-nature-${nature}`} value={nature}>{nature}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        {(dateFilter || userFilter !== 'all' || actionFilter !== 'all') && (
+        {(dateFilter || userFilter !== 'all' || actionFilter !== 'all' || natureFilter !== 'all') && (
           <div className="flex justify-end mt-1.5">
             <Button
               variant="ghost"
@@ -446,6 +407,7 @@ export default function DashboardPage() {
                 setDateFilter('');
                 setUserFilter('all');
                 setActionFilter('all');
+                setNatureFilter('all');
               }}
             >
               <X className="h-3 w-3 mr-1" /> Reinitialiser
@@ -514,142 +476,6 @@ export default function DashboardPage() {
 
   return (
     <div className="flex-1 space-y-6">
-      {/* Deadline Tracking Cards */}
-      <div className="grid gap-6 md:grid-cols-4">
-        <Card
-          className={cn(
-            "shadow-sm transition-all hover:shadow-md bg-blue-50 dark:bg-blue-950/30 cursor-pointer opacity-0 animate-fade-in-up [animation-fill-mode:forwards] rounded-xl",
-            selectedAgeFilter === 0 && "ring-2 ring-blue-400 shadow-md"
-          )}
-          style={{ animationDelay: '0ms' }}
-          onClick={() => handleCardClick(0)}
-        >
-          <CardHeader className="bg-transparent flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase">Aujourd&apos;hui</CardTitle>
-            <Clock className="h-4 w-4 text-blue-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-blue-700 dark:text-blue-400"><CountUp end={jourZeroCount} /></div>
-            <p className="text-xs text-blue-600/70 dark:text-blue-500/70 mt-1">Delai restant : 3 jours</p>
-          </CardContent>
-        </Card>
-        <Card
-          className={cn(
-            "shadow-sm transition-all hover:shadow-md bg-green-50 dark:bg-green-950/30 cursor-pointer opacity-0 animate-fade-in-up [animation-fill-mode:forwards] rounded-xl",
-            selectedAgeFilter === 1 && "ring-2 ring-green-500 shadow-md"
-          )}
-          style={{ animationDelay: '75ms' }}
-          onClick={() => handleCardClick(1)}
-        >
-          <CardHeader className="bg-transparent flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-bold text-green-700 dark:text-green-400 uppercase">Il y a 1 jour</CardTitle>
-            <Clock className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-green-700 dark:text-green-400"><CountUp end={jourUnCount} /></div>
-            <p className="text-xs text-green-600/70 dark:text-green-500/70 mt-1">Delai restant : 2 jours</p>
-          </CardContent>
-        </Card>
-        <Card
-          className={cn(
-            "shadow-sm transition-all hover:shadow-md bg-orange-50 dark:bg-orange-950/30 cursor-pointer opacity-0 animate-fade-in-up [animation-fill-mode:forwards] rounded-xl",
-            selectedAgeFilter === 2 && "ring-2 ring-orange-500 shadow-md"
-          )}
-          style={{ animationDelay: '150ms' }}
-          onClick={() => handleCardClick(2)}
-        >
-          <CardHeader className="bg-transparent flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase">Il y a 2 jours</CardTitle>
-            <AlertCircle className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-orange-700 dark:text-orange-400"><CountUp end={jourDeuxCount} /></div>
-            <p className="text-xs text-orange-600/70 dark:text-orange-500/70 mt-1">Delai restant : 1 jour</p>
-          </CardContent>
-        </Card>
-        <Card
-          className={cn(
-            "shadow-sm transition-all hover:shadow-md bg-red-50 dark:bg-red-950/30 cursor-pointer opacity-0 animate-fade-in-up [animation-fill-mode:forwards] rounded-xl",
-            selectedAgeFilter === 3 && "ring-2 ring-red-500 shadow-md"
-          )}
-          style={{ animationDelay: '225ms' }}
-          onClick={() => handleCardClick(3)}
-        >
-          <CardHeader className="bg-transparent flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-bold text-red-700 dark:text-red-400 uppercase">Il y a 3 jours ou plus</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-red-700 dark:text-red-400"><CountUp end={jourTroisCount} /></div>
-            <p className="text-xs text-red-600/70 dark:text-red-500/70 mt-1">Delai expire !</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Drill-down: dossiers for selected age card */}
-      {selectedAgeFilter !== null && (
-        <Card className="shadow-sm overflow-hidden border-0 rounded-xl animate-scale-in">
-          <CardHeader className="bg-heading-bg py-3 flex flex-row items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Filter className="h-4 w-4 text-primary" />
-              Dossiers : {ageFilterLabel}
-              <Badge variant="secondary" className="ml-2">{filteredByAgeDossiers.length}</Badge>
-            </CardTitle>
-            <Button variant="ghost" size="icon" onClick={() => setSelectedAgeFilter(null)} className="h-7 w-7">
-              <X className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/20 border-0">
-                  <TableHead className="font-bold text-xs">Ref.</TableHead>
-                  <TableHead className="font-bold text-xs">Assure</TableHead>
-                  <TableHead className="font-bold text-xs">Compagnie</TableHead>
-                  <TableHead className="font-bold text-xs">Nature</TableHead>
-                  <TableHead className="font-bold text-xs">Matricule</TableHead>
-                  <TableHead className="font-bold text-xs">Statut</TableHead>
-                  <TableHead className="text-right font-bold text-xs">Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredByAgeDossiers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-10 text-muted-foreground italic">
-                      Aucun dossier dans cette categorie.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredByAgeDossiers.map((dossier, i) => (
-                    <TableRow key={dossier.id} className="group hover:bg-muted/50 transition-colors opacity-0 animate-row-fade [animation-fill-mode:forwards]" style={{ animationDelay: `${i * 30}ms` }}>
-                      <TableCell>
-                        <Link href={`/dossiers/${dossier.id}`} className="font-mono text-xs font-bold text-primary hover:underline">
-                          {dossier.refExpert || 'N/A'}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="max-w-[120px] truncate text-xs font-medium">{renderAssure(dossier.assure)}</TableCell>
-                      <TableCell className="text-[10px] text-muted-foreground">{dossier.compagnie || '-'}</TableCell>
-                      <TableCell className="text-[10px] text-muted-foreground">{dossier.nature || '-'}</TableCell>
-                      <TableCell className="font-mono text-[10px] text-muted-foreground">{dossier.matricule || '-'}</TableCell>
-                      <TableCell>
-                        <div className="inline-flex w-auto whitespace-nowrap">
-                          <Badge variant="outline" className={cn("text-[10px] py-0.5 px-2 rounded-full border font-semibold", getStatusBadgeStyles(dossier.statut))}>
-                            {dossier.statut || 'Nouveau'}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right text-[10px] text-muted-foreground font-medium">
-                        {formatDate(dossier.createdAt)}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Pie Chart (Volume par Statut) + Dossiers Table */}
       <div className="grid gap-6 lg:grid-cols-5 items-start">
         {/* Pie Chart — Volume par Statut (left) */}
@@ -782,7 +608,7 @@ export default function DashboardPage() {
                           <TableHead className="font-bold text-xs">Ref.</TableHead>
                           <TableHead className="font-bold text-xs">Assure</TableHead>
                           <TableHead className="font-bold text-xs">Compagnie</TableHead>
-                          <TableHead className="font-bold text-xs">Nature</TableHead>
+                          <TableHead className="font-bold text-xs">Nature du dossier</TableHead>
                           <TableHead className="font-bold text-xs">Matricule</TableHead>
                           <TableHead className="font-bold text-xs">Statut</TableHead>
                           <TableHead className="text-right font-bold text-xs">Date</TableHead>
@@ -835,7 +661,7 @@ export default function DashboardPage() {
                       <TableHead className="font-bold text-xs">Ref.</TableHead>
                       <TableHead className="font-bold text-xs">Assure</TableHead>
                       <TableHead className="font-bold text-xs">Compagnie</TableHead>
-                      <TableHead className="font-bold text-xs">Nature</TableHead>
+                      <TableHead className="font-bold text-xs">Nature du dossier</TableHead>
                       <TableHead className="font-bold text-xs">Matricule</TableHead>
                       <TableHead className="font-bold text-xs">Statut</TableHead>
                       <TableHead className="text-right font-bold text-xs">Date</TableHead>
@@ -889,6 +715,7 @@ export default function DashboardPage() {
           changements1ActionFilter, setChangements1ActionFilter,
           changements1DateFilter, setChangements1DateFilter,
           changements1UserFilter, setChangements1UserFilter,
+          changements1NatureFilter, setChangements1NatureFilter,
         )}
         {/* Panel 2 */}
         {renderChangementsPanel(
@@ -896,6 +723,7 @@ export default function DashboardPage() {
           changements2ActionFilter, setChangements2ActionFilter,
           changements2DateFilter, setChangements2DateFilter,
           changements2UserFilter, setChangements2UserFilter,
+          changements2NatureFilter, setChangements2NatureFilter,
         )}
         {/* Repartition par Compagnie — horizontal bars */}
         <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border-0 rounded-xl opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '300ms' }}>

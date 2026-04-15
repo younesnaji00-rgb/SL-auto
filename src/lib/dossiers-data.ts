@@ -88,7 +88,7 @@ export const marques = [
 ];
 
 export const natures = [
-    'Automobile', 'Incendie', 'Classique', 'Contradictoire', 'Arbitrage', 'Réforme', 'Collégiale', 'Forfait', 'Appréciation', 'EAD'
+    'Classique', 'Contradictoire 1er', 'Contradictoire 2ème', 'Arbitrage', 'Réforme', 'Collégiale', 'Forfait', 'Appréciation', 'EAD'
 ];
 
 export const compagnies = [

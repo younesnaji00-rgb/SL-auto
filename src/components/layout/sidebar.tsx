@@ -38,6 +38,7 @@ import {
   Calculator,
   UserCheck,
   BookOpen,
+  Bug,
 } from 'lucide-react';
 import Logo from '@/components/logo';
 import { useCompagnies } from '@/hooks/use-compagnies';
@@ -71,6 +72,7 @@ const AppSidebar = () => {
     { href: '/assignations-atg', icon: UserCheck, label: 'Assignations ATG', roles: null },
     { href: '/utilisateurs', icon: Users, label: 'Utilisateurs', roles: ['Admin'] as string[] },
     { href: '/compagnies', icon: Building2, label: 'Compagnies', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Chiffreur'] as string[] },
+    { href: '/signaler-bug', icon: Bug, label: 'Signaler un bug', roles: null },
   ];
 
   // Filter nav items by role — null means visible to all, otherwise only listed roles

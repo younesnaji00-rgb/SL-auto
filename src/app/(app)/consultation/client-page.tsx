@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search, AlertCircle } from 'lucide-react';
+import { Search, AlertCircle, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
@@ -15,6 +15,7 @@ import { natures as defaultNatures, statuses as defaultStatuses, compagnies as d
 import { useDossiers } from '@/hooks/use-dossiers';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import { useOptions } from '@/hooks/use-options';
+import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 
 export default function ConsultationClientPage() {
   const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
@@ -28,8 +29,9 @@ export default function ConsultationClientPage() {
   // Fetch ALL dossiers — no company restriction
   const { dossiers: allDossiers, loading, error: fetchError } = useDossiers();
 
-  const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [filters, setFilters] = useState({ search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', dateFrom: '', dateTo: '' });
+  const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', dateFrom: '', dateTo: '', rowsPerPage: 25 };
+  const [filters, setFilters, clearFilter] = usePersistedFilters('consultation', filterDefaults);
+  const rowsPerPage = filters.rowsPerPage;
 
   const dossierList = useMemo(() => {
     let results = [...allDossiers];
@@ -93,39 +95,60 @@ export default function ConsultationClientPage() {
             className="pl-9"
             placeholder="Rechercher..."
             value={filters.search}
-            onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+            onChange={e => setFilters({ search: e.target.value })}
           />
         </div>
 
-        <Select value={filters.nature} onValueChange={v => setFilters(f => ({ ...f, nature: v }))}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Nature" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Toutes">Toutes les natures</SelectItem>
-            {natures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="relative">
+          <Select value={filters.nature} onValueChange={v => setFilters({ nature: v })}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Nature du dossier" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Toutes">Toutes les natures</SelectItem>
+              {natures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {filters.nature !== 'Toutes' && (
+            <button onClick={() => clearFilter('nature')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
+              <X className="h-2.5 w-2.5" />
+            </button>
+          )}
+        </div>
 
-        <Select value={filters.status} onValueChange={v => setFilters(f => ({ ...f, status: v }))}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Statut" /></SelectTrigger>
-          <SelectContent className="max-h-[300px]">
-            <SelectItem value="Tous">Tous les statuts</SelectItem>
-            {statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="relative">
+          <Select value={filters.status} onValueChange={v => setFilters({ status: v })}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Statut" /></SelectTrigger>
+            <SelectContent className="max-h-[300px]">
+              <SelectItem value="Tous">Tous les statuts</SelectItem>
+              {statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
+            </SelectContent>
+          </Select>
+          {filters.status !== 'Tous' && (
+            <button onClick={() => clearFilter('status')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
+              <X className="h-2.5 w-2.5" />
+            </button>
+          )}
+        </div>
 
-        <Select value={filters.compagnie} onValueChange={v => setFilters(f => ({ ...f, compagnie: v }))}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Compagnie" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
-            {compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="relative">
+          <Select value={filters.compagnie} onValueChange={v => setFilters({ compagnie: v })}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Compagnie" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
+              {compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {filters.compagnie !== 'Toutes' && (
+            <button onClick={() => clearFilter('compagnie')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
+              <X className="h-2.5 w-2.5" />
+            </button>
+          )}
+        </div>
 
         <DateRangeFilter
           dateFrom={filters.dateFrom}
           dateTo={filters.dateTo}
-          onDateFromChange={v => setFilters(f => ({ ...f, dateFrom: v }))}
-          onDateToChange={v => setFilters(f => ({ ...f, dateTo: v }))}
+          onDateFromChange={v => setFilters({ dateFrom: v })}
+          onDateToChange={v => setFilters({ dateTo: v })}
         />
       </div>
 
@@ -136,7 +159,7 @@ export default function ConsultationClientPage() {
               <TableHead>Ref Expert</TableHead>
               <TableHead>Assure</TableHead>
               <TableHead>Compagnie</TableHead>
-              <TableHead>Nature</TableHead>
+              <TableHead>Nature du dossier</TableHead>
               <TableHead>Type Dossier</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead>Matricule</TableHead>
@@ -169,7 +192,7 @@ export default function ConsultationClientPage() {
       <div className="flex items-center justify-between px-2">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Afficher</span>
-          <Select value={String(rowsPerPage)} onValueChange={v => setRowsPerPage(Number(v))}>
+          <Select value={String(rowsPerPage)} onValueChange={v => setFilters({ rowsPerPage: Number(v) })}>
             <SelectTrigger className="h-8 w-[70px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {[10, 25, 50, 100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}

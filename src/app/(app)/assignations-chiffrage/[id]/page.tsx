@@ -20,6 +20,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import ModalDecisionStatus from '../../dossiers/[id]/modal-decision-status';
+import ObservationsTab from '@/components/observations-tab';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -264,6 +265,9 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         ))}
       </div>
 
+      {/* Observations section */}
+      <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />
+
       {/* Lightbox preview */}
       {previewIndex !== null && chiffrage && downloadUrls[previewIndex] && (
         <Dialog open onOpenChange={() => setPreviewIndex(null)}>
@@ -290,8 +294,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         currentObservation={dossier?.observationDecision || ''}
         currentObservationUpdatedAt={dossier?.observationDecisionUpdatedAt}
         currentObservationUpdatedBy={dossier?.observationDecisionUpdatedBy}
-        assureEmail={typeof dossier?.assure === 'object' ? dossier?.assure?.email || '' : ''}
-        assureNom={typeof dossier?.assure === 'object' ? `${dossier?.assure?.nom || ''} ${dossier?.assure?.prenom || ''}`.trim() : dossier?.assure || ''}
+        source="assignations-chiffrage"
       />
     </div>
   );
