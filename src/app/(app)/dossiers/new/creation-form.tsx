@@ -48,6 +48,7 @@ import DocumentViewer from './document-viewer';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/components/ui/sidebar';
 import { logWorkflow } from '../[id]/log-historique';
+import { useCompagnies } from '@/hooks/use-compagnies';
 
 const formSchema = z.object({
   // Expert
@@ -146,6 +147,7 @@ export default function DossierCreationForm() {
   const app = useFirebaseApp();
   const auth = useAuth();
   const { user: currentUser, loading: authLoading } = useUser();
+  const { compagnies: canonicalCompagnies } = useCompagnies();
   const router = useRouter();
   const isOnline = useNetworkStatus();
 
@@ -458,6 +460,20 @@ export default function DossierCreationForm() {
       }
 
       toast({ title: "Dossier Créé", description: `Le dossier ${refCode} a été enregistré avec succès.` });
+
+      // Warn if compagnie doesn't match any canonical compagnie used for user assignments
+      const selectedCompagnie = (data.company || '').toLowerCase().trim();
+      if (selectedCompagnie && canonicalCompagnies.length > 0) {
+        const match = canonicalCompagnies.some(c => c.nom.toLowerCase().trim() === selectedCompagnie);
+        if (!match) {
+          toast({
+            variant: 'destructive',
+            title: 'Attention — Nom de compagnie non reconnu',
+            description: `La compagnie "${data.company}" ne correspond à aucune compagnie du système. Certains utilisateurs pourraient ne pas voir ce dossier. Vérifiez le nom dans la gestion des compagnies.`,
+          });
+        }
+      }
+
       router.push('/dossiers');
     } catch (error: any) {
       console.error(error);
