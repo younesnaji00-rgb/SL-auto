@@ -10,19 +10,28 @@ export default function NewDossierPage() {
   const [scrollY, setScrollY] = useState(0);
 
   useEffect(() => {
-    const scroller = document.querySelector('main');
+    // Layout has two <main> elements (SidebarInset + an inner overflow-y-auto main).
+    // Pick the one that actually scrolls.
+    const mains = Array.from(document.querySelectorAll('main'));
+    const scroller = mains.find(m => {
+      const style = getComputedStyle(m);
+      return style.overflowY === 'auto' || style.overflowY === 'scroll';
+    }) || mains[mains.length - 1] || document.scrollingElement;
     if (!scroller) return;
     let raf = 0;
     const onScroll = () => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
-        setScrollY(scroller.scrollTop);
+        setScrollY((scroller as HTMLElement).scrollTop);
         raf = 0;
       });
     };
     scroller.addEventListener('scroll', onScroll, { passive: true });
+    // Also listen to window scroll in case the outer viewport is what moves.
+    window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       scroller.removeEventListener('scroll', onScroll);
+      window.removeEventListener('scroll', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);

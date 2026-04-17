@@ -622,7 +622,7 @@ export default function DossierCreationForm({ stepperCompact = false }: { steppe
     <FormProvider {...form}>
       {/* Stepper — sticky, full size at rest, minimizes on scroll. Always clickable. */}
       <div className={cn(
-        "sticky top-0 z-30 bg-background/95 backdrop-blur border-b -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 mb-4 transition-[padding] duration-200",
+        "sticky top-0 z-40 bg-background border-b shadow-sm -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 mb-4 transition-[padding] duration-200",
         stepperCompact ? "py-1.5" : "py-4"
       )}>
         <div className={cn(
