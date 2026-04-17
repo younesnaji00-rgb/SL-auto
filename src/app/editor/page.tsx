@@ -591,7 +591,7 @@ export default function EditorPage() {
     try {
       const { PDFDocument, rgb, StandardFonts } = await import('pdf-lib');
 
-      let exportPdf: InstanceType<typeof PDFDocument>;
+      let exportPdf: Awaited<ReturnType<typeof PDFDocument.create>>;
 
       if (isImage) {
         // Create a new PDF with the image

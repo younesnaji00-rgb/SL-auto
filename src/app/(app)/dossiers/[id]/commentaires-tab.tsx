@@ -88,7 +88,7 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
     return collection(db, 'dossiers', dossierId, 'commentaires');
   }, [db, dossierId]);
 
-  const { data: rawComments, loading } = useCollection<Comment>(commentsQuery);
+  const { data: rawComments, loading } = useCollection<Comment>(commentsQuery as any);
 
   const comments = useMemo(() => {
     if (!rawComments) return [];

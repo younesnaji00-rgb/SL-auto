@@ -51,6 +51,7 @@ interface Photo {
   uploadedAt: any;
   uploadedBy: string;
   storagePath: string;
+  pendingUpload?: boolean;
 }
 
 const CATEGORIES: { id: PhotoCategory; label: string }[] = [
