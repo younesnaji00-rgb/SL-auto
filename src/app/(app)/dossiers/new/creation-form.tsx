@@ -132,7 +132,7 @@ const steps = [
   { id: 5, name: 'Confirmation', label: 'Étape 5' },
 ];
 
-export default function DossierCreationForm() {
+export default function DossierCreationForm({ stepperCompact = false }: { stepperCompact?: boolean }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -620,10 +620,16 @@ export default function DossierCreationForm() {
 
   return (
     <FormProvider {...form}>
-      {/* Stepper — always minimal: 5 small dots at top, sticky, labels show on hover/tooltip */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 py-2 mb-4">
-        <div className="relative flex items-center justify-between max-w-md mx-auto">
-          <div className="absolute left-3 right-3 top-1/2 -translate-y-1/2 h-px bg-muted -z-10" />
+      {/* Stepper — sticky, full size at rest, minimizes on scroll. Always clickable. */}
+      <div className={cn(
+        "sticky top-0 z-30 bg-background/95 backdrop-blur border-b -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 mb-4 transition-[padding] duration-200",
+        stepperCompact ? "py-1.5" : "py-4"
+      )}>
+        <div className={cn(
+          "relative flex items-center justify-between mx-auto transition-[max-width] duration-200",
+          stepperCompact ? "max-w-md" : "max-w-3xl"
+        )}>
+          <div className="absolute left-4 right-4 top-1/2 -translate-y-1/2 h-px bg-muted -z-10" />
           {steps.map((step) => {
             const isCompleted = currentStep > step.id;
             const isActive = currentStep === step.id;
@@ -632,20 +638,26 @@ export default function DossierCreationForm() {
                 key={step.id}
                 type="button"
                 onClick={() => scrollToStep(step.id)}
-                className="relative flex items-center gap-1.5 bg-background px-1 group"
+                className="relative flex items-center gap-2 bg-background px-1.5 group"
                 title={step.name}
               >
                 <span className={cn(
-                  "w-5 h-5 shrink-0 rounded-full border flex items-center justify-center text-[10px] font-semibold transition-colors",
+                  "shrink-0 rounded-full border-2 flex items-center justify-center font-semibold transition-all duration-200",
+                  stepperCompact ? "w-5 h-5 text-[10px] border" : "w-7 h-7 text-sm",
                   isCompleted && "bg-blue-600 border-blue-600 text-white",
-                  isActive && "bg-white dark:bg-background border-blue-600 text-blue-600 ring-2 ring-blue-600/20",
+                  isActive && "bg-white dark:bg-background border-blue-600 text-blue-600",
                   !isActive && !isCompleted && "bg-background border-muted text-muted-foreground"
                 )}>
-                  {isCompleted ? <Check className="w-2.5 h-2.5" /> : step.id}
+                  {isCompleted ? (
+                    <Check className={cn("transition-all", stepperCompact ? "w-2.5 h-2.5" : "w-3.5 h-3.5")} />
+                  ) : (
+                    step.id
+                  )}
                 </span>
                 <span className={cn(
-                  "text-[11px] font-medium whitespace-nowrap transition-colors",
-                  isActive ? "text-blue-600" : "text-muted-foreground hidden lg:inline"
+                  "font-medium whitespace-nowrap transition-all duration-200",
+                  stepperCompact ? "text-[0px] opacity-0 w-0 overflow-hidden" : "text-sm",
+                  isActive ? "text-blue-600" : "text-muted-foreground"
                 )}>
                   {step.name}
                 </span>
@@ -821,8 +833,8 @@ export default function DossierCreationForm() {
               )}
               style={{
                 position: 'sticky',
-                top: '56px',
-                height: 'calc(100dvh - 72px)',
+                top: stepperCompact ? '52px' : '90px',
+                height: stepperCompact ? 'calc(100dvh - 68px)' : 'calc(100dvh - 106px)',
               }}
             >
               <DocumentViewer ref={docViewerRef} files={allFiles} currentStep={currentStep} visible={showDocViewer} onToggle={() => setShowDocViewer(v => !v)} />

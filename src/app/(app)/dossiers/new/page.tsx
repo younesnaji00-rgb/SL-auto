@@ -29,6 +29,7 @@ export default function NewDossierPage() {
 
   const titleOpacity = Math.max(0, 1 - scrollY / 80);
   const titleTranslate = Math.min(scrollY / 4, 20);
+  const isCompact = scrollY > 60;
 
   return (
     <div>
@@ -56,7 +57,7 @@ export default function NewDossierPage() {
           </p>
         </div>
       </div>
-      <DossierCreationForm />
+      <DossierCreationForm stepperCompact={isCompact} />
     </div>
   );
 }
