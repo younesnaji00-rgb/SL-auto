@@ -38,17 +38,19 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import StepDocuments from './step-documents';
 import Step1 from './step-1';
 import StepPlanification from './step-planification';
 import StepUploadDocuments from './step-upload-documents';
 import Step4Confirmation from './step-4';
-import DocumentViewer from './document-viewer';
+import DocumentViewer, { type DocumentViewerHandle } from './document-viewer';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/components/ui/sidebar';
 import { logWorkflow } from '../[id]/log-historique';
 import { useCompagnies } from '@/hooks/use-compagnies';
+import { marques as defaultMarques } from '@/lib/dossiers-data';
 
 const formSchema = z.object({
   // Expert
@@ -71,6 +73,19 @@ const formSchema = z.object({
   registrationW: z.string().optional(),
   dateOfLoss: z.any().optional(),
   dateOfMEC: z.any().optional(),
+  chassisNumber: z.string().optional(),
+  fiscalPower: z.string().optional(),
+  fuelType: z.string().optional(),
+  mileage: z.string().optional(),
+  vehicleNewValue: z.string().optional(),
+  vehicleUsage: z.string().optional(),
+  // Assuré extended
+  insuredSubscriber: z.string().optional(),
+  insuredCardHolder: z.string().optional(),
+  insuredAddress: z.string().optional(),
+  // Contrat extended
+  insuranceValidUntil: z.any().optional(),
+  product: z.string().optional(),
   // Intermédiaire & Refs
   intermediaryName: z.string().optional(),
   intermediaryEmail: z.string().optional(),
@@ -117,7 +132,7 @@ const steps = [
   { id: 5, name: 'Confirmation', label: 'Étape 5' },
 ];
 
-export default function DossierCreationForm() {
+export default function DossierCreationForm({ stepperCompact = false }: { stepperCompact?: boolean }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -131,6 +146,7 @@ export default function DossierCreationForm() {
   // Expert modal state
   const [expertModalOpen, setExpertModalOpen] = useState(true);
   const [pendingExpertRank, setPendingExpertRank] = useState('1er expert');
+  const [pendingCompany, setPendingCompany] = useState('');
   const [pendingFirstExpertName, setPendingFirstExpertName] = useState('');
   const [pendingFirstExpertCompany, setPendingFirstExpertCompany] = useState('');
 
@@ -139,6 +155,8 @@ export default function DossierCreationForm() {
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
   const [showDocViewer, setShowDocViewer] = useState(true);
   const [scanComplete, setScanComplete] = useState(false);
+  const [scanRegions, setScanRegions] = useState<Record<string, { fileIndex: number; xMin: number; yMin: number; xMax: number; yMax: number }>>({});
+  const docViewerRef = useRef<DocumentViewerHandle | null>(null);
 
   const sectionRefs = useRef<(HTMLElement | null)[]>([null, null, null, null, null]);
 
@@ -175,6 +193,16 @@ export default function DossierCreationForm() {
       model: '',
       registration: '',
       registrationW: '',
+      chassisNumber: '',
+      fiscalPower: '',
+      fuelType: '',
+      mileage: '',
+      vehicleNewValue: '',
+      vehicleUsage: '',
+      insuredSubscriber: '',
+      insuredCardHolder: '',
+      insuredAddress: '',
+      product: '',
       intermediaryName: '',
       intermediaryEmail: '',
       refExpert: '',
@@ -197,6 +225,26 @@ export default function DossierCreationForm() {
       planObservation: '',
     },
   });
+
+  // ----- Auto-pan document viewer to the field the user is currently editing -----
+  useEffect(() => {
+    if (Object.keys(scanRegions).length === 0) return;
+    const onFocus = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const name = (target as HTMLInputElement).name || target.getAttribute('data-field-name') || '';
+      if (!name) return;
+      const region = scanRegions[name];
+      if (!region) return;
+      if (docViewerRef.current) {
+        docViewerRef.current.setCurrentFile(region.fileIndex);
+        // Small delay so the file switch completes before panning
+        setTimeout(() => docViewerRef.current?.focusRegion(region), 50);
+      }
+    };
+    document.addEventListener('focusin', onFocus);
+    return () => document.removeEventListener('focusin', onFocus);
+  }, [scanRegions]);
 
   // ----- IntersectionObserver to track active section -----
   useEffect(() => {
@@ -246,27 +294,34 @@ export default function DossierCreationForm() {
     const filled = new Set<string>();
 
     try {
-      const fileToScan = scanFiles[0];
-      const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(fileToScan.file);
-      });
+      // Send all uploaded scan files in a single multi-image request (same cost, one round-trip).
+      const files = await Promise.all(scanFiles.map(async (f) => {
+        const reader = new FileReader();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(f.file);
+        });
+        return { fileBase64: base64, contentType: f.file.type };
+      }));
 
       const response = await fetch('/api/scan-document', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileBase64: base64, contentType: fileToScan.file.type }),
+        body: JSON.stringify({ files }),
       });
 
       if (!response.ok) throw new Error('Erreur lors du scan');
 
-      const { data, fieldsFound } = await response.json();
+      const { data, fieldsFound, regions } = await response.json();
+
+      if (regions) setScanRegions(regions);
 
       if (data && fieldsFound > 0) {
-        const dateFields = ['dateOfLoss', 'dateOfRequest', 'dateOfMEC'];
+        const dateFields = ['dateOfLoss', 'dateOfRequest', 'dateOfMEC', 'insuranceValidUntil'];
         const skipScanFields = new Set(['dateOfRequest']);
+        // Case-insensitive lookup for the canonical Marque list so the Select can actually render the AI value.
+        const brandLookup = new Map(defaultMarques.map((m) => [m.toLowerCase(), m]));
         for (const [key, value] of Object.entries(data)) {
           if (value === null || value === undefined) continue;
           if (skipScanFields.has(key)) continue;
@@ -274,7 +329,12 @@ export default function DossierCreationForm() {
             const parsed = new Date(value);
             if (!isNaN(parsed.getTime())) { form.setValue(key as any, parsed); filled.add(key); }
           } else if (typeof value === 'string' && value.trim()) {
-            form.setValue(key as any, value); filled.add(key);
+            let finalValue: string = value.trim();
+            if (key === 'brand') {
+              const canonical = brandLookup.get(finalValue.toLowerCase());
+              if (canonical) finalValue = canonical;
+            }
+            form.setValue(key as any, finalValue); filled.add(key);
           }
         }
         setAutoFilledFields(filled);
@@ -361,9 +421,34 @@ export default function DossierCreationForm() {
         dateSinistre: data.dateOfLoss ? Timestamp.fromDate(data.dateOfLoss instanceof Date ? data.dateOfLoss : new Date(data.dateOfLoss)) : null,
         dateRequete: data.dateOfRequest ? Timestamp.fromDate(data.dateOfRequest instanceof Date ? data.dateOfRequest : new Date(data.dateOfRequest)) : null,
         // Assuré (structured)
-        assure: { nom: data.insuredName || '', prenom: '', telephone: data.insuredPhone || '', whatsapp: data.insuredWhatsapp || '', telephone2: data.insuredOtherPhone || '', email: '', adresse: '', cin: '' },
+        assure: {
+          nom: data.insuredName || '',
+          prenom: '',
+          telephone: data.insuredPhone || '',
+          whatsapp: data.insuredWhatsapp || '',
+          telephone2: data.insuredOtherPhone || '',
+          email: '',
+          adresse: data.insuredAddress || '',
+          cin: '',
+          souscripteur: data.insuredSubscriber || '',
+          titulaireCarteGrise: data.insuredCardHolder || '',
+        },
         // Véhicule (structured)
-        vehicule: { marque: data.brand || '', modele: data.model || '', immatriculation: data.registration || '', serie: '', energie: '', puissance: '', mec: data.dateOfMEC ? (data.dateOfMEC instanceof Date ? data.dateOfMEC : new Date(data.dateOfMEC)).toISOString() : '', km: '' },
+        vehicule: {
+          marque: data.brand || '',
+          modele: data.model || '',
+          immatriculation: data.registration || '',
+          serie: data.chassisNumber || '',
+          energie: data.fuelType || '',
+          puissance: data.fiscalPower || '',
+          mec: data.dateOfMEC ? (data.dateOfMEC instanceof Date ? data.dateOfMEC : new Date(data.dateOfMEC)).toISOString() : '',
+          km: data.mileage || '',
+          valeurNeuf: data.vehicleNewValue || '',
+          usage: data.vehicleUsage || '',
+        },
+        // Contrat extended
+        dateValiditeAssurance: data.insuranceValidUntil ? Timestamp.fromDate(data.insuranceValidUntil instanceof Date ? data.insuranceValidUntil : new Date(data.insuranceValidUntil)) : null,
+        produit: data.product || '',
         // Partie adverse (flat + structured for compatibility)
         adverseNom: data.adversaireAssure || '',
         adverseMatricule: data.adversaireMatricule || '',
@@ -485,6 +570,9 @@ export default function DossierCreationForm() {
 
   const handleExpertModalConfirm = () => {
     form.setValue('expertRank', pendingExpertRank);
+    if (pendingCompany) {
+      form.setValue('company', pendingCompany);
+    }
     if (pendingExpertRank === '2eme expert') {
       form.setValue('secondExpertName', pendingFirstExpertName);
       form.setValue('secondExpertCompany', pendingFirstExpertCompany);
@@ -497,6 +585,7 @@ export default function DossierCreationForm() {
 
   const handleReopenExpertModal = () => {
     setPendingExpertRank(form.getValues('expertRank') || '1er expert');
+    setPendingCompany(form.getValues('company') || '');
     setPendingFirstExpertName(form.getValues('secondExpertName') || '');
     setPendingFirstExpertCompany(form.getValues('secondExpertCompany') || '');
     setExpertModalOpen(true);
@@ -531,45 +620,55 @@ export default function DossierCreationForm() {
 
   return (
     <FormProvider {...form}>
-      <div className="flex flex-col -mx-4 md:-mx-6 lg:-mx-8 -mb-4 md:-mb-6 lg:-mb-8" style={{ height: 'calc(100vh - 130px)' }}>
-        {/* Fixed Stepper Navigation — always visible toolbar */}
-        <div className="shrink-0 z-30 bg-background/95 backdrop-blur border-b py-4 px-4 md:px-6 lg:px-8">
-          <div className="relative flex justify-between px-4 max-w-3xl mx-auto">
-            <div className="absolute top-5 left-8 right-8 h-0.5 bg-muted -z-10" />
-            {steps.map((step) => {
-              const isCompleted = currentStep > step.id;
-              const isActive = currentStep === step.id;
-              return (
-                <button
-                  key={step.id}
-                  type="button"
-                  onClick={() => scrollToStep(step.id)}
-                  className="flex flex-col items-center gap-2 bg-transparent group"
-                >
-                  <div className={cn(
-                    "w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all duration-300 bg-background",
-                    isCompleted && "bg-blue-600 border-blue-600 text-white",
-                    isActive && "border-blue-600 ring-4 ring-blue-600/10",
-                    !isActive && !isCompleted && "border-muted text-muted-foreground"
-                  )}>
-                    {isCompleted ? <Check className="w-6 h-6" /> : <span>{step.id}</span>}
-                  </div>
-                  <span className={cn("text-xs font-medium transition-colors hidden sm:block", isActive ? "text-blue-600" : "text-muted-foreground")}>
-                    {step.name}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+      {/* Stepper: sticky to top of parent scroll container (the layout's <main>) */}
+      <div className={cn(
+        "sticky top-0 z-30 bg-background/95 backdrop-blur border-b -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 mb-6 transition-[padding] duration-300",
+        stepperCompact ? "py-2" : "py-4"
+      )}>
+        <div className="relative flex justify-between px-4 max-w-3xl mx-auto">
+          <div className={cn("absolute left-8 right-8 h-0.5 bg-muted -z-10 transition-all duration-300", stepperCompact ? "top-3" : "top-5")} />
+          {steps.map((step) => {
+            const isCompleted = currentStep > step.id;
+            const isActive = currentStep === step.id;
+            return (
+              <button
+                key={step.id}
+                type="button"
+                onClick={() => scrollToStep(step.id)}
+                className="flex flex-col items-center gap-2 bg-transparent group"
+                title={step.name}
+              >
+                <div className={cn(
+                  "rounded-full border-2 flex items-center justify-center transition-all duration-300 bg-background",
+                  stepperCompact ? "w-6 h-6 text-xs" : "w-10 h-10",
+                  isCompleted && "bg-blue-600 border-blue-600 text-white",
+                  isActive && "border-blue-600 ring-4 ring-blue-600/10",
+                  !isActive && !isCompleted && "border-muted text-muted-foreground"
+                )}>
+                  {isCompleted ? (
+                    <Check className={cn("transition-all", stepperCompact ? "w-3.5 h-3.5" : "w-6 h-6")} />
+                  ) : (
+                    <span>{step.id}</span>
+                  )}
+                </div>
+                <span className={cn(
+                  "text-xs font-medium transition-all duration-300 overflow-hidden",
+                  isActive ? "text-blue-600" : "text-muted-foreground",
+                  stepperCompact ? "h-0 opacity-0 sm:h-0" : "h-4 opacity-100 hidden sm:block"
+                )}>
+                  {step.name}
+                </span>
+              </button>
+            );
+          })}
         </div>
+      </div>
 
-        {/* Scrollable content area */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto mt-8">
+      <div className="max-w-7xl mx-auto">
         {/* Main Content: Split layout */}
         <div className={cn("flex gap-6", showSideViewer ? "items-start" : "")}>
           {/* Form Side */}
-          <div className={cn("transition-all duration-300", showSideViewer ? "flex-1 min-w-0" : "w-full max-w-4xl mx-auto")}>
+          <div className={cn("transition-all duration-300 min-w-0", showSideViewer ? "flex-1" : "w-full max-w-4xl mx-auto")}>
             <form onSubmit={form.handleSubmit(handleSubmitClick, (errors) => {
               console.error('Form validation errors:', errors);
               const fieldNames = Object.keys(errors).join(', ');
@@ -580,7 +679,7 @@ export default function DossierCreationForm() {
               <section
                 id="step-1"
                 ref={el => { sectionRefs.current[0] = el; }}
-                className="scroll-mt-4"
+                className="scroll-mt-28"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -623,7 +722,7 @@ export default function DossierCreationForm() {
               <section
                 id="step-2"
                 ref={el => { sectionRefs.current[1] = el; }}
-                className="scroll-mt-4"
+                className="scroll-mt-28"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -653,7 +752,7 @@ export default function DossierCreationForm() {
               <section
                 id="step-3"
                 ref={el => { sectionRefs.current[2] = el; }}
-                className="scroll-mt-4"
+                className="scroll-mt-28"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -674,7 +773,7 @@ export default function DossierCreationForm() {
               <section
                 id="step-4"
                 ref={el => { sectionRefs.current[3] = el; }}
-                className="scroll-mt-4"
+                className="scroll-mt-28"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -698,7 +797,7 @@ export default function DossierCreationForm() {
               <section
                 id="step-5"
                 ref={el => { sectionRefs.current[4] = el; }}
-                className="scroll-mt-4"
+                className="scroll-mt-28"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -722,38 +821,45 @@ export default function DossierCreationForm() {
             </form>
           </div>
 
-          {/* Document Viewer Side - sticky sidebar visible when files are uploaded */}
+          {/* Document Viewer Side - sticky column that follows scroll */}
           {hasDocuments && (
-            <div className={cn("transition-all duration-300 shrink-0 sticky top-24", showDocViewer ? "w-1/2" : "w-10")}>
-              <DocumentViewer files={allFiles} currentStep={currentStep} visible={showDocViewer} onToggle={() => setShowDocViewer(v => !v)} />
+            <div
+              className={cn(
+                "transition-all duration-300 shrink-0 sticky self-start",
+                showDocViewer ? "w-1/2" : "w-10"
+              )}
+              style={{
+                top: stepperCompact ? '56px' : '110px',
+                height: stepperCompact ? 'calc(100dvh - 76px)' : 'calc(100dvh - 130px)',
+              }}
+            >
+              <DocumentViewer ref={docViewerRef} files={allFiles} currentStep={currentStep} visible={showDocViewer} onToggle={() => setShowDocViewer(v => !v)} />
             </div>
           )}
         </div>
-
-        {/* Soft Warning Dialog */}
-        <AlertDialog open={showSoftWarning} onOpenChange={setShowSoftWarning}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2 text-amber-600"><AlertCircle className="h-5 w-5" /> Dossier incomplet</AlertDialogTitle>
-              <AlertDialogDescription asChild>
-                <div className="text-sm text-muted-foreground">
-                  Certains champs importants sont encore vides :
-                  <ul className="list-disc pl-5 mt-2 font-semibold">{missingFieldsList.map((f, i) => <li key={i}>{f}</li>)}</ul>
-                  <p className="mt-4">Voulez-vous créer le dossier quand même ?</p>
-                </div>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setShowSoftWarning(false)}>Compléter les champs</AlertDialogCancel>
-              <AlertDialogAction onClick={() => { setShowSoftWarning(false); if (tempFormData) executeCreation(tempFormData); }} className="bg-blue-600 hover:bg-blue-700">
-                Continuer quand même
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-        </div>
-        </div>{/* close scrollable content area */}
       </div>
+
+      {/* Soft Warning Dialog */}
+      <AlertDialog open={showSoftWarning} onOpenChange={setShowSoftWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-amber-600"><AlertCircle className="h-5 w-5" /> Dossier incomplet</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="text-sm text-muted-foreground">
+                Certains champs importants sont encore vides :
+                <ul className="list-disc pl-5 mt-2 font-semibold">{missingFieldsList.map((f, i) => <li key={i}>{f}</li>)}</ul>
+                <p className="mt-4">Voulez-vous créer le dossier quand même ?</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowSoftWarning(false)}>Compléter les champs</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setShowSoftWarning(false); if (tempFormData) executeCreation(tempFormData); }} className="bg-blue-600 hover:bg-blue-700">
+              Continuer quand même
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Expert Type Selection Modal */}
       <Dialog open={expertModalOpen} onOpenChange={() => {}}>
@@ -783,6 +889,20 @@ export default function DossierCreationForm() {
               </div>
             </RadioGroup>
 
+            <div className="space-y-2">
+              <Label htmlFor="dossier-company">Compagnie du dossier</Label>
+              <Select value={pendingCompany} onValueChange={setPendingCompany}>
+                <SelectTrigger id="dossier-company">
+                  <SelectValue placeholder="Sélectionner la compagnie" />
+                </SelectTrigger>
+                <SelectContent>
+                  {canonicalCompagnies.map((c) => (
+                    <SelectItem key={c.id} value={c.nom}>{c.nom}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {pendingExpertRank === '2eme expert' && (
               <div className="space-y-3 p-4 rounded-lg border bg-muted/20 animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="space-y-2">
@@ -796,12 +916,16 @@ export default function DossierCreationForm() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="first-expert-company">Compagnie du 1er expert</Label>
-                  <Input
-                    id="first-expert-company"
-                    placeholder="Nom de la compagnie du 1er expert"
-                    value={pendingFirstExpertCompany}
-                    onChange={(e) => setPendingFirstExpertCompany(e.target.value)}
-                  />
+                  <Select value={pendingFirstExpertCompany} onValueChange={setPendingFirstExpertCompany}>
+                    <SelectTrigger id="first-expert-company">
+                      <SelectValue placeholder="Sélectionner la compagnie" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {canonicalCompagnies.map((c) => (
+                        <SelectItem key={c.id} value={c.nom}>{c.nom}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             )}
