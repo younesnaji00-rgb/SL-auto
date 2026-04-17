@@ -132,7 +132,7 @@ const steps = [
   { id: 5, name: 'Confirmation', label: 'Étape 5' },
 ];
 
-export default function DossierCreationForm({ stepperCompact = false }: { stepperCompact?: boolean }) {
+export default function DossierCreationForm() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -620,13 +620,10 @@ export default function DossierCreationForm({ stepperCompact = false }: { steppe
 
   return (
     <FormProvider {...form}>
-      {/* Stepper: sticky to top of parent scroll container (the layout's <main>) */}
-      <div className={cn(
-        "sticky top-0 z-30 bg-background/95 backdrop-blur border-b -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 mb-6 transition-[padding] duration-300",
-        stepperCompact ? "py-2" : "py-4"
-      )}>
-        <div className="relative flex justify-between px-4 max-w-3xl mx-auto">
-          <div className={cn("absolute left-8 right-8 h-0.5 bg-muted -z-10 transition-all duration-300", stepperCompact ? "top-3" : "top-5")} />
+      {/* Stepper — always minimal: 5 small dots at top, sticky, labels show on hover/tooltip */}
+      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 py-2 mb-4">
+        <div className="relative flex items-center justify-between max-w-md mx-auto">
+          <div className="absolute left-3 right-3 top-1/2 -translate-y-1/2 h-px bg-muted -z-10" />
           {steps.map((step) => {
             const isCompleted = currentStep > step.id;
             const isActive = currentStep === step.id;
@@ -635,26 +632,20 @@ export default function DossierCreationForm({ stepperCompact = false }: { steppe
                 key={step.id}
                 type="button"
                 onClick={() => scrollToStep(step.id)}
-                className="flex flex-col items-center gap-2 bg-transparent group"
+                className="relative flex items-center gap-1.5 bg-background px-1 group"
                 title={step.name}
               >
-                <div className={cn(
-                  "rounded-full border-2 flex items-center justify-center transition-all duration-300 bg-background",
-                  stepperCompact ? "w-6 h-6 text-xs" : "w-10 h-10",
-                  isCompleted && "bg-blue-600 border-blue-600 text-white",
-                  isActive && "border-blue-600 ring-4 ring-blue-600/10",
-                  !isActive && !isCompleted && "border-muted text-muted-foreground"
-                )}>
-                  {isCompleted ? (
-                    <Check className={cn("transition-all", stepperCompact ? "w-3.5 h-3.5" : "w-6 h-6")} />
-                  ) : (
-                    <span>{step.id}</span>
-                  )}
-                </div>
                 <span className={cn(
-                  "text-xs font-medium transition-all duration-300 overflow-hidden",
-                  isActive ? "text-blue-600" : "text-muted-foreground",
-                  stepperCompact ? "h-0 opacity-0 sm:h-0" : "h-4 opacity-100 hidden sm:block"
+                  "w-5 h-5 shrink-0 rounded-full border flex items-center justify-center text-[10px] font-semibold transition-colors",
+                  isCompleted && "bg-blue-600 border-blue-600 text-white",
+                  isActive && "bg-white dark:bg-background border-blue-600 text-blue-600 ring-2 ring-blue-600/20",
+                  !isActive && !isCompleted && "bg-background border-muted text-muted-foreground"
+                )}>
+                  {isCompleted ? <Check className="w-2.5 h-2.5" /> : step.id}
+                </span>
+                <span className={cn(
+                  "text-[11px] font-medium whitespace-nowrap transition-colors",
+                  isActive ? "text-blue-600" : "text-muted-foreground hidden lg:inline"
                 )}>
                   {step.name}
                 </span>
@@ -679,7 +670,7 @@ export default function DossierCreationForm({ stepperCompact = false }: { steppe
               <section
                 id="step-1"
                 ref={el => { sectionRefs.current[0] = el; }}
-                className="scroll-mt-28"
+                className="scroll-mt-16"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -722,7 +713,7 @@ export default function DossierCreationForm({ stepperCompact = false }: { steppe
               <section
                 id="step-2"
                 ref={el => { sectionRefs.current[1] = el; }}
-                className="scroll-mt-28"
+                className="scroll-mt-16"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -752,7 +743,7 @@ export default function DossierCreationForm({ stepperCompact = false }: { steppe
               <section
                 id="step-3"
                 ref={el => { sectionRefs.current[2] = el; }}
-                className="scroll-mt-28"
+                className="scroll-mt-16"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -773,7 +764,7 @@ export default function DossierCreationForm({ stepperCompact = false }: { steppe
               <section
                 id="step-4"
                 ref={el => { sectionRefs.current[3] = el; }}
-                className="scroll-mt-28"
+                className="scroll-mt-16"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -797,7 +788,7 @@ export default function DossierCreationForm({ stepperCompact = false }: { steppe
               <section
                 id="step-5"
                 ref={el => { sectionRefs.current[4] = el; }}
-                className="scroll-mt-28"
+                className="scroll-mt-16"
               >
                 <Card className="shadow-lg border-blue-600/5">
                   <CardContent className="p-8">
@@ -825,12 +816,13 @@ export default function DossierCreationForm({ stepperCompact = false }: { steppe
           {hasDocuments && (
             <div
               className={cn(
-                "transition-all duration-300 shrink-0 sticky self-start",
+                "shrink-0 self-start",
                 showDocViewer ? "w-1/2" : "w-10"
               )}
               style={{
-                top: stepperCompact ? '56px' : '110px',
-                height: stepperCompact ? 'calc(100dvh - 76px)' : 'calc(100dvh - 130px)',
+                position: 'sticky',
+                top: '56px',
+                height: 'calc(100dvh - 72px)',
               }}
             >
               <DocumentViewer ref={docViewerRef} files={allFiles} currentStep={currentStep} visible={showDocViewer} onToggle={() => setShowDocViewer(v => !v)} />

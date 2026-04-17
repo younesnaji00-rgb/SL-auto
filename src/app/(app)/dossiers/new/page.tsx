@@ -27,10 +27,8 @@ export default function NewDossierPage() {
     };
   }, []);
 
-  // Title fades out over the first 80px of scroll
   const titleOpacity = Math.max(0, 1 - scrollY / 80);
   const titleTranslate = Math.min(scrollY / 4, 20);
-  const isCompact = scrollY > 80;
 
   return (
     <div>
@@ -40,6 +38,9 @@ export default function NewDossierPage() {
           opacity: titleOpacity,
           transform: `translateY(-${titleTranslate}px)`,
           pointerEvents: titleOpacity === 0 ? 'none' : undefined,
+          height: titleOpacity === 0 ? 0 : undefined,
+          overflow: titleOpacity === 0 ? 'hidden' : undefined,
+          marginBottom: titleOpacity === 0 ? 0 : undefined,
         }}
       >
         <Button variant="outline" size="icon" asChild>
@@ -55,7 +56,7 @@ export default function NewDossierPage() {
           </p>
         </div>
       </div>
-      <DossierCreationForm stepperCompact={isCompact} />
+      <DossierCreationForm />
     </div>
   );
 }

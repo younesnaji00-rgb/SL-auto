@@ -39,15 +39,17 @@ export function DatePicker({
           variant="outline"
           disabled={disabled}
           className={cn(
-            "w-full justify-start text-left font-normal h-10 px-3",
+            "w-full justify-start text-left font-normal h-10 px-3 min-w-0",
             !value && "text-muted-foreground",
             className
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4 text-primary shrink-0" />
-          {value
-            ? format(value, "dd MMMM yyyy", { locale: fr })
-            : <span>{placeholder}</span>}
+          <span className="truncate">
+            {value
+              ? format(value, "dd MMMM yyyy", { locale: fr })
+              : placeholder}
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent

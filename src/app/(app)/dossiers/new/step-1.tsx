@@ -252,7 +252,7 @@ export default function Step1({ autoFilledFields, onReopenExpertModal }: Step1Pr
                 <FormControl><Input placeholder="ex: Clio" className={aS('model')} {...field} /></FormControl>
               </FormItem>
             )} />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField control={control} name="registration" render={({ field }) => (
                 <FormItem className="p-3 rounded-md border bg-background">
                   <FormLabel>Matricule <span className="text-red-500">*</span> {aL('registration')}</FormLabel>
@@ -271,7 +271,7 @@ export default function Step1({ autoFilledFields, onReopenExpertModal }: Step1Pr
                 </FormItem>
               )} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField control={control} name="dateOfLoss" render={({ field }) => (
                 <FormItem className="flex flex-col p-3 rounded-md border bg-background">
                   <FormLabel>Date Sinistre <span className="text-red-500">*</span> {aL('dateOfLoss')}</FormLabel>
@@ -295,7 +295,7 @@ export default function Step1({ autoFilledFields, onReopenExpertModal }: Step1Pr
           <CardTitle className="text-sm flex items-center gap-2"><Swords className="h-4 w-4 text-primary" /> Information Adversaire</CardTitle>
         </CardHeader>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <FormField control={control} name="adversaireAssure" render={({ field }) => (
               <FormItem className="p-3 rounded-md border bg-background"><FormLabel className="text-xs font-semibold">Assuré Adversaire</FormLabel><FormControl><Input className={aS('adversaireAssure')} {...field} /></FormControl></FormItem>
             )} />

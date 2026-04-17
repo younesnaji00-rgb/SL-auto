@@ -108,7 +108,7 @@ export default function Step2({ autoFilledFields }: Step2Props) {
               <FormControl><Input placeholder="ex: Clio" className={aS('model')} {...field} /></FormControl>
             </FormItem>
           )} />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField control={control} name="registration" render={({ field }) => (
               <FormItem>
                 <FormLabel>Matricule <span className="text-red-500">*</span> {aL('registration')}</FormLabel>
@@ -127,7 +127,7 @@ export default function Step2({ autoFilledFields }: Step2Props) {
               </FormItem>
             )} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField control={control} name="dateOfLoss" render={({ field }) => (
               <FormItem className="flex flex-col">
                 <FormLabel>Date Sinistre <span className="text-red-500">*</span> {aL('dateOfLoss')}</FormLabel>
