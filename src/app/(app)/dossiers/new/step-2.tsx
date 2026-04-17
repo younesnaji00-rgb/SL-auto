@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { useFormContext } from 'react-hook-form';
 import {
   FormControl,
@@ -25,11 +26,21 @@ interface Step2Props {
 }
 
 export default function Step2({ autoFilledFields }: Step2Props) {
-  const { control } = useFormContext();
+  const { control, setValue, watch } = useFormContext();
 
   const af = autoFilledFields || new Set();
   const aS = (f: string) => af.has(f) ? 'ring-2 ring-amber-400/60 bg-amber-50/30 dark:bg-amber-950/20' : '';
   const aL = (f: string) => af.has(f) ? <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-semibold align-middle">AUTO</span> : null;
+
+  // Mirror insuredPhone → insuredWhatsapp until the user edits WhatsApp directly.
+  // Once touched, the link breaks so they can diverge.
+  const insuredPhone = watch('insuredPhone');
+  const whatsappTouched = useRef(false);
+  useEffect(() => {
+    if (whatsappTouched.current) return;
+    const raw = (insuredPhone || '').toString().trim();
+    setValue('insuredWhatsapp', raw ? `+212 ${raw}` : '', { shouldDirty: false });
+  }, [insuredPhone, setValue]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in-0 duration-500">
@@ -55,8 +66,19 @@ export default function Step2({ autoFilledFields }: Step2Props) {
           )} />
           <FormField control={control} name="insuredWhatsapp" render={({ field }) => (
             <FormItem>
-              <FormLabel>Tel Whatsapp</FormLabel>
-              <FormControl><Input placeholder="+212 6 00 00 00 00" {...field} /></FormControl>
+              <FormLabel>
+                Tel Whatsapp
+                {!whatsappTouched.current && (insuredPhone || '').toString().trim() !== '' && (
+                  <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium">lié au téléphone</span>
+                )}
+              </FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="+212 6 00 00 00 00"
+                  {...field}
+                  onChange={(e) => { whatsappTouched.current = true; field.onChange(e); }}
+                />
+              </FormControl>
             </FormItem>
           )} />
           <FormField control={control} name="insuredOtherPhone" render={({ field }) => (
