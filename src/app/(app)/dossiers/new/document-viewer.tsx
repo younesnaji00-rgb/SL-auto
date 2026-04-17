@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Eye, EyeOff } from 'lucide-react';
+import * as React from 'react';
+import { useMemo, useState, forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Eye, EyeOff, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { TransformWrapper as RawTransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+// v4 render-prop typings are too strict; cast so the documented children-function API works.
+const TransformWrapper = RawTransformWrapper as unknown as React.ComponentType<any>;
 
 interface UploadedFile {
   file: File;
@@ -17,16 +21,27 @@ interface DocumentViewerProps {
   onToggle: () => void;
 }
 
+export interface DocumentViewerHandle {
+  /** Pan/zoom the viewer to a normalized region (0-1 coords) of the current file */
+  focusRegion: (region: { xMin: number; yMin: number; xMax: number; yMax: number }) => void;
+  setCurrentFile: (index: number) => void;
+}
+
 const stepFieldLabels: Record<number, string[]> = {
   2: ['Expert', 'Type Dossier', 'Nature du dossier', 'Mode', 'Compagnie', 'Intermédiaire', 'Ref Expert', 'Ref Compagnie', 'N° Police', 'Date Requête', 'Réparateur', 'Adversaire', 'Assuré', 'Téléphone', 'Marque', 'Modèle', 'Matricule', 'Date Sinistre', 'Date MEC'],
   3: ['Agent de Terrain', 'Type Mission', 'Date RDV', 'Heure', 'Zone', 'Adresse', 'Observation'],
 };
 
-export default function DocumentViewer({ files, currentStep, visible, onToggle }: DocumentViewerProps) {
+const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(function DocumentViewer(
+  { files, currentStep, visible, onToggle },
+  ref
+) {
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
-  const [zoom, setZoom] = useState(100);
+  const [scale, setScale] = useState(1);
+  const transformRef = useRef<any>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const pdfContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Memoize blob URLs so they don't get recreated on every render
   const blobUrls = useMemo(() => {
     return files.map(f => {
       if (f.file.type === 'application/pdf') {
@@ -36,17 +51,44 @@ export default function DocumentViewer({ files, currentStep, visible, onToggle }
     });
   }, [files]);
 
+  // Reset zoom when switching files
+  useEffect(() => {
+    transformRef.current?.resetTransform();
+  }, [currentFileIndex]);
+
+  useImperativeHandle(ref, () => ({
+    setCurrentFile: (index: number) => {
+      if (index >= 0 && index < files.length) setCurrentFileIndex(index);
+    },
+    focusRegion: ({ xMin, yMin, xMax, yMax }) => {
+      const ctrl = transformRef.current;
+      const target = imageRef.current || pdfContainerRef.current;
+      if (!ctrl || !target) return;
+      const box = target.getBoundingClientRect();
+      const parent = target.parentElement?.parentElement; // TransformComponent wrapper
+      if (!parent) return;
+      const viewport = parent.getBoundingClientRect();
+      const regionW = (xMax - xMin) * box.width;
+      const regionH = (yMax - yMin) * box.height;
+      if (regionW <= 0 || regionH <= 0) return;
+      const scale = Math.min(viewport.width / regionW, viewport.height / regionH, 3);
+      const regionCenterX = (xMin + xMax) / 2 * box.width;
+      const regionCenterY = (yMin + yMax) / 2 * box.height;
+      const x = viewport.width / 2 - regionCenterX * scale;
+      const y = viewport.height / 2 - regionCenterY * scale;
+      ctrl.setTransform(x, y, scale, 300);
+    },
+  }), [files.length]);
+
   if (files.length === 0) return null;
 
   const currentFile = files[currentFileIndex];
   const isPdf = currentFile?.file.type === 'application/pdf';
   const labels = stepFieldLabels[currentStep] || [];
   const currentUrl = blobUrls[currentFileIndex] || '';
-  const scale = zoom / 100;
 
   return (
     <div className="relative h-full flex flex-col">
-      {/* Toggle Button (always visible) */}
       <Button
         type="button"
         variant="outline"
@@ -59,91 +101,99 @@ export default function DocumentViewer({ files, currentStep, visible, onToggle }
       </Button>
 
       {visible && (
-        <div className="flex flex-col border rounded-lg bg-card shadow-sm overflow-hidden" style={{ height: 'calc(100vh - 120px)' }}>
-          {/* Header */}
-          <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30 shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold truncate max-w-[200px]">{currentFile?.file.name}</span>
-              <span className="text-[10px] text-muted-foreground">
-                {currentFileIndex + 1}/{files.length}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.max(50, z - 25))} disabled={zoom <= 50}>
-                <ZoomOut className="h-3 w-3" />
-              </Button>
-              <span className="text-[10px] font-mono w-8 text-center">{zoom}%</span>
-              <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.min(200, z + 25))} disabled={zoom >= 200}>
-                <ZoomIn className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
+        <div className="flex flex-col h-full border rounded-lg bg-card shadow-sm overflow-hidden">
+          <TransformWrapper
+            ref={transformRef}
+            minScale={0.5}
+            maxScale={5}
+            initialScale={1}
+            centerOnInit
+            limitToBounds={false}
+            doubleClick={{ mode: 'zoomIn', step: 0.7 }}
+            wheel={{ step: 0.15 }}
+            pinch={{ step: 5 }}
+            panning={{ velocityDisabled: true }}
+            onTransformed={(_: any, state: any) => setScale(state.scale)}
+          >
+            {({ zoomIn, zoomOut, resetTransform }: any) => (
+              <>
+                <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30 shrink-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-semibold truncate max-w-[200px]">{currentFile?.file.name}</span>
+                    <span className="text-[10px] text-muted-foreground shrink-0">
+                      {currentFileIndex + 1}/{files.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => zoomOut()} title="Zoom arrière">
+                      <ZoomOut className="h-3 w-3" />
+                    </Button>
+                    <span className="text-[10px] font-mono w-10 text-center">
+                      {Math.round(scale * 100)}%
+                    </span>
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => zoomIn()} title="Zoom avant">
+                      <ZoomIn className="h-3 w-3" />
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => resetTransform()} title="Ajuster">
+                      <Maximize2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
 
-          {/* File Navigation */}
-          {files.length > 1 && (
-            <div className="flex items-center justify-center gap-2 py-1.5 border-b shrink-0">
-              <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setCurrentFileIndex(i => Math.max(0, i - 1))} disabled={currentFileIndex === 0}>
-                <ChevronLeft className="h-3 w-3" />
-              </Button>
-              {files.map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setCurrentFileIndex(i)}
-                  className={cn(
-                    "w-2 h-2 rounded-full transition-colors",
-                    i === currentFileIndex ? "bg-blue-600" : "bg-muted-foreground/30"
-                  )}
-                />
-              ))}
-              <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setCurrentFileIndex(i => Math.min(files.length - 1, i + 1))} disabled={currentFileIndex === files.length - 1}>
-                <ChevronRight className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
+                {files.length > 1 && (
+                  <div className="flex items-center justify-center gap-2 py-1.5 border-b shrink-0">
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setCurrentFileIndex(i => Math.max(0, i - 1))} disabled={currentFileIndex === 0}>
+                      <ChevronLeft className="h-3 w-3" />
+                    </Button>
+                    {files.map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setCurrentFileIndex(i)}
+                        className={cn(
+                          "w-2 h-2 rounded-full transition-colors",
+                          i === currentFileIndex ? "bg-blue-600" : "bg-muted-foreground/30"
+                        )}
+                      />
+                    ))}
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setCurrentFileIndex(i => Math.min(files.length - 1, i + 1))} disabled={currentFileIndex === files.length - 1}>
+                      <ChevronRight className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
 
-          {/* Document Display — overflow scroll to handle zoom without cropping */}
-          <div className="flex-1 overflow-auto bg-muted/10">
-            {isPdf ? (
-              <div
-                style={{
-                  width: `${scale * 100}%`,
-                  height: `${scale * 100}%`,
-                  minHeight: '100%',
-                }}
-              >
-                <iframe
-                  src={currentUrl}
-                  className="border-0"
-                  style={{
-                    transform: `scale(${scale})`,
-                    transformOrigin: 'top left',
-                    width: `${100 / scale}%`,
-                    height: `${100 / scale}%`,
-                  }}
-                  title="Document PDF"
-                />
-              </div>
-            ) : currentFile.preview ? (
-              <div className="p-2">
-                <img
-                  src={currentUrl}
-                  alt="Document"
-                  className="rounded shadow-sm"
-                  style={{
-                    width: `${scale * 100}%`,
-                    transformOrigin: 'top left',
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
-                Aperçu non disponible
-              </div>
+                <div className="flex-1 bg-muted/10 overflow-hidden">
+                  <TransformComponent
+                    wrapperClass="!w-full !h-full"
+                    contentClass="!w-full !h-full flex items-start justify-center"
+                  >
+                    {isPdf ? (
+                      <div ref={pdfContainerRef} className="w-full h-full">
+                        <iframe
+                          src={currentUrl}
+                          className="border-0 w-full h-full pointer-events-none"
+                          title="Document PDF"
+                        />
+                      </div>
+                    ) : currentFile.preview ? (
+                      <img
+                        ref={imageRef}
+                        src={currentUrl}
+                        alt="Document"
+                        className="rounded shadow-sm max-w-full h-auto select-none"
+                        draggable={false}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
+                        Aperçu non disponible
+                      </div>
+                    )}
+                  </TransformComponent>
+                </div>
+              </>
             )}
-          </div>
+          </TransformWrapper>
 
-          {/* Current Step Field Indicators */}
           {labels.length > 0 && (
             <div className="shrink-0 px-3 py-2 border-t bg-muted/20">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">Champs de cette étape</p>
@@ -160,4 +210,6 @@ export default function DocumentViewer({ files, currentStep, visible, onToggle }
       )}
     </div>
   );
-}
+});
+
+export default DocumentViewer;
