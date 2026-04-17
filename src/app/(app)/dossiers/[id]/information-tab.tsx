@@ -405,7 +405,12 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
             { label: 'Code Intermédiaire', value: form.intermediaireCode, edit: <Input className="h-9" value={form.intermediaireCode} onChange={(e) => handleChange('intermediaireCode', e.target.value)} /> },
           ]} />
           <FieldRow fields={[
-            { label: 'Compagnie', value: form.intermediaireCompagnie, edit: <Input className="h-9" value={form.intermediaireCompagnie} onChange={(e) => handleChange('intermediaireCompagnie', e.target.value)} /> },
+            { label: 'Compagnie', value: form.intermediaireCompagnie, edit: (
+              <Select value={form.intermediaireCompagnie} onValueChange={(v) => handleChange('intermediaireCompagnie', v)}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Sélectionner" /></SelectTrigger>
+                <SelectContent>{dbCompagnies.map((c: any) => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}</SelectContent>
+              </Select>
+            ) },
             { label: 'Téléphone', value: form.intermediaireTelephone, edit: <Input className="h-9" value={form.intermediaireTelephone} onChange={(e) => handleChange('intermediaireTelephone', e.target.value)} /> },
             { label: 'Email', value: form.intermediaireEmail, edit: <Input className="h-9" value={form.intermediaireEmail} onChange={(e) => handleChange('intermediaireEmail', e.target.value)} /> },
             { label: 'Adresse', value: form.intermediaireAdresse, edit: <Input className="h-9" value={form.intermediaireAdresse} onChange={(e) => handleChange('intermediaireAdresse', e.target.value)} /> },
@@ -429,7 +434,12 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
           ]} />
           <FieldRow fields={[
             { label: 'Adresse', value: form.adverseAdresse, edit: <Input className="h-9" value={form.adverseAdresse} onChange={(e) => handleChange('adverseAdresse', e.target.value)} /> },
-            { label: 'Compagnie', value: form.adverseCompagnie, edit: <Input className="h-9" value={form.adverseCompagnie} onChange={(e) => handleChange('adverseCompagnie', e.target.value)} /> },
+            { label: 'Compagnie', value: form.adverseCompagnie, edit: (
+              <Select value={form.adverseCompagnie} onValueChange={(v) => handleChange('adverseCompagnie', v)}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Sélectionner" /></SelectTrigger>
+                <SelectContent>{dbCompagnies.map((c: any) => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}</SelectContent>
+              </Select>
+            ) },
             { label: 'Matricule', value: form.adverseMatricule, edit: <Input className="h-9" value={form.adverseMatricule} onChange={(e) => handleChange('adverseMatricule', e.target.value)} /> },
             { label: 'N° Permis', value: form.adversePermis, edit: <Input className="h-9" value={form.adversePermis} onChange={(e) => handleChange('adversePermis', e.target.value)} /> },
           ]} />
