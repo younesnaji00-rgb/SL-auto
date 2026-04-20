@@ -32,7 +32,6 @@ export function initializeFirebase() {
   const db = initializeFirestore(app, {
     localCache: memoryLocalCache(),
     experimentalForceLongPolling: true,
-    useFetchStreams: false,
   });
   const storage = getStorage(app);
 
