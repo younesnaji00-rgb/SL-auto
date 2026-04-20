@@ -59,6 +59,7 @@ const DOC_TYPE_LABEL: Record<EditableDocType, { plural: string; lower: string }>
 
 export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
   const typeLabel = DOC_TYPE_LABEL[docType];
+  const showVetuste = docType === 'Devis';
   const router = useRouter();
   const db = useFirestore();
   const storage = useStorage();
@@ -269,7 +270,7 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
         : { header, rows };
       const now = new Date();
       const author = profile?.nom || profile?.email || 'Utilisateur';
-      const pdfBlob = renderDevisPdf(snapshot, { author, versionTimestamp: now });
+      const pdfBlob = renderDevisPdf(snapshot, { author, versionTimestamp: now, docType });
       const versionId = crypto.randomUUID();
       const pdfStoragePath = `chiffrages/${chiffrageId}/devis-versions/${docType}/${versionId}.pdf`;
 
@@ -506,6 +507,7 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
               <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:font-bold [&>th]:text-[11px] [&>th]:border-b [&>th]:border-r [&>th:last-child]:border-r-0">
                 <th style={{ width: '80px' }}>REF</th>
                 <th>Designation</th>
+                {showVetuste && <th style={{ width: '80px' }} className="text-center">Vetuste</th>}
                 <th style={{ width: '80px' }}>TYPE</th>
                 <th style={{ width: '70px' }} className="text-center">T.V.A</th>
                 <th style={{ width: '60px' }} className="text-center">Qte</th>
@@ -541,6 +543,18 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
                     <td>
                       <CellInput value={r.designation} onChange={(v) => updateRow(r.id, { designation: v })} disabled={!canEdit} />
                     </td>
+                    {showVetuste && (
+                      <td>
+                        <CellNumberInput
+                          value={r.vetuste ?? 0}
+                          onChange={(v) => updateRow(r.id, { vetuste: v })}
+                          disabled={!canEdit}
+                          suffix="%"
+                          decimals={0}
+                          align="center"
+                        />
+                      </td>
+                    )}
                     <td>
                       <CellInput value={r.type} onChange={(v) => updateRow(r.id, { type: v })} disabled={!canEdit} />
                     </td>

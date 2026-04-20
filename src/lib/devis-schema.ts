@@ -28,6 +28,8 @@ export interface DevisRow {
   id: string;
   ref: string;
   designation: string;
+  /** Vetuste percentage (0-100). Devis-only; ignored for Facture rows. */
+  vetuste?: number;
   type: string;
   tva: number;
   qte: number;

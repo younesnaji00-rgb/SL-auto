@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
   type DevisSnapshot,
+  type EditableDocType,
   formatFr,
   rowTotalHT,
   sumHT,
@@ -10,16 +11,19 @@ import {
 } from './devis-schema';
 
 /**
- * Render the structured devis into a PDF (Blob) that mirrors the Jay Auto layout:
+ * Render the structured devis/facture into a PDF (Blob) that mirrors the
+ * Jay Auto layout:
  *  - Top band: title + devis n° + date
  *  - Two columns of identity fields
- *  - Main table (REF, Désignation, TYPE, T.V.A, Qté, P.U H.T, Total H.T) + optional extra column
+ *  - Main table (REF, Désignation, [Vétusté for Devis], TYPE, T.V.A, Qté, P.U H.T, Total H.T)
+ *    + optional extra columns
  *  - Totals footer (H.T, TVA, TTC)
  */
 export function renderDevisPdf(
   devis: DevisSnapshot,
-  opts?: { author?: string; versionTimestamp?: Date }
+  opts?: { author?: string; versionTimestamp?: Date; docType?: EditableDocType }
 ): Blob {
+  const showVetuste = (opts?.docType ?? 'Devis') === 'Devis';
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = pdf.internal.pageSize.getWidth();
   const margin = 10;
@@ -140,6 +144,7 @@ export function renderDevisPdf(
     [
       'REF',
       'Designation',
+      ...(showVetuste ? ['Vetuste'] : []),
       'TYPE',
       'T.V.A',
       'Qte',
@@ -153,6 +158,7 @@ export function renderDevisPdf(
     const base = [
       r.ref || '',
       r.designation || '',
+      ...(showVetuste ? [`${formatFr(r.vetuste || 0, 0)}%`] : []),
       r.type || '',
       `${formatFr(r.tva, 0)}%`,
       formatFr(r.qte, 0),
@@ -163,6 +169,18 @@ export function renderDevisPdf(
     return base;
   });
 
+  // Column indices shift by 1 when Vetuste is inserted between Designation (1) and TYPE.
+  const off = showVetuste ? 1 : 0;
+  const columnStyles: Record<number, any> = {
+    0: { cellWidth: 22, halign: 'center' },                          // REF
+    [2 + off]: { halign: 'center', cellWidth: 14 },                  // TYPE (was col 2)
+    [3 + off]: { halign: 'center', cellWidth: 14 },                  // TVA
+    [4 + off]: { halign: 'center', cellWidth: 12 },                  // Qte
+    [5 + off]: { halign: 'right', cellWidth: 24 },                   // P.U H.T
+    [6 + off]: { halign: 'right', cellWidth: 28 },                   // Total H.T
+  };
+  if (showVetuste) columnStyles[2] = { halign: 'center', cellWidth: 16 }; // Vetuste
+
   autoTable(pdf, {
     startY: blockY + blockH + 4,
     head,
@@ -170,13 +188,7 @@ export function renderDevisPdf(
     theme: 'grid',
     styles: { fontSize: 8.5, cellPadding: 1.5, textColor: 20, lineColor: 120, lineWidth: 0.2 },
     headStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: 'bold', halign: 'center' },
-    columnStyles: {
-      0: { cellWidth: 22, halign: 'center' },
-      3: { halign: 'center', cellWidth: 14 },
-      4: { halign: 'center', cellWidth: 12 },
-      5: { halign: 'right', cellWidth: 24 },
-      6: { halign: 'right', cellWidth: 28 },
-    },
+    columnStyles,
     margin: { left: margin, right: margin },
   });
 
