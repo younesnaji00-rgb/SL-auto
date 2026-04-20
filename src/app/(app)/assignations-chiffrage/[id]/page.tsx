@@ -13,9 +13,11 @@ import {
 } from '@/components/ui/dialog';
 import {
   ArrowLeft, FileType, Eye, Loader2,
-  ChevronDown, ChevronRight, ImageIcon, FileText, ExternalLink, PenLine, GitBranch,
+  ChevronDown, ChevronRight, ImageIcon, FileText, ExternalLink, GitBranch,
+  Table2, History, Download,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { EDITABLE_DOC_TYPES, isEditableDocType } from '@/lib/devis-schema';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
@@ -57,6 +59,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
+  const [versionPreview, setVersionPreview] = useState<{ url: string; label: string } | null>(null);
 
   const fetchedPathsRef = useRef<Set<string>>(new Set());
 
@@ -99,9 +102,14 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   }, [chiffrage?.files?.length, storage]);
 
   const groupedFiles = useMemo(() => {
-    if (!chiffrage?.files) return [];
     const groups: Record<string, { label: string; icon: 'photo' | 'doc'; files: { file: ChiffrageFileDoc; index: number }[] }> = {};
-    chiffrage.files.forEach((file, i) => {
+
+    // Always-present groups (Devis, Facture) so the "Editer (web)" button is visible even when empty.
+    EDITABLE_DOC_TYPES.forEach((t) => {
+      groups[`doc_${t}`] = { label: t, icon: 'doc', files: [] };
+    });
+
+    (chiffrage?.files || []).forEach((file, i) => {
       let groupKey: string;
       let groupLabel: string;
       let icon: 'photo' | 'doc';
@@ -181,17 +189,6 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             Décision de statut
           </Button>
         )}
-        {canEdit && (
-          <Button
-            variant="default"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => router.push(`/editor?chiffrageId=${id}&dossierId=${chiffrage.dossierId}&fileIndex=0`)}
-          >
-            <PenLine className="h-3.5 w-3.5" />
-            Ouvrir l&apos;éditeur
-          </Button>
-        )}
         <Badge variant="outline" className={cn("gap-1.5 py-1 px-3 rounded-full border font-semibold", getStatusBadgeStyles(dossierStatut))}>
           {dossierStatut}
         </Badge>
@@ -201,16 +198,109 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       <div className="space-y-4">
         {groupedFiles.map(([groupKey, group]) => (
           <div key={groupKey} className="border rounded-xl overflow-hidden bg-card shadow-sm">
-            <button
+            <div
               onClick={() => toggleGroup(groupKey)}
-              className="w-full flex items-center gap-2 px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors text-left cursor-pointer select-none"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleGroup(groupKey); } }}
             >
               {expandedGroups.has(groupKey) ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
               {group.icon === 'photo' ? <ImageIcon className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-4 w-4 text-muted-foreground" />}
               <span className="text-sm font-bold flex-1">{group.label}</span>
               <Badge variant="secondary" className="text-[10px] font-mono">{group.files.length}</Badge>
-            </button>
-            {expandedGroups.has(groupKey) && (
+              {canEdit && isEditableDocType(group.label) && (
+                <Button
+                  size="sm"
+                  variant={group.files.length === 0 ? 'outline' : 'default'}
+                  className="h-7 gap-1.5 text-[11px]"
+                  disabled={group.files.length === 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(group.label)}`);
+                  }}
+                  title={group.files.length === 0 ? `Aucun ${group.label.toLowerCase()} dans cette assignation` : `Editer les ${group.label.toLowerCase()}s`}
+                >
+                  <Table2 className="h-3.5 w-3.5" />
+                  Editer (web)
+                </Button>
+              )}
+            </div>
+            {expandedGroups.has(groupKey) && group.files.length === 0 && (
+              <div className="px-4 py-6 text-center text-xs italic text-muted-foreground">
+                Aucun {group.label.toLowerCase()} dans cette assignation.
+              </div>
+            )}
+            {expandedGroups.has(groupKey) && isEditableDocType(group.label) && (() => {
+              const versions = ((chiffrage as any)?.structuredEditables?.[group.label]?.versions || []) as Array<{
+                id: string;
+                createdAt: any;
+                createdByNom?: string;
+                pdfUrl?: string | null;
+              }>;
+              return (
+                <div className="border-t bg-muted/10">
+                  <div className="flex items-center gap-2 px-4 py-2 border-b">
+                    <History className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-bold">Historique des versions</span>
+                    <Badge variant="secondary" className="text-[10px] font-mono ml-auto">{versions.length}</Badge>
+                  </div>
+                  {versions.length === 0 ? (
+                    <div className="px-4 py-3 text-[11px] italic text-muted-foreground">
+                      Aucune version enregistrée pour ce type de document.
+                    </div>
+                  ) : (
+                    <ul className="divide-y">
+                      {versions.slice(0, 50).map((v) => {
+                        const raw = v.createdAt;
+                        const d: Date | null = raw instanceof Date
+                          ? raw
+                          : typeof raw?.toDate === 'function'
+                            ? raw.toDate()
+                            : typeof raw?.seconds === 'number'
+                              ? new Date(raw.seconds * 1000)
+                              : raw ? new Date(raw) : null;
+                        const label = d && !isNaN(d.getTime()) ? d.toLocaleString('fr-FR') : '—';
+                        return (
+                          <li key={v.id} className="flex items-center gap-2 px-4 py-2 text-xs hover:bg-muted/30">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold truncate">{label}</div>
+                              <div className="text-muted-foreground truncate">par {v.createdByNom || '—'}</div>
+                            </div>
+                            {v.pdfUrl ? (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-[11px]"
+                                  onClick={(e) => { e.stopPropagation(); setVersionPreview({ url: v.pdfUrl!, label }); }}
+                                >
+                                  Voir
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                                  <a
+                                    href={v.pdfUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    download
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                  </a>
+                                </Button>
+                              </>
+                            ) : (
+                              <span className="text-[10px] italic text-muted-foreground px-2">En cours d'upload…</span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              );
+            })()}
+            {expandedGroups.has(groupKey) && group.files.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
                 {group.files.map(({ file, index: i }) => (
                   <div
@@ -279,6 +369,20 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
               ) : (
                 <iframe src={downloadUrls[previewIndex]} className="w-full h-full border-none" title="Apercu" />
               )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Version preview */}
+      {versionPreview && (
+        <Dialog open onOpenChange={() => setVersionPreview(null)}>
+          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
+            <DialogTitle className="px-4 py-3 border-b text-sm truncate">
+              Version du {versionPreview.label}
+            </DialogTitle>
+            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
+              <iframe src={versionPreview.url} className="w-full h-full border-none" title={`Version ${versionPreview.label}`} />
             </div>
           </DialogContent>
         </Dialog>

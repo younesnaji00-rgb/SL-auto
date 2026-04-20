@@ -400,7 +400,7 @@ export default function DossierCreationForm({ stepperCompact = false }: { steppe
 
       // Build clean dossier document — only structured fields, no orphan form fields
       const cleanDossierData: Record<string, any> = {
-        statut: 'Création de mission',
+        statut: 'Création de dossier',
         createdAt: serverTimestamp(),
         createdBy: userId,
         refExpert: refCode,

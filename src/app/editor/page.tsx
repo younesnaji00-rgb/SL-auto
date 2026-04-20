@@ -493,25 +493,32 @@ export default function EditorPage() {
   };
 
   // ── Stamp helpers ─────────────────────────────────────────────────────────
-  const handleImportStamp = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const stamp: SavedStamp = {
+  const handleImportStamp = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    const newStamps: SavedStamp[] = [];
+    for (const file of files) {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      newStamps.push({
         id: crypto.randomUUID(),
         name: file.name.replace(/\.[^/.]+$/, ''),
         dataUrl,
-      };
-      const updated = [...savedStamps, stamp];
-      setSavedStamps(updated);
-      saveStamps(updated);
-      // Auto-select the newly imported stamp
-      setActiveStampUrl(dataUrl);
+      });
+    }
+    const updated = [...savedStamps, ...newStamps];
+    setSavedStamps(updated);
+    saveStamps(updated);
+    // Auto-select the last imported stamp
+    const last = newStamps[newStamps.length - 1];
+    if (last) {
+      setActiveStampUrl(last.dataUrl);
       setTool('stamp');
-    };
-    reader.readAsDataURL(file);
+    }
     e.target.value = '';
   };
 
@@ -894,6 +901,7 @@ export default function EditorPage() {
                 <input
                   ref={stampInputRef}
                   type="file"
+                  multiple
                   accept="image/*"
                   className="hidden"
                   onChange={handleImportStamp}

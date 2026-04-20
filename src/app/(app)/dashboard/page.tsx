@@ -44,7 +44,9 @@ import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart } from 'recharts';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { getStatusBadgeStyles, getStatusHeaderStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { Input } from '@/components/ui/input';
+import { Search } from 'lucide-react';
 import { statuses as ALL_STATUSES } from '@/lib/dossiers-data';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -68,9 +70,9 @@ export default function DashboardPage() {
   const [changements2ActionFilter, setChangements2ActionFilter] = useState<string>('statut');
   const [changements2NatureFilter, setChangements2NatureFilter] = useState<string>('all');
 
-  // Volume par statut — selected status filter
+  // Volume par statut — selected status filter + search within the filter list
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
-  const [dossierTableView, setDossierTableView] = useState<'statut' | 'recents'>('statut');
+  const [statusFilterSearch, setStatusFilterSearch] = useState('');
 
   // Track last visit for "new" entry indicators
   const lastVisitRef = useRef<Date | null>(null);
@@ -199,7 +201,7 @@ export default function DashboardPage() {
     planification: 'Planification',
     chiffrage: 'Chiffrage',
     document: 'Documents / Photos',
-    atg: 'ATG',
+    atg: 'Agent de Terrain',
     reclamation: 'Réclamations',
   };
 
@@ -370,7 +372,7 @@ export default function DashboardPage() {
               <SelectItem value="planification">Planification</SelectItem>
               <SelectItem value="chiffrage">Chiffrage</SelectItem>
               <SelectItem value="document">Documents / Photos / Rapports</SelectItem>
-              <SelectItem value="atg">ATG</SelectItem>
+              <SelectItem value="atg">Agent de Terrain</SelectItem>
               <SelectItem value="reclamation">Réclamations</SelectItem>
             </SelectContent>
           </Select>
@@ -474,238 +476,198 @@ export default function DashboardPage() {
     </Card>
   );
 
+  // ── Sub-renders ─────────────────────────────────────────────────────
+  const filteredStatusRows = statusBarData.filter((item) =>
+    item.name.toLowerCase().includes(statusFilterSearch.toLowerCase().trim())
+  );
+
+  const filterCard = (
+    <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border-0 rounded-xl overflow-hidden">
+      <CardHeader className="bg-heading-bg py-3 rounded-t-xl flex flex-row items-center justify-between gap-2">
+        <CardTitle className="text-base text-primary">Dossier Par État</CardTitle>
+        <div className="relative w-[180px] max-w-full">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search..."
+            value={statusFilterSearch}
+            onChange={(e) => setStatusFilterSearch(e.target.value)}
+            className="h-8 pl-7 text-xs border-0 border-b rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
+          />
+        </div>
+      </CardHeader>
+      <CardContent className="p-0 max-h-[520px] overflow-y-auto">
+        {filteredStatusRows.length === 0 ? (
+          <p className="text-xs italic text-muted-foreground text-center py-8">Aucun statut.</p>
+        ) : (
+          filteredStatusRows.map((item, idx) => {
+            const isSelected = selectedStatus === item.name;
+            return (
+              <button
+                key={item.name}
+                onClick={() => setSelectedStatus((prev) => (prev === item.name ? null : item.name))}
+                className={cn(
+                  'flex items-center justify-between w-full px-4 py-3 text-sm transition-colors text-left',
+                  idx !== filteredStatusRows.length - 1 && 'border-b',
+                  isSelected ? 'bg-accent border-l-2 border-l-primary' : 'hover:bg-accent/50',
+                  item.value === 0 && 'opacity-60',
+                )}
+              >
+                <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{item.name}</span>
+                <span className={cn('text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0', getStatusHeaderStyles(item.name))}>
+                  {item.value}
+                </span>
+              </button>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const pieCard = (
+    <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border-0 rounded-xl">
+      <CardHeader className="bg-heading-bg py-3 rounded-t-xl">
+        <CardTitle className="text-base">Volume par Statut</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-6">
+        {statusChartData.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic text-center py-10">Aucune donnee.</p>
+        ) : (
+          <>
+            <ChartContainer config={statusBarConfig} className="mx-auto aspect-square max-h-[280px]">
+              <PieChart>
+                <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
+                <Pie
+                  data={statusChartData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  paddingAngle={0}
+                  strokeWidth={0}
+                  isAnimationActive={true}
+                  animationBegin={100}
+                  animationDuration={800}
+                  animationEasing="ease-out"
+                  label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
+                    const RADIAN = Math.PI / 180;
+                    const pct = `${(percent * 100).toFixed(0)}%`;
+                    const radius = statusChartData.length > 4 ? outerRadius + 24 : outerRadius * 0.55;
+                    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                    return (
+                      <text
+                        x={x}
+                        y={y}
+                        fill={statusChartData.length > 4 ? statusChartData[index].fill : '#fff'}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize={12}
+                        fontWeight={600}
+                      >
+                        {pct}
+                      </text>
+                    );
+                  }}
+                  labelLine={statusChartData.length > 4}
+                >
+                  {statusChartData.map((entry, index) => (
+                    <Cell key={`cell-status-${index}`} fill={entry.fill} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ChartContainer>
+            <div className="flex flex-wrap justify-center gap-2 mt-4">
+              {statusChartData.map((item) => (
+                <div key={item.name} className="flex items-center gap-1.5 text-[10px]">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
+                  <span className="text-muted-foreground">{item.name}</span>
+                  <span className="font-bold">{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const filteredTableCard = (
+    <Card className="shadow-sm overflow-hidden h-fit hover:shadow-md transition-shadow border-0 rounded-xl">
+      <CardHeader className="bg-heading-bg py-3 rounded-t-xl flex flex-row items-center justify-between">
+        <CardTitle className="text-base">
+          Dossiers — <span className="text-primary">{selectedStatus}</span>
+        </CardTitle>
+        <Button variant="ghost" size="sm" onClick={() => setSelectedStatus(null)}>
+          <X className="h-4 w-4 mr-1" /> Fermer
+        </Button>
+      </CardHeader>
+      <CardContent className="p-4">
+        <div className="rounded-lg overflow-hidden max-h-[560px] overflow-y-auto bg-muted/10">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30 border-0">
+                <TableHead className="font-bold text-xs">Ref.</TableHead>
+                <TableHead className="font-bold text-xs">Assure</TableHead>
+                <TableHead className="font-bold text-xs">Compagnie</TableHead>
+                <TableHead className="font-bold text-xs">Nature du dossier</TableHead>
+                <TableHead className="font-bold text-xs">Matricule</TableHead>
+                <TableHead className="font-bold text-xs">Statut</TableHead>
+                <TableHead className="text-right font-bold text-xs">Date</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {dossiersByStatus.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground italic">
+                    Aucun dossier avec ce statut.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                dossiersByStatus.map((dossier, i) => (
+                  <TableRow key={dossier.id} className="group hover:bg-muted/50 transition-colors opacity-0 animate-row-fade [animation-fill-mode:forwards]" style={{ animationDelay: `${i * 30}ms` }}>
+                    <TableCell>
+                      <Link href={`/dossiers/${dossier.id}`} className="font-mono text-xs font-bold text-primary hover:underline">
+                        {dossier.refExpert || 'N/A'}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="max-w-[120px] truncate text-xs font-medium">{renderAssure(dossier.assure)}</TableCell>
+                    <TableCell className="text-[10px] text-muted-foreground">{dossier.compagnie || '-'}</TableCell>
+                    <TableCell className="text-[10px] text-muted-foreground">{dossier.nature || '-'}</TableCell>
+                    <TableCell className="font-mono text-[10px] text-muted-foreground">{dossier.matricule || '-'}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn('text-[10px] py-0.5 px-2 rounded-full border font-semibold', getStatusBadgeStyles(dossier.statut))}>
+                        {dossier.statut || 'Nouveau'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right text-[10px] text-muted-foreground font-medium">
+                      {formatDate(dossier.createdAt)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="flex-1 space-y-6">
-      {/* Pie Chart (Volume par Statut) + Dossiers Table */}
-      <div className="grid gap-6 lg:grid-cols-5 items-start">
-        {/* Pie Chart — Volume par Statut (left) */}
-        <Card className="lg:col-span-2 shadow-sm h-fit hover:shadow-md transition-shadow border-0 rounded-xl opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '100ms' }}>
-          <CardHeader className="bg-heading-bg py-3 rounded-t-xl">
-            <CardTitle className="text-base">Volume par Statut</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            {statusChartData.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic text-center py-10">Aucune donnee.</p>
-            ) : (
-              <>
-                <ChartContainer config={statusBarConfig} className="mx-auto aspect-square max-h-[280px]">
-                  <PieChart>
-                    <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
-                    <Pie
-                      data={statusChartData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
-                      paddingAngle={0}
-                      strokeWidth={0}
-                      isAnimationActive={true}
-                      animationBegin={100}
-                      animationDuration={800}
-                      animationEasing="ease-out"
-                      label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
-                        const RADIAN = Math.PI / 180;
-                        const total = statusChartData.reduce((sum, d) => sum + d.value, 0);
-                        const pct = `${(percent * 100).toFixed(0)}%`;
-                        // Place label outside slice with a line if many slices, inside otherwise
-                        const radius = statusChartData.length > 4
-                          ? outerRadius + 24
-                          : outerRadius * 0.55;
-                        const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                        const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                        return (
-                          <text
-                            x={x}
-                            y={y}
-                            fill={statusChartData.length > 4 ? statusChartData[index].fill : '#fff'}
-                            textAnchor="middle"
-                            dominantBaseline="central"
-                            fontSize={12}
-                            fontWeight={600}
-                          >
-                            {pct}
-                          </text>
-                        );
-                      }}
-                      labelLine={statusChartData.length > 4}
-                    >
-                      {statusChartData.map((entry, index) => (
-                        <Cell key={`cell-status-${index}`} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ChartContainer>
-                <div className="flex flex-wrap justify-center gap-2 mt-4">
-                  {statusChartData.map((item) => (
-                    <div key={item.name} className="flex items-center gap-1.5 text-[10px]">
-                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
-                      <span className="text-muted-foreground">{item.name}</span>
-                      <span className="font-bold">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Combined dossiers table (right) */}
-        <Card className="lg:col-span-3 shadow-sm overflow-hidden h-fit hover:shadow-md transition-shadow border-0 rounded-xl opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '200ms' }}>
-          <CardHeader className="bg-heading-bg py-3 rounded-t-xl flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Dossiers</CardTitle>
-            <div className="flex items-center gap-2 bg-muted rounded-full p-0.5">
-              <button
-                onClick={() => setDossierTableView('statut')}
-                className={cn(
-                  "px-3 py-1 text-xs font-semibold rounded-full transition-all",
-                  dossierTableView === 'statut'
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Par statut
-              </button>
-              <button
-                onClick={() => setDossierTableView('recents')}
-                className={cn(
-                  "px-3 py-1 text-xs font-semibold rounded-full transition-all",
-                  dossierTableView === 'recents'
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Recents
-              </button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-4 space-y-4">
-            {dossierTableView === 'statut' ? (
-              <>
-                <div className="overflow-x-auto scrollbar-thin pb-1">
-                  <div className="grid grid-rows-2 grid-flow-col gap-1 w-max">
-                    {statusBarData.map((item) => (
-                      <button
-                        key={item.name}
-                        onClick={() => setSelectedStatus(prev => prev === item.name ? null : item.name)}
-                        className={cn(
-                          "px-3 py-1.5 text-xs font-semibold rounded-full transition-all whitespace-nowrap",
-                          selectedStatus === item.name
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                        )}
-                      >
-                        {item.name} ({item.value})
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {selectedStatus ? (
-                  <div className="rounded-lg overflow-hidden max-h-[400px] overflow-y-auto bg-muted/10">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-muted/30 border-0">
-                          <TableHead className="font-bold text-xs">Ref.</TableHead>
-                          <TableHead className="font-bold text-xs">Assure</TableHead>
-                          <TableHead className="font-bold text-xs">Compagnie</TableHead>
-                          <TableHead className="font-bold text-xs">Nature du dossier</TableHead>
-                          <TableHead className="font-bold text-xs">Matricule</TableHead>
-                          <TableHead className="font-bold text-xs">Statut</TableHead>
-                          <TableHead className="text-right font-bold text-xs">Date</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {dossiersByStatus.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={7} className="text-center py-10 text-muted-foreground italic">
-                              Aucun dossier avec ce statut.
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          dossiersByStatus.map((dossier, i) => (
-                            <TableRow key={dossier.id} className="group hover:bg-muted/50 transition-colors opacity-0 animate-row-fade [animation-fill-mode:forwards]" style={{ animationDelay: `${i * 30}ms` }}>
-                              <TableCell>
-                                <Link href={`/dossiers/${dossier.id}`} className="font-mono text-xs font-bold text-primary hover:underline">
-                                  {dossier.refExpert || 'N/A'}
-                                </Link>
-                              </TableCell>
-                              <TableCell className="max-w-[120px] truncate text-xs font-medium">{renderAssure(dossier.assure)}</TableCell>
-                              <TableCell className="text-[10px] text-muted-foreground">{dossier.compagnie || '-'}</TableCell>
-                              <TableCell className="text-[10px] text-muted-foreground">{dossier.nature || '-'}</TableCell>
-                              <TableCell className="font-mono text-[10px] text-muted-foreground">{dossier.matricule || '-'}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className={cn("text-[10px] py-0.5 px-2 rounded-full border font-semibold", getStatusBadgeStyles(dossier.statut))}>
-                                  {dossier.statut || 'Nouveau'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-right text-[10px] text-muted-foreground font-medium">
-                                {formatDate(dossier.createdAt)}
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-                    <p className="text-xs italic">Cliquez sur un statut pour voir les dossiers.</p>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="rounded-lg overflow-hidden max-h-[400px] overflow-y-auto bg-muted/10">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/30 border-0">
-                      <TableHead className="font-bold text-xs">Ref.</TableHead>
-                      <TableHead className="font-bold text-xs">Assure</TableHead>
-                      <TableHead className="font-bold text-xs">Compagnie</TableHead>
-                      <TableHead className="font-bold text-xs">Nature du dossier</TableHead>
-                      <TableHead className="font-bold text-xs">Matricule</TableHead>
-                      <TableHead className="font-bold text-xs">Statut</TableHead>
-                      <TableHead className="text-right font-bold text-xs">Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {dossiers.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-10 text-muted-foreground italic">
-                          Aucun dossier trouve.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      dossiers.slice(0, 15).map((dossier, i) => (
-                        <TableRow key={dossier.id} className="group hover:bg-muted/50 transition-colors opacity-0 animate-row-fade [animation-fill-mode:forwards]" style={{ animationDelay: `${i * 30}ms` }}>
-                          <TableCell>
-                            <Link href={`/dossiers/${dossier.id}`} className="font-mono text-xs font-bold text-primary hover:underline">
-                              {dossier.refExpert || 'N/A'}
-                            </Link>
-                          </TableCell>
-                          <TableCell className="max-w-[120px] truncate text-xs font-medium">{renderAssure(dossier.assure)}</TableCell>
-                          <TableCell className="text-[10px] text-muted-foreground">{dossier.compagnie || '-'}</TableCell>
-                          <TableCell className="text-[10px] text-muted-foreground">{dossier.nature || '-'}</TableCell>
-                          <TableCell className="font-mono text-[10px] text-muted-foreground">{dossier.matricule || '-'}</TableCell>
-                          <TableCell>
-                            <div className="inline-flex w-auto whitespace-nowrap">
-                              <Badge variant="outline" className={cn("text-[10px] py-0.5 px-2 rounded-full border font-semibold", getStatusBadgeStyles(dossier.statut))}>
-                                {dossier.statut || 'Nouveau'}
-                              </Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right text-[10px] text-muted-foreground font-medium">
-                            {formatDate(dossier.createdAt)}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Top row: conditional layout — depends on whether a status is selected */}
+      {selectedStatus === null ? (
+        <div className="grid gap-6 lg:grid-cols-2 items-start">
+          <div className="opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '100ms' }}>{pieCard}</div>
+          <div className="opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '200ms' }}>{filterCard}</div>
+        </div>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-3 items-start">
+          <div className="lg:col-span-1 opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '100ms' }}>{filterCard}</div>
+          <div className="lg:col-span-2 opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '200ms' }}>{filteredTableCard}</div>
+        </div>
+      )}
 
       {/* CHANGEMENTS RECENTS (2 panels) + Repartition par Compagnie */}
       <div className="grid gap-6 lg:grid-cols-3 items-start mb-10">
@@ -771,6 +733,13 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* When a status is selected, the pie card moves to the very bottom */}
+      {selectedStatus !== null && (
+        <div className="opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '100ms' }}>
+          {pieCard}
+        </div>
+      )}
     </div>
   );
 }

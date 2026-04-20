@@ -1,7 +1,9 @@
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
  * Utility function to log actions to the dossier's audit trail (historique subcollection).
+ * When type === 'statut', also denormalize `lastStatusChange` onto the dossier doc so
+ * the dossiers list can render the last status + time without an extra subquery per row.
  */
 export async function logHistorique(
   db: any,
@@ -12,7 +14,7 @@ export async function logHistorique(
   type?: string
 ) {
   if (!db || !dossierId) return;
-  
+
   try {
     await addDoc(collection(db, 'dossiers', dossierId, 'historique'), {
       action,
@@ -21,6 +23,21 @@ export async function logHistorique(
       details: details || '',
       type: type || 'autre',
     });
+
+    if (type === 'statut') {
+      try {
+        await updateDoc(doc(db, 'dossiers', dossierId), {
+          lastStatusChange: {
+            status: action,
+            at: serverTimestamp(),
+            by: user || 'Admin',
+            details: details || '',
+          },
+        });
+      } catch (err) {
+        console.error('Failed to denormalize lastStatusChange:', err);
+      }
+    }
   } catch (err) {
     console.error('Failed to log audit trail entry:', err);
   }

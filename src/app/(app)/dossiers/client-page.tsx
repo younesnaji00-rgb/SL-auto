@@ -20,6 +20,9 @@ import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import WorkflowStatusSheet from './workflow-status-sheet';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import AssignmentHistorySheet from './assignment-history-sheet';
+import StatusHistorySheet from './status-history-sheet';
+import { formatDistanceToNow } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/lib/status-colors';
@@ -72,6 +75,7 @@ export default function DossiersClientPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [workflowDossier, setWorkflowDossier] = useState<any>(null);
   const [assignmentDossier, setAssignmentDossier] = useState<any>(null);
+  const [statusHistoryDossier, setStatusHistoryDossier] = useState<any>(null);
 
   // Export mode state
   const [exportMode, setExportMode] = useState(false);
@@ -336,9 +340,9 @@ export default function DossiersClientPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={exportMode ? 9 : 9} className="h-32 text-center text-muted-foreground">Chargement des dossiers...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="h-32 text-center text-muted-foreground">Chargement des dossiers...</TableCell></TableRow>
             ) : dossierList.length === 0 ? (
-              <TableRow><TableCell colSpan={exportMode ? 9 : 9} className="h-32 text-center text-muted-foreground italic">Aucun dossier trouvé.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="h-32 text-center text-muted-foreground italic">Aucun dossier trouvé.</TableCell></TableRow>
             ) : (
               dossierList.slice(0, rowsPerPage).map(d => (
                 <TableRow
@@ -363,7 +367,25 @@ export default function DossiersClientPage() {
                   <TableCell>{d.compagnie || '-'}</TableCell>
                   <TableCell>{d.nature || '-'}</TableCell>
                   <TableCell>{d.typeDossier || '-'}</TableCell>
-                  <TableCell><Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{d.statut || 'Nouveau'}</Badge></TableCell>
+                  <TableCell
+                    onClick={exportMode ? undefined : (e) => {
+                      e.stopPropagation();
+                      setStatusHistoryDossier(d);
+                    }}
+                    className={cn(!exportMode && "cursor-pointer hover:bg-muted/60 transition-colors")}
+                    title={!exportMode ? "Voir l'historique des statuts" : undefined}
+                  >
+                    <div className="flex flex-col gap-1">
+                      <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>
+                        {d.statut || 'Nouveau'}
+                      </Badge>
+                      {!exportMode && d.lastStatusChange?.at && d.lastStatusChange?.status === d.statut && (
+                        <span className="text-[10px] text-muted-foreground">
+                          il y a {formatDistanceToNow(d.lastStatusChange.at.toDate ? d.lastStatusChange.at.toDate() : new Date(d.lastStatusChange.at), { locale: fr })}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="font-mono text-xs">{d.matricule || '-'}</TableCell>
                   <TableCell>{formatDate(d.dateRequete)}</TableCell>
 
@@ -452,6 +474,11 @@ export default function DossiersClientPage() {
         open={!!workflowDossier}
         onOpenChange={(open) => !open && setWorkflowDossier(null)}
         dossier={workflowDossier}
+      />
+      <StatusHistorySheet
+        open={!!statusHistoryDossier}
+        onOpenChange={(open) => !open && setStatusHistoryDossier(null)}
+        dossier={statusHistoryDossier}
       />
       <AssignmentHistorySheet
         open={!!assignmentDossier}

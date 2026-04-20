@@ -6,8 +6,12 @@ import AppSidebar from '@/components/layout/sidebar';
 import Header from '@/components/layout/header';
 import { OfflineIndicator } from '@/components/offline-indicator';
 import { CurrentUserProvider, useCurrentUser } from '@/hooks/use-current-user';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+/** Routes that want to use the full inset width (no padding, no max-w cap). */
+const FULL_WIDTH_ROUTES = ['/devis-editor'];
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { firebaseUser, loading } = useCurrentUser();
@@ -37,6 +41,26 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() || '';
+  const fullWidth = FULL_WIDTH_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`));
+
+  return (
+    <div className="relative flex h-svh w-full overflow-hidden">
+      <AppSidebar />
+      <SidebarInset className="flex flex-col h-svh transition-all duration-300 ease-in-out overflow-hidden">
+        <Header />
+        <OfflineIndicator />
+        <main className="flex-1 min-h-0 overflow-y-auto bg-background/50">
+          <div className={cn(fullWidth ? 'w-full' : 'p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto')}>
+            {children}
+          </div>
+        </main>
+      </SidebarInset>
+    </div>
+  );
+}
+
 export default function AppLayout({
   children,
 }: {
@@ -46,18 +70,7 @@ export default function AppLayout({
     <CurrentUserProvider>
       <AuthGuard>
         <SidebarProvider>
-          <div className="relative flex min-h-screen w-full">
-            <AppSidebar />
-            <SidebarInset className="flex flex-col transition-all duration-300 ease-in-out">
-              <Header />
-              <OfflineIndicator />
-              <main className="flex-1 overflow-y-auto bg-background/50">
-                <div className="p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto">
-                  {children}
-                </div>
-              </main>
-            </SidebarInset>
-          </div>
+          <AppShell>{children}</AppShell>
         </SidebarProvider>
       </AuthGuard>
     </CurrentUserProvider>

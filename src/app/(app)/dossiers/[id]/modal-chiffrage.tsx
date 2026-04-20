@@ -12,12 +12,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ChiffreurDialog } from '@/components/modals/chiffreur-dialog';
-import { useFirestore, useAuth, useDoc } from '@/firebase';
+import { useFirestore, useAuth, useDoc, useStorage } from '@/firebase';
 import { doc, collection, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { logHistorique, logWorkflow } from './log-historique';
 import { Loader2, Send, ImageIcon, FileText } from 'lucide-react';
 import { sendToChiffrage, ChiffrageFile } from '@/lib/send-to-chiffrage';
+import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
+import { EDITABLE_DOC_TYPES } from '@/lib/devis-schema';
 import { useChiffreurs } from '@/hooks/use-chiffreurs';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { cn } from '@/lib/utils';
@@ -40,6 +42,7 @@ interface FileItem {
 export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalChiffrageProps) {
   const db = useFirestore();
   const auth = useAuth();
+  const storage = useStorage();
   const { toast } = useToast();
   const { profile } = useCurrentUser();
   const { chiffreurs, loading: loadingChiffreurs } = useChiffreurs();
@@ -132,6 +135,18 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
       await logHistorique(db, dossierId, 'Assignation Chiffrage', userEmail, `Dossier envoyé au chiffreur : ${chiffreur.nom} (${selectedFiles.length} fichiers)`, 'assignation');
       await logWorkflow(db, dossierId, 'Dossier envoyé vers chiffrage', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Envoyé au chiffreur : ${chiffreur.nom} (${selectedFiles.length} fichiers)` });
+
+      // Fire-and-forget background extraction, one call per editable doc type
+      // that has at least one file in this chiffrage. Each result lands in
+      // chiffrage.structuredEditables[docType]; idempotent by design.
+      if (storage) {
+        EDITABLE_DOC_TYPES.forEach((docType) => {
+          if (selectedFiles.some((f) => f.docType === docType)) {
+            extractAndPersistChiffrageDevis({ db, storage, chiffrageId, docType })
+              .catch((e) => console.error(`[modal-chiffrage] ${docType} extraction failed`, e));
+          }
+        });
+      }
 
       toast({ title: "Dossier envoyé", description: `${selectedFiles.length} fichier(s) transmis au chiffreur.` });
       onOpenChange(false);

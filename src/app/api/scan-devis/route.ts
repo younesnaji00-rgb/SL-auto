@@ -1,0 +1,130 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { ai } from '@/ai/genkit';
+
+/**
+ * AI Devis Scanner API.
+ * Extracts structured devis data (garage header + line items) from a devis PDF/image.
+ * Returns JSON matching the StructuredDevis shape (header + rows).
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const { fileBase64, contentType } = await req.json();
+
+    if (!fileBase64) {
+      return NextResponse.json({ error: 'Fichier manquant.' }, { status: 400 });
+    }
+
+    const dataUri = `data:${contentType || 'application/pdf'};base64,${fileBase64}`;
+
+    const { text } = await ai.generate({
+      model: 'googleai/gemini-2.5-flash',
+      prompt: [
+        {
+          text: `Tu es un système d'extraction de données de haute précision spécialisé dans les DEVIS et FACTURES DE GARAGE automobiles au Maroc. Tu travailles pour un cabinet d'expertise d'assurance. La précision est CRITIQUE.
+
+CONTEXTE:
+- Les documents sont soit des devis de réparation, soit des factures émises par des garages marocains (carrosserie/mécanique). Tu traites les deux types avec le même schéma — la structure du tableau de lignes est identique.
+- En-tête typique: logo du garage, numéro (devis ou facture), date, informations du véhicule (Marque, Matricule, Modèle ou Date MEC, Kilométrage, N° de chassis), client (garage/société ou particulier), adresse, ICE (identifiant commun de l'entreprise), téléphone, compagnie d'assurance.
+- Tableau des lignes: REF, Désignation, TYPE, T.V.A (%), Qté, P.U H.T, Total H.T.
+- REF est souvent la nature de l'opération: "CHANGE", "REPAR", "PEINTURE", etc.
+- TVA au Maroc: 0% ou 20%.
+- Montants en dirhams marocains (MAD), format français "1 234,50" ou "1234.50".
+- Pour une facture, le numéro extrait dans "devisNumero" est en réalité le numéro de facture (le champ porte le nom historique mais accepte les deux).
+
+TÂCHE:
+Extrais UNIQUEMENT ce qui est explicitement présent. Ne devine rien.
+
+SCHÉMA JSON STRICT:
+{
+  "header": {
+    "marque": string | null,
+    "matricule": string | null,
+    "modele": string | null,
+    "kilometrage": string | null,
+    "chassis": string | null,
+    "expert": string | null,
+    "client": string | null,
+    "adresse": string | null,
+    "ice": string | null,
+    "telephone": string | null,
+    "assurances": string | null,
+    "devisNumero": string | null,
+    "dateDevis": string | null
+  },
+  "rows": [
+    {
+      "ref": string,
+      "designation": string,
+      "type": string,
+      "tva": number,
+      "qte": number,
+      "puHT": number
+    }
+  ]
+}
+
+RÈGLES STRICTES:
+1. Renvoie UNIQUEMENT le JSON brut. Pas de markdown, pas de \`\`\`, pas de texte avant ou après.
+2. Extrais CHAQUE ligne du tableau individuellement (y compris les lignes dupliquées).
+3. Pour "ref": si le document affiche "CHANGE" ou équivalent, copie le tel quel. Sinon laisse vide.
+4. Pour "type": souvent vide ou contient un code ("ORG", "ADP", etc.). Copie tel quel.
+5. "tva" est un nombre (0, 20, 7, 10). Si affiché "0%", renvoie 0. Si vide, renvoie 0.
+6. "qte" et "puHT" sont des nombres. Convertis "1 234,50" en 1234.50.
+7. Ne calcule PAS Total H.T — il sera recalculé.
+8. Pour le header: "dateDevis" au format "DD/MM/YYYY" tel qu'affiché. "modele" peut être soit un nom de modèle, soit une date de mise en circulation — copie ce qui est affiché.
+9. Si un champ du header n'est pas présent, renvoie null pour ce champ.
+10. Si aucune ligne n'est lisible, renvoie "rows": [].
+11. Nombre maximal de lignes attendues: jusqu'à 60. Ne tronque pas.`
+        },
+        { media: { url: dataUri } },
+      ],
+    });
+
+    const cleanedText = (text || '').replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
+    let extracted: any;
+    try {
+      extracted = JSON.parse(cleanedText);
+    } catch {
+      console.error('[scan-devis] Failed to parse AI response:', cleanedText);
+      return NextResponse.json({ error: 'Impossible de parser la reponse AI.', raw: cleanedText }, { status: 422 });
+    }
+
+    const header = extracted.header || {};
+    const rows = Array.isArray(extracted.rows) ? extracted.rows : [];
+
+    const cleanHeader = {
+      marque: header.marque || '',
+      matricule: header.matricule || '',
+      modele: header.modele || '',
+      kilometrage: header.kilometrage || '',
+      chassis: header.chassis || '',
+      expert: header.expert || '',
+      client: header.client || '',
+      adresse: header.adresse || '',
+      ice: header.ice || '',
+      telephone: header.telephone || '',
+      assurances: header.assurances || '',
+      devisNumero: header.devisNumero || '',
+      dateDevis: header.dateDevis || '',
+    };
+
+    const cleanRows = rows.map((r: any) => ({
+      ref: String(r.ref ?? '').trim() || 'CHANGE',
+      designation: String(r.designation ?? '').trim(),
+      type: String(r.type ?? '').trim(),
+      tva: Number(r.tva) || 0,
+      qte: Number(r.qte) || 0,
+      puHT: Number(r.puHT) || 0,
+    }));
+
+    return NextResponse.json({
+      header: cleanHeader,
+      rows: cleanRows,
+      rowsCount: cleanRows.length,
+    });
+  } catch (error: any) {
+    console.error('[/api/scan-devis] Error:', error);
+    return NextResponse.json({ error: error.message || 'Erreur interne.' }, { status: 500 });
+  }
+}

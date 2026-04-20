@@ -52,9 +52,15 @@ export function getStatusBadgeStyles(status: string): string {
   // --- VIOLET: New / creation ---
   if (
     s === 'Nouveau' ||
-    s === 'Création de mission'
+    s === 'Création de mission' ||
+    s === 'Création de dossier'
   ) {
     return 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-800';
+  }
+
+  // --- TEAL: Agent de Terrain decision (avis de véhicule) ---
+  if (s.startsWith('Avis de véhicule')) {
+    return 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800';
   }
 
   // --- SLATE: Closed / archived ---
@@ -84,6 +90,33 @@ export function getStatusBadgeStyles(status: string): string {
 /** Standard className for a colored status pill badge */
 export const STATUS_BADGE_CLASS = 'text-[10px] py-0.5 px-2.5 rounded-full border font-semibold';
 
+/**
+ * Returns Tailwind classes for a saturated, solid status header bar (white text).
+ * Used by the status-history timeline cards. Matches the family classification
+ * of getStatusBadgeStyles / getStatusDotColor so colors stay coordinated.
+ */
+export function getStatusHeaderStyles(status: string): string {
+  const s = (status || '').trim();
+
+  if (s === 'Accord devis refusé' || s === 'Doc illisible' || s === 'Hors zone d\'intervention' || s === 'Mission annulée' || s.startsWith('Manque ') || s.includes('à problème'))
+    return 'bg-red-500 text-white';
+  if (s === 'Accord devis' || s === 'Accord devis rectifié 2' || s === 'Accord facture garage' || s === 'Facture controlée' || s === 'Dossier signé' || s === 'Rapport Validé' || s === 'Propositions avis de dommage signé' || s.startsWith('Validation '))
+    return 'bg-emerald-500 text-white';
+  if (s.startsWith('Expertise ') || s === 'En cours de réparation' || s === 'En cours de traitement facture garage')
+    return 'bg-indigo-500 text-white';
+  if (s === 'Assigné au chiffrage' || s.startsWith('Demande ') || s === 'Att Signature 2ème expert')
+    return 'bg-orange-500 text-white';
+  if (s === 'Nouveau' || s === 'Création de mission' || s === 'Création de dossier')
+    return 'bg-violet-500 text-white';
+  if (s.startsWith('Avis de véhicule'))
+    return 'bg-teal-500 text-white';
+  if (s === 'Clôture' || s === 'Cloture')
+    return 'bg-slate-500 text-white';
+  if (s === 'Avis de réforme' || s === 'Avis dommage' || s === 'Propositions avis de dommage' || s === 'PV Carence' || s === 'Commentaire' || s === 'Dossier saisi sur système')
+    return 'bg-cyan-600 text-white';
+  return 'bg-indigo-500 text-white';
+}
+
 /** Returns a Tailwind bg color class for a small status dot indicator */
 export function getStatusDotColor(status: string): string {
   const s = (status || '').trim();
@@ -96,8 +129,10 @@ export function getStatusDotColor(status: string): string {
     return 'bg-blue-500';
   if (s === 'Assigné au chiffrage' || s.startsWith('Demande ') || s === 'Att Signature 2ème expert')
     return 'bg-orange-500';
-  if (s === 'Nouveau' || s === 'Création de mission')
+  if (s === 'Nouveau' || s === 'Création de mission' || s === 'Création de dossier')
     return 'bg-violet-500';
+  if (s.startsWith('Avis de véhicule'))
+    return 'bg-teal-500';
   if (s === 'Clôture' || s === 'Cloture')
     return 'bg-slate-400';
   if (s === 'Avis de réforme' || s === 'Avis dommage' || s === 'Propositions avis de dommage' || s === 'PV Carence' || s === 'Commentaire' || s === 'Dossier saisi sur système')

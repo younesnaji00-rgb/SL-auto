@@ -48,11 +48,11 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
             onData(items);
           },
           (serverError) => {
-            const permissionError = new FirestorePermissionError({
-              path: '(query)',
-              operation: 'list',
-            });
-            errorEmitter.emit('permission-error', permissionError);
+            const path = (query as any)?._query?.path?.canonicalString?.() ?? (query as any)?._query?.path?.toString?.() ?? '(query)';
+            console.warn('[useCollection] Firestore error on', path, '—', (serverError as any)?.code, serverError?.message);
+            if ((serverError as any)?.code === 'permission-denied') {
+              errorEmitter.emit('permission-error', new FirestorePermissionError({ path, operation: 'list' }));
+            }
             onError(serverError);
           }
         ),

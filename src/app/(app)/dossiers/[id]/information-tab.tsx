@@ -503,7 +503,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
                       {p.observationUpdatedAt && (
                         <span className="flex items-center gap-1 text-[10px] text-amber-600 mt-0.5 font-medium">
                           <Clock className="h-3 w-3" />
-                          MAJ {p.observationSource === 'ATG' ? 'Agent de Terrain' : p.observationSource === 'Gestionnaire' ? 'Gestionnaire' : 'ATG'}{p.observationUpdatedBy ? ` (${p.observationUpdatedBy})` : ''} — {p.observationUpdatedAt.toDate ? format(p.observationUpdatedAt.toDate(), 'dd/MM HH:mm', { locale: fr }) : '-'}
+                          MAJ {p.observationSource === 'ATG' ? 'Agent de Terrain' : p.observationSource === 'Gestionnaire' ? 'Gestionnaire' : 'Agent de Terrain'}{p.observationUpdatedBy ? ` (${p.observationUpdatedBy})` : ''} — {p.observationUpdatedAt.toDate ? format(p.observationUpdatedAt.toDate(), 'dd/MM HH:mm', { locale: fr }) : '-'}
                         </span>
                       )}
                       {p.preuvePhotos && p.preuvePhotos.length > 0 && (
@@ -597,7 +597,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
                   </p>
                   {expandedPlan.observationUpdatedAt && (
                     <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 mt-1">
-                      Mis à jour par {expandedPlan.observationSource === 'ATG' ? 'Agent de Terrain' : expandedPlan.observationSource === 'Gestionnaire' ? 'Gestionnaire' : 'ATG'}{expandedPlan.observationUpdatedBy ? ` (${expandedPlan.observationUpdatedBy})` : ''} le {expandedPlan.observationUpdatedAt.toDate ? format(expandedPlan.observationUpdatedAt.toDate(), "dd/MM/yyyy 'à' HH:mm", { locale: fr }) : '-'}
+                      Mis à jour par {expandedPlan.observationSource === 'ATG' ? 'Agent de Terrain' : expandedPlan.observationSource === 'Gestionnaire' ? 'Gestionnaire' : 'Agent de Terrain'}{expandedPlan.observationUpdatedBy ? ` (${expandedPlan.observationUpdatedBy})` : ''} le {expandedPlan.observationUpdatedAt.toDate ? format(expandedPlan.observationUpdatedAt.toDate(), "dd/MM/yyyy 'à' HH:mm", { locale: fr }) : '-'}
                     </Badge>
                   )}
                 </div>
@@ -606,7 +606,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
               {expandedPlan.preuvePhotos && expandedPlan.preuvePhotos.length > 0 && (
                 <div className="space-y-2 p-3 rounded-lg bg-blue-50/50 border border-blue-200 dark:bg-blue-900/10 dark:border-blue-800">
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                    <ImageIcon className="h-3 w-3" /> Photos Preuve ATG ({expandedPlan.preuvePhotos.length})
+                    <ImageIcon className="h-3 w-3" /> Photos Preuve Agent de Terrain ({expandedPlan.preuvePhotos.length})
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {expandedPlan.preuvePhotos.map((url: string, idx: number) => (

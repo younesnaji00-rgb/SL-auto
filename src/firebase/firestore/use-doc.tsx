@@ -38,11 +38,10 @@ export function useDoc<T = DocumentData>(ref: DocumentReference<T> | null) {
             }
           },
           (serverError) => {
-            const permissionError = new FirestorePermissionError({
-              path: ref.path,
-              operation: 'get',
-            });
-            errorEmitter.emit('permission-error', permissionError);
+            console.warn('[useDoc] Firestore error on', ref.path, '—', (serverError as any)?.code, serverError?.message);
+            if ((serverError as any)?.code === 'permission-denied') {
+              errorEmitter.emit('permission-error', new FirestorePermissionError({ path: ref.path, operation: 'get' }));
+            }
             onError(serverError);
           }
         ),

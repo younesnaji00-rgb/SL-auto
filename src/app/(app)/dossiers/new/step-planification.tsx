@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Calendar, Clock, MapPin, User, Info } from 'lucide-react';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
+import { useAgentTerrainWorkload } from '@/hooks/use-workload-counts';
 
 const defaultRDVTypes = ['Avant', 'En cours', 'Après'];
 const defaultAgents = ['Agent 1', 'Agent 2'];
@@ -35,6 +36,7 @@ export default function StepPlanification() {
 
   const { options: dbAgents } = useOptions('options_agents', defaultAgents);
   const agents = useMemo(() => dbAgents.length > 0 ? dbAgents : defaultAgents.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbAgents]);
+  const agentWorkload = useAgentTerrainWorkload();
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -66,7 +68,24 @@ export default function StepPlanification() {
                 </div>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl><SelectTrigger><SelectValue placeholder="Choisir un agent" /></SelectTrigger></FormControl>
-                  <SelectContent>{agents.map(a => <SelectItem key={a.id} value={a.label}>{a.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>{agents.map(a => {
+                    const count = agentWorkload[a.label] || 0;
+                    return (
+                      <SelectItem key={a.id} value={a.label}>
+                        <span className="flex items-center gap-2">
+                          <span>{a.label}</span>
+                          {count > 0 && (
+                            <span
+                              className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold tabular-nums dark:bg-amber-900/40 dark:text-amber-300"
+                              title={`${count} mission(s) en cours`}
+                            >
+                              {count}
+                            </span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}</SelectContent>
                 </Select>
                 <FormMessage />
               </FormItem>

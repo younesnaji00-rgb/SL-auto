@@ -35,11 +35,23 @@ export default function CameraCapture({ open, onClose, onConfirm }: CameraCaptur
     setCameraReady(false);
     setError(null);
 
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setError("Votre navigateur ne supporte pas l'accès à la caméra. Utilisez Chrome ou Safari.");
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false,
-      });
+      // Try with preferred constraints first
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
+      } catch {
+        // Fallback: minimal constraints (some mobile browsers reject complex constraints)
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -47,8 +59,16 @@ export default function CameraCapture({ open, onClose, onConfirm }: CameraCaptur
         setCameraReady(true);
       }
     } catch (err: any) {
-      console.error('Camera error:', err);
-      setError("Impossible d'accéder à la caméra. Vérifiez les permissions.");
+      console.error('Camera error:', err?.name, err?.message);
+      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+        setError("Accès à la caméra refusé. Allez dans les paramètres de votre navigateur pour autoriser l'accès à la caméra pour ce site.");
+      } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+        setError("Aucune caméra détectée sur cet appareil.");
+      } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
+        setError("La caméra est utilisée par une autre application. Fermez-la et réessayez.");
+      } else {
+        setError(`Impossible d'accéder à la caméra: ${err?.message || 'erreur inconnue'}`);
+      }
     }
   }, []);
 

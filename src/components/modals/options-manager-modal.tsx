@@ -11,10 +11,12 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Settings, Trash2, Plus, Check, X, Loader2 } from 'lucide-react';
+import { Settings, Trash2, Plus, Check, X, Loader2, RefreshCw } from 'lucide-react';
 import { useOptions } from '@/hooks/use-options';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useFirestore } from '@/firebase';
+import { reconcileCanonicalStatuts } from '@/lib/seed-options';
 
 interface OptionsManagerModalProps {
   collectionName: string;
@@ -32,15 +34,17 @@ export function OptionsManagerModal({
   const { isAdmin } = useCurrentUser();
   const { options, addOption, updateOption, deleteOption, loading } = useOptions(collectionName, defaultValues);
   const { toast } = useToast();
+  const db = useFirestore();
 
   // Only admins can manage options
   if (!isAdmin) return null;
-  
+
   const [newOption, setNewOption] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const handleAdd = async () => {
     if (!newOption.trim()) return;
@@ -65,6 +69,24 @@ export function OptionsManagerModal({
       toast({ title: "Option mise à jour" });
     } catch (e) {
       toast({ variant: 'destructive', title: "Erreur lors de la modification" });
+    }
+  };
+
+  const handleSyncCanonical = async () => {
+    if (!db) return;
+    setIsSyncing(true);
+    try {
+      const added = await reconcileCanonicalStatuts(db);
+      if (added > 0) {
+        toast({ title: `${added} statut${added > 1 ? 's' : ''} canonique${added > 1 ? 's' : ''} ajouté${added > 1 ? 's' : ''}` });
+      } else {
+        toast({ title: 'Rien à synchroniser', description: 'Tous les statuts canoniques sont déjà présents.' });
+      }
+    } catch (e: any) {
+      console.error('[sync canonical statuts]', e);
+      toast({ variant: 'destructive', title: 'Erreur de synchronisation', description: e?.message });
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -167,8 +189,21 @@ export function OptionsManagerModal({
           </div>
         </div>
         
-        <DialogFooter>
-          <p className="text-[10px] text-muted-foreground italic">Les modifications sont appliquées instantanément partout dans l'application.</p>
+        <DialogFooter className="flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <p className="text-[10px] text-muted-foreground italic flex-1">Les modifications sont appliquées instantanément partout dans l'application.</p>
+          {collectionName === 'options_statuts' && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 gap-2"
+              onClick={handleSyncCanonical}
+              disabled={isSyncing}
+            >
+              {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Synchroniser les statuts canoniques
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

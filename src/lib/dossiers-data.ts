@@ -33,6 +33,8 @@ export type Dossier = {
   experts: { designation1er: string; designation2eme: string; designationArbitrage: string };
   secondExpertName: string;
   secondExpertCompany: string;
+  // Denormalized summary of the last status change — written by logHistorique when type === 'statut'.
+  lastStatusChange?: { status: string; at: any; by: string; details?: string };
 };
 
 export const statuses = [
@@ -78,10 +80,43 @@ export const statuses = [
     'Validation rapport estimatif',
     'Validation rapport réforme',
     'Création de mission',
+    'Création de dossier',
     'Clôture',
     'Commentaire',
     'Demande expertise avant réparation',
+    'Avis de véhicule expertisé avant',
+    'Avis de véhicule expertisé en cours',
+    'Avis de véhicule expertisé après',
+    'Avis de véhicule non expertisé avant',
+    'Avis de véhicule non expertisé en cours',
+    'Avis de véhicule non expertisé après',
 ];
+
+/**
+ * The 6 statuses an Agent de Terrain is allowed to set from the decision modal.
+ * Keep in sync with the canonical labels above.
+ */
+export const agentTerrainStatuses = [
+    'Avis de véhicule expertisé avant',
+    'Avis de véhicule expertisé en cours',
+    'Avis de véhicule expertisé après',
+    'Avis de véhicule non expertisé avant',
+    'Avis de véhicule non expertisé en cours',
+    'Avis de véhicule non expertisé après',
+] as const;
+
+/**
+ * Canonical status labels the app relies on in code (planification sync,
+ * initial dossier state, AT decision flow). The seed + reconciler ensure
+ * these always exist in `options_statuts`, regardless of prior seed state.
+ */
+export const canonicalStatuts = [
+    'Création de dossier',
+    'Expertise programmée avant',
+    'Expertise programmée en cours',
+    'Expertise programmée après',
+    ...agentTerrainStatuses,
+] as const;
 
 export const marques = [
     'Renault', 'Peugeot', 'Citroën', 'Dacia', 'Volkswagen', 'Toyota', 'Hyundai', 'Kia', 'Ford', 'Fiat', 'BMW', 'Mercedes', 'Audi', 'Nissan', 'Opel', 'Suzuki', 'Honda', 'Mazda', 'Mitsubishi', 'Skoda', 'Seat', 'Chevrolet', 'MG', 'Chery', 'DFSK', 'Autre'

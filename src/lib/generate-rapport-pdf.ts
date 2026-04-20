@@ -88,12 +88,10 @@ export async function generateRapportPDF(db: any, dossierId: string, typeRapport
   if (!db || !dossierId) return;
 
   // Fetch all data in parallel
-  const [dossierSnap, piecesSnap, chiffrageSnap, photosSnap, documentsSnap] = await Promise.all([
+  const [dossierSnap, piecesSnap, chiffrageSnap] = await Promise.all([
     getDoc(doc(db, 'dossiers', dossierId)),
     getDocs(collection(db, 'dossiers', dossierId, 'rapport_pieces')).catch(() => ({ docs: [] })),
     getDocs(collection(db, 'dossiers', dossierId, 'chiffrage')).catch(() => ({ docs: [] })),
-    getDocs(collection(db, 'dossiers', dossierId, 'photos')).catch(() => ({ docs: [] })),
-    getDocs(collection(db, 'dossiers', dossierId, 'documents')).catch(() => ({ docs: [] })),
   ]);
 
   if (!dossierSnap.exists()) {
@@ -109,14 +107,6 @@ export async function generateRapportPDF(db: any, dossierId: string, typeRapport
     ...(piecesSnap as any).docs.map((s: any) => ({ id: s.id, ...s.data() })),
     ...(chiffrageSnap as any).docs.map((s: any) => ({ id: s.id, ...s.data() })),
   ] as Piece[];
-
-  // Photos
-  const photos = [
-    ...(photosSnap as any).docs.map((s: any) => s.data()),
-    ...(documentsSnap as any).docs
-      .map((s: any) => s.data())
-      .filter((d: any) => d.type?.startsWith('image') || d.url || d.fileType?.startsWith('image')),
-  ];
 
   // Load logos in parallel
   const [slLogo, slText, compLogo] = await Promise.all([
@@ -625,43 +615,6 @@ En foi de quoi,le présent rapport est établi en unique original pour servir et
     const splitObs = pdf.splitTextToSize(obs, contentW);
     pdf.text(splitObs, marginL, y);
     y += splitObs.length * 4 + 5;
-  }
-
-  // ── Photo Annexe ───────────────────────────────────────────────────
-  if (photos.length > 0) {
-    pdf.addPage();
-    y = 15;
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-    pdf.text('ANNEXE: GALERIE PHOTOS', marginL, y);
-    y += 8;
-
-    const imgW = 55;
-    const imgH = 42;
-    const gap = 5;
-    let curX = marginL;
-
-    for (const photo of photos) {
-      if (y + imgH > 275) { pdf.addPage(); y = 15; curX = marginL; }
-
-      try {
-        const imgUrl = photo.url || photo.downloadURL;
-        if (imgUrl) {
-          const img = await fetchImageAsBase64(imgUrl);
-          if (img) {
-            pdf.addImage(img.data, img.format, curX, y, imgW, imgH);
-          }
-        }
-      } catch {
-        pdf.setDrawColor(180);
-        pdf.line(curX, y, curX + imgW, y + imgH);
-        pdf.line(curX + imgW, y, curX, y + imgH);
-      }
-
-      curX += imgW + gap;
-      if (curX + imgW > marginR) { curX = marginL; y += imgH + gap; }
-    }
   }
 
   // ═══════════════════════════════════════════════════════════════════

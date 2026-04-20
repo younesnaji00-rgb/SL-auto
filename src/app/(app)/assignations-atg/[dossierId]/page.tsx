@@ -95,6 +95,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const [isDocsOpen, setIsDocsOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState<string | null>(null);
+  const [isDeletingDoc, setIsDeletingDoc] = useState<string | null>(null);
+  const [deletingPreuve, setDeletingPreuve] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const preuveInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -172,7 +174,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     catch { return '-'; }
   };
 
-  const userEmail = auth?.currentUser?.email || 'ATG';
+  const userEmail = auth?.currentUser?.email || 'Agent de Terrain';
 
   // Save observation
   const handleSaveObservation = async (planId: string) => {
@@ -184,9 +186,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         observationUpdatedBy: profile?.nom || userEmail,
         observationSource: 'ATG',
       });
-      await logHistorique(db, dossierId, 'Observation ATG mise à jour', userEmail, `Observation mise à jour pour la planification.`, 'planification');
+      await logHistorique(db, dossierId, 'Observation Agent de Terrain mise à jour', userEmail, `Observation mise à jour pour la planification.`, 'planification');
       const userId = auth?.currentUser?.uid || 'unknown';
-      await logWorkflow(db, dossierId, 'ATG : remarque ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Observation mise à jour par ATG` });
+      await logWorkflow(db, dossierId, 'Agent de Terrain : remarque ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Observation mise à jour par Agent de Terrain` });
 
       // Persist observation to subcollection for history
       if (editObservation.trim()) {
@@ -223,11 +225,11 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             storagePath,
           },
         });
-        await logHistorique(db, dossierId, 'Upload photo ATG', userEmail, `Photo "${file.name}" uploadée (${currentCategory}).`, 'photo');
+        await logHistorique(db, dossierId, 'Upload photo Agent de Terrain', userEmail, `Photo "${file.name}" uploadée (${currentCategory}).`, 'photo');
       }
       const catLabel = currentCategory === 'avant' ? 'Avant' : currentCategory === 'en_cours' ? 'En cours' : 'Après';
       const userId = auth?.currentUser?.uid || 'unknown';
-      await logWorkflow(db, dossierId, 'ATG : photos ajoutées en planification', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${files.length} photos ${catLabel} ajoutées par ATG` });
+      await logWorkflow(db, dossierId, 'Agent de Terrain : photos ajoutées en planification', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${files.length} photos ${catLabel} ajoutées par Agent de Terrain` });
       toast({ title: `${files.length} photo${files.length > 1 ? 's' : ''} uploadée${files.length > 1 ? 's' : ''} avec succès` });
     } catch {
       toast({ variant: 'destructive', title: "Erreur lors de l'upload" });
@@ -253,14 +255,74 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       }
       await deleteDoc(doc(db, 'dossiers', dossierId, 'photos', photo.id));
       const userId = auth?.currentUser?.uid || 'unknown';
-      await logHistorique(db, dossierId, 'Suppression photo ATG', userEmail, `Photo "${photo.name || 'inconnue'}" supprimée.`, 'photo');
-      await logWorkflow(db, dossierId, 'Photo supprimée par ATG', userEmail, userId, 'done', { details: `Photo "${photo.name || 'inconnue'}" supprimée` });
+      await logHistorique(db, dossierId, 'Suppression photo Agent de Terrain', userEmail, `Photo "${photo.name || 'inconnue'}" supprimée.`, 'photo');
+      await logWorkflow(db, dossierId, 'Photo supprimée par Agent de Terrain', userEmail, userId, 'done', { details: `Photo "${photo.name || 'inconnue'}" supprimée` });
       toast({ title: 'Photo supprimée' });
     } catch (err: any) {
       console.error('Delete error:', err);
       toast({ variant: 'destructive', title: 'Erreur lors de la suppression' });
     } finally {
       setIsDeletingPhoto(null);
+    }
+  };
+
+  // Delete document
+  const handleDeleteDocument = async (docItem: any) => {
+    if (!db || !storage) return;
+    if (!window.confirm(`Supprimer le document "${docItem.nom || docItem.name || ''}" ?`)) return;
+    setIsDeletingDoc(docItem.id);
+    try {
+      if (docItem.storagePath) {
+        const storageRef = ref(storage, docItem.storagePath);
+        await deleteObject(storageRef).catch(e => console.warn('Storage delete warn:', e));
+      }
+      await deleteDoc(doc(db, 'dossiers', dossierId, 'documents', docItem.id));
+      const userId = auth?.currentUser?.uid || 'unknown';
+      await logHistorique(db, dossierId, 'Suppression document Agent de Terrain', userEmail, `Document "${docItem.nom || docItem.name || 'inconnu'}" supprimé.`, 'document');
+      await logWorkflow(db, dossierId, 'Document supprimé par Agent de Terrain', userEmail, userId, 'done', { details: `Document "${docItem.nom || docItem.name || 'inconnu'}" supprimé` });
+      toast({ title: 'Document supprimé' });
+    } catch (err) {
+      console.error('Delete doc error:', err);
+      toast({ variant: 'destructive', title: 'Erreur lors de la suppression du document' });
+    } finally {
+      setIsDeletingDoc(null);
+    }
+  };
+
+  // Delete preuve photo
+  const handleDeletePreuvePhoto = async (planId: string, url: string, idx: number) => {
+    if (!db || !storage) return;
+    if (!window.confirm('Supprimer cette preuve ?')) return;
+    const key = `${planId}:${idx}`;
+    setDeletingPreuve(key);
+    try {
+      const plan = (plans || []).find((p: any) => p.id === planId);
+      const existing: string[] = plan?.preuvePhotos || [];
+      const next = existing.filter((u) => u !== url);
+      await updateDoc(doc(db, 'dossiers', dossierId, 'planifications', planId), {
+        preuvePhotos: next,
+        preuveUpdatedAt: serverTimestamp(),
+        preuveUpdatedBy: userEmail,
+      });
+      // Best-effort storage delete (parse path from download URL if possible)
+      try {
+        const match = url.match(/\/o\/([^?]+)/);
+        if (match && match[1]) {
+          const path = decodeURIComponent(match[1]);
+          await deleteObject(ref(storage, path)).catch(e => console.warn('Preuve storage delete warn:', e));
+        }
+      } catch (e) {
+        console.warn('Preuve path parse warn:', e);
+      }
+      await logHistorique(db, dossierId, 'Suppression preuve Agent de Terrain', userEmail, `Photo de preuve supprimée.`, 'planification');
+      const userId = auth?.currentUser?.uid || 'unknown';
+      await logWorkflow(db, dossierId, 'Preuve supprimée par Agent de Terrain', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: 'Photo de preuve supprimée par Agent de Terrain' });
+      toast({ title: 'Preuve supprimée' });
+    } catch (err) {
+      console.error('Delete preuve error:', err);
+      toast({ variant: 'destructive', title: 'Erreur lors de la suppression de la preuve' });
+    } finally {
+      setDeletingPreuve(null);
     }
   };
 
@@ -291,9 +353,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         preuveUpdatedAt: serverTimestamp(),
         preuveUpdatedBy: userEmail,
       });
-      await logHistorique(db, dossierId, 'Preuve ATG ajoutée', userEmail, `${newUrls.length} photo(s) de preuve ajoutée(s).`, 'planification');
+      await logHistorique(db, dossierId, 'Preuve Agent de Terrain ajoutée', userEmail, `${newUrls.length} photo(s) de preuve ajoutée(s).`, 'planification');
       const userId = auth?.currentUser?.uid || 'unknown';
-      await logWorkflow(db, dossierId, 'ATG : preuve ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${newUrls.length} photo(s) de preuve ajoutée(s) par ATG` });
+      await logWorkflow(db, dossierId, 'Agent de Terrain : preuve ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${newUrls.length} photo(s) de preuve ajoutée(s) par Agent de Terrain` });
       toast({ title: 'Preuve(s) uploadée(s)' });
     } catch (err) {
       console.error('Preuve upload error:', err);
@@ -305,41 +367,66 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     }
   };
 
-  // Document file select (opens type-selection modal)
-  const handleDocFileSelect = (file: File) => {
-    setSelectedDocFile(file);
-    // Keep docUploadType if pre-set from grid click, otherwise clear it
-    if (!docUploadType) setDocUploadType('');
+  // Shared uploader — used by direct (per-slot) and modal-confirmed paths, and by multi-select batches.
+  const uploadDocument = async (file: File, type: string) => {
+    if (!file || !type || !db || !storage) return;
+    const timestamp = Date.now();
+    const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${file.name}`;
+    await uploadFileWithOfflineSupport({
+      storage,
+      db,
+      file,
+      fileName: file.name,
+      storagePath,
+      firestoreDocPath: `dossiers/${dossierId}/documents`,
+      firestoreMetadata: {
+        nom: file.name,
+        type,
+        taille: file.size,
+        uploadePar: userEmail,
+        storagePath,
+        _localCreatedAt: timestamp,
+        uploadSource: 'ATG',
+      },
+    });
+    await logHistorique(db, dossierId, 'Upload document Agent de Terrain', userEmail, `Document "${file.name}" uploadé (type: ${type}).`, 'document');
+    const userId = auth?.currentUser?.uid || 'unknown';
+    await logWorkflow(db, dossierId, 'Agent de Terrain : document ajouté', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Document "${file.name}" ajouté par Agent de Terrain (${type})` });
+  };
+
+  // Document files picked — skip the type modal if docUploadType is already set
+  // (per-slot "Ajouter" button), else open the modal so the user can choose.
+  // Supports multi-select: all files in a batch share the same type.
+  const handleDocFilesSelect = async (files: FileList) => {
+    const list = Array.from(files);
+    if (list.length === 0) return;
+    if (docUploadType) {
+      setIsDocUploading(true);
+      try {
+        for (const f of list) {
+          await uploadDocument(f, docUploadType);
+        }
+        toast({ title: list.length === 1 ? 'Document uploadé avec succès' : `${list.length} documents uploadés` });
+      } catch (error: any) {
+        console.error('Document upload error:', error);
+        toast({ variant: 'destructive', title: "Erreur lors de l'upload du document", description: error.message || 'Une erreur est survenue.' });
+      } finally {
+        setIsDocUploading(false);
+        setDocUploadType('');
+      }
+      return;
+    }
+    // No pre-set type: fall back to modal (single file — modal flow doesn't batch).
+    setSelectedDocFile(list[0]);
     setDocUploadModalOpen(true);
   };
 
-  // Document upload handler
+  // Modal confirm — only reached when user opened the generic add path (no slot context).
   const handleDocUpload = async () => {
-    if (!selectedDocFile || !docUploadType || !db || !storage) return;
+    if (!selectedDocFile || !docUploadType) return;
     setIsDocUploading(true);
     try {
-      const timestamp = Date.now();
-      const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${selectedDocFile.name}`;
-      await uploadFileWithOfflineSupport({
-        storage,
-        db,
-        file: selectedDocFile,
-        fileName: selectedDocFile.name,
-        storagePath,
-        firestoreDocPath: `dossiers/${dossierId}/documents`,
-        firestoreMetadata: {
-          nom: selectedDocFile.name,
-          type: docUploadType,
-          taille: selectedDocFile.size,
-          uploadePar: userEmail,
-          storagePath,
-          _localCreatedAt: timestamp,
-          uploadSource: 'ATG',
-        },
-      });
-      await logHistorique(db, dossierId, 'Upload document ATG', userEmail, `Document "${selectedDocFile.name}" uploadé (type: ${docUploadType}).`, 'document');
-      const userId = auth?.currentUser?.uid || 'unknown';
-      await logWorkflow(db, dossierId, 'ATG : document ajouté', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Document "${selectedDocFile.name}" ajouté par ATG (${docUploadType})` });
+      await uploadDocument(selectedDocFile, docUploadType);
       toast({ title: 'Document uploadé avec succès' });
       setDocUploadModalOpen(false);
       setSelectedDocFile(null);
@@ -543,18 +630,34 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                         </div>
                         {p.preuvePhotos && p.preuvePhotos.length > 0 ? (
                           <div className="flex gap-1.5 flex-wrap">
-                            {p.preuvePhotos.map((url: string, idx: number) => (
-                              <div
-                                key={idx}
-                                className="relative w-12 h-12 rounded border overflow-hidden cursor-pointer group/preuve"
-                                onClick={() => setPreviewPreuvePhotos({ urls: p.preuvePhotos, index: idx })}
-                              >
-                                <img src={url} alt={`Preuve ${idx + 1}`} className="object-cover w-full h-full" />
-                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/preuve:opacity-100 transition-opacity flex items-center justify-center">
-                                  <Eye className="h-3 w-3 text-white" />
+                            {p.preuvePhotos.map((url: string, idx: number) => {
+                              const key = `${p.id}:${idx}`;
+                              return (
+                                <div
+                                  key={idx}
+                                  className="relative w-12 h-12 rounded border overflow-hidden cursor-pointer group/preuve"
+                                  onClick={() => setPreviewPreuvePhotos({ urls: p.preuvePhotos, index: idx })}
+                                >
+                                  <img src={url} alt={`Preuve ${idx + 1}`} className="object-cover w-full h-full" />
+                                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/preuve:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Eye className="h-3 w-3 text-white" />
+                                  </div>
+                                  {canEdit && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); handleDeletePreuvePhoto(p.id, url, idx); }}
+                                      disabled={deletingPreuve === key}
+                                      className="absolute top-0.5 right-0.5 bg-red-600/85 hover:bg-red-600 rounded-full p-0.5 z-10"
+                                      aria-label="Supprimer la preuve"
+                                    >
+                                      {deletingPreuve === key
+                                        ? <Loader2 className="h-2.5 w-2.5 text-white animate-spin" />
+                                        : <Trash2 className="h-2.5 w-2.5 text-white" />}
+                                    </button>
+                                  )}
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         ) : (
                           <p className="text-[10px] text-muted-foreground italic">Aucune preuve jointe</p>
@@ -660,9 +763,13 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                       </div>
                       {canEdit && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); handleDeletePhoto(photo); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('Supprimer cette photo ?')) handleDeletePhoto(photo);
+                          }}
                           disabled={isDeletingPhoto === photo.id}
-                          className="absolute top-1 right-1 bg-red-600/80 hover:bg-red-600 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                          className="absolute top-1 right-1 bg-red-600/85 hover:bg-red-600 rounded-full p-1 z-10 shadow"
+                          aria-label="Supprimer la photo"
                         >
                           {isDeletingPhoto === photo.id
                             ? <Loader2 className="h-3 w-3 text-white animate-spin" />
@@ -696,10 +803,11 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             <input
               ref={docFileInputRef}
               type="file"
+              multiple
               accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
               className="hidden"
               onChange={(e) => {
-                if (e.target.files?.[0]) handleDocFileSelect(e.target.files[0]);
+                if (e.target.files && e.target.files.length > 0) handleDocFilesSelect(e.target.files);
                 if (docFileInputRef.current) docFileInputRef.current.value = '';
               }}
             />
@@ -710,7 +818,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               capture="environment"
               className="hidden"
               onChange={(e) => {
-                if (e.target.files?.[0]) handleDocFileSelect(e.target.files[0]);
+                if (e.target.files && e.target.files.length > 0) handleDocFilesSelect(e.target.files);
                 if (docCameraInputRef.current) docCameraInputRef.current.value = '';
               }}
             />
@@ -732,6 +840,19 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                             <span className="flex-1 truncate">{item.nom || item.name}</span>
                             {item.pendingUpload && (
                               <Badge variant="outline" className="text-amber-600 border-amber-300 text-[9px]">En attente</Badge>
+                            )}
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDocument(item)}
+                                disabled={isDeletingDoc === item.id}
+                                className="shrink-0 rounded p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50"
+                                aria-label="Supprimer le document"
+                              >
+                                {isDeletingDoc === item.id
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <Trash2 className="h-3.5 w-3.5" />}
+                              </button>
                             )}
                           </div>
                         ))}

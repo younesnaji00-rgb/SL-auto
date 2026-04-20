@@ -2,14 +2,14 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { collectionGroup, onSnapshot, query, orderBy, limit, doc, getDoc } from 'firebase/firestore';
+import { collectionGroup, onSnapshot, query, orderBy, limit, doc, getDoc, getDocs, collection } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { UserCheck, Loader2, Calendar, MapPin, X, ChevronDown, Clock } from 'lucide-react';
+import { UserCheck, Loader2, Calendar, MapPin, X, ChevronDown, Clock, CheckCircle2 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import {
@@ -20,6 +20,10 @@ import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
+import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
+import { agentTerrainStatuses } from '@/lib/dossiers-data';
+
+type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
 interface PlanificationItem {
   id: string;
@@ -38,7 +42,18 @@ interface PlanificationItem {
   createdAt: any;
   modifiedByName?: string;
   active?: boolean;
+  statut?: string;
+  hasPhotosForMission?: boolean;
 }
+
+function missionToCategory(typeMission: string): PhotoCategory {
+  const n = typeMission === 'Apres' ? 'Après' : typeMission;
+  if (n === 'En cours') return 'en_cours';
+  if (n === 'Après') return 'apres';
+  return 'avant';
+}
+
+const AGENT_TERRAIN_STATUS_SET = new Set<string>(agentTerrainStatuses as readonly string[]);
 
 const MISSION_TABS = [
   { id: 'Avant', label: 'Avant' },
@@ -86,8 +101,36 @@ function getDeadlineInfo(dateRDV: any, createdAt: any): { percent: number; remai
   return { percent, remaining, expired: false, pending: false };
 }
 
-function DeadlineBar({ dateRDV, createdAt }: { dateRDV: any; createdAt: any }) {
+function DeadlineBar({
+  dateRDV,
+  createdAt,
+  completed = false,
+  completedStatus,
+}: {
+  dateRDV: any;
+  createdAt: any;
+  completed?: boolean;
+  completedStatus?: string;
+}) {
   const { percent, remaining, expired, pending } = getDeadlineInfo(dateRDV, createdAt);
+
+  // Completed: ATG uploaded photos + set a terrain status → hide progress bar,
+  // show checkmark + the chosen status instead.
+  if (completed) {
+    return (
+      <div className="flex items-center gap-1.5 min-w-[140px]">
+        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+        {completedStatus && (
+          <Badge
+            variant="outline"
+            className="text-[10px] font-semibold border-green-300 bg-green-50 text-green-700 dark:bg-green-950/30 dark:border-green-700 dark:text-green-400 whitespace-nowrap"
+          >
+            {completedStatus}
+          </Badge>
+        )}
+      </div>
+    );
+  }
 
   // Color stops: blue (0%) > green (33%) > orange (66%) > red (100%)
   const getBarColor = (pct: number) => {
@@ -134,6 +177,10 @@ export default function AssignationsATGPage() {
   const { profile } = useCurrentUser();
   const [planifications, setPlanifications] = useState<PlanificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  // Realtime per-dossier state so status changes + photo uploads update the
+  // "Délai" completion indicator even when no planification doc changes.
+  type DossierLive = { statut: string; photos: Record<PhotoCategory, boolean> };
+  const [dossierLive, setDossierLive] = useState<Record<string, DossierLive>>({});
   const filterDefaults = { activeTab: 'Avant', dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', agentFilter: 'Tous' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-atg', filterDefaults);
   const { activeTab, dateFrom, dateTo, compagnieFilter, agentFilter } = filters;
@@ -147,7 +194,7 @@ export default function AssignationsATGPage() {
     );
     const unsub = onSnapshot(q, async (snap) => {
       const items: PlanificationItem[] = [];
-      const dossierIdsToFetch = new Set<string>();
+      const uniqueDossierIds = new Set<string>();
 
       for (const d of snap.docs) {
         const data = d.data();
@@ -170,44 +217,53 @@ export default function AssignationsATGPage() {
           expertRank: data.expertRank || '',
           nature: data.nature || '',
         };
-        // If denormalized fields are missing, mark for enrichment
-        if (!item.dossierNom && dossierId) {
-          dossierIdsToFetch.add(dossierId);
-        }
+        if (dossierId) uniqueDossierIds.add(dossierId);
         items.push(item);
       }
 
-      // Enrich items missing denormalized data
-      if (dossierIdsToFetch.size > 0) {
-        const dossierData: Record<string, any> = {};
-        await Promise.all(
-          Array.from(dossierIdsToFetch).map(async (dId) => {
-            try {
-              const dossierSnap = await getDoc(doc(db, 'dossiers', dId));
-              if (dossierSnap.exists()) {
-                const d = dossierSnap.data();
-                dossierData[dId] = {
-                  refExpert: d.refExpert || dId,
-                  assureNom: `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim(),
-                  compagnie: d.compagnie || '',
-                  expertRank: d.expertRank || '',
-                  nature: d.nature || '',
-                };
-              }
-            } catch { /* ignore */ }
-          })
-        );
-        items.forEach(item => {
-          if (!item.dossierNom && dossierData[item.dossierId]) {
-            const dd = dossierData[item.dossierId];
-            item.dossierNom = dd.refExpert;
-            item.assureNom = item.assureNom || dd.assureNom;
-            item.compagnie = item.compagnie || dd.compagnie;
-            item.expertRank = item.expertRank || dd.expertRank;
-            item.nature = item.nature || dd.nature;
-          }
-        });
-      }
+      // Enrich: always fetch statut + photos (for completion state); fill in
+      // denormalized fallbacks if missing.
+      type Enriched = {
+        refExpert: string; assureNom: string; compagnie: string; expertRank: string; nature: string;
+        statut: string; photos: Record<PhotoCategory, boolean>;
+      };
+      const dossierData: Record<string, Enriched> = {};
+      await Promise.all(
+        Array.from(uniqueDossierIds).map(async (dId) => {
+          try {
+            const [dossierSnap, photosSnap] = await Promise.all([
+              getDoc(doc(db, 'dossiers', dId)),
+              getDocs(collection(db, 'dossiers', dId, 'photos')),
+            ]);
+            const photos: Record<PhotoCategory, boolean> = { avant: false, en_cours: false, apres: false };
+            photosSnap.forEach(pDoc => {
+              const cat = (pDoc.data().category as PhotoCategory) || 'avant';
+              if (cat in photos) photos[cat] = true;
+            });
+            const d: any = dossierSnap.exists() ? dossierSnap.data() : {};
+            dossierData[dId] = {
+              refExpert: d.refExpert || dId,
+              assureNom: `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim(),
+              compagnie: d.compagnie || '',
+              expertRank: d.expertRank || '',
+              nature: d.nature || '',
+              statut: d.statut || '',
+              photos,
+            };
+          } catch { /* ignore */ }
+        })
+      );
+      items.forEach(item => {
+        const dd = dossierData[item.dossierId];
+        if (!dd) return;
+        if (!item.dossierNom) item.dossierNom = dd.refExpert;
+        item.assureNom = item.assureNom || dd.assureNom;
+        item.compagnie = item.compagnie || dd.compagnie;
+        item.expertRank = item.expertRank || dd.expertRank;
+        item.nature = item.nature || dd.nature;
+        item.statut = dd.statut;
+        item.hasPhotosForMission = dd.photos[missionToCategory(item.typeMission)];
+      });
 
       // ATG users only see their own assignments
       if (profile?.role === 'Agent de Terrain' && profile?.nom) {
@@ -221,6 +277,49 @@ export default function AssignationsATGPage() {
     return () => unsub();
   }, [db, profile?.role, profile?.nom]);
 
+  // Keep a sorted, stable string key of unique dossierIds so the realtime-listener
+  // effect only re-subscribes when the actual set of dossiers changes.
+  const dossierIdsKey = useMemo(() => {
+    const ids = Array.from(new Set(planifications.map(p => p.dossierId).filter(Boolean))).sort();
+    return ids.join('|');
+  }, [planifications]);
+
+  // Realtime listeners: dossier doc (for statut) + photos subcollection (for
+  // per-category upload state). Rebuilt whenever the set of dossierIds changes.
+  useEffect(() => {
+    if (!db || !dossierIdsKey) return;
+    const ids = dossierIdsKey.split('|').filter(Boolean);
+    const unsubs: (() => void)[] = [];
+    ids.forEach(dId => {
+      const u1 = onSnapshot(doc(db, 'dossiers', dId), (snap) => {
+        const data: any = snap.exists() ? snap.data() : {};
+        setDossierLive(prev => ({
+          ...prev,
+          [dId]: {
+            statut: data.statut || '',
+            photos: prev[dId]?.photos || { avant: false, en_cours: false, apres: false },
+          },
+        }));
+      });
+      const u2 = onSnapshot(collection(db, 'dossiers', dId, 'photos'), (snap) => {
+        const photos: Record<PhotoCategory, boolean> = { avant: false, en_cours: false, apres: false };
+        snap.forEach(pDoc => {
+          const cat = (pDoc.data().category as PhotoCategory) || 'avant';
+          if (cat in photos) photos[cat] = true;
+        });
+        setDossierLive(prev => ({
+          ...prev,
+          [dId]: {
+            statut: prev[dId]?.statut || '',
+            photos,
+          },
+        }));
+      });
+      unsubs.push(u1, u2);
+    });
+    return () => { unsubs.forEach(u => u()); };
+  }, [db, dossierIdsKey]);
+
   const countByType = useMemo(() => {
     const counts: Record<string, number> = { 'Avant': 0, 'En cours': 0, 'Après': 0 };
     planifications.forEach(p => {
@@ -231,23 +330,31 @@ export default function AssignationsATGPage() {
   }, [planifications]);
 
   // Build filter options from loaded data
+  // Base set for filter-option counts: planifications of the active mission tab
+  // (Avant / En cours / Après). Counts reflect the current tab view so
+  // switching tab updates the numbers in the dropdowns.
+  const tabScopedPlans = useMemo(
+    () => planifications.filter(p => normalizeType(p.typeMission) === activeTab),
+    [planifications, activeTab]
+  );
+
   const compagnieOptions = useMemo(() => {
     const counts: Record<string, number> = {};
-    planifications.forEach(p => {
+    tabScopedPlans.forEach(p => {
       const comp = (p.compagnie || '').trim();
       if (comp) counts[comp] = (counts[comp] || 0) + 1;
     });
     return Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
-  }, [planifications]);
+  }, [tabScopedPlans]);
 
   const agentOptions = useMemo(() => {
     const counts: Record<string, number> = {};
-    planifications.forEach(p => {
+    tabScopedPlans.forEach(p => {
       const name = (p.agentTerrain || '').trim();
       if (name && name !== '-') counts[name] = (counts[name] || 0) + 1;
     });
     return Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
-  }, [planifications]);
+  }, [tabScopedPlans]);
 
   const filteredPlanifications = useMemo(() => {
     let results = planifications.filter(p => normalizeType(p.typeMission) === activeTab);
@@ -313,6 +420,34 @@ export default function AssignationsATGPage() {
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({ today: true, expired: true, future: true });
 
+  // Per-section deadline sort. Each group ("today" / "expired" / "future") has
+  // its own independent sort direction, so sorting one section does not affect
+  // the others. asc → furthest from 24h deadline first; desc → closest/most overdue first.
+  type GroupKey = 'today' | 'expired' | 'future';
+  const [deadlineSortByGroup, setDeadlineSortByGroup] = useState<Record<GroupKey, SortDirection>>({
+    today: null,
+    expired: null,
+    future: null,
+  });
+
+  const urgencyRatio = (p: PlanificationItem, dir: SortDirection): number => {
+    const ref: any = p.dateRDV || p.createdAt;
+    if (!ref) return dir === 'asc' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
+    const rdv = ref.toDate ? ref.toDate() : new Date(ref);
+    const start = new Date(rdv);
+    if (p.dateRDV) start.setHours(8, 0, 0, 0);
+    const totalMs = DEADLINE_HOURS * 60 * 60 * 1000;
+    return (Date.now() - start.getTime()) / totalMs;
+  };
+
+  const sortGroupItems = (items: PlanificationItem[], dir: SortDirection): PlanificationItem[] => {
+    if (!dir) return items;
+    return [...items].sort((a, b) => {
+      const diff = urgencyRatio(a, dir) - urgencyRatio(b, dir);
+      return dir === 'asc' ? diff : -diff;
+    });
+  };
+
   const formatDate = (ts: any) => {
     if (!ts) return '-';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
@@ -323,7 +458,7 @@ export default function AssignationsATGPage() {
   const isATG = profile?.role === 'Agent de Terrain';
   const canSeeNameFilter = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
   const showAgentColumn = !isATG;
-  const colCount = showAgentColumn ? 11 : 10;
+  const colCount = showAgentColumn ? 9 : 8;
 
   return (
     <div className="space-y-6">
@@ -420,87 +555,106 @@ export default function AssignationsATGPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {groups.filter(g => g.items.length > 0).map((group) => (
-            <Collapsible
-              key={group.key}
-              open={openSections[group.key]}
-              onOpenChange={(open) => setOpenSections(prev => ({ ...prev, [group.key]: open }))}
-            >
-              <Card className="shadow-sm overflow-hidden">
-                <CollapsibleTrigger className={cn(
-                  'flex items-center justify-between w-full px-4 py-3 transition-colors hover:opacity-80',
-                  group.color
-                )}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">{group.label}</span>
-                    <Badge variant="secondary" className="text-[10px] font-mono h-5 min-w-[20px] justify-center">
-                      {group.items.length}
-                    </Badge>
-                  </div>
-                  <ChevronDown className={cn(
-                    'h-4 w-4 transition-transform',
-                    openSections[group.key] ? 'rotate-0' : '-rotate-90'
-                  )} />
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-muted/30">
-                          <TableHead className="font-bold text-xs">Dossier</TableHead>
-                          <TableHead className="font-bold text-xs">Assuré</TableHead>
-                          <TableHead className="font-bold text-xs">Compagnie</TableHead>
-                          <TableHead className="font-bold text-xs">Nature du dossier</TableHead>
-                          <TableHead className="font-bold text-xs">Expert</TableHead>
-                          {showAgentColumn && <TableHead className="font-bold text-xs">Agent</TableHead>}
-                          <TableHead className="font-bold text-xs">Date RDV</TableHead>
-                          <TableHead className="font-bold text-xs">Zone</TableHead>
-                          <TableHead className="font-bold text-xs">Délai</TableHead>
-                          <TableHead className="font-bold text-xs">Créé le</TableHead>
-                          <TableHead className="font-bold text-xs">Assigné par</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {group.items.map((p) => (
-                          <TableRow
-                            key={`${p.dossierId}-${p.id}`}
-                            className="hover:bg-muted/50 transition-colors cursor-pointer"
-                            onClick={() => router.push(`/assignations-atg/${p.dossierId}`)}
-                          >
-                            <TableCell>
-                              <span className="font-semibold text-sm text-primary">{p.dossierNom || p.dossierId}</span>
-                            </TableCell>
-                            <TableCell className="text-xs">{p.assureNom || '-'}</TableCell>
-                            <TableCell className="text-xs">{p.compagnie || '-'}</TableCell>
-                            <TableCell className="text-xs">{p.nature || '-'}</TableCell>
-                            <TableCell>
-                              {p.expertRank ? (
-                                <Badge variant="outline" className="text-[10px]">{p.expertRank}</Badge>
-                              ) : '-'}
-                            </TableCell>
-                            {showAgentColumn && <TableCell className="font-medium text-sm">{p.agentTerrain}</TableCell>}
-                            <TableCell className="text-xs text-muted-foreground">{formatDate(p.dateRDV)}</TableCell>
-                            <TableCell>
-                              {p.zone ? (
-                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <MapPin className="h-3 w-3 shrink-0" /> {p.zone}
-                                </span>
-                              ) : '-'}
-                            </TableCell>
-                            <TableCell>
-                              <DeadlineBar dateRDV={p.dateRDV} createdAt={p.createdAt} />
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{formatDate(p.createdAt)}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{p.modifiedByName || '-'}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </CollapsibleContent>
-              </Card>
-            </Collapsible>
-          ))}
+          {(() => {
+            const renderTableHeader = (groupKey: GroupKey) => (
+              <TableHeader>
+                <TableRow className="bg-muted/30">
+                  <TableHead className="font-bold text-xs">Dossier</TableHead>
+                  <TableHead className="font-bold text-xs">Assuré</TableHead>
+                  <TableHead className="font-bold text-xs">Compagnie</TableHead>
+                  {showAgentColumn && <TableHead className="font-bold text-xs">Agent</TableHead>}
+                  <TableHead className="font-bold text-xs">Date RDV</TableHead>
+                  <TableHead className="font-bold text-xs">Zone</TableHead>
+                  <TableHead className="font-bold text-xs">
+                    <SortableHeader
+                      label="Délai"
+                      sort={deadlineSortByGroup[groupKey]}
+                      onChange={(next) => setDeadlineSortByGroup(prev => ({ ...prev, [groupKey]: next }))}
+                    />
+                  </TableHead>
+                  <TableHead className="font-bold text-xs">Créé le</TableHead>
+                  <TableHead className="font-bold text-xs">Assigné par</TableHead>
+                </TableRow>
+              </TableHeader>
+            );
+            const renderRow = (p: PlanificationItem) => (
+              <TableRow
+                key={`${p.dossierId}-${p.id}`}
+                className="hover:bg-muted/50 transition-colors cursor-pointer"
+                onClick={() => router.push(`/assignations-atg/${p.dossierId}`)}
+              >
+                <TableCell>
+                  <span className="font-semibold text-sm text-primary">{p.dossierNom || p.dossierId}</span>
+                </TableCell>
+                <TableCell className="text-xs">{p.assureNom || '-'}</TableCell>
+                <TableCell className="text-xs">{p.compagnie || '-'}</TableCell>
+                {showAgentColumn && <TableCell className="font-medium text-sm">{p.agentTerrain}</TableCell>}
+                <TableCell className="text-xs text-muted-foreground">{formatDate(p.dateRDV)}</TableCell>
+                <TableCell>
+                  {p.zone ? (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <MapPin className="h-3 w-3 shrink-0" /> {p.zone}
+                    </span>
+                  ) : '-'}
+                </TableCell>
+                <TableCell>
+                  {(() => {
+                    const live = dossierLive[p.dossierId];
+                    const statut = live?.statut ?? p.statut ?? '';
+                    // Completion is driven by the status set in "Décision de statut".
+                    // Works uniformly across all deadline states (à venir, aujourd'hui, en retard).
+                    const completed = !!statut && AGENT_TERRAIN_STATUS_SET.has(statut);
+                    return (
+                      <DeadlineBar
+                        dateRDV={p.dateRDV}
+                        createdAt={p.createdAt}
+                        completed={completed}
+                        completedStatus={statut}
+                      />
+                    );
+                  })()}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">{formatDate(p.createdAt)}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{p.modifiedByName || '-'}</TableCell>
+              </TableRow>
+            );
+
+            return groups.filter(g => g.items.length > 0).map((group) => (
+              <Collapsible
+                key={group.key}
+                open={openSections[group.key]}
+                onOpenChange={(open) => setOpenSections(prev => ({ ...prev, [group.key]: open }))}
+              >
+                <Card className="shadow-sm overflow-hidden">
+                  <CollapsibleTrigger className={cn(
+                    'flex items-center justify-between w-full px-4 py-3 transition-colors hover:opacity-80',
+                    group.color
+                  )}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold">{group.label}</span>
+                      <Badge variant="secondary" className="text-[10px] font-mono h-5 min-w-[20px] justify-center">
+                        {group.items.length}
+                      </Badge>
+                    </div>
+                    <ChevronDown className={cn(
+                      'h-4 w-4 transition-transform',
+                      openSections[group.key] ? 'rotate-0' : '-rotate-90'
+                    )} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="p-0">
+                      <Table>
+                        {renderTableHeader(group.key)}
+                        <TableBody>
+                          {sortGroupItems(group.items, deadlineSortByGroup[group.key]).map(renderRow)}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            ));
+          })()}
         </div>
       )}
     </div>

@@ -20,6 +20,7 @@ import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { fr } from 'date-fns/locale';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
+import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
 
 interface ChiffrageItem {
   id: string;
@@ -104,6 +105,7 @@ export default function AssignationsChiffragePage() {
   const [dossierStatuts, setDossierStatuts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Record<string, Set<string>>>({});
+  const [deadlineSort, setDeadlineSort] = useState<SortDirection>(null);
   const filterDefaults = { dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', chiffreurFilter: 'Tous' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-chiffrage', filterDefaults);
   const { dateFrom, dateTo, compagnieFilter, chiffreurFilter } = filters;
@@ -205,17 +207,32 @@ export default function AssignationsChiffragePage() {
         return date <= to;
       });
     }
-    // Sort: today's items first, then by createdAt desc
-    results.sort((a, b) => {
-      const aToday = isToday(a.createdAt) ? 1 : 0;
-      const bToday = isToday(b.createdAt) ? 1 : 0;
-      if (aToday !== bToday) return bToday - aToday;
-      const aDate = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt).getTime();
-      const bDate = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt).getTime();
-      return bDate - aDate;
-    });
+    if (deadlineSort) {
+      // Sort by deadline end time (createdAt + totalMs). Ascending = most urgent first.
+      results.sort((a, b) => {
+        const aNature = (a as any).nature || '';
+        const bNature = (b as any).nature || '';
+        const aCreated = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : null);
+        const bCreated = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : null);
+        const aTotal = aNature.toLowerCase().startsWith('contradictoire') ? 48 : 24;
+        const bTotal = bNature.toLowerCase().startsWith('contradictoire') ? 48 : 24;
+        const aEnd = aCreated === null ? (deadlineSort === 'asc' ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : aCreated + aTotal * 3600 * 1000;
+        const bEnd = bCreated === null ? (deadlineSort === 'asc' ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : bCreated + bTotal * 3600 * 1000;
+        return deadlineSort === 'asc' ? aEnd - bEnd : bEnd - aEnd;
+      });
+    } else {
+      // Default: today's items first, then by createdAt desc
+      results.sort((a, b) => {
+        const aToday = isToday(a.createdAt) ? 1 : 0;
+        const bToday = isToday(b.createdAt) ? 1 : 0;
+        if (aToday !== bToday) return bToday - aToday;
+        const aDate = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt).getTime();
+        const bDate = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt).getTime();
+        return bDate - aDate;
+      });
+    }
     return results;
-  }, [chiffrages, compagnieFilter, chiffreurFilter, dossierCompagnies, dateFrom, dateTo]);
+  }, [chiffrages, compagnieFilter, chiffreurFilter, dossierCompagnies, dateFrom, dateTo, deadlineSort]);
 
   const formatDate = (ts: any) => {
     if (!ts) return '-';
@@ -301,7 +318,9 @@ export default function AssignationsChiffragePage() {
                 <TableHead className="font-bold text-xs">Fichiers</TableHead>
                 <TableHead className="font-bold text-xs">Statut</TableHead>
                 <TableHead className="font-bold text-xs">Assigné par</TableHead>
-                <TableHead className="font-bold text-xs w-[160px]">Délai</TableHead>
+                <TableHead className="font-bold text-xs w-[160px]">
+                  <SortableHeader label="Délai" sort={deadlineSort} onChange={setDeadlineSort} />
+                </TableHead>
                 <TableHead className="font-bold text-xs text-right">Date</TableHead>
               </TableRow>
             </TableHeader>

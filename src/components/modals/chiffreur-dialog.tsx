@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { useChiffreurs, Chiffreur } from "@/hooks/use-chiffreurs";
+import { useChiffreurWorkload } from "@/hooks/use-workload-counts";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +36,7 @@ interface Props {
 export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
   const { chiffreurs, loading, addChiffreur, updateChiffreur, deleteChiffreur } =
     useChiffreurs();
+  const workload = useChiffreurWorkload();
 
   const [open, setOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Chiffreur | null>(null);
@@ -91,11 +93,24 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
         <SelectContent>
           {chiffreurs
             .filter((c) => c.active)
-            .map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.nom}
-              </SelectItem>
-            ))}
+            .map((c) => {
+              const count = workload[c.id] || 0;
+              return (
+                <SelectItem key={c.id} value={c.id}>
+                  <span className="flex items-center gap-2">
+                    <span>{c.nom}</span>
+                    {count > 0 && (
+                      <span
+                        className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold tabular-nums dark:bg-amber-900/40 dark:text-amber-300"
+                        title={`${count} dossier(s) en cours`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </span>
+                </SelectItem>
+              );
+            })}
         </SelectContent>
       </Select>
 

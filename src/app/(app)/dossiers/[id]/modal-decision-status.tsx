@@ -27,7 +27,7 @@ import { fr } from 'date-fns/locale';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
 import { useOptions } from '@/hooks/use-options';
-import { statuses as defaultStatuses } from '@/lib/dossiers-data';
+import { statuses as defaultStatuses, agentTerrainStatuses } from '@/lib/dossiers-data';
 import { logHistorique, logWorkflow } from './log-historique';
 import { addObservation } from './log-observation';
 import { Input } from '@/components/ui/input';
@@ -68,13 +68,17 @@ export default function ModalDecisionStatus({
   const { profile } = useCurrentUser();
 
   const { options: dbStatuses } = useOptions('options_statuts', defaultStatuses);
-  const statusOptions = useMemo(
-    () =>
-      dbStatuses.length > 0
-        ? dbStatuses.map((s) => s.label)
-        : defaultStatuses,
-    [dbStatuses]
-  );
+  const isAgentTerrain = profile?.role === 'Agent de Terrain';
+  const statusOptions = useMemo(() => {
+    const all = dbStatuses.length > 0 ? dbStatuses.map((s) => s.label) : defaultStatuses;
+    if (isAgentTerrain) {
+      const allowed = new Set<string>(agentTerrainStatuses);
+      const fromDb = all.filter((s) => allowed.has(s));
+      const missing = (agentTerrainStatuses as readonly string[]).filter((s) => !fromDb.includes(s));
+      return [...fromDb, ...missing];
+    }
+    return all;
+  }, [dbStatuses, isAgentTerrain]);
 
   const [selectedStatus, setSelectedStatus] = useState('');
   const [observation, setObservation] = useState('');

@@ -1,7 +1,7 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAuth, setPersistence, browserSessionPersistence, type Auth } from 'firebase/auth';
-import { getFirestore, initializeFirestore, memoryLocalCache, type Firestore } from 'firebase/firestore';
-import { getStorage, type FirebaseStorage } from 'firebase/storage';
+import { getAuth, setPersistence, browserSessionPersistence, connectAuthEmulator, type Auth } from 'firebase/auth';
+import { getFirestore, initializeFirestore, memoryLocalCache, connectFirestoreEmulator, type Firestore } from 'firebase/firestore';
+import { getStorage, connectStorageEmulator, type FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCVP_zYN5n2MI-tXjbcknQS1DGqOHCYZ2U",
@@ -11,6 +11,9 @@ const firebaseConfig = {
   messagingSenderId: "588304904574",
   appId: "1:588304904574:web:26b8dd1d7f19241c7c832f",
 };
+
+const useEmulator =
+  process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true';
 
 export function initializeFirebase() {
   if (getApps().length > 0) {
@@ -28,8 +31,17 @@ export function initializeFirebase() {
   setPersistence(auth, browserSessionPersistence);
   const db = initializeFirestore(app, {
     localCache: memoryLocalCache(),
+    experimentalForceLongPolling: true,
+    useFetchStreams: false,
   });
   const storage = getStorage(app);
+
+  if (useEmulator && typeof window !== 'undefined') {
+    const host = '127.0.0.1';
+    connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
+    connectFirestoreEmulator(db, host, 8080);
+    connectStorageEmulator(storage, host, 9199);
+  }
 
   return { app, auth, db, storage };
 }

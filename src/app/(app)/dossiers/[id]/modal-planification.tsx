@@ -33,9 +33,19 @@ import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useAgentTerrainWorkload } from '@/hooks/use-workload-counts';
 
 const defaultRDVTypes = ['Avant', 'En cours', 'Après'];
 const defaultAgents = ['Agent 1', 'Agent 2'];
+
+/** Maps a planification typeMission to the canonical dossier status. */
+function planifiedStatusFor(typeMission: string): string | null {
+  const t = (typeMission || '').trim().toLowerCase();
+  if (t === 'avant') return 'Expertise programmée avant';
+  if (t === 'en cours') return 'Expertise programmée en cours';
+  if (t === 'après' || t === 'apres') return 'Expertise programmée après';
+  return null;
+}
 
 type ModalPlanificationProps = {
   open: boolean;
@@ -57,6 +67,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
 
   const { options: dbAgents } = useOptions('options_agents', defaultAgents);
   const agents = useMemo(() => dbAgents.length > 0 ? dbAgents : defaultAgents.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbAgents]);
+  const agentWorkload = useAgentTerrainWorkload();
 
   const [formData, setFormData] = useState({
     agentTerrain: '',
@@ -141,6 +152,19 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         toast({ title: "Nouvelle planification créée" });
       }
 
+      const plannedStatus = planifiedStatusFor(formData.typeMission);
+      if (plannedStatus) {
+        await updateDoc(doc(db, 'dossiers', dossierId), { statut: plannedStatus });
+        await logHistorique(
+          db,
+          dossierId,
+          plannedStatus,
+          userEmail,
+          `Statut mis à jour automatiquement par la planification (${formData.typeMission}).`,
+          'statut'
+        );
+      }
+
       // Persist observation to subcollection for history
       if (formData.observation) {
         await addObservation(db, dossierId, formData.observation, 'Planification', profile?.nom || userEmail, userEmail, profile?.role || 'Gestionnaire', 'dossiers');
@@ -172,11 +196,24 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
               <Select value={formData.agentTerrain} onValueChange={(v) => setFormData({...formData, agentTerrain: v})}>
                 <SelectTrigger><SelectValue placeholder="Choisir un agent" /></SelectTrigger>
                 <SelectContent>
-                  {agents.map(agent => (
-                    <SelectItem key={agent.id} value={agent.label}>
-                      {agent.label}
-                    </SelectItem>
-                  ))}
+                  {agents.map(agent => {
+                    const count = agentWorkload[agent.label] || 0;
+                    return (
+                      <SelectItem key={agent.id} value={agent.label}>
+                        <span className="flex items-center gap-2">
+                          <span>{agent.label}</span>
+                          {count > 0 && (
+                            <span
+                              className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold tabular-nums dark:bg-amber-900/40 dark:text-amber-300"
+                              title={`${count} mission(s) en cours`}
+                            >
+                              {count}
+                            </span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

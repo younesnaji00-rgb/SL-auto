@@ -10,13 +10,14 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { getApp } from 'firebase/app';
+import { canonicalStatuts } from './dossiers-data';
 
 // Module-level guard — prevents multiple seeds in the same browser session
 const _seeded = new Set<string>();
 
 const ALL_DEFAULTS: Record<string, string[]> = {
   options_natures: ['Classique', 'Contradictoire 1er', 'Contradictoire 2ème', 'Arbitrage', 'Réforme', 'Collégiale', 'Forfait', 'Appréciation', 'EAD'],
-  options_statuts: ['Accord devis', 'Accord devis rectifié 2', 'Accord devis refusé', 'Accord facture garage', 'Att Signature 2ème expert', 'Avis de réforme', 'Avis dommage', 'Assigné au chiffrage', 'Expertise programmée en cours'],
+  options_statuts: ['Création de dossier', 'Accord devis', 'Accord devis rectifié 2', 'Accord devis refusé', 'Accord facture garage', 'Att Signature 2ème expert', 'Avis de réforme', 'Avis dommage', 'Assigné au chiffrage', 'Expertise programmée avant', 'Expertise programmée en cours', 'Expertise programmée après', 'Avis de véhicule expertisé avant', 'Avis de véhicule expertisé en cours', 'Avis de véhicule expertisé après', 'Avis de véhicule non expertisé avant', 'Avis de véhicule non expertisé en cours', 'Avis de véhicule non expertisé après'],
   options_types_rdv: ['Avant', 'En cours', 'Après'],
   options_types_documents: ['Rapport d\'expertise', 'Devis', 'Facture', 'Photos avant expertise', 'Photos après expertise', 'Photos au moment du sinistre', 'PV de constat', 'Carte grise', 'Permis de conduire', 'Attestation d\'assurance'],
   options_roles: ['Admin', 'Responsable technique', 'Responsable d\'équipe', 'Gestionnaire', 'Chiffreur', 'Agent de Terrain'],
@@ -83,4 +84,37 @@ export async function seedAllOptions(db: Firestore): Promise<void> {
   await Promise.all(
     Object.keys(ALL_DEFAULTS).map((col) => seedCollectionOnce(db, col))
   );
+}
+
+/**
+ * Ensures every canonical status label the app depends on exists in
+ * `options_statuts`. Invoked on-demand by the admin "Synchroniser les statuts
+ * canoniques" button in OptionsManagerModal — intentionally not part of app
+ * startup (running it alongside onSnapshot on the same collection triggered a
+ * Firestore SDK target-table drift, assertion ID ca9).
+ *
+ * Returns the count of labels actually inserted.
+ */
+export async function reconcileCanonicalStatuts(db: Firestore): Promise<number> {
+  const colRef = collection(db, 'options_statuts');
+  const snap = await getDocs(colRef);
+  const existing = new Set(
+    snap.docs.map((d) => String(d.data().label || '').trim())
+  );
+  const missing = canonicalStatuts.filter((l) => !existing.has(l));
+  if (missing.length === 0) return 0;
+
+  const baseOrder = snap.size;
+  const batch = writeBatch(db);
+  missing.forEach((label, i) => {
+    const ref = doc(colRef);
+    batch.set(ref, {
+      label,
+      order: baseOrder + i,
+      active: true,
+      createdAt: serverTimestamp(),
+    });
+  });
+  await batch.commit();
+  return missing.length;
 }
