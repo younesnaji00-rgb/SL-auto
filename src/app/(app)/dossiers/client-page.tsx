@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, Loader2, Settings, Users, X, Download } from 'lucide-react';
+import { Search, Trash2, AlertCircle, Eye, History, Loader2, Settings, Users, X, Download, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,8 @@ import { natures as defaultNatures, statuses as defaultStatuses, compagnies as d
 import { useToast } from '@/hooks/use-toast';
 import { useDossiers } from '@/hooks/use-dossiers';
 import { useAuth, useFirestore } from '@/firebase';
-import { logWorkflow } from './[id]/log-historique';
+import { logHistorique, logWorkflow } from './[id]/log-historique';
+import { createEmptyDossier } from '@/lib/create-empty-dossier';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import WorkflowStatusSheet from './workflow-status-sheet';
@@ -73,6 +74,7 @@ export default function DossiersClientPage() {
   const [filters, setFilters, clearFilter] = usePersistedFilters('dossiers', filterDefaults);
   const rowsPerPage = filters.rowsPerPage;
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [workflowDossier, setWorkflowDossier] = useState<any>(null);
   const [assignmentDossier, setAssignmentDossier] = useState<any>(null);
   const [statusHistoryDossier, setStatusHistoryDossier] = useState<any>(null);
@@ -166,6 +168,25 @@ export default function DossiersClientPage() {
   }, []);
 
   const allVisibleSelected = dossierList.length > 0 && dossierList.every(d => selectedRows.has(d.id));
+
+  const handleCreate = async () => {
+    const fbUser = auth?.currentUser;
+    if (!fbUser || !db) return;
+    try {
+      setIsCreating(true);
+      const userName = profile ? `${profile.prenom} ${profile.nom}`.trim() || profile.email || fbUser.email || 'Utilisateur' : (fbUser.displayName || fbUser.email || 'Utilisateur');
+      const id = await createEmptyDossier({
+        db,
+        user: { uid: fbUser.uid, displayName: fbUser.displayName, email: fbUser.email },
+      });
+      await logHistorique(db, id, 'Création de dossier', userName, 'Dossier vide créé depuis la liste', 'statut');
+      router.push(`/dossiers/${id}`);
+    } catch (e: any) {
+      console.error('Create empty dossier error:', e);
+      toast({ variant: 'destructive', title: 'Erreur', description: e?.message || 'Impossible de créer le dossier' });
+      setIsCreating(false);
+    }
+  };
 
   const handleDeleteDossier = async (dossierId: string) => {
     if (!window.confirm('SUPPRIMER CE DOSSIER DÉFINITIVEMENT ?\nCette action supprimera également tous les documents, photos et l\'historique associés.')) return;
@@ -302,7 +323,13 @@ export default function DossiersClientPage() {
           </div>
         </div>
       ) : (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          {canEditDossiers && (
+            <Button size="sm" onClick={handleCreate} disabled={isCreating}>
+              {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+              Créer un dossier
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setExportMode(true)}>
             <Download className="mr-2 h-4 w-4" />
             Exporter
