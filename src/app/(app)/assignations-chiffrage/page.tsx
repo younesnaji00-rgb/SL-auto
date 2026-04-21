@@ -9,7 +9,10 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { Calculator, Loader2, FileText, ChevronDown, ChevronRight, ImageIcon, Clock, X } from 'lucide-react';
+import { Calculator, FileText, ChevronDown, ChevronRight, ImageIcon, Clock, X } from 'lucide-react';
+import { DeadlineBar } from '@/components/deadline-bar';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonRow } from '@/components/ui/skeleton';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -58,47 +61,6 @@ const photoCatLabels: Record<string, string> = {
   en_cours: 'Photos En cours',
   apres: 'Photos Après',
 };
-
-function DeadlineBar({ percent, overdue, nature }: { percent: number; overdue: boolean; nature: string }) {
-  const isContradictoire = nature.toLowerCase().startsWith('contradictoire');
-  const label = isContradictoire ? '48h' : '24h';
-  const rounded = Math.round(percent);
-
-  // Color stops: blue (0%) > green (33%) > orange (66%) > red (100%)
-  const getBarColor = (p: number) => {
-    if (p <= 25) return 'from-blue-500 to-cyan-400';
-    if (p <= 50) return 'from-cyan-400 to-green-400';
-    if (p <= 75) return 'from-green-400 to-orange-400';
-    return 'from-orange-400 to-red-500';
-  };
-
-  const getTextColor = (p: number) => {
-    if (p <= 25) return 'text-blue-600 dark:text-blue-400';
-    if (p <= 50) return 'text-green-600 dark:text-green-400';
-    if (p <= 75) return 'text-orange-600 dark:text-orange-400';
-    return 'text-red-600 dark:text-red-400';
-  };
-
-  return (
-    <div className="flex flex-col gap-1 min-w-[120px]">
-      <div className="flex items-center justify-between">
-        <span className={cn('text-[10px] font-bold', getTextColor(rounded))}>
-          {overdue ? 'En retard' : `${rounded}%`}
-        </span>
-        <span className="text-[9px] text-muted-foreground font-medium">{label}</span>
-      </div>
-      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-        <div
-          className={cn(
-            'h-full rounded-full bg-gradient-to-r transition-all duration-500',
-            overdue ? 'from-red-500 to-red-600' : getBarColor(rounded)
-          )}
-          style={{ width: `${Math.min(rounded, 100)}%` }}
-        />
-      </div>
-    </div>
-  );
-}
 
 export default function AssignationsChiffragePage() {
   const db = useFirestore();
@@ -342,16 +304,23 @@ export default function AssignationsChiffragePage() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow>
-                  <TableCell colSpan={colCount} className="text-center py-12">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
-                  </TableCell>
-                </TableRow>
+                Array.from({ length: 6 }).map((_, i) => (
+                  <TableRow key={`sk-${i}`}>
+                    <TableCell colSpan={colCount} className="p-0">
+                      <SkeletonRow />
+                    </TableCell>
+                  </TableRow>
+                ))
               ) : filteredChiffrages.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={colCount} className="text-center py-12 text-muted-foreground">
-                    <FileText className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                    Aucune assignation au chiffrage.
+                  <TableCell colSpan={colCount} className="p-0">
+                    <EmptyState
+                      icon={<Calculator />}
+                      title="Aucun chiffrage assigné"
+                      description="Les nouvelles assignations de chiffrage apparaîtront ici."
+                      dashed={false}
+                      className="border-0 bg-transparent py-10"
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -364,7 +333,7 @@ export default function AssignationsChiffragePage() {
                   const deadline = getDeadlineInfo(c.createdAt, nature);
 
                   return (
-                    <TableRow key={c.id} className={cn('hover:bg-muted/50 transition-colors align-top', today && 'bg-blue-50/50 dark:bg-blue-950/20')}>
+                    <TableRow key={c.id} className={cn('hover:bg-muted/50 transition-colors align-top', today && 'bg-[hsl(var(--primary)/0.06)]')}>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Link
@@ -374,8 +343,8 @@ export default function AssignationsChiffragePage() {
                             {c.dossierNom || 'Sans ref.'}
                           </Link>
                           {today && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 animate-pulse">
-                              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary animate-pulse">
+                              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                               aujourd&apos;hui
                             </span>
                           )}

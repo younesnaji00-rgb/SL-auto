@@ -9,7 +9,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { UserCheck, Loader2, Calendar, MapPin, X, ChevronDown, Clock, CheckCircle2 } from 'lucide-react';
+import { UserCheck, Calendar, MapPin, X, ChevronDown, Clock, CheckCircle2 } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonRow } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import {
@@ -119,11 +121,11 @@ function DeadlineBar({
   if (completed) {
     return (
       <div className="flex items-center gap-1.5 min-w-[140px]">
-        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
         {completedStatus && (
           <Badge
             variant="outline"
-            className="text-[10px] font-semibold border-green-300 bg-green-50 text-green-700 dark:bg-green-950/30 dark:border-green-700 dark:text-green-400 whitespace-nowrap"
+            className="text-[10px] font-semibold border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800/60 dark:text-emerald-200 whitespace-nowrap"
           >
             {completedStatus}
           </Badge>
@@ -132,19 +134,17 @@ function DeadlineBar({
     );
   }
 
-  // Color stops: blue (0%) > green (33%) > orange (66%) > red (100%)
+  // Semantic three-band: ≤50% teal (plenty of time), ≤80% amber (attention), >80% red (urgent).
   const getBarColor = (pct: number) => {
-    if (pct <= 25) return 'from-blue-500 to-blue-400';
-    if (pct <= 50) return 'from-blue-500 via-green-500 to-green-400';
-    if (pct <= 75) return 'from-blue-500 via-green-500 to-orange-500';
-    return 'from-blue-500 via-orange-500 to-red-500';
+    if (pct <= 50) return 'bg-primary';
+    if (pct <= 80) return 'bg-amber-500';
+    return 'bg-destructive';
   };
 
   const getTextColor = (pct: number) => {
-    if (pct <= 25) return 'text-blue-600';
-    if (pct <= 50) return 'text-green-600';
-    if (pct <= 75) return 'text-orange-600';
-    return 'text-red-600';
+    if (pct <= 50) return 'text-primary';
+    if (pct <= 80) return 'text-amber-600 dark:text-amber-400';
+    return 'text-destructive';
   };
 
   if (pending) {
@@ -160,11 +160,11 @@ function DeadlineBar({
     <div className="flex items-center gap-2 min-w-[140px]">
       <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
         <div
-          className={cn('h-full rounded-full bg-gradient-to-r transition-all', getBarColor(percent))}
+          className={cn('h-full rounded-full transition-all', expired ? 'bg-destructive animate-pulse' : getBarColor(percent))}
           style={{ width: `${percent}%` }}
         />
       </div>
-      <span className={cn('text-[10px] font-bold tabular-nums whitespace-nowrap', getTextColor(percent))}>
+      <span className={cn('text-[10px] font-semibold tabular-nums whitespace-nowrap', expired ? 'text-destructive' : getTextColor(percent))}>
         {expired ? 'En retard' : `${percent}%`}
       </span>
     </div>
@@ -412,8 +412,8 @@ export default function AssignationsATGPage() {
     });
 
     return [
-      { key: 'today' as const, label: "Aujourd'hui", items: todayGroup, color: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
-      { key: 'expired' as const, label: 'En retard', items: expiredGroup, color: 'bg-red-500/10 text-red-700 dark:text-red-400' },
+      { key: 'today' as const, label: "Aujourd'hui", items: todayGroup, color: 'bg-[hsl(var(--primary)/0.12)] text-primary' },
+      { key: 'expired' as const, label: 'En retard', items: expiredGroup, color: 'bg-destructive/10 text-destructive' },
       { key: 'future' as const, label: 'À venir', items: futureGroup, color: 'bg-muted text-muted-foreground' },
     ];
   }, [filteredPlanifications]);
@@ -542,15 +542,22 @@ export default function AssignationsATGPage() {
 
       {loading ? (
         <Card className="shadow-sm overflow-hidden">
-          <CardContent className="text-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+          <CardContent className="p-0">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <SkeletonRow key={i} />
+            ))}
           </CardContent>
         </Card>
       ) : filteredPlanifications.length === 0 ? (
         <Card className="shadow-sm overflow-hidden">
-          <CardContent className="text-center py-12 text-muted-foreground">
-            <Calendar className="h-8 w-8 mx-auto mb-2 opacity-20" />
-            Aucune planification {activeTab.toLowerCase()} trouvée.
+          <CardContent className="p-0">
+            <EmptyState
+              icon={<Calendar />}
+              title={`Aucune mission ${activeTab.toLowerCase()}`}
+              description="Les nouvelles assignations apparaîtront ici."
+              dashed={false}
+              className="border-0 bg-transparent py-10"
+            />
           </CardContent>
         </Card>
       ) : (
