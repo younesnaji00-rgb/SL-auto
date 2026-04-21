@@ -31,7 +31,7 @@ export function initializeFirebase() {
   setPersistence(auth, browserSessionPersistence);
   const db = initializeFirestore(app, {
     localCache: memoryLocalCache(),
-    experimentalForceLongPolling: true,
+    experimentalAutoDetectLongPolling: true,
   });
   const storage = getStorage(app);
 

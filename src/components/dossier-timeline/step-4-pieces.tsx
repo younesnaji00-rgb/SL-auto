@@ -2,10 +2,12 @@
 
 import React from 'react';
 import type { DocumentReference } from 'firebase/firestore';
-import { Camera, FileText } from 'lucide-react';
+import { Camera, FileText, FolderOpen, Upload } from 'lucide-react';
 
+import DocumentsTab from '@/app/(app)/dossiers/[id]/documents-tab';
 import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
 import TypedDocumentsGrid from './typed-documents-grid';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export interface Step4PiecesProps {
   dossierId: string;
@@ -15,10 +17,6 @@ export interface Step4PiecesProps {
 }
 
 export default function Step4Pieces({ dossierId }: Step4PiecesProps) {
-  // Thin wrapper that stacks the existing Documents and Photos tabs as
-  // sub-sections (no inner tabs) so the timeline keeps its scroll-first
-  // reading flow. Only `dossierId` is forwarded; both child tabs pull
-  // everything else from their own Firestore subscriptions.
   return (
     <div className="space-y-8">
       <section>
@@ -26,7 +24,22 @@ export default function Step4Pieces({ dossierId }: Step4PiecesProps) {
           <FileText className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-base font-semibold">Documents</h3>
         </div>
-        <TypedDocumentsGrid dossierId={dossierId} />
+        <Tabs defaultValue="browse" className="w-full">
+          <TabsList>
+            <TabsTrigger value="browse" className="gap-1.5">
+              <FolderOpen className="h-4 w-4" /> Documents
+            </TabsTrigger>
+            <TabsTrigger value="import" className="gap-1.5">
+              <Upload className="h-4 w-4" /> Importer un document
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="browse" className="mt-4">
+            <DocumentsTab dossierId={dossierId} />
+          </TabsContent>
+          <TabsContent value="import" className="mt-4">
+            <TypedDocumentsGrid dossierId={dossierId} />
+          </TabsContent>
+        </Tabs>
       </section>
 
       <section>
