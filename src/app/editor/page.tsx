@@ -841,12 +841,12 @@ export default function EditorPage() {
         <div className="flex-1" />
 
         {/* Save & Export */}
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 px-2" onClick={handleSave} disabled={isSaving || !isChiffrageFile} title={!isChiffrageFile ? 'Lecture seule (fichier dossier)' : ''}>
-          {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 px-2" onClick={handleSave} loading={isSaving} disabled={!isChiffrageFile} title={!isChiffrageFile ? 'Lecture seule (fichier dossier)' : ''}>
+          {isSaving ? null : <Save className="h-3 w-3" />}
           Enregistrer
         </Button>
-        <Button variant="default" size="sm" className="h-7 text-xs gap-1 px-2" onClick={handleExport} disabled={isExporting}>
-          {isExporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+        <Button variant="default" size="sm" className="h-7 text-xs gap-1 px-2" onClick={handleExport} loading={isExporting}>
+          {isExporting ? null : <Download className="h-3 w-3" />}
           Exporter PDF
         </Button>
       </div>
@@ -886,7 +886,7 @@ export default function EditorPage() {
                       >
                         <img src={s.dataUrl} alt={s.name} className="max-w-full max-h-full object-contain" draggable={false} />
                         <button
-                          className="absolute -top-1.5 -right-1.5 bg-destructive text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                          className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity shadow"
                           onClick={(e) => { e.stopPropagation(); handleDeleteStamp(s.id); }}
                         >
                           <X className="h-2.5 w-2.5" />
@@ -1287,7 +1287,7 @@ const AnnotationElement = memo(function AnnotationElement({ annotation: a, isSel
           <div
             className={cn(
               'absolute inset-0 rounded transition-colors',
-              isSelected ? 'bg-blue-500/10 ring-2 ring-blue-500' : 'hover:bg-blue-500/5'
+              isSelected ? 'bg-primary/10 ring-2 ring-primary' : 'hover:bg-primary/5'
             )}
           />
         </>
@@ -1322,7 +1322,7 @@ const AnnotationElement = memo(function AnnotationElement({ annotation: a, isSel
       {a.type === 'stamp' && a.stampUrl && (
         <div className={cn(
           'w-full h-full',
-          isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''
+          isSelected ? 'ring-2 ring-primary ring-offset-1' : ''
         )}>
           <img
             src={a.stampUrl}
@@ -1337,7 +1337,7 @@ const AnnotationElement = memo(function AnnotationElement({ annotation: a, isSel
       {(isSelected || a.type === 'line' || a.type === 'stamp') && (
         <button
           className={cn(
-            'absolute -top-3 -right-3 bg-destructive text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow-lg hover:scale-110 transition-all',
+            'absolute -top-3 -right-3 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs shadow-lg hover:scale-110 transition-all',
             isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}
           onClick={e => { e.stopPropagation(); onDelete(); }}
