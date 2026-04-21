@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 const MIN_STEP = 1;
-const MAX_STEP = 6;
+const MAX_STEP = 7;
 
 function storageKey(dossierId: string) {
   return `dossier-${dossierId}-step`;

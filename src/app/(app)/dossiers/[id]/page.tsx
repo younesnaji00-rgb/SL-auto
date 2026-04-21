@@ -11,8 +11,6 @@ import {
   Download,
   GitBranch,
   Loader2,
-  MessageSquare,
-  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDoc, useFirestore } from '@/firebase';
@@ -27,6 +25,7 @@ import { generateRapportPDF } from '@/lib/generate-rapport-pdf';
 import { Timeline, DOSSIER_TIMELINE_STEPS } from '@/components/dossier-timeline/timeline';
 import { useLastStep } from '@/hooks/use-last-step';
 import Step1Import from '@/components/dossier-timeline/step-1-import';
+import Step2Observations from '@/components/dossier-timeline/step-2-observations';
 import Step2Information from '@/components/dossier-timeline/step-2-information';
 import Step3Planification from '@/components/dossier-timeline/step-3-planification';
 import Step4Pieces from '@/components/dossier-timeline/step-4-pieces';
@@ -35,9 +34,6 @@ import Step6Rapport from '@/components/dossier-timeline/step-6-rapport';
 
 // ── Historique (kept for drawer dialog; full drawer in task #17) ─────────────
 import HistoriqueTab from './historique-tab';
-
-// ── Observations (consolidated at top of page) ───────────────────────────────
-import ObservationsTab from '@/components/observations-tab';
 
 // ── Modals ────────────────────────────────────────────────────────────────────
 import ModalPlanification from './modal-planification';
@@ -76,7 +72,6 @@ export default function DossierDetailPage({
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
   const [isHistoriqueOpen, setHistoriqueOpen] = useState(false);
-  const [observationsOpen, setObservationsOpen] = useState(false);
 
   const renderAssure = (assure: any) => {
     if (!assure) return 'N/A';
@@ -149,24 +144,6 @@ export default function DossierDetailPage({
         </div>
       </div>
 
-      {/* OBSERVATIONS (collapsible, above the sticky action bar) */}
-      <div className="bg-card border-b px-6 py-2">
-        <button
-          type="button"
-          onClick={() => setObservationsOpen(o => !o)}
-          className="flex items-center gap-2 text-sm font-semibold"
-        >
-          <MessageSquare className="h-4 w-4" />
-          Observations
-          <ChevronDown className={cn("h-4 w-4 transition-transform", observationsOpen && "rotate-180")} />
-        </button>
-        {observationsOpen && (
-          <div className="mt-3">
-            <ObservationsTab dossierId={id} section="dossiers" />
-          </div>
-        )}
-      </div>
-
       {/* ACTION BUTTONS ROW */}
       {!readOnly && (
       <div className="bg-card border-b px-6 py-2 flex flex-wrap gap-2 items-center sticky top-0 z-40">
@@ -206,11 +183,12 @@ export default function DossierDetailPage({
           steps={DOSSIER_TIMELINE_STEPS}
           sections={{
             1: <Step1Import dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
-            2: <Step2Information dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
-            3: <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
-            4: <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
-            5: <Step5Chiffrage dossierId={id} dossier={dossier} />,
-            6: <Step6Rapport dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
+            2: <Step2Observations dossierId={id} />,
+            3: <Step2Information dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
+            4: <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
+            5: <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
+            6: <Step5Chiffrage dossierId={id} dossier={dossier} />,
+            7: <Step6Rapport dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
           }}
           activeStep={activeStep}
           onActiveStepChange={setActiveStep}
