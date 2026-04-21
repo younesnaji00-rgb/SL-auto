@@ -39,7 +39,7 @@ import ModalPlanification from './modal-planification';
 import ModalChiffrage from './modal-chiffrage';
 import ModalReclamation from './modal-reclamation';
 import ModalDecisionStatus from './modal-decision-status';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 const STATUS_COLORS: Record<string, string> = {
   'Nouveau':    'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
@@ -207,12 +207,16 @@ export default function DossierDetailPage({
         currentObservationUpdatedBy={dossier.observationDecisionUpdatedBy}
         source="dossiers"
       />
-      <Dialog open={isHistoriqueOpen} onOpenChange={setHistoriqueOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Historique</DialogTitle></DialogHeader>
-          <HistoriqueTab dossierId={id} />
-        </DialogContent>
-      </Dialog>
+      <Sheet open={isHistoriqueOpen} onOpenChange={setHistoriqueOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Historique</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4">
+            <HistoriqueTab dossierId={id} />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
