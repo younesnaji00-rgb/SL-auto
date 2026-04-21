@@ -202,6 +202,7 @@ export default function DossierDetailPage({
       {/* TIMELINE CONTENT */}
       <div className="flex-1">
         <Timeline
+          dossierId={id}
           steps={DOSSIER_TIMELINE_STEPS}
           sections={{
             1: <Step1Import dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,

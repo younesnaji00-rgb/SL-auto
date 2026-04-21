@@ -1,33 +1,54 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { TimelineBar, type TimelineStep } from './timeline-bar';
+import { useCollapsedSteps } from '@/hooks/use-collapsed-steps';
 
 export interface TimelineSectionProps {
   id: number;
   label: string;
   children: React.ReactNode;
+  collapsed: boolean;
+  onToggle: () => void;
 }
 
-function TimelineSection({ id, label, children }: TimelineSectionProps) {
+function TimelineSection({ id, label, children, collapsed, onToggle }: TimelineSectionProps) {
   return (
     <section
       id={`step-${id}`}
       data-timeline-step={id}
-      className="min-h-[60vh] scroll-mt-24 py-6 border-b last:border-b-0"
+      className={cn(
+        'scroll-mt-24 py-6 border-b last:border-b-0',
+        !collapsed && 'min-h-[60vh]'
+      )}
     >
-      <div className="mb-4 flex items-baseline gap-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="mb-4 flex items-baseline gap-2 w-full text-left hover:bg-accent/40 rounded px-2 -mx-2 py-1 transition-colors"
+        aria-expanded={!collapsed}
+      >
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold">
           {id}
         </span>
-        <h2 className="text-lg font-bold">{label}</h2>
-      </div>
-      {children}
+        <h2 className="text-lg font-bold flex-1">{label}</h2>
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 text-muted-foreground transition-transform',
+            collapsed && '-rotate-90'
+          )}
+        />
+      </button>
+      {!collapsed && children}
     </section>
   );
 }
 
 export interface TimelineProps {
+  /** Dossier ID — used to scope per-step localStorage keys for collapse state. */
+  dossierId: string;
   steps: TimelineStep[];
   /** Mapping of step id → rendered content for that section. */
   sections: Record<number, React.ReactNode>;
@@ -73,9 +94,13 @@ function pickActiveStep(steps: TimelineStep[], thresholdTop: number): number | n
   return best?.id ?? steps[0]?.id ?? null;
 }
 
-export function Timeline({ steps, sections, activeStep, onActiveStepChange }: TimelineProps) {
+export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepChange }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const suppressScrollRef = useRef(false);
+
+  const orderedSteps = useMemo(() => [...steps].sort((a, b) => a.id - b.id), [steps]);
+  const stepIds = useMemo(() => orderedSteps.map((s) => s.id), [orderedSteps]);
+  const { isCollapsed, toggle } = useCollapsedSteps(dossierId, stepIds);
 
   // Smooth-scroll to a step when the bar is clicked.
   const handleStepClick = useCallback(
@@ -111,9 +136,17 @@ export function Timeline({ steps, sections, activeStep, onActiveStepChange }: Ti
     };
 
     scrollTarget.addEventListener('scroll', onScroll, { passive: true });
+    // Also listen on window so our programmatic dispatchEvent from the collapse
+    // toggle reaches us even when the true scroll container is an ancestor.
+    if (scrollTarget !== window) {
+      window.addEventListener('scroll', onScroll, { passive: true });
+    }
     onScroll(); // run once on mount
     return () => {
       scrollTarget.removeEventListener('scroll', onScroll);
+      if (scrollTarget !== window) {
+        window.removeEventListener('scroll', onScroll);
+      }
       if (frame) cancelAnimationFrame(frame);
     };
   }, [steps, activeStep, onActiveStepChange]);
@@ -131,14 +164,18 @@ export function Timeline({ steps, sections, activeStep, onActiveStepChange }: Ti
     }
   }, [activeStep]);
 
-  const orderedSteps = useMemo(() => [...steps].sort((a, b) => a.id - b.id), [steps]);
-
   return (
     <div ref={containerRef} className="w-full">
       <TimelineBar steps={orderedSteps} activeId={activeStep} onStepClick={handleStepClick} />
       <div className="px-3 sm:px-6 max-w-screen-xl mx-auto">
         {orderedSteps.map((step) => (
-          <TimelineSection key={step.id} id={step.id} label={step.label}>
+          <TimelineSection
+            key={step.id}
+            id={step.id}
+            label={step.label}
+            collapsed={isCollapsed(step.id)}
+            onToggle={() => toggle(step.id)}
+          >
             {sections[step.id] ?? null}
           </TimelineSection>
         ))}
