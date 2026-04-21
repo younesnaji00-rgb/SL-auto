@@ -11,6 +11,8 @@ import {
   Download,
   GitBranch,
   Loader2,
+  MessageSquare,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDoc, useFirestore } from '@/firebase';
@@ -33,6 +35,9 @@ import Step6Rapport from '@/components/dossier-timeline/step-6-rapport';
 
 // ── Historique (kept for drawer dialog; full drawer in task #17) ─────────────
 import HistoriqueTab from './historique-tab';
+
+// ── Observations (consolidated at top of page) ───────────────────────────────
+import ObservationsTab from '@/components/observations-tab';
 
 // ── Modals ────────────────────────────────────────────────────────────────────
 import ModalPlanification from './modal-planification';
@@ -71,6 +76,7 @@ export default function DossierDetailPage({
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
   const [isHistoriqueOpen, setHistoriqueOpen] = useState(false);
+  const [observationsOpen, setObservationsOpen] = useState(false);
 
   const renderAssure = (assure: any) => {
     if (!assure) return 'N/A';
@@ -141,6 +147,24 @@ export default function DossierDetailPage({
             {dossier.statut || 'Nouveau'}
           </span>
         </div>
+      </div>
+
+      {/* OBSERVATIONS (collapsible, above the sticky action bar) */}
+      <div className="bg-card border-b px-6 py-2">
+        <button
+          type="button"
+          onClick={() => setObservationsOpen(o => !o)}
+          className="flex items-center gap-2 text-sm font-semibold"
+        >
+          <MessageSquare className="h-4 w-4" />
+          Observations
+          <ChevronDown className={cn("h-4 w-4 transition-transform", observationsOpen && "rotate-180")} />
+        </button>
+        {observationsOpen && (
+          <div className="mt-3">
+            <ObservationsTab dossierId={id} section="dossiers" />
+          </div>
+        )}
       </div>
 
       {/* ACTION BUTTONS ROW */}
