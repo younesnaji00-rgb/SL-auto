@@ -39,7 +39,19 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Pencil, Trash2, Loader2, Eye, EyeOff, X } from 'lucide-react';
+import { Search, Pencil, Trash2, Eye, EyeOff, X, User as UserIcon } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonRow } from '@/components/ui/skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { roles as defaultRoles, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 import { useToast } from '@/hooks/use-toast';
@@ -97,6 +109,8 @@ export default function UtilisateursClientPage() {
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const form = useForm<UserFormData>({
     resolver: zodResolver(userFormSchema),
@@ -196,7 +210,7 @@ export default function UtilisateursClientPage() {
   }
 
   const handleDelete = async (userId: string) => {
-    if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) return;
+    setIsDeleting(true);
     try {
       const user = userList?.find((u: any) => u.id === userId);
       await deleteDoc(doc(db, 'users', userId));
@@ -216,6 +230,9 @@ export default function UtilisateursClientPage() {
       toast({ title: "Utilisateur supprimé" });
     } catch (error) {
       console.error(error);
+    } finally {
+      setIsDeleting(false);
+      setDeleteTarget(null);
     }
   };
 
@@ -238,8 +255,8 @@ export default function UtilisateursClientPage() {
       <div className="md:col-span-1">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
-            <Card className="border-0 shadow-sm rounded-xl">
-              <CardHeader className="bg-heading-bg rounded-t-xl">
+            <Card className="border shadow-sm rounded-lg">
+              <CardHeader>
                 <CardTitle>Ajouter un utilisateur</CardTitle>
                 <CardDescription>Créez un nouveau profil utilisateur.</CardDescription>
               </CardHeader>
@@ -250,7 +267,7 @@ export default function UtilisateursClientPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Nom complet</FormLabel>
-                      <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
+                      <FormControl><Input {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -319,8 +336,8 @@ export default function UtilisateursClientPage() {
                 />
               </CardContent>
               <CardFooter>
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Création...</> : "Ajouter l'utilisateur"}
+                <Button type="submit" className="w-full" loading={isSubmitting}>
+                  {isSubmitting ? 'Création...' : "Ajouter l'utilisateur"}
                 </Button>
               </CardFooter>
             </Card>
@@ -329,8 +346,8 @@ export default function UtilisateursClientPage() {
       </div>
 
       <div className="md:col-span-2">
-        <Card className="border-0 shadow-sm rounded-xl">
-          <CardHeader className="bg-heading-bg rounded-t-xl">
+        <Card className="border shadow-sm rounded-lg">
+          <CardHeader>
             <CardTitle>Gérer les utilisateurs</CardTitle>
             <CardDescription>Modifiez ou supprimez des profils existants.</CardDescription>
           </CardHeader>
@@ -345,23 +362,27 @@ export default function UtilisateursClientPage() {
                   onChange={e => setFilters({ search: e.target.value })}
                 />
               </div>
-              <div className="relative">
-                <Select value={filters.role} onValueChange={value => setFilters({ role: value })}>
-                  <SelectTrigger className="w-full sm:w-[200px]">
-                    <SelectValue placeholder="Filtrer par rôle" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Tous">Tous les rôles</SelectItem>
-                    {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {filters.role !== 'Tous' && (
-                  <button onClick={() => clearFilter('role')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
-                    <X className="h-2.5 w-2.5" />
-                  </button>
-                )}
-              </div>
+              <Select value={filters.role} onValueChange={value => setFilters({ role: value })}>
+                <SelectTrigger className="w-full sm:w-[200px]">
+                  <SelectValue placeholder="Filtrer par rôle" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Tous">Tous les rôles</SelectItem>
+                  {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
+            {filters.role !== 'Tous' && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Filtres actifs</span>
+                <Badge variant="outline" className="gap-1 pr-1">
+                  Rôle : {filters.role}
+                  <button onClick={() => clearFilter('role')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre rôle">
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              </div>
+            )}
             <div className="rounded-lg overflow-hidden bg-muted/10">
               <Table>
                 <TableHeader>
@@ -376,9 +397,25 @@ export default function UtilisateursClientPage() {
                 </TableHeader>
                 <TableBody>
                   {loading ? (
-                    <TableRow key="loading-users"><TableCell colSpan={6} className="text-center py-10">Chargement...</TableCell></TableRow>
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <TableRow key={`sk-${i}`}>
+                        <TableCell colSpan={6} className="p-0">
+                          <SkeletonRow />
+                        </TableCell>
+                      </TableRow>
+                    ))
                   ) : filteredUsers.length === 0 ? (
-                    <TableRow key="empty-users"><TableCell colSpan={6} className="text-center py-10">Aucun utilisateur trouvé.</TableCell></TableRow>
+                    <TableRow key="empty-users">
+                      <TableCell colSpan={6} className="p-0">
+                        <EmptyState
+                          icon={<UserIcon />}
+                          title="Aucun utilisateur trouvé"
+                          description={filters.search || filters.role !== 'Tous' ? "Essayez d'ajuster les filtres." : 'Commencez par ajouter un utilisateur.'}
+                          dashed={false}
+                          className="border-0 bg-transparent py-10"
+                        />
+                      </TableCell>
+                    </TableRow>
                   ) : (
                     filteredUsers.map((user: any) => (
                       <TableRow key={user.id}>
@@ -411,16 +448,16 @@ export default function UtilisateursClientPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={user.statut === 'Actif' ? 'expertise' : 'destructive'}>{user.statut || 'Actif'}</Badge>
+                          <Badge variant={user.statut === 'Actif' ? 'success' : 'destructive'}>{user.statut || 'Actif'}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                               <Link href={`/utilisateurs/${user.id}`} title="Modifier">
-                                <Pencil className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                <Pencil className="h-4 w-4 text-muted-foreground hover:text-foreground" />
                               </Link>
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(user.id)} title="Supprimer">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ id: user.id, nom: `${user.prenom || ''} ${user.nom || ''}`.trim() || 'cet utilisateur' })} title="Supprimer">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -434,6 +471,30 @@ export default function UtilisateursClientPage() {
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cet utilisateur ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.nom && <span className="font-semibold">{deleteTarget.nom}</span>} sera définitivement supprimé. Son compte Firebase, sa fiche et ses entrées dans les collections liées (options_agents / chiffreurs) seront retirés. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteTarget) handleDelete(deleteTarget.id);
+              }}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

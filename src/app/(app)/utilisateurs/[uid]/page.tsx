@@ -273,8 +273,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
               {formData.prenom} {formData.nom}
             </h1>
             <Badge variant="secondary">{formData.role}</Badge>
-            <Badge variant={formData.statut === 'Actif' ? 'expertise' : 'destructive'} className="flex gap-1 items-center">
-              <span className={`w-1.5 h-1.5 rounded-full ${formData.statut === 'Actif' ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
+            <Badge variant={formData.statut === 'Actif' ? 'success' : 'destructive'} className="flex gap-1 items-center">
+              <span className={`w-1.5 h-1.5 rounded-full ${formData.statut === 'Actif' ? 'bg-emerald-500' : 'bg-destructive'} animate-pulse`} />
               {formData.statut}
             </Badge>
           </div>
@@ -395,7 +395,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
               </div>
             </CardContent>
             <CardFooter className="flex justify-end bg-muted/30 pt-6">
-              <Button onClick={handleSave} disabled={isSaving}>
+              <Button onClick={handleSave} loading={isSaving}>
                 {isSaving ? 'Enregistrement...' : <><Save className="mr-2 h-4 w-4" /> Sauvegarder</>}
               </Button>
             </CardFooter>
@@ -433,7 +433,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                         const assureName = typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim() || 'N/A';
                         return (
                           <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/dossiers/${d.id}`)}>
-                            <TableCell className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">{d.refExpert || '-'}</TableCell>
+                            <TableCell className="font-mono text-xs font-semibold text-primary tabular-nums">{d.refExpert || '-'}</TableCell>
                             <TableCell>{assureName}</TableCell>
                             <TableCell>{d.nature || '-'}</TableCell>
                             <TableCell>
