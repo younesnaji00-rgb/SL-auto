@@ -38,12 +38,15 @@ interface CreateDossierDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (id: string) => void;
+  /** Optional compagnie to pre-fill the dialog (e.g. when opened from compagnie detail). */
+  initialCompagnie?: string;
 }
 
 export function CreateDossierDialog({
   open,
   onOpenChange,
   onCreated,
+  initialCompagnie,
 }: CreateDossierDialogProps) {
   const { toast } = useToast();
   const auth = useAuth();
@@ -54,15 +57,21 @@ export function CreateDossierDialog({
   const { options: dbNatures } = useOptions('options_natures', defaultNatures);
 
   const [refExpert, setRefExpert] = useState('');
-  const [compagnie, setCompagnie] = useState<string>(NONE_VALUE);
+  const [compagnie, setCompagnie] = useState<string>(initialCompagnie || NONE_VALUE);
   const [nature, setNature] = useState<string>(NONE_VALUE);
   const [assureNom, setAssureNom] = useState('');
   const [matricule, setMatricule] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
+  React.useEffect(() => {
+    if (open && initialCompagnie) {
+      setCompagnie(initialCompagnie);
+    }
+  }, [open, initialCompagnie]);
+
   const resetForm = () => {
     setRefExpert('');
-    setCompagnie(NONE_VALUE);
+    setCompagnie(initialCompagnie || NONE_VALUE);
     setNature(NONE_VALUE);
     setAssureNom('');
     setMatricule('');
