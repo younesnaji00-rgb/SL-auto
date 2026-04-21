@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -159,7 +158,8 @@ export function CreateDossierDialog({
               value={refExpert}
               onChange={(e) => setRefExpert(e.target.value)}
               disabled={isCreating}
-              placeholder="Ex: SL-2026-001"
+              placeholder="SL-2026-001"
+              autoFocus
             />
           </div>
 
@@ -222,7 +222,7 @@ export function CreateDossierDialog({
               value={matricule}
               onChange={(e) => setMatricule(e.target.value)}
               disabled={isCreating}
-              placeholder="Ex: 12345-A-6"
+              placeholder="12345-A-6"
             />
           </div>
         </div>
@@ -235,8 +235,7 @@ export function CreateDossierDialog({
           >
             Annuler
           </Button>
-          <Button onClick={handleConfirm} disabled={isCreating}>
-            {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button onClick={handleConfirm} loading={isCreating}>
             Créer
           </Button>
         </DialogFooter>

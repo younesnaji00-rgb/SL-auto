@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton, SkeletonRow } from '@/components/ui/skeleton';
 
 export default function DossiersLoading() {
   return (
@@ -18,8 +18,7 @@ export default function DossiersLoading() {
       </div>
 
       {/* Table */}
-      <div className="border rounded-xl bg-card">
-        {/* Table header */}
+      <div className="border rounded-lg bg-card overflow-hidden">
         <div className="flex items-center gap-4 px-4 py-3 border-b bg-muted/30">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-4 w-32" />
@@ -28,16 +27,8 @@ export default function DossiersLoading() {
           <Skeleton className="h-4 w-20" />
           <Skeleton className="h-4 w-16" />
         </div>
-        {/* Table rows */}
         {Array.from({ length: 10 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-4 px-4 py-3 border-b last:border-0">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-6 w-20 rounded-full" />
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-8 w-8 rounded" />
-          </div>
+          <SkeletonRow key={i} />
         ))}
       </div>
     </div>

@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, Loader2, Settings, Users, X, Download, Plus } from 'lucide-react';
+import { Search, Trash2, AlertCircle, Eye, History, Settings, Users, X, Download, Plus, FolderOpen } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,18 @@ import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/l
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { exportToExcel, type ExportColumn } from '@/lib/export-excel';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonRow } from '@/components/ui/skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'refExpert', label: 'Réf Expert' },
@@ -74,6 +86,7 @@ export default function DossiersClientPage() {
   const [filters, setFilters, clearFilter] = usePersistedFilters('dossiers', filterDefaults);
   const rowsPerPage = filters.rowsPerPage;
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; refExpert: string } | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [workflowDossier, setWorkflowDossier] = useState<any>(null);
   const [assignmentDossier, setAssignmentDossier] = useState<any>(null);
@@ -174,8 +187,6 @@ export default function DossiersClientPage() {
   };
 
   const handleDeleteDossier = async (dossierId: string) => {
-    if (!window.confirm('SUPPRIMER CE DOSSIER DÉFINITIVEMENT ?\nCette action supprimera également tous les documents, photos et l\'historique associés.')) return;
-    
     setDeletingId(dossierId);
     try {
       const dossier = allDossiers.find(d => d.id === dossierId);
@@ -190,6 +201,7 @@ export default function DossiersClientPage() {
       toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Suppression impossible' });
     } finally {
       setDeletingId(null);
+      setDeleteTarget(null);
     }
   };
 
@@ -227,56 +239,35 @@ export default function DossiersClientPage() {
         </div>
         
         <div className="flex items-center gap-1">
-          <div className="relative">
-            <Select value={filters.nature} onValueChange={v => setFilters({ nature: v })}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Nature du dossier" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Toutes">Toutes les natures</SelectItem>
-                {natures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {filters.nature !== 'Toutes' && (
-              <button onClick={() => clearFilter('nature')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
-                <X className="h-2.5 w-2.5" />
-              </button>
-            )}
-          </div>
+          <Select value={filters.nature} onValueChange={v => setFilters({ nature: v })}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Nature du dossier" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Toutes">Toutes les natures</SelectItem>
+              {natures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />
         </div>
 
         <div className="flex items-center gap-1">
-          <div className="relative">
-            <Select value={filters.status} onValueChange={v => setFilters({ status: v })}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Statut" /></SelectTrigger>
-              <SelectContent className="max-h-[300px]">
-                <SelectItem value="Tous">Tous les statuts</SelectItem>
-                {statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
-              </SelectContent>
-            </Select>
-            {filters.status !== 'Tous' && (
-              <button onClick={() => clearFilter('status')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
-                <X className="h-2.5 w-2.5" />
-              </button>
-            )}
-          </div>
+          <Select value={filters.status} onValueChange={v => setFilters({ status: v })}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Statut" /></SelectTrigger>
+            <SelectContent className="max-h-[300px]">
+              <SelectItem value="Tous">Tous les statuts</SelectItem>
+              {statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
+            </SelectContent>
+          </Select>
           <OptionsManagerModal collectionName="options_statuts" title="Statuts" defaultValues={defaultStatuses} />
         </div>
 
         <div className="flex items-center gap-1">
-          <div className="relative">
-            <Select value={filters.compagnie} onValueChange={v => setFilters({ compagnie: v })}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Compagnie" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
-                {compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {filters.compagnie !== 'Toutes' && (
-              <button onClick={() => clearFilter('compagnie')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
-                <X className="h-2.5 w-2.5" />
-              </button>
-            )}
-          </div>
+          <Select value={filters.compagnie} onValueChange={v => setFilters({ compagnie: v })}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Compagnie" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
+              {compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
         </div>
 
@@ -287,6 +278,67 @@ export default function DossiersClientPage() {
           onDateToChange={v => setFilters({ dateTo: v })}
         />
       </div>
+
+      {/* Active filters strip */}
+      {(filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.dateFrom || filters.dateTo) && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Filtres actifs</span>
+          {filters.nature !== 'Toutes' && (
+            <Badge variant="outline" className="gap-1 pr-1">
+              Nature : {filters.nature}
+              <button onClick={() => clearFilter('nature')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre nature">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {filters.status !== 'Tous' && (
+            <Badge variant="outline" className="gap-1 pr-1">
+              Statut : {filters.status}
+              <button onClick={() => clearFilter('status')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre statut">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {filters.compagnie !== 'Toutes' && (
+            <Badge variant="outline" className="gap-1 pr-1">
+              Compagnie : {filters.compagnie}
+              <button onClick={() => clearFilter('compagnie')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre compagnie">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {filters.dateFrom && (
+            <Badge variant="outline" className="gap-1 pr-1">
+              Du : {filters.dateFrom}
+              <button onClick={() => clearFilter('dateFrom')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer la date de début">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {filters.dateTo && (
+            <Badge variant="outline" className="gap-1 pr-1">
+              Au : {filters.dateTo}
+              <button onClick={() => clearFilter('dateTo')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer la date de fin">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs"
+            onClick={() => {
+              clearFilter('nature');
+              clearFilter('status');
+              clearFilter('compagnie');
+              clearFilter('dateFrom');
+              clearFilter('dateTo');
+            }}
+          >
+            Tout réinitialiser
+          </Button>
+        </div>
+      )}
 
       {/* Export toolbar */}
       {exportMode ? (
@@ -352,9 +404,34 @@ export default function DossiersClientPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={9} className="h-32 text-center text-muted-foreground">Chargement des dossiers...</TableCell></TableRow>
+              Array.from({ length: 8 }).map((_, i) => (
+                <TableRow key={`sk-${i}`}>
+                  <TableCell colSpan={9} className="p-0">
+                    <SkeletonRow />
+                  </TableCell>
+                </TableRow>
+              ))
             ) : dossierList.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="h-32 text-center text-muted-foreground italic">Aucun dossier trouvé.</TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={9} className="p-0">
+                  <EmptyState
+                    icon={<FolderOpen />}
+                    title="Aucun dossier trouvé"
+                    description={
+                      (filters.search || filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.dateFrom || filters.dateTo)
+                        ? "Essayez d'ajuster les filtres pour voir plus de résultats."
+                        : 'Créez votre premier dossier pour commencer.'
+                    }
+                    action={canEditDossiers ? (
+                      <Button onClick={handleOpenCreate}>
+                        <Plus className="mr-2 h-4 w-4" /> Nouveau dossier
+                      </Button>
+                    ) : null}
+                    dashed={false}
+                    className="border-0 bg-transparent py-10"
+                  />
+                </TableCell>
+              </TableRow>
             ) : (
               dossierList.slice(0, rowsPerPage).map(d => (
                 <TableRow
@@ -374,7 +451,7 @@ export default function DossiersClientPage() {
                       />
                     </TableCell>
                   )}
-                  <TableCell className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400">{d.refExpert}</TableCell>
+                  <TableCell className="font-mono text-sm font-semibold text-primary tabular-nums">{d.refExpert}</TableCell>
                   <TableCell>{renderAssure(d.assure)}</TableCell>
                   <TableCell>{d.compagnie || '-'}</TableCell>
                   <TableCell>{d.nature || '-'}</TableCell>
@@ -398,8 +475,8 @@ export default function DossiersClientPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{d.matricule || '-'}</TableCell>
-                  <TableCell>{formatDate(d.dateRequete)}</TableCell>
+                  <TableCell className="font-mono text-xs tabular-nums">{d.matricule || '-'}</TableCell>
+                  <TableCell className="tabular-nums">{formatDate(d.dateRequete)}</TableCell>
 
                   {!exportMode && (
                     <TableCell
@@ -416,7 +493,7 @@ export default function DossiersClientPage() {
                             router.push(`/dossiers/${d.id}`);
                           }}
                         >
-                          <Eye className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <Eye className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -427,7 +504,7 @@ export default function DossiersClientPage() {
                             setAssignmentDossier(d);
                           }}
                         >
-                          <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <Users className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -438,7 +515,7 @@ export default function DossiersClientPage() {
                             setWorkflowDossier(d);
                           }}
                         >
-                          <History className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <History className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
                         </Button>
                         {canEditDossiers && (
                           <Button
@@ -446,17 +523,13 @@ export default function DossiersClientPage() {
                             size="icon"
                             title="Supprimer"
                             className="text-destructive hover:text-destructive hover:bg-destructive/5"
-                            disabled={deletingId === d.id}
+                            loading={deletingId === d.id}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteDossier(d.id);
+                              setDeleteTarget({ id: d.id, refExpert: (d as any).refExpert || d.id });
                             }}
                           >
-                            {deletingId === d.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
+                            {deletingId === d.id ? null : <Trash2 className="h-4 w-4" />}
                           </Button>
                         )}
                       </div>
@@ -502,6 +575,30 @@ export default function DossiersClientPage() {
         onOpenChange={setIsCreateOpen}
         onCreated={(id) => router.push(`/dossiers/${id}`)}
       />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !deletingId && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce dossier ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action supprime définitivement le dossier {deleteTarget?.refExpert ? <span className="font-semibold">{deleteTarget.refExpert}</span> : ''} ainsi que tous les documents, photos et l&apos;historique associés. Elle est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingId}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!!deletingId}
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteTarget) handleDeleteDossier(deleteTarget.id);
+              }}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
