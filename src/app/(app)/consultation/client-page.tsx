@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search, AlertCircle, X } from 'lucide-react';
+import { Search, AlertCircle, X, FolderOpen } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
@@ -16,6 +16,9 @@ import { useDossiers } from '@/hooks/use-dossiers';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import { useOptions } from '@/hooks/use-options';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonRow } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 
 export default function ConsultationClientPage() {
   const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
@@ -78,6 +81,8 @@ export default function ConsultationClientPage() {
     return `${assure.nom || ''} ${assure.prenom || ''}`.trim() || 'N/A';
   };
 
+  const hasActiveFilters = filters.search || filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.dateFrom || filters.dateTo;
+
   return (
     <div className="space-y-4">
       {fetchError && (
@@ -99,50 +104,29 @@ export default function ConsultationClientPage() {
           />
         </div>
 
-        <div className="relative">
-          <Select value={filters.nature} onValueChange={v => setFilters({ nature: v })}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Nature du dossier" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Toutes">Toutes les natures</SelectItem>
-              {natures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          {filters.nature !== 'Toutes' && (
-            <button onClick={() => clearFilter('nature')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
-              <X className="h-2.5 w-2.5" />
-            </button>
-          )}
-        </div>
+        <Select value={filters.nature} onValueChange={v => setFilters({ nature: v })}>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Nature du dossier" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Toutes">Toutes les natures</SelectItem>
+            {natures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
 
-        <div className="relative">
-          <Select value={filters.status} onValueChange={v => setFilters({ status: v })}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Statut" /></SelectTrigger>
-            <SelectContent className="max-h-[300px]">
-              <SelectItem value="Tous">Tous les statuts</SelectItem>
-              {statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
-            </SelectContent>
-          </Select>
-          {filters.status !== 'Tous' && (
-            <button onClick={() => clearFilter('status')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
-              <X className="h-2.5 w-2.5" />
-            </button>
-          )}
-        </div>
+        <Select value={filters.status} onValueChange={v => setFilters({ status: v })}>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Statut" /></SelectTrigger>
+          <SelectContent className="max-h-[300px]">
+            <SelectItem value="Tous">Tous les statuts</SelectItem>
+            {statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
+          </SelectContent>
+        </Select>
 
-        <div className="relative">
-          <Select value={filters.compagnie} onValueChange={v => setFilters({ compagnie: v })}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Compagnie" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
-              {compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          {filters.compagnie !== 'Toutes' && (
-            <button onClick={() => clearFilter('compagnie')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
-              <X className="h-2.5 w-2.5" />
-            </button>
-          )}
-        </div>
+        <Select value={filters.compagnie} onValueChange={v => setFilters({ compagnie: v })}>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Compagnie" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
+            {compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
 
         <DateRangeFilter
           dateFrom={filters.dateFrom}
@@ -152,36 +136,112 @@ export default function ConsultationClientPage() {
         />
       </div>
 
+      {(filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.dateFrom || filters.dateTo) && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Filtres actifs</span>
+          {filters.nature !== 'Toutes' && (
+            <Badge variant="outline" className="gap-1 pr-1">
+              Nature : {filters.nature}
+              <button onClick={() => clearFilter('nature')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre nature">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {filters.status !== 'Tous' && (
+            <Badge variant="outline" className="gap-1 pr-1">
+              Statut : {filters.status}
+              <button onClick={() => clearFilter('status')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre statut">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {filters.compagnie !== 'Toutes' && (
+            <Badge variant="outline" className="gap-1 pr-1">
+              Compagnie : {filters.compagnie}
+              <button onClick={() => clearFilter('compagnie')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre compagnie">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {filters.dateFrom && (
+            <Badge variant="outline" className="gap-1 pr-1">
+              Du : {filters.dateFrom}
+              <button onClick={() => clearFilter('dateFrom')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer la date de début">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {filters.dateTo && (
+            <Badge variant="outline" className="gap-1 pr-1">
+              Au : {filters.dateTo}
+              <button onClick={() => clearFilter('dateTo')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer la date de fin">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs"
+            onClick={() => {
+              clearFilter('nature');
+              clearFilter('status');
+              clearFilter('compagnie');
+              clearFilter('dateFrom');
+              clearFilter('dateTo');
+            }}
+          >
+            Tout réinitialiser
+          </Button>
+        </div>
+      )}
+
       <Card className="overflow-hidden border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
               <TableHead>Ref Expert</TableHead>
-              <TableHead>Assure</TableHead>
+              <TableHead>Assuré</TableHead>
               <TableHead>Compagnie</TableHead>
               <TableHead>Nature du dossier</TableHead>
               <TableHead>Type Dossier</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead>Matricule</TableHead>
-              <TableHead>Date Requete</TableHead>
+              <TableHead>Date Requête</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={8} className="h-32 text-center text-muted-foreground">Chargement des dossiers...</TableCell></TableRow>
+              Array.from({ length: 8 }).map((_, i) => (
+                <TableRow key={`sk-${i}`}>
+                  <TableCell colSpan={8} className="p-0">
+                    <SkeletonRow />
+                  </TableCell>
+                </TableRow>
+              ))
             ) : dossierList.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="h-32 text-center text-muted-foreground italic">Aucun dossier trouve.</TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={8} className="p-0">
+                  <EmptyState
+                    icon={<FolderOpen />}
+                    title="Aucun dossier trouvé"
+                    description={hasActiveFilters ? "Essayez d'ajuster les filtres pour voir plus de résultats." : 'Aucun dossier dans le système.'}
+                    dashed={false}
+                    className="border-0 bg-transparent py-10"
+                  />
+                </TableCell>
+              </TableRow>
             ) : (
               dossierList.slice(0, rowsPerPage).map(d => (
                 <TableRow key={d.id} className="hover:bg-muted/50 transition-colors">
-                  <TableCell className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400">{d.refExpert}</TableCell>
+                  <TableCell className="font-mono text-sm font-semibold text-primary tabular-nums">{d.refExpert}</TableCell>
                   <TableCell>{renderAssure(d.assure)}</TableCell>
                   <TableCell className="text-xs">{d.compagnie || '-'}</TableCell>
                   <TableCell>{d.nature || '-'}</TableCell>
                   <TableCell>{d.typeDossier || '-'}</TableCell>
                   <TableCell><Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{d.statut || 'Nouveau'}</Badge></TableCell>
-                  <TableCell className="font-mono text-xs">{d.matricule || '-'}</TableCell>
-                  <TableCell>{formatDate(d.dateRequete)}</TableCell>
+                  <TableCell className="font-mono text-xs tabular-nums">{d.matricule || '-'}</TableCell>
+                  <TableCell className="tabular-nums">{formatDate(d.dateRequete)}</TableCell>
                 </TableRow>
               ))
             )}
@@ -198,7 +258,7 @@ export default function ConsultationClientPage() {
               {[10, 25, 50, 100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
             </SelectContent>
           </Select>
-          <span className="text-sm text-muted-foreground ml-4">Total: {dossierList.length} dossiers</span>
+          <span className="text-sm text-muted-foreground ml-4 tabular-nums">Total: {dossierList.length} dossiers</span>
         </div>
       </div>
     </div>

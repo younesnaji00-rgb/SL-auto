@@ -10,8 +10,10 @@ import { ref, getDownloadURL } from 'firebase/storage';
 import { useFirestore, useStorage } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, FileType, PencilLine, Eye } from 'lucide-react';
+import { ArrowLeft, FileType, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { SkeletonCard } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
 import Link from 'next/link';
 
 interface ChiffrageFileDoc {
@@ -104,14 +106,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
         </div>
         <div className="grid gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="border rounded-xl p-4 flex gap-4 items-start bg-card">
-              <div className="w-28 h-28 rounded-lg animate-pulse bg-muted shrink-0" />
-              <div className="flex-1 space-y-3">
-                <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-                <div className="h-3 w-full animate-pulse rounded bg-muted" />
-                <div className="h-8 w-32 animate-pulse rounded bg-muted" />
-              </div>
-            </div>
+            <SkeletonCard key={i} />
           ))}
         </div>
       </div>
@@ -125,23 +120,30 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
           <Link href="/dashboard"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">{chiffrage.dossierNom}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{chiffrage.dossierNom}</h1>
           <p className="text-muted-foreground text-sm">
             Correcteur assigné : {chiffrage.assignedChiffreurNom}
           </p>
         </div>
         <div className="ml-auto">
-          <Badge variant={chiffrage.status === 'done' ? 'expertise' : 'secondary'} className="gap-1.5 py-1 px-3">
-            {chiffrage.status === 'done' ? 'Termine' : 'En cours'}
+          <Badge variant={chiffrage.status === 'done' ? 'success' : 'secondary'} className="gap-1.5 py-1 px-3">
+            {chiffrage.status === 'done' ? 'Terminé' : 'En cours'}
           </Badge>
         </div>
       </div>
 
       <div className="grid gap-4">
+        {chiffrage.files.length === 0 && (
+          <EmptyState
+            icon={<FileType />}
+            title="Aucun fichier"
+            description="Aucun fichier n'a encore été associé à ce chiffrage."
+          />
+        )}
         {chiffrage.files.map((file, i) => (
           <div
             key={`${file.storagePath}-${i}`}
-            className="border rounded-xl p-4 flex flex-col sm:flex-row gap-4 items-start bg-card shadow-sm hover:shadow-md transition-all group cursor-pointer"
+            className="border rounded-lg p-4 flex flex-col sm:flex-row gap-4 items-start bg-card shadow-sm hover:shadow-md transition-all group cursor-pointer"
             onClick={() => router.push(`/viewer?chiffrageId=${id}&dossierId=${chiffrage.dossierId}&fileIndex=${i}`)}
           >
             <div className="w-28 h-28 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden border shadow-inner relative">
@@ -196,7 +198,16 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
 
 function StatusBadge({ status, hasAnnotations }: { status: string; hasAnnotations: boolean }) {
   if (hasAnnotations) {
-    return <Badge variant="expertise">Corrigé</Badge>;
+    return <Badge variant="success">Corrigé</Badge>;
+  }
+  if (status === 'processing') {
+    return <Badge variant="chiffrage" className="animate-pulse">En traitement</Badge>;
+  }
+  if (status === 'error') {
+    return <Badge variant="destructive">Erreur</Badge>;
+  }
+  if (status === 'done') {
+    return <Badge variant="success">Terminé</Badge>;
   }
   return <Badge variant="secondary">En attente</Badge>;
 }
