@@ -12,6 +12,10 @@ import {
   Dialog, DialogContent, DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from '@/components/ui/sheet';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
   ArrowLeft, FileType, Eye, Loader2,
   ChevronDown, ChevronRight, ImageIcon, FileText, ExternalLink, GitBranch,
   Table2, History, Download, Scale,
@@ -62,6 +66,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
   const [isReformeOpen, setReformeOpen] = useState(false);
   const [versionPreview, setVersionPreview] = useState<{ url: string; label: string } | null>(null);
+  const [historyDoc, setHistoryDoc] = useState<{ docType: string; name: string; versions: any[] } | null>(null);
 
   const fetchedPathsRef = useRef<Set<string>>(new Set());
 
@@ -222,6 +227,22 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
               {group.icon === 'photo' ? <ImageIcon className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-4 w-4 text-muted-foreground" />}
               <span className="text-sm font-bold flex-1">{group.label}</span>
               <Badge variant="secondary" className="text-[10px] font-mono">{group.files.length}</Badge>
+              {isEditableDocType(group.label) && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 gap-1.5 text-[11px]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const versions = ((chiffrage as any)?.structuredEditables?.[group.label]?.versions || []) as any[];
+                    setHistoryDoc({ docType: group.label, name: group.label, versions });
+                  }}
+                  title={`Historique des versions — ${group.label}`}
+                >
+                  <History className="h-3.5 w-3.5" />
+                  Historique
+                </Button>
+              )}
               {canEdit && isEditableDocType(group.label) && (
                 <Button
                   size="sm"
@@ -244,75 +265,6 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
                 Aucun {group.label.toLowerCase()} dans cette assignation.
               </div>
             )}
-            {expandedGroups.has(groupKey) && isEditableDocType(group.label) && (() => {
-              const versions = ((chiffrage as any)?.structuredEditables?.[group.label]?.versions || []) as Array<{
-                id: string;
-                createdAt: any;
-                createdByNom?: string;
-                pdfUrl?: string | null;
-              }>;
-              return (
-                <div className="border-t bg-muted/10">
-                  <div className="flex items-center gap-2 px-4 py-2 border-b">
-                    <History className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-xs font-bold">Historique des versions</span>
-                    <Badge variant="secondary" className="text-[10px] font-mono ml-auto">{versions.length}</Badge>
-                  </div>
-                  {versions.length === 0 ? (
-                    <div className="px-4 py-3 text-[11px] italic text-muted-foreground">
-                      Aucune version enregistrée pour ce type de document.
-                    </div>
-                  ) : (
-                    <ul className="divide-y">
-                      {versions.slice(0, 50).map((v) => {
-                        const raw = v.createdAt;
-                        const d: Date | null = raw instanceof Date
-                          ? raw
-                          : typeof raw?.toDate === 'function'
-                            ? raw.toDate()
-                            : typeof raw?.seconds === 'number'
-                              ? new Date(raw.seconds * 1000)
-                              : raw ? new Date(raw) : null;
-                        const label = d && !isNaN(d.getTime()) ? d.toLocaleString('fr-FR') : '—';
-                        return (
-                          <li key={v.id} className="flex items-center gap-2 px-4 py-2 text-xs hover:bg-muted/30">
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold truncate">{label}</div>
-                              <div className="text-muted-foreground truncate">par {v.createdByNom || '—'}</div>
-                            </div>
-                            {v.pdfUrl ? (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 text-[11px]"
-                                  onClick={(e) => { e.stopPropagation(); setVersionPreview({ url: v.pdfUrl!, label }); }}
-                                >
-                                  Voir
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                                  <a
-                                    href={v.pdfUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    download
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <Download className="h-3.5 w-3.5" />
-                                  </a>
-                                </Button>
-                              </>
-                            ) : (
-                              <span className="text-[10px] italic text-muted-foreground px-2">En cours d'upload…</span>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-              );
-            })()}
             {expandedGroups.has(groupKey) && group.files.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
                 {group.files.map(({ file, index: i }) => (
@@ -400,6 +352,76 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Historique drawer — right-side Sheet */}
+      <Sheet open={!!historyDoc} onOpenChange={(o) => !o && setHistoryDoc(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Historique — {historyDoc?.name}
+            </SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-3">
+            {historyDoc && historyDoc.versions.length === 0 && (
+              <p className="text-sm text-muted-foreground">Aucune version enregistrée.</p>
+            )}
+            {historyDoc?.versions?.map((v: any, i: number) => {
+              const raw = v?.createdAt ?? v?.savedAt;
+              const d: Date | null = raw instanceof Date
+                ? raw
+                : typeof raw?.toDate === 'function'
+                  ? raw.toDate()
+                  : typeof raw?.seconds === 'number'
+                    ? new Date(raw.seconds * 1000)
+                    : raw ? new Date(raw) : null;
+              const label = d && !isNaN(d.getTime()) ? d.toLocaleString('fr-FR') : '';
+              const author = v?.createdByNom ?? v?.savedBy ?? 'Inconnu';
+              return (
+                <Card key={v?.id ?? i}>
+                  <CardHeader className="p-3 pb-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">
+                        Version {historyDoc.versions.length - i}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{label}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">par {author}</p>
+                  </CardHeader>
+                  {(v?.note || v?.pdfUrl) && (
+                    <CardContent className="p-3 pt-0 text-xs space-y-2">
+                      {v?.note && <p>{v.note}</p>}
+                      {v?.pdfUrl && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-[11px]"
+                            onClick={() => setVersionPreview({ url: v.pdfUrl, label: label || `Version ${historyDoc.versions.length - i}` })}
+                          >
+                            <Eye className="h-3.5 w-3.5 mr-1" />
+                            Voir
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                            <a
+                              href={v.pdfUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </a>
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Decision Status Modal */}
       <ModalDecisionStatus

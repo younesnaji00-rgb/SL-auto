@@ -32,6 +32,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -184,8 +190,37 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
     toast({ title: 'Téléchargement groupé à venir' });
   };
 
-  // History dialog state
-  const [historyRow, setHistoryRow] = useState<ModifiedRow | null>(null);
+  // History drawer state
+  const [historyDoc, setHistoryDoc] = useState<{
+    docType: string;
+    name: string;
+    versions: any[];
+  } | null>(null);
+
+  // Lightbox preview state
+  const [previewDoc, setPreviewDoc] = useState<{
+    url: string;
+    name: string;
+    isImage: boolean;
+  } | null>(null);
+
+  const openHistory = (row: ModifiedRow) => {
+    const entry = (chiffrage?.structuredEditables || {})[row.docType];
+    const versions: any[] = Array.isArray(entry?.versions) ? entry.versions : [];
+    setHistoryDoc({
+      docType: row.docType,
+      name: row.fileName,
+      versions,
+    });
+  };
+
+  const openPreview = (url: string, name: string) => {
+    setPreviewDoc({
+      url,
+      name,
+      isImage: /\.(png|jpe?g|webp|gif)$/i.test(name),
+    });
+  };
 
   const reforme = dossier?.reforme as ReformeData | undefined;
 
@@ -285,27 +320,31 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
               </p>
             ) : (
               <div className="divide-y">
-                <div className="flex items-center gap-3 px-4 py-2 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 items-center px-4 py-2 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                   <Checkbox
                     checked={allSelected}
                     onCheckedChange={toggleAll}
                     aria-label="Tout sélectionner"
                   />
-                  <span className="flex-1">Fichier</span>
-                  <span className="w-24 text-right">Dernière modif.</span>
-                  <span className="w-40" />
+                  <span className="min-w-0">Fichier</span>
+                  <span className="whitespace-nowrap text-right">Dernière modif.</span>
+                  <span className="w-[110px]" />
+                  <span className="w-[100px]" />
                 </div>
                 {modifiedRows.map((row) => {
                   const originalUrl = findDossierDocUrl(row.fileName);
                   const isSelected = selectedKeys.has(row.key);
                   return (
-                    <div key={row.key} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent/30">
+                    <div
+                      key={row.key}
+                      className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 items-center px-4 py-2.5 text-sm hover:bg-accent/30"
+                    >
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={() => toggle(row.key)}
                         aria-label={`Sélectionner ${row.fileName}`}
                       />
-                      <div className="flex-1 min-w-0">
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="font-medium truncate" title={row.fileName}>
                             {row.fileName}
@@ -318,21 +357,19 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
                           Chiffreur: {row.updatedBy || '—'}
                         </div>
                       </div>
-                      <div className="w-24 text-right text-[11px] text-muted-foreground">
+                      <div className="shrink-0 text-[11px] text-muted-foreground whitespace-nowrap text-right">
                         {formatTs(row.updatedAt)}
                       </div>
-                      <div className="w-40 flex items-center justify-end gap-1">
+                      <div className="shrink-0">
                         {originalUrl ? (
                           <Button
                             size="sm"
                             variant="ghost"
                             className="h-7 px-2"
-                            asChild
+                            onClick={() => openPreview(originalUrl, row.fileName)}
                           >
-                            <a href={originalUrl} target="_blank" rel="noreferrer">
-                              <Eye className="h-3.5 w-3.5 mr-1" />
-                              Voir l'original
-                            </a>
+                            <Eye className="h-3.5 w-3.5 mr-1" />
+                            Voir l'original
                           </Button>
                         ) : (
                           <Tooltip>
@@ -352,11 +389,13 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
                             <TooltipContent>À venir</TooltipContent>
                           </Tooltip>
                         )}
+                      </div>
+                      <div className="shrink-0">
                         <Button
                           size="sm"
                           variant="ghost"
                           className="h-7 px-2"
-                          onClick={() => setHistoryRow(row)}
+                          onClick={() => openHistory(row)}
                         >
                           <History className="h-3.5 w-3.5 mr-1" />
                           Historique
@@ -370,26 +409,72 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
           </CardContent>
         </Card>
 
-        {/* History dialog — read-only JSON stub */}
-        <Dialog open={!!historyRow} onOpenChange={(o) => !o && setHistoryRow(null)}>
-          <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-            <DialogHeader>
-              <DialogTitle className="text-sm flex items-center gap-2">
+        {/* History drawer — right-side Sheet */}
+        <Sheet open={!!historyDoc} onOpenChange={(o) => !o && setHistoryDoc(null)}>
+          <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
                 <History className="h-4 w-4" />
-                Historique — {historyRow?.fileName}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="flex-1 overflow-auto rounded-md bg-muted/50 p-3">
-              {historyRow?.structured ? (
-                <pre className="text-[11px] leading-relaxed whitespace-pre-wrap break-words font-mono">
-                  {JSON.stringify(historyRow.structured, null, 2)}
-                </pre>
-              ) : (
-                <p className="text-xs italic text-muted-foreground text-center py-6">
-                  Aucune donnée structurée disponible. Les annotations PDF ne sont
-                  pas encore affichées ici — à venir.
-                </p>
+                Historique — {historyDoc?.name}
+              </SheetTitle>
+            </SheetHeader>
+            <div className="mt-4 space-y-3">
+              {historyDoc && historyDoc.versions.length === 0 && (
+                <p className="text-sm text-muted-foreground">Aucune version enregistrée.</p>
               )}
+              {historyDoc?.versions?.map((v: any, i: number) => {
+                const raw = v?.savedAt ?? v?.createdAt;
+                const d: Date | null = raw instanceof Date
+                  ? raw
+                  : typeof raw?.toDate === 'function'
+                    ? raw.toDate()
+                    : typeof raw?.seconds === 'number'
+                      ? new Date(raw.seconds * 1000)
+                      : raw ? new Date(raw) : null;
+                const label = d && !isNaN(d.getTime()) ? d.toLocaleString('fr-FR') : '';
+                const author = v?.savedBy ?? v?.createdByNom ?? 'Inconnu';
+                return (
+                  <Card key={v?.id ?? i}>
+                    <CardHeader className="p-3 pb-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">
+                          Version {historyDoc.versions.length - i}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{label}</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">par {author}</p>
+                    </CardHeader>
+                    {v?.note && (
+                      <CardContent className="p-3 pt-0 text-xs">{v.note}</CardContent>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        {/* Lightbox preview for original document */}
+        <Dialog open={!!previewDoc} onOpenChange={(o) => !o && setPreviewDoc(null)}>
+          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
+            <DialogHeader className="px-4 py-3 border-b">
+              <DialogTitle className="truncate">{previewDoc?.name}</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
+              {previewDoc?.isImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={previewDoc.url}
+                  alt={previewDoc.name}
+                  className="max-w-full max-h-full object-contain"
+                />
+              ) : previewDoc ? (
+                <iframe
+                  src={previewDoc.url}
+                  className="w-full h-full border-none"
+                  title={previewDoc.name}
+                />
+              ) : null}
             </div>
           </DialogContent>
         </Dialog>
