@@ -244,7 +244,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             <div className="space-y-2">
               <Label>Heure RDV</Label>
               <div className="relative">
-                <Clock className="absolute left-3 top-3 h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <Clock className="absolute left-3 top-3 h-4 w-4 text-primary" />
                 <Input 
                   type="time" 
                   className="pl-10 h-10" 
@@ -258,7 +258,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           <div className="space-y-2">
             <Label>Zone</Label>
             <div className="relative">
-              <MapPin className="absolute left-3 top-3 h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <MapPin className="absolute left-3 top-3 h-4 w-4 text-primary" />
               <Input 
                 placeholder="Ex: Casablanca Anfa" 
                 className="pl-10 h-10"

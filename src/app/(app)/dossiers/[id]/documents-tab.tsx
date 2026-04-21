@@ -56,6 +56,16 @@ import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type DocumentsTabProps = {
   dossierId: string;
@@ -83,6 +93,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   const [typeSearch, setTypeSearch] = useState('');
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const [previewDoc, setPreviewDoc] = useState<{ url: string; nom: string } | null>(null);
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -249,7 +260,6 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   const handleDelete = async (document: any) => {
     const userEmail = auth?.currentUser?.email || 'Admin';
     if (!db || !storage) return;
-    if (!window.confirm('Supprimer ce document ?')) return;
 
     setIsDeleting(document.id);
 
@@ -272,6 +282,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
       });
     } finally {
       setIsDeleting(null);
+      setDeleteTarget(null);
     }
   };
 
@@ -597,7 +608,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDelete(item);
+                                setDeleteTarget(item);
                               }}
                               title="Supprimer"
                               disabled={isDeleting === item.id || !!item.pendingUpload}
@@ -722,7 +733,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
             )}
 
             {isUploading && (
-              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+              <div className="flex items-center gap-2 text-primary">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span className="text-sm">Envoi en cours...</span>
               </div>
@@ -790,6 +801,30 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
           </DialogContent>
         </Dialog>
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !isDeleting && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce document ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.nom && <span className="font-semibold">{deleteTarget.nom}</span>} sera supprimé définitivement du stockage et du dossier. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!!isDeleting}
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteTarget) handleDelete(deleteTarget);
+              }}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
