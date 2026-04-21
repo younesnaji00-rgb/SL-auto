@@ -1,22 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Pencil, Check, X, User, Car, Users, PenLine, Calendar as CalendarIcon, MapPin, Info, Plus, Clock, Trash2, ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Pencil, Check, X, User, Car, Users, PenLine, Info, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
-import { updateDoc, deleteDoc, doc, type DocumentReference, Timestamp, collection, query, orderBy } from 'firebase/firestore';
-import { useAuth, useFirestore, useCollection } from '@/firebase';
+import { updateDoc, type DocumentReference, Timestamp } from 'firebase/firestore';
+import { useAuth, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { statuses as defaultStatuses, natures as defaultNatures, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 import { logHistorique, logWorkflow } from './log-historique';
@@ -40,7 +33,7 @@ interface InformationTabProps {
   onNewPlanification: () => void;
 }
 
-export default function InformationTab({ dossier, dossierRef, dossierId, onEditPlanification, onNewPlanification }: InformationTabProps) {
+export default function InformationTab({ dossier, dossierRef, dossierId }: InformationTabProps) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -56,26 +49,6 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
   const statuses = useMemo(() => dbStatuses.length > 0 ? dbStatuses : defaultStatuses.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbStatuses]);
   const natures = useMemo(() => dbNatures.length > 0 ? dbNatures : defaultNatures.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbNatures]);
   const dossierTypes = useMemo(() => dbDossierTypes.length > 0 ? dbDossierTypes : defaultDossierTypes.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbDossierTypes]);
-
-  // Planification
-  const planQuery = useMemo(() => query(
-    collection(db, 'dossiers', dossierId, 'planifications'),
-    orderBy('createdAt', 'desc')
-  ), [db, dossierId]);
-  const { data: plans, loading: planLoading } = useCollection<any>(planQuery);
-  const [expandedPlan, setExpandedPlan] = useState<any>(null);
-  const [previewPreuvePhotos, setPreviewPreuvePhotos] = useState<{ urls: string[]; index: number } | null>(null);
-
-  const handleDeletePlanification = async (planId: string) => {
-    if (!db || !confirm('Supprimer cette planification ?')) return;
-    try {
-      await deleteDoc(doc(db, 'dossiers', dossierId, 'planifications', planId));
-      setExpandedPlan(null);
-      toast({ title: 'Planification supprimée' });
-    } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
-    }
-  };
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -199,12 +172,6 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
     if (!date) return '-';
     const d = date.toDate ? date.toDate() : new Date(date);
     try { return format(d, 'dd/MM/yyyy', { locale: fr }); } catch { return '-'; }
-  };
-
-  const formatTimestamp = (ts: any) => {
-    if (!ts) return 'N/A';
-    const date = ts.toDate ? ts.toDate() : new Date(ts);
-    return format(date, "d MMMM yyyy 'à' HH:mm", { locale: fr });
   };
 
   // ── Table-like row layout helpers ──
@@ -445,247 +412,6 @@ export default function InformationTab({ dossier, dossierRef, dossierId, onEditP
           ]} />
         </CardContent>
       </Card>
-
-      {/* ── PLANIFICATION ── */}
-      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
-        <CardHeader className="bg-heading-bg py-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Planification
-            </CardTitle>
-            {canEdit && (
-              <Button size="sm" className="h-7 text-xs" onClick={onNewPlanification}>
-                <Plus className="mr-1.5 h-3 w-3" /> Nouvelle
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {planLoading ? (
-            <div className="p-6"><Skeleton className="h-[120px] w-full" /></div>
-          ) : !plans || plans.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <CalendarIcon className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">Aucune planification programmée</p>
-              {canEdit && <Button variant="outline" size="sm" className="mt-4" onClick={onNewPlanification}>Programmer une mission</Button>}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableHead className="text-xs font-bold">Type</TableHead>
-                  <TableHead className="text-xs font-bold">Date & Heure RDV</TableHead>
-                  <TableHead className="text-xs font-bold">Agent</TableHead>
-                  <TableHead className="text-xs font-bold">Zone</TableHead>
-                  <TableHead className="text-xs font-bold">Adresse</TableHead>
-                  <TableHead className="text-xs font-bold">Observation</TableHead>
-                  <TableHead className="text-xs font-bold w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {plans.map((p: any) => (
-                  <TableRow
-                    key={p.id}
-                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => setExpandedPlan(p)}
-                  >
-                    <TableCell>
-                      <Badge variant="secondary" className="capitalize text-xs whitespace-nowrap">{p.typeMission || 'N/A'}</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs font-medium whitespace-nowrap">
-                      {p.dateRDV ? format((p.dateRDV.toDate ? p.dateRDV.toDate() : new Date(p.dateRDV)), 'dd/MM/yyyy HH:mm', { locale: fr }) : '-'}
-                    </TableCell>
-                    <TableCell className="text-xs">{p.agentTerrain || <span className="text-muted-foreground italic">Non assigné</span>}</TableCell>
-                    <TableCell className="text-xs">{p.zone || '-'}</TableCell>
-                    <TableCell className="text-xs max-w-[150px]"><span className="truncate block">{p.adresse || '-'}</span></TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[200px]">
-                      <span className="truncate block">{p.observation || '-'}</span>
-                      {p.observationUpdatedAt && (
-                        <span className="flex items-center gap-1 text-[10px] text-amber-600 mt-0.5 font-medium">
-                          <Clock className="h-3 w-3" />
-                          MAJ {p.observationSource === 'ATG' ? 'Agent de Terrain' : p.observationSource === 'Gestionnaire' ? 'Gestionnaire' : 'Agent de Terrain'}{p.observationUpdatedBy ? ` (${p.observationUpdatedBy})` : ''} — {p.observationUpdatedAt.toDate ? format(p.observationUpdatedAt.toDate(), 'dd/MM HH:mm', { locale: fr }) : '-'}
-                        </span>
-                      )}
-                      {p.preuvePhotos && p.preuvePhotos.length > 0 && (
-                        <span className="flex items-center gap-1 text-[10px] text-blue-600 mt-0.5 font-medium">
-                          <ImageIcon className="h-3 w-3" />
-                          {p.preuvePhotos.length} preuve{p.preuvePhotos.length > 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </TableCell>
-                    {canEdit && (
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeletePlanification(p.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Planification lightbox */}
-      <Dialog open={!!expandedPlan} onOpenChange={(open) => { if (!open) setExpandedPlan(null); }}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-primary">
-              <CalendarIcon className="h-5 w-5" />
-              Détails de la Planification
-            </DialogTitle>
-          </DialogHeader>
-          {expandedPlan && (
-            <div className="space-y-5 py-2">
-              <div className="flex items-center gap-3">
-                <Badge variant="secondary" className="capitalize text-sm px-3 py-1">
-                  {expandedPlan.typeMission || 'N/A'}
-                </Badge>
-                {expandedPlan.createdAt && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    Créée le {formatTimestamp(expandedPlan.createdAt)}
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1 p-3 rounded-lg bg-muted/30 border">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Date & Heure RDV</p>
-                  <p className="font-semibold text-sm flex items-center gap-2">
-                    <CalendarIcon className="h-4 w-4 text-primary" />
-                    {formatTimestamp(expandedPlan.dateRDV)}
-                  </p>
-                </div>
-                <div className="space-y-1 p-3 rounded-lg bg-muted/30 border">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Agent de Terrain</p>
-                  <p className="font-semibold text-sm flex items-center gap-2">
-                    <User className="h-4 w-4 text-primary" />
-                    {expandedPlan.agentTerrain || 'Non assigné'}
-                  </p>
-                </div>
-                <div className="space-y-1 p-3 rounded-lg bg-muted/30 border">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Zone d'intervention</p>
-                  <p className="font-semibold text-sm flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    {expandedPlan.zone || 'N/A'}
-                  </p>
-                </div>
-                <div className="space-y-1 p-3 rounded-lg bg-muted/30 border">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Modifié par</p>
-                  <p className="font-semibold text-sm flex items-center gap-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    {expandedPlan.modifiedByName || 'N/A'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-1 p-3 rounded-lg bg-muted/30 border">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Adresse complète</p>
-                <p className="font-medium text-sm">{expandedPlan.adresse || 'N/A'}</p>
-              </div>
-
-              {expandedPlan.observation && (
-                <div className={cn("space-y-1 p-3 rounded-lg border border-dashed", expandedPlan.observationUpdatedAt ? "bg-amber-50/50 border-amber-300 dark:bg-amber-900/10" : "bg-muted/30")}>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                    <Info className="h-3 w-3" /> Observation / Notes
-                  </p>
-                  <p className="text-sm italic text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                    {expandedPlan.observation}
-                  </p>
-                  {expandedPlan.observationUpdatedAt && (
-                    <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 mt-1">
-                      Mis à jour par {expandedPlan.observationSource === 'ATG' ? 'Agent de Terrain' : expandedPlan.observationSource === 'Gestionnaire' ? 'Gestionnaire' : 'Agent de Terrain'}{expandedPlan.observationUpdatedBy ? ` (${expandedPlan.observationUpdatedBy})` : ''} le {expandedPlan.observationUpdatedAt.toDate ? format(expandedPlan.observationUpdatedAt.toDate(), "dd/MM/yyyy 'à' HH:mm", { locale: fr }) : '-'}
-                    </Badge>
-                  )}
-                </div>
-              )}
-
-              {expandedPlan.preuvePhotos && expandedPlan.preuvePhotos.length > 0 && (
-                <div className="space-y-2 p-3 rounded-lg bg-blue-50/50 border border-blue-200 dark:bg-blue-900/10 dark:border-blue-800">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                    <ImageIcon className="h-3 w-3" /> Photos Preuve Agent de Terrain ({expandedPlan.preuvePhotos.length})
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {expandedPlan.preuvePhotos.map((url: string, idx: number) => (
-                      <button
-                        key={idx}
-                        className="relative h-16 w-16 rounded-md overflow-hidden border hover:ring-2 hover:ring-primary transition-all"
-                        onClick={() => setPreviewPreuvePhotos({ urls: expandedPlan.preuvePhotos, index: idx })}
-                      >
-                        <img src={url} alt={`Preuve ${idx + 1}`} className="h-full w-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {canEdit && (
-                <div className="flex justify-between pt-2">
-                  <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleDeletePlanification(expandedPlan.id)}>
-                    <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Supprimer
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => { setExpandedPlan(null); onEditPlanification(expandedPlan); }}>
-                    <Pencil className="mr-1.5 h-3.5 w-3.5" /> Modifier
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Preuve photo lightbox */}
-      <Dialog open={!!previewPreuvePhotos} onOpenChange={(open) => { if (!open) setPreviewPreuvePhotos(null); }}>
-        <DialogContent className="sm:max-w-[700px] p-2">
-          {previewPreuvePhotos && (
-            <div className="relative flex flex-col items-center gap-2">
-              <img
-                src={previewPreuvePhotos.urls[previewPreuvePhotos.index]}
-                alt={`Preuve ${previewPreuvePhotos.index + 1}`}
-                className="max-h-[70vh] w-auto rounded-lg object-contain"
-              />
-              {previewPreuvePhotos.urls.length > 1 && (
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="outline" size="icon" className="h-8 w-8"
-                    disabled={previewPreuvePhotos.index === 0}
-                    onClick={() => setPreviewPreuvePhotos({ ...previewPreuvePhotos, index: previewPreuvePhotos.index - 1 })}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-xs text-muted-foreground">
-                    {previewPreuvePhotos.index + 1} / {previewPreuvePhotos.urls.length}
-                  </span>
-                  <Button
-                    variant="outline" size="icon" className="h-8 w-8"
-                    disabled={previewPreuvePhotos.index === previewPreuvePhotos.urls.length - 1}
-                    onClick={() => setPreviewPreuvePhotos({ ...previewPreuvePhotos, index: previewPreuvePhotos.index + 1 })}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-              <div className="flex gap-1.5 flex-wrap justify-center">
-                {previewPreuvePhotos.urls.map((url: string, idx: number) => (
-                  <button
-                    key={idx}
-                    className={cn(
-                      "h-12 w-12 rounded overflow-hidden border-2 transition-all",
-                      idx === previewPreuvePhotos.index ? "border-primary ring-1 ring-primary" : "border-transparent opacity-60 hover:opacity-100"
-                    )}
-                    onClick={() => setPreviewPreuvePhotos({ ...previewPreuvePhotos, index: idx })}
-                  >
-                    <img src={url} alt={`Thumb ${idx + 1}`} className="h-full w-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
     </div>
   );
