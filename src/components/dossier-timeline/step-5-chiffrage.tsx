@@ -214,7 +214,7 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
     <TooltipProvider>
       <div className="space-y-6">
         {/* Réforme summary */}
-        {reforme ? (
+        {reforme?.updatedAt ? (
           <Card className="shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
