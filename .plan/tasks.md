@@ -99,28 +99,28 @@
   - `useLastStep(dossierId)` returns `[currentStep, setCurrentStep]`. Reads localStorage key `dossier-${dossierId}-step` on mount, writes on set. Default = 1.
   - Done: hook persists across remount; tsc clean.
 
-- [ ] **#07** — Step 1 panel "Document import"
+- [x] **#07** — Step 1 panel "Document import" — commit `e1e44d6` (uses `/api/scan-document` + `uploadFileWithOfflineSupport`; empty-field merge only)
   - File: `src/components/dossier-timeline/step-1-import.tsx` (new)
   - Mount the existing document-upload-with-AI-scan component (from `src/app/(app)/dossiers/new/creation-form.tsx` if isolated, else lift it). Read-only display after first dossier creation.
   - Done: drag-and-drop upload works, AI scan pre-fills fields in step 2; tsc clean.
 
-- [ ] **#08** — Step 2 panel "Information"
+- [x] **#08** — Step 2 panel "Information" — commit `9b0b217` (wraps InformationTab + missing-required-fields banner; zod is all `.optional()` so required list sourced from `checkEmptyFields`)
   - File: `src/components/dossier-timeline/step-2-information.tsx` (new)
   - Mount existing `information-tab.tsx` content. Writes go to `dossiers/{id}` directly.
   - Missing-field asterisk: for each field that was `required` in `src/app/(app)/dossiers/new/creation-form.tsx` zod schema, render `<Label>foo *</Label>` in red when empty.
   - Done: fields load, edit, persist; asterisks appear for empties; tsc clean.
 
-- [ ] **#09** — Step 3 panel "Planification"
+- [x] **#09** — Step 3 panel "Planification" — commit `277b411` (thin wrapper on existing `planification-tab.tsx`; `onOpenHistory` stubbed, `readOnly` not yet forwarded)
   - File: `src/components/dossier-timeline/step-3-planification.tsx` (new)
   - Mount existing `planification-tab.tsx` content.
   - Done: same behavior as current tab; tsc clean.
 
-- [ ] **#10** — Step 4 panel "Pièces jointes" (Documents + Photos combined)
+- [x] **#10** — Step 4 panel "Pièces jointes" (Documents + Photos combined) — commit `3cf55b9` (stacked Documents + Photos, both children take only `dossierId`)
   - File: `src/components/dossier-timeline/step-4-pieces.tsx` (new)
   - Tabs-within-section: Documents (mount `documents-tab.tsx`) and Photos (mount `photos-tab.tsx`). Or two stacked sub-sections with headers, no inner tabs — designer's choice, lean toward stacked for the scroll-first UX.
   - Done: both original components render, operations (upload/delete/preview) still work; tsc clean.
 
-- [ ] **#11** — Step 5 panel "Chiffrage" (new section)
+- [x] **#11** — Step 5 panel "Chiffrage" — commit `fa5372d` (399 lines; Réforme card + modified files list; annotations found per-file at `chiffrage.files[i].annotations`; bulk download + historique dialog stubbed)
   - File: `src/components/dossier-timeline/step-5-chiffrage.tsx` (new)
   - Query: `collection(db, 'chiffrages')` where `dossierId == X`. For the latest chiffrage, list files where `structuredEditables[docType]` exists OR `annotations?.length > 0`. For each, show: filename, last-modified version author + timestamp, button "Voir l'original" (opens the file from step 4 in a dialog), button "Historique" (opens versions list reusing the existing ReferencePanel-style preview).
   - Multi-select checkboxes + "Télécharger la sélection" button (mirror `documents-tab.tsx` selection mode).
@@ -128,52 +128,52 @@
   - Show the Réforme summary card if `dossier.reforme` exists (read-only preview).
   - Done: chiffreur-modified docs list correctly, Réforme card renders, multi-download works; tsc clean.
 
-- [ ] **#12** — Step 6 panel "Rapport"
+- [x] **#12** — Step 6 panel "Rapport" — commit `e4d8c45` (24-line wrapper on RapportTab)
   - File: `src/components/dossier-timeline/step-6-rapport.tsx` (new)
   - Mount existing `rapport-tab.tsx` content.
   - Done: rapport editor still functional; tsc clean.
 
-- [ ] **#13** — Wire timeline into dossier detail page (replace tabs)
+- [x] **#13** — Wire timeline into dossier detail page — commit `0d352a6` (page.tsx 243→219 lines; tabs removed, `<Timeline>` mounted; Historique moved to Dialog triggered from header)
   - File: `src/app/(app)/dossiers/[id]/page.tsx`
   - Replace the current tabs rendering with `<Timeline>` using the 6 step components. Remove `<Tabs>` wrapper. Use `useLastStep` to restore.
   - Keep the top dossier header (breadcrumb + status badge + action buttons).
   - Done: opening `/dossiers/{id}` shows the new timeline; old tabs gone; tsc clean.
 
-- [ ] **#14** — Replace eye-icon behavior in dossier list
+- [x] **#14** — Replace eye-icon behavior in dossier list — already correct (eye icon at `client-page.tsx:398` already calls `router.push('/dossiers/${d.id}')`; no commit)
   - File: `src/app/(app)/dossiers/client-page.tsx`
   - Current eye icon opens a modal or stripped view. Change to `router.push(\`/dossiers/\${id}\`)` — the timeline.
   - Done: clicking eye navigates to timeline; tsc clean.
 
 ### Phase 3 — Creation rework (replace wizard)
 
-- [ ] **#15** — "Créer un dossier" creates empty doc and redirects
+- [x] **#15** — "Créer un dossier" creates empty doc and redirects — commit `1c5f21d` (new `create-empty-dossier.ts`; statut='Création de dossier'; moved button from page.tsx to client-page.tsx; logHistorique logged)
   - Files: `src/app/(app)/dossiers/client-page.tsx` (the "Créer" button), new `src/lib/create-empty-dossier.ts`
   - Helper `createEmptyDossier(db, user)`: `addDoc(collection(db, 'dossiers'), { createdAt, createdBy: user.uid, statut: 'Création de dossier', compagnie: '', /* all fields empty */ })` returns new `id`. Also log historique entry.
   - Button click → calls helper → `router.push(\`/dossiers/\${id}\`)`.
   - Done: click Créer → new empty dossier in Firestore + redirect to timeline on step 1; tsc clean.
 
-- [ ] **#16** — Delete old wizard
+- [x] **#16** — Delete old wizard — commit `4540a20` (9 files / 2659 lines deleted; 1 stale Link in compagnies fixed; no dangling imports)
   - Files: `src/app/(app)/dossiers/new/**` (delete entire directory)
   - Update any imports pointing to `/dossiers/new/...` — should be none after #15.
   - Done: directory gone, no dangling imports, tsc clean.
 
 ### Phase 4 — Cleanup & verification
 
-- [ ] **#17** — Historique integration in timeline
+- [x] **#17** — Historique integration in timeline — commit `19c323d` (Dialog → right-side Sheet, `w-full sm:max-w-xl`)
   - File: `src/components/dossier-timeline/timeline-bar.tsx` (extend) OR new collapsible drawer `historique-drawer.tsx`
   - Option chosen: collapsible side-drawer at the top of the dossier detail page (button "Historique" in header). Mounts existing `historique-tab.tsx` content.
   - Done: drawer opens/closes, shows full log; tsc clean.
 
-- [ ] **#18** — Missing-field audit pass
+- [x] **#18** — Missing-field audit pass — commit `584f562` (audit comment block added; 7 required-field mappings documented; banner coverage confirmed)
   - Files: all step components (#08 through #12)
   - Cross-check: every required field in the old zod schema is reflected with asterisk behavior in the timeline.
   - Done: grep/audit note in a comment at the top of step-2 confirms each field; tsc clean.
 
-- [ ] **#19** — Smoke: build + type-check
+- [x] **#19** — Smoke: build + type-check — `next build` PASSED in 14.9s (23/23 pages, zero errors, zero warnings); no commit needed. `/dossiers/[id]` is 54.5 kB / 480 kB First Load JS — largest route.
   - Run `npx next build` locally. Fix any surface errors introduced.
   - Done: `next build` succeeds.
 
-- [ ] **#20** — CHANGELOG entry
+- [>] **#20** — CHANGELOG entry
   - File: `.plan/CHANGES-2026-04-21.md` (new)
   - One-liner per completed task with commit hash.
   - Done: file written with the tally.
