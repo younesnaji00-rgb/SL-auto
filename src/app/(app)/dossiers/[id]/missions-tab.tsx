@@ -1,8 +1,7 @@
-
 'use client';
 
-import React, { useMemo } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Plus, Trash2, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,14 +10,27 @@ import { collection, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestor
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
+import { SkeletonRow } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
 import { DatePicker } from '@/components/ui/date-picker';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function MissionsTab({ dossierId }: { dossierId: string }) {
     const db = useFirestore();
     const { toast } = useToast();
     const missionsRef = useMemo(() => collection(db, 'dossiers', dossierId, 'missions'), [db, dossierId]);
     const { data: missions, loading } = useCollection(missionsRef);
+
+    const [deleteId, setDeleteId] = useState<string | null>(null);
 
     const handleAdd = async () => {
         const id = Date.now().toString();
@@ -31,12 +43,10 @@ export default function MissionsTab({ dossierId }: { dossierId: string }) {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Supprimer cette mission ?')) return;
         await deleteDoc(doc(db, 'dossiers', dossierId, 'missions', id));
         toast({ title: 'Mission supprimée' });
+        setDeleteId(null);
     };
-
-    if (loading) return <Skeleton className="h-[300px] w-full" />;
 
     return (
         <Card>
@@ -56,15 +66,31 @@ export default function MissionsTab({ dossierId }: { dossierId: string }) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {missions?.length === 0 ? (
-                            <TableRow key="empty-missions"><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">Aucune mission enregistrée.</TableCell></TableRow>
+                        {loading ? (
+                            Array.from({ length: 4 }).map((_, i) => (
+                                <TableRow key={`sk-${i}`}>
+                                    <TableCell colSpan={5} className="p-0"><SkeletonRow /></TableCell>
+                                </TableRow>
+                            ))
+                        ) : missions?.length === 0 ? (
+                            <TableRow key="empty-missions">
+                                <TableCell colSpan={5} className="p-0">
+                                    <EmptyState
+                                        icon={<Calendar />}
+                                        title="Aucune mission enregistrée"
+                                        description="Créez la première mission avec le bouton ci-dessus."
+                                        dashed={false}
+                                        className="border-0 bg-transparent py-8"
+                                    />
+                                </TableCell>
+                            </TableRow>
                         ) : (
                             missions?.map((m: any) => (
                                 <TableRow key={m.id}>
                                     <TableCell>
-                                        <DatePicker 
-                                            value={m.date ? new Date(m.date) : null} 
-                                            onChange={d => handleUpdate(m.id, 'date', d ? d.toISOString().split('T')[0] : '')} 
+                                        <DatePicker
+                                            value={m.date ? new Date(m.date) : null}
+                                            onChange={d => handleUpdate(m.id, 'date', d ? d.toISOString().split('T')[0] : '')}
                                         />
                                     </TableCell>
                                     <TableCell>
@@ -89,13 +115,33 @@ export default function MissionsTab({ dossierId }: { dossierId: string }) {
                                             </SelectContent>
                                         </Select>
                                     </TableCell>
-                                    <TableCell><Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(m.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                                    <TableCell><Button variant="ghost" size="icon" className="text-destructive" onClick={() => setDeleteId(m.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
                                 </TableRow>
                             ))
                         )}
                     </TableBody>
                 </Table>
             </CardContent>
+
+            <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Supprimer cette mission ?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Cette action est irréversible.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Annuler</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={(e) => { e.preventDefault(); if (deleteId) handleDelete(deleteId); }}
+                        >
+                            Supprimer
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Card>
     );
 }

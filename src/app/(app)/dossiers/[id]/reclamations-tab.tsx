@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import { Plus, Trash2, User, Clock } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Plus, Trash2, User, Clock, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,10 +12,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
+import { SkeletonCard } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
 import { DatePicker } from '@/components/ui/date-picker';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
     const db = useFirestore();
@@ -23,6 +34,7 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
     const { toast } = useToast();
     const reclamationsQuery = useMemo(() => query(collection(db, 'dossiers', dossierId, 'reclamations'), orderBy('createdAt', 'desc')), [db, dossierId]);
     const { data: list, loading } = useCollection(reclamationsQuery);
+    const [deleteId, setDeleteId] = useState<string | null>(null);
 
     const handleAdd = async () => {
         const id = Date.now().toString();
@@ -45,9 +57,9 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Supprimer cette réclamation ?')) return;
         await deleteDoc(doc(db, 'dossiers', dossierId, 'reclamations', id));
         toast({ title: 'Réclamation supprimée' });
+        setDeleteId(null);
     };
 
     const formatTimestamp = (ts: any) => {
@@ -56,7 +68,13 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
         return format(date, "d MMM yyyy 'à' HH:mm", { locale: fr });
     };
 
-    if (loading) return <Skeleton className="h-[400px] w-full" />;
+    if (loading) return (
+        <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+                <SkeletonCard key={i} />
+            ))}
+        </div>
+    );
 
     return (
         <Card>
@@ -67,7 +85,12 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
             <CardContent>
                 <div className="space-y-6">
                     {!list || list.length === 0 ? (
-                        <div key="empty-reclamations" className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg">Aucune réclamation.</div>
+                        <EmptyState
+                            key="empty-reclamations"
+                            icon={<AlertTriangle />}
+                            title="Aucune réclamation"
+                            description="Déposez une première réclamation avec le bouton ci-dessus."
+                        />
                     ) : (
                         list.map((r: any) => (
                             <div key={r.id} className="p-4 border rounded-lg space-y-4 group relative">
@@ -88,7 +111,7 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
                                         variant="ghost"
                                         size="icon"
                                         className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7"
-                                        onClick={() => handleDelete(r.id)}
+                                        onClick={() => setDeleteId(r.id)}
                                     >
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
@@ -122,6 +145,24 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
                     )}
                 </div>
             </CardContent>
+
+            <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Supprimer cette réclamation ?</AlertDialogTitle>
+                        <AlertDialogDescription>Cette action est irréversible.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Annuler</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={(e) => { e.preventDefault(); if (deleteId) handleDelete(deleteId); }}
+                        >
+                            Supprimer
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Card>
     );
 }

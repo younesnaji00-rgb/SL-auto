@@ -1,19 +1,22 @@
 'use client';
 
 import React, { useState, useMemo, useRef } from 'react';
-import { 
-  Paperclip, 
-  Send, 
-  Trash2, 
-  FileIcon, 
-  Loader2, 
+import {
+  Paperclip,
+  Send,
+  Trash2,
+  FileIcon,
+  Loader2,
   Download,
   Pencil,
   X,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonCard } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -339,13 +342,17 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
 
       <div className="space-y-6">
         {loading ? (
-          <div className="flex justify-center p-10">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
           </div>
         ) : comments.length === 0 ? (
-          <div className="text-center p-10 text-muted-foreground border-2 border-dashed rounded-lg">
-            Aucun commentaire pour le moment.
-          </div>
+          <EmptyState
+            icon={<MessageSquare />}
+            title="Aucun commentaire pour le moment"
+            description="Ajoutez votre premier commentaire avec le formulaire ci-dessus."
+          />
         ) : (
           comments.map((comment) => (
             <div key={comment.id} className="flex gap-4 group">
