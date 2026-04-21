@@ -9,7 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PageLoader } from '@/components/ui/page-loader';
+import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import Logo from '@/components/logo';
 
 /** Generate a deterministic email from the user's full name */
@@ -23,6 +25,9 @@ function generateEmail(nom: string): string {
     .replace(/\s+/g, '.');
   return `${sanitized}@sl-auto.app`;
 }
+
+const PAGE_BACKGROUND =
+  'bg-[radial-gradient(ellipse_at_top,hsl(var(--card))_0%,hsl(var(--background))_70%)]';
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -167,8 +172,8 @@ export default function LoginPage() {
 
   if (checkingAuth || checkingSetup) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted/50">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className={`flex min-h-screen items-center justify-center ${PAGE_BACKGROUND}`}>
+        <PageLoader label="Chargement..." />
       </div>
     );
   }
@@ -176,7 +181,7 @@ export default function LoginPage() {
   // ===== FIRST-TIME SETUP =====
   if (needsSetup) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4">
+      <div className={`flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
         <Card className="w-full max-w-md shadow-xl">
           <CardHeader className="text-center space-y-4 pb-2">
             <div className="flex justify-center">
@@ -184,7 +189,7 @@ export default function LoginPage() {
             </div>
             <div>
               <div className="flex items-center justify-center gap-2 mb-1">
-                <ShieldCheck className="h-5 w-5 text-blue-600" />
+                <ShieldCheck className="h-5 w-5 text-primary" />
                 <CardTitle className="text-2xl">Configuration initiale</CardTitle>
               </div>
               <CardDescription className="mt-1">
@@ -198,7 +203,6 @@ export default function LoginPage() {
                 <Label htmlFor="setup-name">Nom complet de l&apos;administrateur</Label>
                 <Input
                   id="setup-name"
-                  placeholder="Ex: Ahmed Benali"
                   value={setupName}
                   onChange={e => setSetupName(e.target.value)}
                   required
@@ -215,13 +219,13 @@ export default function LoginPage() {
                   onChange={e => setSetupPassword(e.target.value)}
                   required
                 />
+                <p className="text-xs text-muted-foreground">Au moins 6 caractères.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="setup-confirm">Confirmez le mot de passe</Label>
                 <Input
                   id="setup-confirm"
                   type="password"
-                  placeholder="Retapez le mot de passe"
                   value={setupConfirm}
                   onChange={e => setSetupConfirm(e.target.value)}
                   required
@@ -229,17 +233,13 @@ export default function LoginPage() {
               </div>
 
               {setupError && (
-                <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
-                  {setupError}
-                </div>
+                <Alert variant="destructive">
+                  <AlertDescription>{setupError}</AlertDescription>
+                </Alert>
               )}
 
-              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={setupLoading}>
-                {setupLoading ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Création...</>
-                ) : (
-                  'Créer le compte Admin'
-                )}
+              <Button type="submit" className="w-full" loading={setupLoading}>
+                {setupLoading ? 'Création...' : 'Créer le compte Admin'}
               </Button>
             </form>
           </CardContent>
@@ -250,7 +250,7 @@ export default function LoginPage() {
 
   // ===== NORMAL LOGIN =====
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4">
+    <div className={`flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-4 pb-2">
           <div className="flex justify-center">
@@ -267,7 +267,6 @@ export default function LoginPage() {
               <Label htmlFor="nom">Nom complet</Label>
               <Input
                 id="nom"
-                placeholder="Entrez votre nom complet"
                 value={nom}
                 onChange={e => setNom(e.target.value)}
                 required
@@ -280,7 +279,6 @@ export default function LoginPage() {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Entrez votre mot de passe"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
@@ -289,7 +287,7 @@ export default function LoginPage() {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 hover:bg-transparent"
                   onClick={() => setShowPassword(v => !v)}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -298,17 +296,13 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
-                {error}
-              </div>
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connexion...</>
-              ) : (
-                'Se connecter'
-              )}
+            <Button type="submit" className="w-full" loading={loading}>
+              {loading ? 'Connexion...' : 'Se connecter'}
             </Button>
           </form>
         </CardContent>
