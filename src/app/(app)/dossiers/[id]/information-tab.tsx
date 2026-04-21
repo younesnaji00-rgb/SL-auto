@@ -293,24 +293,6 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
         </CardContent>
       </Card>
 
-      {/* ── OBSERVATION DÉCISION ── */}
-      {dossier.observationDecision && (
-        <div className={cn("space-y-1 p-4 rounded-xl border border-dashed shadow-sm", dossier.observationDecisionUpdatedAt ? "bg-amber-50/50 border-amber-300 dark:bg-amber-900/10 dark:border-amber-700" : "bg-muted/30")}>
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-            <Info className="h-3 w-3" /> Observation — Décision de statut
-          </p>
-          <p className="text-sm italic text-muted-foreground leading-relaxed whitespace-pre-wrap">
-            {dossier.observationDecision}
-          </p>
-          {dossier.observationDecisionUpdatedAt && (
-            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 mt-1">
-              <Clock className="h-3 w-3 mr-1" />
-              Par {dossier.observationDecisionUpdatedBy || 'N/A'} le {dossier.observationDecisionUpdatedAt?.toDate ? format(dossier.observationDecisionUpdatedAt.toDate(), "dd/MM/yyyy 'à' HH:mm", { locale: fr }) : '-'}
-            </Badge>
-          )}
-        </div>
-      )}
-
       {/* ── ASSURÉ ── */}
       <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
         <CardHeader className="bg-heading-bg py-3">
