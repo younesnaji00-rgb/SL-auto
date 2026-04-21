@@ -37,50 +37,85 @@ export interface TimelineProps {
   onActiveStepChange: (stepId: number) => void;
 }
 
+// Just below the sticky bars (action bar ~52px + timeline bar ~56px = 108px) + small buffer.
+const ACTIVE_THRESHOLD = 120;
+
+/**
+ * Walk up the DOM to find the nearest scrollable ancestor. Needed because this
+ * app's main scroll container is `<main className="overflow-y-auto">` in the
+ * (app) layout, not `window`.
+ */
+function findScrollContainer(el: HTMLElement | null): HTMLElement | Window {
+  let node: HTMLElement | null = el?.parentElement ?? null;
+  while (node) {
+    const style = window.getComputedStyle(node);
+    const overflowY = style.overflowY;
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return window;
+}
+
+function pickActiveStep(steps: TimelineStep[], thresholdTop: number): number | null {
+  let best: { id: number; top: number } | null = null;
+  for (const s of steps) {
+    const el = document.getElementById(`step-${s.id}`);
+    if (!el) continue;
+    const top = el.getBoundingClientRect().top; // relative to viewport
+    if (top <= thresholdTop) {
+      // Candidate — we want the largest top among those ≤ threshold (the last
+      // section whose top has crossed below the sticky bars).
+      if (!best || top > best.top) best = { id: s.id, top };
+    }
+  }
+  return best?.id ?? steps[0]?.id ?? null;
+}
+
 export function Timeline({ steps, sections, activeStep, onActiveStepChange }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const suppressObserverRef = useRef(false);
+  const suppressScrollRef = useRef(false);
 
   // Smooth-scroll to a step when the bar is clicked.
   const handleStepClick = useCallback(
     (stepId: number) => {
-      suppressObserverRef.current = true;
+      suppressScrollRef.current = true;
       onActiveStepChange(stepId);
       const el = document.getElementById(`step-${stepId}`);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      // Re-enable observer after scroll settles.
-      window.setTimeout(() => { suppressObserverRef.current = false; }, 700);
+      // Re-enable scroll listener after scroll settles.
+      window.setTimeout(() => { suppressScrollRef.current = false; }, 700);
     },
     [onActiveStepChange]
   );
 
-  // Observe section visibility to auto-update active step while scrolling.
+  // Track active step via a scroll listener on whichever ancestor actually scrolls.
   useEffect(() => {
-    const nodes = steps
-      .map((s) => document.getElementById(`step-${s.id}`))
-      .filter((n): n is HTMLElement => !!n);
-    if (nodes.length === 0) return;
+    if (steps.length === 0) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (suppressObserverRef.current) return;
-        // Pick the entry closest to the top of the viewport.
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible.length > 0) {
-          const top = visible[0].target as HTMLElement;
-          const id = Number(top.dataset.timelineStep);
-          if (Number.isFinite(id) && id !== activeStep) {
-            onActiveStepChange(id);
-          }
-        }
-      },
-      { rootMargin: '-20% 0px -60% 0px', threshold: 0 }
-    );
+    // Resolve the scroll target from a known step element. If none exist yet,
+    // fall back to window — we'll re-run this effect once steps render.
+    const firstStepEl = document.getElementById(`step-${steps[0].id}`);
+    const scrollTarget = findScrollContainer(firstStepEl);
 
-    nodes.forEach((n) => observer.observe(n));
-    return () => observer.disconnect();
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (suppressScrollRef.current) return;
+        const id = pickActiveStep(steps, ACTIVE_THRESHOLD);
+        if (id != null && id !== activeStep) onActiveStepChange(id);
+      });
+    };
+
+    scrollTarget.addEventListener('scroll', onScroll, { passive: true });
+    onScroll(); // run once on mount
+    return () => {
+      scrollTarget.removeEventListener('scroll', onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, [steps, activeStep, onActiveStepChange]);
 
   // Scroll to the active step on mount (restore position on return).
@@ -90,9 +125,9 @@ export function Timeline({ steps, sections, activeStep, onActiveStepChange }: Ti
     const el = document.getElementById(`step-${activeStep}`);
     if (el) {
       didInitialScrollRef.current = true;
-      suppressObserverRef.current = true;
+      suppressScrollRef.current = true;
       el.scrollIntoView({ behavior: 'auto', block: 'start' });
-      window.setTimeout(() => { suppressObserverRef.current = false; }, 500);
+      window.setTimeout(() => { suppressScrollRef.current = false; }, 500);
     }
   }, [activeStep]);
 
