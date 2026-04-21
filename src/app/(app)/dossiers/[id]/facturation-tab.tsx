@@ -67,8 +67,9 @@ export default function FacturationTab({ dossier, dossierRef }: { dossier: any; 
                     </div>
                 </div>
                 <div className="flex justify-end pt-4">
-                    <Button onClick={handleSave} disabled={isSaving}>
-                        <Save className="mr-2 h-4 w-4" /> {isSaving ? 'Enregistrement...' : 'Sauvegarder'}
+                    <Button onClick={handleSave} loading={isSaving}>
+                        {!isSaving && <Save className="mr-2 h-4 w-4" />}
+                        {isSaving ? 'Enregistrement...' : 'Sauvegarder'}
                     </Button>
                 </div>
             </CardContent>

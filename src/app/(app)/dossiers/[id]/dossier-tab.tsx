@@ -209,7 +209,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
 
               <div className="space-y-4 pt-4 border-t border-dashed">
                 <div className="flex items-center gap-2 text-primary">
-                  <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <User className="h-4 w-4 text-primary" />
                   <span className="text-sm font-bold uppercase">Informations Assuré</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -259,7 +259,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
             <CardContent className="pt-6 space-y-6">
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-primary">
-                  <Car className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <Car className="h-4 w-4 text-primary" />
                   <span className="text-sm font-bold uppercase">Véhicule</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -310,7 +310,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
 
               <div className="space-y-4 pt-4 border-t border-dashed">
                 <div className="flex items-center gap-2 text-primary">
-                  <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <Info className="h-4 w-4 text-primary" />
                   <span className="text-sm font-bold uppercase">Administration & Garage</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -383,7 +383,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
             <Button variant="ghost" onClick={() => window.location.reload()}>
               Annuler
             </Button>
-            <Button onClick={handleSave} disabled={isSaving} className="min-w-[140px] shadow-lg shadow-primary/20">
+            <Button onClick={handleSave} loading={isSaving} className="min-w-[140px] shadow-lg shadow-primary/20">
               {isSaving ? "Mise à jour..." : "Mettre à jour"}
             </Button>
           </div>

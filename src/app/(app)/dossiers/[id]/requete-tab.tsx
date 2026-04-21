@@ -196,7 +196,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
                 {!editing ? (
                     <button type="button" onClick={() => setEditing(true)}
                         className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold">
-                        <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Modifier
+                        <Pencil className="h-3.5 w-3.5 text-primary" /> Modifier
                     </button>
                 ) : (
                     <>
@@ -304,7 +304,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
             <Card className="border-primary/5 shadow-sm">
                 <CardHeader className="bg-heading-bg py-3">
                     <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-                        <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <User className="h-4 w-4 text-primary" />
                         Informations Assuré
                     </CardTitle>
                 </CardHeader>

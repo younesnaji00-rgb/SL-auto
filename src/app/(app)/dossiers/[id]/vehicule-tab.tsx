@@ -88,8 +88,9 @@ export default function VehiculeTab({ dossier, dossierRef }: { dossier: any; dos
                     <div className="space-y-2"><Label>Kilométrage</Label><Input type="number" value={values.km} onChange={e => handleChange('km', e.target.value)} /></div>
                 </div>
                 <div className="flex justify-end">
-                    <Button onClick={handleSave} disabled={isSaving}>
-                        <Save className="mr-2 h-4 w-4" /> {isSaving ? 'Enregistrement...' : 'Sauvegarder'}
+                    <Button onClick={handleSave} loading={isSaving}>
+                        {!isSaving && <Save className="mr-2 h-4 w-4" />}
+                        {isSaving ? 'Enregistrement...' : 'Sauvegarder'}
                     </Button>
                 </div>
             </CardContent>

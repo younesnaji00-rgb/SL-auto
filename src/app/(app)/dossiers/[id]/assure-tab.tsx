@@ -68,8 +68,9 @@ export default function AssureTab({ dossier, dossierRef }: { dossier: any; dossi
                     <div className="space-y-2"><Label>CIN</Label><Input value={values.cin} onChange={e => handleChange('cin', e.target.value)} /></div>
                 </div>
                 <div className="flex justify-end">
-                    <Button onClick={handleSave} disabled={isSaving}>
-                        <Save className="mr-2 h-4 w-4" /> {isSaving ? 'Enregistrement...' : 'Sauvegarder'}
+                    <Button onClick={handleSave} loading={isSaving}>
+                        {!isSaving && <Save className="mr-2 h-4 w-4" />}
+                        {isSaving ? 'Enregistrement...' : 'Sauvegarder'}
                     </Button>
                 </div>
             </CardContent>

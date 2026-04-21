@@ -215,7 +215,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
           {!editing ? (
             <button type="button" onClick={() => setEditing(true)}
               className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold">
-              <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Modifier
+              <Pencil className="h-3.5 w-3.5 text-primary" /> Modifier
             </button>
           ) : (
             <>
@@ -297,7 +297,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
       <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
         <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <User className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Informations Assuré
+            <User className="h-4 w-4 text-primary" /> Informations Assuré
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -320,7 +320,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
       <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
         <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <Car className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Véhicule
+            <Car className="h-4 w-4 text-primary" /> Véhicule
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -343,7 +343,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
       <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
         <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <PenLine className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Intermédiaire
+            <PenLine className="h-4 w-4 text-primary" /> Intermédiaire
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -371,7 +371,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
       <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
         <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Partie Adverse
+            <Users className="h-4 w-4 text-primary" /> Partie Adverse
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
