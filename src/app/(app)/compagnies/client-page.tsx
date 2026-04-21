@@ -214,7 +214,7 @@ export default function CompagniesClientPage() {
             <Link href="/dossiers">Tous les dossiers</Link>
           </Button>
           <Button asChild className="shadow-lg shadow-primary/20">
-            <Link href="/dossiers/new">Nouveau Dossier</Link>
+            <Link href="/dossiers">Nouveau Dossier</Link>
           </Button>
         </div>
       </div>

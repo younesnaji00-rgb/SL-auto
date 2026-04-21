@@ -33,10 +33,9 @@ function isEmpty(v: any): boolean {
   return false;
 }
 
-// Fields that were required at creation time (mirrors the `checkEmptyFields`
-// soft-warning list in `src/app/(app)/dossiers/new/creation-form.tsx`).
-// Each entry maps a human-readable French label to the Firestore dossier
-// path where the value is stored.
+// Fields that were required at creation time (legacy soft-warning list from
+// the retired creation wizard). Each entry maps a human-readable French label
+// to the Firestore dossier path where the value is stored.
 const REQUIRED_FIELDS: { label: string; paths: string[] }[] = [
   { label: 'Compagnie', paths: ['compagnie'] },
   { label: 'Nature du dossier', paths: ['nature'] },

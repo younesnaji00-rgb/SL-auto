@@ -30,7 +30,7 @@ export interface Step1ImportProps {
 }
 
 // Date fields that must be stored as Firestore Timestamps to stay consistent
-// with the rest of the dossier document (see creation-form.tsx).
+// with the rest of the dossier document.
 const DATE_FIELDS: Record<string, 'timestamp' | 'iso'> = {
   dateOfLoss: 'timestamp',
   dateOfRequest: 'timestamp',
