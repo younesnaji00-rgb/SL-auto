@@ -31,9 +31,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
+import { toOrdinalFr } from '@/lib/devis-schema';
 import { useFirestore, useAuth, useCollection, useStorage } from '@/firebase';
 import {
   collection,
@@ -86,6 +89,10 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   const [uploadType, setUploadType] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
 
+  // Devis-specific variant (only shown when uploadType === 'Devis')
+  const [devisVariant, setDevisVariant] = useState<'original' | 'counter'>('original');
+  const [counterRoundLabel, setCounterRoundLabel] = useState<string>('');
+
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBatchDownloading, setIsBatchDownloading] = useState(false);
@@ -134,6 +141,25 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
     return sortedDocs.filter((d) => (d.type || d.typeDocument) === selectedType);
   }, [sortedDocs, selectedType]);
 
+  // Tally Devis-typed documents in this dossier by their variant.
+  // Files missing `devisVariant` are treated as original (back-compat with older uploads).
+  const devisStats = useMemo(() => {
+    const devisDocs = sortedDocs.filter((d: any) => (d.type || d.typeDocument) === 'Devis');
+    const originals = devisDocs.filter((d: any) => (d.devisVariant ?? 'original') === 'original').length;
+    const counters = devisDocs.filter((d: any) => d.devisVariant === 'counter').length;
+    return { originals, counters };
+  }, [sortedDocs]);
+
+  const canSelectCounter = devisStats.originals > 0;
+
+  // When the user switches uploadType or opens the dialog, reset variant fields sensibly.
+  React.useEffect(() => {
+    if (uploadType !== 'Devis') return;
+    // If no original yet → force 'original'. Otherwise default to 'original' but allow switch.
+    setDevisVariant('original');
+    setCounterRoundLabel(toOrdinalFr(devisStats.counters + 1) + ' accord');
+  }, [uploadType, devisStats.counters, isUploadModalOpen]);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setSelectedFiles(Array.from(e.target.files));
@@ -150,10 +176,39 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
     const userId = auth?.currentUser?.uid || 'unknown';
     setIsUploading(true);
 
+    // Guard: counter variant requires an original already in this dossier.
+    if (uploadType === 'Devis' && devisVariant === 'counter' && !canSelectCounter) {
+      toast({
+        variant: 'destructive',
+        title: 'Devis original manquant',
+        description: "Uploadez d'abord un devis original avant d'ajouter un contre-devis.",
+      });
+      return;
+    }
+
     try {
-      for (const file of selectedFiles) {
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
         const timestamp = Date.now();
         const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${file.name}`;
+
+        const isDevis = uploadType === 'Devis';
+        // When multiple counter files are selected at once, auto-increment the round label
+        // so that "1er accord", "2ème accord", etc. don't collide on the same upload.
+        const devisMetadata: Record<string, any> = {};
+        if (isDevis) {
+          devisMetadata.devisVariant = devisVariant;
+          if (devisVariant === 'counter') {
+            const baseLabel = counterRoundLabel.trim() || (toOrdinalFr(devisStats.counters + 1 + i) + ' accord');
+            // Only suffix if user didn't already set a custom label and this is a subsequent file.
+            const label = counterRoundLabel.trim() && i === 0
+              ? counterRoundLabel.trim()
+              : toOrdinalFr(devisStats.counters + 1 + i) + ' accord';
+            devisMetadata.counterRoundLabel = label;
+            devisMetadata.counterRoundOrder = devisStats.counters + 1 + i;
+          }
+        }
+
         await uploadFileWithOfflineSupport({
           storage,
           db,
@@ -168,6 +223,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
             uploadePar: userEmail,
             storagePath,
             _localCreatedAt: timestamp,
+            ...devisMetadata,
           },
         });
         await logHistorique(db, dossierId, 'Upload document', userEmail, `Document "${file.name}" uploadé.`, 'document');
@@ -337,12 +393,6 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                 <CheckSquare className="mr-2 h-4 w-4" />
                 Sélectionner
               </Button>
-              {canEdit && (
-                <Button onClick={() => fileInputRef.current?.click()} size="sm">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Ajouter un document
-                </Button>
-              )}
             </>
           )}
         </div>
@@ -618,6 +668,59 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                 </SelectContent>
               </Select>
             </div>
+
+            {uploadType === 'Devis' && (
+              <div className="space-y-2 pt-1 border-t">
+                <Label className="text-xs font-semibold">Variante du devis</Label>
+                <RadioGroup
+                  value={devisVariant}
+                  onValueChange={(v) => setDevisVariant(v as 'original' | 'counter')}
+                  className="gap-2"
+                  disabled={isUploading}
+                >
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <RadioGroupItem value="original" id="dv-original" className="mt-0.5" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">Devis original</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Lignes et prix imprimés. Extraction complète par l'IA au moment du chiffrage.
+                      </div>
+                    </div>
+                  </label>
+                  <label className={cn('flex items-start gap-2', canSelectCounter ? 'cursor-pointer' : 'cursor-not-allowed opacity-50')}>
+                    <RadioGroupItem value="counter" id="dv-counter" className="mt-0.5" disabled={!canSelectCounter} />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">
+                        Contre-devis / accord
+                        <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-red-600 align-middle" />
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {canSelectCounter
+                          ? "Prix de contre-proposition (annotés à la main ou en surimpression). Ajoute une colonne rouge au devis lors du chiffrage."
+                          : "Vous devez d'abord uploader un devis original pour ce dossier."}
+                      </div>
+                    </div>
+                  </label>
+                </RadioGroup>
+
+                {devisVariant === 'counter' && canSelectCounter && (
+                  <div className="space-y-1 pt-2">
+                    <Label className="text-xs font-semibold">Label du round</Label>
+                    <Input
+                      value={counterRoundLabel}
+                      onChange={(e) => setCounterRoundLabel(e.target.value)}
+                      placeholder="1er accord"
+                      className="h-8 text-xs"
+                      disabled={isUploading}
+                    />
+                    <div className="text-[10px] text-muted-foreground">
+                      Devient le nom de la colonne rouge (ex: "1er accord", "Expert arbitre").
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {isUploading && (
               <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -638,7 +741,12 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
             </Button>
             <Button
               onClick={handleUpload}
-              disabled={selectedFiles.length === 0 || !uploadType || isUploading}
+              disabled={
+                selectedFiles.length === 0
+                || !uploadType
+                || isUploading
+                || (uploadType === 'Devis' && devisVariant === 'counter' && (!canSelectCounter || !counterRoundLabel.trim()))
+              }
             >
               {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {isUploading ? 'Transfert...' : 'Uploader'}
