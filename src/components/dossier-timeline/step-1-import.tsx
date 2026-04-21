@@ -2,9 +2,9 @@
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
+  doc as firestoreDoc,
   updateDoc,
   serverTimestamp,
-  collection,
   Timestamp,
   type DocumentReference,
 } from 'firebase/firestore';
@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useStorage, useAuth, useCollection } from '@/firebase';
+import { useFirestore, useStorage, useAuth, useDoc } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
@@ -132,26 +132,23 @@ export default function Step1Import({
   const [lastFilledCount, setLastFilledCount] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Live list of documents already uploaded on this dossier.
-  const docsQuery = useMemo(() => {
-    if (!db || !dossierId) return null;
-    return collection(db, 'dossiers', dossierId, 'documents');
-  }, [db, dossierId]);
-  const { data: documents, loading: docsLoading } = useCollection<any>(docsQuery);
+  // Step 1 shows ONLY the one document that produced the AI pre-fill. Other
+  // uploads live in Step 4 (Pièces jointes). The reference is stored on the
+  // dossier as `importDocId`.
+  const importDocId: string | undefined = dossier?.importDocId || undefined;
 
-  const sortedDocs = useMemo(() => {
-    if (!documents) return [];
-    return [...documents].sort((a: any, b: any) => {
-      const tsA = a.dateUpload || a.uploadedAt;
-      const tsB = b.dateUpload || b.uploadedAt;
-      const dateA = tsA?.toDate ? tsA.toDate().getTime() : tsA || 0;
-      const dateB = tsB?.toDate ? tsB.toDate().getTime() : tsB || 0;
-      return dateB - dateA;
-    });
-  }, [documents]);
+  const importDocRef = useMemo(() => {
+    if (!db || !dossierId || !importDocId) return null;
+    return firestoreDoc(db, 'dossiers', dossierId, 'documents', importDocId);
+  }, [db, dossierId, importDocId]);
+  const { data: importDoc, loading: importDocLoading } = useDoc<any>(importDocRef);
 
   const runScanAndMerge = useCallback(
-    async (files: File[], userEmail: string) => {
+    async (
+      files: File[],
+      userEmail: string,
+      sourceDocId: string | undefined
+    ) => {
       setIsScanning(true);
       try {
         const payload = await Promise.all(
@@ -183,6 +180,21 @@ export default function Step1Import({
               "L'IA n'a pas pu extraire d'informations de ce document.",
           });
           setLastFilledCount(0);
+          // Still mark this as the scan source so Step 1 shows which document
+          // was inspected by the AI (even if nothing could be extracted).
+          if (sourceDocId) {
+            try {
+              await updateDoc(dossierRef, {
+                importDocId: sourceDocId,
+                importDocScannedAt: serverTimestamp(),
+              });
+            } catch (markErr) {
+              console.warn(
+                '[Step1Import] failed to record importDocId after empty scan:',
+                markErr
+              );
+            }
+          }
           return;
         }
 
@@ -217,10 +229,18 @@ export default function Step1Import({
           written += 1;
         }
 
-        if (written > 0) {
+        // Record the scanned document as Step 1's single source, whether or
+        // not any field was actually written (user may have pre-filled
+        // everything by hand — the doc is still the AI-scan entry point).
+        if (sourceDocId) {
+          updates.importDocId = sourceDocId;
+          updates.importDocScannedAt = serverTimestamp();
+        }
+
+        if (written > 0 || sourceDocId) {
           updates.updatedAt = serverTimestamp();
           await updateDoc(dossierRef, updates);
-          if (db) {
+          if (db && written > 0) {
             await logHistorique(
               db,
               dossierId,
@@ -268,11 +288,16 @@ export default function Step1Import({
       const userId = auth?.currentUser?.uid || 'unknown';
 
       setIsUploading(true);
+      // The id of the FIRST successfully-uploaded doc becomes the scan source.
+      // Step 1 shows a single source document; additional files (rare in this
+      // step, but possible via multi-select) will simply land in the
+      // dossier's documents collection and be visible from Step 4.
+      let firstDocId: string | undefined;
       try {
         for (const file of files) {
           const timestamp = Date.now();
           const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${file.name}`;
-          await uploadFileWithOfflineSupport({
+          const result = await uploadFileWithOfflineSupport({
             storage,
             db,
             file,
@@ -288,6 +313,7 @@ export default function Step1Import({
               _localCreatedAt: timestamp,
             },
           });
+          if (!firstDocId && result.docId) firstDocId = result.docId;
           await logHistorique(
             db,
             dossierId,
@@ -314,8 +340,9 @@ export default function Step1Import({
               : `${files.length} documents importés`,
         });
 
-        // Scan all uploaded files in one go.
-        await runScanAndMerge(files, userEmail);
+        // Scan all uploaded files in one go. Pass the first uploaded doc id
+        // so the merge step can stamp it as Step 1's source document.
+        await runScanAndMerge(files, userEmail, firstDocId);
       } catch (err: any) {
         console.error('[Step1Import] upload error:', err);
         toast({
@@ -367,11 +394,15 @@ export default function Step1Import({
   );
 
   const busy = isUploading || isScanning;
-  const hasDocs = sortedDocs.length > 0;
+  const hasImportDoc = Boolean(importDocId);
+  // Drop zone is shown only when the user hasn't yet scanned a document.
+  // After the first successful scan, Step 1 becomes a display-only panel
+  // (attachments are managed in Step 4).
+  const showDropZone = canEdit && !hasImportDoc;
 
   return (
     <div className="space-y-4">
-      {canEdit && (
+      {showDropZone && (
         <Card className="border-dashed">
           <CardContent className="p-0">
             <div
@@ -443,37 +474,52 @@ export default function Step1Import({
         </div>
       )}
 
-      {/* Summary card */}
+      {/* Summary card — Step 1 only shows the single AI-scan source document.
+          All other attachments live in Step 4 (Pièces jointes). */}
       <Card>
         <CardContent className="p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Documents importés</h3>
-            <Badge variant="secondary" className="text-[10px]">
-              {sortedDocs.length}
-            </Badge>
+            <h3 className="text-sm font-semibold">
+              Document source du pré-remplissage
+            </h3>
+            {hasImportDoc && (
+              <Badge variant="secondary" className="text-[10px]">
+                1
+              </Badge>
+            )}
           </div>
 
-          {docsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : !hasDocs ? (
+          {!hasImportDoc ? (
             <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
               <FileText className="h-10 w-10 text-muted-foreground/30" />
               <p className="text-sm italic text-muted-foreground">
                 Aucun document importé. Déposez votre lettre de mission,
-                constat ou document d&apos;assurance.
+                constat ou document d&apos;assurance pour lancer le
+                pré-remplissage par l&apos;IA.
+              </p>
+            </div>
+          ) : importDocLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : !importDoc ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
+              <FileText className="h-8 w-8 text-muted-foreground/30" />
+              <p className="text-sm italic text-muted-foreground">
+                Le document source est introuvable (il a peut-être été
+                supprimé depuis l&apos;étape Pièces jointes).
               </p>
             </div>
           ) : (
             <ul className="divide-y rounded-md border">
-              {sortedDocs.map((d: any) => {
+              {(() => {
+                const d: any = importDoc;
                 const name = d.nom || d.fileName || 'document';
                 const by = d.uploadePar || d.uploadedBy || '—';
                 const when = formatDate(d.dateUpload || d.uploadedAt);
                 return (
                   <li
-                    key={d.id}
+                    key={d.id || importDocId}
                     className="flex items-center gap-3 px-3 py-2 text-sm"
                   >
                     <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -496,8 +542,15 @@ export default function Step1Import({
                     )}
                   </li>
                 );
-              })}
+              })()}
             </ul>
+          )}
+
+          {hasImportDoc && (
+            <p className="mt-3 text-[11px] italic text-muted-foreground">
+              Les autres pièces jointes sont gérées dans l&apos;étape 4
+              « Pièces jointes ».
+            </p>
           )}
         </CardContent>
       </Card>

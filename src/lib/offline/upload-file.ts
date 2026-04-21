@@ -20,6 +20,13 @@ export interface UploadFileResult {
   queued: boolean;
   url?: string;
   placeholderDocId?: string;
+  /**
+   * Id of the Firestore metadata doc that was created for this upload.
+   * Populated for both online uploads and queued (offline) uploads — the
+   * offline placeholder doc is the same doc that will be updated once the
+   * queued upload completes, so its id is stable.
+   */
+  docId?: string;
 }
 
 export async function uploadFileWithOfflineSupport(
@@ -35,13 +42,13 @@ export async function uploadFileWithOfflineSupport(
       const url = await getDownloadURL(fileRef);
 
       // Save metadata to Firestore
-      await addDoc(collection(db, firestoreDocPath), {
+      const docRef = await addDoc(collection(db, firestoreDocPath), {
         ...firestoreMetadata,
         url,
         dateUpload: serverTimestamp(),
       });
 
-      return { queued: false, url };
+      return { queued: false, url, docId: docRef.id };
     } catch {
       // Network failed mid-upload — fall through to offline queue
     }
@@ -77,5 +84,5 @@ export async function uploadFileWithOfflineSupport(
     },
   });
 
-  return { queued: true, placeholderDocId: placeholderRef.id };
+  return { queued: true, placeholderDocId: placeholderRef.id, docId: placeholderRef.id };
 }
