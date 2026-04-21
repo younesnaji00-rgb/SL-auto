@@ -14,7 +14,7 @@ import {
 import {
   ArrowLeft, FileType, Eye, Loader2,
   ChevronDown, ChevronRight, ImageIcon, FileText, ExternalLink, GitBranch,
-  Table2, History, Download,
+  Table2, History, Download, Scale,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { EDITABLE_DOC_TYPES, isEditableDocType } from '@/lib/devis-schema';
@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import ModalDecisionStatus from '../../dossiers/[id]/modal-decision-status';
 import ObservationsTab from '@/components/observations-tab';
+import { ReformeDialog } from '@/components/chiffreurs/reforme-dialog';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -59,6 +60,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
+  const [isReformeOpen, setReformeOpen] = useState(false);
   const [versionPreview, setVersionPreview] = useState<{ url: string; label: string } | null>(null);
 
   const fetchedPathsRef = useRef<Set<string>>(new Set());
@@ -187,6 +189,17 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           >
             <GitBranch className="h-3.5 w-3.5" />
             Décision de statut
+          </Button>
+        )}
+        {canEdit && chiffrage.dossierId && (
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-1.5 bg-purple-600 hover:bg-purple-700"
+            onClick={() => setReformeOpen(true)}
+          >
+            <Scale className="h-3.5 w-3.5" />
+            Réforme
           </Button>
         )}
         <Badge variant="outline" className={cn("gap-1.5 py-1 px-3 rounded-full border font-semibold", getStatusBadgeStyles(dossierStatut))}>
@@ -400,6 +413,15 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         currentObservationUpdatedBy={dossier?.observationDecisionUpdatedBy}
         source="assignations-chiffrage"
       />
+
+      {/* Réforme Modal */}
+      {chiffrage.dossierId && (
+        <ReformeDialog
+          dossierId={chiffrage.dossierId}
+          open={isReformeOpen}
+          onOpenChange={setReformeOpen}
+        />
+      )}
     </div>
   );
 }
