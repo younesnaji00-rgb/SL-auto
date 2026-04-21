@@ -38,9 +38,9 @@ interface DevisEditorProps {
 const HEADER_FIELDS_LEFT: Array<{ key: keyof DevisHeader; label: string }> = [
   { key: 'marque', label: 'Marque' },
   { key: 'matricule', label: 'Matricule' },
-  { key: 'modele', label: 'Modele' },
-  { key: 'kilometrage', label: 'Kilometrage' },
-  { key: 'chassis', label: 'N° de chassis' },
+  { key: 'modele', label: 'Modèle' },
+  { key: 'kilometrage', label: 'Kilométrage' },
+  { key: 'chassis', label: 'N° de châssis' },
   { key: 'expert', label: 'Expert' },
 ];
 
@@ -48,7 +48,7 @@ const HEADER_FIELDS_RIGHT: Array<{ key: keyof DevisHeader; label: string }> = [
   { key: 'client', label: 'Client' },
   { key: 'adresse', label: 'Adresse' },
   { key: 'ice', label: 'ICE' },
-  { key: 'telephone', label: 'Telephone' },
+  { key: 'telephone', label: 'Téléphone' },
   { key: 'assurances', label: 'Assurances' },
 ];
 
@@ -431,14 +431,15 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
           variant="outline"
           size="sm"
           onClick={() => runExtraction(true)}
-          disabled={extracting || !canEdit || devisFileNames.length === 0}
-          title="Relancer l'extraction automatique (ecrase les donnees)"
+          loading={extracting}
+          disabled={!canEdit || devisFileNames.length === 0}
+          title="Relancer l'extraction automatique (écrase les données)"
         >
-          {extracting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
-          Re-extraire
+          {extracting ? null : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+          Ré-extraire
         </Button>
-        <Button variant="default" size="sm" onClick={handleSave} disabled={saving || !canEdit}>
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+        <Button variant="default" size="sm" onClick={handleSave} loading={saving} disabled={!canEdit}>
+          {saving ? null : <Save className="h-3.5 w-3.5 mr-1.5" />}
           Enregistrer
         </Button>
       </div>
@@ -544,17 +545,17 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
                     <th
                       key={col.id}
                       style={{ width: '140px' }}
-                      className={cn(isCounter && 'text-red-600')}
+                      className={cn(isCounter && 'text-destructive')}
                     >
                       <div className="flex items-center gap-1">
-                        {isCounter && <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600 shrink-0" aria-hidden />}
+                        {isCounter && <span className="inline-block h-1.5 w-1.5 rounded-full bg-destructive shrink-0" aria-hidden />}
                         <span className="truncate">{col.label}</span>
                         {isCounter && col.sourcePdfUrl && (
                           <a
                             href={col.sourcePdfUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-red-600/70 hover:text-red-600"
+                            className="text-destructive/70 hover:text-destructive"
                             title="Ouvrir le document source"
                           >
                             <FileText className="h-3 w-3" />
@@ -618,7 +619,7 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
                           value={col.values[r.id] || ''}
                           onChange={(v) => updateExtraCell(col.id, r.id, v)}
                           disabled={!canEdit}
-                          className={col.kind === 'counter' ? 'text-red-600 font-semibold' : undefined}
+                          className={col.kind === 'counter' ? 'text-destructive font-semibold' : undefined}
                         />
                       </td>
                     ))}
@@ -651,7 +652,7 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
               const colSum = rows.reduce((acc, r) => acc + parseFr(col.values[r.id] || ''), 0);
               const isCounter = col.kind === 'counter';
               return (
-                <div key={col.id} className={cn('flex gap-6 pt-1 border-t mt-1', isCounter && 'text-red-600')}>
+                <div key={col.id} className={cn('flex gap-6 pt-1 border-t mt-1', isCounter && 'text-destructive')}>
                   <span className={isCounter ? '' : 'text-muted-foreground'}>Σ {col.label || '—'}</span>
                   <span className={cn('w-24 text-right', isCounter && 'font-semibold')}>{formatFr(colSum)}</span>
                 </div>
