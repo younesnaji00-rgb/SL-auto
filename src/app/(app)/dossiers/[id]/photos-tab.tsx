@@ -4,13 +4,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Upload,
   Loader2,
-  ChevronDown,
-  ChevronRight,
   Download,
   Pencil,
   X,
   Check,
   Eye,
+  Camera,
+  ImageIcon,
 } from 'lucide-react';
 import { 
   collection, 
@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -54,10 +55,10 @@ interface Photo {
   pendingUpload?: boolean;
 }
 
-const CATEGORIES: { id: PhotoCategory; label: string }[] = [
-  { id: 'avant', label: 'Avant' },
-  { id: 'en_cours', label: 'En cours' },
-  { id: 'apres', label: 'Après' },
+const CATEGORIES: { id: PhotoCategory; label: string; fullLabel: string }[] = [
+  { id: 'avant', label: 'Avant', fullLabel: 'Photos avant' },
+  { id: 'en_cours', label: 'En cours', fullLabel: 'Photos en cours' },
+  { id: 'apres', label: 'Après', fullLabel: 'Photos après' },
 ];
 
 export default function PhotosTab({ dossierId }: { dossierId: string }) {
@@ -72,14 +73,10 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
   const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState<PhotoCategory | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<Record<PhotoCategory, boolean>>({
-    avant: false,
-    en_cours: false,
-    apres: false,
-  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState<Photo | null>(null);
+  const [galleryCategory, setGalleryCategory] = useState<PhotoCategory | null>(null);
 
   const fileInputRefs = useRef<Record<PhotoCategory, HTMLInputElement | null>>({
     avant: null,
@@ -205,10 +202,6 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
     }
   };
 
-  const toggleCollapse = (cat: PhotoCategory) => {
-    setCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }));
-  };
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-4">
@@ -218,185 +211,278 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
     );
   }
 
+  const galleryCat = galleryCategory ? CATEGORIES.find(c => c.id === galleryCategory) : null;
+  const galleryPhotos = galleryCategory ? photosForCategory(galleryCategory) : [];
+
   return (
     <div className="space-y-6">
-      {CATEGORIES.map(cat => {
-        const catPhotos = photosForCategory(cat.id);
-        const isOpen = !collapsed[cat.id];
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {CATEGORIES.map(cat => {
+          const catPhotos = photosForCategory(cat.id);
+          const previewStrip = catPhotos.slice(0, 6);
 
-        return (
-          <div key={cat.id} className="border border-border rounded-lg overflow-hidden bg-background shadow-sm">
-            {/* Header Row */}
-            <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border">
-              <div 
-                className="flex items-center gap-3 cursor-pointer select-none py-1"
-                onClick={() => toggleCollapse(cat.id)}
-              >
-                {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                <span className="font-bold text-sm uppercase tracking-wider">{cat.label}</span>
-                <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5 min-w-[20px] flex items-center justify-center">
-                  {catPhotos.length}
-                </Badge>
+          return (
+            <Card key={cat.id} className="flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-bold text-sm uppercase tracking-wider truncate">{cat.fullLabel}</span>
+                  <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5 min-w-[20px] flex items-center justify-center shrink-0">
+                    {catPhotos.length}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    ref={el => { fileInputRefs.current[cat.id] = el; }}
+                    onChange={e => e.target.files && handleUpload(cat.id, e.target.files)}
+                  />
+                  {canEdit && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs gap-2 bg-background hover:bg-muted"
+                      disabled={isUploading === cat.id}
+                      onClick={(e) => { e.stopPropagation(); fileInputRefs.current[cat.id]?.click(); }}
+                      title="Ajouter"
+                    >
+                      {isUploading === cat.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Camera className="h-3 w-3" />
+                      )}
+                      Ajouter
+                    </Button>
+                  )}
+                </div>
               </div>
-              
-              <div className="flex items-center gap-2">
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  ref={el => { fileInputRefs.current[cat.id] = el; }}
-                  onChange={e => e.target.files && handleUpload(cat.id, e.target.files)}
-                />
-                {canEdit && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs gap-2 bg-background hover:bg-muted"
-                    disabled={isUploading === cat.id}
-                    onClick={() => fileInputRefs.current[cat.id]?.click()}
-                  >
-                    {isUploading === cat.id ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Upload className="h-3 w-3" />
-                    )}
-                    Ajouter
-                  </Button>
-                )}
-              </div>
-            </div>
 
-            {/* Section Body */}
-            {isOpen && (
-              <div className="p-4">
+              {/* Body */}
+              <div className="flex-1 p-3 flex flex-col gap-3">
                 {catPhotos.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <p className="text-sm text-muted-foreground italic">Aucune photo dans cette section.</p>
+                  <div
+                    className={cn(
+                      "flex-1 flex flex-col items-center justify-center py-10 text-center gap-3 rounded-md border border-dashed border-border bg-muted/20",
+                      canEdit && "cursor-pointer hover:bg-muted/40 transition-colors"
+                    )}
+                    onClick={() => canEdit && fileInputRefs.current[cat.id]?.click()}
+                  >
+                    <ImageIcon className="h-10 w-10 text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground italic">Aucune photo</p>
+                    {canEdit && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs gap-2"
+                        disabled={isUploading === cat.id}
+                        onClick={(e) => { e.stopPropagation(); fileInputRefs.current[cat.id]?.click(); }}
+                      >
+                        {isUploading === cat.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Upload className="h-3 w-3" />
+                        )}
+                        Ajouter
+                      </Button>
+                    )}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-                    {catPhotos.map(photo => {
-                      const isEditing = editingId === photo.id;
-
-                      return (
-                        <div key={photo.id} className="group relative bg-muted/30 rounded-md border border-border overflow-hidden transition-all hover:shadow-md">
-                          {/* Thumbnail */}
-                          <div className="aspect-square w-full relative overflow-hidden bg-black/5">
-                            {photo.pendingUpload ? (
-                              <div className="w-full h-full flex flex-col items-center justify-center text-amber-600 bg-amber-50 dark:bg-amber-950/30">
-                                <Upload className="h-8 w-8 mb-2 opacity-60" />
-                                <span className="text-xs font-medium">En attente</span>
-                              </div>
-                            ) : (
+                  <>
+                    <div
+                      className="grid grid-cols-3 gap-1.5 cursor-pointer"
+                      onClick={() => setGalleryCategory(cat.id)}
+                      title="Voir toutes les photos"
+                    >
+                      {previewStrip.map(photo => (
+                        <div key={photo.id} className="relative aspect-square rounded-md overflow-hidden bg-black/5 border border-border">
+                          {photo.pendingUpload ? (
+                            <div className="w-full h-full flex items-center justify-center text-amber-600 bg-amber-50 dark:bg-amber-950/30">
+                              <Upload className="h-5 w-5 opacity-60" />
+                            </div>
+                          ) : (
                             <img
                               src={photo.url}
                               alt={photo.name}
                               loading="lazy"
                               decoding="async"
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              className="w-full h-full object-cover"
                             />
-                            )}
-                            
-                            {/* Click to preview */}
-                            {!photo.pendingUpload && (
-                              <div
-                                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-                                onClick={() => setPreviewPhoto(photo)}
-                              >
-                                <Eye className="h-6 w-6 text-white" />
-                              </div>
-                            )}
-
-                            {/* Hover Actions */}
-                            {!isEditing && (
-                              <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                <Button
-                                  size="icon"
-                                  variant="secondary"
-                                  className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
-                                  onClick={() => handleDownload(photo)}
-                                  title="Telecharger"
-                                >
-                                  <Download className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="secondary"
-                                  className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
-                                  onClick={() => { setEditingId(photo.id); setEditName(photo.name); }}
-                                  title="Renommer"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                                {canEdit && (
-                                  <Button
-                                    size="icon"
-                                    variant="destructive"
-                                    className="h-7 w-7 rounded-full shadow-lg"
-                                    disabled={isDeleting === photo.id}
-                                    onClick={() => handleDelete(photo)}
-                                    title="Supprimer"
-                                  >
-                                    {isDeleting === photo.id ? (
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                      <X className="h-3.5 w-3.5" />
-                                    )}
-                                  </Button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Footer Label / Rename Input */}
-                          <div className="p-2 bg-background border-t border-border">
-                            {isEditing ? (
-                              <div className="flex items-center gap-1">
-                                <Input
-                                  value={editName}
-                                  onChange={e => setEditName(e.target.value)}
-                                  className="h-7 text-[11px] px-1 focus-visible:ring-1"
-                                  autoFocus
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter') handleRename(photo);
-                                    if (e.key === 'Escape') setEditingId(null);
-                                  }}
-                                />
-                                <Button 
-                                  size="icon" 
-                                  variant="ghost" 
-                                  className="h-7 w-7 text-green-600 hover:bg-green-50"
-                                  onClick={() => handleRename(photo)}
-                                >
-                                  <Check className="h-4 w-4" />
-                                </Button>
-                                <Button 
-                                  size="icon" 
-                                  variant="ghost" 
-                                  className="h-7 w-7 text-muted-foreground"
-                                  onClick={() => setEditingId(null)}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <p className="text-[10px] text-muted-foreground font-medium truncate" title={photo.name}>
-                                {photo.name}
-                              </p>
-                            )}
-                          </div>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
+                      ))}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="w-full h-8 text-xs gap-2"
+                      onClick={() => setGalleryCategory(cat.id)}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      Voir toutes les photos
+                    </Button>
+                  </>
                 )}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Gallery Dialog */}
+      <Dialog open={galleryCategory !== null} onOpenChange={(open) => { if (!open) setGalleryCategory(null); }}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0">
+          <DialogHeader className="px-4 py-3 border-b shrink-0 flex-row items-center justify-between gap-2">
+            <DialogTitle className="text-base truncate">
+              {galleryCat?.fullLabel}
+              {galleryCat && (
+                <Badge variant="secondary" className="ml-2 font-mono text-[10px] px-1.5 h-5 min-w-[20px] inline-flex items-center justify-center">
+                  {galleryPhotos.length}
+                </Badge>
+              )}
+            </DialogTitle>
+            {galleryCategory && canEdit && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs gap-2 mr-8"
+                disabled={isUploading === galleryCategory}
+                onClick={() => fileInputRefs.current[galleryCategory]?.click()}
+              >
+                {isUploading === galleryCategory ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Camera className="h-3 w-3" />
+                )}
+                Ajouter
+              </Button>
+            )}
+          </DialogHeader>
+          <div className="flex-1 overflow-auto p-4">
+            {galleryPhotos.length === 0 ? (
+              <div className="py-12 text-center text-sm text-muted-foreground italic">Aucune photo</div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {galleryPhotos.map(photo => {
+                  const isEditing = editingId === photo.id;
+
+                  return (
+                    <div key={photo.id} className="group relative bg-muted/30 rounded-md border border-border overflow-hidden transition-all hover:shadow-md">
+                      <div className="aspect-square w-full relative overflow-hidden bg-black/5">
+                        {photo.pendingUpload ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center text-amber-600 bg-amber-50 dark:bg-amber-950/30">
+                            <Upload className="h-8 w-8 mb-2 opacity-60" />
+                            <span className="text-xs font-medium">En attente</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={photo.url}
+                            alt={photo.name}
+                            loading="lazy"
+                            decoding="async"
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                        )}
+
+                        {!photo.pendingUpload && (
+                          <div
+                            className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                            onClick={() => setPreviewPhoto(photo)}
+                          >
+                            <Eye className="h-6 w-6 text-white" />
+                          </div>
+                        )}
+
+                        {!isEditing && (
+                          <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                            <Button
+                              size="icon"
+                              variant="secondary"
+                              className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
+                              onClick={() => handleDownload(photo)}
+                              title="Telecharger"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="secondary"
+                              className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
+                              onClick={() => { setEditingId(photo.id); setEditName(photo.name); }}
+                              title="Renommer"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            {canEdit && (
+                              <Button
+                                size="icon"
+                                variant="destructive"
+                                className="h-7 w-7 rounded-full shadow-lg"
+                                disabled={isDeleting === photo.id}
+                                onClick={() => handleDelete(photo)}
+                                title="Supprimer"
+                              >
+                                {isDeleting === photo.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <X className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-2 bg-background border-t border-border">
+                        {isEditing ? (
+                          <div className="flex items-center gap-1">
+                            <Input
+                              value={editName}
+                              onChange={e => setEditName(e.target.value)}
+                              className="h-7 text-[11px] px-1 focus-visible:ring-1"
+                              autoFocus
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleRename(photo);
+                                if (e.key === 'Escape') setEditingId(null);
+                              }}
+                            />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-green-600 hover:bg-green-50"
+                              onClick={() => handleRename(photo)}
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-muted-foreground"
+                              onClick={() => setEditingId(null)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-muted-foreground font-medium truncate" title={photo.name}>
+                            {photo.name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
-        );
-      })}
+        </DialogContent>
+      </Dialog>
 
       {/* Preview Modal */}
       {previewPhoto && (
