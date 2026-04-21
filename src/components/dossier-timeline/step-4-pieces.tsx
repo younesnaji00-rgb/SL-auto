@@ -4,8 +4,8 @@ import React from 'react';
 import type { DocumentReference } from 'firebase/firestore';
 import { Camera, FileText } from 'lucide-react';
 
-import DocumentsTab from '@/app/(app)/dossiers/[id]/documents-tab';
 import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
+import TypedDocumentsGrid from './typed-documents-grid';
 
 export interface Step4PiecesProps {
   dossierId: string;
@@ -26,7 +26,7 @@ export default function Step4Pieces({ dossierId }: Step4PiecesProps) {
           <FileText className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-base font-semibold">Documents</h3>
         </div>
-        <DocumentsTab dossierId={dossierId} />
+        <TypedDocumentsGrid dossierId={dossierId} />
       </section>
 
       <section>
