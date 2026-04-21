@@ -5,20 +5,14 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   Send,
-  Calculator,
-  Camera,
   AlertTriangle,
-  ClipboardList,
   History,
   AlertCircle,
-  FileText,
   Download,
   GitBranch,
-  MessageSquare,
   Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,32 +21,25 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
 import { generateRapportPDF } from '@/lib/generate-rapport-pdf';
 
-// ── Tabs ─────────────────────────────────────────────────────────────────────
-import InformationTab from './information-tab';
-import DocumentsTab from './documents-tab';
-import PhotosTab from './photos-tab';
-import CommentairesTab from './commentaires-tab';
-import RapportTab from './rapport-tab';
+// ── Timeline ─────────────────────────────────────────────────────────────────
+import { Timeline, DOSSIER_TIMELINE_STEPS } from '@/components/dossier-timeline/timeline';
+import { useLastStep } from '@/hooks/use-last-step';
+import Step1Import from '@/components/dossier-timeline/step-1-import';
+import Step2Information from '@/components/dossier-timeline/step-2-information';
+import Step3Planification from '@/components/dossier-timeline/step-3-planification';
+import Step4Pieces from '@/components/dossier-timeline/step-4-pieces';
+import Step5Chiffrage from '@/components/dossier-timeline/step-5-chiffrage';
+import Step6Rapport from '@/components/dossier-timeline/step-6-rapport';
+
+// ── Historique (kept for drawer dialog; full drawer in task #17) ─────────────
 import HistoriqueTab from './historique-tab';
-import ObservationsTab from '@/components/observations-tab';
 
 // ── Modals ────────────────────────────────────────────────────────────────────
 import ModalPlanification from './modal-planification';
 import ModalChiffrage from './modal-chiffrage';
 import ModalReclamation from './modal-reclamation';
 import ModalDecisionStatus from './modal-decision-status';
-
-// ── Tab definitions ───────────────────────────────────────────────────────────
-const TABS = [
-  { id: 'informations',  label: 'Informations',   icon: ClipboardList },
-  { id: 'observations',  label: 'Observations',   icon: MessageSquare },
-  { id: 'photos',        label: 'Photos',         icon: Camera },
-  { id: 'documents',     label: 'Documents',      icon: FileText },
-  { id: 'chiffrage',     label: 'Chiffrage',      icon: Calculator },
-  { id: 'historique',    label: 'Historique',     icon: History },
-] as const;
-
-type TabId = (typeof TABS)[number]['id'];
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const STATUS_COLORS: Record<string, string> = {
   'Nouveau':    'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
@@ -74,7 +61,7 @@ export default function DossierDetailPage({
   const { toast } = useToast();
   const readOnly = !canWrite('dossiers');
 
-  const [activeTab, setActiveTab] = useState<TabId>('informations');
+  const [activeStep, setActiveStep] = useLastStep(id);
 
   // Modal states
   const [isPlanificationModalOpen, setPlanificationModalOpen] = useState(false);
@@ -83,6 +70,7 @@ export default function DossierDetailPage({
   const [isReclamationModalOpen, setReclamationModalOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
+  const [isHistoriqueOpen, setHistoriqueOpen] = useState(false);
 
   const renderAssure = (assure: any) => {
     if (!assure) return 'N/A';
@@ -178,48 +166,30 @@ export default function DossierDetailPage({
           <AlertTriangle className="h-3.5 w-3.5" /> Réclamation
         </Button>
         <div className="flex-1" />
+        <Button variant="outline" size="sm" onClick={() => setHistoriqueOpen(true)} className="h-8 text-xs gap-1.5">
+          <History className="h-3.5 w-3.5" /> Historique
+        </Button>
         <Button variant="default" size="sm" onClick={() => setDecisionStatusOpen(true)} className="h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700">
           <GitBranch className="h-3.5 w-3.5" /> Décision de statut
         </Button>
       </div>
       )}
 
-      {/* TABS */}
-      <div className="bg-card border-b shadow-sm sticky top-0 z-20">
-        <div className="flex overflow-x-auto no-scrollbar">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  'flex items-center gap-2 px-5 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 focus:outline-none',
-                  isActive ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
-                )}
-              >
-                <Icon className={cn('h-4 w-4', isActive ? 'text-primary' : 'text-muted-foreground')} />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* CONTENT */}
-      <div className="flex-1 p-6">
-        {activeTab === 'informations' && (
-          <div className="flex flex-col gap-6">
-            <InformationTab dossier={dossier} dossierRef={dossierRef} dossierId={id} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />
-            <Card><CardContent className="pt-5"><h2 className="text-base font-semibold mb-4">Discussion</h2><CommentairesTab dossierId={id} /></CardContent></Card>
-          </div>
-        )}
-        {activeTab === 'observations' && <ObservationsTab dossierId={id} section="dossiers" />}
-        {activeTab === 'photos'     && <PhotosTab    dossierId={id} />}
-        {activeTab === 'documents'  && <DocumentsTab dossierId={id} />}
-        {activeTab === 'chiffrage'  && <RapportTab   dossierId={id} />}
-        {activeTab === 'historique' && <HistoriqueTab dossierId={id} />}
+      {/* TIMELINE CONTENT */}
+      <div className="flex-1">
+        <Timeline
+          steps={DOSSIER_TIMELINE_STEPS}
+          sections={{
+            1: <Step1Import dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
+            2: <Step2Information dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
+            3: <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
+            4: <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
+            5: <Step5Chiffrage dossierId={id} dossier={dossier} />,
+            6: <Step6Rapport dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
+          }}
+          activeStep={activeStep}
+          onActiveStepChange={setActiveStep}
+        />
       </div>
 
       {/* MODALS */}
@@ -237,6 +207,12 @@ export default function DossierDetailPage({
         currentObservationUpdatedBy={dossier.observationDecisionUpdatedBy}
         source="dossiers"
       />
+      <Dialog open={isHistoriqueOpen} onOpenChange={setHistoriqueOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Historique</DialogTitle></DialogHeader>
+          <HistoriqueTab dossierId={id} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
