@@ -601,6 +601,16 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
             <div className="flex gap-6"><span className="text-muted-foreground">Total H.T</span><span className="font-semibold w-24 text-right">{formatFr(totals.ht)}</span></div>
             <div className="flex gap-6"><span className="text-muted-foreground">TVA</span><span className="w-24 text-right">{formatFr(totals.tva)}</span></div>
             <div className="flex gap-6 font-bold"><span>Total TTC</span><span className="w-24 text-right">{formatFr(totals.ttc)}</span></div>
+            {extraColumns.map((col) => {
+              // Σ for the extra column, SR-tolerant: `parseFr` returns 0 for non-numeric cells.
+              const colSum = rows.reduce((acc, r) => acc + parseFr(col.values[r.id] || ''), 0);
+              return (
+                <div key={col.id} className="flex gap-6 pt-1 border-t mt-1">
+                  <span className="text-muted-foreground">Σ {col.label || '—'}</span>
+                  <span className="w-24 text-right">{formatFr(colSum)}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
