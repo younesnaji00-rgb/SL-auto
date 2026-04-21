@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2 } from 'lucide-react';
+import { InlineLoader } from '@/components/ui/inline-loader';
 import { cn } from '@/lib/utils';
 import { doc, updateDoc, Timestamp, getDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
@@ -180,10 +180,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
         </DialogHeader>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center p-20 space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground font-medium">Chargement des données...</p>
-          </div>
+          <InlineLoader label="Chargement des données…" size="md" className="justify-center py-20" />
         ) : (
           <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-10">
             <div className="space-y-8">
@@ -295,8 +292,8 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
             <Button variant="outline" onClick={onClose} disabled={saving} className="h-10 px-6 font-bold shadow-sm">
               Annuler
             </Button>
-            <Button onClick={handleUpdate} disabled={saving || loading} className="h-10 px-8 bg-primary text-primary-foreground shadow-lg shadow-primary/20 font-bold">
-              {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Mise à jour...</> : "Mettre à jour"}
+            <Button onClick={handleUpdate} loading={saving} disabled={loading} className="h-10 px-8 bg-primary text-primary-foreground shadow-lg shadow-primary/20 font-semibold">
+              {saving ? 'Mise à jour...' : 'Mettre à jour'}
             </Button>
           </div>
         </DialogFooter>

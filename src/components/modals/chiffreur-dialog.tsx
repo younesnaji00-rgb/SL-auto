@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -11,6 +10,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Pencil, Trash2, Plus, Loader2 } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 
 const EMPTY_FORM = { nom: "", email: "", phone: "", active: true };
 
@@ -43,6 +52,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Chiffreur | null>(null);
 
   function openAdd() {
     setEditTarget(null);
@@ -72,12 +82,12 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Supprimer ce chiffreur ?")) return;
     setDeletingId(id);
     try {
       await deleteChiffreur(id);
     } finally {
       setDeletingId(null);
+      setDeleteTarget(null);
     }
   }
 
@@ -101,7 +111,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
                     <span>{c.nom}</span>
                     {count > 0 && (
                       <span
-                        className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold tabular-nums dark:bg-amber-900/40 dark:text-amber-300"
+                        className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-semibold tabular-nums dark:bg-amber-900/30 dark:text-amber-200"
                         title={`${count} dossier(s) en cours`}
                       >
                         {count}
@@ -134,7 +144,6 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
               <Input
                 value={form.nom}
                 onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))}
-                placeholder="Jean Dupont"
               />
             </div>
             <div>
@@ -143,7 +152,6 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                placeholder="jean@example.com"
               />
             </div>
             <div>
@@ -151,7 +159,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
               <Input
                 value={form.phone}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                placeholder="+33 6 00 00 00 00"
+                placeholder="+212 6XX XX XX XX"
               />
             </div>
             <div className="flex items-center gap-2">
@@ -164,13 +172,12 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
             </div>
           </div>
 
-          <Button onClick={handleSave} disabled={saving} className="w-full">
-            {saving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+          <Button onClick={handleSave} loading={saving} className="w-full">
             {editTarget ? "Mettre à jour" : "Ajouter"}
           </Button>
 
           <div className="mt-4 border-t pt-3 space-y-2 max-h-48 overflow-y-auto">
-            <p className="text-xs font-bold uppercase text-muted-foreground mb-2">Gestion de la liste</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-2">Gestion de la liste</p>
             {chiffreurs.map((c) => (
               <div key={c.id} className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted/50">
                 <span className={c.active ? "font-medium" : "text-muted-foreground line-through"}>
@@ -190,15 +197,11 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                    onClick={() => handleDelete(c.id)}
-                    disabled={deletingId === c.id}
+                    onClick={() => setDeleteTarget(c)}
+                    loading={deletingId === c.id}
                     title="Supprimer"
                   >
-                    {deletingId === c.id ? (
-                      <Loader2 className="animate-spin h-3.5 w-3.5" />
-                    ) : (
-                      <Trash2 className="h-3.5 w-3.5" />
-                    )}
+                    {deletingId === c.id ? null : <Trash2 className="h-3.5 w-3.5" />}
                   </Button>
                 </div>
               </div>
@@ -206,6 +209,30 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !deletingId && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce chiffreur ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.nom && <span className="font-semibold">{deleteTarget.nom}</span>} sera retiré de la liste. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingId}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!!deletingId}
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteTarget) handleDelete(deleteTarget.id);
+              }}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

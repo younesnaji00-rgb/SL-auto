@@ -9,9 +9,21 @@ import {
   DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Settings, Trash2, Plus, Check, X, Loader2, RefreshCw } from 'lucide-react';
+import { Settings, Trash2, Plus, Check, X, RefreshCw } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
+import { InlineLoader } from '@/components/ui/inline-loader';
 import { useOptions } from '@/hooks/use-options';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -25,11 +37,11 @@ interface OptionsManagerModalProps {
   trigger?: React.ReactNode;
 }
 
-export function OptionsManagerModal({ 
-  collectionName, 
-  title, 
+export function OptionsManagerModal({
+  collectionName,
+  title,
   defaultValues = [],
-  trigger 
+  trigger
 }: OptionsManagerModalProps) {
   const { isAdmin } = useCurrentUser();
   const { options, addOption, updateOption, deleteOption, loading } = useOptions(collectionName, defaultValues);
@@ -45,6 +57,7 @@ export function OptionsManagerModal({
   const [isAdding, setIsAdding] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
 
   const handleAdd = async () => {
     if (!newOption.trim()) return;
@@ -90,19 +103,17 @@ export function OptionsManagerModal({
     }
   };
 
-  const handleDelete = async (id: string, label: string) => {
-    if (confirm(`Supprimer "${label}" ? Cette action est irréversible.`)) {
-      setIsDeleting(id);
-      try {
-        // Direct call to the hook's delete function which targets the Firestore ID
-        await deleteOption(id);
-        toast({ title: "Option supprimée" });
-      } catch (e) {
-        console.error(e);
-        toast({ variant: 'destructive', title: "Erreur lors de la suppression" });
-      } finally {
-        setIsDeleting(null);
-      }
+  const handleDelete = async (id: string) => {
+    setIsDeleting(id);
+    try {
+      await deleteOption(id);
+      toast({ title: "Option supprimée" });
+    } catch (e) {
+      console.error(e);
+      toast({ variant: 'destructive', title: "Erreur lors de la suppression" });
+    } finally {
+      setIsDeleting(null);
+      setDeleteTarget(null);
     }
   };
 
@@ -110,7 +121,7 @@ export function OptionsManagerModal({
     <Dialog>
       <DialogTrigger asChild>
         {trigger || (
-          <Button type="button" variant="ghost" size="icon" className="h-6 w-6 opacity-50 hover:opacity-100 text-blue-600 dark:text-blue-400">
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">
             <Settings className="h-3.5 w-3.5" />
           </Button>
         )}
@@ -119,38 +130,44 @@ export function OptionsManagerModal({
         <DialogHeader>
           <DialogTitle>Gérer : {title}</DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4 py-4">
           <div className="flex gap-2">
-            <Input 
-              placeholder="Nouvelle option..." 
+            <Input
+              placeholder="Nouvelle option..."
               value={newOption}
               onChange={(e) => setNewOption(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             />
-            <Button type="button" size="icon" onClick={handleAdd} disabled={isAdding || !newOption.trim()}>
-              {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            <Button type="button" size="icon" onClick={handleAdd} loading={isAdding} disabled={!newOption.trim()}>
+              {isAdding ? null : <Plus className="h-4 w-4" />}
             </Button>
           </div>
 
           <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
             {loading ? (
-              <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+              <div className="flex justify-center py-4"><InlineLoader label="Chargement des options…" /></div>
             ) : options.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-4">Aucune option.</p>
+              <EmptyState
+                icon={<Settings />}
+                title="Aucune option"
+                description="Ajoutez votre première option avec le champ ci-dessus."
+                dashed={false}
+                className="border-0 bg-transparent py-6"
+              />
             ) : (
               options.map((opt) => (
                 <div key={opt.id} className="flex items-center gap-2 group p-1 rounded-md hover:bg-muted/50">
                   {editingId === opt.id ? (
                     <>
-                      <Input 
-                        className="h-8 text-sm" 
+                      <Input
+                        className="h-8 text-sm"
                         value={editLabel}
                         autoFocus
                         onChange={(e) => setEditLabel(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleUpdate(opt.id)}
                       />
-                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => handleUpdate(opt.id)}>
+                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-primary" onClick={() => handleUpdate(opt.id)}>
                         <Check className="h-4 w-4" />
                       </Button>
                       <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(null)}>
@@ -161,24 +178,24 @@ export function OptionsManagerModal({
                     <>
                       <span className="flex-1 text-sm font-medium px-2">{opt.label}</span>
                       <div className="flex items-center gap-1">
-                        <Button 
+                        <Button
                           type="button"
-                          size="icon" 
-                          variant="ghost" 
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 dark:text-blue-400"
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
                           onClick={() => { setEditingId(opt.id); setEditLabel(opt.label); }}
                         >
                           <Settings className="h-3.5 w-3.5" />
                         </Button>
-                        <Button 
+                        <Button
                           type="button"
-                          size="icon" 
-                          variant="ghost" 
+                          size="icon"
+                          variant="ghost"
                           className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                          disabled={isDeleting === opt.id}
-                          onClick={() => handleDelete(opt.id, opt.label)}
+                          loading={isDeleting === opt.id}
+                          onClick={() => setDeleteTarget({ id: opt.id, label: opt.label })}
                         >
-                          {isDeleting === opt.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                          {isDeleting === opt.id ? null : <Trash2 className="h-3.5 w-3.5" />}
                         </Button>
                       </div>
                     </>
@@ -188,9 +205,9 @@ export function OptionsManagerModal({
             )}
           </div>
         </div>
-        
+
         <DialogFooter className="flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <p className="text-[10px] text-muted-foreground italic flex-1">Les modifications sont appliquées instantanément partout dans l'application.</p>
+          <p className="text-[10px] text-muted-foreground italic flex-1">Les modifications sont appliquées instantanément partout dans l&apos;application.</p>
           {collectionName === 'options_statuts' && (
             <Button
               type="button"
@@ -198,14 +215,38 @@ export function OptionsManagerModal({
               size="sm"
               className="h-8 gap-2"
               onClick={handleSyncCanonical}
-              disabled={isSyncing}
+              loading={isSyncing}
             >
-              {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {isSyncing ? null : <RefreshCw className="h-3.5 w-3.5" />}
               Synchroniser les statuts canoniques
             </Button>
           )}
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !isDeleting && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer « {deleteTarget?.label} » ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Les enregistrements qui utilisent cette valeur conserveront l&apos;ancien texte, mais elle ne sera plus proposée dans les listes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!!isDeleting}
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteTarget) handleDelete(deleteTarget.id);
+              }}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
