@@ -1,5 +1,28 @@
 'use client';
 
+/**
+ * Audit (task #18): required fields flagged to the user via the banner below.
+ * Cross-referenced with checkEmptyFields in the deleted
+ * src/app/(app)/dossiers/new/creation-form.tsx prior to its removal in task #16.
+ * The list is now inlined here (see REQUIRED_FIELDS) so the banner remains
+ * self-contained after the wizard deletion.
+ *
+ * - Compagnie                  -> dossier.compagnie
+ * - Nature du dossier          -> dossier.nature
+ * - Marque vehicule            -> dossier.vehicule.marque / dossier.vehicule.brand
+ * - Matricule vehicule         -> dossier.matricule
+ *                                 / dossier.vehicule.immatriculation
+ *                                 / dossier.vehicule.registration
+ * - Nom de l'assure            -> dossier.assure.nom
+ *                                 / dossier.assure (legacy string form)
+ * - Date sinistre              -> dossier.dateSinistre
+ * - Date requete               -> dossier.dateRequete
+ *
+ * Editable inputs live in src/app/(app)/dossiers/[id]/information-tab.tsx
+ * (frozen by task #18 — do not modify). This wrapper only surfaces the
+ * warning banner; it does not add per-field asterisks.
+ */
+
 import React, { useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
 import type { DocumentReference } from 'firebase/firestore';
