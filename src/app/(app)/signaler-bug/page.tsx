@@ -16,6 +16,9 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { PageLoader } from '@/components/ui/page-loader';
+import { EmptyState } from '@/components/ui/empty-state';
+import { InlineLoader } from '@/components/ui/inline-loader';
 import { Badge } from '@/components/ui/badge';
 import {
   collection,
@@ -83,11 +86,7 @@ export default function SignalerBugPage() {
   const { profile, firebaseUser, isAdmin } = useCurrentUser();
 
   if (!profile || !firebaseUser) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <PageLoader label="Chargement…" />;
   }
 
   if (isAdmin) {
@@ -155,13 +154,16 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
           <CardContent className="p-0">
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <InlineLoader label="Chargement…" size="md" />
               </div>
             ) : !conversations || conversations.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <Inbox className="h-8 w-8 mb-2 opacity-20" />
-                <p className="text-sm">Aucun rapport de bug</p>
-              </div>
+              <EmptyState
+                icon={<Inbox />}
+                title="Aucun rapport de bug"
+                description="Les conversations apparaîtront ici dès qu'un utilisateur signalera un problème."
+                dashed={false}
+                className="border-0 bg-transparent py-12"
+              />
             ) : (
               <div className="divide-y">
                 {conversations.map((c) => (
@@ -419,14 +421,16 @@ function ChatThread({
       <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-340px)]">
         {loading ? (
           <div className="flex justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <InlineLoader label="Chargement…" size="md" />
           </div>
         ) : !messages || messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-            <Bug className="h-10 w-10 mb-3 opacity-10" />
-            <p className="text-sm">Aucun message pour le moment</p>
-            <p className="text-xs mt-1">Décrivez le problème rencontré ci-dessous</p>
-          </div>
+          <EmptyState
+            icon={<Bug />}
+            title="Aucun message pour le moment"
+            description="Décrivez le problème rencontré ci-dessous."
+            dashed={false}
+            className="border-0 bg-transparent py-10"
+          />
         ) : (
           messages.map((msg) => {
             const isOwn = msg.auteur === currentEmail;
@@ -511,8 +515,8 @@ function ChatThread({
                 <X className="h-3 w-3 mr-1" /> Annuler
               </Button>
             </div>
-            <Button onClick={handleSend} disabled={isSending} size="sm">
-              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="h-4 w-4 mr-2" /> Envoyer</>}
+            <Button onClick={handleSend} loading={isSending} size="sm">
+              {isSending ? 'Envoi...' : <><Send className="h-4 w-4 mr-2" /> Envoyer</>}
             </Button>
           </div>
         ) : (
@@ -551,17 +555,11 @@ function ChatThread({
               </div>
               <Button
                 onClick={handleSend}
-                disabled={isSending || (!text.trim() && !selectedFile)}
+                loading={isSending}
+                disabled={!text.trim() && !selectedFile}
                 className="px-6"
               >
-                {isSending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    Envoyer
-                    <Send className="ml-2 h-4 w-4" />
-                  </>
-                )}
+                {isSending ? 'Envoi...' : <>Envoyer<Send className="ml-2 h-4 w-4" /></>}
               </Button>
             </div>
           </>

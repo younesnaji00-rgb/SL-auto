@@ -57,7 +57,7 @@ export default function ViewerPage() {
       let label: string;
       if (f.type === 'photo') {
         const cat = f.category || 'avant';
-        const catLabels: Record<string, string> = { avant: 'Photos - Avant', en_cours: 'Photos - En cours', apres: 'Photos - Apres' };
+        const catLabels: Record<string, string> = { avant: 'Photos - Avant', en_cours: 'Photos - En cours', apres: 'Photos - Après' };
         key = `photo_${cat}`;
         label = catLabels[cat] || `Photos - ${cat}`;
       } else {
@@ -360,7 +360,7 @@ export default function ViewerPage() {
         </Button>
 
         {/* Read-only indicator */}
-        <div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-semibold bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded">
+        <div className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-300 font-semibold bg-amber-50/80 dark:bg-amber-900/30 px-2 py-1 rounded">
           <Eye className="h-3 w-3" /> Lecture seule
         </div>
       </div>
