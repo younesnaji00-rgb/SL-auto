@@ -1,61 +1,83 @@
+'use client';
+
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 
-export default function Notifications() {
+export type NotificationItem = {
+  id: string;
+  title: string;
+  description?: string;
+  timeLabel?: string;
+  unread?: boolean;
+};
+
+type NotificationsProps = {
+  items?: NotificationItem[];
+};
+
+export default function Notifications({ items = [] }: NotificationsProps) {
+  const hasUnread = items.some((item) => item.unread);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative h-9 w-9">
           <Bell className="h-5 w-5" />
-          <span className="absolute top-1.5 right-1.5 flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-primary/90"></span>
-          </span>
-          <span className="sr-only">View notifications</span>
+          {hasUnread && (
+            <span className="absolute top-1.5 right-1.5 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-primary/90"></span>
+            </span>
+          )}
+          <span className="sr-only">Notifications</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 p-0">
-        <Card className="border-0">
-          <CardHeader>
-            <CardTitle>Notifications</CardTitle>
-            <CardDescription>You have 2 unread messages.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-1">
-             <div
-              className="mb-2 grid grid-cols-[25px_1fr] items-start pb-4 last:mb-0 last:pb-0"
-            >
-              <span className="flex h-2 w-2 translate-y-1 rounded-full bg-primary" />
-              <div className="grid gap-1">
-                <p className="text-sm font-medium">New user registered</p>
-                <p className="text-sm text-muted-foreground">
-                  A new user, 'John Doe', has just signed up.
-                </p>
-                <p className="text-xs text-muted-foreground">2 minutes ago</p>
+        <div className="p-4 border-b">
+          <p className="text-sm font-semibold">Notifications</p>
+          <p className="text-xs text-muted-foreground">
+            {items.length > 0
+              ? `${items.filter((i) => i.unread).length} non lue(s)`
+              : 'Aucune nouvelle activité'}
+          </p>
+        </div>
+        {items.length === 0 ? (
+          <div className="p-3">
+            <EmptyState
+              icon={<Bell />}
+              title="Aucune notification"
+              description="Vous serez notifié des changements importants ici."
+              dashed={false}
+              className="border-0 bg-transparent py-6"
+            />
+          </div>
+        ) : (
+          <div className="max-h-80 overflow-y-auto p-2">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="grid grid-cols-[16px_1fr] items-start gap-2 rounded-md p-2 hover:bg-muted/60"
+              >
+                <span className={`mt-1.5 h-2 w-2 rounded-full ${item.unread ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
+                <div className="flex flex-col gap-0.5">
+                  <p className="text-sm font-medium">{item.title}</p>
+                  {item.description && (
+                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                  )}
+                  {item.timeLabel && (
+                    <p className="text-[11px] text-muted-foreground">{item.timeLabel}</p>
+                  )}
+                </div>
               </div>
-            </div>
-             <div
-              className="mb-2 grid grid-cols-[25px_1fr] items-start pb-4 last:mb-0 last:pb-0"
-            >
-              <span className="flex h-2 w-2 translate-y-1 rounded-full bg-primary" />
-              <div className="grid gap-1">
-                <p className="text-sm font-medium">Server usage is high</p>
-                <p className="text-sm text-muted-foreground">
-                  CPU usage is currently at 92%.
-                </p>
-                <p className="text-xs text-muted-foreground">15 minutes ago</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            ))}
+          </div>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

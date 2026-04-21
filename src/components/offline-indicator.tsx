@@ -11,7 +11,7 @@ export function OfflineIndicator() {
 
   if (!isOnline) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-950 border-b border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
+      <div className="flex items-center gap-2 px-4 py-2 bg-amber-100/60 dark:bg-amber-950/50 border-b border-amber-200/70 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-sm">
         <WifiOff className="h-4 w-4 shrink-0" />
         <span>
           Mode hors ligne &mdash; Vos modifications seront synchronis&eacute;es automatiquement une fois reconnect&eacute;.
@@ -27,7 +27,7 @@ export function OfflineIndicator() {
 
   // Online but with pending uploads
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950 border-b border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200 text-sm">
+    <div className="flex items-center gap-2 px-4 py-2 bg-[hsl(var(--primary)/0.08)] text-[hsl(var(--primary))] border-b border-[hsl(var(--primary)/0.2)] text-sm">
       <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
       <CloudUpload className="h-4 w-4 shrink-0" />
       <span>

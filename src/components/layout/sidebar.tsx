@@ -8,6 +8,9 @@ import {
   SidebarHeader,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
@@ -23,6 +26,17 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Settings,
   Moon,
@@ -46,6 +60,49 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import NextLink from 'next/link';
 import { cn } from '@/lib/utils';
 
+type NavItem = {
+  href: string;
+  icon: React.ElementType;
+  label: string;
+  roles: string[] | null;
+};
+
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'ESPACE',
+    items: [
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: ['Admin', "Responsable d'équipe"] },
+      { href: '/dossiers', icon: FolderOpen, label: 'Gestion des dossiers', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'] },
+      { href: '/consultation', icon: BookOpen, label: 'Consultation', roles: null },
+      { href: '/compagnies', icon: Building2, label: 'Compagnies', roles: ['Admin', "Responsable d'équipe"] },
+    ],
+  },
+  {
+    label: 'ASSIGNATIONS',
+    items: [
+      { href: '/assignations-chiffrage', icon: Calculator, label: 'Assignations Chiffrage', roles: ['Admin', "Responsable d'équipe", 'Chiffreur'] },
+      { href: '/assignations-atg', icon: UserCheck, label: 'Assignations Agent de Terrain', roles: ['Admin', "Responsable d'équipe", 'Agent de Terrain'] },
+    ],
+  },
+  {
+    label: 'ADMIN',
+    items: [
+      { href: '/utilisateurs', icon: Users, label: 'Utilisateurs', roles: ['Admin'] },
+    ],
+  },
+  {
+    label: 'DIVERS',
+    items: [
+      { href: '/signaler-bug', icon: Bug, label: 'Signaler un bug', roles: null },
+    ],
+  },
+];
+
 const AppSidebar = () => {
   const pathname = usePathname();
   const router = useRouter();
@@ -53,10 +110,11 @@ const AppSidebar = () => {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const { compagnies, addCompagnie, deleteCompagnie } = useCompagnies();
-  const { profile, isAdmin, signOut } = useCurrentUser();
+  const { profile, signOut } = useCurrentUser();
 
   const [showAddInput, setShowAddInput] = useState(false);
   const [newName, setNewName] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string } | null>(null);
 
   const isCollapsed = state === 'collapsed';
 
@@ -64,26 +122,20 @@ const AppSidebar = () => {
     setMounted(true);
   }, []);
 
-  const allNavItems = [
-    { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: ['Admin', "Responsable d'équipe"] as string[] },
-    { href: '/dossiers', icon: FolderOpen, label: 'Gestion des dossiers', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'] as string[] },
-    { href: '/consultation', icon: BookOpen, label: 'Consultation', roles: null },
-    { href: '/assignations-chiffrage', icon: Calculator, label: 'Assignations Chiffrage', roles: ['Admin', "Responsable d'équipe", 'Chiffreur'] as string[] },
-    { href: '/assignations-atg', icon: UserCheck, label: 'Assignations Agent de Terrain', roles: ['Admin', "Responsable d'équipe", 'Agent de Terrain'] as string[] },
-    { href: '/utilisateurs', icon: Users, label: 'Utilisateurs', roles: ['Admin'] as string[] },
-    { href: '/compagnies', icon: Building2, label: 'Compagnies', roles: ['Admin', "Responsable d'équipe"] as string[] },
-    { href: '/signaler-bug', icon: Bug, label: 'Signaler un bug', roles: null },
-  ];
-
-  // Filter nav items by role — null means visible to all, otherwise only listed roles
-  const navItems = allNavItems.filter(item => {
-    if (!item.roles) return true;
-    return profile && item.roles.includes(profile.role);
-  });
+  const visibleGroups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.roles || (profile && item.roles.includes(profile.role))),
+  })).filter((group) => group.items.length > 0);
 
   const handleSignOut = async () => {
     await signOut();
     router.push('/login');
+  };
+
+  const confirmDeleteCompagnie = async () => {
+    if (!deleteTarget) return;
+    await deleteCompagnie(deleteTarget.id);
+    setDeleteTarget(null);
   };
 
   const userInitials = profile
@@ -101,103 +153,114 @@ const AppSidebar = () => {
       </SidebarHeader>
 
       <SidebarContent className="bg-background/50">
-        <SidebarMenu className="px-2 pt-4">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-            const Icon = item.icon;
+        {visibleGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            {!isCollapsed && (
+              <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                {group.label}
+              </SidebarGroupLabel>
+            )}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => {
+                  const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                  const Icon = item.icon;
 
-            if (item.label === 'Compagnies') {
-              return (
-                <Collapsible key={item.href} className="group/collapsible">
-                  <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton
-                        isActive={isActive}
-                        tooltip={item.label}
-                        className="transition-all duration-200"
-                      >
-                        <Icon />
-                        <span>{item.label}</span>
-                        {!isCollapsed && <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
+                  if (item.label === 'Compagnies') {
+                    return (
+                      <Collapsible key={item.href} className="group/collapsible">
+                        <SidebarMenuItem>
+                          <CollapsibleTrigger asChild>
+                            <SidebarMenuButton
+                              isActive={isActive}
+                              tooltip={item.label}
+                              className="transition-all duration-200"
+                            >
+                              <Icon />
+                              <span>{item.label}</span>
+                              {!isCollapsed && <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
+                            </SidebarMenuButton>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <SidebarMenuSub className="ml-4 mr-2">
+                              {compagnies.map((c) => (
+                                <SidebarMenuSubItem key={c.id}>
+                                  <SidebarMenuSubButton asChild isActive={pathname.includes(`selected=${c.id}`)}>
+                                    <NextLink href={`/compagnies?selected=${c.id}`} className="group flex items-center gap-2">
+                                      {c.logoUrl ? (
+                                        <img src={c.logoUrl} alt="" className="h-4 w-4 rounded-sm object-contain shrink-0" />
+                                      ) : (
+                                        <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: c.couleur }} />
+                                      )}
+                                      <span className="flex-1 truncate">{c.nom}</span>
+                                      {!isCollapsed && (
+                                        <button
+                                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget({ id: c.id, nom: c.nom }); }}
+                                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      )}
+                                    </NextLink>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              ))}
+
+                              {!isCollapsed && (
+                                <SidebarMenuSubItem>
+                                  {showAddInput ? (
+                                    <div className="flex items-center gap-1 px-2 mt-1">
+                                      <Input
+                                        autoFocus
+                                        value={newName}
+                                        onChange={(e) => setNewName(e.target.value)}
+                                        onKeyDown={async (e) => {
+                                          if (e.key === 'Enter' && newName.trim()) {
+                                            await addCompagnie(newName.trim());
+                                            setNewName('');
+                                            setShowAddInput(false);
+                                          }
+                                          if (e.key === 'Escape') {
+                                            setShowAddInput(false);
+                                            setNewName('');
+                                          }
+                                        }}
+                                        placeholder="Nom de la compagnie..."
+                                        className="h-8 text-xs"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => setShowAddInput(true)}
+                                      className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-primary transition-colors w-full"
+                                    >
+                                      <Plus className="h-3 w-3" /> Ajouter
+                                    </button>
+                                  )}
+                                </SidebarMenuSubItem>
+                              )}
+                            </SidebarMenuSub>
+                          </CollapsibleContent>
+                        </SidebarMenuItem>
+                      </Collapsible>
+                    );
+                  }
+
+                  return (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
+                        <NextLink href={item.href}>
+                          <Icon />
+                          <span>{item.label}</span>
+                        </NextLink>
                       </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <SidebarMenuSub className="ml-4 mr-2">
-                        {compagnies.map((c) => (
-                          <SidebarMenuSubItem key={c.id}>
-                            <SidebarMenuSubButton asChild isActive={pathname.includes(`selected=${c.id}`)}>
-                              <NextLink href={`/compagnies?selected=${c.id}`} className="group flex items-center gap-2">
-                                {c.logoUrl ? (
-                                  <img src={c.logoUrl} alt="" className="h-4 w-4 rounded-sm object-contain shrink-0" />
-                                ) : (
-                                  <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: c.couleur }} />
-                                )}
-                                <span className="flex-1 truncate">{c.nom}</span>
-                                {!isCollapsed && (
-                                  <button
-                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); if(confirm(`Supprimer ${c.nom} ?`)) deleteCompagnie(c.id); }}
-                                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                )}
-                              </NextLink>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
-
-                        {!isCollapsed && (
-                          <SidebarMenuSubItem>
-                            {showAddInput ? (
-                              <div className="flex items-center gap-1 px-2 mt-1">
-                                <input
-                                  autoFocus
-                                  value={newName}
-                                  onChange={(e) => setNewName(e.target.value)}
-                                  onKeyDown={async (e) => {
-                                    if (e.key === 'Enter' && newName.trim()) {
-                                      await addCompagnie(newName.trim());
-                                      setNewName('');
-                                      setShowAddInput(false);
-                                    }
-                                    if (e.key === 'Escape') {
-                                      setShowAddInput(false);
-                                      setNewName('');
-                                    }
-                                  }}
-                                  placeholder="Nom..."
-                                  className="w-full text-xs px-2 py-1.5 rounded border bg-background"
-                                />
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setShowAddInput(true)}
-                                className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-primary transition-colors w-full"
-                              >
-                                <Plus className="h-3 w-3" /> Ajouter
-                              </button>
-                            )}
-                          </SidebarMenuSubItem>
-                        )}
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </SidebarMenuItem>
-                </Collapsible>
-              );
-            }
-
-            return (
-              <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
-                  <NextLink href={item.href}>
-                    <Icon />
-                    <span>{item.label}</span>
-                  </NextLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            );
-          })}
-        </SidebarMenu>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter className="bg-muted/20 shrink-0 p-2 gap-2">
@@ -216,8 +279,8 @@ const AppSidebar = () => {
         <div className={cn("flex items-center gap-3 p-2 rounded-lg bg-primary/5 overflow-hidden transition-all duration-300", isCollapsed && "p-1 justify-center")}>
           {!isCollapsed ? (
             <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-xs font-bold truncate">{displayName}</span>
-              <span className="text-[10px] text-muted-foreground truncate uppercase font-black">{displayRole}</span>
+              <span className="text-xs font-semibold truncate">{displayName}</span>
+              <span className="text-[10px] text-muted-foreground truncate uppercase tracking-[0.08em] font-semibold">{displayRole}</span>
             </div>
           ) : (
             <span className="text-[10px] font-bold">{userInitials.toUpperCase()}</span>
@@ -239,6 +302,26 @@ const AppSidebar = () => {
           </Button>
         </div>
       </SidebarFooter>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer {deleteTarget?.nom} ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Les dossiers liés à cette compagnie ne seront pas supprimés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDeleteCompagnie}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   );
 };

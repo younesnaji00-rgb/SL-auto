@@ -7,7 +7,7 @@ import Header from '@/components/layout/header';
 import { OfflineIndicator } from '@/components/offline-indicator';
 import { CurrentUserProvider, useCurrentUser } from '@/hooks/use-current-user';
 import { useRouter, usePathname } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { PageLoader } from '@/components/ui/page-loader';
 import { cn } from '@/lib/utils';
 
 /** Routes that want to use the full inset width (no padding, no max-w cap). */
@@ -26,10 +26,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Chargement...</p>
-        </div>
+        <PageLoader label="Chargement..." />
       </div>
     );
   }
