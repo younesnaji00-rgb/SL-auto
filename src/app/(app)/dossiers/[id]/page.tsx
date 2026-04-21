@@ -7,19 +7,20 @@ import {
   Send,
   AlertTriangle,
   History,
-  AlertCircle,
   Download,
   GitBranch,
-  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { Skeleton } from '@/components/ui/skeleton';
+import { PageLoader } from '@/components/ui/page-loader';
+import { ErrorState } from '@/components/ui/error-state';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
 import { generateRapportPDF } from '@/lib/generate-rapport-pdf';
+import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 
 // ── Timeline ─────────────────────────────────────────────────────────────────
 import { Timeline, DOSSIER_TIMELINE_STEPS } from '@/components/dossier-timeline/timeline';
@@ -41,13 +42,6 @@ import ModalChiffrage from './modal-chiffrage';
 import ModalReclamation from './modal-reclamation';
 import ModalDecisionStatus from './modal-decision-status';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-
-const STATUS_COLORS: Record<string, string> = {
-  'Nouveau':    'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
-  'En cours':   'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800',
-  'Cloture':    'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800',
-  'Annule':     'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800',
-};
 
 export default function DossierDetailPage({
   params,
@@ -90,24 +84,18 @@ export default function DossierDetailPage({
   };
 
   if (loading) {
-    return (
-      <div className="flex flex-col gap-4 p-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-96 w-full" />
-      </div>
-    );
+    return <PageLoader label="Chargement du dossier…" />;
   }
 
   if (!dossier) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <AlertCircle className="h-12 w-12 text-destructive" />
-        <h2 className="text-xl font-semibold">Dossier introuvable</h2>
-        <p className="text-muted-foreground">
-          Le dossier que vous recherchez n'existe pas ou a été supprimé.
-        </p>
-        <Link href="/dossiers">
+      <div className="flex flex-col items-center justify-center py-16 px-6">
+        <ErrorState
+          title="Dossier introuvable"
+          description="Le dossier que vous recherchez n'existe pas ou a été supprimé."
+          className="max-w-md"
+        />
+        <Link href="/dossiers" className="mt-4">
           <Button variant="outline">
             <ArrowLeft className="mr-2 h-4 w-4" /> Retour à la liste
           </Button>
@@ -115,8 +103,6 @@ export default function DossierDetailPage({
       </div>
     );
   }
-
-  const statutColor = STATUS_COLORS[dossier.statut] ?? 'bg-muted text-muted-foreground border-border';
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -138,9 +124,9 @@ export default function DossierDetailPage({
               </p>
             </div>
           </div>
-          <span className={cn('inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border', statutColor)}>
+          <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(dossier.statut || 'Nouveau'))}>
             {dossier.statut || 'Nouveau'}
-          </span>
+          </Badge>
         </div>
       </div>
 
@@ -150,7 +136,7 @@ export default function DossierDetailPage({
         <Button variant="outline" size="sm" onClick={() => setChiffrageModalOpen(true)} className="h-8 text-xs gap-1.5">
           <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
         </Button>
-        <Button variant="outline" size="sm" disabled={isExportingPdf} onClick={async () => {
+        <Button variant="outline" size="sm" loading={isExportingPdf} onClick={async () => {
           setIsExportingPdf(true);
           try {
             await generateRapportPDF(db, id);
@@ -161,16 +147,16 @@ export default function DossierDetailPage({
             setIsExportingPdf(false);
           }
         }} className="h-8 text-xs gap-1.5">
-          {isExportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Exporter PDF
+          {isExportingPdf ? null : <Download className="h-3.5 w-3.5" />} Exporter PDF
         </Button>
-        <Button variant="outline" size="sm" onClick={() => setReclamationModalOpen(true)} className="h-8 text-xs gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700">
+        <Button variant="outline" size="sm" onClick={() => setReclamationModalOpen(true)} className="h-8 text-xs gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive">
           <AlertTriangle className="h-3.5 w-3.5" /> Réclamation
         </Button>
         <div className="flex-1" />
         <Button variant="outline" size="sm" onClick={() => setHistoriqueOpen(true)} className="h-8 text-xs gap-1.5">
           <History className="h-3.5 w-3.5" /> Historique
         </Button>
-        <Button variant="default" size="sm" onClick={() => setDecisionStatusOpen(true)} className="h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700">
+        <Button variant="default" size="sm" onClick={() => setDecisionStatusOpen(true)} className="h-8 text-xs gap-1.5">
           <GitBranch className="h-3.5 w-3.5" /> Décision de statut
         </Button>
       </div>
