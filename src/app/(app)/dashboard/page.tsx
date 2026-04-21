@@ -9,6 +9,8 @@ import {
   X,
   FolderOpen,
   Plus,
+  PieChart as PieChartIcon,
+  BarChart3,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -38,13 +40,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonCard, SkeletonChart } from '@/components/ui/skeleton';
 import { collection, onSnapshot, query, orderBy, collectionGroup } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart } from 'recharts';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { getStatusBadgeStyles, getStatusHeaderStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { getStatusBadgeStyles, getStatusHeaderStyles } from '@/lib/status-colors';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 import { statuses as ALL_STATUSES } from '@/lib/dossiers-data';
@@ -307,21 +311,12 @@ export default function DashboardPage() {
     return (
       <div className="flex-1 space-y-6">
         <div className="grid gap-6 lg:grid-cols-5">
-          <div className="lg:col-span-2 border rounded-xl p-6 bg-card space-y-4">
-            <div className="h-5 w-40 animate-pulse rounded bg-muted" />
-            <div className="h-[250px] w-full animate-pulse rounded-lg bg-muted" />
-          </div>
-          <div className="lg:col-span-3 border rounded-xl p-6 bg-card space-y-4">
-            <div className="h-5 w-40 animate-pulse rounded bg-muted" />
-            <div className="h-[250px] w-full animate-pulse rounded-lg bg-muted" />
-          </div>
+          <SkeletonChart className="lg:col-span-2" />
+          <SkeletonChart className="lg:col-span-3" />
         </div>
         <div className="grid gap-6 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="border rounded-xl p-6 bg-card space-y-4">
-              <div className="h-5 w-40 animate-pulse rounded bg-muted" />
-              <div className="h-[200px] w-full animate-pulse rounded-lg bg-muted" />
-            </div>
+            <SkeletonCard key={i} />
           ))}
         </div>
       </div>
@@ -336,15 +331,15 @@ export default function DashboardPage() {
     userFilter: string, setUserFilter: (v: string) => void,
     natureFilter: string, setNatureFilter: (v: string) => void,
   ) => (
-    <Card className="shadow-sm border-0 h-fit hover:shadow-md transition-shadow rounded-xl opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: panelKey === '1' ? '100ms' : '200ms' }}>
-      <CardHeader className="bg-heading-bg py-3 rounded-t-xl">
+    <Card className="shadow-sm border h-fit hover:shadow-md transition-shadow rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: panelKey === '1' ? '100ms' : '200ms' }}>
+      <CardHeader className="py-4">
         <CardTitle className="text-sm flex items-center gap-2">
           <Activity className="h-4 w-4 text-primary" />
-          <span>Changements recents <span className="text-muted-foreground font-normal">/ {actionFilterLabels[actionFilter]}</span></span>
-          <Badge variant="secondary" className="ml-1 text-[10px]">{logs.length}</Badge>
+          <span>Changements récents <span className="text-muted-foreground font-normal">/ {actionFilterLabels[actionFilter]}</span></span>
+          <Badge variant="secondary" className="ml-1 text-[10px] tabular-nums">{logs.length}</Badge>
         </CardTitle>
       </CardHeader>
-      <div className="px-3 pt-3 pb-2 bg-muted/10">
+      <div className="px-3 pt-0 pb-2 bg-muted/10">
         <div className="grid grid-cols-4 gap-1.5">
           <DatePicker
             value={dateFilter ? new Date(dateFilter) : null}
@@ -412,7 +407,7 @@ export default function DashboardPage() {
                 setNatureFilter('all');
               }}
             >
-              <X className="h-3 w-3 mr-1" /> Reinitialiser
+              <X className="h-3 w-3 mr-1" /> Réinitialiser
             </Button>
           </div>
         )}
@@ -420,10 +415,13 @@ export default function DashboardPage() {
       <CardContent className="pt-3">
         <div className="space-y-5 max-h-[500px] overflow-y-auto pr-1">
           {logs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-              <Inbox className="h-8 w-8 mb-2 opacity-20" />
-              <p className="text-xs italic">Aucune activite recente.</p>
-            </div>
+            <EmptyState
+              icon={<Inbox />}
+              title="Aucune activité récente"
+              description="Les changements apparaîtront ici au fil de l'activité."
+              dashed={false}
+              className="border-0 bg-transparent py-6"
+            />
           ) : (
             logs.map((log: any, logIndex: number) => {
               const dossier = dossierMap[log._dossierId];
@@ -432,24 +430,24 @@ export default function DashboardPage() {
               return (
                 <div key={`${panelKey}-${log.id}`} className={cn(
                   "relative pl-5 pb-5 last:pb-0 border-l border-muted ml-2 opacity-0 animate-slide-in-down [animation-fill-mode:forwards]",
-                  isNew && "bg-green-50/50 dark:bg-green-950/10 rounded-lg p-2 -ml-0.5 border-l-green-300 dark:border-l-green-700"
+                  isNew && "bg-[hsl(var(--primary)/0.05)] rounded-lg p-2 -ml-0.5 border-l-[hsl(var(--primary))]"
                 )} style={{ animationDelay: `${logIndex * 40}ms` }}>
                   <div className={cn(
                     "absolute top-1 w-3 h-3 rounded-full ring-4 ring-background",
                     isNew ? "-left-1" : "-left-1.5",
-                    log.status === 'done' ? "bg-green-500" : "bg-orange-500"
+                    log.status === 'done' ? "bg-emerald-500" : "bg-amber-500"
                   )} />
                   <div className="flex flex-col gap-1">
                     <div className="flex justify-between items-start">
-                      <p className="text-xs font-bold leading-tight flex items-center gap-1.5">
+                      <p className="text-xs font-semibold leading-tight flex items-center gap-1.5">
                         {isNew && (
-                          <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-green-500 text-white shrink-0">
+                          <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary text-primary-foreground shrink-0">
                             <Plus className="h-2.5 w-2.5" strokeWidth={3} />
                           </span>
                         )}
                         {log.action}
                       </p>
-                      <span className="text-[9px] font-medium text-muted-foreground whitespace-nowrap ml-2 bg-muted px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap ml-2 bg-muted px-1.5 py-0.5 rounded tabular-nums">
                         {formatDate(log.date)}
                       </span>
                     </div>
@@ -464,7 +462,7 @@ export default function DashboardPage() {
                     )}
                     <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                       <UserIcon className="h-2.5 w-2.5" />
-                      <span>par <span className="font-bold text-foreground">{log.user || 'Admin'}</span></span>
+                      <span>par <span className="font-semibold text-foreground">{log.user || 'Admin'}</span></span>
                     </div>
                   </div>
                 </div>
@@ -482,13 +480,13 @@ export default function DashboardPage() {
   );
 
   const filterCard = (
-    <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border-0 rounded-xl overflow-hidden">
-      <CardHeader className="bg-heading-bg py-3 rounded-t-xl flex flex-row items-center justify-between gap-2">
+    <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg overflow-hidden">
+      <CardHeader className="py-4 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base text-primary">Dossier Par État</CardTitle>
         <div className="relative w-[180px] max-w-full">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Search..."
+            placeholder="Rechercher..."
             value={statusFilterSearch}
             onChange={(e) => setStatusFilterSearch(e.target.value)}
             className="h-8 pl-7 text-xs border-0 border-b rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
@@ -497,7 +495,13 @@ export default function DashboardPage() {
       </CardHeader>
       <CardContent className="p-0 max-h-[520px] overflow-y-auto">
         {filteredStatusRows.length === 0 ? (
-          <p className="text-xs italic text-muted-foreground text-center py-8">Aucun statut.</p>
+          <EmptyState
+            icon={<Search />}
+            title="Aucun statut"
+            description="Affinez votre recherche pour voir les statuts."
+            dashed={false}
+            className="border-0 bg-transparent py-8"
+          />
         ) : (
           filteredStatusRows.map((item, idx) => {
             const isSelected = selectedStatus === item.name;
@@ -513,7 +517,7 @@ export default function DashboardPage() {
                 )}
               >
                 <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{item.name}</span>
-                <span className={cn('text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0', getStatusHeaderStyles(item.name))}>
+                <span className={cn('text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 tabular-nums', getStatusHeaderStyles(item.name))}>
                   {item.value}
                 </span>
               </button>
@@ -525,13 +529,19 @@ export default function DashboardPage() {
   );
 
   const pieCard = (
-    <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border-0 rounded-xl">
-      <CardHeader className="bg-heading-bg py-3 rounded-t-xl">
+    <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg">
+      <CardHeader className="py-4">
         <CardTitle className="text-base">Volume par Statut</CardTitle>
       </CardHeader>
-      <CardContent className="pt-6">
+      <CardContent className="pt-2">
         {statusChartData.length === 0 ? (
-          <p className="text-sm text-muted-foreground italic text-center py-10">Aucune donnee.</p>
+          <EmptyState
+            icon={<PieChartIcon />}
+            title="Aucune donnée"
+            description="Les statistiques apparaîtront dès qu'un dossier sera créé."
+            dashed={false}
+            className="border-0 bg-transparent py-10"
+          />
         ) : (
           <>
             <ChartContainer config={statusBarConfig} className="mx-auto aspect-square max-h-[280px]">
@@ -583,7 +593,7 @@ export default function DashboardPage() {
                 <div key={item.name} className="flex items-center gap-1.5 text-[10px]">
                   <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
                   <span className="text-muted-foreground">{item.name}</span>
-                  <span className="font-bold">{item.value}</span>
+                  <span className="font-semibold tabular-nums">{item.value}</span>
                 </div>
               ))}
             </div>
@@ -594,8 +604,8 @@ export default function DashboardPage() {
   );
 
   const filteredTableCard = (
-    <Card className="shadow-sm overflow-hidden h-fit hover:shadow-md transition-shadow border-0 rounded-xl">
-      <CardHeader className="bg-heading-bg py-3 rounded-t-xl flex flex-row items-center justify-between">
+    <Card className="shadow-sm overflow-hidden h-fit hover:shadow-md transition-shadow border rounded-lg">
+      <CardHeader className="py-4 flex flex-row items-center justify-between">
         <CardTitle className="text-base">
           Dossiers — <span className="text-primary">{selectedStatus}</span>
         </CardTitle>
@@ -603,45 +613,50 @@ export default function DashboardPage() {
           <X className="h-4 w-4 mr-1" /> Fermer
         </Button>
       </CardHeader>
-      <CardContent className="p-4">
+      <CardContent className="p-4 pt-0">
         <div className="rounded-lg overflow-hidden max-h-[560px] overflow-y-auto bg-muted/10">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30 border-0">
-                <TableHead className="font-bold text-xs">Ref.</TableHead>
-                <TableHead className="font-bold text-xs">Assure</TableHead>
-                <TableHead className="font-bold text-xs">Compagnie</TableHead>
-                <TableHead className="font-bold text-xs">Nature du dossier</TableHead>
-                <TableHead className="font-bold text-xs">Matricule</TableHead>
-                <TableHead className="font-bold text-xs">Statut</TableHead>
-                <TableHead className="text-right font-bold text-xs">Date</TableHead>
+                <TableHead className="font-semibold text-xs">Ref.</TableHead>
+                <TableHead className="font-semibold text-xs">Assuré</TableHead>
+                <TableHead className="font-semibold text-xs">Compagnie</TableHead>
+                <TableHead className="font-semibold text-xs">Nature du dossier</TableHead>
+                <TableHead className="font-semibold text-xs">Matricule</TableHead>
+                <TableHead className="font-semibold text-xs">Statut</TableHead>
+                <TableHead className="text-right font-semibold text-xs">Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {dossiersByStatus.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground italic">
-                    Aucun dossier avec ce statut.
+                  <TableCell colSpan={7} className="p-0">
+                    <EmptyState
+                      icon={<FolderOpen />}
+                      title="Aucun dossier avec ce statut"
+                      dashed={false}
+                      className="border-0 bg-transparent py-10"
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
                 dossiersByStatus.map((dossier, i) => (
                   <TableRow key={dossier.id} className="group hover:bg-muted/50 transition-colors opacity-0 animate-row-fade [animation-fill-mode:forwards]" style={{ animationDelay: `${i * 30}ms` }}>
                     <TableCell>
-                      <Link href={`/dossiers/${dossier.id}`} className="font-mono text-xs font-bold text-primary hover:underline">
+                      <Link href={`/dossiers/${dossier.id}`} className="font-mono text-xs font-semibold text-primary hover:underline">
                         {dossier.refExpert || 'N/A'}
                       </Link>
                     </TableCell>
                     <TableCell className="max-w-[120px] truncate text-xs font-medium">{renderAssure(dossier.assure)}</TableCell>
                     <TableCell className="text-[10px] text-muted-foreground">{dossier.compagnie || '-'}</TableCell>
                     <TableCell className="text-[10px] text-muted-foreground">{dossier.nature || '-'}</TableCell>
-                    <TableCell className="font-mono text-[10px] text-muted-foreground">{dossier.matricule || '-'}</TableCell>
+                    <TableCell className="font-mono text-[10px] text-muted-foreground tabular-nums">{dossier.matricule || '-'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn('text-[10px] py-0.5 px-2 rounded-full border font-semibold', getStatusBadgeStyles(dossier.statut))}>
                         {dossier.statut || 'Nouveau'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right text-[10px] text-muted-foreground font-medium">
+                    <TableCell className="text-right text-[10px] text-muted-foreground font-medium tabular-nums">
                       {formatDate(dossier.createdAt)}
                     </TableCell>
                   </TableRow>
@@ -688,13 +703,19 @@ export default function DashboardPage() {
           changements2NatureFilter, setChangements2NatureFilter,
         )}
         {/* Repartition par Compagnie — horizontal bars */}
-        <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border-0 rounded-xl opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '300ms' }}>
-          <CardHeader className="bg-heading-bg py-3 rounded-t-xl">
-            <CardTitle className="text-base">Repartition par Compagnie</CardTitle>
+        <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '300ms' }}>
+          <CardHeader className="py-4">
+            <CardTitle className="text-base">Répartition par Compagnie</CardTitle>
           </CardHeader>
-          <CardContent className="pt-6">
+          <CardContent className="pt-2">
             {compagnieData.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic text-center py-10">Aucune donnee.</p>
+              <EmptyState
+                icon={<BarChart3 />}
+                title="Aucune donnée"
+                description="La répartition apparaîtra dès qu'un dossier sera créé."
+                dashed={false}
+                className="border-0 bg-transparent py-10"
+              />
             ) : (
               <ChartContainer config={barChartConfig} className="w-full" style={{ height: Math.max(compagnieData.length * 40, 150) }}>
                 <BarChart
