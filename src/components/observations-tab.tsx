@@ -30,18 +30,18 @@ type Observation = {
 };
 
 const TYPE_BADGE_STYLES: Record<string, string> = {
-  'Planification':      'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  'Décision de statut': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-  'Expert':             'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  'Planification':      'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200',
+  'Décision de statut': 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
+  'Expert':             'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
   'Général':            'bg-secondary text-secondary-foreground',
 };
 
 const ROLE_BADGE_STYLES: Record<string, string> = {
-  'Admin':                'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-  'Responsable d\'équipe':'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
-  'Gestionnaire':         'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
-  'Agent de Terrain':     'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
-  'Chiffreur':            'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+  'Admin':                'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-200',
+  'Responsable d\'équipe':'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200',
+  'Gestionnaire':         'bg-cyan-50 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-200',
+  'Agent de Terrain':     'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
+  'Chiffreur':            'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
 };
 
 type ObservationsTabProps = {
