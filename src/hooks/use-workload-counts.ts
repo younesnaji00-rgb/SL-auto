@@ -2,19 +2,21 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import {
-  collection,
   collectionGroup,
   doc,
   onSnapshot,
 } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { agentTerrainStatuses } from '@/lib/dossiers-data';
+import { subscribeAllChiffreurOpenCounts } from '@/lib/chiffreur-workload';
 
 const AGENT_TERRAIN_STATUS_SET = new Set<string>(agentTerrainStatuses as readonly string[]);
 
 /**
- * Active = chiffrage.status !== 'done' (the chiffreur hasn't finalized yet, so
- * the deadline clock is still running for them). Keyed by chiffreur ID.
+ * Active = chiffrage.status is not terminal (the chiffreur hasn't finalized
+ * yet, so the deadline clock is still running for them). Keyed by chiffreur
+ * ID. Backed by the shared `subscribeAllChiffreurOpenCounts` helper so that
+ * this hook and the assignations-page chiffreur filter always agree.
  */
 export function useChiffreurWorkload(): Record<string, number> {
   const db = useFirestore();
@@ -22,16 +24,7 @@ export function useChiffreurWorkload(): Record<string, number> {
 
   useEffect(() => {
     if (!db) return;
-    const unsub = onSnapshot(collection(db, 'chiffrages'), (snap) => {
-      const result: Record<string, number> = {};
-      snap.docs.forEach((d) => {
-        const data = d.data() as any;
-        if (data.status !== 'done' && data.assignedChiffreurId) {
-          result[data.assignedChiffreurId] = (result[data.assignedChiffreurId] || 0) + 1;
-        }
-      });
-      setCounts(result);
-    });
+    const unsub = subscribeAllChiffreurOpenCounts(db, setCounts);
     return () => unsub();
   }, [db]);
 

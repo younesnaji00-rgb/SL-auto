@@ -21,11 +21,13 @@ import { fr } from 'date-fns/locale';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
+import { useChiffreurWorkload } from '@/hooks/use-workload-counts';
 
 interface ChiffrageItem {
   id: string;
   dossierId: string;
   dossierNom: string;
+  assignedChiffreurId?: string;
   assignedChiffreurNom: string;
   status: string;
   files: any[];
@@ -101,6 +103,7 @@ function DeadlineBar({ percent, overdue, nature }: { percent: number; overdue: b
 export default function AssignationsChiffragePage() {
   const db = useFirestore();
   const { profile } = useCurrentUser();
+  const chiffreurWorkload = useChiffreurWorkload();
   const [chiffrages, setChiffrages] = useState<ChiffrageItem[]>([]);
   const [dossierStatuts, setDossierStatuts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -156,14 +159,27 @@ export default function AssignationsChiffragePage() {
     return Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
   }, [chiffrages, dossierCompagnies]);
 
+  // Chiffreur filter counts. We group for DISPLAY by name (what the user
+  // picks in the dropdown) but compute counts from the shared "open chiffrage"
+  // workload keyed by chiffreur id — so these numbers always match the ones
+  // shown in the "Envoyer vers chiffrage" modal's chiffreur dropdown.
+  // See src/lib/chiffreur-workload.ts for the single source of truth.
   const chiffreurOptions = useMemo(() => {
-    const counts: Record<string, number> = {};
+    const namesById: Record<string, string> = {};
     chiffrages.forEach(c => {
+      const id = c.assignedChiffreurId;
       const name = c.assignedChiffreurNom?.trim();
-      if (name) counts[name] = (counts[name] || 0) + 1;
+      if (id && name && !namesById[id]) namesById[id] = name;
     });
-    return Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
-  }, [chiffrages]);
+    const byName: Record<string, number> = {};
+    Object.entries(namesById).forEach(([id, name]) => {
+      const n = chiffreurWorkload[id] || 0;
+      byName[name] = (byName[name] || 0) + n;
+    });
+    return Object.entries(byName)
+      .filter(([, count]) => count > 0)
+      .sort(([a], [b]) => a.localeCompare(b));
+  }, [chiffrages, chiffreurWorkload]);
 
   const isToday = (ts: any) => {
     if (!ts) return false;
