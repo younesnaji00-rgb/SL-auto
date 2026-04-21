@@ -40,7 +40,7 @@ const GlobalSearch = () => {
     setLoading(true);
     const { suggestion: aiSuggestion, error } = await getAiSuggestion(searchQuery);
     if(error) {
-        setSuggestion("Error: Could not fetch suggestion.");
+        setSuggestion("Erreur : suggestion indisponible.");
     } else {
         setSuggestion(aiSuggestion);
     }
@@ -69,7 +69,7 @@ const GlobalSearch = () => {
       >
         <div className="flex items-center gap-2">
           <Search className="h-4 w-4" />
-          <span>Search...</span>
+          <span>Rechercher...</span>
         </div>
         <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
           <span className="text-xs">⌘</span>K
@@ -77,7 +77,7 @@ const GlobalSearch = () => {
       </Button>
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput 
-          placeholder="What do you need?"
+          placeholder="Que cherchez-vous ?"
           value={query}
           onValueChange={handleInputChange}
         />
