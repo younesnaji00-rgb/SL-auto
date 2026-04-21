@@ -145,7 +145,7 @@ export default function DossierDetailPage({
 
       {/* ACTION BUTTONS ROW */}
       {!readOnly && (
-      <div className="bg-card border-b px-6 py-2 flex flex-wrap gap-2 items-center">
+      <div className="bg-card border-b px-6 py-2 flex flex-wrap gap-2 items-center sticky top-0 z-40">
         <Button variant="outline" size="sm" onClick={() => setChiffrageModalOpen(true)} className="h-8 text-xs gap-1.5">
           <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
         </Button>
