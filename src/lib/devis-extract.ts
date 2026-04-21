@@ -1,6 +1,10 @@
 import { doc, getDoc, serverTimestamp, updateDoc, type Firestore } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, type FirebaseStorage } from 'firebase/storage';
-import { emptyHeader, type DevisHeader, type DevisRow, type EditableDocType, type StructuredDevis } from './devis-schema';
+import {
+  emptyHeader, formatFr,
+  type DevisExtraColumn, type DevisHeader, type DevisRow, type EditableDocType, type StructuredDevis,
+} from './devis-schema';
+import type { ScanDevisCounterOutput } from './scan-devis-counter-schema';
 
 export interface ExtractAndPersistParams {
   db: Firestore;
@@ -13,19 +17,32 @@ export interface ExtractAndPersistParams {
 }
 
 export type ExtractResult =
-  | { ok: true; reason: 'already-extracted' | 'already-attempted' | 'no-files' | 'extracted'; structuredDevis?: StructuredDevis }
-  | { ok: false; reason: 'missing-chiffrage' | 'fetch-failed' | 'api-failed' | 'persist-failed'; error?: string };
+  | { ok: true; reason: 'already-extracted' | 'already-attempted' | 'no-files' | 'extracted' | 'counter-only'; structuredDevis?: StructuredDevis }
+  | { ok: false; reason: 'missing-chiffrage' | 'fetch-failed' | 'api-failed' | 'persist-failed' | 'no-original-for-counter'; error?: string };
 
 /**
- * Per-docType extractor. Downloads every file matching the requested
- * `docType`, asks Gemini to extract header + rows from each, concatenates
- * the rows and merges headers into a single structured document stored at
- * chiffrages/{id}.structuredEditables[docType].
+ * Per-docType extractor.
  *
- * Idempotent: no-op if structuredEditables[docType] already exists OR if
- * editableExtractionAttempted[docType] is set (unless force=true).
+ * For `Facture`: downloads every file of docType, asks Gemini to extract
+ * header + rows, merges them, and persists.
  *
- * Safe to fire-and-forget from UI flows (assignment, editor first-open).
+ * For `Devis`: 2-phase.
+ *   Phase 1 (originals — `devisVariant === 'original'` or missing): same as
+ *     Facture flow. Establishes the header + rows.
+ *   Phase 2 (counters — `devisVariant === 'counter'`): for each counter file
+ *     not yet processed (dedup by `sourceStoragePath`), calls
+ *     `/api/scan-devis-counter` seeded with the now-established row
+ *     designations, and appends a red `DevisExtraColumn` with the matched
+ *     counter-prices.
+ *
+ * Idempotent:
+ *   - If originals already extracted AND no unprocessed counter files exist,
+ *     returns `already-extracted` without touching the backend.
+ *   - If originals are missing but only counter files are present, returns
+ *     `no-original-for-counter` — the UI surfaces this and the gestionnaire
+ *     must upload an original before counters can be processed.
+ *
+ * Safe to fire-and-forget from UI flows (assignment, editor load).
  */
 export async function extractAndPersistChiffrageDevis(
   { db, storage, chiffrageId, docType, force = false }: ExtractAndPersistParams
@@ -40,94 +57,168 @@ export async function extractAndPersistChiffrageDevis(
     const editables = (data.structuredEditables || {}) as Record<string, StructuredDevis>;
     const attempts = (data.editableExtractionAttempted || {}) as Record<string, boolean>;
 
-    if (!force) {
-      if (editables[docType]) return { ok: true, reason: 'already-extracted', structuredDevis: editables[docType] };
-      if (attempts[docType]) return { ok: true, reason: 'already-attempted' };
-    }
-
-    const files = Array.isArray(data.files) ? data.files : [];
-    const targetFiles: Array<{ file: any; index: number }> = files
-      .map((f: any, i: number) => ({ file: f, index: i }))
-      .filter(({ file }: any) => file?.docType === docType && file?.storagePath);
+    const files: any[] = Array.isArray(data.files) ? data.files : [];
+    const targetFiles = files.filter((f: any) => f?.docType === docType && f?.storagePath);
 
     if (targetFiles.length === 0) {
       await markAttempted(docRef, docType);
       return { ok: true, reason: 'no-files' };
     }
 
-    const extractions = await Promise.all(
-      targetFiles.map(async ({ file, index }) => {
-        try {
-          const url = await getDownloadURL(storageRef(storage, file.storagePath));
-          const res = await fetch(url);
-          if (!res.ok) throw new Error(`fetch ${res.status}`);
-          const blob = await res.blob();
-          const contentType = blob.type || (file.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-          const base64 = await blobToBase64(blob);
+    // Variant split — only relevant for Devis. Facture has no variants.
+    const isDevis = docType === 'Devis';
+    const originalFiles = isDevis
+      ? targetFiles.filter((f) => (f.devisVariant ?? 'original') === 'original')
+      : targetFiles;
+    const counterFiles = isDevis
+      ? targetFiles.filter((f) => f.devisVariant === 'counter')
+      : [];
 
-          const r = await fetch('/api/scan-devis', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fileBase64: base64, contentType }),
-          });
-          if (!r.ok) throw new Error(`api ${r.status}`);
-          const parsed = await r.json();
-          return { ok: true as const, index, file, parsed };
-        } catch (e: any) {
-          console.error(`[extractChiffrageDevis] file #${index} failed`, e);
-          return { ok: false as const, index, file, error: e?.message };
-        }
-      })
-    );
+    let existing: StructuredDevis | null = editables[docType] || null;
 
-    const successful = extractions.filter((r) => r.ok) as Array<{ ok: true; index: number; file: any; parsed: any }>;
+    // Phase 1: originals
+    const needsOriginalExtract = force || !existing;
+    if (needsOriginalExtract) {
+      if (originalFiles.length === 0) {
+        // Counter-only case — cannot proceed without rows.
+        await markAttempted(docRef, docType);
+        return { ok: false, reason: 'no-original-for-counter', error: "Aucun devis original trouvé pour ce dossier." };
+      }
 
-    if (successful.length === 0) {
-      await markAttempted(docRef, docType);
-      return { ok: false, reason: 'api-failed', error: `Aucun ${docType.toLowerCase()} n'a pu etre extrait.` };
-    }
+      if (!force && attempts[docType] && !existing) {
+        // Previously attempted and failed — don't loop.
+        return { ok: true, reason: 'already-attempted' };
+      }
 
-    const mergedHeader: DevisHeader = emptyHeader();
-    for (const { parsed } of successful) {
-      const h = parsed.header || {};
-      (Object.keys(mergedHeader) as Array<keyof DevisHeader>).forEach((k) => {
-        if (!mergedHeader[k] && h[k]) mergedHeader[k] = String(h[k]);
-      });
-    }
+      const originalExtractions = await Promise.all(
+        originalFiles.map((file) => scanOriginal(storage, file))
+      );
+      const successful = originalExtractions.filter((r) => r.ok) as Array<{ ok: true; parsed: any }>;
 
-    const mergedRows: DevisRow[] = [];
-    for (const { parsed } of successful) {
-      const rows = Array.isArray(parsed.rows) ? parsed.rows : [];
-      rows.forEach((r: any) => {
-        mergedRows.push({
-          id: newId(),
-          ref: r.ref || 'CHANGE',
-          designation: r.designation || '',
-          type: r.type || '',
-          tva: Number(r.tva) || 0,
-          qte: Number(r.qte) || 0,
-          puHT: Number(r.puHT) || 0,
+      if (successful.length === 0) {
+        await markAttempted(docRef, docType);
+        return { ok: false, reason: 'api-failed', error: `Aucun ${docType.toLowerCase()} n'a pu etre extrait.` };
+      }
+
+      const mergedHeader: DevisHeader = emptyHeader();
+      for (const { parsed } of successful) {
+        const h = parsed.header || {};
+        (Object.keys(mergedHeader) as Array<keyof DevisHeader>).forEach((k) => {
+          if (!mergedHeader[k] && h[k]) mergedHeader[k] = String(h[k]);
         });
-      });
+      }
+
+      const mergedRows: DevisRow[] = [];
+      for (const { parsed } of successful) {
+        const rows = Array.isArray(parsed.rows) ? parsed.rows : [];
+        rows.forEach((r: any) => {
+          mergedRows.push({
+            id: newId(),
+            ref: r.ref || 'CHANGE',
+            designation: r.designation || '',
+            type: r.type || '',
+            tva: Number(r.tva) || 0,
+            qte: Number(r.qte) || 0,
+            puHT: Number(r.puHT) || 0,
+          });
+        });
+      }
+
+      existing = {
+        header: mergedHeader,
+        rows: mergedRows,
+        versions: existing?.versions || [],
+        extraColumns: existing?.extraColumns || [],
+      };
     }
 
-    const structuredDevis: StructuredDevis = {
-      header: mergedHeader,
-      rows: mergedRows,
-      versions: [],
-    };
+    // Phase 2: counters (Devis only, and only when we have rows to match against)
+    let counterColumnsAdded = 0;
+    if (isDevis && counterFiles.length > 0 && existing && existing.rows.length > 0) {
+      const currentColumns = Array.isArray(existing.extraColumns) ? existing.extraColumns : [];
+      const processedPaths = new Set(
+        currentColumns
+          .filter((c) => c.kind === 'counter' && c.sourceStoragePath)
+          .map((c) => c.sourceStoragePath as string)
+      );
+
+      const unprocessed = counterFiles
+        .filter((f) => !processedPaths.has(f.storagePath))
+        .sort((a, b) => (a.counterRoundOrder || 999) - (b.counterRoundOrder || 999));
+
+      if (unprocessed.length > 0) {
+        const rowsForMatch = existing.rows.map((r) => ({ id: r.id, designation: r.designation }));
+
+        // Sequential (not parallel) so each column is appended in round order.
+        const newColumns: DevisExtraColumn[] = [];
+        for (const file of unprocessed) {
+          try {
+            const url = await getDownloadURL(storageRef(storage, file.storagePath));
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`fetch ${res.status}`);
+            const blob = await res.blob();
+            const contentType = blob.type || (file.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+            const base64 = await blobToBase64(blob);
+
+            const r = await fetch('/api/scan-devis-counter', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileBase64: base64,
+                contentType,
+                rows: rowsForMatch,
+              }),
+            });
+            if (!r.ok) throw new Error(`api ${r.status}`);
+            const out: ScanDevisCounterOutput = await r.json();
+
+            const values: Record<string, string> = {};
+            for (const m of out.matches || []) {
+              if (m.counterPrice != null) values[m.rowId] = formatFr(m.counterPrice);
+            }
+
+            const col: DevisExtraColumn = {
+              id: newId(),
+              label: file.counterRoundLabel || 'Contre-devis',
+              values,
+              kind: 'counter',
+              sourcePdfUrl: url,
+              sourceStoragePath: file.storagePath,
+              importedAt: new Date().toISOString(),
+            };
+            newColumns.push(col);
+          } catch (e) {
+            console.error('[devis-extract] counter scan failed for', file.storagePath, e);
+          }
+        }
+
+        if (newColumns.length > 0) {
+          existing = {
+            ...existing,
+            extraColumns: [...currentColumns, ...newColumns],
+          };
+          counterColumnsAdded = newColumns.length;
+        }
+      }
+    }
+
+    // Short-circuit: nothing changed → no write, no counter-only error.
+    if (!needsOriginalExtract && counterColumnsAdded === 0) {
+      return { ok: true, reason: 'already-extracted', structuredDevis: existing || undefined };
+    }
+
+    if (!existing) {
+      // Shouldn't happen given the logic above, but guard for TS.
+      return { ok: false, reason: 'persist-failed', error: 'No structured devis to persist.' };
+    }
 
     try {
       const fresh = await getDoc(docRef);
       if (!fresh.exists()) return { ok: false, reason: 'missing-chiffrage' };
       const freshData = fresh.data() as any;
-      const freshEditables = (freshData.structuredEditables || {}) as Record<string, StructuredDevis>;
-      if (!force && freshEditables[docType]) {
-        return { ok: true, reason: 'already-extracted', structuredDevis: freshEditables[docType] };
-      }
       const freshAttempts = (freshData.editableExtractionAttempted || {}) as Record<string, boolean>;
       await updateDoc(docRef, {
-        [`structuredEditables.${docType}`]: structuredDevis,
+        [`structuredEditables.${docType}`]: existing,
         editableExtractionAttempted: { ...freshAttempts, [docType]: true },
         updatedAt: serverTimestamp(),
       });
@@ -135,9 +226,39 @@ export async function extractAndPersistChiffrageDevis(
       return { ok: false, reason: 'persist-failed', error: e?.message };
     }
 
-    return { ok: true, reason: 'extracted', structuredDevis };
+    return {
+      ok: true,
+      reason: needsOriginalExtract ? 'extracted' : 'counter-only',
+      structuredDevis: existing,
+    };
   } catch (e: any) {
     return { ok: false, reason: 'persist-failed', error: e?.message };
+  }
+}
+
+async function scanOriginal(
+  storage: FirebaseStorage,
+  file: any
+): Promise<{ ok: true; parsed: any } | { ok: false; error?: string }> {
+  try {
+    const url = await getDownloadURL(storageRef(storage, file.storagePath));
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`fetch ${res.status}`);
+    const blob = await res.blob();
+    const contentType = blob.type || (file.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+    const base64 = await blobToBase64(blob);
+
+    const r = await fetch('/api/scan-devis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileBase64: base64, contentType }),
+    });
+    if (!r.ok) throw new Error(`api ${r.status}`);
+    const parsed = await r.json();
+    return { ok: true, parsed };
+  } catch (e: any) {
+    console.error('[devis-extract] original scan failed for', file?.storagePath, e);
+    return { ok: false, error: e?.message };
   }
 }
 
@@ -155,7 +276,7 @@ async function markAttempted(docRef: ReturnType<typeof doc>, docType: EditableDo
   } catch { /* best effort */ }
 }
 
-function blobToBase64(blob: Blob): Promise<string> {
+export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {

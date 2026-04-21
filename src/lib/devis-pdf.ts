@@ -133,7 +133,7 @@ export function renderDevisPdf(
 
   // ── Main table ──────────────────────────────────────────────────────────
   // Normalize extra columns from new (`extraColumns`) or legacy (`extraColumn`) shape.
-  const extraCols: Array<{ id: string; label: string; values: Record<string, string> }> =
+  const extraCols: Array<{ id: string; label: string; values: Record<string, string>; kind?: 'counter' | 'default' }> =
     Array.isArray(devis.extraColumns) && devis.extraColumns.length > 0
       ? devis.extraColumns.filter((c) => !!c && !!c.label)
       : (devis.extraColumn && devis.extraColumn.label
@@ -171,6 +171,7 @@ export function renderDevisPdf(
 
   // Column indices shift by 1 when Vetuste is inserted between Designation (1) and TYPE.
   const off = showVetuste ? 1 : 0;
+  const extraColsStartIndex = 7 + off;
   const columnStyles: Record<number, any> = {
     0: { cellWidth: 22, halign: 'center' },                          // REF
     [2 + off]: { halign: 'center', cellWidth: 14 },                  // TYPE (was col 2)
@@ -180,6 +181,17 @@ export function renderDevisPdf(
     [6 + off]: { halign: 'right', cellWidth: 28 },                   // Total H.T
   };
   if (showVetuste) columnStyles[2] = { halign: 'center', cellWidth: 16 }; // Vetuste
+  // Counter columns: render in red for visual parity with the editor.
+  extraCols.forEach((c, i) => {
+    if (c.kind === 'counter') {
+      columnStyles[extraColsStartIndex + i] = {
+        halign: 'right',
+        cellWidth: 26,
+        textColor: [220, 38, 38],
+        fontStyle: 'bold',
+      };
+    }
+  });
 
   autoTable(pdf, {
     startY: blockY + blockH + 4,

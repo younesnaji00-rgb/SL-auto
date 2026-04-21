@@ -37,6 +37,9 @@ interface FileItem {
   type: 'photo' | 'rapport';
   category?: string;
   docType?: string;
+  devisVariant?: 'original' | 'counter';
+  counterRoundLabel?: string;
+  counterRoundOrder?: number;
 }
 
 export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalChiffrageProps) {
@@ -72,7 +75,16 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
       });
       const docs: FileItem[] = docsSnap.docs.map(d => {
         const data = d.data();
-        return { id: d.id, name: data.nom || data.name || 'document.pdf', storagePath: data.storagePath || '', type: 'rapport', docType: data.type || data.typeDocument || '' };
+        return {
+          id: d.id,
+          name: data.nom || data.name || 'document.pdf',
+          storagePath: data.storagePath || '',
+          type: 'rapport',
+          docType: data.type || data.typeDocument || '',
+          ...(data.devisVariant ? { devisVariant: data.devisVariant as 'original' | 'counter' } : {}),
+          ...(data.counterRoundLabel ? { counterRoundLabel: data.counterRoundLabel as string } : {}),
+          ...(typeof data.counterRoundOrder === 'number' ? { counterRoundOrder: data.counterRoundOrder as number } : {}),
+        };
       });
       setAvailablePhotos(photos);
       setAvailableDocs(docs);
@@ -111,7 +123,16 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
     try {
       const allItems = [...availablePhotos, ...availableDocs];
       const selectedFiles: ChiffrageFile[] = allItems
-        .map(f => ({ name: f.name, storagePath: f.storagePath, type: f.type, ...(f.docType ? { docType: f.docType } : {}), ...(f.category ? { category: f.category } : {}) }));
+        .map(f => ({
+          name: f.name,
+          storagePath: f.storagePath,
+          type: f.type,
+          ...(f.docType ? { docType: f.docType } : {}),
+          ...(f.category ? { category: f.category } : {}),
+          ...(f.devisVariant ? { devisVariant: f.devisVariant } : {}),
+          ...(f.counterRoundLabel ? { counterRoundLabel: f.counterRoundLabel } : {}),
+          ...(typeof f.counterRoundOrder === 'number' ? { counterRoundOrder: f.counterRoundOrder } : {}),
+        }));
 
       const chiffrageId = await sendToChiffrage({
         db,

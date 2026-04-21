@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { doc, getDoc, onSnapshot, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
-  ArrowLeft, Columns2, Copy, Download, History, Loader2, Plus, RefreshCcw,
+  ArrowLeft, Columns2, Copy, Download, FileText, History, Loader2, Plus, RefreshCcw,
   Save, Sparkles, Trash2, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -75,6 +75,7 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
   const [dossierId, setDossierId] = useState<string>('');
   const [dossier, setDossier] = useState<any>(null);
   const [devisFileNames, setDevisFileNames] = useState<string[]>([]);
+  const [counterFilePaths, setCounterFilePaths] = useState<string[]>([]);
   const [persisted, setPersisted] = useState<StructuredDevis | null>(null);
   const [extractionAttempted, setExtractionAttempted] = useState(false);
 
@@ -100,10 +101,13 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
         return;
       }
       const data = snap.data() as any;
-      const names = (data.files || [])
-        .filter((f: any) => f?.docType === docType)
-        .map((f: any) => f.name || 'document.pdf');
-      setDevisFileNames(names);
+      const matching = (data.files || []).filter((f: any) => f?.docType === docType);
+      setDevisFileNames(matching.map((f: any) => f.name || 'document.pdf'));
+      setCounterFilePaths(
+        matching
+          .filter((f: any) => f?.devisVariant === 'counter' && f?.storagePath)
+          .map((f: any) => f.storagePath as string)
+      );
       setDossierId(data.dossierId || '');
       const editables = (data.structuredEditables || {}) as Record<string, StructuredDevis>;
       const attempts = (data.editableExtractionAttempted || {}) as Record<string, boolean>;
@@ -158,9 +162,17 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
       setRows(persisted.rows.length ? persisted.rows : [emptyRow()]);
       const cols = normalizeExtraColumns(persisted);
       setExtraColumns(cols);
-      setSavedExtraColumnsCount(cols.length);
+      setSavedExtraColumnsCount(cols.filter((c) => (c.kind ?? 'default') === 'default').length);
       setVersions(persisted.versions || []);
       initializedRef.current = true;
+
+      // Re-run the extractor if new counter files have landed since the last extract.
+      // The extractor is idempotent; it no-ops when every counter is already represented.
+      const processedPaths = new Set(
+        cols.filter((c) => c.kind === 'counter' && c.sourceStoragePath).map((c) => c.sourceStoragePath as string)
+      );
+      const hasUnprocessedCounter = counterFilePaths.some((p) => !processedPaths.has(p));
+      if (hasUnprocessedCounter) runExtraction(false);
       return;
     }
 
@@ -173,7 +185,7 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
     if (devisFileNames.length === 0) return;
     runExtraction(false);
 
-  }, [loading, persisted, extractionAttempted, devisFileNames.length, dossier, dossierPrefill, db, storage]);
+  }, [loading, persisted, extractionAttempted, devisFileNames.length, counterFilePaths, dossier, dossierPrefill, db, storage]);
 
   const runExtraction = useCallback(async (isManualRetry: boolean) => {
     if (!db || !storage) return;
@@ -184,6 +196,14 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
       });
 
       if (!result.ok) {
+        if (result.reason === 'no-original-for-counter') {
+          toast({
+            variant: 'destructive',
+            title: 'Devis original manquant',
+            description: "Un contre-devis a été uploadé mais aucun devis original n'existe pour ce dossier. Uploadez un original depuis la fiche dossier.",
+          });
+          return;
+        }
         if (isManualRetry) {
           toast({ variant: 'destructive', title: 'Extraction impossible', description: 'Veuillez saisir les donnees manuellement.' });
         } else {
@@ -227,7 +247,10 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
   });
   const deleteRow = (id: string) => setRows((rs) => (rs.length <= 1 ? rs : rs.filter((r) => r.id !== id)));
 
-  const canAddColumn = extraColumns.length < savedExtraColumnsCount + 1;
+  // The add-column throttle only counts manually-added (default) columns.
+  // Imported counter columns don't consume the quota — each accord round is a distinct document.
+  const defaultColumnsCount = extraColumns.filter((c) => (c.kind ?? 'default') === 'default').length;
+  const canAddColumn = defaultColumnsCount < savedExtraColumnsCount + 1;
 
   const addExtraColumn = () => {
     if (!canAddColumn) return;
@@ -237,6 +260,7 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
       id: crypto.randomUUID(),
       label: label.trim(),
       values: {},
+      kind: 'default',
     };
     setExtraColumns((cols) => [...cols, newCol]);
   };
@@ -248,6 +272,7 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
       cols.map((c) => (c.id === colId ? { ...c, values: { ...c.values, [rowId]: value } } : c))
     );
   };
+
 
   // Totals ───────────────────────────────────────────────────────────────
   const totals = useMemo(() => ({
@@ -331,9 +356,9 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
       }
 
       setVersions((v) => [newVersion, ...v]);
-      // After save, the local extra-column count becomes the new "saved" baseline,
-      // unlocking +1 more for the next session.
-      setSavedExtraColumnsCount(extraColumns.length);
+      // After save, the local default-column count becomes the new "saved" baseline,
+      // unlocking +1 more for the next session. Counter columns are not throttled.
+      setSavedExtraColumnsCount(extraColumns.filter((c) => (c.kind ?? 'default') === 'default').length);
 
       if (uploaded) {
         toast({ title: `${docType} enregistre`, description: 'Nouvelle version generee.' });
@@ -513,22 +538,41 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
                 <th style={{ width: '60px' }} className="text-center">Qte</th>
                 <th style={{ width: '100px' }} className="text-right">P.U H.T</th>
                 <th style={{ width: '110px' }} className="text-right">Total H.T</th>
-                {extraColumns.map((col) => (
-                  <th key={col.id} style={{ width: '140px' }}>
-                    <div className="flex items-center gap-1">
-                      <span className="truncate">{col.label}</span>
-                      {canEdit && (
-                        <button
-                          onClick={() => removeExtraColumn(col.id)}
-                          className="text-muted-foreground hover:text-destructive"
-                          title="Supprimer la colonne"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-                  </th>
-                ))}
+                {extraColumns.map((col) => {
+                  const isCounter = col.kind === 'counter';
+                  return (
+                    <th
+                      key={col.id}
+                      style={{ width: '140px' }}
+                      className={cn(isCounter && 'text-red-600')}
+                    >
+                      <div className="flex items-center gap-1">
+                        {isCounter && <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600 shrink-0" aria-hidden />}
+                        <span className="truncate">{col.label}</span>
+                        {isCounter && col.sourcePdfUrl && (
+                          <a
+                            href={col.sourcePdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-red-600/70 hover:text-red-600"
+                            title="Ouvrir le document source"
+                          >
+                            <FileText className="h-3 w-3" />
+                          </a>
+                        )}
+                        {canEdit && (
+                          <button
+                            onClick={() => removeExtraColumn(col.id)}
+                            className="text-muted-foreground hover:text-destructive"
+                            title="Supprimer la colonne"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
                 <th style={{ width: '70px' }} />
               </tr>
             </thead>
@@ -574,6 +618,7 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
                           value={col.values[r.id] || ''}
                           onChange={(v) => updateExtraCell(col.id, r.id, v)}
                           disabled={!canEdit}
+                          className={col.kind === 'counter' ? 'text-red-600 font-semibold' : undefined}
                         />
                       </td>
                     ))}
@@ -604,10 +649,11 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
             {extraColumns.map((col) => {
               // Σ for the extra column, SR-tolerant: `parseFr` returns 0 for non-numeric cells.
               const colSum = rows.reduce((acc, r) => acc + parseFr(col.values[r.id] || ''), 0);
+              const isCounter = col.kind === 'counter';
               return (
-                <div key={col.id} className="flex gap-6 pt-1 border-t mt-1">
-                  <span className="text-muted-foreground">Σ {col.label || '—'}</span>
-                  <span className="w-24 text-right">{formatFr(colSum)}</span>
+                <div key={col.id} className={cn('flex gap-6 pt-1 border-t mt-1', isCounter && 'text-red-600')}>
+                  <span className={isCounter ? '' : 'text-muted-foreground'}>Σ {col.label || '—'}</span>
+                  <span className={cn('w-24 text-right', isCounter && 'font-semibold')}>{formatFr(colSum)}</span>
                 </div>
               );
             })}
@@ -660,8 +706,8 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
                         setRows(v.snapshot.rows.map((r) => ({ ...r })));
                         const restoredCols = normalizeExtraColumns(v.snapshot);
                         setExtraColumns(restoredCols);
-                        // Restoring counts as the new baseline — the user may add one more after this.
-                        setSavedExtraColumnsCount(restoredCols.length);
+                        // Restoring counts as the new baseline — the user may add one more default column after this.
+                        setSavedExtraColumnsCount(restoredCols.filter((c) => (c.kind ?? 'default') === 'default').length);
                         toast({ title: 'Version chargee', description: 'Enregistrez pour creer une nouvelle version.' });
                       }}
                     >
@@ -691,6 +737,7 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
           </div>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }
@@ -715,8 +762,8 @@ function HeaderField({
 }
 
 function CellInput({
-  value, onChange, disabled,
-}: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
+  value, onChange, disabled, className,
+}: { value: string; onChange: (v: string) => void; disabled?: boolean; className?: string }) {
   return (
     <input
       value={value}
@@ -724,7 +771,8 @@ function CellInput({
       disabled={disabled}
       className={cn(
         "w-full h-7 px-1.5 text-xs bg-transparent outline-none rounded border border-transparent",
-        "focus:border-primary/50 focus:bg-background disabled:cursor-not-allowed"
+        "focus:border-primary/50 focus:bg-background disabled:cursor-not-allowed",
+        className,
       )}
     />
   );

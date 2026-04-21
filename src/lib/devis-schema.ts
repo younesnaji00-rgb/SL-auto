@@ -41,6 +41,19 @@ export interface DevisExtraColumn {
   id: string;
   label: string;
   values: Record<string, string>;
+  /**
+   * 'counter' = imported counter-proposal from an opposing chiffreur; rendered red.
+   * 'default' / undefined = manually-added column.
+   */
+  kind?: 'counter' | 'default';
+  /** For counter columns: public URL of the annotated source PDF for audit. */
+  sourcePdfUrl?: string;
+  /** For counter columns: Storage path of the source file — used for dedup across re-extractions. */
+  sourceStoragePath?: string;
+  /** For counter columns: ISO string of when the import happened. */
+  importedAt?: string;
+  /** For counter columns: uid of the user who imported. */
+  importedByUid?: string;
 }
 
 export interface DevisSnapshot {
@@ -99,10 +112,22 @@ function newId(): string {
 export function normalizeExtraColumns(s: { extraColumns?: DevisExtraColumn[]; extraColumn?: { label: string; values: Record<string, string> } } | undefined | null): DevisExtraColumn[] {
   if (!s) return [];
   if (Array.isArray(s.extraColumns) && s.extraColumns.length > 0) {
-    return s.extraColumns.map((c) => ({ id: c.id || newId(), label: c.label || '', values: c.values || {} }));
+    return s.extraColumns.map((c) => {
+      const normalized: DevisExtraColumn = {
+        id: c.id || newId(),
+        label: c.label || '',
+        values: c.values || {},
+        kind: c.kind === 'counter' ? 'counter' : 'default',
+      };
+      if (c.sourcePdfUrl) normalized.sourcePdfUrl = c.sourcePdfUrl;
+      if (c.sourceStoragePath) normalized.sourceStoragePath = c.sourceStoragePath;
+      if (c.importedAt) normalized.importedAt = c.importedAt;
+      if (c.importedByUid) normalized.importedByUid = c.importedByUid;
+      return normalized;
+    });
   }
   if (s.extraColumn && s.extraColumn.label) {
-    return [{ id: newId(), label: s.extraColumn.label, values: s.extraColumn.values || {} }];
+    return [{ id: newId(), label: s.extraColumn.label, values: s.extraColumn.values || {}, kind: 'default' }];
   }
   return [];
 }
@@ -147,6 +172,12 @@ export function formatFr(n: number, fractionDigits = 2): string {
   const [intPart, decPart] = fixed.split('.');
   const withSpaces = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   return decPart ? `${withSpaces},${decPart}` : withSpaces;
+}
+
+/** 1 → "1er", 2 → "2ème", 3 → "3ème", ... French ordinals. */
+export function toOrdinalFr(n: number): string {
+  if (n === 1) return '1er';
+  return `${n}ème`;
 }
 
 /** Parse "1 234,50" or "1234.50" or "1,234.50" → number */

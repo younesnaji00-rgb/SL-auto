@@ -173,10 +173,92 @@
   - Run `npx next build` locally. Fix any surface errors introduced.
   - Done: `next build` succeeds.
 
-- [>] **#20** — CHANGELOG entry
+- [x] **#20** — CHANGELOG entry — commit `ad654d3` (`.plan/CHANGES-2026-04-21.md` with per-task tally + follow-ups + deploy notes)
   - File: `.plan/CHANGES-2026-04-21.md` (new)
   - One-liner per completed task with commit hash.
   - Done: file written with the tally.
+
+---
+
+## Phase 5 — Round 2 feedback (tasks #21-#33)
+
+- [x] **#21** — Dossier creation: pre-confirm modal — commit `591ebb8` (new `create-dossier-dialog.tsx`; seed-aware `createEmptyDossier`; Annuler verified no-write)
+  - Files: `src/app/(app)/dossiers/client-page.tsx`, new `src/components/dossiers/create-dossier-dialog.tsx`
+  - Click "Créer un dossier" opens Dialog form with refExpert, compagnie (Select from options_compagnies), nature (Select from options_nature), assure.nom, matricule. On confirm → `addDoc` + redirect. On cancel → no Firestore mutation.
+  - Keep `createEmptyDossier` helper but pass the form values instead of a blank record.
+  - Done: no empty-row pollution when user clicks Créer then Cancel; tsc clean.
+
+- [x] **#22** — Step 1 Document import: show only AI-scanned document — commit `a0457d4` (writes `importDocId` on scan; render-only after; replacement UI skipped; `UploadFileResult.docId` added)
+  - File: `src/components/dossier-timeline/step-1-import.tsx`
+  - On first successful scan → `updateDoc(dossierRef, { importDocId })` with the new Firestore doc id of the uploaded import file.
+  - Render logic: if `dossier.importDocId` set → fetch that single doc and show it; else → empty state + upload zone.
+  - Done: only the scanned doc appears; other uploads in Step 4 don't leak into Step 1; tsc clean.
+
+- [x] **#23** — Pièces jointes typed-slot layout — commit `a67f064` (new `typed-documents-grid.tsx` 403 lines, 15 slots; 4 ops supported; `documents-tab.tsx` now orphaned)
+  - Files: `src/components/dossier-timeline/step-4-pieces.tsx`, possibly new `src/components/dossier-timeline/typed-documents-grid.tsx`
+  - Grid of 15 typed cards (one per `DOCUMENT_TYPES` minus 'Autre' from `src/lib/constants.ts:38-55`). Each card: type label, existing uploads for that type (thumbnail row), "Ajouter" button that file-pickers and uploads with `type` prefilled. No post-pick type dialog.
+  - Keep Photos section stacked below as-is.
+  - Done: slot-layout renders, upload commits to correct type automatically; tsc clean.
+
+- [x] **#24** — Remove duplicate Planification card from `information-tab.tsx` — commit `b09ff48` (-278 lines; Card + 2 Dialogs + associated state/queries removed; prop shape preserved)
+  - File: `src/app/(app)/dossiers/[id]/information-tab.tsx` lines 449-529 (the `<Card>...Planification... + Nouvelle...</Card>` block)
+  - Done: only the Step 3 panel shows Planification; tsc clean.
+
+- [x] **#25** — Sticky action bar under dossier top header — commit `3547885` (action row `sticky top-0 z-40`; TimelineBar now `sticky top-[52px] z-30`)
+  - File: `src/app/(app)/dossiers/[id]/page.tsx` (~lines 146-176)
+  - Wrap action row with `sticky top-[Npx] z-40`. Compute N from the top header's rendered height (≈72px). Bump timeline-bar's `top-0` accordingly to `top-[header+actionbar]` so the two sticky bars stack, not overlap.
+  - Done: action bar stays visible while scrolling; step-bar sits directly below it; tsc clean.
+
+- [x] **#26** — IntersectionObserver scroll-tracking accuracy — commit `18555fa` (IO → rAF scroll listener on resolved scroll container; threshold 120px; walks up to find overflow-auto ancestor)
+  - File: `src/components/dossier-timeline/timeline.tsx`
+  - Replace current IO with a scroll listener (rAF-throttled) that picks the section whose `getBoundingClientRect().top` ≤ threshold (step-bar bottom + 8px) but is greatest among those → the section currently crossing the top.
+  - Done: scrolling highlights the correct step in the bar; tsc clean.
+
+- [x] **#27** — Photos: 3-column layout with lightbox per column — commit `6d27002` (3 Card columns; per-column gallery Dialog; delete now in gallery only)
+  - File: `src/app/(app)/dossiers/[id]/photos-tab.tsx`
+  - Replace the 3 collapsible cards with a 3-column grid (Photos avant / Photos en cours / Photos après). Column header clickable → opens Dialog lightbox showing all photos in that category as scrollable gallery.
+  - Reuse existing `photosForCategory()` helper + preview Dialog pattern already in the file.
+  - Done: layout switched, lightbox gallery works per column; tsc clean.
+
+- [x] **#28** — Rapport cleanup + "Générer le rapport" button — commit `6269a52` (886→383 lines, -549/+46; PDF generator already covers info+chiffrage+pointsDeChoc; auto-saves pointsChoc before generation)
+  - File: `src/app/(app)/dossiers/[id]/rapport-tab.tsx`
+  - Delete Fourniture (lines 591-726), Main d'œuvre (728-780), bottom bar "Valider le rapport" + "Total estimé" (868-884).
+  - Keep Points de choc car diagrams (817-857). Observation expert → moved in task #31 (delete it from bottom here).
+  - Add "Générer le rapport" button (prominent, top or header of the tab) calling `generateRapportPDF(db, id)` with loading spinner. Reuse pattern from `page.tsx:164` (Exporter PDF button).
+  - Done: rapport tab minimal; button generates a PDF with informations + chiffrage + points de choc; tsc clean.
+
+- [x] **#29** — Step 5 Chiffrage: gate Réforme card on `reforme.updatedAt` — commit `16c0f6b` (`{reforme ?` → `{reforme?.updatedAt ?`)
+  - File: `src/components/dossier-timeline/step-5-chiffrage.tsx`
+  - Change the reveal condition from truthy-`dossier.reforme` to `dossier.reforme?.updatedAt != null`.
+  - Done: brand-new dossier with no reforme write doesn't show the card; tsc clean.
+
+- [x] **#30** — Step 5 row polish + Historique drawer parity — commit `8aceea4` (grid layout; in-page lightbox; right-side Sheet on both dossier + chiffreur sides)
+  - Files: `src/components/dossier-timeline/step-5-chiffrage.tsx`, `src/app/(app)/assignations-chiffrage/[id]/page.tsx`
+  - (a) Fix row layout: explicit column widths so "Dernière modif" doesn't overlap Voir l'original / Historique actions.
+  - (b) "Voir l'original" → Dialog lightbox (copy pattern from `documents-tab.tsx:765-798`), no new tab.
+  - (c) "Historique" → right-side Sheet drawer listing `structuredEditables[docType].versions[]` — mirror `page.tsx` Historique drawer from task #17.
+  - (d) Mirror same Historique drawer on chiffreur-side assignation-chiffrage page.
+  - Done: all four sub-items visible and functional; tsc clean.
+
+- [x] **#31** — Observations consolidated at top of dossier page — commit `20d5a30` (collapsible ObservationsTab above action bar; rapport textarea was already gone from #28)
+  - Files: `src/app/(app)/dossiers/[id]/page.tsx`, `src/app/(app)/dossiers/[id]/rapport-tab.tsx`
+  - Remove Observation expert textarea from bottom of rapport-tab (~lines 860-866).
+  - At top of `page.tsx` (right below top header, above action bar) mount `<ObservationsTab dossierId={id} section="dossiers" />` or equivalent that surfaces all observation sources.
+  - If multiple sources exist, consolidate into one `<DossierObservations>` component under `src/components/dossiers/dossier-observations.tsx`.
+  - Done: observations visible at top, rapport tab has no observation section; tsc clean.
+
+- [x] **#32** — Collapsible step cards with persistence — commit `3ba158f` (`use-collapsed-steps.ts` + clickable headers + scroll re-fire on toggle)
+  - Files: new `src/hooks/use-collapsed-steps.ts`, edit `src/components/dossier-timeline/timeline.tsx`
+  - Hook signature: `useCollapsedSteps(dossierId): { isCollapsed(stepId), toggle(stepId) }`. Storage key: `dossier-${dossierId}-step-${stepId}-collapsed` (boolean).
+  - Each `TimelineSection` header becomes clickable toggle; when collapsed, body is hidden (only number + title + chevron shown).
+  - Re-fire IO when collapsed state changes (height change invalidates the previous observation).
+  - Done: collapse a section, refresh — still collapsed; navigate away and back — still collapsed; tsc clean.
+
+- [x] **#33** — Chiffreur dossier-count mismatch fix — commit `688422b` (new `chiffreur-workload.ts`; standardized on `assignedChiffreurId`; terminal='done' excluded; name→id keying fixed the root cause)
+  - Files: `src/app/(app)/dossiers/[id]/modal-chiffrage.tsx`, `src/app/(app)/assignations-chiffrage/page.tsx` or `client-page.tsx`, new `src/lib/chiffreur-workload.ts`
+  - Read both count queries. Align on one source of truth — likely: count `chiffrages` where `chiffreurId == X && statut != 'Terminé'`.
+  - Extract shared helper `getChiffreurOpenCount(db, chiffreurId): Promise<number>` and use in both places.
+  - Done: both surfaces show the same integer for the same chiffreur; tsc clean.
 
 ---
 

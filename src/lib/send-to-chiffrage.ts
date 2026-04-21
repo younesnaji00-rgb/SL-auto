@@ -13,6 +13,12 @@ export interface ChiffrageFile {
   docType?: string;
   /** Photo category (avant, en_cours, apres) for photo files */
   category?: string;
+  /** For docType === 'Devis': 'original' (default) or 'counter'. */
+  devisVariant?: 'original' | 'counter';
+  /** For counter devis: label used as the red column name (e.g. "1er accord"). */
+  counterRoundLabel?: string;
+  /** For counter devis: monotonic order within this dossier (1, 2, 3, …). */
+  counterRoundOrder?: number;
 }
 
 export interface SendToChiffrageParams {
@@ -58,6 +64,9 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
       type: f.type,
       ...(f.docType ? { docType: f.docType } : {}),
       ...(f.category ? { category: f.category } : {}),
+      ...(f.devisVariant ? { devisVariant: f.devisVariant } : {}),
+      ...(f.counterRoundLabel ? { counterRoundLabel: f.counterRoundLabel } : {}),
+      ...(typeof f.counterRoundOrder === 'number' ? { counterRoundOrder: f.counterRoundOrder } : {}),
       status: "pending",
       recognizedText: null,
       pdfUrl: null,
