@@ -190,8 +190,10 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
   }
 
   // Task #5: mount the real <DevisEditor /> inside a near-full-screen dialog
-  // so the spreadsheet-style table breathes. Task #6 will wire the save path
-  // into dossiers/{dossierId}/pieces_jointes and honour skipAIScan.
+  // so the spreadsheet-style table breathes. Task #6: the editor here runs in
+  // `gestionnaire` mode — save routes into the dossier's pieces-jointes with
+  // `skipAIScan: true` rather than writing to the chiffrage. A chiffrage is
+  // not required to open the dialog anymore.
   const editorDocType = creatorKind === 'devis' ? 'Devis Garage' : 'Facture Garage';
   const creatorDialog = (
     <Dialog open={!!creatorKind} onOpenChange={(o) => !o && setCreatorKind(null)}>
@@ -202,17 +204,13 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
           </DialogTitle>
         </DialogHeader>
         <div className="flex-1 min-h-0 overflow-auto">
-          {creatorKind && chiffrageId ? (
-            <DevisEditor chiffrageId={chiffrageId} docType={editorDocType} />
-          ) : creatorKind ? (
-            // No chiffrage exists yet — task #6 will own the "create-then-open"
-            // path. For now surface a clear message rather than crashing.
-            <div className="p-6 text-sm text-muted-foreground">
-              Aucun chiffrage n&apos;est encore associé à ce dossier. Utilisez
-              « Envoyer vers chiffrage » pour en créer un, puis relancez la
-              création du {creatorKind === 'devis' ? 'devis' : 'facture'}.
-              {/* TODO(#6): auto-create a chiffrage on demand. */}
-            </div>
+          {creatorKind ? (
+            <DevisEditor
+              mode="gestionnaire"
+              dossierId={dossierId}
+              chiffrageId={chiffrageId || undefined}
+              docType={editorDocType}
+            />
           ) : null}
         </div>
       </DialogContent>

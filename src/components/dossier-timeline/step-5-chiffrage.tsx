@@ -246,7 +246,9 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
   }
 
   // Task #5: mount the real <DevisEditor /> in a near-full-screen dialog.
-  // Task #6 will still own the save-to-pieces_jointes pipeline.
+  // Task #6: the editor here runs in `gestionnaire` mode — save routes into
+  // the dossier's pieces-jointes with `skipAIScan: true`, not into a chiffrage.
+  // A chiffrage is no longer required to open the dialog.
   const editorChiffrageId: string | null = chiffrage?.id ?? null;
   const editorDocType = creatorKind === 'devis' ? 'Devis Garage' : 'Facture Garage';
   const creatorDialog = (
@@ -258,15 +260,13 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
           </DialogTitle>
         </DialogHeader>
         <div className="flex-1 min-h-0 overflow-auto">
-          {creatorKind && editorChiffrageId ? (
-            <DevisEditor chiffrageId={editorChiffrageId} docType={editorDocType} />
-          ) : creatorKind ? (
-            <div className="p-6 text-sm text-muted-foreground">
-              Aucun chiffrage n&apos;est encore associé à ce dossier. Utilisez
-              « Envoyer vers chiffrage » pour en créer un, puis relancez la
-              création du {creatorKind === 'devis' ? 'devis' : 'facture'}.
-              {/* TODO(#6): auto-create a chiffrage on demand. */}
-            </div>
+          {creatorKind ? (
+            <DevisEditor
+              mode="gestionnaire"
+              dossierId={dossierId}
+              chiffrageId={editorChiffrageId || undefined}
+              docType={editorDocType}
+            />
           ) : null}
         </div>
       </DialogContent>

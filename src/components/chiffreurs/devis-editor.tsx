@@ -26,13 +26,29 @@ import {
 import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import type { EditableDocType } from '@/lib/devis-schema';
 import { renderDevisPdf } from '@/lib/devis-pdf';
+import { saveGestionnaireDevisAsPieceJointe } from '@/lib/send-to-chiffrage';
 import { cn } from '@/lib/utils';
 import ReferencePanel from '@/app/editor/reference-panel';
 import { useSidebar } from '@/components/ui/sidebar';
 
+/**
+ * The devis editor is shared between two entry points:
+ *  - `chiffreur` (default): the chiffreur opens an assignation and writes back
+ *    into `chiffrages/{chiffrageId}.structuredEditables[docType]`. A chiffrage
+ *    is required.
+ *  - `gestionnaire`: Admin/Gestionnaire opens the creator dialog from
+ *    `chiffrage-tab.tsx` or `step-5-chiffrage.tsx`. Save routes to the
+ *    dossier's pieces-jointes via {@link saveGestionnaireDevisAsPieceJointe}
+ *    with `skipAIScan: true` so the AI extractor short-circuits. A `dossierId`
+ *    is required; `chiffrageId` is optional and, when present, the structured
+ *    mirror is written into the existing chiffrage too.
+ */
 interface DevisEditorProps {
-  chiffrageId: string;
+  chiffrageId?: string;
   docType: EditableDocType;
+  mode?: 'chiffreur' | 'gestionnaire';
+  /** Required when `mode === 'gestionnaire'`. Used for the pieces-jointes write. */
+  dossierId?: string;
 }
 
 const HEADER_FIELDS_LEFT: Array<{ key: keyof DevisHeader; label: string }> = [
@@ -57,8 +73,14 @@ const DOC_TYPE_LABEL: Record<EditableDocType, { plural: string; lower: string }>
   'Facture Garage': { plural: 'factures', lower: 'facture' },
 };
 
-export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
+export function DevisEditor({
+  chiffrageId,
+  docType,
+  mode = 'chiffreur',
+  dossierId: dossierIdProp,
+}: DevisEditorProps) {
   const typeLabel = DOC_TYPE_LABEL[docType];
+  const isGestionnaire = mode === 'gestionnaire';
   // Task #5: columns are now fixed and always include Vétusté (regardless of
   // docType), per the standardised Moroccan devis/facture layout.
   const router = useRouter();
@@ -69,11 +91,11 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
   const canEdit = canWrite('assignations-chiffrage');
   const { setOpen: setAppSidebarOpen } = useSidebar();
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isGestionnaire);
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [dossierId, setDossierId] = useState<string>('');
+  const [dossierId, setDossierId] = useState<string>(dossierIdProp ?? '');
   const [dossier, setDossier] = useState<any>(null);
   const [devisFileNames, setDevisFileNames] = useState<string[]>([]);
   const [counterFilePaths, setCounterFilePaths] = useState<string[]>([]);
@@ -90,8 +112,11 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
 
   const initializedRef = useRef(false);
 
-  // Load chiffrage (realtime)
+  // Load chiffrage (realtime). Skipped entirely for the gestionnaire flow —
+  // the editor there is seeded by the dossier (not an assignation) and the
+  // save path writes into pieces-jointes rather than `chiffrages`.
   useEffect(() => {
+    if (isGestionnaire) return;
     if (!db || !chiffrageId) return;
     const unsub = onSnapshot(doc(db, 'chiffrages', chiffrageId), (snap) => {
       if (!snap.exists()) {
@@ -115,7 +140,7 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();
-  }, [db, chiffrageId, router, toast]);
+  }, [db, chiffrageId, router, toast, isGestionnaire, docType]);
 
   useEffect(() => {
     if (!db || !dossierId) return;
@@ -156,6 +181,25 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
   useEffect(() => {
     if (loading || initializedRef.current || !dossier || !db || !storage) return;
 
+    // Gestionnaire flow: no chiffrage to read from. Seed from the dossier's
+    // own structuredEditables[docType] when present (the typed-documents-grid
+    // upload path populates this), otherwise start from an empty row with the
+    // dossier-prefilled header.
+    if (isGestionnaire) {
+      const dossierEditables = (dossier.structuredEditables || {}) as Record<string, StructuredDevis>;
+      const seeded = dossierEditables[docType];
+      if (seeded) {
+        setHeader(dossierPrefill(seeded.header));
+        setRows(seeded.rows.length ? seeded.rows : [emptyRow()]);
+        setExtraColumns(normalizeExtraColumns(seeded));
+        setVersions(seeded.versions || []);
+      } else {
+        setHeader((h) => dossierPrefill(h));
+      }
+      initializedRef.current = true;
+      return;
+    }
+
     if (persisted) {
       setHeader(dossierPrefill(persisted.header));
       setRows(persisted.rows.length ? persisted.rows : [emptyRow()]);
@@ -187,6 +231,9 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
 
   const runExtraction = useCallback(async (isManualRetry: boolean) => {
     if (!db || !storage) return;
+    // The extractor operates on a chiffrage — gestionnaire mode has no
+    // chiffrageId (and no AI scan is wanted anyway per task #6).
+    if (!chiffrageId) return;
     setExtracting(true);
     try {
       const result = await extractAndPersistChiffrageDevis({
@@ -288,6 +335,38 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
       const snapshot: DevisSnapshot = extraColumns.length > 0
         ? { header, rows, extraColumns }
         : { header, rows };
+
+      // Gestionnaire save path (task #6): route to pieces-jointes with
+      // skipAIScan — no chiffrage write, no AI extraction. The chiffreur
+      // receives the pre-built table via structuredEditables.
+      if (isGestionnaire) {
+        const activeDossierId = dossierIdProp || dossierId;
+        if (!activeDossierId) {
+          toast({ variant: 'destructive', title: 'Dossier manquant', description: 'Impossible de sauvegarder sans dossier.' });
+          return;
+        }
+        const result = await saveGestionnaireDevisAsPieceJointe({
+          db,
+          storage,
+          dossierId: activeDossierId,
+          docType,
+          snapshot,
+          author: {
+            uid: profile?.uid || '',
+            nom: profile?.nom || '',
+            email: profile?.email || '',
+          },
+          chiffrageId: chiffrageId || null,
+        });
+        setVersions((v) => [result.version, ...v]);
+        toast({ title: `${docType} enregistré`, description: 'Ajouté aux pièces jointes du dossier.' });
+        return;
+      }
+
+      if (!chiffrageId) {
+        toast({ variant: 'destructive', title: 'Assignation manquante', description: 'Aucun chiffrage associé.' });
+        return;
+      }
       const now = new Date();
       const author = profile?.nom || profile?.email || 'Utilisateur';
       const pdfBlob = renderDevisPdf(snapshot, { author, versionTimestamp: now, docType });
@@ -389,15 +468,19 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
     <div className="w-full px-3 sm:px-6 py-4 space-y-4">
       {/* Top bar */}
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-        <Button variant="outline" size="icon" asChild>
-          <Link href={`/assignations-chiffrage/${chiffrageId}`} aria-label="Retour">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
+        {!isGestionnaire && chiffrageId && (
+          <Button variant="outline" size="icon" asChild>
+            <Link href={`/assignations-chiffrage/${chiffrageId}`} aria-label="Retour">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+        )}
         <div className="flex-1 min-w-0">
           <h1 className="text-lg sm:text-xl font-bold truncate">Editer les {typeLabel.plural}</h1>
           <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
-            {devisFileNames.length > 0 ? (
+            {isGestionnaire ? (
+              <span className="truncate">Nouveau {typeLabel.lower} — sera ajouté aux pièces jointes du dossier.</span>
+            ) : devisFileNames.length > 0 ? (
               <>
                 <Badge variant="outline" className="text-[10px]">{devisFileNames.length}</Badge>
                 <span className="truncate">{typeLabel.lower}(s) fusionne(s) : {devisFileNames.join(' · ')}</span>
@@ -419,17 +502,19 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
           <Columns2 className="h-3.5 w-3.5 mr-1.5" />
           Comparer
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => runExtraction(true)}
-          loading={extracting}
-          disabled={!canEdit || devisFileNames.length === 0}
-          title="Relancer l'extraction automatique (écrase les données)"
-        >
-          {extracting ? null : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
-          Ré-extraire
-        </Button>
+        {!isGestionnaire && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => runExtraction(true)}
+            loading={extracting}
+            disabled={!canEdit || devisFileNames.length === 0}
+            title="Relancer l'extraction automatique (écrase les données)"
+          >
+            {extracting ? null : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+            Ré-extraire
+          </Button>
+        )}
         <Button variant="default" size="sm" onClick={handleSave} loading={saving} disabled={!canEdit}>
           {saving ? null : <Save className="h-3.5 w-3.5 mr-1.5" />}
           Enregistrer

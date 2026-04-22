@@ -251,7 +251,7 @@ export async function extractAndPersistChiffrageDevis(
  * Fire-and-forget safe. Failures are swallowed and logged.
  */
 export async function extractAndPersistDossierDoc({
-  db, storage, dossierId, docType, storagePath, name,
+  db, storage, dossierId, docType, storagePath, name, skipAIScan,
 }: {
   db: Firestore;
   storage: FirebaseStorage;
@@ -259,7 +259,18 @@ export async function extractAndPersistDossierDoc({
   docType: EditableDocType;
   storagePath: string;
   name?: string;
+  /**
+   * When true (set on pieces-jointes produced by the gestionnaire devis editor),
+   * bypass the AI extractor entirely — the structured data was provided by the
+   * gestionnaire via the editor table and is already mirrored into
+   * `dossiers.structuredEditables[docType]` by
+   * `saveGestionnaireDevisAsPieceJointe`.
+   */
+  skipAIScan?: boolean;
 }): Promise<ExtractResult> {
+  if (skipAIScan) {
+    return { ok: true, reason: 'already-extracted' };
+  }
   const dossierRef = doc(db, 'dossiers', dossierId);
 
   try {
