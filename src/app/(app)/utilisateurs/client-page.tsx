@@ -53,10 +53,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { MultiSelect } from '@/components/ui/multi-select';
-import { roles as defaultRoles, compagnies as defaultCompagnies, zones as defaultZones } from '@/lib/dossiers-data';
+import { roles as defaultRoles, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useFirebaseApp } from '@/firebase';
-import { collection, setDoc, serverTimestamp, doc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
+import { collection, setDoc, serverTimestamp, doc, deleteDoc, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { Check, ChevronsUpDown, Plus } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { useOptions } from '@/hooks/use-options';
@@ -104,11 +108,15 @@ export default function UtilisateursClientPage() {
   const { options: dbRoles } = useOptions('options_roles', [...defaultRoles]);
   const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
   const { options: dbAgentsRaw } = useOptions('options_agents', []);
-  const { options: dbZones } = useOptions('options_zones', defaultZones);
+  const { options: dbZones } = useOptions('options_zones', []);
 
   const roles = useMemo(() => dbRoles.length > 0 ? dbRoles : defaultRoles.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbRoles]);
   const compagniesOptions = useMemo(() => dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbCompagnies]);
-  const zones = useMemo(() => dbZones.length > 0 ? dbZones : defaultZones.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbZones]);
+  const zones = dbZones;
+
+  // Zone typeahead combobox state
+  const [zonePopoverOpen, setZonePopoverOpen] = useState(false);
+  const [zoneQuery, setZoneQuery] = useState('');
 
   const companyOptions = useMemo(() => compagniesOptions.map(c => ({ value: c.label, label: c.label })), [compagniesOptions]);
 
@@ -149,6 +157,21 @@ export default function UtilisateursClientPage() {
         return;
       }
 
+      // Auto-register zone in options_zones if it's new (Agent de Terrain only).
+      const typedZone = (data.zone || '').trim();
+      if (data.role === 'Agent de Terrain' && typedZone) {
+        const zoneExists = dbZones.some(z => z.label.toLowerCase() === typedZone.toLowerCase());
+        if (!zoneExists) {
+          const maxOrder = dbZones.length > 0 ? Math.max(...dbZones.map(z => z.order)) : -1;
+          await addDoc(collection(db, 'options_zones'), {
+            label: typedZone,
+            order: maxOrder + 1,
+            active: true,
+            createdAt: serverTimestamp(),
+          });
+        }
+      }
+
       // Create Firebase Auth user using a secondary app instance
       // This avoids signing out the current admin
       const secondaryApp = initializeApp(app.options, 'secondary-auth');
@@ -162,6 +185,8 @@ export default function UtilisateursClientPage() {
         await deleteApp(secondaryApp);
       }
 
+      const savedZone = data.role === 'Agent de Terrain' ? typedZone : '';
+
       // Store user in Firestore with Auth UID as document ID
       await setDoc(doc(db, 'users', uid), {
         nom: data.nom,
@@ -170,7 +195,7 @@ export default function UtilisateursClientPage() {
         password: data.password, // stored so admin can see it
         role: data.role,
         compagnies: data.compagnies,
-        zone: data.zone || '',
+        zone: savedZone,
         statut: 'Actif',
         createdAt: serverTimestamp(),
         lastLogin: null,
@@ -178,13 +203,13 @@ export default function UtilisateursClientPage() {
 
       // Sync to role-specific collections
       if (data.role === 'Agent de Terrain') {
-        const { addDoc, updateDoc } = await import('firebase/firestore');
+        const { updateDoc } = await import('firebase/firestore');
         const existingAgents = await getDocs(query(collection(db, 'options_agents'), where('label', '==', data.nom)));
         if (existingAgents.empty) {
           const maxOrder = Math.max(0, ...dbAgentsRaw.map(o => o.order));
           await addDoc(collection(db, 'options_agents'), {
             label: data.nom,
-            zone: data.zone || '',
+            zone: savedZone,
             order: maxOrder + 1,
             active: true,
             createdAt: serverTimestamp(),
@@ -192,7 +217,7 @@ export default function UtilisateursClientPage() {
         } else {
           // Keep the existing agent doc's zone in sync with the form value
           for (const d of existingAgents.docs) {
-            await updateDoc(d.ref, { zone: data.zone || '' });
+            await updateDoc(d.ref, { zone: savedZone });
           }
         }
       }
@@ -357,23 +382,101 @@ export default function UtilisateursClientPage() {
                   <FormField
                     control={form.control}
                     name="zone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center justify-between">
-                          <FormLabel>Zone</FormLabel>
-                          <OptionsManagerModal collectionName="options_zones" title="Zones" defaultValues={defaultZones} />
-                        </div>
-                        <Select onValueChange={field.onChange} value={field.value || ''}>
-                          <FormControl>
-                            <SelectTrigger><SelectValue placeholder="Sélectionnez une zone" /></SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {zones.map(zone => <SelectItem key={zone.id} value={zone.label}>{zone.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const trimmedQuery = zoneQuery.trim();
+                      const qLower = trimmedQuery.toLowerCase();
+                      const filteredZones = qLower
+                        ? zones.filter(z => z.label.toLowerCase().startsWith(qLower))
+                        : zones;
+                      const exactMatch = trimmedQuery
+                        ? zones.some(z => z.label.toLowerCase() === qLower)
+                        : true;
+                      const selected = field.value || '';
+                      return (
+                        <FormItem className="flex flex-col">
+                          <div className="flex items-center justify-between">
+                            <FormLabel>Zone</FormLabel>
+                            <OptionsManagerModal collectionName="options_zones" title="Zones" />
+                          </div>
+                          <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  role="combobox"
+                                  aria-expanded={zonePopoverOpen}
+                                  className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground")}
+                                >
+                                  {selected || 'Sélectionnez ou saisissez une zone'}
+                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                              <Command shouldFilter={false}>
+                                <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
+                                  <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                                  <input
+                                    value={zoneQuery}
+                                    onChange={(e) => setZoneQuery(e.target.value)}
+                                    placeholder="Tapez pour rechercher ou créer..."
+                                    className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && trimmedQuery) {
+                                        e.preventDefault();
+                                        field.onChange(trimmedQuery);
+                                        setZonePopoverOpen(false);
+                                        setZoneQuery('');
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <CommandList>
+                                  {filteredZones.length === 0 && !trimmedQuery && (
+                                    <CommandEmpty>Aucune zone enregistrée. Tapez pour créer.</CommandEmpty>
+                                  )}
+                                  {filteredZones.length > 0 && (
+                                    <CommandGroup>
+                                      {filteredZones.map(z => (
+                                        <CommandItem
+                                          key={z.id}
+                                          value={z.label}
+                                          onSelect={() => {
+                                            field.onChange(z.label);
+                                            setZonePopoverOpen(false);
+                                            setZoneQuery('');
+                                          }}
+                                        >
+                                          <Check className={cn("mr-2 h-4 w-4", selected === z.label ? "opacity-100" : "opacity-0")} />
+                                          {z.label}
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  )}
+                                  {trimmedQuery && !exactMatch && (
+                                    <CommandGroup heading="Créer">
+                                      <CommandItem
+                                        value={`__create__${trimmedQuery}`}
+                                        onSelect={() => {
+                                          field.onChange(trimmedQuery);
+                                          setZonePopoverOpen(false);
+                                          setZoneQuery('');
+                                        }}
+                                      >
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Créer «{trimmedQuery}»
+                                      </CommandItem>
+                                    </CommandGroup>
+                                  )}
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
                 )}
               </CardContent>

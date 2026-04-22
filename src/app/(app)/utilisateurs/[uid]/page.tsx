@@ -74,12 +74,14 @@ import {
   collectionGroup,
   serverTimestamp
 } from 'firebase/firestore';
-import { roles, type Role, compagnies as defaultCompagnies, zones as defaultZones } from '@/lib/dossiers-data';
-import { Eye, EyeOff } from 'lucide-react';
+import { roles, type Role, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
+import { Eye, EyeOff, Check, ChevronsUpDown, Plus, Search } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useOptions } from '@/hooks/use-options';
 import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 
 export default function UserDetailPage({ params }: { params: Promise<{ uid: string }> }) {
   const { uid } = React.use(params);
@@ -96,11 +98,12 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     return opts.map(c => ({ value: c.label, label: c.label }));
   }, [dbCompagnies]);
 
-  const { options: dbZones } = useOptions('options_zones', defaultZones);
-  const zoneOptions = useMemo(
-    () => dbZones.length > 0 ? dbZones : defaultZones.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })),
-    [dbZones]
-  );
+  const { options: dbZones } = useOptions('options_zones', []);
+  const zoneOptions = dbZones;
+
+  // Zone typeahead combobox state
+  const [zonePopoverOpen, setZonePopoverOpen] = useState(false);
+  const [zoneQuery, setZoneQuery] = useState('');
 
   // States
   const [assignedDossiers, setAssignedDossiers] = useState<any[]>([]);
@@ -193,7 +196,22 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     try {
       const previousRole = userData?.role;
       const previousNom = userData?.nom;
-      const nextZone = formData.role === 'Agent de Terrain' ? (formData.zone || '') : '';
+      const typedZone = (formData.zone || '').trim();
+      const nextZone = formData.role === 'Agent de Terrain' ? typedZone : '';
+
+      // Auto-register zone in options_zones if it's a new value.
+      if (formData.role === 'Agent de Terrain' && typedZone) {
+        const zoneExists = dbZones.some(z => z.label.toLowerCase() === typedZone.toLowerCase());
+        if (!zoneExists) {
+          const maxOrder = dbZones.length > 0 ? Math.max(...dbZones.map(z => z.order)) : -1;
+          await addDoc(collection(db, 'options_zones'), {
+            label: typedZone,
+            order: maxOrder + 1,
+            active: true,
+            createdAt: serverTimestamp(),
+          });
+        }
+      }
 
       await updateDoc(userRef, { ...formData, zone: nextZone });
 
@@ -411,17 +429,95 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                     </SelectContent>
                   </Select>
                 </div>
-                {formData.role === 'Agent de Terrain' && (
-                  <div className="space-y-2">
-                    <Label>Zone</Label>
-                    <Select value={formData.zone || ''} onValueChange={v => setFormData(p => ({...p, zone: v}))}>
-                      <SelectTrigger><SelectValue placeholder="Sélectionnez une zone" /></SelectTrigger>
-                      <SelectContent>
-                        {zoneOptions.map(z => <SelectItem key={z.id} value={z.label}>{z.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                {formData.role === 'Agent de Terrain' && (() => {
+                  const trimmedQuery = zoneQuery.trim();
+                  const qLower = trimmedQuery.toLowerCase();
+                  const filteredZones = qLower
+                    ? zoneOptions.filter(z => z.label.toLowerCase().startsWith(qLower))
+                    : zoneOptions;
+                  const exactMatch = trimmedQuery
+                    ? zoneOptions.some(z => z.label.toLowerCase() === qLower)
+                    : true;
+                  const selected = formData.zone || '';
+                  return (
+                    <div className="space-y-2">
+                      <Label>Zone</Label>
+                      <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={zonePopoverOpen}
+                            className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground")}
+                          >
+                            {selected || 'Sélectionnez ou saisissez une zone'}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                          <Command shouldFilter={false}>
+                            <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
+                              <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                              <input
+                                value={zoneQuery}
+                                onChange={(e) => setZoneQuery(e.target.value)}
+                                placeholder="Tapez pour rechercher ou créer..."
+                                className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && trimmedQuery) {
+                                    e.preventDefault();
+                                    setFormData(p => ({ ...p, zone: trimmedQuery }));
+                                    setZonePopoverOpen(false);
+                                    setZoneQuery('');
+                                  }
+                                }}
+                              />
+                            </div>
+                            <CommandList>
+                              {filteredZones.length === 0 && !trimmedQuery && (
+                                <CommandEmpty>Aucune zone enregistrée. Tapez pour créer.</CommandEmpty>
+                              )}
+                              {filteredZones.length > 0 && (
+                                <CommandGroup>
+                                  {filteredZones.map(z => (
+                                    <CommandItem
+                                      key={z.id}
+                                      value={z.label}
+                                      onSelect={() => {
+                                        setFormData(p => ({ ...p, zone: z.label }));
+                                        setZonePopoverOpen(false);
+                                        setZoneQuery('');
+                                      }}
+                                    >
+                                      <Check className={cn("mr-2 h-4 w-4", selected === z.label ? "opacity-100" : "opacity-0")} />
+                                      {z.label}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              )}
+                              {trimmedQuery && !exactMatch && (
+                                <CommandGroup heading="Créer">
+                                  <CommandItem
+                                    value={`__create__${trimmedQuery}`}
+                                    onSelect={() => {
+                                      setFormData(p => ({ ...p, zone: trimmedQuery }));
+                                      setZonePopoverOpen(false);
+                                      setZoneQuery('');
+                                    }}
+                                  >
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Créer «{trimmedQuery}»
+                                  </CommandItem>
+                                </CommandGroup>
+                              )}
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="space-y-2">
