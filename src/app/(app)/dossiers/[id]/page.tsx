@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, use } from 'react';
+import React, { useState, useMemo, use, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -18,6 +18,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useDossierTabs } from '@/hooks/use-dossier-tabs';
 import { useToast } from '@/hooks/use-toast';
 import { generateRapportPDF } from '@/lib/generate-rapport-pdf';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
@@ -55,6 +56,22 @@ export default function DossierDetailPage({
   const { canWrite } = useCurrentUser();
   const { toast } = useToast();
   const readOnly = !canWrite('dossiers');
+  const { openTab, refreshTabLabel } = useDossierTabs();
+
+  // Register this dossier as an open tab (handles deep links) and keep the label in sync.
+  useEffect(() => {
+    if (!id) return;
+    openTab(id);
+  }, [id, openTab]);
+
+  useEffect(() => {
+    if (!id || !dossier) return;
+    const d = dossier as { refExpert?: string; numero?: string };
+    const label = d.refExpert || d.numero;
+    if (label && label.trim().length > 0) {
+      refreshTabLabel(id, label);
+    }
+  }, [id, dossier, refreshTabLabel]);
 
   const [activeStep, setActiveStep] = useLastStep(id);
 

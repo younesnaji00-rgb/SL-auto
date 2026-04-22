@@ -6,6 +6,8 @@ import AppSidebar from '@/components/layout/sidebar';
 import Header from '@/components/layout/header';
 import { OfflineIndicator } from '@/components/offline-indicator';
 import { CurrentUserProvider, useCurrentUser } from '@/hooks/use-current-user';
+import { DossierTabsProvider } from '@/hooks/use-dossier-tabs';
+import DossierTabsBar from '@/components/layout/dossier-tabs-bar';
 import { useRouter, usePathname } from 'next/navigation';
 import { PageLoader } from '@/components/ui/page-loader';
 import { cn } from '@/lib/utils';
@@ -41,6 +43,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
   const fullWidth = FULL_WIDTH_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`));
+  const showDossierTabs = pathname === '/dossiers' || pathname.startsWith('/dossiers/');
 
   return (
     <div className="relative flex h-svh w-full overflow-hidden">
@@ -48,6 +51,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
       <SidebarInset className="flex flex-col h-svh transition-all duration-300 ease-in-out overflow-hidden">
         <Header />
         <OfflineIndicator />
+        {showDossierTabs && <DossierTabsBar />}
         <main className="flex-1 min-h-0 overflow-y-auto bg-background/50">
           <div className={cn(fullWidth ? 'w-full' : 'p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto')}>
             {children}
@@ -67,7 +71,9 @@ export default function AppLayout({
     <CurrentUserProvider>
       <AuthGuard>
         <SidebarProvider>
-          <AppShell>{children}</AppShell>
+          <DossierTabsProvider>
+            <AppShell>{children}</AppShell>
+          </DossierTabsProvider>
         </SidebarProvider>
       </AuthGuard>
     </CurrentUserProvider>

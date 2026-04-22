@@ -25,6 +25,7 @@ import StatusHistorySheet from './status-history-sheet';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useDossierTabs } from '@/hooks/use-dossier-tabs';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { cn } from '@/lib/utils';
@@ -62,6 +63,13 @@ export default function DossiersClientPage() {
   const db = useFirestore();
   const { profile, canWrite } = useCurrentUser();
   const canEditDossiers = canWrite('dossiers');
+  const { openTab } = useDossierTabs();
+
+  const openDossier = useCallback((d: { id: string; refExpert?: string; numero?: string }) => {
+    const label = d.refExpert || d.numero || d.id;
+    openTab(d.id, label);
+    router.push(`/dossiers/${d.id}`);
+  }, [openTab, router]);
 
   const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
   const { options: dbNatures } = useOptions('options_natures', defaultNatures);
@@ -441,7 +449,7 @@ export default function DossiersClientPage() {
                     !exportMode && "cursor-pointer",
                     exportMode && selectedRows.has(d.id) && "bg-primary/5"
                   )}
-                  onClick={() => exportMode ? handleToggleRow(d.id) : router.push(`/dossiers/${d.id}`)}
+                  onClick={() => exportMode ? handleToggleRow(d.id) : openDossier(d)}
                 >
                   {exportMode && (
                     <TableCell onClick={e => e.stopPropagation()}>
@@ -490,7 +498,7 @@ export default function DossiersClientPage() {
                           title="Gérer"
                           onClick={(e) => {
                             e.stopPropagation();
-                            router.push(`/dossiers/${d.id}`);
+                            openDossier(d);
                           }}
                         >
                           <Eye className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
@@ -573,7 +581,7 @@ export default function DossiersClientPage() {
       <CreateDossierDialog
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
-        onCreated={(id) => router.push(`/dossiers/${id}`)}
+        onCreated={(id) => openDossier({ id })}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !deletingId && setDeleteTarget(null)}>
