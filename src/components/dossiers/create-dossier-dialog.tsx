@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -19,18 +18,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOptions } from '@/hooks/use-options';
-import { createEmptyDossier } from '@/lib/create-empty-dossier';
+import { createEmptyDossier, type ExpertRole } from '@/lib/create-empty-dossier';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
-import {
-  compagnies as defaultCompagnies,
-  natures as defaultNatures,
-} from '@/lib/dossiers-data';
+import { compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 
-// Sentinel used by the select components — Radix Select disallows empty-string
+// Sentinel used by the select component — Radix Select disallows empty-string
 // values on <SelectItem>, so we translate this back to '' when submitting.
 const NONE_VALUE = '__none__';
 
@@ -54,13 +51,9 @@ export function CreateDossierDialog({
   const { profile } = useCurrentUser();
 
   const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
-  const { options: dbNatures } = useOptions('options_natures', defaultNatures);
 
-  const [refExpert, setRefExpert] = useState('');
   const [compagnie, setCompagnie] = useState<string>(initialCompagnie || NONE_VALUE);
-  const [nature, setNature] = useState<string>(NONE_VALUE);
-  const [assureNom, setAssureNom] = useState('');
-  const [matricule, setMatricule] = useState('');
+  const [expertRole, setExpertRole] = useState<ExpertRole>('1er');
   const [isCreating, setIsCreating] = useState(false);
 
   React.useEffect(() => {
@@ -70,11 +63,8 @@ export function CreateDossierDialog({
   }, [open, initialCompagnie]);
 
   const resetForm = () => {
-    setRefExpert('');
     setCompagnie(initialCompagnie || NONE_VALUE);
-    setNature(NONE_VALUE);
-    setAssureNom('');
-    setMatricule('');
+    setExpertRole('1er');
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -109,11 +99,9 @@ export function CreateDossierDialog({
         : fbUser.displayName || fbUser.email || 'Utilisateur';
 
       const seed = {
-        refExpert: refExpert.trim(),
         compagnie: compagnie === NONE_VALUE ? '' : compagnie,
-        nature: nature === NONE_VALUE ? '' : nature,
-        assureNom: assureNom.trim(),
-        matricule: matricule.trim(),
+        expertRole,
+        expertName: userName,
       };
 
       const id = await createEmptyDossier({
@@ -130,7 +118,7 @@ export function CreateDossierDialog({
         id,
         'Création de dossier',
         userName,
-        'Dossier créé depuis la liste',
+        `Dossier créé comme ${ROLE_LABELS[expertRole]}`,
         'statut'
       );
       resetForm();
@@ -154,24 +142,11 @@ export function CreateDossierDialog({
         <DialogHeader>
           <DialogTitle>Nouveau dossier</DialogTitle>
           <DialogDescription>
-            Renseignez quelques informations pour pré-remplir le dossier. Tous
-            les champs sont facultatifs.
+            Choisissez la compagnie et votre rôle d'expert sur ce dossier.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
-          <div className="grid gap-2">
-            <Label htmlFor="create-ref-expert">Référence expert</Label>
-            <Input
-              id="create-ref-expert"
-              value={refExpert}
-              onChange={(e) => setRefExpert(e.target.value)}
-              disabled={isCreating}
-              placeholder="SL-2026-001"
-              autoFocus
-            />
-          </div>
-
           <div className="grid gap-2">
             <Label htmlFor="create-compagnie">Compagnie</Label>
             <Select
@@ -194,45 +169,24 @@ export function CreateDossierDialog({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="create-nature">Nature du dossier</Label>
-            <Select
-              value={nature}
-              onValueChange={setNature}
+            <Label>Rôle</Label>
+            <RadioGroup
+              value={expertRole}
+              onValueChange={(v) => setExpertRole(v as ExpertRole)}
               disabled={isCreating}
+              className="grid gap-2"
             >
-              <SelectTrigger id="create-nature">
-                <SelectValue placeholder="Choisir une nature" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE_VALUE}>—</SelectItem>
-                {dbNatures.map((n) => (
-                  <SelectItem key={n.id} value={n.label}>
-                    {n.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="create-assure-nom">Nom de l'assuré</Label>
-            <Input
-              id="create-assure-nom"
-              value={assureNom}
-              onChange={(e) => setAssureNom(e.target.value)}
-              disabled={isCreating}
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="create-matricule">Matricule véhicule</Label>
-            <Input
-              id="create-matricule"
-              value={matricule}
-              onChange={(e) => setMatricule(e.target.value)}
-              disabled={isCreating}
-              placeholder="12345-A-6"
-            />
+              {(['1er', '2eme', 'arbitre'] as ExpertRole[]).map((role) => (
+                <label
+                  key={role}
+                  htmlFor={`role-${role}`}
+                  className="flex items-center gap-3 rounded-md border p-3 cursor-pointer hover:bg-accent/40"
+                >
+                  <RadioGroupItem value={role} id={`role-${role}`} />
+                  <span className="text-sm font-medium">{ROLE_LABELS[role]}</span>
+                </label>
+              ))}
+            </RadioGroup>
           </div>
         </div>
 
@@ -252,5 +206,11 @@ export function CreateDossierDialog({
     </Dialog>
   );
 }
+
+const ROLE_LABELS: Record<ExpertRole, string> = {
+  '1er': '1er expert',
+  '2eme': '2ème expert',
+  arbitre: 'Arbitre',
+};
 
 export default CreateDossierDialog;

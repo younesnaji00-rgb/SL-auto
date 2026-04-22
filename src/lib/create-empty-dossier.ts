@@ -1,5 +1,7 @@
 import { addDoc, collection, serverTimestamp, type Firestore } from 'firebase/firestore';
 
+export type ExpertRole = '1er' | '2eme' | 'arbitre';
+
 export interface CreateEmptyDossierInput {
   db: Firestore;
   user: { uid: string; displayName?: string | null; email?: string | null };
@@ -9,6 +11,10 @@ export interface CreateEmptyDossierInput {
     nature: string;
     assureNom: string;
     matricule: string;
+    /** Role the creating user plays on this dossier. Defaults to 1er expert. */
+    expertRole: ExpertRole;
+    /** Display name of the creating user, stored in the corresponding expert slot. */
+    expertName: string;
   }>;
 }
 
@@ -20,12 +26,24 @@ export interface CreateEmptyDossierInput {
  * the nested `assure.nom`). Empty strings / undefined seed values fall back to
  * the empty defaults.
  *
+ * If `seed.expertRole` + `seed.expertName` are provided, the corresponding
+ * `experts.designation*` slot is pre-filled with the name.
+ *
  * Field names match the canonical `Dossier` shape in `src/lib/dossiers-data.ts`:
  * structured `assure`, `vehicule`, `partieAdverse` objects + flat top-level
  * fields (compagnie, nature, refExpert, matricule, etc.).
  */
 export async function createEmptyDossier({ db, user, seed }: CreateEmptyDossierInput): Promise<string> {
   const s = seed ?? {};
+  const role = s.expertRole ?? '1er';
+  const expertName = s.expertName ?? user.displayName ?? user.email ?? '';
+
+  const experts = {
+    designation1er: role === '1er' ? expertName : '',
+    designation2eme: role === '2eme' ? expertName : '',
+    designationArbitrage: role === 'arbitre' ? expertName : '',
+  };
+
   const ref = await addDoc(collection(db, 'dossiers'), {
     statut: 'Création de dossier',
     compagnie: s.compagnie ?? '',
@@ -37,7 +55,7 @@ export async function createEmptyDossier({ db, user, seed }: CreateEmptyDossierI
     referenceCompagnie: '',
     repairerType: '',
     garageName: '',
-    expertRank: '',
+    expertRank: role,
     secondExpertName: '',
     secondExpertCompany: '',
     assure: { nom: s.assureNom ?? '', prenom: '', telephone: '', whatsapp: '', telephone2: '', email: '', adresse: '', cin: '' },
@@ -48,7 +66,7 @@ export async function createEmptyDossier({ db, user, seed }: CreateEmptyDossierI
     adverseCompagnie: '',
     intermediaireNom: '',
     intermediaireEmail: '',
-    experts: { designation1er: '', designation2eme: '', designationArbitrage: '' },
+    experts,
     dateSinistre: '',
     dateRequete: serverTimestamp(),
     createdAt: serverTimestamp(),
