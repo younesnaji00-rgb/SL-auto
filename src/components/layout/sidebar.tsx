@@ -187,9 +187,9 @@ const AppSidebar = () => {
                                   <SidebarMenuSubButton asChild isActive={pathname.includes(`selected=${c.id}`)}>
                                     <NextLink href={`/compagnies?selected=${c.id}`} className="group flex items-center gap-2">
                                       {c.logoUrl ? (
-                                        <img src={c.logoUrl} alt="" className="h-4 w-4 rounded-sm object-contain shrink-0" />
+                                        <img src={c.logoUrl} alt="" className="h-8 w-8 rounded-sm object-contain shrink-0" />
                                       ) : (
-                                        <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: c.couleur }} />
+                                        <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: c.couleur }} />
                                       )}
                                       <span className="flex-1 truncate">{c.nom}</span>
                                       {!isCollapsed && (

@@ -187,7 +187,7 @@ export default function CompagniesClientPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b pb-6">
         <div className="flex items-center gap-5">
           <div
-            className="relative h-12 w-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden cursor-pointer border hover:border-primary/30 transition-colors shrink-0"
+            className="relative h-28 w-28 rounded-lg bg-muted flex items-center justify-center overflow-hidden cursor-pointer border hover:border-primary/30 transition-colors shrink-0"
             onClick={() => {
               const input = document.createElement('input');
               input.type = 'file';
@@ -201,9 +201,9 @@ export default function CompagniesClientPage() {
             title="Cliquez pour modifier le logo"
           >
             {selectedCompagnie.logoUrl ? (
-              <img src={selectedCompagnie.logoUrl} alt={selectedCompagnie.nom} className="h-full w-full object-contain p-1" />
+              <img src={selectedCompagnie.logoUrl} alt={selectedCompagnie.nom} className="h-full w-full object-contain p-2" />
             ) : (
-              <Building2 className="h-6 w-6 text-muted-foreground" />
+              <Building2 className="h-14 w-14 text-muted-foreground" />
             )}
             <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
               <Upload className="h-4 w-4 text-white" />
