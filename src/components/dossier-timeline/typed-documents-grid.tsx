@@ -18,7 +18,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { DOCUMENT_TYPES } from '@/lib/constants';
 import { useAuth, useCollection, useFirestore, useStorage } from '@/firebase';
 import { collection, deleteDoc, doc } from 'firebase/firestore';
 import { deleteObject, ref } from 'firebase/storage';
@@ -28,8 +27,21 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 import { cn } from '@/lib/utils';
 
-// 15 canonical slots (exclude 'Autre' per spec).
-const DOC_SLOTS = DOCUMENT_TYPES.filter((t) => t !== 'Autre');
+// Slots shown in the typed-import grid. Photos (avant / en cours / après) are
+// intentionally omitted — they have their own dedicated Photos step.
+const DOC_SLOTS = [
+  'Rapport final',
+  'Devis Garage',
+  'Devis accordé',
+  'Facture Garage',
+  'Facture accordé',
+  '2ème accord',
+  'PV-Constat / Récépissé de police',
+  'Carte grise',
+  'Attestation d\'assurance',
+  'Kilométrage',
+  'Numéro de chassis',
+];
 
 type TypedDoc = {
   id: string;
