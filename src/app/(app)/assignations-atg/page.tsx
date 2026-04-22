@@ -9,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { UserCheck, Calendar, MapPin, X, ChevronDown, Clock, CheckCircle2 } from 'lucide-react';
+import { UserCheck, Calendar, MapPin, X, ChevronDown, Clock, CheckCircle2, Users, List } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -24,6 +24,8 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
 import { agentTerrainStatuses } from '@/lib/dossiers-data';
+import { useOptions } from '@/hooks/use-options';
+import { useAgentTerrainWorkload } from '@/hooks/use-workload-counts';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -184,6 +186,16 @@ export default function AssignationsATGPage() {
   const filterDefaults = { activeTab: 'Avant', dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', agentFilter: 'Tous' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-atg', filterDefaults);
   const { activeTab, dateFrom, dateTo, compagnieFilter, agentFilter } = filters;
+
+  // View mode: "by-zone" groups options_agents by zone (default), "list" shows
+  // the flat planifications table. Local state — users pick fresh per visit.
+  const [viewMode, setViewMode] = useState<'by-zone' | 'list'>('by-zone');
+
+  // Agent source-of-truth (same data as the planification modal dropdown) so
+  // the zones reflect configured agents, not just agents that happen to be
+  // assigned to a planification right now.
+  const { options: agentOptionsRaw } = useOptions('options_agents', []);
+  const agentWorkload = useAgentTerrainWorkload();
 
   useEffect(() => {
     if (!db) return;
@@ -448,6 +460,36 @@ export default function AssignationsATGPage() {
     });
   };
 
+  // Group agents by zone for the "Par zone" view. Agents without a zone go
+  // into a "Zone non définie" bucket at the bottom. Respects the agentFilter
+  // so zones without matching agents are hidden when a specific name filter is
+  // active (per task constraint: zones with zero matches should be hidden).
+  const UNASSIGNED_ZONE = 'Zone non définie';
+  const zoneGroups = useMemo(() => {
+    const filteredAgents = agentOptionsRaw.filter(a => {
+      if (!a.active) return false;
+      if (agentFilter !== 'Tous' && (a.label || '').trim() !== agentFilter) return false;
+      return true;
+    });
+    const buckets: Record<string, typeof filteredAgents> = {};
+    filteredAgents.forEach(a => {
+      const z = a.zone?.trim() || UNASSIGNED_ZONE;
+      if (!buckets[z]) buckets[z] = [];
+      buckets[z].push(a);
+    });
+    const definedZones = Object.keys(buckets)
+      .filter(z => z !== UNASSIGNED_ZONE)
+      .sort((a, b) => a.localeCompare(b, 'fr'));
+    const ordered = definedZones.map(z => ({ zone: z, agents: buckets[z] }));
+    if (buckets[UNASSIGNED_ZONE]?.length) {
+      ordered.push({ zone: UNASSIGNED_ZONE, agents: buckets[UNASSIGNED_ZONE] });
+    }
+    return ordered;
+  }, [agentOptionsRaw, agentFilter]);
+
+  const [openZoneSections, setOpenZoneSections] = useState<Record<string, boolean>>({});
+  const zoneOpen = (key: string) => openZoneSections[key] ?? true;
+
   const formatDate = (ts: any) => {
     if (!ts) return '-';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
@@ -459,6 +501,9 @@ export default function AssignationsATGPage() {
   const canSeeNameFilter = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
   const showAgentColumn = !isATG;
   const colCount = showAgentColumn ? 9 : 8;
+  // ATG users only see their own assignments — the zone-grouping view (which
+  // lists the whole team) is irrelevant for them. Force "list" for that role.
+  const effectiveViewMode: 'by-zone' | 'list' = isATG ? 'list' : viewMode;
 
   return (
     <div className="space-y-6">
@@ -466,9 +511,48 @@ export default function AssignationsATGPage() {
         <div className="flex items-center gap-3">
           <UserCheck className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">Assignations Agent de Terrain</h1>
-          <Badge variant="secondary" className="ml-2">{filteredPlanifications.length}</Badge>
+          <Badge variant="secondary" className="ml-2">
+            {effectiveViewMode === 'by-zone'
+              ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
+              : filteredPlanifications.length}
+          </Badge>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* View mode toggle — "Par zone" groups the team by zone, "Liste"
+              shows the flat planifications table. ATG users don't need this
+              because they only see their own assignments. */}
+          {!isATG && (
+            <div className="inline-flex items-center rounded-md border bg-card p-0.5 shadow-sm" role="tablist" aria-label="Mode d'affichage">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'by-zone'}
+                onClick={() => setViewMode('by-zone')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 h-8 text-xs font-semibold rounded transition-colors',
+                  viewMode === 'by-zone'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                )}
+              >
+                <Users className="h-3.5 w-3.5" /> Par zone
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'list'}
+                onClick={() => setViewMode('list')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 h-8 text-xs font-semibold rounded transition-colors',
+                  viewMode === 'list'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                )}
+              >
+                <List className="h-3.5 w-3.5" /> Liste
+              </button>
+            </div>
+          )}
           <div className="relative">
             <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
               <SelectTrigger className="w-[180px] h-9 text-xs">
@@ -511,36 +595,155 @@ export default function AssignationsATGPage() {
         </div>
       </div>
 
-      {/* Mission type tabs */}
-      <div className="bg-card border rounded-xl shadow-sm sticky top-0 z-20">
-        <div className="flex overflow-x-auto no-scrollbar">
-          {MISSION_TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setFilters({ activeTab: tab.id })}
-                className={cn(
-                  'flex items-center gap-2 px-6 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap',
-                  isActive
-                    ? 'border-primary text-primary bg-primary/5'
-                    : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
-                )}
-              >
-                {tab.label}
-                <Badge
-                  variant={isActive ? 'default' : 'secondary'}
-                  className="text-[10px] font-mono ml-1 h-5 min-w-[20px] justify-center"
+      {/* Mission type tabs — only relevant for the flat list view; hidden
+          in the zone-grouped view because that one pivots on agents. */}
+      {effectiveViewMode === 'list' && (
+        <div className="bg-card border rounded-xl shadow-sm sticky top-0 z-20">
+          <div className="flex overflow-x-auto no-scrollbar">
+            {MISSION_TABS.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setFilters({ activeTab: tab.id })}
+                  className={cn(
+                    'flex items-center gap-2 px-6 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap',
+                    isActive
+                      ? 'border-primary text-primary bg-primary/5'
+                      : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
+                  )}
                 >
-                  {countByType[tab.id] || 0}
-                </Badge>
-              </button>
-            );
-          })}
+                  {tab.label}
+                  <Badge
+                    variant={isActive ? 'default' : 'secondary'}
+                    className="text-[10px] font-mono ml-1 h-5 min-w-[20px] justify-center"
+                  >
+                    {countByType[tab.id] || 0}
+                  </Badge>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      {loading ? (
+      {effectiveViewMode === 'by-zone' ? (
+        zoneGroups.length === 0 ? (
+          <Card className="shadow-sm overflow-hidden">
+            <CardContent className="p-0">
+              <EmptyState
+                icon={<Users />}
+                title={agentFilter !== 'Tous' ? `Aucun agent correspondant au filtre « ${agentFilter} »` : 'Aucun agent de terrain configuré'}
+                description={agentFilter !== 'Tous' ? 'Ajustez le filtre Agent pour voir d\'autres zones.' : 'Ajoutez des agents depuis la modale de planification pour les voir apparaître ici.'}
+                dashed={false}
+                className="border-0 bg-transparent py-10"
+              />
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {zoneGroups.map(({ zone, agents }) => {
+              const totalWorkload = agents.reduce((acc, a) => acc + (agentWorkload[(a.label || '').trim()] || 0), 0);
+              const isUnassigned = zone === UNASSIGNED_ZONE;
+              return (
+                <Collapsible
+                  key={zone}
+                  open={zoneOpen(zone)}
+                  onOpenChange={(open) => setOpenZoneSections(prev => ({ ...prev, [zone]: open }))}
+                >
+                  <Card className="shadow-sm overflow-hidden">
+                    <CollapsibleTrigger className={cn(
+                      'flex items-center justify-between w-full px-4 py-3 transition-colors hover:opacity-80',
+                      isUnassigned
+                        ? 'bg-muted text-muted-foreground'
+                        : 'bg-[hsl(var(--primary)/0.12)] text-primary'
+                    )}>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 shrink-0" />
+                        <span className="text-sm font-bold">{zone}</span>
+                        <Badge variant="secondary" className="text-[10px] font-mono h-5 min-w-[20px] justify-center">
+                          {agents.length}
+                        </Badge>
+                        {totalWorkload > 0 && (
+                          <Badge variant="outline" className="text-[10px] h-5 gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200">
+                            <Clock className="h-3 w-3" /> {totalWorkload} actif{totalWorkload > 1 ? 's' : ''}
+                          </Badge>
+                        )}
+                      </div>
+                      <ChevronDown className={cn(
+                        'h-4 w-4 transition-transform',
+                        zoneOpen(zone) ? 'rotate-0' : '-rotate-90'
+                      )} />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <CardContent className="p-0">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/30">
+                              <TableHead className="font-bold text-xs">Agent</TableHead>
+                              <TableHead className="font-bold text-xs">Zone</TableHead>
+                              <TableHead className="font-bold text-xs">Planifications actives</TableHead>
+                              <TableHead className="font-bold text-xs text-right pr-4">Action</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {agents.map((agent) => {
+                              const name = (agent.label || '').trim();
+                              const active = agentWorkload[name] || 0;
+                              return (
+                                <TableRow
+                                  key={agent.id}
+                                  className="hover:bg-muted/50 transition-colors cursor-pointer"
+                                  onClick={() => {
+                                    setFilters({ agentFilter: name });
+                                    setViewMode('list');
+                                  }}
+                                >
+                                  <TableCell className="font-medium text-sm">{name || '-'}</TableCell>
+                                  <TableCell>
+                                    {/* Subtle zone badge — redundant within the group but useful
+                                        when skimming a single row out of context. */}
+                                    {agent.zone?.trim() ? (
+                                      <Badge variant="outline" className="text-[10px] gap-1 font-normal">
+                                        <MapPin className="h-3 w-3" /> {agent.zone.trim()}
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="text-[10px] font-normal italic text-muted-foreground">
+                                        Non définie
+                                      </Badge>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    {active > 0 ? (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[10px] gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200"
+                                      >
+                                        <Clock className="h-3 w-3" /> {active}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">0</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right pr-4">
+                                    <span className="text-[11px] text-primary underline-offset-2 hover:underline">
+                                      Voir assignations
+                                    </span>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
+              );
+            })}
+          </div>
+        )
+      ) : loading ? (
         <Card className="shadow-sm overflow-hidden">
           <CardContent className="p-0">
             {Array.from({ length: 5 }).map((_, i) => (
