@@ -684,7 +684,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* CHANGEMENTS RECENTS (2 panels) + Repartition par Compagnie */}
+      {/* CHANGEMENTS RECENTS (2 panels) + Repartition par Compagnie (+ Volume par Statut stacked when a status is selected) */}
       <div className="grid gap-6 lg:grid-cols-3 items-start mb-10">
         {/* Panel 1 */}
         {renderChangementsPanel(
@@ -702,65 +702,65 @@ export default function DashboardPage() {
           changements2UserFilter, setChangements2UserFilter,
           changements2NatureFilter, setChangements2NatureFilter,
         )}
-        {/* Repartition par Compagnie — horizontal bars */}
-        <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '300ms' }}>
-          <CardHeader className="py-4">
-            <CardTitle className="text-base">Répartition par Compagnie</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-2">
-            {compagnieData.length === 0 ? (
-              <EmptyState
-                icon={<BarChart3 />}
-                title="Aucune donnée"
-                description="La répartition apparaîtra dès qu'un dossier sera créé."
-                dashed={false}
-                className="border-0 bg-transparent py-10"
-              />
-            ) : (
-              <ChartContainer config={barChartConfig} className="w-full" style={{ height: Math.max(compagnieData.length * 40, 150) }}>
-                <BarChart
-                  accessibilityLayer
-                  data={compagnieData}
-                  layout="vertical"
-                  barCategoryGap={8}
-                  margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
-                >
-                  <CartesianGrid horizontal={false} strokeDasharray="3 3" opacity={0.3} />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    tickLine={false}
-                    axisLine={false}
-                    fontSize={10}
-                    fontWeight={600}
-                    width={100}
-                  />
-                  <XAxis
-                    type="number"
-                    axisLine={false}
-                    tickLine={false}
-                    fontSize={10}
-                    allowDecimals={false}
-                  />
-                  <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24} isAnimationActive={true} animationBegin={200} animationDuration={700} animationEasing="ease-out">
-                    {compagnieData.map((entry, index) => (
-                      <Cell key={`cell-comp-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ChartContainer>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* When a status is selected, the pie card moves to the very bottom */}
-      {selectedStatus !== null && (
-        <div className="opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '100ms' }}>
-          {pieCard}
+        {/* Right column: Répartition par Compagnie (always) + Volume par Statut (only when a status is selected, i.e. the pie had to leave its top-row slot) */}
+        <div className="space-y-6">
+          <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '300ms' }}>
+            <CardHeader className="py-4">
+              <CardTitle className="text-base">Répartition par Compagnie</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-2">
+              {compagnieData.length === 0 ? (
+                <EmptyState
+                  icon={<BarChart3 />}
+                  title="Aucune donnée"
+                  description="La répartition apparaîtra dès qu'un dossier sera créé."
+                  dashed={false}
+                  className="border-0 bg-transparent py-10"
+                />
+              ) : (
+                <ChartContainer config={barChartConfig} className="w-full" style={{ height: Math.max(compagnieData.length * 40, 150) }}>
+                  <BarChart
+                    accessibilityLayer
+                    data={compagnieData}
+                    layout="vertical"
+                    barCategoryGap={8}
+                    margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid horizontal={false} strokeDasharray="3 3" opacity={0.3} />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={10}
+                      fontWeight={600}
+                      width={100}
+                    />
+                    <XAxis
+                      type="number"
+                      axisLine={false}
+                      tickLine={false}
+                      fontSize={10}
+                      allowDecimals={false}
+                    />
+                    <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24} isAnimationActive={true} animationBegin={200} animationDuration={700} animationEasing="ease-out">
+                      {compagnieData.map((entry, index) => (
+                        <Cell key={`cell-comp-${index}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ChartContainer>
+              )}
+            </CardContent>
+          </Card>
+          {selectedStatus !== null && (
+            <div className="opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '350ms' }}>
+              {pieCard}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
