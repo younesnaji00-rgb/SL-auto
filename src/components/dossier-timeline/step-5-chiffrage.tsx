@@ -16,6 +16,7 @@ import {
   History,
   Loader2,
   Scale,
+  Sparkles,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -320,7 +321,7 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
               </p>
             ) : (
               <div className="divide-y">
-                <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 items-center px-4 py-2 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-3 items-center px-4 py-2 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                   <Checkbox
                     checked={allSelected}
                     onCheckedChange={toggleAll}
@@ -329,15 +330,18 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
                   <span className="min-w-0">Fichier</span>
                   <span className="whitespace-nowrap text-right">Dernière modif.</span>
                   <span className="w-[110px]" />
+                  <span className="w-[130px]" />
                   <span className="w-[100px]" />
                 </div>
                 {modifiedRows.map((row) => {
                   const originalUrl = findDossierDocUrl(row.fileName);
+                  const latestVersion = Array.isArray(row.structured?.versions) ? row.structured.versions[0] : null;
+                  const latestUrl: string | undefined = latestVersion?.pdfUrl ?? latestVersion?.url;
                   const isSelected = selectedKeys.has(row.key);
                   return (
                     <div
                       key={row.key}
-                      className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 items-center px-4 py-2.5 text-sm hover:bg-accent/30"
+                      className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-3 items-center px-4 py-2.5 text-sm hover:bg-accent/30"
                     >
                       <Checkbox
                         checked={isSelected}
@@ -387,6 +391,31 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
                               </span>
                             </TooltipTrigger>
                             <TooltipContent>À venir</TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+                      <div className="shrink-0">
+                        {latestUrl ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            onClick={() => openPreview(latestUrl, `${row.fileName} — Dernière modif.`)}
+                          >
+                            <Sparkles className="h-3.5 w-3.5 mr-1" />
+                            Dernière modif.
+                          </Button>
+                        ) : (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>
+                                <Button size="sm" variant="ghost" className="h-7 px-2" disabled>
+                                  <Sparkles className="h-3.5 w-3.5 mr-1" />
+                                  Dernière modif.
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>Aucune version enregistrée</TooltipContent>
                           </Tooltip>
                         )}
                       </div>
