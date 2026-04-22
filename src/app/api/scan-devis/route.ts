@@ -74,7 +74,24 @@ RÈGLES STRICTES:
 8. Pour le header: "dateDevis" au format "DD/MM/YYYY" tel qu'affiché. "modele" peut être soit un nom de modèle, soit une date de mise en circulation — copie ce qui est affiché.
 9. Si un champ du header n'est pas présent, renvoie null pour ce champ.
 10. Si aucune ligne n'est lisible, renvoie "rows": [].
-11. Nombre maximal de lignes attendues: jusqu'à 60. Ne tronque pas.`
+11. Nombre maximal de lignes attendues: jusqu'à 60. Ne tronque pas.
+
+CORRECTIONS MANUSCRITES (TRÈS IMPORTANT):
+Certains devis comportent des annotations manuscrites de l'expert — des corrections écrites à la main (souvent à l'encre rouge, parfois au stylo bleu ou noir) qui remplacent les valeurs imprimées par le garage. Les cas typiques:
+- Une valeur imprimée barrée (trait horizontal/diagonal qui la traverse) avec un nouveau nombre manuscrit à côté, au-dessus, ou en dessous dans la même ligne.
+- Une valeur manuscrite ajoutée à côté d'une valeur imprimée sans barrer, mais positionnée de façon à clairement la remplacer.
+- Un marqueur textuel comme "S/R" (sans réserve / sous réserve) dans la ligne indiquant une intervention — dans ce cas, cherche attentivement un nombre manuscrit à proximité.
+
+RÈGLE: Quand une ligne a une valeur imprimée ET une correction manuscrite pour le MÊME champ (qte ou puHT), extrais UNIQUEMENT la valeur manuscrite. Ignore la valeur imprimée.
+
+La couleur de l'encre n'est PAS un critère fiable — concentre-toi sur:
+- La présence d'un trait de biffure sur la valeur imprimée.
+- Une écriture manuelle visible (différente de la police imprimée du reste du tableau).
+- Un nombre supplémentaire positionné dans la même cellule ou à l'angle de la ligne.
+
+Si une ligne n'a AUCUNE correction manuscrite, extrais la valeur imprimée comme d'habitude. La majorité des devis sont sans intervention — ne fabrique pas de corrections qui n'existent pas.
+
+Conserve les marqueurs textuels comme "S/R" dans le champ "designation" si ils y figurent (n'essaie pas de les supprimer).`
         },
         { media: { url: dataUri } },
       ],
