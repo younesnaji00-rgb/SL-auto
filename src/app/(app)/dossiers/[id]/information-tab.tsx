@@ -59,7 +59,6 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // ── Unified form state ──
   const [form, setForm] = useState<any>({
@@ -87,7 +86,13 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
   };
 
   useEffect(() => {
-    if (dossier && !initialLoadDone) {
+    // Task #8 — Re-hydrate the form whenever the dossier snapshot changes,
+    // EXCEPT while the user is actively editing (to avoid clobbering unsaved
+    // input). This lets AI-scan writes from Step 1 flow into the Information
+    // step without requiring a tab change or page refresh. Previously this
+    // effect ran once (guarded by `initialLoadDone`), which meant a scan
+    // completing after mount never updated the displayed fields.
+    if (dossier && !editing) {
       const dataAssure = typeof dossier.assure === 'object' ? dossier.assure : { nom: dossier.assure || '' };
       const v = dossier.vehicule || {};
       const storedExperts = (dossier.experts ?? {}) as any;
@@ -143,9 +148,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
         intermediaireCode: dossier.intermediaireCode ?? '',
         intermediaireCompagnie: dossier.intermediaireCompagnie ?? '',
       });
-      setInitialLoadDone(true);
     }
-  }, [dossier, initialLoadDone]);
+  }, [dossier, editing]);
 
   const handleChange = (field: string, value: any) => {
     setForm((prev: any) => ({ ...prev, [field]: value }));
@@ -199,7 +203,9 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
   };
 
   const handleCancel = () => {
-    setInitialLoadDone(false);
+    // Exiting edit mode flips the `editing` dep of the hydrate effect, which
+    // re-syncs the form from the latest dossier snapshot — discarding unsaved
+    // changes exactly like before.
     setEditing(false);
   };
 
