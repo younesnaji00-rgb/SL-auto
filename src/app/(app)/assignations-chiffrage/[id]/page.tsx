@@ -111,7 +111,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const groupedFiles = useMemo(() => {
     const groups: Record<string, { label: string; icon: 'photo' | 'doc'; files: { file: ChiffrageFileDoc; index: number }[] }> = {};
 
-    // Always-present groups (Devis, Facture) so the "Editer (web)" button is visible even when empty.
+    // Always-present groups (editable types) so the "Editer (web)" button is visible even when empty.
     EDITABLE_DOC_TYPES.forEach((t) => {
       groups[`doc_${t}`] = { label: t, icon: 'doc', files: [] };
     });
@@ -134,7 +134,19 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       if (!groups[groupKey]) groups[groupKey] = { label: groupLabel, icon, files: [] };
       groups[groupKey].files.push({ file, index: i });
     });
-    return Object.entries(groups);
+
+    // Explicit ordering: editable-doc groups first (in EDITABLE_DOC_TYPES order),
+    // then photos, then remaining docs alphabetically.
+    const editableKeys = new Set(EDITABLE_DOC_TYPES.map((t) => `doc_${t}`));
+    const entries = Object.entries(groups);
+    const editableEntries = EDITABLE_DOC_TYPES
+      .map((t) => entries.find(([k]) => k === `doc_${t}`))
+      .filter((e): e is [string, typeof groups[string]] => !!e);
+    const photoEntries = entries.filter(([k]) => k.startsWith('photo_'));
+    const otherEntries = entries
+      .filter(([k]) => !editableKeys.has(k) && !k.startsWith('photo_'))
+      .sort((a, b) => a[1].label.localeCompare(b[1].label));
+    return [...editableEntries, ...photoEntries, ...otherEntries];
   }, [chiffrage?.files]);
 
   const toggleGroup = (group: string) => {

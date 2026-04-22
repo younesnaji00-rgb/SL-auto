@@ -53,13 +53,13 @@ const HEADER_FIELDS_RIGHT: Array<{ key: keyof DevisHeader; label: string }> = [
 ];
 
 const DOC_TYPE_LABEL: Record<EditableDocType, { plural: string; lower: string }> = {
-  Devis: { plural: 'devis', lower: 'devis' },
-  Facture: { plural: 'factures', lower: 'facture' },
+  'Devis Garage': { plural: 'devis', lower: 'devis' },
+  'Facture Garage': { plural: 'factures', lower: 'facture' },
 };
 
 export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
   const typeLabel = DOC_TYPE_LABEL[docType];
-  const showVetuste = docType === 'Devis';
+  const showVetuste = docType === 'Devis Garage';
   const router = useRouter();
   const db = useFirestore();
   const storage = useStorage();

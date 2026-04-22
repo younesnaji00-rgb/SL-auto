@@ -66,7 +66,7 @@ export async function extractAndPersistChiffrageDevis(
     }
 
     // Variant split — only relevant for Devis. Facture has no variants.
-    const isDevis = docType === 'Devis';
+    const isDevis = docType === 'Devis Garage';
     const originalFiles = isDevis
       ? targetFiles.filter((f) => (f.devisVariant ?? 'original') === 'original')
       : targetFiles;

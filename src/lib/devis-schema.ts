@@ -1,7 +1,7 @@
 import type { Timestamp } from 'firebase/firestore';
 
 /** Document types that can be edited via the structured web editor (devis-editor). */
-export const EDITABLE_DOC_TYPES = ['Devis', 'Facture'] as const;
+export const EDITABLE_DOC_TYPES = ['Devis Garage', 'Facture Garage'] as const;
 export type EditableDocType = typeof EDITABLE_DOC_TYPES[number];
 
 export function isEditableDocType(t?: string): t is EditableDocType {

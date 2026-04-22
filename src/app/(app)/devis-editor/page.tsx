@@ -9,8 +9,8 @@ import { isEditableDocType, type EditableDocType } from '@/lib/devis-schema';
 function DevisEditorInner() {
   const searchParams = useSearchParams();
   const chiffrageId = searchParams.get('chiffrageId') || '';
-  const docTypeRaw = searchParams.get('docType') || 'Devis';
-  const docType: EditableDocType = isEditableDocType(docTypeRaw) ? docTypeRaw : 'Devis';
+  const docTypeRaw = searchParams.get('docType') || 'Devis Garage';
+  const docType: EditableDocType = isEditableDocType(docTypeRaw) ? docTypeRaw : 'Devis Garage';
 
   if (!chiffrageId) {
     return (
