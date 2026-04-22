@@ -2,6 +2,33 @@ import { addDoc, collection, serverTimestamp, type Firestore } from 'firebase/fi
 
 export type ExpertRole = '1er' | '2eme' | 'arbitre';
 
+/** Visible slots ordered by role hierarchy. 1er = 1 slot, 2eme = 2 slots, arbitre = 3 slots. */
+export const EXPERT_ROLES_ORDER: ExpertRole[] = ['1er', '2eme', 'arbitre'];
+
+export const EXPERT_ROLE_LABELS: Record<ExpertRole, string> = {
+  '1er': '1er expert',
+  '2eme': '2ème expert',
+  arbitre: 'Arbitre',
+};
+
+export interface ExpertInfo {
+  nom: string;
+  telephone: string;
+  email: string;
+  compagnie: string;
+}
+
+export function emptyExpertInfo(): ExpertInfo {
+  return { nom: '', telephone: '', email: '', compagnie: '' };
+}
+
+/** Given the role the dossier is being opened under, returns the list of experts to collect info for. */
+export function visibleExpertRoles(role: ExpertRole): ExpertRole[] {
+  if (role === '1er') return ['1er'];
+  if (role === '2eme') return ['1er', '2eme'];
+  return ['1er', '2eme', 'arbitre'];
+}
+
 export interface CreateEmptyDossierInput {
   db: Firestore;
   user: { uid: string; displayName?: string | null; email?: string | null };
@@ -13,8 +40,8 @@ export interface CreateEmptyDossierInput {
     matricule: string;
     /** Role the creating user plays on this dossier. Defaults to 1er expert. */
     expertRole: ExpertRole;
-    /** Display name of the creating user, stored in the corresponding expert slot. */
-    expertName: string;
+    /** Full expert info per role. Only the roles actually filled need to be set. */
+    experts: Partial<Record<ExpertRole, Partial<ExpertInfo>>>;
   }>;
 }
 
@@ -22,26 +49,22 @@ export interface CreateEmptyDossierInput {
  * Creates a blank dossier document and returns its id.
  * All fields are empty strings / defaults. Statut = 'Création de dossier'.
  *
- * Optional `seed` lets the caller pre-fill a handful of top-level fields (and
- * the nested `assure.nom`). Empty strings / undefined seed values fall back to
- * the empty defaults.
- *
- * If `seed.expertRole` + `seed.expertName` are provided, the corresponding
- * `experts.designation*` slot is pre-filled with the name.
- *
- * Field names match the canonical `Dossier` shape in `src/lib/dossiers-data.ts`:
- * structured `assure`, `vehicule`, `partieAdverse` objects + flat top-level
- * fields (compagnie, nature, refExpert, matricule, etc.).
+ * `seed.experts` is a partial map keyed by role → expert info. Missing roles or
+ * fields fall back to the empty shape (`{ nom: '', telephone: '', email: '', compagnie: '' }`).
  */
 export async function createEmptyDossier({ db, user, seed }: CreateEmptyDossierInput): Promise<string> {
   const s = seed ?? {};
   const role = s.expertRole ?? '1er';
-  const expertName = s.expertName ?? user.displayName ?? user.email ?? '';
 
-  const experts = {
-    designation1er: role === '1er' ? expertName : '',
-    designation2eme: role === '2eme' ? expertName : '',
-    designationArbitrage: role === 'arbitre' ? expertName : '',
+  const mergeExpert = (r: ExpertRole): ExpertInfo => ({
+    ...emptyExpertInfo(),
+    ...(s.experts?.[r] ?? {}),
+  });
+
+  const experts: Record<ExpertRole, ExpertInfo> = {
+    '1er': mergeExpert('1er'),
+    '2eme': mergeExpert('2eme'),
+    arbitre: mergeExpert('arbitre'),
   };
 
   const ref = await addDoc(collection(db, 'dossiers'), {

@@ -21,6 +21,13 @@ import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { getStatusDotColor } from '@/lib/status-colors';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import {
+  emptyExpertInfo,
+  visibleExpertRoles,
+  EXPERT_ROLE_LABELS,
+  type ExpertRole,
+  type ExpertInfo,
+} from '@/lib/create-empty-dossier';
 
 const defaultDossierTypes = ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'];
 
@@ -59,6 +66,12 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
     compagnie: '', statut: '', refExpert: '', matricule: '',
     policeNumber: '', dateSinistre: null, dateRequete: null, referenceCompagnie: '',
     typeDossier: '', nature: '',
+    expertRank: '1er' as ExpertRole,
+    experts: {
+      '1er': emptyExpertInfo(),
+      '2eme': emptyExpertInfo(),
+      arbitre: emptyExpertInfo(),
+    } as Record<ExpertRole, ExpertInfo>,
     assure: { nom: '', prenom: '', telephone: '', whatsapp: '', telephone2: '', email: '', adresse: '', cin: '' },
     vehicule: { marque: '', modele: '', immatriculation: '', serie: '', energie: '', puissance: '', mec: null, km: '' },
     adverseNom: '', adversePrenom: '', adverseTelephone: '', adverseEmail: '',
@@ -77,6 +90,13 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
     if (dossier && !initialLoadDone) {
       const dataAssure = typeof dossier.assure === 'object' ? dossier.assure : { nom: dossier.assure || '' };
       const v = dossier.vehicule || {};
+      const storedExperts = (dossier.experts ?? {}) as any;
+      const hydrateExpert = (role: ExpertRole): ExpertInfo => ({
+        ...emptyExpertInfo(),
+        ...(typeof storedExperts[role] === 'object' ? storedExperts[role] : {}),
+      });
+      const rawRank = dossier.expertRank;
+      const expertRank: ExpertRole = rawRank === '1er' || rawRank === '2eme' || rawRank === 'arbitre' ? rawRank : '1er';
       setForm({
         compagnie: dossier.compagnie || '',
         statut: dossier.statut || 'Nouveau',
@@ -88,6 +108,12 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
         referenceCompagnie: dossier.referenceCompagnie || dossier.companyRef || '',
         typeDossier: dossier.typeDossier || '',
         nature: dossier.nature || '',
+        expertRank,
+        experts: {
+          '1er': hydrateExpert('1er'),
+          '2eme': hydrateExpert('2eme'),
+          arbitre: hydrateExpert('arbitre'),
+        },
         assure: {
           nom: dataAssure.nom || '', prenom: dataAssure.prenom || '',
           telephone: dataAssure.telephone || '', whatsapp: dataAssure.whatsapp || '',
@@ -126,6 +152,15 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
   };
   const handleNestedChange = (group: string, field: string, value: any) => {
     setForm((prev: any) => ({ ...prev, [group]: { ...prev[group], [field]: value } }));
+  };
+  const handleExpertChange = (role: ExpertRole, field: keyof ExpertInfo, value: string) => {
+    setForm((prev: any) => ({
+      ...prev,
+      experts: {
+        ...prev.experts,
+        [role]: { ...(prev.experts?.[role] ?? emptyExpertInfo()), [field]: value },
+      },
+    }));
   };
 
   const handleSave = async () => {
@@ -290,6 +325,45 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             { label: 'Date Sinistre', value: formatDateDisplay(form.dateSinistre), edit: <DatePicker value={form.dateSinistre} onChange={(d) => handleChange('dateSinistre', d)} /> },
             { label: 'Date Requête', value: formatDateDisplay(form.dateRequete), edit: <DatePicker value={form.dateRequete} onChange={(d) => handleChange('dateRequete', d)} /> },
           ]} />
+        </CardContent>
+      </Card>
+
+      {/* ── EXPERTS ── */}
+      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
+        <CardHeader className="bg-heading-bg py-3">
+          <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" /> Experts
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <FieldRow fields={[
+            {
+              label: 'Rôle du dossier', value: EXPERT_ROLE_LABELS[form.expertRank as ExpertRole] || '-',
+              edit: (
+                <Select value={form.expertRank} onValueChange={(v) => handleChange('expertRank', v)}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1er">{EXPERT_ROLE_LABELS['1er']}</SelectItem>
+                    <SelectItem value="2eme">{EXPERT_ROLE_LABELS['2eme']}</SelectItem>
+                    <SelectItem value="arbitre">{EXPERT_ROLE_LABELS.arbitre}</SelectItem>
+                  </SelectContent>
+                </Select>
+              ),
+            },
+          ]} />
+          {visibleExpertRoles((form.expertRank as ExpertRole) || '1er').map((role) => (
+            <div key={role} className="border-t border-border/10">
+              <div className="px-6 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/30">
+                {EXPERT_ROLE_LABELS[role]}
+              </div>
+              <FieldRow fields={[
+                { label: 'Nom complet', value: form.experts?.[role]?.nom, edit: <Input className="h-9" value={form.experts?.[role]?.nom ?? ''} onChange={(e) => handleExpertChange(role, 'nom', e.target.value)} /> },
+                { label: 'Téléphone', value: form.experts?.[role]?.telephone, edit: <Input className="h-9" value={form.experts?.[role]?.telephone ?? ''} onChange={(e) => handleExpertChange(role, 'telephone', e.target.value)} /> },
+                { label: 'Email', value: form.experts?.[role]?.email, edit: <Input type="email" className="h-9" value={form.experts?.[role]?.email ?? ''} onChange={(e) => handleExpertChange(role, 'email', e.target.value)} /> },
+                { label: 'Compagnie', value: form.experts?.[role]?.compagnie, edit: <Input className="h-9" value={form.experts?.[role]?.compagnie ?? ''} onChange={(e) => handleExpertChange(role, 'compagnie', e.target.value)} /> },
+              ]} />
+            </div>
+          ))}
         </CardContent>
       </Card>
 
