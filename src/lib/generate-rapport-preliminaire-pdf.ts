@@ -25,6 +25,7 @@ import {
   tsToStr,
   loadLocalImage,
   fetchCompagnieLogo,
+  selectLatestAccord,
 } from './generate-rapport-shared';
 
 type Rgb = readonly [number, number, number];
@@ -300,9 +301,10 @@ export async function generateRapportPreliminairePDF(
 ): Promise<void> {
   if (!db || !dossierId) return;
 
-  // TODO(#10): accept an optional `lastAccord` filter here and scope chiffrage
-  // reads to the latest accord period before aggregating pieces/totals.
   // Firestore data fetch. Typed as unknown + narrowed to avoid SDK type imports.
+  // Task #10: after merging the two subcollections below, `selectLatestAccord`
+  // scopes the piece set to the latest accord round (piece-level versioning via
+  // the optional `counterRoundOrder` field).
   const database = db as Parameters<typeof doc>[0];
   const [dossierSnap, piecesSnap, chiffrageSnap] = await Promise.all([
     getDoc(doc(database, 'dossiers', dossierId)),
@@ -322,7 +324,7 @@ export async function generateRapportPreliminairePDF(
   const refExpert = (dData.refExpert as string) || dossierId;
   const today = format(new Date(), 'dd/MM/yyyy');
 
-  const allPieces: Piece[] = [
+  const mergedPieces: Piece[] = [
     ...(piecesSnap as { docs: Array<{ id: string; data: () => Record<string, unknown> }> }).docs.map(
       (s) => ({ id: s.id, ...(s.data() as object) } as Piece)
     ),
@@ -330,6 +332,8 @@ export async function generateRapportPreliminairePDF(
       (s) => ({ id: s.id, ...(s.data() as object) } as Piece)
     ),
   ];
+  // Keep only pieces belonging to the last accord round (task #10).
+  const allPieces: Piece[] = selectLatestAccord(mergedPieces);
 
   // Logos (best-effort).
   const [slLogo, compLogo] = await Promise.all([

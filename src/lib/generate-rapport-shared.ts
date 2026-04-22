@@ -13,6 +13,12 @@ export type Piece = {
   typeChoc: string;
   tva: boolean;
   createdAt: unknown;
+  /**
+   * Accord round marker — propagated from the counter-devis upload metadata
+   * (`send-to-chiffrage.ts` / `modal-chiffrage.tsx`). Used by `selectLatestAccord`
+   * to scope the rapport PDF to the last accord only (task #10).
+   */
+  counterRoundOrder?: number | null;
 };
 
 // ── Constants ──────────────────────────────────────────────────────────
@@ -107,3 +113,45 @@ export async function fetchCompagnieLogo(
 
 /** Type of rapport the user selects in the picker dialog. */
 export type RapportType = 'preliminaire' | 'reforme';
+
+/**
+ * Accord-marker fields that may ride along on a piece doc (mirrored from the
+ * file metadata in `send-to-chiffrage`). Pieces without a marker are treated
+ * as belonging to the original accord (round 0).
+ */
+export interface AccordMarked {
+  counterRoundOrder?: number | null;
+}
+
+/**
+ * Task #10 — when exporting a rapport PDF we only want the last accord round
+ * (the latest agreed set of pieces/values). Earlier rounds should be filtered
+ * out so aggregated totals don't double-count superseded versions.
+ *
+ * Accord model (piece-level versioning):
+ *   - Each piece may carry `counterRoundOrder`, a monotonic integer propagated
+ *     from the counter-devis upload metadata (see `send-to-chiffrage.ts` /
+ *     `modal-chiffrage.tsx`). Originals have it unset (treated as 0).
+ *   - The "last accord" is the max value observed across the input set.
+ *   - Pieces matching that max are kept; earlier rounds are dropped.
+ *
+ * Safe when no round markers exist (common today): returns the input unchanged.
+ */
+export function selectLatestAccord<T extends AccordMarked>(items: T[]): T[] {
+  if (!Array.isArray(items) || items.length === 0) return items;
+  const rounds = new Set<number>();
+  let max = 0;
+  for (const it of items) {
+    const r = Number(it?.counterRoundOrder) || 0;
+    rounds.add(r);
+    if (r > max) max = r;
+  }
+  if (rounds.size <= 1) return items;
+  if (process.env.NODE_ENV !== 'production') {
+    // One-line dev-mode warning so future debugging is easier.
+    console.warn(
+      `[rapport-pdf] selectLatestAccord: ${rounds.size} accord rounds detected (${Array.from(rounds).sort((a, b) => a - b).join(', ')}); keeping round ${max} only.`
+    );
+  }
+  return items.filter((it) => (Number(it?.counterRoundOrder) || 0) === max);
+}

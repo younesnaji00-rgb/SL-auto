@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { getDoc, getDocs, doc, collection, query, where } from 'firebase/firestore';
+import { selectLatestAccord } from './generate-rapport-shared';
 
 export type Piece = {
   id: string;
@@ -15,6 +16,12 @@ export type Piece = {
   typeChoc: string;
   tva: boolean;
   createdAt: any;
+  /**
+   * Accord round marker — propagated from the counter-devis upload metadata
+   * (`send-to-chiffrage.ts` / `modal-chiffrage.tsx`). Used by `selectLatestAccord`
+   * to scope the rapport PDF to the last accord only (task #10).
+   */
+  counterRoundOrder?: number | null;
 };
 
 // ── Constants ──────────────────────────────────────────────────────────
@@ -102,11 +109,13 @@ export async function generateRapportPDF(db: any, dossierId: string, typeRapport
   const refExpert = dData.refExpert || dossierId;
   const today = format(new Date(), 'dd/MM/yyyy');
 
-  // Merge pieces from both subcollections
-  const allPieces = [
+  // Merge pieces from both subcollections, then keep only the last accord
+  // round (task #10). See `selectLatestAccord` for the accord model details.
+  const mergedPieces = [
     ...(piecesSnap as any).docs.map((s: any) => ({ id: s.id, ...s.data() })),
     ...(chiffrageSnap as any).docs.map((s: any) => ({ id: s.id, ...s.data() })),
   ] as Piece[];
+  const allPieces = selectLatestAccord(mergedPieces);
 
   // Load logos in parallel
   const [slLogo, slText, compLogo] = await Promise.all([
