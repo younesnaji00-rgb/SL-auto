@@ -53,7 +53,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { MultiSelect } from '@/components/ui/multi-select';
-import { roles as defaultRoles, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
+import { roles as defaultRoles, compagnies as defaultCompagnies, zones as defaultZones } from '@/lib/dossiers-data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useFirebaseApp } from '@/firebase';
 import { collection, setDoc, serverTimestamp, doc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
@@ -69,9 +69,18 @@ const userFormSchema = z.object({
   confirmPassword: z.string(),
   role: z.string().min(1, "Le rôle est requis."),
   compagnies: z.array(z.string()).min(1, "Veuillez sélectionner au moins une compagnie."),
+  zone: z.string().optional(),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Les mots de passe ne correspondent pas.",
   path: ["confirmPassword"],
+}).superRefine((data, ctx) => {
+  if (data.role === 'Agent de Terrain' && (!data.zone || data.zone.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "La zone est requise pour un Agent de Terrain.",
+      path: ['zone'],
+    });
+  }
 });
 
 type UserFormData = z.infer<typeof userFormSchema>;
@@ -95,9 +104,11 @@ export default function UtilisateursClientPage() {
   const { options: dbRoles } = useOptions('options_roles', [...defaultRoles]);
   const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
   const { options: dbAgentsRaw } = useOptions('options_agents', []);
+  const { options: dbZones } = useOptions('options_zones', defaultZones);
 
   const roles = useMemo(() => dbRoles.length > 0 ? dbRoles : defaultRoles.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbRoles]);
   const compagniesOptions = useMemo(() => dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbCompagnies]);
+  const zones = useMemo(() => dbZones.length > 0 ? dbZones : defaultZones.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbZones]);
 
   const companyOptions = useMemo(() => compagniesOptions.map(c => ({ value: c.label, label: c.label })), [compagniesOptions]);
 
@@ -120,6 +131,7 @@ export default function UtilisateursClientPage() {
       confirmPassword: '',
       role: '',
       compagnies: [],
+      zone: '',
     },
   });
 
@@ -158,6 +170,7 @@ export default function UtilisateursClientPage() {
         password: data.password, // stored so admin can see it
         role: data.role,
         compagnies: data.compagnies,
+        zone: data.zone || '',
         statut: 'Actif',
         createdAt: serverTimestamp(),
         lastLogin: null,
@@ -165,16 +178,22 @@ export default function UtilisateursClientPage() {
 
       // Sync to role-specific collections
       if (data.role === 'Agent de Terrain') {
+        const { addDoc, updateDoc } = await import('firebase/firestore');
         const existingAgents = await getDocs(query(collection(db, 'options_agents'), where('label', '==', data.nom)));
         if (existingAgents.empty) {
           const maxOrder = Math.max(0, ...dbAgentsRaw.map(o => o.order));
-          const { addDoc } = await import('firebase/firestore');
           await addDoc(collection(db, 'options_agents'), {
             label: data.nom,
+            zone: data.zone || '',
             order: maxOrder + 1,
             active: true,
             createdAt: serverTimestamp(),
           });
+        } else {
+          // Keep the existing agent doc's zone in sync with the form value
+          for (const d of existingAgents.docs) {
+            await updateDoc(d.ref, { zone: data.zone || '' });
+          }
         }
       }
 
@@ -334,6 +353,29 @@ export default function UtilisateursClientPage() {
                     </FormItem>
                   )}
                 />
+                {form.watch('role') === 'Agent de Terrain' && (
+                  <FormField
+                    control={form.control}
+                    name="zone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Zone</FormLabel>
+                          <OptionsManagerModal collectionName="options_zones" title="Zones" defaultValues={defaultZones} />
+                        </div>
+                        <Select onValueChange={field.onChange} value={field.value || ''}>
+                          <FormControl>
+                            <SelectTrigger><SelectValue placeholder="Sélectionnez une zone" /></SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {zones.map(zone => <SelectItem key={zone.id} value={zone.label}>{zone.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </CardContent>
               <CardFooter>
                 <Button type="submit" className="w-full" loading={isSubmitting}>
@@ -436,7 +478,12 @@ export default function UtilisateursClientPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{user.role}</Badge>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <Badge variant="outline">{user.role}</Badge>
+                            {user.zone && (
+                              <Badge variant="secondary" className="text-xs">{user.zone}</Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1 max-w-[200px]">

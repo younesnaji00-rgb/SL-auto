@@ -61,18 +61,20 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useDoc, useFirestore } from '@/firebase';
-import { 
-  doc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  collection, 
-  where, 
+import {
+  doc,
+  updateDoc,
+  deleteDoc,
+  addDoc,
+  query,
+  collection,
+  where,
   limit,
   getDocs,
-  collectionGroup
+  collectionGroup,
+  serverTimestamp
 } from 'firebase/firestore';
-import { roles, type Role, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
+import { roles, type Role, compagnies as defaultCompagnies, zones as defaultZones } from '@/lib/dossiers-data';
 import { Eye, EyeOff } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useOptions } from '@/hooks/use-options';
@@ -94,6 +96,12 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     return opts.map(c => ({ value: c.label, label: c.label }));
   }, [dbCompagnies]);
 
+  const { options: dbZones } = useOptions('options_zones', defaultZones);
+  const zoneOptions = useMemo(
+    () => dbZones.length > 0 ? dbZones : defaultZones.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })),
+    [dbZones]
+  );
+
   // States
   const [assignedDossiers, setAssignedDossiers] = useState<any[]>([]);
   const [dossiersLoading, setDossiersLoading] = useState(true);
@@ -113,6 +121,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     role: '' as Role | '',
     statut: '' as 'Actif' | 'Inactif' | '',
     compagnies: [] as string[],
+    zone: '',
   });
 
   // Fetch assigned dossiers (by assignedTo or createdBy)
@@ -174,6 +183,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         role: userData.role || '',
         statut: userData.statut || 'Actif',
         compagnies: userData.compagnies || [],
+        zone: userData.zone || '',
       });
     }
   }, [userData]);
@@ -181,7 +191,40 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await updateDoc(userRef, formData);
+      const previousRole = userData?.role;
+      const previousNom = userData?.nom;
+      const nextZone = formData.role === 'Agent de Terrain' ? (formData.zone || '') : '';
+
+      await updateDoc(userRef, { ...formData, zone: nextZone });
+
+      // Mirror zone into options_agents when user is currently an Agent de Terrain.
+      if (formData.role === 'Agent de Terrain' && formData.nom) {
+        const agentSnap = await getDocs(query(collection(db, 'options_agents'), where('label', '==', formData.nom)));
+        if (agentSnap.empty) {
+          // Agent doc missing — create one (covers role-change TO Agent de Terrain).
+          const allAgents = await getDocs(collection(db, 'options_agents'));
+          const maxOrder = allAgents.docs.reduce((m, d) => Math.max(m, (d.data().order as number) ?? 0), 0);
+          await addDoc(collection(db, 'options_agents'), {
+            label: formData.nom,
+            zone: nextZone,
+            order: maxOrder + 1,
+            active: true,
+            createdAt: serverTimestamp(),
+          });
+        } else {
+          for (const d of agentSnap.docs) {
+            await updateDoc(d.ref, { zone: nextZone });
+          }
+        }
+      }
+
+      // If role changed AWAY from Agent de Terrain, remove the options_agents doc(s)
+      // tied to this user's previous nom.
+      if (previousRole === 'Agent de Terrain' && formData.role !== 'Agent de Terrain' && previousNom) {
+        const staleSnap = await getDocs(query(collection(db, 'options_agents'), where('label', '==', previousNom)));
+        for (const d of staleSnap.docs) await deleteDoc(d.ref);
+      }
+
       toast({ title: "Profil mis à jour", description: "Les informations ont été enregistrées avec succès." });
     } catch (error) {
       console.error(error);
@@ -368,6 +411,17 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                     </SelectContent>
                   </Select>
                 </div>
+                {formData.role === 'Agent de Terrain' && (
+                  <div className="space-y-2">
+                    <Label>Zone</Label>
+                    <Select value={formData.zone || ''} onValueChange={v => setFormData(p => ({...p, zone: v}))}>
+                      <SelectTrigger><SelectValue placeholder="Sélectionnez une zone" /></SelectTrigger>
+                      <SelectContent>
+                        {zoneOptions.map(z => <SelectItem key={z.id} value={z.label}>{z.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

@@ -133,6 +133,19 @@ export const compagnies = [
 export const roles = ['Admin', 'Responsable d\'équipe', 'Gestionnaire', 'Chiffreur', 'Agent de Terrain'] as const;
 export type Role = typeof roles[number];
 
+export const zones = [
+    'Casablanca',
+    'Rabat',
+    'Fès',
+    'Marrakech',
+    'Tanger',
+    'Agadir',
+    'Meknès',
+    'Oujda',
+    'Kénitra',
+    'Tétouan',
+];
+
 export type User = {
     id: string;
     nom: string;
