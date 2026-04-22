@@ -93,57 +93,68 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
     return map;
   }, [allDocs]);
 
-  const handleUpload = async (slot: string, file: File) => {
+  const handleUpload = async (slot: string, files: File[]) => {
     if (!db || !storage || !auth) return;
+    if (files.length === 0) return;
     const userEmail = auth.currentUser?.email || profile?.email || 'Admin';
     const userId = auth.currentUser?.uid || 'unknown';
     const userName =
       profile ? `${profile.prenom || ''} ${profile.nom || ''}`.trim() || userEmail : userEmail;
 
     setUploadingSlot(slot);
+    let successCount = 0;
     try {
-      const timestamp = Date.now();
-      const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${file.name}`;
+      for (const file of files) {
+        try {
+          const timestamp = Date.now();
+          const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${file.name}`;
 
-      await uploadFileWithOfflineSupport({
-        storage,
-        db,
-        file,
-        fileName: file.name,
-        storagePath,
-        firestoreDocPath: `dossiers/${dossierId}/documents`,
-        firestoreMetadata: {
-          nom: file.name,
-          type: slot,
-          taille: file.size,
-          uploadePar: userEmail,
-          uploadedBy: userId,
-          uploadedByName: userName,
-          storagePath,
-          _localCreatedAt: timestamp,
-        },
-      });
+          await uploadFileWithOfflineSupport({
+            storage,
+            db,
+            file,
+            fileName: file.name,
+            storagePath,
+            firestoreDocPath: `dossiers/${dossierId}/documents`,
+            firestoreMetadata: {
+              nom: file.name,
+              type: slot,
+              taille: file.size,
+              uploadePar: userEmail,
+              uploadedBy: userId,
+              uploadedByName: userName,
+              storagePath,
+              _localCreatedAt: timestamp,
+            },
+          });
 
-      await logHistorique(
-        db,
-        dossierId,
-        'Upload document',
-        userEmail,
-        `Document "${file.name}" (${slot}) uploadé.`,
-        'document',
-      );
-      await logWorkflow(db, dossierId, 'Nouveau document ajouté', userEmail, userId, 'done', {
-        details: `Document "${file.name}" ajouté dans "${slot}".`,
-      });
-
-      toast({ title: 'Document uploadé', description: `${file.name} ajouté dans "${slot}".` });
-    } catch (err: any) {
-      console.error('Typed upload error:', err);
-      toast({
-        variant: 'destructive',
-        title: "Erreur lors de l'upload",
-        description: err?.message || 'Une erreur inconnue est survenue.',
-      });
+          await logHistorique(
+            db,
+            dossierId,
+            'Upload document',
+            userEmail,
+            `Document "${file.name}" (${slot}) uploadé.`,
+            'document',
+          );
+          successCount += 1;
+        } catch (fileErr: any) {
+          console.error('Typed upload single-file error:', fileErr);
+          toast({
+            variant: 'destructive',
+            title: `Échec: ${file.name}`,
+            description: fileErr?.message || 'Une erreur est survenue.',
+          });
+        }
+      }
+      if (successCount > 0) {
+        await logWorkflow(db, dossierId, 'Nouveau document ajouté', userEmail, userId, 'done', {
+          details: `${successCount} document(s) ajouté(s) dans "${slot}".`,
+        });
+        toast({
+          title: successCount === 1 ? 'Document uploadé' : `${successCount} documents uploadés`,
+          description: `Ajouté(s) dans "${slot}".`,
+        });
+      }
     } finally {
       setUploadingSlot(null);
     }
@@ -200,7 +211,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
               canEdit={canEdit}
               isUploading={uploadingSlot === slot}
               deletingId={deletingId}
-              onUpload={(file) => handleUpload(slot, file)}
+              onUpload={(files) => handleUpload(slot, files)}
               onDelete={handleDelete}
               onPreview={(d) => {
                 if (d.url && !d.pendingUpload) {
@@ -267,7 +278,7 @@ interface SlotCardProps {
   canEdit: boolean;
   isUploading: boolean;
   deletingId: string | null;
-  onUpload: (file: File) => void;
+  onUpload: (files: File[]) => void;
   onDelete: (d: TypedDoc) => void;
   onPreview: (d: TypedDoc) => void;
 }
@@ -285,8 +296,8 @@ function SlotCard({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) onUpload(file);
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length > 0) onUpload(files);
     if (inputRef.current) inputRef.current.value = '';
   };
 
@@ -372,6 +383,7 @@ function SlotCard({
               ref={inputRef}
               type="file"
               accept="image/*,.pdf"
+              multiple
               className="hidden"
               onChange={handlePick}
             />
