@@ -53,6 +53,7 @@ import {
   computeTotalIndemnisation,
   type ReformeData,
 } from '@/lib/reforme-schema';
+import { DevisEditor } from '@/components/chiffreurs/devis-editor';
 
 type CreatorKind = 'devis' | 'facture';
 
@@ -244,20 +245,30 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
     );
   }
 
-  // Placeholder creator dialog shared across both return branches.
-  // TODO(#5): replace content with the real <DevisEditor />.
-  // TODO(#6): wire save pipeline into dossiers/{dossierId}/pieces_jointes.
+  // Task #5: mount the real <DevisEditor /> in a near-full-screen dialog.
+  // Task #6 will still own the save-to-pieces_jointes pipeline.
+  const editorChiffrageId: string | null = chiffrage?.id ?? null;
+  const editorDocType = creatorKind === 'devis' ? 'Devis Garage' : 'Facture Garage';
   const creatorDialog = (
     <Dialog open={!!creatorKind} onOpenChange={(o) => !o && setCreatorKind(null)}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+      <DialogContent className="max-w-[98vw] w-full h-[95vh] flex flex-col p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-4 py-3 border-b shrink-0">
           <DialogTitle>
             {creatorKind === 'devis' ? 'Créer un devis' : 'Créer une facture'}
           </DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Éditeur à venir ({creatorKind === 'devis' ? 'devis' : 'facture'}) — dossier {dossierId}.
-        </p>
+        <div className="flex-1 min-h-0 overflow-auto">
+          {creatorKind && editorChiffrageId ? (
+            <DevisEditor chiffrageId={editorChiffrageId} docType={editorDocType} />
+          ) : creatorKind ? (
+            <div className="p-6 text-sm text-muted-foreground">
+              Aucun chiffrage n&apos;est encore associé à ce dossier. Utilisez
+              « Envoyer vers chiffrage » pour en créer un, puis relancez la
+              création du {creatorKind === 'devis' ? 'devis' : 'facture'}.
+              {/* TODO(#6): auto-create a chiffrage on demand. */}
+            </div>
+          ) : null}
+        </div>
       </DialogContent>
     </Dialog>
   );

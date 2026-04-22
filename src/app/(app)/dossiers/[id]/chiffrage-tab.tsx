@@ -25,6 +25,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { DevisEditor } from '@/components/chiffreurs/devis-editor';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -188,20 +189,32 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
     );
   }
 
-  // Placeholder creator dialog shared across return branches.
-  // TODO(#5): replace content with the real <DevisEditor />.
-  // TODO(#6): wire save pipeline into dossiers/{dossierId}/pieces_jointes.
+  // Task #5: mount the real <DevisEditor /> inside a near-full-screen dialog
+  // so the spreadsheet-style table breathes. Task #6 will wire the save path
+  // into dossiers/{dossierId}/pieces_jointes and honour skipAIScan.
+  const editorDocType = creatorKind === 'devis' ? 'Devis Garage' : 'Facture Garage';
   const creatorDialog = (
     <Dialog open={!!creatorKind} onOpenChange={(o) => !o && setCreatorKind(null)}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+      <DialogContent className="max-w-[98vw] w-full h-[95vh] flex flex-col p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-4 py-3 border-b shrink-0">
           <DialogTitle>
             {creatorKind === 'devis' ? 'Créer un devis' : 'Créer une facture'}
           </DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Éditeur à venir ({creatorKind === 'devis' ? 'devis' : 'facture'}) — dossier {dossierId}.
-        </p>
+        <div className="flex-1 min-h-0 overflow-auto">
+          {creatorKind && chiffrageId ? (
+            <DevisEditor chiffrageId={chiffrageId} docType={editorDocType} />
+          ) : creatorKind ? (
+            // No chiffrage exists yet — task #6 will own the "create-then-open"
+            // path. For now surface a clear message rather than crashing.
+            <div className="p-6 text-sm text-muted-foreground">
+              Aucun chiffrage n&apos;est encore associé à ce dossier. Utilisez
+              « Envoyer vers chiffrage » pour en créer un, puis relancez la
+              création du {creatorKind === 'devis' ? 'devis' : 'facture'}.
+              {/* TODO(#6): auto-create a chiffrage on demand. */}
+            </div>
+          ) : null}
+        </div>
       </DialogContent>
     </Dialog>
   );

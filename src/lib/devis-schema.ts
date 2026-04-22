@@ -144,10 +144,13 @@ export function emptyRow(): DevisRow {
   };
 }
 
-export function rowTotalHT(r: { qte: number; puHT: number }): number {
+export function rowTotalHT(r: { qte: number; puHT: number; vetuste?: number }): number {
   const q = Number.isFinite(r.qte) ? r.qte : 0;
   const p = Number.isFinite(r.puHT) ? r.puHT : 0;
-  return q * p;
+  const vRaw = Number.isFinite(r.vetuste ?? NaN) ? (r.vetuste as number) : 0;
+  // Clamp vétusté to [0, 100] so an out-of-range value never flips the sign.
+  const v = Math.min(100, Math.max(0, vRaw));
+  return q * p * (1 - v / 100);
 }
 
 export function sumHT(rows: DevisRow[]): number {

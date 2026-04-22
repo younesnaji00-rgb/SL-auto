@@ -7,7 +7,7 @@ import { doc, getDoc, onSnapshot, serverTimestamp, Timestamp, updateDoc } from '
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
   ArrowLeft, Columns2, Copy, Download, FileText, History, Loader2, Plus, RefreshCcw,
-  Save, Sparkles, Trash2, X,
+  Save, Sparkles, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,7 +59,8 @@ const DOC_TYPE_LABEL: Record<EditableDocType, { plural: string; lower: string }>
 
 export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
   const typeLabel = DOC_TYPE_LABEL[docType];
-  const showVetuste = docType === 'Devis Garage';
+  // Task #5: columns are now fixed and always include Vétusté (regardless of
+  // docType), per the standardised Moroccan devis/facture layout.
   const router = useRouter();
   const db = useFirestore();
   const storage = useStorage();
@@ -82,8 +83,6 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
   const [header, setHeader] = useState<DevisHeader>(emptyHeader());
   const [rows, setRows] = useState<DevisRow[]>([emptyRow()]);
   const [extraColumns, setExtraColumns] = useState<DevisExtraColumn[]>([]);
-  /** Number of extra columns in the last persisted snapshot. The user may have at most savedExtraColumnsCount + 1 columns locally. */
-  const [savedExtraColumnsCount, setSavedExtraColumnsCount] = useState(0);
   const [versions, setVersions] = useState<DevisVersion[]>([]);
   const [versionPreviewUrl, setVersionPreviewUrl] = useState<string | null>(null);
   const [versionLabel, setVersionLabel] = useState<string>('');
@@ -162,7 +161,6 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
       setRows(persisted.rows.length ? persisted.rows : [emptyRow()]);
       const cols = normalizeExtraColumns(persisted);
       setExtraColumns(cols);
-      setSavedExtraColumnsCount(cols.filter((c) => (c.kind ?? 'default') === 'default').length);
       setVersions(persisted.versions || []);
       initializedRef.current = true;
 
@@ -222,7 +220,6 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
         setRows(sd.rows.length ? sd.rows : [emptyRow()]);
         const cols = normalizeExtraColumns(sd);
         setExtraColumns(cols);
-        setSavedExtraColumnsCount(cols.length);
         setVersions(sd.versions || []);
         toast({ title: 'Extraction automatique terminee', description: `${sd.rows.length} ligne(s) detectee(s) depuis ${devisFileNames.length} ${typeLabel.lower}(s).` });
       }
@@ -247,26 +244,10 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
   });
   const deleteRow = (id: string) => setRows((rs) => (rs.length <= 1 ? rs : rs.filter((r) => r.id !== id)));
 
-  // The add-column throttle only counts manually-added (default) columns.
-  // Imported counter columns don't consume the quota — each accord round is a distinct document.
-  const defaultColumnsCount = extraColumns.filter((c) => (c.kind ?? 'default') === 'default').length;
-  const canAddColumn = defaultColumnsCount < savedExtraColumnsCount + 1;
-
-  const addExtraColumn = () => {
-    if (!canAddColumn) return;
-    const label = typeof window !== 'undefined' ? window.prompt('Nom de la colonne supplementaire ?') : '';
-    if (!label) return;
-    const newCol: DevisExtraColumn = {
-      id: crypto.randomUUID(),
-      label: label.trim(),
-      values: {},
-      kind: 'default',
-    };
-    setExtraColumns((cols) => [...cols, newCol]);
-  };
-  const removeExtraColumn = (colId: string) => {
-    setExtraColumns((cols) => cols.filter((c) => c.id !== colId));
-  };
+  // Task #5: manual add/remove column affordances are gone. The fixed column
+  // set is mandated by the Moroccan devis layout (Vétusté, Type, REF,
+  // Désignation, T.V.A, Quantité, P.U.H.T, Total H.T). Counter columns still
+  // arrive via extractAndPersistChiffrageDevis and are rendered read-only.
   const updateExtraCell = (colId: string, rowId: string, value: string) => {
     setExtraColumns((cols) =>
       cols.map((c) => (c.id === colId ? { ...c, values: { ...c.values, [rowId]: value } } : c))
@@ -275,11 +256,25 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
 
 
   // Totals ───────────────────────────────────────────────────────────────
+  // Pre-compute per-row totals (used both in the main tbody and the inline
+  // summary row so Total H.T stays consistent with the schema formula).
+  const rowTotals = useMemo(() => rows.map((r) => rowTotalHT(r)), [rows]);
   const totals = useMemo(() => ({
     ht: sumHT(rows),
     tva: sumTVA(rows),
     ttc: sumTTC(rows),
   }), [rows]);
+
+  // Inline totals row values — task #5 replaces the stacked totals card with a
+  // single sticky row at the bottom of the same table.
+  const totalsRow = useMemo(() => {
+    const qteSum = rows.reduce((acc, r) => acc + (Number.isFinite(r.qte) ? r.qte : 0), 0);
+    const puCount = rows.length;
+    const puSum = rows.reduce((acc, r) => acc + (Number.isFinite(r.puHT) ? r.puHT : 0), 0);
+    const puMean = puCount > 0 ? puSum / puCount : 0;
+    const totalHt = rowTotals.reduce((acc, n) => acc + n, 0);
+    return { qteSum, puMean, puCount, totalHt };
+  }, [rows, rowTotals]);
 
   // Save ─────────────────────────────────────────────────────────────────
   const handleSave = async () => {
@@ -356,9 +351,6 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
       }
 
       setVersions((v) => [newVersion, ...v]);
-      // After save, the local default-column count becomes the new "saved" baseline,
-      // unlocking +1 more for the next session. Counter columns are not throttled.
-      setSavedExtraColumnsCount(extraColumns.filter((c) => (c.kind ?? 'default') === 'default').length);
 
       if (uploaded) {
         toast({ title: `${docType} enregistre`, description: 'Nouvelle version generee.' });
@@ -503,42 +495,31 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
         </div>
       </div>
 
-      {/* Rows table */}
+      {/* Rows table — fixed columns (no user-configurable columns per task #5). */}
       <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
         {canEdit && (
           <div className="flex flex-wrap items-center gap-2 p-2 border-b bg-muted/20">
             <Button variant="outline" size="sm" onClick={addRow}>
               <Plus className="h-3.5 w-3.5 mr-1.5" /> Ajouter une ligne
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={addExtraColumn}
-              disabled={!canAddColumn}
-              title={canAddColumn ? 'Ajouter une colonne supplementaire' : 'Enregistrez d\'abord pour debloquer une colonne supplementaire'}
-            >
-              <Plus className="h-3.5 w-3.5 mr-1.5" /> Ajouter une colonne
-            </Button>
-            {extraColumns.length > 0 && (
-              <span className="text-[10px] text-muted-foreground italic ml-1">
-                {extraColumns.length} colonne(s) ajoutee(s)
-                {!canAddColumn && ' — enregistrez pour en ajouter une de plus'}
-              </span>
-            )}
           </div>
         )}
-        <div className="overflow-x-auto">
-          <table className="min-w-[900px] w-full text-xs">
-            <thead className="bg-muted/50">
-              <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:font-bold [&>th]:text-[11px] [&>th]:border-b [&>th]:border-r [&>th:last-child]:border-r-0">
-                <th style={{ width: '80px' }}>REF</th>
+        {/*
+          The table is rendered inside a scroll container so the inline totals
+          row can stick to the bottom for long devis (task #5 part B).
+        */}
+        <div className="overflow-auto max-h-[65vh] relative">
+          <table className="min-w-[900px] w-full text-xs border-collapse">
+            <thead className="bg-muted/50 sticky top-0 z-10">
+              <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:font-bold [&>th]:text-[11px] [&>th]:border-b [&>th]:border-r [&>th:last-child]:border-r-0 [&>th]:bg-muted/50">
+                <th style={{ width: '80px' }} className="text-center">Vetuste</th>
+                <th style={{ width: '90px' }}>Type</th>
+                <th style={{ width: '90px' }}>REF</th>
                 <th>Designation</th>
-                {showVetuste && <th style={{ width: '80px' }} className="text-center">Vetuste</th>}
-                <th style={{ width: '80px' }}>TYPE</th>
                 <th style={{ width: '70px' }} className="text-center">T.V.A</th>
-                <th style={{ width: '60px' }} className="text-center">Qte</th>
-                <th style={{ width: '100px' }} className="text-right">P.U H.T</th>
-                <th style={{ width: '110px' }} className="text-right">Total H.T</th>
+                <th style={{ width: '70px' }} className="text-center">Quantite</th>
+                <th style={{ width: '110px' }} className="text-right">P.U.H.T</th>
+                <th style={{ width: '120px' }} className="text-right">Total H.T</th>
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
                   return (
@@ -561,15 +542,6 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
                             <FileText className="h-3 w-3" />
                           </a>
                         )}
-                        {canEdit && (
-                          <button
-                            onClick={() => removeExtraColumn(col.id)}
-                            className="text-muted-foreground hover:text-destructive"
-                            title="Supprimer la colonne"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
                       </div>
                     </th>
                   );
@@ -578,30 +550,28 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
-                const total = rowTotalHT(r);
+              {rows.map((r, i) => {
+                const total = rowTotals[i] ?? 0;
                 return (
                   <tr key={r.id} className="[&>td]:px-1.5 [&>td]:py-1 [&>td]:border-b [&>td]:border-r [&>td:last-child]:border-r-0 group hover:bg-muted/30">
+                    <td>
+                      <CellNumberInput
+                        value={r.vetuste ?? 0}
+                        onChange={(v) => updateRow(r.id, { vetuste: v })}
+                        disabled={!canEdit}
+                        suffix="%"
+                        decimals={0}
+                        align="center"
+                      />
+                    </td>
+                    <td>
+                      <CellInput value={r.type} onChange={(v) => updateRow(r.id, { type: v })} disabled={!canEdit} />
+                    </td>
                     <td>
                       <CellInput value={r.ref} onChange={(v) => updateRow(r.id, { ref: v })} disabled={!canEdit} />
                     </td>
                     <td>
                       <CellInput value={r.designation} onChange={(v) => updateRow(r.id, { designation: v })} disabled={!canEdit} />
-                    </td>
-                    {showVetuste && (
-                      <td>
-                        <CellNumberInput
-                          value={r.vetuste ?? 0}
-                          onChange={(v) => updateRow(r.id, { vetuste: v })}
-                          disabled={!canEdit}
-                          suffix="%"
-                          decimals={0}
-                          align="center"
-                        />
-                      </td>
-                    )}
-                    <td>
-                      <CellInput value={r.type} onChange={(v) => updateRow(r.id, { type: v })} disabled={!canEdit} />
                     </td>
                     <td>
                       <CellNumberInput value={r.tva} onChange={(v) => updateRow(r.id, { tva: v })} disabled={!canEdit} suffix="%" decimals={0} align="center" />
@@ -612,6 +582,7 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
                     <td>
                       <CellNumberInput value={r.puHT} onChange={(v) => updateRow(r.id, { puHT: v })} disabled={!canEdit} align="right" />
                     </td>
+                    {/* Total H.T is computed — read-only, auto-updating. */}
                     <td className="text-right font-semibold pr-2">{formatFr(total)}</td>
                     {extraColumns.map((col) => (
                       <td key={col.id}>
@@ -638,26 +609,56 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
                   </tr>
                 );
               })}
+              {/*
+                Inline totals row — task #5 part B. Sticks to the bottom of the
+                scroll container. Bold + separator border + muted background.
+                Per-column: Vétusté/Type/REF/Désignation/T.V.A blank;
+                Quantité = Σ; P.U.H.T = mean; Total H.T = Σ of row totals.
+              */}
+              <tr
+                className={cn(
+                  'sticky bottom-0 z-10 bg-muted/80 backdrop-blur-sm font-bold',
+                  'border-t-2 border-foreground/20',
+                  '[&>td]:px-1.5 [&>td]:py-2 [&>td]:border-t-2 [&>td]:border-foreground/20 [&>td]:bg-muted/80',
+                )}
+              >
+                <td className="text-center text-muted-foreground">—</td>
+                <td className="text-muted-foreground">Total</td>
+                <td />
+                <td />
+                <td />
+                <td className="text-center">{formatFr(totalsRow.qteSum, 0)}</td>
+                <td className="text-right">
+                  {totalsRow.puCount > 0 ? formatFr(totalsRow.puMean) : ''}
+                </td>
+                <td className="text-right">{formatFr(totalsRow.totalHt)}</td>
+                {extraColumns.map((col) => {
+                  // Σ for imported/extra columns, SR-tolerant.
+                  const colSum = rows.reduce((acc, r) => acc + parseFr(col.values[r.id] || ''), 0);
+                  const isCounter = col.kind === 'counter';
+                  return (
+                    <td key={col.id} className={cn('text-right', isCounter && 'text-destructive')}>
+                      {formatFr(colSum)}
+                    </td>
+                  );
+                })}
+                <td />
+              </tr>
             </tbody>
           </table>
         </div>
-        <div className="flex items-center p-2 border-t bg-muted/20">
+        {/*
+          TVA / TTC summary kept below the table (not part of the fixed column
+          set, but still useful context). Inline row above is the primary
+          totals surface per task #5.
+        */}
+        <div className="flex items-center p-2 border-t bg-muted/20 text-xs">
           <div className="flex-1" />
-          <div className="flex flex-col items-end gap-0.5 text-xs">
-            <div className="flex gap-6"><span className="text-muted-foreground">Total H.T</span><span className="font-semibold w-24 text-right">{formatFr(totals.ht)}</span></div>
-            <div className="flex gap-6"><span className="text-muted-foreground">TVA</span><span className="w-24 text-right">{formatFr(totals.tva)}</span></div>
-            <div className="flex gap-6 font-bold"><span>Total TTC</span><span className="w-24 text-right">{formatFr(totals.ttc)}</span></div>
-            {extraColumns.map((col) => {
-              // Σ for the extra column, SR-tolerant: `parseFr` returns 0 for non-numeric cells.
-              const colSum = rows.reduce((acc, r) => acc + parseFr(col.values[r.id] || ''), 0);
-              const isCounter = col.kind === 'counter';
-              return (
-                <div key={col.id} className={cn('flex gap-6 pt-1 border-t mt-1', isCounter && 'text-destructive')}>
-                  <span className={isCounter ? '' : 'text-muted-foreground'}>Σ {col.label || '—'}</span>
-                  <span className={cn('w-24 text-right', isCounter && 'font-semibold')}>{formatFr(colSum)}</span>
-                </div>
-              );
-            })}
+          <div className="flex items-center gap-6">
+            <span className="text-muted-foreground">TVA</span>
+            <span className="w-28 text-right">{formatFr(totals.tva)}</span>
+            <span className="font-bold">Total TTC</span>
+            <span className="w-28 text-right font-bold">{formatFr(totals.ttc)}</span>
           </div>
         </div>
       </div>
@@ -707,8 +708,6 @@ export function DevisEditor({ chiffrageId, docType }: DevisEditorProps) {
                         setRows(v.snapshot.rows.map((r) => ({ ...r })));
                         const restoredCols = normalizeExtraColumns(v.snapshot);
                         setExtraColumns(restoredCols);
-                        // Restoring counts as the new baseline — the user may add one more default column after this.
-                        setSavedExtraColumnsCount(restoredCols.filter((c) => (c.kind ?? 'default') === 'default').length);
                         toast({ title: 'Version chargee', description: 'Enregistrez pour creer une nouvelle version.' });
                       }}
                     >
