@@ -144,6 +144,10 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
         sentByUid: userId,
         sentByEmail: userEmail,
         sentByNom: profile?.nom || userEmail,
+        // Seed the new chiffrage with whatever the dossier-side eager
+        // extraction has already produced, so the chiffreur opens to a
+        // ready-to-edit view instead of waiting on background scans.
+        seedStructuredEditables: (dossier as any)?.structuredEditables ?? undefined,
       });
 
       if (dossierRef) {

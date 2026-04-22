@@ -236,6 +236,80 @@ export async function extractAndPersistChiffrageDevis(
   }
 }
 
+/**
+ * Dossier-side eager extraction. Runs when the gestionnaire uploads a
+ * Devis Garage / Facture Garage document to `dossiers/{id}/documents` — scans
+ * the single file, appends its rows to any existing
+ * `dossiers/{id}.structuredEditables[docType]`, and writes back. By the time
+ * the chiffrage is created, the data is already there and can be seeded into
+ * the new chiffrage doc.
+ *
+ * Handles originals only. Counter-devis are processed at chiffrage time
+ * (Phase 2 of `extractAndPersistChiffrageDevis`) since they need the
+ * established rows from the originals to row-match against.
+ *
+ * Fire-and-forget safe. Failures are swallowed and logged.
+ */
+export async function extractAndPersistDossierDoc({
+  db, storage, dossierId, docType, storagePath, name,
+}: {
+  db: Firestore;
+  storage: FirebaseStorage;
+  dossierId: string;
+  docType: EditableDocType;
+  storagePath: string;
+  name?: string;
+}): Promise<ExtractResult> {
+  const dossierRef = doc(db, 'dossiers', dossierId);
+
+  try {
+    const result = await scanOriginal(storage, { storagePath, name });
+    if (!result.ok) {
+      return { ok: false, reason: 'api-failed', error: result.error };
+    }
+
+    const parsed = result.parsed;
+    const rows: DevisRow[] = (Array.isArray(parsed.rows) ? parsed.rows : []).map((r: any) => ({
+      id: newId(),
+      ref: r.ref || 'CHANGE',
+      designation: r.designation || '',
+      type: r.type || '',
+      tva: Number(r.tva) || 0,
+      qte: Number(r.qte) || 0,
+      puHT: Number(r.puHT) || 0,
+    }));
+    if (rows.length === 0) {
+      return { ok: true, reason: 'no-files' };
+    }
+
+    // Merge with any existing extraction (append rows, preserve earlier header values).
+    const snap = await getDoc(dossierRef);
+    const existing = (snap.data()?.structuredEditables?.[docType] ?? null) as StructuredDevis | null;
+
+    const mergedHeader: DevisHeader = existing?.header ?? emptyHeader();
+    const parsedHeader = parsed.header || {};
+    (Object.keys(mergedHeader) as Array<keyof DevisHeader>).forEach((k) => {
+      if (!mergedHeader[k] && parsedHeader[k]) mergedHeader[k] = String(parsedHeader[k]);
+    });
+
+    const structured: StructuredDevis = {
+      header: mergedHeader,
+      rows: [...(existing?.rows ?? []), ...rows],
+      versions: existing?.versions ?? [],
+      extraColumns: existing?.extraColumns ?? [],
+    };
+
+    await updateDoc(dossierRef, {
+      [`structuredEditables.${docType}`]: structured,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { ok: true, reason: 'extracted', structuredDevis: structured };
+  } catch (e: any) {
+    return { ok: false, reason: 'persist-failed', error: e?.message };
+  }
+}
+
 async function scanOriginal(
   storage: FirebaseStorage,
   file: any

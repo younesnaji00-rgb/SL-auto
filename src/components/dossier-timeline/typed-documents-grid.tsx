@@ -22,6 +22,8 @@ import { useAuth, useCollection, useFirestore, useStorage } from '@/firebase';
 import { collection, deleteDoc, doc } from 'firebase/firestore';
 import { deleteObject, ref } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
+import { extractAndPersistDossierDoc } from '@/lib/devis-extract';
+import { isEditableDocType } from '@/lib/devis-schema';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
@@ -115,14 +117,20 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
 
     setUploadingSlot(slot);
     try {
+      // Pre-compute storage paths so we can reuse the same path for upload
+      // and for the follow-up fire-and-forget AI extraction.
+      const uploadJobs = files.map((file, idx) => {
+        // Jitter the timestamp so parallel uploads don't collide on the same ms.
+        const timestamp = Date.now() + idx;
+        const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${file.name}`;
+        return { file, timestamp, storagePath };
+      });
+
       // Fire all uploads in parallel so a batch of N files completes in ~1 file's time
       // instead of N × single-file time.
       const results = await Promise.allSettled(
-        files.map((file, idx) => {
-          // Jitter the timestamp so parallel uploads don't collide on the same ms.
-          const timestamp = Date.now() + idx;
-          const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${file.name}`;
-          return uploadFileWithOfflineSupport({
+        uploadJobs.map(({ file, timestamp, storagePath }) =>
+          uploadFileWithOfflineSupport({
             storage,
             db,
             file,
@@ -139,12 +147,26 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
               storagePath,
               _localCreatedAt: timestamp,
             },
-          });
-        }),
+          }),
+        ),
       );
 
       const successCount = results.filter((r) => r.status === 'fulfilled').length;
       const failCount = results.length - successCount;
+
+      // Fire-and-forget AI extraction when the slot is editable (Devis Garage /
+      // Facture Garage). Each successful upload kicks off its own scan that
+      // writes into `dossiers/{id}.structuredEditables[slot]` so the chiffreur
+      // sees pre-extracted data the moment they open the chiffrage.
+      if (isEditableDocType(slot)) {
+        uploadJobs.forEach(({ file, storagePath }, idx) => {
+          const r = results[idx];
+          if (r.status !== 'fulfilled') return;
+          extractAndPersistDossierDoc({
+            db, storage, dossierId, docType: slot, storagePath, name: file.name,
+          }).catch((e) => console.error(`[typed-docs-grid] pre-extraction failed for ${file.name}`, e));
+        });
+      }
 
       // Log one batch entry rather than N per-file entries.
       if (successCount > 0) {

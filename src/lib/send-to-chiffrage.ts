@@ -31,6 +31,8 @@ export interface SendToChiffrageParams {
   sentByUid: string;
   sentByEmail: string;
   sentByNom: string;
+  /** Pre-extracted structured data from dossier.structuredEditables, seeded into the new chiffrage so the chiffreur sees it instantly. */
+  seedStructuredEditables?: Record<string, unknown>;
 }
 
 /**
@@ -47,6 +49,7 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
     sentByUid,
     sentByEmail,
     sentByNom,
+    seedStructuredEditables,
   } = params;
 
   if (!assignedChiffreurId) throw new Error("Aucun chiffreur sélectionné.");
@@ -75,6 +78,9 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
     sentByUid,
     sentByEmail,
     sentByNom,
+    ...(seedStructuredEditables && Object.keys(seedStructuredEditables).length > 0
+      ? { structuredEditables: seedStructuredEditables }
+      : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
