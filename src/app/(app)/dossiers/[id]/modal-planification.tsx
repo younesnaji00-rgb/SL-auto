@@ -29,7 +29,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { logHistorique, logWorkflow } from './log-historique';
 import { addObservation } from './log-observation';
-import { useOptions } from '@/hooks/use-options';
+import { useOptions, type Option } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -66,7 +66,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   const rdvTypes = useMemo(() => dbRDVTypes.length > 0 ? dbRDVTypes : defaultRDVTypes.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbRDVTypes]);
 
   const { options: dbAgents } = useOptions('options_agents', defaultAgents);
-  const agents = useMemo(() => dbAgents.length > 0 ? dbAgents : defaultAgents.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbAgents]);
+  const agents = useMemo<Option[]>(() => dbAgents.length > 0 ? dbAgents : defaultAgents.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbAgents]);
   const agentWorkload = useAgentTerrainWorkload();
 
   const [formData, setFormData] = useState({
@@ -197,19 +197,27 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 <SelectTrigger><SelectValue placeholder="Choisir un agent" /></SelectTrigger>
                 <SelectContent>
                   {agents.map(agent => {
-                    const count = agentWorkload[agent.label] || 0;
+                    const rawCount = agentWorkload[agent.label] || 0;
+                    // When editing, the current planification is itself counted
+                    // in `rawCount` for its currently-assigned agent. Exclude
+                    // it so agents don't appear artificially over-loaded.
+                    const isEditingThisAgent =
+                      !!initialData?.id &&
+                      (initialData.agentTerrain || '').trim() === agent.label;
+                    const count = isEditingThisAgent && rawCount > 0 ? rawCount - 1 : rawCount;
+                    const zone = agent.zone?.trim();
                     return (
                       <SelectItem key={agent.id} value={agent.label}>
                         <span className="flex items-center gap-2">
                           <span>{agent.label}</span>
-                          {count > 0 && (
-                            <span
-                              className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold tabular-nums dark:bg-amber-900/40 dark:text-amber-300"
-                              title={`${count} mission(s) en cours`}
-                            >
-                              {count}
-                            </span>
-                          )}
+                          <span className="text-xs text-muted-foreground">
+                            &mdash;{' '}
+                            {zone
+                              ? zone
+                              : <span className="italic">Zone non définie</span>}
+                            {' · '}
+                            <span className="tabular-nums">{count} planifs actives</span>
+                          </span>
                         </span>
                       </SelectItem>
                     );

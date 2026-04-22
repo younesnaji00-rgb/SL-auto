@@ -19,6 +19,12 @@ export type Option = {
   label: string;
   order: number;
   active: boolean;
+  /**
+   * Optional zone — currently only populated for `options_agents` docs that
+   * mirror an Agent de Terrain user's zone (see task #1). Callers that don't
+   * care about zones simply ignore this field.
+   */
+  zone?: string;
 };
 
 /**
@@ -38,12 +44,19 @@ export function useOptions(collectionName: string, defaultValues: string[] = [])
 
     const unsub = onSnapshot(q, 
       (snap) => {
-        const results = snap.docs.map(d => ({
-          id: d.id,
-          label: d.data().label || '',
-          order: d.data().order || 0,
-          active: d.data().active ?? true,
-        })) as Option[];
+        const results = snap.docs.map(d => {
+          const data = d.data() as any;
+          const opt: Option = {
+            id: d.id,
+            label: data.label || '',
+            order: data.order || 0,
+            active: data.active ?? true,
+          };
+          if (typeof data.zone === 'string' && data.zone.trim()) {
+            opt.zone = data.zone.trim();
+          }
+          return opt;
+        });
 
         setOptions(results);
         setLoading(false);
