@@ -12,9 +12,11 @@ import {
   Calculator,
   Download,
   Eye,
+  FileSignature,
   FileText,
   History,
   Loader2,
+  Receipt,
   Scale,
   Sparkles,
 } from 'lucide-react';
@@ -45,11 +47,14 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import {
   computeDifference,
   computeTotalIndemnisation,
   type ReformeData,
 } from '@/lib/reforme-schema';
+
+type CreatorKind = 'devis' | 'facture';
 
 interface Step5ChiffrageProps {
   dossierId: string;
@@ -93,6 +98,12 @@ function formatMoney(n: number | undefined | null): string {
 export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffrageProps) {
   const db = useFirestore();
   const { toast } = useToast();
+  const { profile } = useCurrentUser();
+  // Creator buttons (Devis / Facture) are only visible to Admin + Gestionnaire.
+  // Task #5 fills in the full editor flow; Task #6 wires the save-to-pieces-jointes pipeline.
+  const canCreateChiffrageDoc =
+    profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
+  const [creatorKind, setCreatorKind] = useState<CreatorKind | null>(null);
 
   const chiffragesQuery = useMemo(() => {
     if (!db || !dossierId) return null;
@@ -233,22 +244,60 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
     );
   }
 
+  // Placeholder creator dialog shared across both return branches.
+  // TODO(#5): replace content with the real <DevisEditor />.
+  // TODO(#6): wire save pipeline into dossiers/{dossierId}/pieces_jointes.
+  const creatorDialog = (
+    <Dialog open={!!creatorKind} onOpenChange={(o) => !o && setCreatorKind(null)}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {creatorKind === 'devis' ? 'Créer un devis' : 'Créer une facture'}
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Éditeur à venir ({creatorKind === 'devis' ? 'devis' : 'facture'}) — dossier {dossierId}.
+        </p>
+      </DialogContent>
+    </Dialog>
+  );
+
+  // Role-gated button row, reused in both branches.
+  const creatorButtons = canCreateChiffrageDoc ? (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button size="sm" variant="outline" onClick={() => setCreatorKind('devis')}>
+        <FileSignature className="mr-2 h-3.5 w-3.5" />
+        Créer un devis
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => setCreatorKind('facture')}>
+        <Receipt className="mr-2 h-3.5 w-3.5" />
+        Créer une facture
+      </Button>
+    </div>
+  ) : null;
+
   if (!chiffrage) {
     return (
-      <Card className="shadow-sm border-dashed">
-        <CardContent className="flex flex-col items-center justify-center py-10 text-center">
-          <Calculator className="h-8 w-8 text-muted-foreground/40 mb-3" />
-          <p className="text-sm text-muted-foreground italic">
-            Aucun chiffrage pour ce dossier
-          </p>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        {creatorButtons}
+        <Card className="shadow-sm border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+            <Calculator className="h-8 w-8 text-muted-foreground/40 mb-3" />
+            <p className="text-sm text-muted-foreground italic">
+              Aucun chiffrage pour ce dossier
+            </p>
+          </CardContent>
+        </Card>
+        {creatorDialog}
+      </div>
     );
   }
 
   return (
     <TooltipProvider>
       <div className="space-y-6">
+        {creatorButtons}
+
         {/* Réforme summary */}
         {reforme?.updatedAt ? (
           <Card className="shadow-sm">
@@ -509,6 +558,8 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
             </div>
           </SheetContent>
         </Sheet>
+
+        {creatorDialog}
 
         {/* Lightbox preview for original document */}
         <Dialog open={!!previewDoc} onOpenChange={(o) => !o && setPreviewDoc(null)}>

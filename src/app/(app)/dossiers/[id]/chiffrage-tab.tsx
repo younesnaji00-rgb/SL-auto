@@ -11,11 +11,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Loader2, FileText, CheckCircle2, FileType,
-  Trash2, Eye, PencilLine, ChevronDown, ChevronRight, ImageIcon
+  Trash2, Eye, PencilLine, ChevronDown, ChevronRight, ImageIcon,
+  FileSignature, Receipt,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import {
-  Dialog, DialogContent,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -44,11 +46,19 @@ interface ChiffrageDoc {
   files: ChiffrageFileDoc[];
 }
 
+type CreatorKind = 'devis' | 'facture';
+
 export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
   const router = useRouter();
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
+  const { profile } = useCurrentUser();
+  // Creator buttons (Devis / Facture) are only visible to Admin + Gestionnaire.
+  // Task #5 fills in the full editor flow; Task #6 wires the save-to-pieces-jointes pipeline.
+  const canCreateChiffrageDoc =
+    profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
+  const [creatorKind, setCreatorKind] = useState<CreatorKind | null>(null);
 
   const dossierRef = useMemo(
     () => (db && dossierId ? doc(db, 'dossiers', dossierId) : null),
@@ -178,20 +188,57 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
     );
   }
 
+  // Placeholder creator dialog shared across return branches.
+  // TODO(#5): replace content with the real <DevisEditor />.
+  // TODO(#6): wire save pipeline into dossiers/{dossierId}/pieces_jointes.
+  const creatorDialog = (
+    <Dialog open={!!creatorKind} onOpenChange={(o) => !o && setCreatorKind(null)}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {creatorKind === 'devis' ? 'Créer un devis' : 'Créer une facture'}
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Éditeur à venir ({creatorKind === 'devis' ? 'devis' : 'facture'}) — dossier {dossierId}.
+        </p>
+      </DialogContent>
+    </Dialog>
+  );
+
+  // Role-gated button row, reused in both branches.
+  const creatorButtons = canCreateChiffrageDoc ? (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button size="sm" variant="outline" onClick={() => setCreatorKind('devis')}>
+        <FileSignature className="mr-2 h-3.5 w-3.5" />
+        Créer un devis
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => setCreatorKind('facture')}>
+        <Receipt className="mr-2 h-3.5 w-3.5" />
+        Créer une facture
+      </Button>
+    </div>
+  ) : null;
+
   if (!chiffrageId) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl bg-muted/30">
-        <FileText className="h-12 w-12 text-muted-foreground mb-4 opacity-20" />
-        <h3 className="text-lg font-semibold">Aucune correction en cours</h3>
-        <p className="text-sm text-muted-foreground text-center max-w-xs mt-2">
-          Utilisez <span className="font-bold">« Envoyer vers chiffrage »</span> pour activer le mode correcteur.
-        </p>
+      <div className="space-y-6">
+        {creatorButtons}
+        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl bg-muted/30">
+          <FileText className="h-12 w-12 text-muted-foreground mb-4 opacity-20" />
+          <h3 className="text-lg font-semibold">Aucune correction en cours</h3>
+          <p className="text-sm text-muted-foreground text-center max-w-xs mt-2">
+            Utilisez <span className="font-bold">« Envoyer vers chiffrage »</span> pour activer le mode correcteur.
+          </p>
+        </div>
+        {creatorDialog}
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {creatorButtons}
       <div className="flex items-center justify-between border-b pb-4">
         <div>
           <h2 className="text-lg font-bold">Plateforme de Correction Native</h2>
@@ -302,6 +349,8 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {creatorDialog}
     </div>
   );
 }
