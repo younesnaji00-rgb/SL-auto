@@ -1,7 +1,6 @@
 import React from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import Breadcrumb from '@/components/breadcrumb';
-import Notifications from '@/components/layout/notifications';
 
 const Header = () => {
   return (
@@ -11,9 +10,6 @@ const Header = () => {
         <div className="hidden md:block">
           <Breadcrumb />
         </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <Notifications />
       </div>
     </header>
   );

@@ -38,7 +38,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Settings,
   Moon,
   Sun,
   Plus,
@@ -288,9 +287,6 @@ const AppSidebar = () => {
         </div>
 
         <div className={cn("flex gap-1", isCollapsed ? "flex-col" : "flex-row")}>
-          <Button variant="ghost" size="icon" className="h-8 w-full justify-center text-muted-foreground hover:text-foreground" title="Paramètres">
-            <Settings className="h-4 w-4" />
-          </Button>
           <Button
             variant="ghost"
             size="icon"
