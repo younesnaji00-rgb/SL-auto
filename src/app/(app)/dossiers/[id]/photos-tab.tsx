@@ -111,42 +111,67 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
   const handleUpload = async (cat: PhotoCategory, files: FileList) => {
     if (!storage || !db) return;
     const userEmail = auth?.currentUser?.email || 'Admin';
+    const userId = auth?.currentUser?.uid || 'unknown';
     setIsUploading(cat);
     try {
-      for (const file of Array.from(files)) {
-        const timestamp = Date.now();
-        const storagePath = `dossiers/${dossierId}/photos/${cat}/${timestamp}_${file.name}`;
-        await uploadFileWithOfflineSupport({
-          storage,
-          db,
-          file,
-          fileName: file.name,
-          storagePath,
-          firestoreDocPath: `dossiers/${dossierId}/photos`,
-          firestoreMetadata: {
-            name: file.name,
-            category: cat,
-            uploadedAt: serverTimestamp(),
-            uploadedBy: userEmail,
+      const fileList = Array.from(files);
+      // Fire all uploads in parallel. Use allSettled so one failure doesn't abort the batch.
+      const results = await Promise.allSettled(
+        fileList.map((file, idx) => {
+          // Jitter the timestamp so parallel uploads don't collide on the same ms.
+          const timestamp = Date.now() + idx;
+          const storagePath = `dossiers/${dossierId}/photos/${cat}/${timestamp}_${file.name}`;
+          return uploadFileWithOfflineSupport({
+            storage,
+            db,
+            file,
+            fileName: file.name,
             storagePath,
-            _localCreatedAt: timestamp,
-          },
-        });
+            firestoreDocPath: `dossiers/${dossierId}/photos`,
+            firestoreMetadata: {
+              name: file.name,
+              category: cat,
+              uploadedAt: serverTimestamp(),
+              uploadedBy: userEmail,
+              storagePath,
+              _localCreatedAt: timestamp,
+            },
+          });
+        }),
+      );
 
+      const successful = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.length - successful;
+
+      // Batch-log — one historique/workflow entry for the group rather than per-file.
+      if (successful > 0) {
         await logHistorique(
           db,
           dossierId,
-          'Upload photo',
+          'Upload photos',
           userEmail,
-          `Photo "${file.name}" uploadée dans la section ${cat}.`,
+          `${successful} photo(s) uploadée(s) dans la section ${cat}.`,
           'photo',
         );
+        await logWorkflow(db, dossierId, 'Nouvelle photo ajoutée', userEmail, userId, 'done', {
+          details: `${successful} photo(s) ajoutée(s) dans la section ${cat}`,
+        });
       }
-      const userId = auth?.currentUser?.uid || 'unknown';
-      await logWorkflow(db, dossierId, 'Nouvelle photo ajoutée', userEmail, userId, 'done', {
-        details: `Photo ajoutée dans la section ${cat} (par gestionnaire)`,
-      });
-      toast({ title: 'Photo(s) uploadée(s) avec succès' });
+
+      if (failed === 0) {
+        toast({
+          title: successful === 1 ? 'Photo uploadée' : `${successful} photos uploadées`,
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: `${failed} échec(s)`,
+          description: `${successful}/${results.length} photos uploadées.`,
+        });
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') console.error(`Upload failed for ${fileList[i].name}:`, r.reason);
+        });
+      }
     } catch (err: any) {
       console.error('Upload error:', err);
       toast({ variant: 'destructive', title: "Erreur lors de l'upload", description: err.message });

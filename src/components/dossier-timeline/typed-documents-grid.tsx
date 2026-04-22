@@ -102,14 +102,15 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
       profile ? `${profile.prenom || ''} ${profile.nom || ''}`.trim() || userEmail : userEmail;
 
     setUploadingSlot(slot);
-    let successCount = 0;
     try {
-      for (const file of files) {
-        try {
-          const timestamp = Date.now();
+      // Fire all uploads in parallel so a batch of N files completes in ~1 file's time
+      // instead of N × single-file time.
+      const results = await Promise.allSettled(
+        files.map((file, idx) => {
+          // Jitter the timestamp so parallel uploads don't collide on the same ms.
+          const timestamp = Date.now() + idx;
           const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${file.name}`;
-
-          await uploadFileWithOfflineSupport({
+          return uploadFileWithOfflineSupport({
             storage,
             db,
             file,
@@ -127,32 +128,40 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
               _localCreatedAt: timestamp,
             },
           });
+        }),
+      );
 
-          await logHistorique(
-            db,
-            dossierId,
-            'Upload document',
-            userEmail,
-            `Document "${file.name}" (${slot}) uploadé.`,
-            'document',
-          );
-          successCount += 1;
-        } catch (fileErr: any) {
-          console.error('Typed upload single-file error:', fileErr);
-          toast({
-            variant: 'destructive',
-            title: `Échec: ${file.name}`,
-            description: fileErr?.message || 'Une erreur est survenue.',
-          });
-        }
-      }
+      const successCount = results.filter((r) => r.status === 'fulfilled').length;
+      const failCount = results.length - successCount;
+
+      // Log one batch entry rather than N per-file entries.
       if (successCount > 0) {
+        await logHistorique(
+          db,
+          dossierId,
+          'Upload documents',
+          userEmail,
+          `${successCount} document(s) uploadé(s) dans "${slot}".`,
+          'document',
+        );
         await logWorkflow(db, dossierId, 'Nouveau document ajouté', userEmail, userId, 'done', {
           details: `${successCount} document(s) ajouté(s) dans "${slot}".`,
         });
+      }
+
+      if (failCount === 0) {
         toast({
           title: successCount === 1 ? 'Document uploadé' : `${successCount} documents uploadés`,
           description: `Ajouté(s) dans "${slot}".`,
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: `${failCount} échec(s)`,
+          description: `${successCount}/${results.length} documents uploadés dans "${slot}".`,
+        });
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') console.error(`Upload failed for ${files[i].name}:`, r.reason);
         });
       }
     } finally {
