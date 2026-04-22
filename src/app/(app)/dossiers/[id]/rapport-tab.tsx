@@ -31,7 +31,10 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { generateRapportPDF } from '@/lib/generate-rapport-pdf';
+import { generateRapportReformePDF } from '@/lib/generate-rapport-reforme-pdf';
+import { generateRapportPreliminairePDF } from '@/lib/generate-rapport-preliminaire-pdf';
+import type { RapportType } from '@/lib/generate-rapport-shared';
+import { RapportTypeDialog } from '@/components/modals/rapport-type-dialog';
 import { logWorkflow } from './log-historique';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import CarSvgTop from '@/components/car-svg-top';
@@ -46,6 +49,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [typeDialogOpen, setTypeDialogOpen] = useState(false);
 
   // Chiffrage type state
   const [typeChiffrage, setTypeChiffrage] = useState<'Réparation' | 'Réforme' | ''>('');
@@ -208,7 +212,11 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
     }
   };
 
-  const handleGenerate = async () => {
+  const handleOpenTypeDialog = () => {
+    setTypeDialogOpen(true);
+  };
+
+  const handleGenerate = async (type: RapportType) => {
     setIsGenerating(true);
     try {
       // Persist current points de choc before generating
@@ -217,8 +225,13 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           await updateDoc(doc(db, 'dossiers', dossierId), { pointsChoc, pointsChocDessous });
         } catch { /* silent */ }
       }
-      await generateRapportPDF(db, dossierId);
+      if (type === 'preliminaire') {
+        await generateRapportPreliminairePDF(db, dossierId);
+      } else {
+        await generateRapportReformePDF(db, dossierId);
+      }
       toast({ title: 'Rapport généré' });
+      setTypeDialogOpen(false);
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: e.message });
     } finally {
@@ -243,11 +256,18 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           <h2 className="text-lg font-semibold">Rapport</h2>
           <p className="text-sm text-muted-foreground">Diagramme des points de choc et génération du PDF final.</p>
         </div>
-        <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2">
+        <Button onClick={handleOpenTypeDialog} disabled={isGenerating} className="gap-2">
           {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
           Générer le rapport
         </Button>
       </div>
+
+      <RapportTypeDialog
+        open={typeDialogOpen}
+        onOpenChange={setTypeDialogOpen}
+        onConfirm={handleGenerate}
+        isGenerating={isGenerating}
+      />
 
       {/* POINTS DE CHOC */}
       <Card className="border-primary/10 shadow-sm">
