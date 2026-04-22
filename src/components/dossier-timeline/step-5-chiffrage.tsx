@@ -433,20 +433,47 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
                       : raw ? new Date(raw) : null;
                 const label = d && !isNaN(d.getTime()) ? d.toLocaleString('fr-FR') : '';
                 const author = v?.savedBy ?? v?.createdByNom ?? 'Inconnu';
+                const versionNumber = historyDoc.versions.length - i;
+                const versionUrl: string | undefined = v?.pdfUrl ?? v?.url;
                 return (
                   <Card key={v?.id ?? i}>
                     <CardHeader className="p-3 pb-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">
-                          Version {historyDoc.versions.length - i}
-                        </p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium">Version {versionNumber}</p>
                         <p className="text-xs text-muted-foreground">{label}</p>
                       </div>
                       <p className="text-xs text-muted-foreground">par {author}</p>
                     </CardHeader>
-                    {v?.note && (
-                      <CardContent className="p-3 pt-0 text-xs">{v.note}</CardContent>
-                    )}
+                    <CardContent className="p-3 pt-0 space-y-2">
+                      {v?.note && <p className="text-xs">{v.note}</p>}
+                      <div className="flex items-center gap-2">
+                        {versionUrl ? (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs gap-1.5"
+                              onClick={() => setPreviewDoc({
+                                url: versionUrl,
+                                name: `${historyDoc.name} — Version ${versionNumber}`,
+                                isImage: /\.(png|jpe?g|webp|gif)$/i.test(versionUrl),
+                              })}
+                            >
+                              <Eye className="h-3.5 w-3.5" /> Voir
+                            </Button>
+                            <Button asChild size="sm" variant="ghost" className="h-7 text-xs gap-1.5">
+                              <a href={versionUrl} target="_blank" rel="noopener noreferrer" download>
+                                <Download className="h-3.5 w-3.5" /> Télécharger
+                              </a>
+                            </Button>
+                          </>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">
+                            Aucun fichier disponible pour cette version.
+                          </p>
+                        )}
+                      </div>
+                    </CardContent>
                   </Card>
                 );
               })}
