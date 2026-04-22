@@ -85,12 +85,18 @@ export function CreateDossierDialog({
   }, [auth, profile]);
 
   // Pre-fill the creator's row with their name whenever the role changes.
+  // If we previously primed a different role (and the user didn't edit it),
+  // clear that stale pre-fill so only the current role carries the name.
   React.useEffect(() => {
     if (primedRole === expertRole) return;
-    setExperts((prev) => ({
-      ...prev,
-      [expertRole]: { ...prev[expertRole], nom: prev[expertRole].nom || userName },
-    }));
+    setExperts((prev) => {
+      const next = { ...prev };
+      if (primedRole && primedRole !== expertRole && next[primedRole]?.nom === userName) {
+        next[primedRole] = { ...next[primedRole], nom: '' };
+      }
+      next[expertRole] = { ...next[expertRole], nom: next[expertRole].nom || userName };
+      return next;
+    });
     setPrimedRole(expertRole);
   }, [expertRole, userName, primedRole]);
 
