@@ -17,7 +17,7 @@ export interface TimelineBarProps {
 export function TimelineBar({ steps, activeId, onStepClick }: TimelineBarProps) {
   return (
     <div className="sticky top-[49px] z-30 w-full bg-background/95 backdrop-blur border-b" /* flush under action bar */>
-      <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-3 overflow-x-auto">
+      <div className="flex items-center gap-2 px-3 sm:px-6 py-3 overflow-x-auto">
         {steps.map((step, idx) => {
           const isActive = step.id === activeId;
           const isPast = step.id < activeId;
@@ -53,7 +53,7 @@ export function TimelineBar({ steps, activeId, onStepClick }: TimelineBarProps) 
                 </span>
               </button>
               {idx < steps.length - 1 && (
-                <div className="flex-1 h-px bg-border min-w-4" aria-hidden />
+                <div className="w-8 sm:w-12 h-px bg-border shrink-0" aria-hidden />
               )}
             </React.Fragment>
           );
