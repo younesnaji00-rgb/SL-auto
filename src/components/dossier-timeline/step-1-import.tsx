@@ -8,13 +8,19 @@ import {
   Timestamp,
   type DocumentReference,
 } from 'firebase/firestore';
-import { FileIcon, FileText, Loader2, ScanSearch, Upload } from 'lucide-react';
+import { Eye, FileIcon, FileText, Loader2, ScanSearch, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useStorage, useAuth, useDoc } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -130,6 +136,7 @@ export default function Step1Import({
   const [isUploading, setIsUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [lastFilledCount, setLastFilledCount] = useState<number | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{ url: string; nom: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Step 1 shows ONLY the one document that produced the AI pre-fill. Other
@@ -517,6 +524,8 @@ export default function Step1Import({
                 const name = d.nom || d.fileName || 'document';
                 const by = d.uploadePar || d.uploadedBy || '—';
                 const when = formatDate(d.dateUpload || d.uploadedAt);
+                const url: string | undefined = d.url || undefined;
+                const canPreview = Boolean(url) && !d.pendingUpload;
                 return (
                   <li
                     key={d.id || importDocId}
@@ -540,6 +549,18 @@ export default function Step1Import({
                         En attente
                       </Badge>
                     )}
+                    {canPreview && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        onClick={() => setPreviewDoc({ url: url as string, nom: name })}
+                        title="Aperçu"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </li>
                 );
               })()}
@@ -554,6 +575,29 @@ export default function Step1Import({
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!previewDoc} onOpenChange={(o) => !o && setPreviewDoc(null)}>
+        <DialogContent className="max-w-4xl h-[85vh] p-0 flex flex-col">
+          <DialogHeader className="px-4 py-3 border-b">
+            <DialogTitle className="text-sm truncate">{previewDoc?.nom}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-800">
+            {previewDoc && (/\.(jpe?g|png|gif|webp|bmp)$/i.test(previewDoc.nom) ? (
+              <img
+                src={previewDoc.url}
+                alt={previewDoc.nom}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <iframe
+                src={previewDoc.url}
+                className="w-full h-full border-none"
+                title={previewDoc.nom}
+              />
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
