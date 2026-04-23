@@ -3,8 +3,11 @@ import {
   addDoc,
   doc,
   getDoc,
+  getDocs,
+  query,
   serverTimestamp,
   updateDoc,
+  where,
   Timestamp,
   Firestore,
 } from "firebase/firestore";
@@ -21,6 +24,7 @@ import type {
   EditableDocType,
   StructuredDevis,
 } from "./devis-schema";
+import { mapToAccorde } from "./docType-accorde";
 
 export interface ChiffrageFile {
   name: string;
@@ -160,6 +164,12 @@ export async function saveGestionnaireDevisAsPieceJointe(
 
   if (!dossierId) throw new Error("dossierId requis.");
 
+  // Task #3: Facture Garage / Devis Garage saves target the "accordé" slot
+  // (one per dossier, upserted — never duplicated). `docType` remains the
+  // source name (what the caller passed); `targetDocType` is where the save
+  // lands.
+  const targetDocType = mapToAccorde(docType);
+
   // 1. Generate the PDF from the current table state.
   const now = new Date();
   const pdfBlob = renderDevisPdf(snapshot, {
@@ -175,7 +185,7 @@ export async function saveGestionnaireDevisAsPieceJointe(
   // Match the typed-documents-grid convention so the upload lands in the same
   // bucket path and the grid picks it up without special-casing.
   const timestamp = Date.now();
-  const safeDocType = docType.replace(/\s+/g, "-").toLowerCase();
+  const safeDocType = targetDocType.replace(/\s+/g, "-").toLowerCase();
   const fileName = `${safeDocType}-${versionId}.pdf`;
   const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${fileName}`;
 
@@ -186,12 +196,14 @@ export async function saveGestionnaireDevisAsPieceJointe(
   await uploadBytes(sref, pdfBlob, { contentType: "application/pdf" });
   const pdfUrl = await getDownloadURL(sref);
 
-  // 3. Create the piece-jointe Firestore record — same schema as the typed
+  // 3. Upsert the piece-jointe Firestore record — same schema as the typed
   //    grid's uploads, plus the skipAIScan flag so the extractor short-circuits
-  //    if any listener ever picks this file up.
+  //    if any listener ever picks this file up. Task #3: there is at most one
+  //    accordé row per dossier; find an existing doc with `type === targetDocType`
+  //    and overwrite its storage fields rather than creating a duplicate.
   const documentPayload = {
     nom: fileName,
-    type: docType,
+    type: targetDocType,
     taille: pdfBlob.size,
     uploadePar: author.email || "Gestionnaire",
     uploadedBy: author.uid || "",
@@ -202,10 +214,22 @@ export async function saveGestionnaireDevisAsPieceJointe(
     sourceKind: "gestionnaire-devis-editor" as const,
     dateUpload: serverTimestamp(),
   };
-  const createdDocRef = await addDoc(
-    collection(db, "dossiers", dossierId, "documents"),
-    documentPayload
+  const documentsCol = collection(db, "dossiers", dossierId, "documents");
+  const existingSnap = await getDocs(
+    query(documentsCol, where("type", "==", targetDocType))
   );
+  let dossierDocId: string;
+  if (existingSnap.empty) {
+    const createdDocRef = await addDoc(documentsCol, documentPayload);
+    dossierDocId = createdDocRef.id;
+  } else {
+    const existing = existingSnap.docs[0];
+    await updateDoc(existing.ref, {
+      ...documentPayload,
+      dateUpload: serverTimestamp(),
+    });
+    dossierDocId = existing.id;
+  }
 
   // 4. Build the structured mirror so the chiffreur opens directly on the
   //    table. This is the same shape stored under `structuredEditables[docType]`
@@ -227,7 +251,7 @@ export async function saveGestionnaireDevisAsPieceJointe(
         | Record<string, StructuredDevis>
         | undefined)
     : undefined) ?? {};
-  const dossierExistingEntry = dossierExistingEditables[docType];
+  const dossierExistingEntry = dossierExistingEditables[targetDocType];
 
   const structured: StructuredDevis = {
     header: snapshot.header,
@@ -239,7 +263,7 @@ export async function saveGestionnaireDevisAsPieceJointe(
   };
 
   await updateDoc(dossierRef, {
-    [`structuredEditables.${docType}`]: structured,
+    [`structuredEditables.${targetDocType}`]: structured,
     updatedAt: serverTimestamp(),
   });
 
@@ -258,16 +282,16 @@ export async function saveGestionnaireDevisAsPieceJointe(
         const freshAttempts = (cData.editableExtractionAttempted as
           | Record<string, boolean>
           | undefined) ?? {};
-        const chiffrageExistingEntry = freshEditables[docType];
+        const chiffrageExistingEntry = freshEditables[targetDocType];
         const mirrored: StructuredDevis = {
           ...structured,
           versions: [version, ...(chiffrageExistingEntry?.versions ?? [])],
         };
         await updateDoc(chiffrageRef, {
-          [`structuredEditables.${docType}`]: mirrored,
+          [`structuredEditables.${targetDocType}`]: mirrored,
           // Flag extraction as already done so the chiffreur editor won't
           // kick off an AI scan on open.
-          editableExtractionAttempted: { ...freshAttempts, [docType]: true },
+          editableExtractionAttempted: { ...freshAttempts, [targetDocType]: true },
           updatedAt: serverTimestamp(),
         });
       }
@@ -282,7 +306,7 @@ export async function saveGestionnaireDevisAsPieceJointe(
   return {
     storagePath,
     pdfUrl,
-    dossierDocId: createdDocRef.id,
+    dossierDocId,
     version,
   };
 }

@@ -27,6 +27,7 @@ import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import type { EditableDocType } from '@/lib/devis-schema';
 import { renderDevisPdf } from '@/lib/devis-pdf';
 import { saveGestionnaireDevisAsPieceJointe } from '@/lib/send-to-chiffrage';
+import { mapToAccorde } from '@/lib/docType-accorde';
 import { cn } from '@/lib/utils';
 import ReferencePanel from '@/app/editor/reference-panel';
 import { useSidebar } from '@/components/ui/sidebar';
@@ -332,6 +333,11 @@ export function DevisEditor({
     if (!db || !storage) return;
     setSaving(true);
     try {
+      // Task #3: Facture Garage / Devis Garage saves target the "accordé" slot
+      // (one per dossier, upserted — never duplicated). `docType` remains the
+      // source name (what the chiffreur opened); `targetDocType` is where the
+      // save lands.
+      const targetDocType = mapToAccorde(docType);
       const snapshot: DevisSnapshot = extraColumns.length > 0
         ? { header, rows, extraColumns }
         : { header, rows };
@@ -371,7 +377,7 @@ export function DevisEditor({
       const author = profile?.nom || profile?.email || 'Utilisateur';
       const pdfBlob = renderDevisPdf(snapshot, { author, versionTimestamp: now, docType });
       const versionId = crypto.randomUUID();
-      const pdfStoragePath = `chiffrages/${chiffrageId}/devis-versions/${docType}/${versionId}.pdf`;
+      const pdfStoragePath = `chiffrages/${chiffrageId}/devis-versions/${targetDocType}/${versionId}.pdf`;
 
       let pdfUrl = '';
       let uploaded = false;
@@ -390,12 +396,12 @@ export function DevisEditor({
       if (!uploaded) {
         await enqueueUpload({
           fileBlob: pdfBlob,
-          fileName: `${docType.toLowerCase()}-${versionId}.pdf`,
+          fileName: `${targetDocType.toLowerCase()}-${versionId}.pdf`,
           fileSize: pdfBlob.size,
           contentType: 'application/pdf',
           storagePath: pdfStoragePath,
           firestoreDocPath: 'chiffrages',
-          firestoreMetadata: { _chiffrageId: chiffrageId, _type: 'devis-version', _docType: docType, _versionId: versionId },
+          firestoreMetadata: { _chiffrageId: chiffrageId, _type: 'devis-version', _docType: targetDocType, _versionId: versionId },
         });
         toast({ title: 'Version mise en file d\'attente', description: 'Elle sera synchronisee une fois en ligne.' });
       }
@@ -423,8 +429,8 @@ export function DevisEditor({
         const fresh = snap.data() as any;
         const freshAttempts = (fresh.editableExtractionAttempted || {}) as Record<string, boolean>;
         await updateDoc(docRef, {
-          [`structuredEditables.${docType}`]: structuredDevis,
-          editableExtractionAttempted: { ...freshAttempts, [docType]: true },
+          [`structuredEditables.${targetDocType}`]: structuredDevis,
+          editableExtractionAttempted: { ...freshAttempts, [targetDocType]: true },
           updatedAt: serverTimestamp(),
         });
       }
@@ -432,7 +438,7 @@ export function DevisEditor({
       setVersions((v) => [newVersion, ...v]);
 
       if (uploaded) {
-        toast({ title: `${docType} enregistre`, description: 'Nouvelle version generee.' });
+        toast({ title: `${targetDocType} enregistre`, description: 'Nouvelle version generee.' });
       }
     } catch (e: any) {
       console.error('[devis-editor] save failed', e);
