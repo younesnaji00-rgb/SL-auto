@@ -116,6 +116,13 @@ function DeadlineBar({
   completed?: boolean;
   completedStatus?: string;
 }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (completed) return;
+    const id = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, [completed]);
+
   const { percent, remaining, expired, pending } = getDeadlineInfo(dateRDV, createdAt);
 
   // Completed: ATG uploaded photos + set a terrain status → hide progress bar,
