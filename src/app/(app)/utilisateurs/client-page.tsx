@@ -535,6 +535,7 @@ export default function UtilisateursClientPage() {
                     <TableHead>Nom</TableHead>
                     <TableHead>Mot de passe</TableHead>
                     <TableHead>Rôle</TableHead>
+                    <TableHead>Zone</TableHead>
                     <TableHead>Compagnies</TableHead>
                     <TableHead>Statut</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -544,7 +545,7 @@ export default function UtilisateursClientPage() {
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={`sk-${i}`}>
-                        <TableCell colSpan={6} className="p-0">
+                        <TableCell colSpan={7} className="p-0">
                           <SkeletonRow />
                         </TableCell>
                       </TableRow>
@@ -581,12 +582,12 @@ export default function UtilisateursClientPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap items-center gap-1">
-                            <Badge variant="outline">{user.role}</Badge>
-                            {user.zone && (
-                              <Badge variant="secondary" className="text-xs">{user.zone}</Badge>
-                            )}
-                          </div>
+                          <Badge variant="outline">{user.role}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {user.role === 'Agent de Terrain' && user.zone ? (
+                            <Badge variant="secondary" className="text-xs">{user.zone}</Badge>
+                          ) : null}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1 max-w-[200px]">
