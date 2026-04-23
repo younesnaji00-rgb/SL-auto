@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { getDocs, collection, Firestore } from 'firebase/firestore';
+import type { DevisRow } from './devis-schema';
 
 export type Piece = {
   id: string;
@@ -154,4 +155,44 @@ export function selectLatestAccord<T extends AccordMarked>(items: T[]): T[] {
     );
   }
   return items.filter((it) => (Number(it?.counterRoundOrder) || 0) === max);
+}
+
+/** Piece-shaped record produced from a DevisRow. Matches the Piece type
+ * in the generators closely enough to flow through `selectLatestAccord`
+ * and the downstream rapport tables. */
+type PieceLite = {
+  id: string;
+  designation: string;
+  operation: string;
+  typePiece: string;
+  vetuste: number;
+  quantite: number;
+  puHT: number;
+  remise: number;
+  typeChoc: string;
+  tva: boolean;
+  createdAt: null;
+  counterRoundOrder: number;
+};
+
+/**
+ * Convert a DevisRow (from structuredEditables accordé) into a Piece-shaped record
+ * so it flows through selectLatestAccord / rapport tables alongside subcollection pieces.
+ * Uses counterRoundOrder: 99 so accordé rows win over any legacy subcollection pieces.
+ */
+export function devisRowToPiece(row: DevisRow, typeChocFallback = ''): PieceLite {
+  return {
+    id: row.id,
+    designation: row.designation || '',
+    operation: '',
+    typePiece: row.type || '',
+    vetuste: Number(row.vetuste) || 0,
+    quantite: Number(row.qte) || 0,
+    puHT: Number(row.puHT) || 0,
+    remise: 0,
+    typeChoc: typeChocFallback,
+    tva: (Number(row.tva) || 0) > 0,
+    createdAt: null,
+    counterRoundOrder: 99,
+  };
 }

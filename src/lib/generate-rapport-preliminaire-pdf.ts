@@ -26,7 +26,9 @@ import {
   loadLocalImage,
   fetchCompagnieLogo,
   selectLatestAccord,
+  devisRowToPiece,
 } from './generate-rapport-shared';
+import type { DevisRow } from './devis-schema';
 
 type Rgb = readonly [number, number, number];
 
@@ -332,6 +334,15 @@ export async function generateRapportPreliminairePDF(
       (s) => ({ id: s.id, ...(s.data() as object) } as Piece)
     ),
   ];
+  // Pull accordé rows from the new flow (task #3 writes here).
+  const editables = (dData.structuredEditables || {}) as Record<string, { rows?: DevisRow[] }>;
+  const accordeRows: DevisRow[] = [
+    ...((editables['Devis accordé']?.rows) || []),
+    ...((editables['Facture accordé']?.rows) || []),
+  ];
+  for (const r of accordeRows) {
+    mergedPieces.push(devisRowToPiece(r) as Piece);
+  }
   // Keep only pieces belonging to the last accord round (task #10).
   const allPieces: Piece[] = selectLatestAccord(mergedPieces);
 

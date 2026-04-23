@@ -2,7 +2,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { getDoc, getDocs, doc, collection, query, where } from 'firebase/firestore';
-import { selectLatestAccord } from './generate-rapport-shared';
+import { selectLatestAccord, devisRowToPiece } from './generate-rapport-shared';
+import type { DevisRow } from './devis-schema';
 
 export type Piece = {
   id: string;
@@ -115,6 +116,15 @@ export async function generateRapportPDF(db: any, dossierId: string, typeRapport
     ...(piecesSnap as any).docs.map((s: any) => ({ id: s.id, ...s.data() })),
     ...(chiffrageSnap as any).docs.map((s: any) => ({ id: s.id, ...s.data() })),
   ] as Piece[];
+  // Pull accordé rows from the new flow (task #3 writes here).
+  const editables = (dData.structuredEditables || {}) as Record<string, { rows?: DevisRow[] }>;
+  const accordeRows: DevisRow[] = [
+    ...((editables['Devis accordé']?.rows) || []),
+    ...((editables['Facture accordé']?.rows) || []),
+  ];
+  for (const r of accordeRows) {
+    mergedPieces.push(devisRowToPiece(r) as Piece);
+  }
   const allPieces = selectLatestAccord(mergedPieces);
 
   // Load logos in parallel
