@@ -31,6 +31,7 @@ import { mapToAccorde } from '@/lib/docType-accorde';
 import { cn } from '@/lib/utils';
 import ReferencePanel from '@/app/editor/reference-panel';
 import { useSidebar } from '@/components/ui/sidebar';
+import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 
 /**
  * The devis editor is shared between two entry points:
@@ -427,6 +428,25 @@ export function DevisEditor({
           editableExtractionAttempted: { ...freshAttempts, [targetDocType]: true },
           updatedAt: serverTimestamp(),
         });
+      }
+
+      const activeDossierId = dossierIdProp || dossierId;
+      if (activeDossierId) {
+        await logHistorique(
+          db, activeDossierId,
+          `Enregistré ${targetDocType}`,
+          profile?.email || profile?.nom || 'Utilisateur',
+          `${snapshot.rows.length} ligne(s) enregistrée(s)`,
+          'document'
+        ).catch(() => {});
+        await logWorkflow(
+          db, activeDossierId,
+          `${targetDocType} mis à jour`,
+          profile?.email || profile?.nom || 'Utilisateur',
+          profile?.uid || '',
+          'done',
+          { details: `${snapshot.rows.length} ligne(s)` }
+        ).catch(() => {});
       }
 
       setVersions((v) => [newVersion, ...v]);

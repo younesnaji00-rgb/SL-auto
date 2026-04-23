@@ -25,6 +25,7 @@ import type {
   StructuredDevis,
 } from "./devis-schema";
 import { mapToAccorde } from "./docType-accorde";
+import { logHistorique, logWorkflow } from "@/app/(app)/dossiers/[id]/log-historique";
 
 export interface ChiffrageFile {
   name: string;
@@ -266,6 +267,22 @@ export async function saveGestionnaireDevisAsPieceJointe(
     [`structuredEditables.${targetDocType}`]: structured,
     updatedAt: serverTimestamp(),
   });
+
+  await logHistorique(
+    db, dossierId,
+    `Enregistré ${targetDocType}`,
+    author.email || author.nom || 'Utilisateur',
+    `${snapshot.rows.length} ligne(s) enregistrée(s)`,
+    'document'
+  ).catch(() => {});
+  await logWorkflow(
+    db, dossierId,
+    `${targetDocType} mis à jour`,
+    author.email || author.nom || 'Utilisateur',
+    author.uid || '',
+    'done',
+    { details: `${snapshot.rows.length} ligne(s)` }
+  ).catch(() => {});
 
   // 5. Mirror into the existing chiffrage when one is attached so the chiffreur
   //    sees the table the moment they open their editor. Matches the contract
