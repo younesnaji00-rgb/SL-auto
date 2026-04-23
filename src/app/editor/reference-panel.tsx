@@ -26,6 +26,7 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className }
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
   const [listOpen, setListOpen] = useState(true);
+  const [photoSubTab, setPhotoSubTab] = useState<'avant' | 'en_cours' | 'apres'>('avant');
 
   // Fetch photos
   const photosQuery = useMemo(
@@ -152,72 +153,86 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className }
       )}
 
       {/* Compact item selector */}
-      {listOpen && (
-      <div className="shrink-0 border-b max-h-[160px] overflow-y-auto">
-        {mode === 'photos' ? (
-          <div>
-            {Object.entries(groupedPhotos).map(([cat, items]) => (
-              items.length > 0 && (
-                <div key={cat}>
-                  <div className="px-3 py-1 bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    {categoryLabels[cat] || cat} ({items.length})
-                  </div>
-                  {items.map((p: any) => (
-                    <button
-                      key={p.id}
-                      className={cn(
-                        'w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors flex items-center gap-2',
-                        selectedId === p.id && 'bg-primary/10 text-primary font-semibold'
-                      )}
-                      onClick={() => setSelectedId(p.id)}
-                    >
-                      <ImageIcon className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{p.name || 'Photo'}</span>
-                    </button>
-                  ))}
-                </div>
-              )
+      {listOpen && mode === 'photos' && (
+        <div className="shrink-0 border-b flex flex-col">
+          {/* Photo sub-tab bar */}
+          <div className="flex border-b shrink-0">
+            {(['avant', 'en_cours', 'apres'] as const).map((key) => (
+              <button
+                key={key}
+                type="button"
+                className={cn(
+                  'flex-1 px-2 py-1.5 text-[11px] font-medium transition-colors',
+                  photoSubTab === key
+                    ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                    : 'text-muted-foreground hover:bg-muted/50'
+                )}
+                onClick={() => setPhotoSubTab(key)}
+              >
+                {categoryLabels[key]} ({groupedPhotos[key].length})
+              </button>
             ))}
-            {(!photos || photos.length === 0) && (
-              <div className="px-3 py-4 text-center text-xs text-muted-foreground italic">Aucune photo</div>
+          </div>
+          {/* Thumbnail grid */}
+          <div className="max-h-[220px] overflow-y-auto">
+            {groupedPhotos[photoSubTab].length === 0 ? (
+              <div className="px-3 py-8 text-center text-xs text-muted-foreground italic">Aucune photo</div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 p-2">
+                {groupedPhotos[photoSubTab].map((p: any) => (
+                  <PhotoThumb
+                    key={p.id}
+                    photo={p}
+                    selected={selectedId === p.id}
+                    onClick={() => {
+                      setSelectedId(p.id);
+                      setListOpen(false);
+                    }}
+                  />
+                ))}
+              </div>
             )}
           </div>
-        ) : (
-          <div>
-            {(() => {
-              if (!documents || documents.length === 0) {
-                return <div className="px-3 py-4 text-center text-xs text-muted-foreground italic">Aucun document</div>;
-              }
-              const groups: Record<string, any[]> = {};
-              for (const d of documents) {
-                const type = d.type || d.typeDocument || 'Autre';
-                if (!groups[type]) groups[type] = [];
-                groups[type].push(d);
-              }
-              return Object.entries(groups).map(([type, items]) => (
-                <div key={type}>
-                  <div className="px-3 py-1 bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    {type} ({items.length})
-                  </div>
-                  {items.map((d: any) => (
-                    <button
-                      key={d.id}
-                      className={cn(
-                        'w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors flex items-center gap-2',
-                        selectedId === d.id && 'bg-primary/10 text-primary font-semibold'
-                      )}
-                      onClick={() => setSelectedId(d.id)}
-                    >
-                      <FileText className="h-3 w-3 shrink-0" />
-                      <span className="truncate flex-1">{d.nom || d.name || 'Document'}</span>
-                    </button>
-                  ))}
+        </div>
+      )}
+
+      {listOpen && mode === 'documents' && (
+        <div className="shrink-0 border-b">
+          {(() => {
+            if (!documents || documents.length === 0) {
+              return <div className="px-3 py-4 text-center text-xs text-muted-foreground italic">Aucun document</div>;
+            }
+            const groups: Record<string, any[]> = {};
+            for (const d of documents) {
+              const type = d.type || d.typeDocument || 'Autre';
+              if (!groups[type]) groups[type] = [];
+              groups[type].push(d);
+            }
+            return Object.entries(groups).map(([type, items]) => (
+              <div key={type}>
+                <div className="px-3 py-1 bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  {type} ({items.length})
                 </div>
-              ));
-            })()}
-          </div>
-        )}
-      </div>
+                {items.map((d: any) => (
+                  <button
+                    key={d.id}
+                    className={cn(
+                      'w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors flex items-center gap-2',
+                      selectedId === d.id && 'bg-primary/10 text-primary font-semibold'
+                    )}
+                    onClick={() => {
+                      setSelectedId(d.id);
+                      setListOpen(false);
+                    }}
+                  >
+                    <FileText className="h-3 w-3 shrink-0" />
+                    <span className="truncate flex-1">{d.nom || d.name || 'Document'}</span>
+                  </button>
+                ))}
+              </div>
+            ));
+          })()}
+        </div>
       )}
 
       {/* Full-height viewer */}
@@ -317,5 +332,46 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
         }}
       />
     </div>
+  );
+}
+
+function PhotoThumb({
+  photo,
+  selected,
+  onClick,
+}: {
+  photo: any;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const storage = useStorage();
+  const [url, setUrl] = useState<string | null>(photo.url || null);
+  useEffect(() => {
+    if (photo.url) {
+      setUrl(photo.url);
+      return;
+    }
+    if (!photo.storagePath || !storage) return;
+    getDownloadURL(ref(storage, photo.storagePath))
+      .then((u) => setUrl(u))
+      .catch(() => setUrl(null));
+  }, [photo.url, photo.storagePath, storage]);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'relative aspect-square overflow-hidden rounded-md border bg-muted',
+        'hover:ring-2 hover:ring-primary transition-shadow focus:outline-none',
+        selected && 'ring-2 ring-primary'
+      )}
+      title={photo.name || 'Photo'}
+    >
+      {url ? (
+        <img src={url} alt={photo.name || 'Photo'} className="w-full h-full object-cover" />
+      ) : (
+        <div className="flex items-center justify-center w-full h-full text-[10px] text-muted-foreground">…</div>
+      )}
+    </button>
   );
 }
