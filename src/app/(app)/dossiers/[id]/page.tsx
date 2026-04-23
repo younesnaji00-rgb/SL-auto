@@ -7,7 +7,6 @@ import {
   Send,
   AlertTriangle,
   History,
-  Download,
   GitBranch,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,8 +18,6 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useDossierTabs } from '@/hooks/use-dossier-tabs';
-import { useToast } from '@/hooks/use-toast';
-import { generateRapportPDF } from '@/lib/generate-rapport-pdf';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 
 // ── Timeline ─────────────────────────────────────────────────────────────────
@@ -54,7 +51,6 @@ export default function DossierDetailPage({
   const dossierRef = useMemo(() => doc(db, 'dossiers', id), [db, id]);
   const { data: dossier, loading } = useDoc(dossierRef);
   const { canWrite } = useCurrentUser();
-  const { toast } = useToast();
   const readOnly = !canWrite('dossiers');
   const { openTab, refreshTabLabel } = useDossierTabs();
 
@@ -80,7 +76,6 @@ export default function DossierDetailPage({
   const [planificationInitialData, setPlanificationInitialData] = useState<any>(null);
   const [isChiffrageModalOpen, setChiffrageModalOpen] = useState(false);
   const [isReclamationModalOpen, setReclamationModalOpen] = useState(false);
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
   const [isHistoriqueOpen, setHistoriqueOpen] = useState(false);
 
@@ -152,19 +147,6 @@ export default function DossierDetailPage({
       <div className="bg-card border-b px-6 py-2 flex flex-wrap gap-2 items-center sticky top-0 z-40">
         <Button variant="outline" size="sm" onClick={() => setChiffrageModalOpen(true)} className="h-8 text-xs gap-1.5">
           <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
-        </Button>
-        <Button variant="outline" size="sm" loading={isExportingPdf} onClick={async () => {
-          setIsExportingPdf(true);
-          try {
-            await generateRapportPDF(db, id);
-            toast({ title: 'PDF exporté avec succès' });
-          } catch (e: any) {
-            toast({ variant: 'destructive', title: "Erreur d'export", description: e.message });
-          } finally {
-            setIsExportingPdf(false);
-          }
-        }} className="h-8 text-xs gap-1.5">
-          {isExportingPdf ? null : <Download className="h-3.5 w-3.5" />} Exporter PDF
         </Button>
         <Button variant="outline" size="sm" onClick={() => setReclamationModalOpen(true)} className="h-8 text-xs gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive">
           <AlertTriangle className="h-3.5 w-3.5" /> Réclamation
