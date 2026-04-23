@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pencil, Calendar as CalendarIcon, User, MapPin, Plus, Info, Clock, ChevronDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
@@ -19,8 +19,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useCollection, useFirestore } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -39,13 +39,28 @@ export default function PlanificationTab({
   onNewPlanification
 }: PlanificationTabProps) {
     const db = useFirestore();
-    const planQuery = useMemo(() => query(
-      collection(db, 'dossiers', dossierId, 'planifications'),
-      orderBy('createdAt', 'desc')
-    ), [db, dossierId]);
-
-    const { data: plans, loading } = useCollection<any>(planQuery);
+    const [plans, setPlans] = useState<any[] | null>(null);
+    const [loading, setLoading] = useState(true);
     const [expandedPlan, setExpandedPlan] = useState<any>(null);
+
+    useEffect(() => {
+        const q = query(
+            collection(db, 'dossiers', dossierId, 'planifications'),
+            orderBy('createdAt', 'desc')
+        );
+        const unsub = onSnapshot(
+            q,
+            (snap) => {
+                setPlans(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+                setLoading(false);
+            },
+            (err) => {
+                console.warn('[planification-tab] listener error', err);
+                setLoading(false);
+            }
+        );
+        return () => unsub();
+    }, [db, dossierId]);
 
     const formatTimestamp = (ts: any) => {
         if (!ts) return 'N/A';
