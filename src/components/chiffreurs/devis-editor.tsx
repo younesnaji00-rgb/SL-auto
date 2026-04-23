@@ -169,13 +169,13 @@ export function DevisEditor({
       modele: existing.modele || v.modele || mecStr || '',
       kilometrage: existing.kilometrage || v.km || '',
       chassis: existing.chassis || v.serie || '',
-      expert: existing.expert || profile?.nom || dossier.refExpert || '',
+      expert: existing.expert || '',
       client: existing.client || dossier.garageName || [a.prenom, a.nom].filter(Boolean).join(' ') || '',
       adresse: existing.adresse || a.adresse || '',
       telephone: existing.telephone || a.telephone || '',
       assurances: existing.assurances || dossier.compagnie || '',
     };
-  }, [dossier, profile?.nom]);
+  }, [dossier]);
 
   // Initialize editor state from chiffrage.structuredDevis (or kick off extraction once).
   useEffect(() => {
