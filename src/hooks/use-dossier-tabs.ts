@@ -11,6 +11,8 @@ import React, {
 } from 'react';
 import { useParams, usePathname } from 'next/navigation';
 
+export const LIST_TAB_ID = '__list__';
+
 export interface DossierTab {
   dossierId: string;
   label: string;
@@ -18,7 +20,9 @@ export interface DossierTab {
 
 interface DossierTabsContextValue {
   tabs: DossierTab[];
+  displayTabs: DossierTab[];
   activeDossierId: string | null;
+  activeTabId: string | null;
   openTab: (dossierId: string, label?: string) => void;
   closeTab: (dossierId: string) => string | null;
   refreshTabLabel: (dossierId: string, label: string) => void;
@@ -97,6 +101,8 @@ export function DossierTabsProvider({ children }: { children: React.ReactNode })
 
   const openTab = useCallback((dossierId: string, label?: string) => {
     if (!dossierId) return;
+    // The list tab is always present and is not stored in `tabs`; opening it is a no-op.
+    if (dossierId === LIST_TAB_ID) return;
     const safeLabel = label && label.trim().length > 0 ? label.trim() : defaultLabel(dossierId);
     setTabs((prev) => {
       const existing = prev.find((t) => t.dossierId === dossierId);
@@ -131,6 +137,8 @@ export function DossierTabsProvider({ children }: { children: React.ReactNode })
 
   const closeTab = useCallback(
     (dossierId: string): string | null => {
+      // The list tab is persistent and cannot be closed.
+      if (dossierId === LIST_TAB_ID) return null;
       let nextId: string | null = null;
       setTabs((prev) => {
         const idx = prev.findIndex((t) => t.dossierId === dossierId);
@@ -149,9 +157,19 @@ export function DossierTabsProvider({ children }: { children: React.ReactNode })
     [activeDossierId]
   );
 
+  const displayTabs = useMemo<DossierTab[]>(
+    () => [{ dossierId: LIST_TAB_ID, label: 'Dossiers' }, ...tabs],
+    [tabs]
+  );
+
+  const activeTabId = useMemo<string | null>(() => {
+    if (pathname === '/dossiers') return LIST_TAB_ID;
+    return activeDossierId;
+  }, [pathname, activeDossierId]);
+
   const value = useMemo<DossierTabsContextValue>(
-    () => ({ tabs, activeDossierId, openTab, closeTab, refreshTabLabel }),
-    [tabs, activeDossierId, openTab, closeTab, refreshTabLabel]
+    () => ({ tabs, displayTabs, activeDossierId, activeTabId, openTab, closeTab, refreshTabLabel }),
+    [tabs, displayTabs, activeDossierId, activeTabId, openTab, closeTab, refreshTabLabel]
   );
 
   return React.createElement(DossierTabsContext.Provider, { value }, children);

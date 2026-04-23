@@ -4,23 +4,29 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useDossierTabs } from '@/hooks/use-dossier-tabs';
+import { LIST_TAB_ID, useDossierTabs } from '@/hooks/use-dossier-tabs';
 
 /**
  * Horizontal strip of in-app "browser tabs" for opened dossiers.
  * Mimics the semantics of real browser tabs but lives inside the app shell.
+ * The first tab is a persistent "Dossiers" list tab that cannot be closed.
  */
 export default function DossierTabsBar() {
   const router = useRouter();
-  const { tabs, activeDossierId, closeTab } = useDossierTabs();
+  const { displayTabs, activeTabId, activeDossierId, closeTab } = useDossierTabs();
 
   // Reserve the same height whether tabs are present or not to avoid jitter.
-  if (tabs.length === 0) {
+  // Defensive: the list tab is always present, but guard for safety.
+  if (displayTabs.length === 0) {
     return <div className="h-0" aria-hidden="true" />;
   }
 
   const handleTabClick = (id: string) => {
-    if (id === activeDossierId) return;
+    if (id === activeTabId) return;
+    if (id === LIST_TAB_ID) {
+      router.push('/dossiers');
+      return;
+    }
     router.push(`/dossiers/${id}`);
   };
 
@@ -44,8 +50,9 @@ export default function DossierTabsBar() {
       aria-label="Dossiers ouverts"
       className="flex h-10 w-full items-stretch gap-1 overflow-x-auto whitespace-nowrap border-b bg-muted/30 px-2"
     >
-      {tabs.map((tab) => {
-        const isActive = tab.dossierId === activeDossierId;
+      {displayTabs.map((tab) => {
+        const isActive = tab.dossierId === activeTabId;
+        const isListTab = tab.dossierId === LIST_TAB_ID;
         return (
           <div
             key={tab.dossierId}
@@ -68,17 +75,19 @@ export default function DossierTabsBar() {
             title={tab.label}
           >
             <span className="truncate">{tab.label}</span>
-            <button
-              type="button"
-              aria-label={`Fermer ${tab.label}`}
-              onClick={(e) => handleClose(e, tab.dossierId)}
-              className={cn(
-                'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors',
-                'hover:bg-destructive/10 hover:text-destructive focus:outline-none focus-visible:ring-1 focus-visible:ring-ring'
-              )}
-            >
-              <X className="h-3 w-3" />
-            </button>
+            {!isListTab && (
+              <button
+                type="button"
+                aria-label={`Fermer ${tab.label}`}
+                onClick={(e) => handleClose(e, tab.dossierId)}
+                className={cn(
+                  'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors',
+                  'hover:bg-destructive/10 hover:text-destructive focus:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+                )}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </div>
         );
       })}
