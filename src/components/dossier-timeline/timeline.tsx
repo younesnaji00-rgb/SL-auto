@@ -19,10 +19,7 @@ function TimelineSection({ id, label, children, collapsed, onToggle }: TimelineS
     <section
       id={`step-${id}`}
       data-timeline-step={id}
-      className={cn(
-        'scroll-mt-24 py-6 border-b last:border-b-0',
-        !collapsed && 'min-h-[60vh]'
-      )}
+      className="scroll-mt-24 py-6 border-b last:border-b-0"
     >
       <button
         type="button"
