@@ -5,6 +5,7 @@ import {
   FileIcon,
   FileText,
   Loader2,
+  Pencil,
   Plus,
   Trash2,
   X,
@@ -19,7 +20,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useAuth, useCollection, useFirestore, useStorage } from '@/firebase';
-import { addDoc, collection, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { deleteObject, ref } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { extractAndPersistDossierDoc } from '@/lib/devis-extract';
@@ -53,6 +54,8 @@ const BASE_DOC_SLOTS = [
   'Numéro de chassis',
 ];
 
+type ExtraSlotKind = 'devis' | 'facture';
+
 type TypedDoc = {
   id: string;
   nom?: string;
@@ -66,6 +69,11 @@ type TypedDoc = {
   storagePath?: string;
   pendingUpload?: boolean;
   taille?: number;
+  // Marks a document as belonging to a gestionnaire-created extra slot
+  // (rendered after "Devis Garage" / "Facture Garage"). The slot grouping
+  // key is still the `type` string; this field is used only to detect
+  // which slots are user-managed (pimple + rename affordances).
+  extraSlot?: ExtraSlotKind;
 };
 
 interface TypedDocumentsGridProps {
@@ -111,24 +119,59 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
   // Task #25 — Build the final slot list dynamically. The base skeleton is
   // always present; cardinal accord (ordinal ≥ 2) and proposition-accord
   // variants are inserted contiguously after the matching source-accordé slot.
-  const computedSlots = useMemo(() => {
+  // Gestionnaire-created extras (flagged `extraSlot: 'devis' | 'facture'`) are
+  // inserted contiguously after the matching base Garage slot.
+  const { computedSlots, extraDevisLabels, extraFactureLabels } = useMemo(() => {
     const dynamic = new Set<string>();
+    const extraDevis: string[] = [];
+    const extraFacture: string[] = [];
+    const seenExtraDevis = new Set<string>();
+    const seenExtraFacture = new Set<string>();
+
     if (allDocs) {
       for (const d of allDocs as TypedDoc[]) {
         const label = d.type || d.typeDocument || '';
+        if (!label) continue;
         const parsed = parseAccordDocType(label);
-        if (!parsed) continue;
-        if (parsed.kind === 'accord' && parsed.ordinal >= 2) {
-          dynamic.add(label);
-        } else if (parsed.kind === 'proposition-accord') {
-          dynamic.add(label);
+        if (parsed) {
+          if (parsed.kind === 'accord' && parsed.ordinal >= 2) dynamic.add(label);
+          else if (parsed.kind === 'proposition-accord') dynamic.add(label);
+          continue;
+        }
+        if (d.extraSlot === 'devis' && !seenExtraDevis.has(label)) {
+          seenExtraDevis.add(label);
+          extraDevis.push(label);
+        } else if (d.extraSlot === 'facture' && !seenExtraFacture.has(label)) {
+          seenExtraFacture.add(label);
+          extraFacture.push(label);
         }
       }
     }
 
+    // Stable ordering: numeric-aware sort so `Devis Garage 2, 3, 10` beats
+    // lexicographic `10, 2, 3`. Falls back to localeCompare for renamed labels.
+    const numericAware = (a: string, b: string) => {
+      const ra = /(\d+)\s*$/.exec(a);
+      const rb = /(\d+)\s*$/.exec(b);
+      if (ra && rb) return parseInt(ra[1], 10) - parseInt(rb[1], 10);
+      return a.localeCompare(b, 'fr');
+    };
+    extraDevis.sort(numericAware);
+    extraFacture.sort(numericAware);
+
     const slots: string[] = [];
     for (const base of BASE_DOC_SLOTS) {
       slots.push(base);
+      if (base === 'Devis Garage') {
+        for (const label of extraDevis) {
+          if (!slots.includes(label)) slots.push(label);
+        }
+      }
+      if (base === 'Facture Garage') {
+        for (const label of extraFacture) {
+          if (!slots.includes(label)) slots.push(label);
+        }
+      }
       if (base === 'Devis accordé') {
         for (const ord of [2, 3]) {
           const label = mapToAccorde('Devis Garage', 'accord', ord);
@@ -150,8 +193,20 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
         }
       }
     }
-    return slots;
+    return {
+      computedSlots: slots,
+      extraDevisLabels: extraDevis,
+      extraFactureLabels: extraFacture,
+    };
   }, [allDocs]);
+
+  // Quick lookup: is this slot label a gestionnaire-managed extra?
+  const extraSlotKindByLabel = useMemo(() => {
+    const map: Record<string, ExtraSlotKind> = {};
+    for (const l of extraDevisLabels) map[l] = 'devis';
+    for (const l of extraFactureLabels) map[l] = 'facture';
+    return map;
+  }, [extraDevisLabels, extraFactureLabels]);
 
   const docsByType = useMemo(() => {
     const map: Record<string, TypedDoc[]> = {};
@@ -194,6 +249,10 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
         return { file, timestamp, storagePath };
       });
 
+      // Tag uploads with `extraSlot` when targeting a gestionnaire-managed
+      // slot, so the slot stays detectable after the placeholder is gone.
+      const extraKind = extraSlotKindByLabel[slot];
+
       // Fire all uploads in parallel so a batch of N files completes in ~1 file's time
       // instead of N × single-file time.
       const results = await Promise.allSettled(
@@ -214,6 +273,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
               uploadedByName: userName,
               storagePath,
               _localCreatedAt: timestamp,
+              ...(extraKind ? { extraSlot: extraKind } : {}),
             },
           }),
         ),
@@ -268,6 +328,90 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
       }
     } finally {
       setUploadingSlot(null);
+    }
+  };
+
+  // Create a fresh gestionnaire-managed slot (Devis Garage / Facture Garage
+  // extras). Default label is `<Base> <N>` with N = existingExtrasMax+1
+  // starting at 2 so the first extra is labelled "… 2". The gestionnaire can
+  // then rename it via the pencil affordance.
+  const handleCreateExtraSlot = async (kind: ExtraSlotKind) => {
+    if (!db || !auth) return;
+    const existing = kind === 'devis' ? extraDevisLabels : extraFactureLabels;
+    const base = kind === 'devis' ? 'Devis Garage' : 'Facture Garage';
+    const pattern = kind === 'devis'
+      ? /^Devis Garage\s+(\d+)$/
+      : /^Facture Garage\s+(\d+)$/;
+    let maxN = 1;
+    for (const l of existing) {
+      const m = pattern.exec(l);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (Number.isFinite(n) && n > maxN) maxN = n;
+      }
+    }
+    const nextN = maxN + 1;
+    const label = `${base} ${nextN}`;
+    const userId = auth.currentUser?.uid || 'unknown';
+    try {
+      await addDoc(collection(db, 'dossiers', dossierId, 'documents'), {
+        type: label,
+        extraSlot: kind,
+        pendingUpload: true,
+        storagePath: null,
+        url: null,
+        createdAt: serverTimestamp(),
+        createdBy: userId,
+      });
+      toast({ title: `Nouveau slot créé : ${label}` });
+    } catch (err: any) {
+      console.error('[typed-docs-grid] create extra slot failed', err);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur lors de la création du slot',
+        description: err?.message || 'Impossible de créer le slot.',
+      });
+    }
+  };
+
+  // Rename a gestionnaire-managed extra slot. The `type` string is the
+  // grouping key, so we batch-update every doc currently in the slot.
+  const handleRenameExtraSlot = async (oldLabel: string) => {
+    if (!db) return;
+    const kind = extraSlotKindByLabel[oldLabel];
+    if (!kind) return;
+    const raw = window.prompt(`Renommer « ${oldLabel} » :`, oldLabel);
+    if (raw == null) return;
+    const newLabel = raw.trim();
+    if (!newLabel || newLabel === oldLabel) return;
+    if (computedSlots.includes(newLabel)) {
+      toast({
+        variant: 'destructive',
+        title: 'Nom déjà utilisé',
+        description: 'Un autre slot porte déjà ce nom.',
+      });
+      return;
+    }
+    try {
+      const targets = (allDocs as TypedDoc[] || []).filter(
+        (d) => (d.type || d.typeDocument || '') === oldLabel,
+      );
+      await Promise.all(
+        targets.map((d) =>
+          updateDoc(doc(db, 'dossiers', dossierId, 'documents', d.id), {
+            type: newLabel,
+            extraSlot: kind,
+          }),
+        ),
+      );
+      toast({ title: `Slot renommé : ${newLabel}` });
+    } catch (err: any) {
+      console.error('[typed-docs-grid] rename extra slot failed', err);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur lors du renommage',
+        description: err?.message || 'Impossible de renommer le slot.',
+      });
     }
   };
 
@@ -359,9 +503,13 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
               userRole={profile?.role}
               isUploading={uploadingSlot === slot}
               deletingId={deletingId}
+              extraSlotKind={extraSlotKindByLabel[slot]}
+              canManageExtraSlots={canWrite('dossiers')}
               onUpload={(files) => handleUpload(slot, files)}
               onDelete={handleDelete}
               onCreateNextCardinal={() => handleCreateNextCardinal(slot)}
+              onCreateExtraSlot={handleCreateExtraSlot}
+              onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
               onPreview={(d) => {
                 if (d.url && !d.pendingUpload) {
                   setPreviewDoc({ url: d.url, nom: d.nom || d.fileName || 'document' });
@@ -429,9 +577,13 @@ interface SlotCardProps {
   userRole?: string;
   isUploading: boolean;
   deletingId: string | null;
+  extraSlotKind?: ExtraSlotKind;
+  canManageExtraSlots: boolean;
   onUpload: (files: File[]) => void;
   onDelete: (d: TypedDoc) => void;
   onCreateNextCardinal: () => void;
+  onCreateExtraSlot: (kind: ExtraSlotKind) => void;
+  onRenameExtraSlot: () => void;
   onPreview: (d: TypedDoc) => void;
 }
 
@@ -443,9 +595,13 @@ function SlotCard({
   userRole,
   isUploading,
   deletingId,
+  extraSlotKind,
+  canManageExtraSlots,
   onUpload,
   onDelete,
   onCreateNextCardinal,
+  onCreateExtraSlot,
+  onRenameExtraSlot,
   onPreview,
 }: SlotCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -464,18 +620,48 @@ function SlotCard({
     !!parsedAccord && userRole === 'Gestionnaire';
   // Pimple "+" button appears only on `accord` slots (not proposition) with a
   // next-cardinal within cap (max 3ème).
-  const showPimple =
+  const showCardinalPimple =
     !!parsedAccord &&
     parsedAccord.kind === 'accord' &&
     parsedAccord.ordinal + 1 <= 3;
+  // Gestionnaires may advance the accord chain only when the current slot has
+  // evidence. Non-gestionnaires (Admin / Responsable / Chiffreur) are free to
+  // create the next cardinal regardless.
+  const cardinalPimpleDisabled =
+    userRole === 'Gestionnaire' && docs.length === 0;
+  // Base-slot pimple: next to `Devis Garage` / `Facture Garage`, lets the
+  // gestionnaire spawn a new numbered slot (first = "… 2", then 3, etc.).
+  const baseExtraKind: ExtraSlotKind | null =
+    slot === 'Devis Garage' ? 'devis'
+    : slot === 'Facture Garage' ? 'facture'
+    : null;
+  const showExtraSlotPimple = !!baseExtraKind && canManageExtraSlots;
+  // Rename pencil: only on gestionnaire-managed extras (not on the base
+  // `Devis Garage` / `Facture Garage` and not on cardinal accord variants).
+  const showRenameButton = !!extraSlotKind && canManageExtraSlots;
 
   return (
     <Card className="relative shadow-sm border rounded-lg overflow-visible flex flex-col">
       <CardHeader className="py-2.5 px-3 border-b">
         <CardTitle className="font-semibold text-sm flex items-center justify-between gap-2">
           <span className="truncate" title={slot}>{slot}</span>
-          <span className="text-[10px] font-normal text-muted-foreground shrink-0">
-            {docs.length}
+          <span className="flex items-center gap-1 shrink-0">
+            {showRenameButton && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                onClick={onRenameExtraSlot}
+                title="Renommer"
+                aria-label="Renommer le slot"
+              >
+                <Pencil className="h-3 w-3" />
+              </Button>
+            )}
+            <span className="text-[10px] font-normal text-muted-foreground">
+              {docs.length}
+            </span>
           </span>
         </CardTitle>
       </CardHeader>
@@ -579,13 +765,35 @@ function SlotCard({
         )}
       </CardContent>
 
-      {showPimple && canEdit && (
+      {showCardinalPimple && canEdit && (
         <button
           type="button"
           onClick={onCreateNextCardinal}
-          className="absolute -right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm shadow hover:scale-110 transition z-10"
-          title="Créer le cardinal suivant"
+          disabled={cardinalPimpleDisabled}
+          className={cn(
+            "absolute -right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm shadow transition z-10",
+            cardinalPimpleDisabled
+              ? "opacity-40 cursor-not-allowed"
+              : "hover:scale-110",
+          )}
+          title={
+            cardinalPimpleDisabled
+              ? "Téléversez un document dans ce slot avant de créer le prochain accord."
+              : "Créer le cardinal suivant"
+          }
           aria-label="Créer le cardinal suivant"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      )}
+
+      {showExtraSlotPimple && baseExtraKind && (
+        <button
+          type="button"
+          onClick={() => onCreateExtraSlot(baseExtraKind)}
+          className="absolute -right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm shadow hover:scale-110 transition z-10"
+          title={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
+          aria-label={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
