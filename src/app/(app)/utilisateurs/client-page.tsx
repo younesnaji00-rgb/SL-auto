@@ -149,10 +149,10 @@ export default function UtilisateursClientPage() {
     try {
       const email = generateEmail(data.nom);
 
-      // Check if name already exists
-      const existingSnap = await getDocs(query(collection(db, 'users'), where('nom', '==', data.nom)));
+      // Check if name already exists (case-insensitive via nomLowercase — task #45)
+      const existingSnap = await getDocs(query(collection(db, 'users'), where('nomLowercase', '==', data.nom.trim().toLowerCase())));
       if (!existingSnap.empty) {
-        toast({ variant: 'destructive', title: 'Erreur', description: 'Un utilisateur avec ce nom existe déjà.' });
+        toast({ variant: 'destructive', title: 'Erreur', description: 'Un utilisateur avec ce nom existe déjà (insensible à la casse).' });
         setIsSubmitting(false);
         return;
       }
