@@ -17,7 +17,19 @@ export interface ExtractAndPersistParams {
 }
 
 export type ExtractResult =
-  | { ok: true; reason: 'already-extracted' | 'already-attempted' | 'no-files' | 'extracted' | 'counter-only'; structuredDevis?: StructuredDevis }
+  | {
+      ok: true;
+      reason: 'already-extracted' | 'already-attempted' | 'no-files' | 'extracted' | 'counter-only';
+      structuredDevis?: StructuredDevis;
+      /**
+       * Task #35: arithmetic mismatches surfaced by `/api/scan-devis` (task #34).
+       * Populated on a fresh original-scan; empty on the idempotent no-op paths
+       * (`already-extracted`, `already-attempted`, `no-files`, `counter-only`).
+       * Forwarded to the editor so the scan-warning dialog can render them as
+       * bullets under its body copy.
+       */
+      calculationErrors: string[];
+    }
   | { ok: false; reason: 'missing-chiffrage' | 'fetch-failed' | 'api-failed' | 'persist-failed' | 'no-original-for-counter'; error?: string };
 
 /**
@@ -62,7 +74,7 @@ export async function extractAndPersistChiffrageDevis(
 
     if (targetFiles.length === 0) {
       await markAttempted(docRef, docType);
-      return { ok: true, reason: 'no-files' };
+      return { ok: true, reason: 'no-files', calculationErrors: [] };
     }
 
     // Variant split — only relevant for Devis. Facture has no variants.
@@ -76,6 +88,10 @@ export async function extractAndPersistChiffrageDevis(
 
     let existing: StructuredDevis | null = editables[docType] || null;
 
+    // Task #35: aggregated per-file `calculationErrors` from /api/scan-devis,
+    // forwarded to the editor's scan-warning dialog on a fresh extraction.
+    const aggregatedCalculationErrors: string[] = [];
+
     // Phase 1: originals
     const needsOriginalExtract = force || !existing;
     if (needsOriginalExtract) {
@@ -87,17 +103,21 @@ export async function extractAndPersistChiffrageDevis(
 
       if (!force && attempts[docType] && !existing) {
         // Previously attempted and failed — don't loop.
-        return { ok: true, reason: 'already-attempted' };
+        return { ok: true, reason: 'already-attempted', calculationErrors: [] };
       }
 
       const originalExtractions = await Promise.all(
         originalFiles.map((file) => scanOriginal(storage, file))
       );
-      const successful = originalExtractions.filter((r) => r.ok) as Array<{ ok: true; parsed: any }>;
+      const successful = originalExtractions.filter((r) => r.ok) as Array<{ ok: true; parsed: any; calculationErrors: string[] }>;
 
       if (successful.length === 0) {
         await markAttempted(docRef, docType);
         return { ok: false, reason: 'api-failed', error: `Aucun ${docType.toLowerCase()} n'a pu etre extrait.` };
+      }
+
+      for (const s of successful) {
+        if (Array.isArray(s.calculationErrors)) aggregatedCalculationErrors.push(...s.calculationErrors);
       }
 
       const mergedHeader: DevisHeader = emptyHeader();
@@ -204,7 +224,7 @@ export async function extractAndPersistChiffrageDevis(
 
     // Short-circuit: nothing changed → no write, no counter-only error.
     if (!needsOriginalExtract && counterColumnsAdded === 0) {
-      return { ok: true, reason: 'already-extracted', structuredDevis: existing || undefined };
+      return { ok: true, reason: 'already-extracted', structuredDevis: existing || undefined, calculationErrors: [] };
     }
 
     if (!existing) {
@@ -230,6 +250,7 @@ export async function extractAndPersistChiffrageDevis(
       ok: true,
       reason: needsOriginalExtract ? 'extracted' : 'counter-only',
       structuredDevis: existing,
+      calculationErrors: needsOriginalExtract ? aggregatedCalculationErrors : [],
     };
   } catch (e: any) {
     return { ok: false, reason: 'persist-failed', error: e?.message };
@@ -269,7 +290,7 @@ export async function extractAndPersistDossierDoc({
   skipAIScan?: boolean;
 }): Promise<ExtractResult> {
   if (skipAIScan) {
-    return { ok: true, reason: 'already-extracted' };
+    return { ok: true, reason: 'already-extracted', calculationErrors: [] };
   }
   const dossierRef = doc(db, 'dossiers', dossierId);
 
@@ -290,7 +311,7 @@ export async function extractAndPersistDossierDoc({
       puHT: numOrNull(r.puHT) ?? 0,
     }));
     if (rows.length === 0) {
-      return { ok: true, reason: 'no-files' };
+      return { ok: true, reason: 'no-files', calculationErrors: [] };
     }
 
     // Merge with any existing extraction (append rows, preserve earlier header values).
@@ -315,7 +336,7 @@ export async function extractAndPersistDossierDoc({
       updatedAt: serverTimestamp(),
     });
 
-    return { ok: true, reason: 'extracted', structuredDevis: structured };
+    return { ok: true, reason: 'extracted', structuredDevis: structured, calculationErrors: result.calculationErrors };
   } catch (e: any) {
     return { ok: false, reason: 'persist-failed', error: e?.message };
   }
@@ -324,7 +345,7 @@ export async function extractAndPersistDossierDoc({
 async function scanOriginal(
   storage: FirebaseStorage,
   file: any
-): Promise<{ ok: true; parsed: any } | { ok: false; error?: string }> {
+): Promise<{ ok: true; parsed: any; calculationErrors: string[] } | { ok: false; error?: string }> {
   try {
     const url = await getDownloadURL(storageRef(storage, file.storagePath));
     const res = await fetch(url);
@@ -340,7 +361,8 @@ async function scanOriginal(
     });
     if (!r.ok) throw new Error(`api ${r.status}`);
     const parsed = await r.json();
-    return { ok: true, parsed };
+    const calculationErrors: string[] = Array.isArray(parsed?.calculationErrors) ? parsed.calculationErrors : [];
+    return { ok: true, parsed, calculationErrors };
   } catch (e: any) {
     console.error('[devis-extract] original scan failed for', file?.storagePath, e);
     return { ok: false, error: e?.message };

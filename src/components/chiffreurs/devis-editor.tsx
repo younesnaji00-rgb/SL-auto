@@ -136,6 +136,10 @@ export function DevisEditor({
   // successful `runExtraction` flips it false and opens the warning dialog.
   const [scanWarningOpen, setScanWarningOpen] = useState(false);
   const [scanReviewed, setScanReviewed] = useState(true);
+  // Task #35: arithmetic mismatches reported by /api/scan-devis (task #34),
+  // plumbed through extractAndPersistChiffrageDevis and rendered as bullets
+  // in the scan-warning dialog. Reset to [] on each fresh extraction.
+  const [scanCalculationErrors, setScanCalculationErrors] = useState<string[]>([]);
 
   const initializedRef = useRef(false);
 
@@ -303,6 +307,9 @@ export function DevisEditor({
         toast({ title: 'Extraction automatique terminee', description: `${sd.rows.length} ligne(s) detectee(s) depuis ${devisFileNames.length} ${typeLabel.lower}(s).` });
         // Task #33: a fresh scan just populated editor state — lock edits and
         // surface the warning dialog until the chiffreur confirms review.
+        // Task #35: feed the dialog the calculationErrors from the API so they
+        // render as bullets underneath the body copy.
+        setScanCalculationErrors(Array.isArray(result.calculationErrors) ? result.calculationErrors : []);
         setScanReviewed(false);
         setScanWarningOpen(true);
       }
@@ -1364,6 +1371,7 @@ export function DevisEditor({
       <ScanWarningDialog
         open={scanWarningOpen}
         onOpenChange={setScanWarningOpen}
+        calculationErrors={scanCalculationErrors}
         onConfirm={() => {
           setScanReviewed(true);
           setScanWarningOpen(false);
