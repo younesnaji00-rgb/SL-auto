@@ -1,11 +1,34 @@
 import type { Timestamp } from 'firebase/firestore';
 
-/** Document types that can be edited via the structured web editor (devis-editor). */
-export const EDITABLE_DOC_TYPES = ['Devis Garage', 'Facture Garage'] as const;
-export type EditableDocType = typeof EDITABLE_DOC_TYPES[number];
+/** Base document types editable via the structured web editor. */
+export const EDITABLE_BASE_DOC_TYPES = ['Devis Garage', 'Facture Garage'] as const;
+export type EditableBaseDocType = typeof EDITABLE_BASE_DOC_TYPES[number];
+
+/** Backwards-compat alias. Prefer `EDITABLE_BASE_DOC_TYPES`. */
+export const EDITABLE_DOC_TYPES = EDITABLE_BASE_DOC_TYPES;
+
+/**
+ * Document types editable via the structured web editor. Includes the two base
+ * slots plus the gestionnaire-managed extras (`Devis Garage 2`, `Facture
+ * Garage 3`, …) created via the `+` pimple. Each extra is a fully independent
+ * upload target whose scanned table feeds the chiffreur separately.
+ */
+export type EditableDocType =
+  | EditableBaseDocType
+  | `${EditableBaseDocType} ${number}`;
 
 export function isEditableDocType(t?: string): t is EditableDocType {
-  return !!t && (EDITABLE_DOC_TYPES as readonly string[]).includes(t);
+  if (!t) return false;
+  if ((EDITABLE_BASE_DOC_TYPES as readonly string[]).includes(t)) return true;
+  // Numbered extras: "Devis Garage 2", "Facture Garage 10", etc. (N ≥ 2).
+  const m = /^(Devis Garage|Facture Garage)\s+(\d+)$/.exec(t);
+  return !!m && parseInt(m[2], 10) >= 2;
+}
+
+/** Strip the trailing ordinal (if any) so callers indexed by base can still work. */
+export function toBaseEditableDocType(t: EditableDocType): EditableBaseDocType {
+  if ((EDITABLE_BASE_DOC_TYPES as readonly string[]).includes(t)) return t as EditableBaseDocType;
+  return t.startsWith('Devis Garage') ? 'Devis Garage' : 'Facture Garage';
 }
 
 /** Allowed values for the `ref` column of a devis row. */

@@ -30,11 +30,11 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { enqueueUpload } from '@/lib/offline/upload-queue';
 import {
   type DevisExtraColumn, type DevisHeader, type DevisRow, type DevisSnapshot, type DevisVersion, type StructuredDevis,
+  type EditableBaseDocType, type EditableDocType,
   emptyHeader, emptyRow, formatFr, normalizeExtraColumns, parseFr, rowTotalHT, sumHT, sumTTC, sumTVA,
-  REF_OPTIONS, TYPE_OPTIONS,
+  REF_OPTIONS, TYPE_OPTIONS, toBaseEditableDocType,
 } from '@/lib/devis-schema';
 import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
-import type { EditableDocType } from '@/lib/devis-schema';
 import { saveGestionnaireDevisAsPieceJointe } from '@/lib/send-to-chiffrage';
 import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
 import { deriveStatus } from '@/lib/status-machine';
@@ -82,7 +82,7 @@ const HEADER_FIELDS_RIGHT: Array<{ key: keyof DevisHeader; label: string }> = [
   { key: 'assurances', label: 'Assurances' },
 ];
 
-const DOC_TYPE_LABEL: Record<EditableDocType, { plural: string; lower: string }> = {
+const DOC_TYPE_LABEL: Record<EditableBaseDocType, { plural: string; lower: string }> = {
   'Devis Garage': { plural: 'devis', lower: 'devis' },
   'Facture Garage': { plural: 'factures', lower: 'facture' },
 };
@@ -93,7 +93,7 @@ export function DevisEditor({
   mode = 'chiffreur',
   dossierId: dossierIdProp,
 }: DevisEditorProps) {
-  const typeLabel = DOC_TYPE_LABEL[docType];
+  const typeLabel = DOC_TYPE_LABEL[toBaseEditableDocType(docType)];
   const isGestionnaire = mode === 'gestionnaire';
   // Task #5: columns are now fixed and always include Vétusté (regardless of
   // docType), per the standardised Moroccan devis/facture layout.
@@ -1362,7 +1362,7 @@ export function DevisEditor({
           open={previewOpen}
           onOpenChange={setPreviewOpen}
           snapshot={previewSnapshot}
-          docType={docType}
+          docType={toBaseEditableDocType(docType)}
           accordKind={previewAccordKind}
           ordinal={previewOrdinal}
           onConfirm={async ({ blob, stampId }) => {
