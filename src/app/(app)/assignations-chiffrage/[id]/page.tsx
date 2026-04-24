@@ -7,10 +7,11 @@ import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { useCollection, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Mail, Scale } from 'lucide-react';
+import { ArrowLeft, Mail, Scale, PencilLine } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { isEditableDocType } from '@/lib/devis-schema';
 import { parseAccordDocType } from '@/lib/docType-accorde';
+import { buildDocFamilies } from '@/lib/doc-family';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOptions } from '@/hooks/use-options';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
@@ -30,6 +31,8 @@ import {
   ALL_TYPES_KEY,
   type DocumentsFilterPanelDoc,
 } from '@/components/chiffreurs/documents-filter-panel';
+import { FamilyRow } from '@/components/dossier-timeline/family-row';
+import type { TypedDoc } from '@/components/dossier-timeline/slot-card';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -130,6 +133,43 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     });
   }, [dossierDocs]);
 
+  // Group live docs into Devis / Facture families so we can render one
+  // horizontal row per parent garage, matching the gestionnaire's step-4
+  // layout. Each row gets a sticky "Éditer web" button that opens the
+  // devis-editor for that family's source garage.
+  const families = useMemo(
+    () => buildDocFamilies((dossierDocs as TypedDoc[]) || []),
+    [dossierDocs],
+  );
+
+  const familyDocsByType = useMemo(() => {
+    const map: Record<string, TypedDoc[]> = {};
+    for (const fam of families) for (const slot of fam.slots) map[slot] = [];
+    if (dossierDocs) {
+      for (const d of dossierDocs as TypedDoc[]) {
+        const t = d.type || d.typeDocument || '';
+        if (map[t]) map[t].push(d);
+      }
+    }
+    for (const slot of Object.keys(map)) {
+      map[slot].sort((a, b) => {
+        if (a.pendingUpload && !b.pendingUpload) return -1;
+        if (!a.pendingUpload && b.pendingUpload) return 1;
+        return (a.nom || a.fileName || '').localeCompare(b.nom || b.fileName || '');
+      });
+    }
+    return map;
+  }, [dossierDocs, families]);
+
+  const devisFamilies = useMemo(
+    () => families.filter((f) => f.sourceDocType === 'Devis Garage'),
+    [families],
+  );
+  const factureFamilies = useMemo(
+    () => families.filter((f) => f.sourceDocType === 'Facture Garage'),
+    [families],
+  );
+
   // Task #31 — Route the panel's "open" action. Editable types (and cardinal /
   // proposition-accord variants of those) deep-link into the DevisEditor using
   // the same `chiffrageId` + `docType` + optional `accordSlot` query params task
@@ -159,6 +199,39 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       window.open(docEntry.url, '_blank', 'noopener,noreferrer');
     }
   };
+
+  // Route a family's "Éditer web" button to the structured devis editor.
+  const handleEditerWeb = (parent: string) => {
+    router.push(`/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(parent)}`);
+  };
+
+  // Chiffreur-side slot card click handler. Routes to the same targets as the
+  // docs-filter-panel's open action: editable types + accord variants open
+  // the structured editor; non-editable types open the raw file.
+  const handleFamilyDocPreview = (d: TypedDoc) => {
+    const label = (d.type || d.typeDocument || '') as string;
+    if (isEditableDocType(label)) {
+      router.push(`/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(label)}`);
+      return;
+    }
+    const parsed = parseAccordDocType(label);
+    if (parsed) {
+      router.push(
+        `/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(parsed.parent)}&accordSlot=${encodeURIComponent(label)}`,
+      );
+      return;
+    }
+    if (d.url) window.open(d.url, '_blank', 'noopener,noreferrer');
+  };
+
+  // No-op handlers for the chiffreur-side slot card: uploads and slot
+  // management belong to the gestionnaire flow.
+  const chiffreurNoOpUpload = () => {};
+  const chiffreurNoOpDelete = () => {};
+  const chiffreurNoOpCreateNextCardinal = () => {};
+  const chiffreurNoOpCreateExtraSlot = () => {};
+  const chiffreurNoOpRename = () => {};
+  const chiffreurNeverDelete = () => false;
 
   // Task #31 — Import is intentionally not wired to a picker here: the chiffreur
   // does not upload documents from this screen. Passing a no-op (rather than
@@ -342,6 +415,81 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           {dossierStatut}
         </Badge>
       </div>
+
+      {/* Devis & Factures — one horizontal row per parent garage (base or
+          gestionnaire-created extra). Each row has a sticky "Éditer web"
+          button pinned to the left that opens the structured devis editor
+          for that family's source. Mirrors the gestionnaire's step-4 layout
+          in read-only mode. */}
+      {(devisFamilies.length > 0 || factureFamilies.length > 0) && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Devis &amp; Factures
+          </h2>
+          {devisFamilies.map((group) => (
+            <FamilyRow
+              key={group.parent}
+              group={group}
+              docsByType={familyDocsByType}
+              canEdit={false}
+              canDeleteDoc={chiffreurNeverDelete}
+              userRole={profile?.role}
+              canManageExtraSlots={false}
+              isUploading={() => false}
+              deletingId={null}
+              extraSlotKindForSlot={() => undefined}
+              onUpload={chiffreurNoOpUpload}
+              onDelete={chiffreurNoOpDelete}
+              onCreateNextCardinal={chiffreurNoOpCreateNextCardinal}
+              onCreateExtraSlot={chiffreurNoOpCreateExtraSlot}
+              onRenameExtraSlot={chiffreurNoOpRename}
+              onPreview={handleFamilyDocPreview}
+              leftAction={
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-1.5 shrink-0"
+                  onClick={() => handleEditerWeb(group.parent)}
+                >
+                  <PencilLine className="h-3.5 w-3.5" />
+                  Éditer web
+                </Button>
+              }
+            />
+          ))}
+          {factureFamilies.map((group) => (
+            <FamilyRow
+              key={group.parent}
+              group={group}
+              docsByType={familyDocsByType}
+              canEdit={false}
+              canDeleteDoc={chiffreurNeverDelete}
+              userRole={profile?.role}
+              canManageExtraSlots={false}
+              isUploading={() => false}
+              deletingId={null}
+              extraSlotKindForSlot={() => undefined}
+              onUpload={chiffreurNoOpUpload}
+              onDelete={chiffreurNoOpDelete}
+              onCreateNextCardinal={chiffreurNoOpCreateNextCardinal}
+              onCreateExtraSlot={chiffreurNoOpCreateExtraSlot}
+              onRenameExtraSlot={chiffreurNoOpRename}
+              onPreview={handleFamilyDocPreview}
+              leftAction={
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-1.5 shrink-0"
+                  onClick={() => handleEditerWeb(group.parent)}
+                >
+                  <PencilLine className="h-3.5 w-3.5" />
+                  Éditer web
+                </Button>
+              }
+            />
+          ))}
+        </section>
+      )}
 
       {/* Task #31 — Documents filter panel (mirrors the dossier documents-tab's
           "second page" / import view). Import is disabled for chiffreurs; the
