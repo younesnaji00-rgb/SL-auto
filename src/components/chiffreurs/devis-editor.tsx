@@ -13,6 +13,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { useFirestore, useStorage } from '@/firebase';
@@ -22,6 +25,7 @@ import { enqueueUpload } from '@/lib/offline/upload-queue';
 import {
   type DevisExtraColumn, type DevisHeader, type DevisRow, type DevisSnapshot, type DevisVersion, type StructuredDevis,
   emptyHeader, emptyRow, formatFr, normalizeExtraColumns, parseFr, rowTotalHT, sumHT, sumTTC, sumTVA,
+  REF_OPTIONS, TYPE_OPTIONS,
 } from '@/lib/devis-schema';
 import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import type { EditableDocType } from '@/lib/devis-schema';
@@ -703,10 +707,46 @@ export function DevisEditor({
                 return (
                   <tr key={r.id} className="[&>td]:px-1.5 [&>td]:py-1 [&>td]:border-b [&>td]:border-r [&>td:last-child]:border-r-0 group hover:bg-muted/30">
                     <td>
-                      <CellInput value={r.type} onChange={(v) => updateRow(r.id, { type: v })} disabled={!canEdit} />
+                      {/* scanned values outside the enum render blank so the chiffreur picks */}
+                      <Select
+                        value={(TYPE_OPTIONS as readonly string[]).includes(r.type) ? r.type : ''}
+                        onValueChange={(v) => {
+                          // Set tva=20 only when transitioning INTO 'Originale' from a different type.
+                          // This preserves any manual tva edit when re-selecting 'Originale' (no-op transition).
+                          if (v === 'Originale' && r.type !== 'Originale') {
+                            updateRow(r.id, { type: 'Originale', tva: 20 });
+                          } else {
+                            updateRow(r.id, { type: v });
+                          }
+                        }}
+                        disabled={!canEdit}
+                      >
+                        <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
+                          <SelectValue placeholder="" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TYPE_OPTIONS.map((opt) => (
+                            <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </td>
                     <td>
-                      <CellInput value={r.ref} onChange={(v) => updateRow(r.id, { ref: v })} disabled={!canEdit} />
+                      {/* scanned values outside the enum render blank so the chiffreur picks */}
+                      <Select
+                        value={(REF_OPTIONS as readonly string[]).includes(r.ref) ? r.ref : ''}
+                        onValueChange={(v) => updateRow(r.id, { ref: v })}
+                        disabled={!canEdit}
+                      >
+                        <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
+                          <SelectValue placeholder="" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {REF_OPTIONS.map((opt) => (
+                            <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </td>
                     <td>
                       <CellInput value={r.designation} onChange={(v) => updateRow(r.id, { designation: v })} disabled={!canEdit} />
