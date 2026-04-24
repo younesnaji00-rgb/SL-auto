@@ -21,7 +21,19 @@ import {
  */
 export function renderDevisPdf(
   devis: DevisSnapshot,
-  opts?: { author?: string; versionTimestamp?: Date; docType?: EditableDocType }
+  opts?: {
+    author?: string;
+    versionTimestamp?: Date;
+    docType?: EditableDocType;
+    /**
+     * Optional user-uploaded stamp image rendered in the identity block's
+     * right column (where the old hardcoded "SL AUTO EXPERTISE" text stamp
+     * used to render). The image is drawn into a fixed rectangle; if the
+     * image's aspect ratio differs from the rectangle it will be stretched.
+     * Known limitation: no cropping UI — acceptable for now.
+     */
+    stampImage?: { dataUrl: string; width: number; height: number } | null;
+  }
 ): Blob {
   const showVetuste = (opts?.docType ?? 'Devis') === 'Devis';
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -117,19 +129,23 @@ export function renderDevisPdf(
   drawRows(leftRows, margin, blockY, colW);
   drawRows(rightRows, margin + colW, blockY, colW);
 
-  // SL Auto stamp (right column, bottom)
-  pdf.setDrawColor(30, 64, 175);
-  pdf.setTextColor(30, 64, 175);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(8);
+  // Optional user-uploaded stamp image (right column, bottom).
+  // Occupies the same rectangle the old hardcoded "SL AUTO EXPERTISE" text
+  // stamp used. If no image is provided, nothing is rendered here.
+  // Known limitation: the image is stretched to fit the rectangle regardless
+  // of aspect ratio — no cropping UI yet.
   const stampX = margin + colW + 40;
   const stampY = blockY + 22;
-  pdf.rect(stampX, stampY, colW - 42, 14);
-  pdf.text('Proposition du 1er Expert', stampX + 2, stampY + 4);
-  pdf.text('SL AUTO EXPERTISE', stampX + 2, stampY + 8);
-  pdf.text('Expertise Contradictoire - CID', stampX + 2, stampY + 12);
-  pdf.setTextColor(20, 20, 20);
-  pdf.setDrawColor(120, 120, 120);
+  const stampW = colW - 42;
+  const stampH = 14;
+  if (opts?.stampImage && opts.stampImage.dataUrl) {
+    const dataUrl = opts.stampImage.dataUrl;
+    const format = dataUrl.startsWith('data:image/jpeg')
+      || dataUrl.startsWith('data:image/jpg')
+      ? 'JPEG'
+      : 'PNG';
+    pdf.addImage(dataUrl, format, stampX, stampY, stampW, stampH);
+  }
 
   // ── Main table ──────────────────────────────────────────────────────────
   // Normalize extra columns from new (`extraColumns`) or legacy (`extraColumn`) shape.
