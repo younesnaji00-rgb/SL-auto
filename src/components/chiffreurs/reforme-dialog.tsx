@@ -32,11 +32,11 @@ export interface ReformeDialogProps {
 // Task #37 — Expand réforme flavours. Labels are capitalized because they are
 // rendered directly in the dropdown. The schema still accepts any string to
 // stay backward-compatible with legacy lowercase 'technique' records.
-const REFORME_TYPES = ['Technique', 'Économique'] as const;
+export const REFORME_TYPES = ['Technique', 'Économique'] as const;
 
 // Legacy lowercase 'technique' should map to the canonical 'Technique' label
 // when rehydrating existing dossiers.
-function normalizeReformeType(raw: string | undefined): string {
+export function normalizeReformeType(raw: string | undefined): string {
   if (!raw) return '';
   const low = raw.toLowerCase();
   if (low === 'technique') return 'Technique';

@@ -25,6 +25,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
 import { useChiffreurWorkload } from '@/hooks/use-workload-counts';
+import { REFORME_TYPES, normalizeReformeType } from '@/components/chiffreurs/reforme-dialog';
 
 interface ChiffrageItem {
   id: string;
@@ -68,12 +69,13 @@ export default function AssignationsChiffragePage() {
   const chiffreurWorkload = useChiffreurWorkload();
   const [chiffrages, setChiffrages] = useState<ChiffrageItem[]>([]);
   const [dossierStatuts, setDossierStatuts] = useState<Record<string, string>>({});
+  const [dossierReformeTypes, setDossierReformeTypes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Record<string, Set<string>>>({});
   const [deadlineSort, setDeadlineSort] = useState<SortDirection>(null);
-  const filterDefaults = { dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', chiffreurFilter: 'Tous' };
+  const filterDefaults = { dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', chiffreurFilter: 'Tous', typeReformeFilter: 'Tous' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-chiffrage', filterDefaults);
-  const { dateFrom, dateTo, compagnieFilter, chiffreurFilter } = filters;
+  const { dateFrom, dateTo, compagnieFilter, chiffreurFilter, typeReformeFilter } = filters;
 
   // Listen to chiffrages
   useEffect(() => {
@@ -105,6 +107,7 @@ export default function AssignationsChiffragePage() {
           setDossierStatuts(prev => ({ ...prev, [did]: data.statut || 'Nouveau' }));
           setDossierCompagnies(prev => ({ ...prev, [did]: data.compagnie || '' }));
           setDossierNatures(prev => ({ ...prev, [did]: data.nature || '' }));
+          setDossierReformeTypes(prev => ({ ...prev, [did]: data.reforme?.typeReforme || '' }));
         }
       })
     );
@@ -168,6 +171,9 @@ export default function AssignationsChiffragePage() {
     if (chiffreurFilter !== 'Tous') {
       results = results.filter(c => c.assignedChiffreurNom?.trim() === chiffreurFilter);
     }
+    if (typeReformeFilter !== 'Tous') {
+      results = results.filter(c => normalizeReformeType(dossierReformeTypes[c.dossierId]) === typeReformeFilter);
+    }
     if (dateFrom) {
       const from = new Date(dateFrom);
       results = results.filter(c => {
@@ -210,7 +216,7 @@ export default function AssignationsChiffragePage() {
       });
     }
     return results;
-  }, [chiffrages, compagnieFilter, chiffreurFilter, dossierCompagnies, dateFrom, dateTo, deadlineSort]);
+  }, [chiffrages, compagnieFilter, chiffreurFilter, typeReformeFilter, dossierCompagnies, dossierReformeTypes, dateFrom, dateTo, deadlineSort]);
 
   const formatDate = (ts: any) => {
     if (!ts) return '-';
@@ -281,6 +287,24 @@ export default function AssignationsChiffragePage() {
               )}
             </div>
           )}
+          <div className="relative">
+            <Select value={typeReformeFilter} onValueChange={v => setFilters({ typeReformeFilter: v })}>
+              <SelectTrigger className="w-[160px] h-9 text-xs">
+                <SelectValue placeholder="Type réforme" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Tous">Tous les types</SelectItem>
+                {REFORME_TYPES.map(t => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {typeReformeFilter !== 'Tous' && (
+              <button onClick={() => clearFilter('typeReformeFilter')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
+                <X className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </div>
           <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
         </div>
       </div>
