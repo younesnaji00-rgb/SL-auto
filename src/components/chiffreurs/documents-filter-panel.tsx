@@ -26,7 +26,6 @@ import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
 
 export const ALL_TYPES_KEY = '__all__';
 
@@ -272,20 +271,8 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
               </p>
             </div>
           ) : (
-            <CollapsedByDayList
-              items={visibleDocs}
-              getDate={(item) => {
-                const ts = item.dateUpload || item.uploadedAt;
-                if (!ts) return null;
-                return ts.toDate ? ts.toDate() : new Date(ts);
-              }}
-              keyOf={(item) => item.id}
-              defaultExpanded={false}
-              gridItems
-              groupLabel={(day, count) =>
-                `${format(day, 'd MMMM yyyy', { locale: fr })} — ${count} document${count > 1 ? 's' : ''}`
-              }
-              renderItem={(item) => {
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 p-3">
+              {visibleDocs.map((item) => {
                 const name = item.nom || item.fileName || 'document';
                 const isImg = isImage(name) && !!item.url;
                 const isPdfFile = isPdf(name);
@@ -293,6 +280,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                 const selectable = !item.pendingUpload && !!item.url;
                 return (
                   <div
+                    key={item.id}
                     className={cn(
                       'group relative border rounded-lg overflow-hidden bg-card shadow-sm hover:shadow-md transition-all cursor-pointer',
                       selectionMode && isSelected && 'ring-2 ring-primary border-primary',
@@ -410,8 +398,8 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                     </div>
                   </div>
                 );
-              }}
-            />
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
