@@ -155,13 +155,18 @@ export function renderDevisPdf(
   ];
 
   const body = devis.rows.map((r) => {
+    // Blank cells in the source (main d'oeuvre / labor rows have no qté/tva/vétusté)
+    // must stay blank in the PDF — don't print "0" where the source had nothing.
+    const vetusteCell = r.vetuste == null ? '' : `${formatFr(r.vetuste, 0)}%`;
+    const tvaCell = r.tva == null ? '' : `${formatFr(r.tva, 0)}%`;
+    const qteCell = r.qte == null ? '' : formatFr(r.qte, 0);
     const base = [
       r.ref || '',
       r.designation || '',
-      ...(showVetuste ? [`${formatFr(r.vetuste || 0, 0)}%`] : []),
+      ...(showVetuste ? [vetusteCell] : []),
       r.type || '',
-      `${formatFr(r.tva, 0)}%`,
-      formatFr(r.qte, 0),
+      tvaCell,
+      qteCell,
       formatFr(r.puHT),
       formatFr(rowTotalHT(r)),
     ];

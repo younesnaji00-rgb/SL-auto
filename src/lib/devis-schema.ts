@@ -28,11 +28,13 @@ export interface DevisRow {
   id: string;
   ref: string;
   designation: string;
-  /** Vetuste percentage (0-100). Devis-only; ignored for Facture rows. */
-  vetuste?: number;
+  /** Vetuste percentage (0-100). Devis-only; ignored for Facture rows. null = blank (main d'oeuvre / labor rows). */
+  vetuste?: number | null;
   type: string;
-  tva: number;
-  qte: number;
+  /** null = blank (main d'oeuvre has no TVA when source cell is empty). */
+  tva: number | null;
+  /** null = blank (main d'oeuvre rows have no quantity). */
+  qte: number | null;
   puHT: number;
 }
 
@@ -144,10 +146,10 @@ export function emptyRow(): DevisRow {
   };
 }
 
-export function rowTotalHT(r: { qte: number; puHT: number; vetuste?: number }): number {
-  const q = Number.isFinite(r.qte) ? r.qte : 0;
+export function rowTotalHT(r: { qte: number | null; puHT: number; vetuste?: number | null }): number {
+  const q = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
   const p = Number.isFinite(r.puHT) ? r.puHT : 0;
-  const vRaw = Number.isFinite(r.vetuste ?? NaN) ? (r.vetuste as number) : 0;
+  const vRaw = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
   // Clamp vétusté to [0, 100] so an out-of-range value never flips the sign.
   const v = Math.min(100, Math.max(0, vRaw));
   return q * p * (1 - v / 100);
@@ -159,7 +161,7 @@ export function sumHT(rows: DevisRow[]): number {
 
 export function sumTVA(rows: DevisRow[]): number {
   return rows.reduce((acc, r) => {
-    const tvaPct = Number.isFinite(r.tva) ? r.tva : 0;
+    const tvaPct = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
     return acc + (rowTotalHT(r) * tvaPct) / 100;
   }, 0);
 }
@@ -181,6 +183,19 @@ export function formatFr(n: number, fractionDigits = 2): string {
 export function toOrdinalFr(n: number): string {
   if (n === 1) return '1er';
   return `${n}ème`;
+}
+
+/**
+ * Parse a value that MAY be blank. Returns null for null/undefined/empty string
+ * or anything that doesn't produce a finite number. Used by AI-extraction paths
+ * so main d'oeuvre rows (blank qte/tva in the source PDF) stay blank in the
+ * editor instead of being coerced to 0.
+ */
+export function numOrNull(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'string' && v.trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 /** Parse "1 234,50" or "1234.50" or "1,234.50" → number */

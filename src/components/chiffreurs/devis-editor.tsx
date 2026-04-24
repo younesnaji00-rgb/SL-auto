@@ -311,7 +311,10 @@ export function DevisEditor({
   // Inline totals row values — task #5 replaces the stacked totals card with a
   // single sticky row at the bottom of the same table.
   const totalsRow = useMemo(() => {
-    const qteSum = rows.reduce((acc, r) => acc + (Number.isFinite(r.qte) ? r.qte : 0), 0);
+    const qteSum = rows.reduce(
+      (acc, r) => acc + (typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0),
+      0,
+    );
     const puCount = rows.length;
     const puSum = rows.reduce((acc, r) => acc + (Number.isFinite(r.puHT) ? r.puHT : 0), 0);
     const puMean = puCount > 0 ? puSum / puCount : 0;
@@ -617,12 +620,12 @@ export function DevisEditor({
           <table className="min-w-[900px] w-full text-xs border-collapse">
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:font-bold [&>th]:text-[11px] [&>th]:border-b [&>th]:border-r [&>th:last-child]:border-r-0 [&>th]:bg-muted/50">
-                <th style={{ width: '80px' }} className="text-center">Vetuste</th>
                 <th style={{ width: '90px' }}>Type</th>
                 <th style={{ width: '90px' }}>REF</th>
                 <th>Designation</th>
                 <th style={{ width: '70px' }} className="text-center">T.V.A</th>
                 <th style={{ width: '70px' }} className="text-center">Quantite</th>
+                <th style={{ width: '80px' }} className="text-center">Vetuste</th>
                 <th style={{ width: '110px' }} className="text-right">P.U.H.T</th>
                 <th style={{ width: '120px' }} className="text-right">Total H.T</th>
                 {extraColumns.map((col) => {
@@ -660,16 +663,6 @@ export function DevisEditor({
                 return (
                   <tr key={r.id} className="[&>td]:px-1.5 [&>td]:py-1 [&>td]:border-b [&>td]:border-r [&>td:last-child]:border-r-0 group hover:bg-muted/30">
                     <td>
-                      <CellNumberInput
-                        value={r.vetuste ?? 0}
-                        onChange={(v) => updateRow(r.id, { vetuste: v })}
-                        disabled={!canEdit}
-                        suffix="%"
-                        decimals={0}
-                        align="center"
-                      />
-                    </td>
-                    <td>
                       <CellInput value={r.type} onChange={(v) => updateRow(r.id, { type: v })} disabled={!canEdit} />
                     </td>
                     <td>
@@ -679,13 +672,24 @@ export function DevisEditor({
                       <CellInput value={r.designation} onChange={(v) => updateRow(r.id, { designation: v })} disabled={!canEdit} />
                     </td>
                     <td>
-                      <CellNumberInput value={r.tva} onChange={(v) => updateRow(r.id, { tva: v })} disabled={!canEdit} suffix="%" decimals={0} align="center" />
+                      <CellNumberInput value={r.tva} onChange={(v) => updateRow(r.id, { tva: v })} disabled={!canEdit} suffix="%" decimals={0} align="center" allowNull />
                     </td>
                     <td>
-                      <CellNumberInput value={r.qte} onChange={(v) => updateRow(r.id, { qte: v })} disabled={!canEdit} decimals={0} align="center" />
+                      <CellNumberInput value={r.qte} onChange={(v) => updateRow(r.id, { qte: v })} disabled={!canEdit} decimals={0} align="center" allowNull />
                     </td>
                     <td>
-                      <CellNumberInput value={r.puHT} onChange={(v) => updateRow(r.id, { puHT: v })} disabled={!canEdit} align="right" />
+                      <CellNumberInput
+                        value={r.vetuste ?? null}
+                        onChange={(v) => updateRow(r.id, { vetuste: v })}
+                        disabled={!canEdit}
+                        suffix="%"
+                        decimals={0}
+                        align="center"
+                        allowNull
+                      />
+                    </td>
+                    <td>
+                      <CellNumberInput value={r.puHT} onChange={(v) => updateRow(r.id, { puHT: v ?? 0 })} disabled={!canEdit} align="right" />
                     </td>
                     {/* Total H.T is computed — read-only, auto-updating. */}
                     <td className="text-right font-semibold pr-2">{formatFr(total)}</td>
@@ -724,12 +728,12 @@ export function DevisEditor({
                   '[&>td]:px-1.5 [&>td]:py-2 [&>td]:border-t-2 [&>td]:border-foreground/20 [&>td]:bg-muted/80',
                 )}
               >
-                <td className="text-center text-muted-foreground">—</td>
                 <td className="text-muted-foreground">Total</td>
                 <td />
                 <td />
                 <td />
                 <td className="text-center">{formatFr(totalsRow.qteSum, 0)}</td>
+                <td className="text-center text-muted-foreground">—</td>
                 <td className="text-right">
                   {totalsRow.puCount > 0 ? formatFr(totalsRow.puMean) : ''}
                 </td>
@@ -881,16 +885,28 @@ function CellInput({
 }
 
 function CellNumberInput({
-  value, onChange, disabled, align = 'left', suffix, decimals = 2,
+  value, onChange, disabled, align = 'left', suffix, decimals = 2, allowNull = false,
 }: {
-  value: number; onChange: (v: number) => void; disabled?: boolean;
-  align?: 'left' | 'center' | 'right'; suffix?: string; decimals?: number;
+  value: number | null | undefined;
+  onChange: (v: number | null) => void;
+  disabled?: boolean;
+  align?: 'left' | 'center' | 'right';
+  suffix?: string;
+  decimals?: number;
+  /**
+   * When true, an empty input emits `null` (blank cell — main d'oeuvre has no qte/tva/vetuste).
+   * When false, an empty input emits 0 (legacy default, used for puHT / Total).
+   */
+  allowNull?: boolean;
 }) {
-  const [text, setText] = useState<string>(formatFr(value, decimals));
+  const displayFor = (v: number | null | undefined) =>
+    v === null || v === undefined ? '' : formatFr(v, decimals);
+
+  const [text, setText] = useState<string>(displayFor(value));
   const [focused, setFocused] = useState(false);
 
   useEffect(() => {
-    if (!focused) setText(formatFr(value, decimals));
+    if (!focused) setText(displayFor(value));
   }, [value, decimals, focused]);
 
   return (
@@ -898,13 +914,23 @@ function CellNumberInput({
       <input
         value={text}
         onChange={(e) => {
-          setText(e.target.value);
-          onChange(parseFr(e.target.value));
+          const next = e.target.value;
+          setText(next);
+          if (next.trim() === '') {
+            onChange(allowNull ? null : 0);
+          } else {
+            onChange(parseFr(next));
+          }
         }}
         onFocus={(e) => { setFocused(true); e.currentTarget.select(); }}
         onBlur={() => {
           setFocused(false);
-          setText(formatFr(parseFr(text), decimals));
+          if (text.trim() === '') {
+            setText('');
+            onChange(allowNull ? null : 0);
+          } else {
+            setText(formatFr(parseFr(text), decimals));
+          }
         }}
         disabled={disabled}
         inputMode="decimal"

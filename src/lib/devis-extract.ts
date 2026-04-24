@@ -1,7 +1,7 @@
 import { doc, getDoc, serverTimestamp, updateDoc, type Firestore } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, type FirebaseStorage } from 'firebase/storage';
 import {
-  emptyHeader, formatFr,
+  emptyHeader, formatFr, numOrNull,
   type DevisExtraColumn, type DevisHeader, type DevisRow, type EditableDocType, type StructuredDevis,
 } from './devis-schema';
 import type { ScanDevisCounterOutput } from './scan-devis-counter-schema';
@@ -117,9 +117,9 @@ export async function extractAndPersistChiffrageDevis(
             ref: r.ref || 'CHANGE',
             designation: r.designation || '',
             type: r.type || '',
-            tva: Number(r.tva) || 0,
-            qte: Number(r.qte) || 0,
-            puHT: Number(r.puHT) || 0,
+            tva: numOrNull(r.tva),
+            qte: numOrNull(r.qte),
+            puHT: numOrNull(r.puHT) ?? 0,
           });
         });
       }
@@ -285,9 +285,9 @@ export async function extractAndPersistDossierDoc({
       ref: r.ref || 'CHANGE',
       designation: r.designation || '',
       type: r.type || '',
-      tva: Number(r.tva) || 0,
-      qte: Number(r.qte) || 0,
-      puHT: Number(r.puHT) || 0,
+      tva: numOrNull(r.tva),
+      qte: numOrNull(r.qte),
+      puHT: numOrNull(r.puHT) ?? 0,
     }));
     if (rows.length === 0) {
       return { ok: true, reason: 'no-files' };

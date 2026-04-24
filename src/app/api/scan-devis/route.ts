@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
+import { numOrNull } from '@/lib/devis-schema';
 
 /**
  * AI Devis Scanner API.
@@ -56,8 +57,8 @@ SCHÉMA JSON STRICT:
       "ref": string,
       "designation": string,
       "type": string,
-      "tva": number,
-      "qte": number,
+      "tva": number | null,
+      "qte": number | null,
       "puHT": number
     }
   ]
@@ -68,8 +69,8 @@ RÈGLES STRICTES:
 2. Extrais CHAQUE ligne du tableau individuellement (y compris les lignes dupliquées).
 3. Pour "ref": si le document affiche "CHANGE" ou équivalent, copie le tel quel. Sinon laisse vide.
 4. Pour "type": souvent vide ou contient un code ("ORG", "ADP", etc.). Copie tel quel.
-5. "tva" est un nombre (0, 20, 7, 10). Si affiché "0%", renvoie 0. Si vide, renvoie 0.
-6. "qte" et "puHT" sont des nombres. Convertis "1 234,50" en 1234.50.
+5. "tva" est un nombre (0, 20, 7, 10). Si affiché "0%", renvoie 0. Si la cellule est VIDE (aucun pourcentage affiché — typique des lignes de main d'œuvre), renvoie null.
+6. "qte" et "puHT" sont des nombres. Convertis "1 234,50" en 1234.50. Si la cellule "qte" est VIDE (typique des lignes de main d'œuvre / forfait), renvoie null — ne mets JAMAIS 0 à la place d'une case vide.
 7. Ne calcule PAS Total H.T — il sera recalculé.
 8. Pour le header: "dateDevis" au format "DD/MM/YYYY" tel qu'affiché. "modele" peut être soit un nom de modèle, soit une date de mise en circulation — copie ce qui est affiché.
 9. Si un champ du header n'est pas présent, renvoie null pour ce champ.
@@ -130,9 +131,11 @@ Conserve les marqueurs textuels comme "S/R" dans le champ "designation" si ils y
       ref: String(r.ref ?? '').trim() || 'CHANGE',
       designation: String(r.designation ?? '').trim(),
       type: String(r.type ?? '').trim(),
-      tva: Number(r.tva) || 0,
-      qte: Number(r.qte) || 0,
-      puHT: Number(r.puHT) || 0,
+      tva: numOrNull(r.tva),
+      qte: numOrNull(r.qte),
+      // puHT stays 0-defaulting — a line without a price is still a line, and
+      // labor rows DO have a price (it's the labor cost itself).
+      puHT: numOrNull(r.puHT) ?? 0,
     }));
 
     return NextResponse.json({
