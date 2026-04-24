@@ -3,9 +3,9 @@
 import React, { useEffect, useState, useRef, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
-import { useFirestore, useStorage } from '@/firebase';
+import { useCollection, useFirestore, useStorage } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { EDITABLE_DOC_TYPES, isEditableDocType } from '@/lib/devis-schema';
+import { parseAccordDocType, mapToAccorde } from '@/lib/docType-accorde';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
@@ -94,6 +95,15 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     return () => unsub();
   }, [db, chiffrage?.dossierId]);
 
+  // Task #29 — Subscribe to the parent dossier's `documents` subcollection so we can
+  // surface cardinal-accord + proposition-accord docTypes as their own groups (with
+  // their own deep-link to the editor) alongside the always-present editable slots.
+  const dossierDocsQuery = useMemo(() => {
+    if (!db || !chiffrage?.dossierId) return null;
+    return collection(db, 'dossiers', chiffrage.dossierId, 'documents');
+  }, [db, chiffrage?.dossierId]);
+  const { data: dossierDocs } = useCollection<any>(dossierDocsQuery);
+
   useEffect(() => {
     if (!chiffrage || !storage) return;
     chiffrage.files.forEach((file, i) => {
@@ -106,11 +116,53 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     });
   }, [chiffrage?.files?.length, storage]);
 
+  // Task #29 — Cardinal + proposition-accord docTypes that exist on the parent
+  // dossier, in the canonical order used by the typed-documents-grid (#25):
+  //   Devis Garage (base)
+  //   → Devis accordé (ordinal 1), Devis 2ème accord, Devis 3ème accord
+  //   → 1ère/2ème/3ème proposition d'accord (devis)
+  //   Facture Garage (base) then the Facture variants in the same order.
+  // Only variants actually present on the dossier are included.
+  const cardinalSlotsPresent = useMemo(() => {
+    const present = new Set<string>();
+    if (dossierDocs) {
+      for (const d of dossierDocs as any[]) {
+        const label: string = d?.type || d?.typeDocument || '';
+        const parsed = parseAccordDocType(label);
+        if (!parsed) continue;
+        // Safety check — never let a base editable docType slip in here (it
+        // wouldn't round-trip through parseAccordDocType anyway).
+        if ((EDITABLE_DOC_TYPES as readonly string[]).includes(label)) continue;
+        present.add(label);
+      }
+    }
+    const ordered: string[] = [];
+    const sources: readonly ('Devis Garage' | 'Facture Garage')[] = ['Devis Garage', 'Facture Garage'];
+    for (const src of sources) {
+      for (const ord of [1, 2, 3]) {
+        const label = mapToAccorde(src, 'accord', ord);
+        if (present.has(label) && !ordered.includes(label)) ordered.push(label);
+      }
+      for (const ord of [1, 2, 3]) {
+        const label = mapToAccorde(src, 'proposition-accord', ord);
+        if (present.has(label) && !ordered.includes(label)) ordered.push(label);
+      }
+    }
+    return ordered;
+  }, [dossierDocs]);
+
   const groupedFiles = useMemo(() => {
     const groups: Record<string, { label: string; icon: 'photo' | 'doc'; files: { file: ChiffrageFileDoc; index: number }[] }> = {};
 
     // Always-present groups (editable types) so the "Editer (web)" button is visible even when empty.
     EDITABLE_DOC_TYPES.forEach((t) => {
+      groups[`doc_${t}`] = { label: t, icon: 'doc', files: [] };
+    });
+
+    // Task #29 — Also register cardinal + proposition-accord groups that exist on
+    // the parent dossier. These render even when no chiffrage file matches the
+    // slot so the user can deep-link into the editor with the right accord context.
+    cardinalSlotsPresent.forEach((t) => {
       groups[`doc_${t}`] = { label: t, icon: 'doc', files: [] };
     });
 
@@ -134,18 +186,25 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     });
 
     // Explicit ordering: editable-doc groups first (in EDITABLE_DOC_TYPES order),
-    // then photos, then remaining docs alphabetically.
-    const editableKeys = new Set(EDITABLE_DOC_TYPES.map((t) => `doc_${t}`));
+    // followed by cardinal/proposition-accord groups (in canonical source+kind+ordinal
+    // order from `cardinalSlotsPresent`), then photos, then remaining docs alphabetically.
+    const alwaysKeys = new Set<string>([
+      ...EDITABLE_DOC_TYPES.map((t) => `doc_${t}`),
+      ...cardinalSlotsPresent.map((t) => `doc_${t}`),
+    ]);
     const entries = Object.entries(groups);
     const editableEntries = EDITABLE_DOC_TYPES
       .map((t) => entries.find(([k]) => k === `doc_${t}`))
       .filter((e): e is [string, typeof groups[string]] => !!e);
+    const cardinalEntries = cardinalSlotsPresent
+      .map((t) => entries.find(([k]) => k === `doc_${t}`))
+      .filter((e): e is [string, typeof groups[string]] => !!e);
     const photoEntries = entries.filter(([k]) => k.startsWith('photo_'));
     const otherEntries = entries
-      .filter(([k]) => !editableKeys.has(k) && !k.startsWith('photo_'))
+      .filter(([k]) => !alwaysKeys.has(k) && !k.startsWith('photo_'))
       .sort((a, b) => a[1].label.localeCompare(b[1].label));
-    return [...editableEntries, ...photoEntries, ...otherEntries];
-  }, [chiffrage?.files]);
+    return [...editableEntries, ...cardinalEntries, ...photoEntries, ...otherEntries];
+  }, [chiffrage?.files, cardinalSlotsPresent]);
 
   const toggleGroup = (group: string) => {
     setExpandedGroups(prev => {
@@ -242,17 +301,28 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
                   Historique
                 </Button>
               )}
-              {canEdit && isEditableDocType(group.label) && (
+              {canEdit && (isEditableDocType(group.label) || parseAccordDocType(group.label)) && (
                 <Button
                   size="sm"
                   variant={group.files.length === 0 ? 'outline' : 'default'}
                   className="h-7 gap-1.5 text-[11px]"
-                  disabled={group.files.length === 0}
+                  disabled={group.files.length === 0 && isEditableDocType(group.label)}
                   onClick={(e) => {
                     e.stopPropagation();
-                    router.push(`/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(group.label)}`);
+                    // Task #29 — cardinal + proposition-accord slots deep-link into the
+                    // editor with the underlying source docType (Devis/Facture Garage)
+                    // and an `accordSlot` hint naming the exact cardinal label. Base
+                    // editable slots keep their existing URL unchanged.
+                    const parsed = parseAccordDocType(group.label);
+                    if (parsed) {
+                      router.push(
+                        `/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(parsed.sourceDocType)}&accordSlot=${encodeURIComponent(group.label)}`,
+                      );
+                    } else {
+                      router.push(`/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(group.label)}`);
+                    }
                   }}
-                  title={group.files.length === 0 ? `Aucun ${group.label.toLowerCase()} dans cette assignation` : `Editer les ${group.label.toLowerCase()}s`}
+                  title={group.files.length === 0 && isEditableDocType(group.label) ? `Aucun ${group.label.toLowerCase()} dans cette assignation` : `Editer les ${group.label.toLowerCase()}s`}
                 >
                   <Table2 className="h-3.5 w-3.5" />
                   Editer (web)
