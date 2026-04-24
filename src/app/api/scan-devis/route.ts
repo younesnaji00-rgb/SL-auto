@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
-import { numOrNull, qteFromScan } from '@/lib/devis-schema';
+import { formatFr, numOrNull, qteFromScan } from '@/lib/devis-schema';
 
 /**
  * AI Devis Scanner API.
@@ -50,7 +50,9 @@ SCHÉMA JSON STRICT:
     "telephone": string | null,
     "assurances": string | null,
     "devisNumero": string | null,
-    "dateDevis": string | null
+    "dateDevis": string | null,
+    "totalHT": number | null,
+    "totalTTC": number | null
   },
   "rows": [
     {
@@ -59,10 +61,15 @@ SCHÉMA JSON STRICT:
       "type": string,
       "tva": number | null,
       "qte": number | null,
-      "puHT": number
+      "puHT": number,
+      "reportedTotalHT": number | null
     }
   ]
 }
+
+CHAMP reportedTotalHT (par ligne): la valeur de la colonne "Total H.T" EXACTEMENT telle qu'imprimée dans la ligne du document source. Ne la recalcule PAS. Ne mets ce champ que si la ligne a une colonne Total H.T imprimée ; sinon omets-le (ou renvoie null). Ce champ sert uniquement à la validation arithmétique côté serveur.
+
+CHAMPS totalHT / totalTTC (header): si le document affiche en pied de tableau un total général H.T ou T.T.C, copie la valeur telle qu'imprimée. Sinon, renvoie null.
 
 RÈGLES STRICTES:
 1. Renvoie UNIQUEMENT le JSON brut. Pas de markdown, pas de \`\`\`, pas de texte avant ou après.
@@ -127,7 +134,9 @@ Conserve les marqueurs textuels comme "S/R" dans le champ "designation" si ils y
       dateDevis: header.dateDevis || '',
     };
 
-    const cleanRows = rows.map((r: any) => ({
+    // Rows carry an extra `reportedTotalHT` field used for server-side arithmetic
+    // validation only — it's stripped from the final payload before returning.
+    const rowsWithReported = rows.map((r: any) => ({
       ref: String(r.ref ?? '').trim() || 'CHANGE',
       designation: String(r.designation ?? '').trim(),
       type: String(r.type ?? '').trim(),
@@ -140,12 +149,46 @@ Conserve les marqueurs textuels comme "S/R" dans le champ "designation" si ils y
       // puHT stays 0-defaulting — a line without a price is still a line, and
       // labor rows DO have a price (it's the labor cost itself).
       puHT: numOrNull(r.puHT) ?? 0,
+      reportedTotalHT: numOrNull(r.reportedTotalHT),
     }));
+
+    // Arithmetic validation: flag any row where Qté × PU.HT diverges from the
+    // Total H.T printed on the document (1 DH tolerance for rounding).
+    const calculationErrors: string[] = [];
+    rowsWithReported.forEach((r: any, index: number) => {
+      const reported = r.reportedTotalHT;
+      if (typeof reported === 'number' && Number.isFinite(reported)) {
+        const computed = (r.qte ?? 0) * (r.puHT ?? 0);
+        if (Math.abs(computed - reported) > 1) {
+          calculationErrors.push(
+            `Ligne ${index + 1} : Qté × PU.HT = ${formatFr(computed)}, mais le document affiche ${formatFr(reported)}.`
+          );
+        }
+      }
+    });
+
+    // Cross-check the header total H.T if Gemini returned one.
+    const headerTotalHT = numOrNull(header.totalHT);
+    if (typeof headerTotalHT === 'number') {
+      const computedTotalHT = rowsWithReported.reduce(
+        (sum: number, r: any) => sum + (r.qte ?? 0) * (r.puHT ?? 0),
+        0
+      );
+      if (Math.abs(computedTotalHT - headerTotalHT) > 1) {
+        calculationErrors.push(
+          `Total H.T : somme calculée ${formatFr(computedTotalHT)}, document affiche ${formatFr(headerTotalHT)}.`
+        );
+      }
+    }
+
+    // Strip `reportedTotalHT` before returning — validation is the only use.
+    const cleanRows = rowsWithReported.map(({ reportedTotalHT: _rtHT, ...rest }: any) => rest);
 
     return NextResponse.json({
       header: cleanHeader,
       rows: cleanRows,
       rowsCount: cleanRows.length,
+      calculationErrors,
     });
   } catch (error: any) {
     console.error('[/api/scan-devis] Error:', error);
