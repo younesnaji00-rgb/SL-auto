@@ -10,14 +10,16 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { getApp } from 'firebase/app';
-import { canonicalStatuts } from './dossiers-data';
+import { CANONICAL_STATUTS } from './dossiers-data';
 
 // Module-level guard — prevents multiple seeds in the same browser session
 const _seeded = new Set<string>();
 
 const ALL_DEFAULTS: Record<string, string[]> = {
   options_natures: ['Classique', 'Contradictoire 1er', 'Contradictoire 2ème', 'Arbitrage', 'Réforme', 'Collégiale', 'Forfait', 'Appréciation', 'EAD'],
-  options_statuts: ['Création de dossier', 'Accord devis', 'Accord devis rectifié 2', 'Accord devis refusé', 'Accord facture garage', 'Att Signature 2ème expert', 'Avis de réforme', 'Avis dommage', 'Assigné au chiffrage', 'Expertise programmée avant', 'Expertise programmée en cours', 'Expertise programmée après', 'Avis de véhicule expertisé avant', 'Avis de véhicule expertisé en cours', 'Avis de véhicule expertisé après', 'Avis de véhicule non expertisé avant', 'Avis de véhicule non expertisé en cours', 'Avis de véhicule non expertisé après'],
+  // Seeded from the canonical status list — single source of truth lives in
+  // dossiers-data.ts. Add/remove labels there, not here.
+  options_statuts: [...CANONICAL_STATUTS],
   options_types_rdv: ['Avant', 'En cours', 'Après'],
   options_types_documents: ['Rapport d\'expertise', 'Devis', 'Facture', 'Photos avant expertise', 'Photos après expertise', 'Photos au moment du sinistre', 'PV de constat', 'Carte grise', 'Permis de conduire', 'Attestation d\'assurance'],
   options_roles: ['Admin', 'Responsable technique', 'Responsable d\'équipe', 'Gestionnaire', 'Chiffreur', 'Agent de Terrain'],
@@ -101,7 +103,23 @@ export async function reconcileCanonicalStatuts(db: Firestore): Promise<number> 
   const existing = new Set(
     snap.docs.map((d) => String(d.data().label || '').trim())
   );
-  const missing = canonicalStatuts.filter((l) => !existing.has(l));
+  const canonical = new Set<string>(CANONICAL_STATUTS as readonly string[]);
+
+  // Idempotent: log legacy docs that live in options_statuts but are not in
+  // the canonical list. We do NOT delete them here — actual pruning is
+  // deferred to the migration script (task #7). Logging keeps the admin
+  // aware of drift without risking data loss.
+  const legacy = Array.from(existing).filter((l) => l && !canonical.has(l));
+  if (legacy.length > 0) {
+    console.log(
+      `[reconcileCanonicalStatuts] ${legacy.length} legacy status label(s) ` +
+      `present in options_statuts but not in CANONICAL_STATUTS (not deleted; ` +
+      `migration script #7 handles pruning):`,
+      legacy,
+    );
+  }
+
+  const missing = (CANONICAL_STATUTS as readonly string[]).filter((l) => !existing.has(l));
   if (missing.length === 0) return 0;
 
   const baseOrder = snap.size;

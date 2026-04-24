@@ -37,85 +37,60 @@ export type Dossier = {
   lastStatusChange?: { status: string; at: any; by: string; details?: string };
 };
 
-export const statuses = [
-    'Accord devis',
-    'Accord devis rectifié 2',
-    'Accord devis refusé',
-    'Accord facture garage',
-    'Att Signature 2ème expert',
-    'Avis de réforme',
-    'Avis dommage',
-    'Demande 1er accord',
-    'Demande 2ème accord',
-    'Demande avis dommage (sup à 20000)',
-    'Demande d\'arbitrage',
-    'Doc illisible',
-    'Dossier saisi sur système',
-    'Dossier signé',
-    'En cours de traitement facture garage',
-    'En cours de réparation',
-    'Expertise après réparation',
-    'Expertise en cours de réparation',
-    'Expertise avant',
-    'Expertise non programmée en cours',
-    'Expertise non programmée avant',
-    'Expertise programmée après',
-    'Expertise programmée en cours',
-    'Facture controlée',
-    'Facture controlée à problème (docs)',
-    'Facture controlée à problème (pièces)',
-    'Hors zone d\'intervention',
-    'Manque devis',
-    'Manque documents',
-    'Manque facture d\'achat du véhicule',
-    'Manque factures',
-    'Manque photos après',
-    'Manque photos au moment du sinistre',
-    'Mission annulée',
-    'Propositions avis de dommage',
-    'Propositions avis de dommage signé',
-    'PV Carence',
-    'Validation forfait',
-    'Validation rapport définitif',
-    'Validation rapport estimatif',
-    'Validation rapport réforme',
-    'Création de mission',
-    'Création de dossier',
-    'Clôture',
-    'Commentaire',
-    'Demande expertise avant réparation',
-    'Avis de véhicule expertisé avant',
-    'Avis de véhicule expertisé en cours',
-    'Avis de véhicule expertisé après',
-    'Avis de véhicule non expertisé avant',
-    'Avis de véhicule non expertisé en cours',
-    'Avis de véhicule non expertisé après',
-];
-
 /**
- * The 6 statuses an Agent de Terrain is allowed to set from the decision modal.
- * Keep in sync with the canonical labels above.
+ * Canonical status labels — the ONE source of truth for dossier status values.
+ * Order here is the canonical ordering used throughout the UI (selects, filters,
+ * seeds). Status machine (src/lib/status-machine.ts) derives labels from this
+ * list. The seed + reconciler ensure these always exist in `options_statuts`.
+ *
+ * Cardinal cap is 3ème (no 4ème or beyond).
  */
-export const agentTerrainStatuses = [
-    'Avis de véhicule expertisé avant',
-    'Avis de véhicule expertisé en cours',
-    'Avis de véhicule expertisé après',
-    'Avis de véhicule non expertisé avant',
-    'Avis de véhicule non expertisé en cours',
-    'Avis de véhicule non expertisé après',
+export const CANONICAL_STATUTS = [
+    'Création dossier',
+    'Planification programmée avant',
+    'Planification expertise avant',
+    'Planification programmée en cours',
+    'Planification expertise en cours',
+    'Planification programmée après',
+    'Planification expertise après',
+    'Chiffrage en cours',
+    'Accord',
+    'Proposition d\'accord',
+    '2ème accord',
+    '2ème proposition d\'accord',
+    '3ème accord',
+    '3ème proposition d\'accord',
+    'Accord envoyé',
 ] as const;
 
+export type CanonicalStatut = typeof CANONICAL_STATUTS[number];
+
 /**
- * Canonical status labels the app relies on in code (planification sync,
- * initial dossier state, AT decision flow). The seed + reconciler ensure
- * these always exist in `options_statuts`, regardless of prior seed state.
+ * Mutable-array aliases kept for compatibility with existing callers that
+ * pass these into APIs typed `string[]` (e.g. select option lists). They all
+ * shadow the same canonical set — editing them at runtime has no effect on
+ * the source of truth (CANONICAL_STATUTS).
  */
-export const canonicalStatuts = [
-    'Création de dossier',
-    'Expertise programmée avant',
-    'Expertise programmée en cours',
-    'Expertise programmée après',
-    ...agentTerrainStatuses,
+export const statuses: string[] = [...CANONICAL_STATUTS];
+
+/** Alias kept for compatibility with existing callers. */
+export const canonicalStatuts: string[] = [...CANONICAL_STATUTS];
+
+/** Alias kept for compatibility with existing callers that imported `statuses as defaultStatuses`. */
+export const defaultStatuses: string[] = [...CANONICAL_STATUTS];
+
+/**
+ * The statuses an Agent de Terrain is allowed to set/observe from the decision
+ * modal — the six planification states. Agent users don't set Accord / closed
+ * statuses.
+ */
+export const agentTerrainStatuses = [
+    'Planification programmée avant',
+    'Planification expertise avant',
+    'Planification programmée en cours',
+    'Planification expertise en cours',
+    'Planification programmée après',
+    'Planification expertise après',
 ] as const;
 
 export const marques = [
