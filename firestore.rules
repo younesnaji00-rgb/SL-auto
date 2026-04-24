@@ -8,6 +8,36 @@ service cloud.firestore {
       return request.auth != null && userRole() == 'Admin';
     }
 
+    // task #42: canonical statuts list (mirrors CANONICAL_STATUTS in src/lib/dossiers-data.ts)
+    function canonicalStatuts() {
+      return [
+        'Création dossier',
+        'Planification programmée avant',
+        'Planification expertise avant',
+        'Planification programmée en cours',
+        'Planification expertise en cours',
+        'Planification programmée après',
+        'Planification expertise après',
+        'Chiffrage en cours',
+        'Accord',
+        "Proposition d'accord",
+        '2ème accord',
+        "2ème proposition d'accord",
+        '3ème accord',
+        "3ème proposition d'accord",
+        'Accord envoyé',
+      ];
+    }
+    // task #42: true if s is one of the canonical statuts
+    function isValidStatut(s) {
+      return canonicalStatuts().hasAny([s]);
+    }
+    // task #42: writer must be Admin or Directeur des opérations
+    function canValidateDossier() {
+      return request.auth != null
+        && (userRole() == 'Admin' || userRole() == 'Directeur des opérations');
+    }
+
     // Dropdown and Configuration Collections (Publicly Readable, Authenticated Write)
     match /options_natures/{docId} { allow read: if true; allow write: if request.auth != null; }
     match /options_statuts/{docId} { allow read: if true; allow write: if request.auth != null; }
@@ -29,7 +59,20 @@ service cloud.firestore {
     }
 
     match /dossiers/{dossierId} {
-      allow read, write, delete: if true;
+      allow read: if true;
+      allow create: if true;
+      allow delete: if true;
+      // task #42: statut must be in canonical list
+      // task #42: directorValidated writes restricted to Admin / Directeur des opérations
+      allow update: if
+        (
+          !('statut' in request.resource.data.diff(resource.data).affectedKeys())
+          || isValidStatut(request.resource.data.statut)
+        )
+        && (
+          !('directorValidated' in request.resource.data.diff(resource.data).affectedKeys())
+          || canValidateDossier()
+        );
       match /{allSubcollections=**} {
         allow read, write, delete: if true;
       }
