@@ -26,6 +26,43 @@ import type {
 } from "./devis-schema";
 import { mapToAccorde } from "./docType-accorde";
 import { logHistorique, logWorkflow } from "@/app/(app)/dossiers/[id]/log-historique";
+import { deriveStatus, isAccordStatus } from "@/lib/status-machine";
+
+/**
+ * Task #11 — Advance the dossier status to `'Chiffrage en cours'` once the
+ * chiffrage artefact (either an assignation or a gestionnaire-saved piece
+ * jointe) is committed. Idempotent: if the dossier already sits on
+ * `'Chiffrage en cours'` or any accord/terminal state, we never regress.
+ *
+ * Non-fatal: errors are swallowed so the upstream save still resolves.
+ */
+async function advanceStatutToChiffrageEnCours(
+  db: Firestore,
+  dossierId: string,
+  userLabel: string,
+): Promise<void> {
+  try {
+    const dossierRef = doc(db, "dossiers", dossierId);
+    const snap = await getDoc(dossierRef);
+    const currentStatut = snap.exists()
+      ? ((snap.data() as Record<string, unknown>).statut as string | undefined)
+      : undefined;
+    const target = deriveStatus({ kind: 'sendToChiffrage' });
+    if (currentStatut === target) return;
+    if (currentStatut && isAccordStatus(currentStatut)) return;
+    await updateDoc(dossierRef, { statut: target, updatedAt: serverTimestamp() });
+    await logHistorique(
+      db,
+      dossierId,
+      target,
+      userLabel || 'Utilisateur',
+      'Statut mis à jour automatiquement (envoi au chiffrage).',
+      'statut',
+    ).catch(() => {});
+  } catch (err) {
+    console.warn('[send-to-chiffrage] advance statut failed (non-fatal)', err);
+  }
+}
 
 export interface ChiffrageFile {
   name: string;
@@ -108,6 +145,11 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
   });
 
   const ref = await docRef; // We only await the final reference if we strictly need the ID back
+
+  // Task #11: after the chiffrage is persisted, move the dossier to
+  // `Chiffrage en cours`. Idempotent + non-fatal.
+  await advanceStatutToChiffrageEnCours(db, dossierId, sentByEmail || sentByNom || sentByUid);
+
   return ref.id;
 }
 
@@ -283,6 +325,10 @@ export async function saveGestionnaireDevisAsPieceJointe(
     'done',
     { details: `${snapshot.rows.length} ligne(s)` }
   ).catch(() => {});
+
+  // Task #11: advance dossier statut to `Chiffrage en cours` once the
+  // gestionnaire-side piece-jointe has landed. Idempotent + non-fatal.
+  await advanceStatutToChiffrageEnCours(db, dossierId, author.email || author.nom || author.uid);
 
   // 5. Mirror into the existing chiffrage when one is attached so the chiffreur
   //    sees the table the moment they open their editor. Matches the contract

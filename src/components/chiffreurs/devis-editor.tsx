@@ -28,6 +28,7 @@ import type { EditableDocType } from '@/lib/devis-schema';
 import { renderDevisPdf } from '@/lib/devis-pdf';
 import { saveGestionnaireDevisAsPieceJointe } from '@/lib/send-to-chiffrage';
 import { mapToAccorde } from '@/lib/docType-accorde';
+import { deriveStatus } from '@/lib/status-machine';
 import { cn } from '@/lib/utils';
 import ReferencePanel from '@/app/editor/reference-panel';
 import { useSidebar } from '@/components/ui/sidebar';
@@ -447,6 +448,48 @@ export function DevisEditor({
           'done',
           { details: `${snapshot.rows.length} ligne(s)` }
         ).catch(() => {});
+
+        // Task #11: if the snapshot carries a committed accord / proposition
+        // clone column, bump the dossier statut accordingly. Ordinal > 1 is
+        // deferred to task #24 (cardinal-aware pipeline) — for now we only
+        // emit the ordinal-1 labels (`Accord` / `Proposition d'accord`).
+        // Non-fatal: keep the save-success path clean.
+        try {
+          const accordColumn = (snapshot.extraColumns ?? []).find(
+            (c) => c.kind === 'accord' || c.kind === 'proposition-accord',
+          );
+          if (accordColumn) {
+            const accordKind: 'accord' | 'proposition' =
+              accordColumn.kind === 'accord' ? 'accord' : 'proposition';
+            const target = deriveStatus({
+              kind: 'chiffreurSave',
+              accordKind,
+              ordinal: 1,
+            });
+            const dossierRef = doc(db, 'dossiers', activeDossierId);
+            const dossierSnap = await getDoc(dossierRef);
+            const currentStatut = dossierSnap.exists()
+              ? ((dossierSnap.data() as Record<string, unknown>).statut as
+                  | string
+                  | undefined)
+              : undefined;
+            if (currentStatut !== target) {
+              await updateDoc(dossierRef, {
+                statut: target,
+                updatedAt: serverTimestamp(),
+              });
+              await logHistorique(
+                db, activeDossierId,
+                target,
+                profile?.email || profile?.nom || 'Utilisateur',
+                `Statut mis à jour automatiquement (enregistrement ${accordColumn.kind === 'accord' ? 'accord' : "proposition d'accord"}).`,
+                'statut',
+              ).catch(() => {});
+            }
+          }
+        } catch (e) {
+          console.warn('[devis-editor] statut update failed (non-fatal)', e);
+        }
       }
 
       setVersions((v) => [newVersion, ...v]);
