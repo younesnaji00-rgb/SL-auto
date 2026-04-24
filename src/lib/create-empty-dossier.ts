@@ -1,4 +1,5 @@
 import { addDoc, collection, serverTimestamp, type Firestore } from 'firebase/firestore';
+import { deriveStatus } from '@/lib/status-machine';
 
 export type ExpertRole = '1er' | '2eme' | 'arbitre';
 
@@ -68,7 +69,7 @@ export async function createEmptyDossier({ db, user, seed }: CreateEmptyDossierI
   };
 
   const ref = await addDoc(collection(db, 'dossiers'), {
-    statut: 'Création dossier',
+    statut: deriveStatus({ kind: 'create' }),
     directorValidated: null,
     compagnie: s.compagnie ?? '',
     nature: s.nature ?? '',

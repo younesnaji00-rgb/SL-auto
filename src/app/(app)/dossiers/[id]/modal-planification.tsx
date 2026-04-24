@@ -34,16 +34,19 @@ import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useAgentTerrainWorkload } from '@/hooks/use-workload-counts';
+import { deriveStatus } from '@/lib/status-machine';
 
 const defaultRDVTypes = ['Avant', 'En cours', 'Après'];
 const defaultAgents = ['Agent 1', 'Agent 2'];
 
-/** Maps a planification typeMission to the canonical dossier status. */
-function planifiedStatusFor(typeMission: string): string | null {
+/** Narrows a free-form typeMission string to the canonical tri-state, or null. */
+function normalizeTypeMission(
+  typeMission: string,
+): 'Avant' | 'En cours' | 'Après' | null {
   const t = (typeMission || '').trim().toLowerCase();
-  if (t === 'avant') return 'Expertise programmée avant';
-  if (t === 'en cours') return 'Expertise programmée en cours';
-  if (t === 'après' || t === 'apres') return 'Expertise programmée après';
+  if (t === 'avant') return 'Avant';
+  if (t === 'en cours') return 'En cours';
+  if (t === 'après' || t === 'apres') return 'Après';
   return null;
 }
 
@@ -152,8 +155,9 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         toast({ title: "Nouvelle planification créée" });
       }
 
-      const plannedStatus = planifiedStatusFor(formData.typeMission);
-      if (plannedStatus) {
+      const normalizedTypeMission = normalizeTypeMission(formData.typeMission);
+      if (normalizedTypeMission) {
+        const plannedStatus = deriveStatus({ kind: 'planification', typeMission: normalizedTypeMission });
         await updateDoc(doc(db, 'dossiers', dossierId), { statut: plannedStatus });
         await logHistorique(
           db,
