@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { doc, getDoc, onSnapshot, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
   ArrowLeft, Columns2, Copy, Download, FileText, History, Loader2, Plus, RefreshCcw,
@@ -33,7 +33,7 @@ import {
 import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import type { EditableDocType } from '@/lib/devis-schema';
 import { saveGestionnaireDevisAsPieceJointe } from '@/lib/send-to-chiffrage';
-import { mapToAccorde } from '@/lib/docType-accorde';
+import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
 import { deriveStatus } from '@/lib/status-machine';
 import { cn } from '@/lib/utils';
 import ReferencePanel from '@/app/editor/reference-panel';
@@ -408,6 +408,11 @@ export function DevisEditor({
   // Task #23: Phase 1 — compute the snapshot + accord metadata, then hand off
   // to the preview dialog. The actual upload / Firestore write runs in
   // `performPersist` (Phase 2) once the user confirms from the preview.
+  //
+  // Task #24: when a clone column is present we also derive the cardinal
+  // ordinal up-front by scanning `dossiers/{id}/documents` for matching
+  // accord variants. The dialog title + the save pipeline both use this
+  // ordinal, so the preview and the final doc stay aligned.
   const handleSave = async () => {
     if (!canEdit) {
       toast({ variant: 'destructive', title: 'Action non autorisee' });
@@ -429,16 +434,53 @@ export function DevisEditor({
       ? (accordColumn.kind as 'accord' | 'proposition-accord')
       : undefined;
 
-    // Task #23: ordinal is held at 1 — robust cardinal detection against
-    // existing accord docs lands in task #24. The preview title is normalized
-    // regardless of ordinal, so this is information-only for the dialog.
-    const ordinal = accordKind ? 1 : undefined;
+    // Task #24: derive the cardinal ordinal from existing dossier docs. Only
+    // relevant when an accord clone is present. Falls back to 1 if we can't
+    // read the dossier documents for any reason.
+    let ordinal: number | undefined;
+    if (accordKind) {
+      const activeDossierId = dossierIdProp || dossierId;
+      if (activeDossierId && (docType === 'Devis Garage' || docType === 'Facture Garage')) {
+        try {
+          ordinal = await computeCardinalOrdinal(activeDossierId, docType, accordKind);
+        } catch (e) {
+          console.warn('[devis-editor] cardinal ordinal derivation failed, defaulting to 1', e);
+          ordinal = 1;
+        }
+      } else {
+        ordinal = 1;
+      }
+    }
 
     setPreviewSnapshot(snapshot);
     setPreviewAccordKind(accordKind);
     setPreviewOrdinal(ordinal);
     setPreviewOpen(true);
   };
+
+  // Task #24: scan `dossiers/{id}/documents` for existing accord variants that
+  // share the same source docType + kind, then return `maxOrdinal + 1`
+  // (clamped to 3). Labels that don't parse as accord variants are ignored.
+  const computeCardinalOrdinal = useCallback(async (
+    activeDossierId: string,
+    sourceDocType: 'Devis Garage' | 'Facture Garage',
+    accordKind: 'accord' | 'proposition-accord',
+  ): Promise<number> => {
+    if (!db) return 1;
+    const documentsCol = collection(db, 'dossiers', activeDossierId, 'documents');
+    const docsSnap = await getDocs(query(documentsCol));
+    let maxOrdinal = 0;
+    for (const d of docsSnap.docs) {
+      const type = (d.data() as Record<string, unknown>).type;
+      if (typeof type !== 'string') continue;
+      const parsed = parseAccordDocType(type);
+      if (!parsed) continue;
+      if (parsed.sourceDocType === sourceDocType && parsed.kind === accordKind) {
+        if (parsed.ordinal > maxOrdinal) maxOrdinal = parsed.ordinal;
+      }
+    }
+    return Math.min(maxOrdinal + 1, 3);
+  }, [db]);
 
   // Task #23: Phase 2 — runs on preview confirm. Uses the blob produced by the
   // preview dialog (preserves WYSIWYG) rather than re-rendering. All the prior
@@ -453,11 +495,40 @@ export function DevisEditor({
     if (!snapshot) return;
     setSaving(true);
     try {
-      // Task #3: Facture Garage / Devis Garage saves target the "accordé" slot
-      // (one per dossier, upserted — never duplicated). `docType` remains the
-      // source name (what the chiffreur opened); `targetDocType` is where the
-      // save lands.
-      const targetDocType = mapToAccorde(docType);
+      // Task #3 / Task #24: Facture Garage / Devis Garage saves target an
+      // accord-variant slot — ordinal 1 upserts the legacy "accordé" slot
+      // (one per dossier), ordinal ≥ 2 creates a brand-new cardinal slot
+      // (e.g. "Devis 2ème accord"). The cardinal ordinal is computed by
+      // `handleSave` before opening the preview.
+      const accordColumn = (snapshot.extraColumns ?? []).find(
+        (c) => c.kind === 'accord' || c.kind === 'proposition-accord',
+      );
+      const persistAccordKind: 'accord' | 'proposition-accord' | undefined =
+        accordColumn ? (accordColumn.kind as 'accord' | 'proposition-accord') : undefined;
+      const derivedOrdinal: number = persistAccordKind
+        ? (typeof previewOrdinal === 'number' && Number.isFinite(previewOrdinal)
+            ? previewOrdinal
+            : 1)
+        : 1;
+      const targetDocType = persistAccordKind
+        ? mapToAccorde(docType, persistAccordKind, derivedOrdinal)
+        : mapToAccorde(docType);
+
+      // Task #24: when an accord clone column is present, mark it as `locked`
+      // on the snapshot we persist. Both the dossier mirror and the chiffrage
+      // mirror inside `saveGestionnaireDevisAsPieceJointe` read
+      // `snapshot.extraColumns` directly, so writing the lock here covers
+      // both surfaces without a separate updateDoc.
+      const persistedSnapshot: DevisSnapshot = persistAccordKind && snapshot.extraColumns
+        ? {
+            ...snapshot,
+            extraColumns: snapshot.extraColumns.map((c) =>
+              c.kind === 'accord' || c.kind === 'proposition-accord'
+                ? { ...c, locked: true }
+                : c,
+            ),
+          }
+        : snapshot;
 
       // Gestionnaire save path (task #6): route to pieces-jointes with
       // skipAIScan — no chiffrage write, no AI extraction. The chiffreur
@@ -473,7 +544,7 @@ export function DevisEditor({
           storage,
           dossierId: activeDossierId,
           docType,
-          snapshot,
+          snapshot: persistedSnapshot,
           author: {
             uid: profile?.uid || '',
             nom: profile?.nom || '',
@@ -484,9 +555,25 @@ export function DevisEditor({
           // the upload mirrors exactly what the user previewed.
           pdfBlob: blob,
           stampId,
+          // Task #24: hand the derived cardinal label + ordinal to the save
+          // helper so ordinal ≥ 2 creates a fresh doc (rather than upserting
+          // the ordinal-1 slot) and the `type` field reflects the cardinal.
+          targetDocType,
+          ordinal: derivedOrdinal,
         });
         setVersions((v) => [result.version, ...v]);
-        toast({ title: `${docType} enregistré`, description: 'Ajouté aux pièces jointes du dossier.' });
+        // Task #24: reflect the locked state in the editor so the header
+        // popover disappears and the column renders as read-only immediately.
+        if (persistAccordKind) {
+          setExtraColumns((cols) =>
+            cols.map((c) =>
+              c.kind === 'accord' || c.kind === 'proposition-accord'
+                ? { ...c, locked: true }
+                : c,
+            ),
+          );
+        }
+        toast({ title: `${targetDocType} enregistré`, description: 'Ajouté aux pièces jointes du dossier.' });
         return;
       }
 
@@ -539,8 +626,11 @@ export function DevisEditor({
         snapshot,
       };
 
+      // Task #24: lock any accord / proposition-accord clone columns on the
+      // persisted snapshot so the chiffrage mirror renders the header read-only
+      // on subsequent reads. Reuses `persistedSnapshot` computed above.
       const structuredDevis: StructuredDevis = {
-        ...snapshot,
+        ...persistedSnapshot,
         versions: [newVersion, ...versions],
         updatedAt: Timestamp.fromDate(now),
         updatedBy: profile?.uid || '',
@@ -579,22 +669,19 @@ export function DevisEditor({
           { details: `${snapshot.rows.length} ligne(s)` }
         ).catch(() => {});
 
-        // Task #11: if the snapshot carries a committed accord / proposition
-        // clone column, bump the dossier statut accordingly. Ordinal > 1 is
-        // deferred to task #24 (cardinal-aware pipeline) — for now we only
-        // emit the ordinal-1 labels (`Accord` / `Proposition d'accord`).
+        // Task #11 / Task #24: if the snapshot carries a committed accord /
+        // proposition clone column, bump the dossier statut accordingly.
+        // Ordinal is the cardinal derived in `handleSave`, so 2ème accord
+        // lands on the right statut.
         // Non-fatal: keep the save-success path clean.
         try {
-          const accordColumn = (snapshot.extraColumns ?? []).find(
-            (c) => c.kind === 'accord' || c.kind === 'proposition-accord',
-          );
-          if (accordColumn) {
+          if (persistAccordKind) {
             const accordKind: 'accord' | 'proposition' =
-              accordColumn.kind === 'accord' ? 'accord' : 'proposition';
+              persistAccordKind === 'accord' ? 'accord' : 'proposition';
             const target = deriveStatus({
               kind: 'chiffreurSave',
               accordKind,
-              ordinal: 1,
+              ordinal: derivedOrdinal,
             });
             const dossierRef = doc(db, 'dossiers', activeDossierId);
             const dossierSnap = await getDoc(dossierRef);
@@ -612,7 +699,7 @@ export function DevisEditor({
                 db, activeDossierId,
                 target,
                 profile?.email || profile?.nom || 'Utilisateur',
-                `Statut mis à jour automatiquement (enregistrement ${accordColumn.kind === 'accord' ? 'accord' : "proposition d'accord"}).`,
+                `Statut mis à jour automatiquement (enregistrement ${persistAccordKind === 'accord' ? 'accord' : "proposition d'accord"}).`,
                 'statut',
               ).catch(() => {});
             }
@@ -623,6 +710,18 @@ export function DevisEditor({
       }
 
       setVersions((v) => [newVersion, ...v]);
+
+      // Task #24: reflect the locked state in the editor so the header popover
+      // disappears and the column renders as read-only immediately after save.
+      if (persistAccordKind) {
+        setExtraColumns((cols) =>
+          cols.map((c) =>
+            c.kind === 'accord' || c.kind === 'proposition-accord'
+              ? { ...c, locked: true }
+              : c,
+          ),
+        );
+      }
 
       if (uploaded) {
         toast({ title: `${targetDocType} enregistre`, description: 'Nouvelle version generee.' });

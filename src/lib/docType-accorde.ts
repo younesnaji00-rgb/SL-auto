@@ -69,3 +69,56 @@ export function mapToAccordePrimary(
 ): string {
   return mapToAccorde(sourceDocType, 'accord', 1);
 }
+
+export interface ParsedAccordDocType {
+  sourceDocType: AccordeSourceDocType;
+  kind: AccordeKind;
+  ordinal: number;
+}
+
+/**
+ * Task #24 — inverse of {@link mapToAccorde}. Parses a Firestore `type` label
+ * back into its (sourceDocType, kind, ordinal) tuple. Returns `null` for any
+ * label that doesn't match one of the known accord variants so callers can
+ * simply filter non-accord docs out.
+ *
+ * Patterns handled:
+ *   - 'Devis accordé' / 'Facture accordé' → accord, ordinal 1
+ *   - 'Devis 2ème accord' / 'Facture 3ème accord' → accord, ordinal 2/3
+ *   - "1ère proposition d'accord (devis)" → proposition-accord, ordinal 1
+ *   - "2ème proposition d'accord (facture)" → proposition-accord, ordinal 2
+ */
+export function parseAccordDocType(label: string): ParsedAccordDocType | null {
+  if (!label || typeof label !== 'string') return null;
+  const trimmed = label.trim();
+  // Ordinal 1 accord — legacy labels.
+  if (trimmed === 'Devis accordé') return { sourceDocType: 'Devis Garage', kind: 'accord', ordinal: 1 };
+  if (trimmed === 'Facture accordé') return { sourceDocType: 'Facture Garage', kind: 'accord', ordinal: 1 };
+  // Cardinal accord (ordinal ≥ 2): "<Base> <n>ème accord".
+  const accordMatch = /^(Devis|Facture)\s+(\d+)ème\s+accord$/.exec(trimmed);
+  if (accordMatch) {
+    const base = accordMatch[1] as 'Devis' | 'Facture';
+    const ordinal = parseInt(accordMatch[2], 10);
+    if (Number.isFinite(ordinal) && ordinal >= 1) {
+      return {
+        sourceDocType: base === 'Facture' ? 'Facture Garage' : 'Devis Garage',
+        kind: 'accord',
+        ordinal,
+      };
+    }
+  }
+  // Proposition d'accord: "<n>ère|ème proposition d'accord (devis|facture)".
+  const propMatch = /^(\d+)(?:ère|ème)\s+proposition\s+d'accord\s+\((devis|facture)\)$/.exec(trimmed);
+  if (propMatch) {
+    const ordinal = parseInt(propMatch[1], 10);
+    const baseLower = propMatch[2];
+    if (Number.isFinite(ordinal) && ordinal >= 1) {
+      return {
+        sourceDocType: baseLower === 'facture' ? 'Facture Garage' : 'Devis Garage',
+        kind: 'proposition-accord',
+        ordinal,
+      };
+    }
+  }
+  return null;
+}

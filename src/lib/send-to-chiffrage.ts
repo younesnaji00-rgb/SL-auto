@@ -181,6 +181,21 @@ export interface SaveGestionnaireDevisParams {
    * types yet) so future reads can rehydrate the preview selection.
    */
   stampId?: string | null;
+  /**
+   * Task #24: explicit target doc type label to land the piece-jointe under.
+   * When supplied, the helper writes `type: targetDocType` on the Firestore doc
+   * and (when `ordinal >= 2`) forces a new `addDoc` call instead of upserting
+   * the existing accord slot. Defaults to the legacy ordinal-1
+   * `mapToAccorde(docType)` behaviour when omitted.
+   */
+  targetDocType?: string;
+  /**
+   * Task #24: cardinal ordinal derived by the caller from existing dossier
+   * docs. When `>= 2`, the helper creates a brand-new piece-jointe
+   * (`addDoc`) instead of upserting the ordinal-1 slot, so each cardinal
+   * accord lives on its own row.
+   */
+  ordinal?: number;
 }
 
 export interface SaveGestionnaireDevisResult {
@@ -217,6 +232,8 @@ export async function saveGestionnaireDevisAsPieceJointe(
     chiffrageId,
     pdfBlob: providedBlob,
     stampId,
+    targetDocType: targetDocTypeOverride,
+    ordinal,
   } = params;
 
   if (!dossierId) throw new Error("dossierId requis.");
@@ -224,8 +241,13 @@ export async function saveGestionnaireDevisAsPieceJointe(
   // Task #3: Facture Garage / Devis Garage saves target the "accordé" slot
   // (one per dossier, upserted — never duplicated). `docType` remains the
   // source name (what the caller passed); `targetDocType` is where the save
-  // lands.
-  const targetDocType = mapToAccorde(docType);
+  // lands. Task #24: when the caller derives a cardinal target (e.g.
+  // "Devis 2ème accord"), it passes `targetDocType` explicitly and we honour
+  // it; otherwise we fall back to the ordinal-1 `mapToAccorde(docType)`.
+  const targetDocType = targetDocTypeOverride || mapToAccorde(docType);
+  const cardinalOrdinal = typeof ordinal === 'number' && Number.isFinite(ordinal)
+    ? ordinal
+    : 1;
 
   // 1. Use the blob from the preview dialog when provided (task #23 WYSIWYG),
   //    otherwise render from the current table state (legacy path).
@@ -276,20 +298,28 @@ export async function saveGestionnaireDevisAsPieceJointe(
     dateUpload: serverTimestamp(),
   };
   const documentsCol = collection(db, "dossiers", dossierId, "documents");
-  const existingSnap = await getDocs(
-    query(documentsCol, where("type", "==", targetDocType))
-  );
   let dossierDocId: string;
-  if (existingSnap.empty) {
+  // Task #24: for ordinal ≥ 2 we always create a brand-new doc so each
+  // cardinal slot lives on its own row. Ordinal 1 keeps the legacy upsert
+  // behaviour (one accordé slot per dossier).
+  if (cardinalOrdinal >= 2) {
     const createdDocRef = await addDoc(documentsCol, documentPayload);
     dossierDocId = createdDocRef.id;
   } else {
-    const existing = existingSnap.docs[0];
-    await updateDoc(existing.ref, {
-      ...documentPayload,
-      dateUpload: serverTimestamp(),
-    });
-    dossierDocId = existing.id;
+    const existingSnap = await getDocs(
+      query(documentsCol, where("type", "==", targetDocType))
+    );
+    if (existingSnap.empty) {
+      const createdDocRef = await addDoc(documentsCol, documentPayload);
+      dossierDocId = createdDocRef.id;
+    } else {
+      const existing = existingSnap.docs[0];
+      await updateDoc(existing.ref, {
+        ...documentPayload,
+        dateUpload: serverTimestamp(),
+      });
+      dossierDocId = existing.id;
+    }
   }
 
   // 4. Build the structured mirror so the chiffreur opens directly on the
