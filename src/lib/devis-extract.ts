@@ -359,7 +359,26 @@ async function scanOriginal(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileBase64: base64, contentType }),
     });
-    if (!r.ok) throw new Error(`api ${r.status}`);
+    if (!r.ok) {
+      // Pull the server error body so the browser console shows the actual
+      // cause (missing API key, model unavailable, Google safety block, etc.)
+      // instead of the generic "api 500".
+      let bodyDetail = '';
+      try {
+        const bodyText = await r.text();
+        if (bodyText) {
+          try {
+            const bodyJson = JSON.parse(bodyText);
+            bodyDetail = bodyJson?.error || bodyText;
+          } catch {
+            bodyDetail = bodyText;
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      throw new Error(`api ${r.status}${bodyDetail ? ` — ${bodyDetail}` : ''}`);
+    }
     const parsed = await r.json();
     const calculationErrors: string[] = Array.isArray(parsed?.calculationErrors) ? parsed.calculationErrors : [];
     return { ok: true, parsed, calculationErrors };
