@@ -82,7 +82,7 @@ SCHÉMA JSON STRICT — renvoie UNIQUEMENT ce JSON brut, pas de markdown, pas de
 Renvoie EXACTEMENT ${rows.length} entrée(s) dans "matches" (une par désignation, dans l'ordre donné).`;
 
     const { text } = await ai.generate({
-      model: 'googleai/gemini-3.0-flash',
+      model: 'googleai/gemini-2.5-flash',
       prompt: [
         { text: prompt },
         { media: { url: dataUri } },

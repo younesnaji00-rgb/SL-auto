@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     const dataUri = `data:${contentType || 'application/pdf'};base64,${fileBase64}`;
 
     const { text } = await ai.generate({
-      model: 'googleai/gemini-3.0-flash',
+      model: 'googleai/gemini-2.5-flash',
       prompt: [
         {
           text: `Tu es un système d'extraction de données de haute précision spécialisé dans les DEVIS et FACTURES DE GARAGE automobiles au Maroc. Tu travailles pour un cabinet d'expertise d'assurance. La précision est CRITIQUE.
