@@ -22,7 +22,7 @@ const ALL_DEFAULTS: Record<string, string[]> = {
   options_statuts: [...CANONICAL_STATUTS],
   options_types_rdv: ['Avant', 'En cours', 'Après'],
   options_types_documents: ['Rapport d\'expertise', 'Devis', 'Facture', 'Photos avant expertise', 'Photos après expertise', 'Photos au moment du sinistre', 'PV de constat', 'Carte grise', 'Permis de conduire', 'Attestation d\'assurance'],
-  options_roles: ['Admin', 'Responsable technique', 'Responsable d\'équipe', 'Gestionnaire', 'Chiffreur', 'Agent de Terrain'],
+  options_roles: ['Admin', 'Responsable technique', 'Responsable d\'équipe', 'Gestionnaire', 'Chiffreur', 'Agent de Terrain', 'Directeur des opérations'],
   options_agents: ['Agent 1', 'Agent 2'],
   compagnies: ['ATLANTA', 'Allianz', 'CP', 'Fès ATLANTASANAD', 'Fès RMA', 'Fès Sanlam', 'Rma assurance', 'Wafa Assurance', 'Zurich Assurance'],
   options_types_dossier: ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'],
