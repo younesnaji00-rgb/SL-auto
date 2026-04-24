@@ -35,8 +35,15 @@ import { generateRapportReformePDF } from '@/lib/generate-rapport-reforme-pdf';
 import { generateRapportPreliminairePDF } from '@/lib/generate-rapport-preliminaire-pdf';
 import type { RapportType } from '@/lib/generate-rapport-shared';
 import { RapportTypeDialog } from '@/components/modals/rapport-type-dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { logWorkflow } from './log-historique';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { ValiderDossierButton } from '@/components/dossiers/valider-dossier-button';
 import CarSvgTop from '@/components/car-svg-top';
 import CarSvgBottom from '@/components/car-svg-bottom';
 
@@ -50,6 +57,9 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [typeDialogOpen, setTypeDialogOpen] = useState(false);
+  const [directorValidated, setDirectorValidated] = useState<
+    { by?: string; at?: any; role?: string } | null
+  >(null);
 
   // Chiffrage type state
   const [typeChiffrage, setTypeChiffrage] = useState<'Réparation' | 'Réforme' | ''>('');
@@ -92,6 +102,8 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           if (data.sousTypeChiffrage) setSousTypeChiffrage(data.sousTypeChiffrage);
           typeChiffrageInitialLoaded.current = true;
         }
+
+        setDirectorValidated(data.directorValidated ?? null);
       }
       setLoading(false);
     }, () => {
@@ -248,6 +260,8 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
     );
   }
 
+  const alreadyValidated = directorValidated != null;
+
   return (
     <div className="space-y-8">
       {/* HEADER WITH GÉNÉRER LE RAPPORT BUTTON */}
@@ -256,10 +270,33 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           <h2 className="text-lg font-semibold">Rapport</h2>
           <p className="text-sm text-muted-foreground">Diagramme des points de choc et génération du PDF final.</p>
         </div>
-        <Button onClick={handleOpenTypeDialog} disabled={isGenerating} className="gap-2">
-          {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-          Générer le rapport
-        </Button>
+        <div className="flex items-center gap-2">
+          <ValiderDossierButton
+            dossierId={dossierId}
+            alreadyValidated={alreadyValidated}
+          />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    onClick={handleOpenTypeDialog}
+                    disabled={isGenerating || !alreadyValidated}
+                    className="gap-2"
+                  >
+                    {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                    Générer le rapport
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!alreadyValidated && (
+                <TooltipContent>
+                  En attente de validation du directeur des opérations ou de l'administrateur
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       </div>
 
       <RapportTypeDialog
