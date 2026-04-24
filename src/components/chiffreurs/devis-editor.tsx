@@ -32,7 +32,6 @@ import {
 } from '@/lib/devis-schema';
 import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import type { EditableDocType } from '@/lib/devis-schema';
-import { renderDevisPdf } from '@/lib/devis-pdf';
 import { saveGestionnaireDevisAsPieceJointe } from '@/lib/send-to-chiffrage';
 import { mapToAccorde } from '@/lib/docType-accorde';
 import { deriveStatus } from '@/lib/status-machine';
@@ -40,6 +39,7 @@ import { cn } from '@/lib/utils';
 import ReferencePanel from '@/app/editor/reference-panel';
 import { useSidebar } from '@/components/ui/sidebar';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
+import { DevisPreviewDialog } from '@/components/chiffreurs/devis-preview-dialog';
 
 /**
  * The devis editor is shared between two entry points:
@@ -119,6 +119,16 @@ export function DevisEditor({
   const [versionPreviewUrl, setVersionPreviewUrl] = useState<string | null>(null);
   const [versionLabel, setVersionLabel] = useState<string>('');
   const [comparisonOpen, setComparisonOpen] = useState(false);
+
+  // Task #23: preview dialog state. The Save button now opens this dialog with
+  // the current snapshot; the actual upload + Firestore write happens in
+  // `performPersist` once the user confirms from the preview.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSnapshot, setPreviewSnapshot] = useState<DevisSnapshot | null>(null);
+  const [previewAccordKind, setPreviewAccordKind] = useState<
+    'accord' | 'proposition-accord' | undefined
+  >(undefined);
+  const [previewOrdinal, setPreviewOrdinal] = useState<number | undefined>(undefined);
 
   const initializedRef = useRef(false);
 
@@ -395,12 +405,52 @@ export function DevisEditor({
   }, [rows, rowTotals]);
 
   // Save ─────────────────────────────────────────────────────────────────
+  // Task #23: Phase 1 — compute the snapshot + accord metadata, then hand off
+  // to the preview dialog. The actual upload / Firestore write runs in
+  // `performPersist` (Phase 2) once the user confirms from the preview.
   const handleSave = async () => {
     if (!canEdit) {
       toast({ variant: 'destructive', title: 'Action non autorisee' });
       return;
     }
     if (!db || !storage) return;
+
+    const snapshot: DevisSnapshot = extraColumns.length > 0
+      ? { header, rows, extraColumns }
+      : { header, rows };
+
+    // Detect an accord / proposition-accord clone column. The preview dialog
+    // uses this to title the PDF ("Accord" / "Proposition d'accord") instead
+    // of the default "Devis" / "Facture" for the docType.
+    const accordColumn = (snapshot.extraColumns ?? []).find(
+      (c) => c.kind === 'accord' || c.kind === 'proposition-accord',
+    );
+    const accordKind: 'accord' | 'proposition-accord' | undefined = accordColumn
+      ? (accordColumn.kind as 'accord' | 'proposition-accord')
+      : undefined;
+
+    // Task #23: ordinal is held at 1 — robust cardinal detection against
+    // existing accord docs lands in task #24. The preview title is normalized
+    // regardless of ordinal, so this is information-only for the dialog.
+    const ordinal = accordKind ? 1 : undefined;
+
+    setPreviewSnapshot(snapshot);
+    setPreviewAccordKind(accordKind);
+    setPreviewOrdinal(ordinal);
+    setPreviewOpen(true);
+  };
+
+  // Task #23: Phase 2 — runs on preview confirm. Uses the blob produced by the
+  // preview dialog (preserves WYSIWYG) rather than re-rendering. All the prior
+  // persistence logic lives here, split by mode.
+  const performPersist = async (blob: Blob, stampId: string | null) => {
+    if (!canEdit) {
+      toast({ variant: 'destructive', title: 'Action non autorisee' });
+      return;
+    }
+    if (!db || !storage) return;
+    const snapshot = previewSnapshot;
+    if (!snapshot) return;
     setSaving(true);
     try {
       // Task #3: Facture Garage / Devis Garage saves target the "accordé" slot
@@ -408,9 +458,6 @@ export function DevisEditor({
       // source name (what the chiffreur opened); `targetDocType` is where the
       // save lands.
       const targetDocType = mapToAccorde(docType);
-      const snapshot: DevisSnapshot = extraColumns.length > 0
-        ? { header, rows, extraColumns }
-        : { header, rows };
 
       // Gestionnaire save path (task #6): route to pieces-jointes with
       // skipAIScan — no chiffrage write, no AI extraction. The chiffreur
@@ -433,6 +480,10 @@ export function DevisEditor({
             email: profile?.email || '',
           },
           chiffrageId: chiffrageId || null,
+          // Task #23: pass the WYSIWYG blob + selected stamp to the helper so
+          // the upload mirrors exactly what the user previewed.
+          pdfBlob: blob,
+          stampId,
         });
         setVersions((v) => [result.version, ...v]);
         toast({ title: `${docType} enregistré`, description: 'Ajouté aux pièces jointes du dossier.' });
@@ -445,7 +496,9 @@ export function DevisEditor({
       }
       const now = new Date();
       const author = profile?.nom || profile?.email || 'Utilisateur';
-      const pdfBlob = renderDevisPdf(snapshot, { author, versionTimestamp: now, docType });
+      // Task #23: PDF rendering moved into `DevisPreviewDialog`; we upload the
+      // blob the user confirmed rather than re-rendering here.
+      const pdfBlob = blob;
       const versionId = crypto.randomUUID();
       const pdfStoragePath = `chiffrages/${chiffrageId}/devis-versions/${targetDocType}/${versionId}.pdf`;
 
@@ -502,6 +555,9 @@ export function DevisEditor({
           [`structuredEditables.${targetDocType}`]: structuredDevis,
           editableExtractionAttempted: { ...freshAttempts, [targetDocType]: true },
           updatedAt: serverTimestamp(),
+          // Task #23: stamp selection is additive; not yet part of the
+          // StructuredDevis type, just persisted alongside the chiffrage write.
+          ...(stampId !== null ? { [`devisStampId.${targetDocType}`]: stampId } : {}),
         });
       }
 
@@ -1142,6 +1198,31 @@ export function DevisEditor({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/*
+        Task #23 — save-flow preview. Opened by the Enregistrer button (and
+        Ctrl+S). The dialog renders the PDF with optional stamp, and its
+        `Confirmer & enregistrer` action feeds the resulting blob + stampId
+        into `performPersist` which runs the upload + Firestore writes.
+      */}
+      {previewSnapshot && (
+        <DevisPreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          snapshot={previewSnapshot}
+          docType={docType}
+          accordKind={previewAccordKind}
+          ordinal={previewOrdinal}
+          onConfirm={async ({ blob, stampId }) => {
+            setPreviewOpen(false);
+            await performPersist(blob, stampId);
+          }}
+          onEdit={() => {
+            // Close the dialog; editor state is preserved so the user can
+            // keep editing and re-open the preview.
+          }}
+        />
+      )}
 
     </div>
   );

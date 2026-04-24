@@ -169,6 +169,18 @@ export interface SaveGestionnaireDevisParams {
    * `seedStructuredEditables` flow the next time a chiffrage is opened.
    */
   chiffrageId?: string | null;
+  /**
+   * Task #23: pre-rendered PDF blob from the preview dialog. When provided, the
+   * function skips the internal `renderDevisPdf` call so the uploaded bytes
+   * match exactly what the user confirmed in the preview (WYSIWYG).
+   */
+  pdfBlob?: Blob;
+  /**
+   * Task #23: optional stamp identifier captured from the preview dialog. Stored
+   * alongside the piece-jointe payload (additive field, not part of the schema
+   * types yet) so future reads can rehydrate the preview selection.
+   */
+  stampId?: string | null;
 }
 
 export interface SaveGestionnaireDevisResult {
@@ -203,6 +215,8 @@ export async function saveGestionnaireDevisAsPieceJointe(
     snapshot,
     author,
     chiffrageId,
+    pdfBlob: providedBlob,
+    stampId,
   } = params;
 
   if (!dossierId) throw new Error("dossierId requis.");
@@ -213,9 +227,10 @@ export async function saveGestionnaireDevisAsPieceJointe(
   // lands.
   const targetDocType = mapToAccorde(docType);
 
-  // 1. Generate the PDF from the current table state.
+  // 1. Use the blob from the preview dialog when provided (task #23 WYSIWYG),
+  //    otherwise render from the current table state (legacy path).
   const now = new Date();
-  const pdfBlob = renderDevisPdf(snapshot, {
+  const pdfBlob = providedBlob ?? renderDevisPdf(snapshot, {
     author: author.nom || author.email,
     versionTimestamp: now,
     docType,
@@ -255,6 +270,9 @@ export async function saveGestionnaireDevisAsPieceJointe(
     url: pdfUrl,
     skipAIScan: true,
     sourceKind: "gestionnaire-devis-editor" as const,
+    // Task #23: stamp selected in the preview dialog — additive field; not yet
+    // typed on StructuredDevis, only persisted on the piece-jointe payload.
+    ...(stampId !== undefined ? { stampId } : {}),
     dateUpload: serverTimestamp(),
   };
   const documentsCol = collection(db, "dossiers", dossierId, "documents");
