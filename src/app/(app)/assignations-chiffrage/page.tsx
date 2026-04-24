@@ -153,11 +153,11 @@ export default function AssignationsChiffragePage() {
     return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
   };
 
-  const getDeadlineInfo = (ts: any, nature: string) => {
+  const getDeadlineInfo = (ts: any, _nature: string) => {
     if (!ts) return { percent: 0, elapsed: 0, total: 0, overdue: false };
     const created = ts.toDate ? ts.toDate() : new Date(ts);
-    const isContradictoire = nature.toLowerCase().startsWith('contradictoire');
-    const totalMs = (isContradictoire ? 48 : 24) * 60 * 60 * 1000;
+    // All chiffrage deadlines are 24h regardless of dossier nature.
+    const totalMs = 24 * 60 * 60 * 1000;
     const elapsed = Date.now() - created.getTime();
     const percent = Math.min(Math.max((elapsed / totalMs) * 100, 0), 100);
     return { percent, elapsed, total: totalMs, overdue: elapsed >= totalMs };
@@ -192,16 +192,13 @@ export default function AssignationsChiffragePage() {
       });
     }
     if (deadlineSort) {
-      // Sort by deadline end time (createdAt + totalMs). Ascending = most urgent first.
+      // Sort by deadline end time (createdAt + 24h). Ascending = most urgent first.
+      const DEADLINE_MS = 24 * 3600 * 1000;
       results.sort((a, b) => {
-        const aNature = (a as any).nature || '';
-        const bNature = (b as any).nature || '';
         const aCreated = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : null);
         const bCreated = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : null);
-        const aTotal = aNature.toLowerCase().startsWith('contradictoire') ? 48 : 24;
-        const bTotal = bNature.toLowerCase().startsWith('contradictoire') ? 48 : 24;
-        const aEnd = aCreated === null ? (deadlineSort === 'asc' ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : aCreated + aTotal * 3600 * 1000;
-        const bEnd = bCreated === null ? (deadlineSort === 'asc' ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : bCreated + bTotal * 3600 * 1000;
+        const aEnd = aCreated === null ? (deadlineSort === 'asc' ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : aCreated + DEADLINE_MS;
+        const bEnd = bCreated === null ? (deadlineSort === 'asc' ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : bCreated + DEADLINE_MS;
         return deadlineSort === 'asc' ? aEnd - bEnd : bEnd - aEnd;
       });
     } else {
@@ -417,7 +414,7 @@ export default function AssignationsChiffragePage() {
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{c.sentByNom || c.sentByEmail || '-'}</TableCell>
                       <TableCell>
-                        <DeadlineBar percent={deadline.percent} overdue={deadline.overdue} nature={nature} />
+                        <DeadlineBar percent={deadline.percent} overdue={deadline.overdue} />
                       </TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">
                         {formatDate(c.createdAt)}

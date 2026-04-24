@@ -52,7 +52,6 @@ import {
   UserCheck,
   BookOpen,
   Bug,
-  Stamp,
 } from 'lucide-react';
 import Logo from '@/components/logo';
 import { useCompagnies } from '@/hooks/use-compagnies';
@@ -93,7 +92,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'ADMIN',
     items: [
       { href: '/utilisateurs', icon: Users, label: 'Utilisateurs', roles: ['Admin'] },
-      { href: '/parametres/tampons', icon: Stamp, label: 'Tampons', roles: ['Admin'] },
     ],
   },
   {

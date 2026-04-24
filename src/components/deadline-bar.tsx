@@ -8,8 +8,6 @@ export interface DeadlineBarProps {
   percent: number;
   /** True when the deadline has passed */
   overdue: boolean;
-  /** Dossier nature — used to pick the 24h vs 48h window label */
-  nature: string;
   className?: string;
 }
 
@@ -20,9 +18,8 @@ export interface DeadlineBarProps {
  *  80–100%→ red   (urgent)
  *  overdue → solid destructive
  */
-export function DeadlineBar({ percent, overdue, nature, className }: DeadlineBarProps) {
-  const isContradictoire = (nature || '').toLowerCase().startsWith('contradictoire');
-  const label = isContradictoire ? '48h' : '24h';
+export function DeadlineBar({ percent, overdue, className }: DeadlineBarProps) {
+  const label = '24h';
   const rounded = Math.max(0, Math.round(percent));
 
   const getBarColor = (p: number) => {
