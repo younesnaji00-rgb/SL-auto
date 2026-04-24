@@ -672,6 +672,7 @@ export function DevisEditor({
                 <th style={{ width: '80px' }} className="text-center">Vetuste</th>
                 <th style={{ width: '110px' }} className="text-right">P.U.H.T</th>
                 <th style={{ width: '120px' }} className="text-right">Total H.T</th>
+                <th style={{ width: '120px' }} className="text-right">Prix en TTC</th>
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
                   return (
@@ -773,6 +774,10 @@ export function DevisEditor({
                     </td>
                     {/* Total H.T is computed — read-only, auto-updating. */}
                     <td className="text-right font-semibold pr-2">{formatFr(total)}</td>
+                    {/* Prix en TTC is computed — read-only: Total H.T * (1 + tva/100). */}
+                    <td className="text-right font-semibold pr-2">
+                      {formatFr(total * (1 + (r.tva ?? 0) / 100))}
+                    </td>
                     {extraColumns.map((col) => (
                       <td key={col.id}>
                         <CellInput
@@ -817,6 +822,7 @@ export function DevisEditor({
                 <td className="text-center text-muted-foreground">—</td>
                 <td />
                 <td className="text-right">{formatFr(totalsRow.totalHt)}</td>
+                <td className="text-right">{formatFr(totals.ttc)}</td>
                 {extraColumns.map((col) => {
                   // Σ for imported/extra columns, SR-tolerant.
                   const colSum = rows.reduce((acc, r) => acc + parseFr(col.values[r.id] || ''), 0);
@@ -833,16 +839,16 @@ export function DevisEditor({
           </table>
         </div>
         {/*
-          TVA / TTC summary kept below the table (not part of the fixed column
-          set, but still useful context). Inline row above is the primary
-          totals surface per task #5.
+          Single-row summary below the table: Total H.T (under HT col) and
+          Total TTC Expert (under Prix en TTC col). Task #16 collapsed the
+          previous two-row TVA + TTC footer into this single row.
         */}
         <div className="flex items-center p-2 border-t bg-muted/20 text-xs">
           <div className="flex-1" />
           <div className="flex items-center gap-6">
-            <span className="text-muted-foreground">TVA</span>
-            <span className="w-28 text-right">{formatFr(totals.tva)}</span>
-            <span className="font-bold">Total TTC</span>
+            <span className="font-bold">Total H.T</span>
+            <span className="w-28 text-right font-bold">{formatFr(totals.ht)}</span>
+            <span className="font-bold">Total TTC Expert</span>
             <span className="w-28 text-right font-bold">{formatFr(totals.ttc)}</span>
           </div>
         </div>
