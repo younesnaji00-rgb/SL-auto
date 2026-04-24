@@ -83,6 +83,7 @@ Renvoie EXACTEMENT ${rows.length} entrée(s) dans "matches" (une par désignatio
 
     const { text } = await ai.generate({
       model: 'googleai/gemini-2.5-flash',
+      config: { responseMimeType: 'application/json' },
       prompt: [
         { text: prompt },
         { media: { url: dataUri } },

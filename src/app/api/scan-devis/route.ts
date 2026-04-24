@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
 
     const { text } = await ai.generate({
       model: 'googleai/gemini-2.5-flash',
+      config: { responseMimeType: 'application/json' },
       prompt: [
         {
           text: `Tu es un système d'extraction de données de haute précision spécialisé dans les DEVIS et FACTURES DE GARAGE automobiles au Maroc. Tu travailles pour un cabinet d'expertise d'assurance. La précision est CRITIQUE.
@@ -112,7 +113,11 @@ Conserve les marqueurs textuels comme "S/R" dans le champ "designation" si ils y
       extracted = JSON.parse(cleanedText);
     } catch {
       console.error('[scan-devis] Failed to parse AI response:', cleanedText);
-      return NextResponse.json({ error: 'Impossible de parser la reponse AI.', raw: cleanedText }, { status: 422 });
+      const snippet = cleanedText.length > 500 ? cleanedText.slice(0, 500) + '…' : cleanedText;
+      return NextResponse.json(
+        { error: `Impossible de parser la réponse AI. Début: ${snippet}`, raw: cleanedText },
+        { status: 422 },
+      );
     }
 
     const header = extracted.header || {};
