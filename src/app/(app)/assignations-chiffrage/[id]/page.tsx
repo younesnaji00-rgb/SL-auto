@@ -57,11 +57,10 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const { toast } = useToast();
   const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('assignations-chiffrage');
-  // Task #36 — "Envoyer par mail" is a gestionnaire/admin action (not a
-  // chiffreur one). Gate the toolbar button on profile.role directly since
-  // `canWrite('assignations-chiffrage')` returns true only for Chiffreurs.
-  const canSendMail =
-    profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
+  // "Envoyer par mail" is a gestionnaire-only action. Not Admins (even though
+  // Admins can edit everything, they shouldn't send client mails on behalf of
+  // the gestionnaire). Not chiffreurs.
+  const canSendMail = profile?.role === 'Gestionnaire';
 
   const [chiffrage, setChiffrage] = useState<ChiffrageDoc | null>(null);
   const [dossier, setDossier] = useState<any>(null);
