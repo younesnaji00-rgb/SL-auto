@@ -2,18 +2,11 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import {
-  Upload,
   Download,
-  Trash2,
   Loader2,
-  FileIcon,
-  FileText,
-  Eye,
-  Search,
   X,
   CheckSquare,
 } from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -34,7 +27,6 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
 import { toOrdinalFr } from '@/lib/devis-schema';
 import { useFirestore, useAuth, useCollection, useStorage } from '@/firebase';
@@ -49,8 +41,6 @@ import {
 } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { logHistorique, logWorkflow } from './log-historique';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
@@ -66,12 +56,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DocumentsFilterPanel,
+  ALL_TYPES_KEY,
+  type DocumentsFilterPanelDoc,
+} from '@/components/chiffreurs/documents-filter-panel';
 
 type DocumentsTabProps = {
   dossierId: string;
 };
-
-const ALL_TYPES_KEY = '__all__';
 
 export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   const db = useFirestore();
@@ -125,36 +118,6 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
       return dateB - dateA;
     });
   }, [allDocuments]);
-
-  // Per-type counts for the left filter card
-  const typeCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const d of sortedDocs) {
-      const t = d.type || d.typeDocument || 'Autre';
-      counts[t] = (counts[t] || 0) + 1;
-    }
-    return counts;
-  }, [sortedDocs]);
-
-  const filterRows = useMemo(() => {
-    // Task #27 — union of: static canonical list (always present so the filter
-    // stays stable even if admins prune Firestore options), the dynamic
-    // `docTypes` (admin-managed), and any `type` actually observed on the
-    // dossier's documents. The latter is what surfaces cardinal / proposition
-    // accord variants created by tasks #24/#26 (e.g. "Devis 2ème accord").
-    const allLabels = new Set<string>();
-    for (const t of defaultDocTypes) allLabels.add(t);
-    for (const t of docTypes) {
-      if (t.label) allLabels.add(t.label);
-    }
-    Object.keys(typeCounts).forEach((t) => {
-      if (t) allLabels.add(t);
-    });
-    const rows = Array.from(allLabels).map((label) => ({ label, count: typeCounts[label] || 0 }));
-    rows.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-    const search = typeSearch.toLowerCase().trim();
-    return search ? rows.filter((r) => r.label.toLowerCase().includes(search)) : rows;
-  }, [docTypes, typeCounts, typeSearch]);
 
   const visibleDocs = useMemo(() => {
     if (selectedType === ALL_TYPES_KEY) return sortedDocs;
@@ -365,26 +328,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   const allVisibleSelected =
     visibleDocs.length > 0 && visibleDocs.every((d: any) => selectedIds.has(d.id));
 
-  const formatSize = (bytes: number) => {
-    if (!bytes || bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  };
-
-  const formatDate = (ts: any) => {
-    if (!ts) return '-';
-    const date = ts.toDate ? ts.toDate() : new Date(ts);
-    return format(date, 'dd/MM/yyyy HH:mm', { locale: fr });
-  };
-
   const isImage = (name: string) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(name || '');
-  const isPdf = (name: string) => /\.pdf$/i.test(name || '');
-  const fileExt = (name: string) => {
-    const m = (name || '').match(/\.([a-z0-9]+)$/i);
-    return m ? m[1].toUpperCase() : 'FILE';
-  };
 
   return (
     <div className="space-y-4">
@@ -452,211 +396,28 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3 items-start">
-        {/* LEFT: type filter */}
-        <Card className="shadow-sm border-0 rounded-xl overflow-hidden lg:col-span-1">
-          <CardHeader className="bg-heading-bg py-3 rounded-t-xl flex flex-row items-center justify-between gap-2">
-            <CardTitle className="text-sm text-primary">Type de document</CardTitle>
-            <div className="relative w-[160px] max-w-full">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher..."
-                value={typeSearch}
-                onChange={(e) => setTypeSearch(e.target.value)}
-                className="h-8 pl-7 text-xs border-0 border-b rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
-              />
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 max-h-[640px] overflow-y-auto">
-            {/* "Tous" entry always at the top */}
-            <button
-              onClick={() => setSelectedType(ALL_TYPES_KEY)}
-              className={cn(
-                'flex items-center justify-between w-full px-4 py-3 text-sm transition-colors text-left border-b',
-                selectedType === ALL_TYPES_KEY ? 'bg-accent border-l-2 border-l-primary' : 'hover:bg-accent/50'
-              )}
-            >
-              <span className={cn('truncate', selectedType === ALL_TYPES_KEY && 'font-semibold text-primary')}>
-                Tous les documents
-              </span>
-              <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
-                {sortedDocs.length}
-              </span>
-            </button>
-
-            {filterRows.length === 0 ? (
-              <p className="text-xs italic text-muted-foreground text-center py-8">Aucun type.</p>
-            ) : (
-              filterRows.map((row, idx) => {
-                const isSelected = selectedType === row.label;
-                return (
-                  <button
-                    key={row.label}
-                    onClick={() => setSelectedType(row.label)}
-                    className={cn(
-                      'flex items-center justify-between w-full px-4 py-3 text-sm transition-colors text-left',
-                      idx !== filterRows.length - 1 && 'border-b',
-                      isSelected ? 'bg-accent border-l-2 border-l-primary' : 'hover:bg-accent/50',
-                      row.count === 0 && 'opacity-60'
-                    )}
-                  >
-                    <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{row.label}</span>
-                    <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
-                      {row.count}
-                    </span>
-                  </button>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
-
-        {/* RIGHT: preview grid */}
-        <Card className="shadow-sm border-0 rounded-xl overflow-hidden lg:col-span-2">
-          <CardContent className="p-4">
-            {loading ? (
-              <div className="flex items-center justify-center h-48">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : visibleDocs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-center">
-                <FileText className="h-10 w-10 text-muted-foreground/30 mb-2" />
-                <p className="text-sm text-muted-foreground italic">
-                  {selectedType === ALL_TYPES_KEY ? 'Aucun document.' : `Aucun document de type "${selectedType}".`}
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {visibleDocs.map((item: any) => {
-                  const name = item.nom || item.fileName || 'document';
-                  const isImg = isImage(name) && item.url;
-                  const isPdfFile = isPdf(name);
-                  const isSelected = selectedIds.has(item.id);
-                  const selectable = !item.pendingUpload && item.url;
-                  return (
-                    <div
-                      key={item.id}
-                      className={cn(
-                        'group relative border rounded-lg overflow-hidden bg-card shadow-sm hover:shadow-md transition-all cursor-pointer',
-                        selectionMode && isSelected && 'ring-2 ring-primary border-primary',
-                        selectionMode && !selectable && 'opacity-60 cursor-not-allowed',
-                      )}
-                      onClick={() => {
-                        if (selectionMode) {
-                          if (selectable) toggleSelectDoc(item.id);
-                          return;
-                        }
-                        if (!item.pendingUpload && item.url) setPreviewDoc({ url: item.url, nom: name });
-                      }}
-                    >
-                      {/* Thumbnail */}
-                      <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden relative">
-                        {isImg ? (
-                          <img
-                            src={item.url}
-                            alt={name}
-                            loading="lazy"
-                            decoding="async"
-                            className="object-cover w-full h-full"
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
-                            <FileIcon className={cn('h-12 w-12', isPdfFile && 'text-red-500')} />
-                            <span className="text-[9px] uppercase font-black tracking-wider">{fileExt(name)}</span>
-                          </div>
-                        )}
-
-                        {/* Selection checkbox overlay */}
-                        {selectionMode && selectable && (
-                          <div className="absolute top-1.5 left-1.5 z-10 bg-background/90 rounded shadow-sm p-0.5" onClick={(e) => e.stopPropagation()}>
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={() => toggleSelectDoc(item.id)}
-                            />
-                          </div>
-                        )}
-
-                        {/* Hover overlay with actions */}
-                        <div className={cn(
-                          "absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5",
-                          selectionMode && "hidden",
-                        )}>
-                          <Button
-                            variant="secondary"
-                            size="icon"
-                            className="h-7 w-7"
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (!item.pendingUpload && item.url) setPreviewDoc({ url: item.url, nom: name });
-                            }}
-                            title="Apercu"
-                            disabled={!!item.pendingUpload}
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="icon"
-                            className="h-7 w-7"
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (!item.pendingUpload && item.url) handleDownload(item.url, name);
-                            }}
-                            title="Telecharger"
-                            disabled={!!item.pendingUpload}
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                          </Button>
-                          {canEdit && (
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              className="h-7 w-7"
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteTarget(item);
-                              }}
-                              title="Supprimer"
-                              disabled={isDeleting === item.id || !!item.pendingUpload}
-                            >
-                              {isDeleting === item.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-3.5 w-3.5" />
-                              )}
-                            </Button>
-                          )}
-                        </div>
-
-                        {item.pendingUpload && (
-                          <Badge variant="outline" className="absolute top-1 left-1 text-amber-700 bg-amber-50 border-amber-300 text-[9px] py-0 px-1.5">
-                            En attente
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Footer info */}
-                      <div className="p-2 space-y-1 border-t">
-                        <p className="text-[11px] font-semibold truncate" title={name}>{name}</p>
-                        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                          <span>{formatSize(item.taille || item.fileSize)}</span>
-                          <span className="truncate ml-1">{formatDate(item.dateUpload || item.uploadedAt)}</span>
-                        </div>
-                        <p className="text-[9px] text-muted-foreground truncate" title={item.uploadePar || item.uploadedBy}>
-                          {item.uploadePar || item.uploadedBy || '—'}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <DocumentsFilterPanel
+        documents={sortedDocs as DocumentsFilterPanelDoc[]}
+        docTypes={docTypes}
+        selectedType={selectedType}
+        onSelectedTypeChange={setSelectedType}
+        typeSearch={typeSearch}
+        onTypeSearchChange={setTypeSearch}
+        loading={loading}
+        canImport={canEdit}
+        canDelete={canEdit}
+        isDeleting={isDeleting}
+        selectionMode={selectionMode}
+        selectedIds={selectedIds}
+        onToggleSelect={toggleSelectDoc}
+        onOpenDocument={(d) => {
+          if (!d.pendingUpload && d.url) setPreviewDoc({ url: d.url, nom: d.nom || d.fileName || 'document' });
+        }}
+        onDownloadDocument={(d) => {
+          if (!d.pendingUpload && d.url) handleDownload(d.url, d.nom || d.fileName || 'document');
+        }}
+        onDeleteDocument={(d) => setDeleteTarget(d)}
+      />
 
       {/* Upload modal */}
       <Dialog open={isUploadModalOpen} onOpenChange={setUploadModalOpen}>
