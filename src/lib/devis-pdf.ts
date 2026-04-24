@@ -7,7 +7,6 @@ import {
   rowTotalHT,
   sumHT,
   sumTTC,
-  sumTVA,
 } from './devis-schema';
 
 /**
@@ -33,6 +32,13 @@ export function renderDevisPdf(
      * Known limitation: no cropping UI — acceptable for now.
      */
     stampImage?: { dataUrl: string; width: number; height: number } | null;
+    /**
+     * Overrides the PDF title. Used by accord/proposition-accord export flows
+     * so the same renderer can produce a `Devis` / `Facture` / `Accord` /
+     * `Proposition d'accord` header without threading docType-like enums.
+     * Omitted = keep existing default title.
+     */
+    titleOverride?: 'Devis' | 'Facture' | 'Accord' | "Proposition d'accord";
   }
 ): Blob {
   const showVetuste = (opts?.docType ?? 'Devis') === 'Devis';
@@ -49,7 +55,7 @@ export function renderDevisPdf(
   pdf.setFontSize(22);
   pdf.setFont('helvetica', 'italic');
   pdf.setTextColor(20, 20, 20);
-  pdf.text('Devis', margin + 2, margin + 10);
+  pdf.text(opts?.titleOverride ?? 'Devis', margin + 2, margin + 10);
 
   // Devis N° + Date on the right
   const rightX = pageW - margin;
@@ -156,6 +162,55 @@ export function renderDevisPdf(
           ? [{ id: 'legacy', label: devis.extraColumn.label, values: devis.extraColumn.values || {} }]
           : []);
 
+  // Partition extras: non-accord extras render as-is (one column each); accord /
+  // proposition-accord extras render as a triple (PU / Total HT Accord / Prix TTC
+  // Accord) on the far right.
+  const nonAccordExtras = extraCols.filter(
+    (c) => c.kind !== 'accord' && c.kind !== 'proposition-accord'
+  );
+  const accordExtras = extraCols.filter(
+    (c) => c.kind === 'accord' || c.kind === 'proposition-accord'
+  );
+
+  // Per-row TTC helper: rowTotalHT × (1 + tva/100). Blank tva → 0% multiplier.
+  const rowPrixTTC = (r: (typeof devis.rows)[number]): number => {
+    const pct = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
+    return rowTotalHT(r) * (1 + pct / 100);
+  };
+
+  // Parse an accord column's per-row PU value (user-entered as a fr-formatted
+  // string). Invalid / blank → 0 so the computed Total HT Accord stays numeric.
+  const parseAccordPU = (raw: string | undefined): number => {
+    if (!raw) return 0;
+    const cleaned = raw.replace(/\s|\u00a0/g, '');
+    const hasComma = cleaned.includes(',');
+    const hasDot = cleaned.includes('.');
+    let normalized = cleaned;
+    if (hasComma && hasDot) normalized = cleaned.replace(/\./g, '').replace(',', '.');
+    else if (hasComma) normalized = cleaned.replace(',', '.');
+    const n = parseFloat(normalized);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const accordRowTotalHT = (r: (typeof devis.rows)[number], puRaw: string | undefined): number => {
+    const pu = parseAccordPU(puRaw);
+    const q = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
+    const vRaw = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
+    const v = Math.min(100, Math.max(0, vRaw));
+    return pu * q * (1 - v / 100);
+  };
+  const accordRowTTC = (r: (typeof devis.rows)[number], puRaw: string | undefined): number => {
+    const ht = accordRowTotalHT(r, puRaw);
+    const pct = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
+    return ht * (1 + pct / 100);
+  };
+
+  // Build accord triple headers: PU label + Total HT Accord + Prix TTC Accord.
+  const accordTripleHeaders: string[] = accordExtras.flatMap((c) => [
+    c.label,
+    'Total HT Accord',
+    'Prix TTC Accord',
+  ]);
+
   const head: string[][] = [
     [
       'REF',
@@ -166,7 +221,9 @@ export function renderDevisPdf(
       'Qte',
       'P.U H.T',
       'Total H.T',
-      ...extraCols.map((c) => c.label),
+      'Prix en TTC',
+      ...nonAccordExtras.map((c) => c.label),
+      ...accordTripleHeaders,
     ],
   ];
 
@@ -185,68 +242,90 @@ export function renderDevisPdf(
       qteCell,
       formatFr(r.puHT),
       formatFr(rowTotalHT(r)),
+      formatFr(rowPrixTTC(r)),
     ];
-    extraCols.forEach((c) => base.push(c.values[r.id] || ''));
+    nonAccordExtras.forEach((c) => base.push(c.values[r.id] || ''));
+    accordExtras.forEach((c) => {
+      const pu = c.values[r.id] || '';
+      base.push(pu);
+      base.push(formatFr(accordRowTotalHT(r, pu)));
+      base.push(formatFr(accordRowTTC(r, pu)));
+    });
     return base;
   });
 
   // Column indices shift by 1 when Vetuste is inserted between Designation (1) and TYPE.
   const off = showVetuste ? 1 : 0;
-  const extraColsStartIndex = 7 + off;
+  const totalHtIndex = 7 + off;
+  const prixTTCIndex = totalHtIndex + 1;                                // NEW column
+  const nonAccordStartIndex = prixTTCIndex + 1;
+  const accordStartIndex = nonAccordStartIndex + nonAccordExtras.length;
   const columnStyles: Record<number, any> = {
     0: { cellWidth: 22, halign: 'center' },                          // REF
     [2 + off]: { halign: 'center', cellWidth: 14 },                  // TYPE (was col 2)
     [3 + off]: { halign: 'center', cellWidth: 14 },                  // TVA
     [4 + off]: { halign: 'center', cellWidth: 12 },                  // Qte
     [5 + off]: { halign: 'right', cellWidth: 24 },                   // P.U H.T
-    [6 + off]: { halign: 'right', cellWidth: 28 },                   // Total H.T
+    [6 + off]: { halign: 'right', cellWidth: 26 },                   // Total H.T
+    [prixTTCIndex]: { halign: 'right', cellWidth: 26 },              // Prix en TTC
   };
   if (showVetuste) columnStyles[2] = { halign: 'center', cellWidth: 16 }; // Vetuste
-  // Counter columns: render in red for visual parity with the editor.
-  extraCols.forEach((c, i) => {
+  // Counter columns (non-accord extras): render in red for visual parity with the editor.
+  nonAccordExtras.forEach((c, i) => {
     if (c.kind === 'counter') {
-      columnStyles[extraColsStartIndex + i] = {
+      columnStyles[nonAccordStartIndex + i] = {
         halign: 'right',
-        cellWidth: 26,
+        cellWidth: 24,
         textColor: [220, 38, 38],
         fontStyle: 'bold',
       };
     }
   });
+  // Accord triples: right-aligned, slightly narrower so the triple fits.
+  accordExtras.forEach((_c, i) => {
+    const base = accordStartIndex + i * 3;
+    columnStyles[base] = { halign: 'right', cellWidth: 20 };          // PU
+    columnStyles[base + 1] = { halign: 'right', cellWidth: 22 };      // Total HT Accord
+    columnStyles[base + 2] = { halign: 'right', cellWidth: 22 };      // Prix TTC Accord
+  });
+
+  // Shrink body font a notch when an accord triple is present — three extra
+  // columns push A4 portrait to its limit.
+  const tableFontSize = accordExtras.length > 0 ? 7.5 : 8.5;
 
   autoTable(pdf, {
     startY: blockY + blockH + 4,
     head,
     body,
     theme: 'grid',
-    styles: { fontSize: 8.5, cellPadding: 1.5, textColor: 20, lineColor: 120, lineWidth: 0.2 },
+    styles: { fontSize: tableFontSize, cellPadding: 1.5, textColor: 20, lineColor: 120, lineWidth: 0.2 },
     headStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: 'bold', halign: 'center' },
     columnStyles,
     margin: { left: margin, right: margin },
   });
 
   // ── Totals footer ───────────────────────────────────────────────────────
+  // Two rows now: Total H.T and Total TTC Expert (Total TVA row dropped).
+  // "Total TTC Expert" is wider than the former "Total TTC" label, so the
+  // label column is given more room.
   const finalY = (pdf as any).lastAutoTable?.finalY || blockY + blockH + 4;
   const totalsY = finalY + 4;
-  const totalsW = 70;
+  const totalsW = 78;
   const totalsX = pageW - margin - totalsW;
 
   pdf.setFontSize(9);
   pdf.setFont('helvetica', 'bold');
-  pdf.rect(totalsX, totalsY, totalsW, 21);
+  pdf.rect(totalsX, totalsY, totalsW, 14);
   pdf.line(totalsX, totalsY + 7, totalsX + totalsW, totalsY + 7);
-  pdf.line(totalsX, totalsY + 14, totalsX + totalsW, totalsY + 14);
-  pdf.line(totalsX + 30, totalsY, totalsX + 30, totalsY + 21);
+  pdf.line(totalsX + 38, totalsY, totalsX + 38, totalsY + 14);
 
   pdf.text('Total H.T', totalsX + 2, totalsY + 5);
-  pdf.text('TVA', totalsX + 2, totalsY + 12);
-  pdf.text('Total TTC', totalsX + 2, totalsY + 19);
+  pdf.text('Total TTC Expert', totalsX + 2, totalsY + 12);
 
   pdf.setFont('helvetica', 'normal');
   pdf.text(formatFr(sumHT(devis.rows)), totalsX + totalsW - 2, totalsY + 5, { align: 'right' });
-  pdf.text(formatFr(sumTVA(devis.rows)), totalsX + totalsW - 2, totalsY + 12, { align: 'right' });
   pdf.setFont('helvetica', 'bold');
-  pdf.text(formatFr(sumTTC(devis.rows)), totalsX + totalsW - 2, totalsY + 19, { align: 'right' });
+  pdf.text(formatFr(sumTTC(devis.rows)), totalsX + totalsW - 2, totalsY + 12, { align: 'right' });
 
   // ── Version watermark in footer ─────────────────────────────────────────
   if (opts?.author || opts?.versionTimestamp) {
