@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { format as dateFormat } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import {
   Upload,
   Loader2,
@@ -12,6 +14,7 @@ import {
   Camera,
   ImageIcon,
 } from 'lucide-react';
+import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
 import {
   collection,
   addDoc,
@@ -345,12 +348,19 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                  {catPhotos.map((photo) => {
+                <CollapsedByDayList
+                  items={catPhotos}
+                  getDate={(photo) => (photo.uploadedAt?.toDate ? photo.uploadedAt.toDate() : null)}
+                  keyOf={(photo) => photo.id}
+                  defaultExpanded={false}
+                  gridItems
+                  groupLabel={(day, count) =>
+                    `${dateFormat(day, 'd MMMM yyyy', { locale: fr })} — ${count} photo${count > 1 ? 's' : ''}`
+                  }
+                  renderItem={(photo) => {
                     const isEditing = editingId === photo.id;
                     return (
                       <div
-                        key={photo.id}
                         className="group relative bg-muted/30 rounded-md border border-border overflow-hidden transition-all hover:shadow-md"
                       >
                         <div className="aspect-square w-full relative overflow-hidden bg-black/5">
@@ -462,8 +472,8 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
                         </div>
                       </div>
                     );
-                  })}
-                </div>
+                  }}
+                />
               )}
             </TabsContent>
           );

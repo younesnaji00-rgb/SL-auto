@@ -39,6 +39,7 @@ import CameraCapture from '@/components/camera-capture';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
 import { useOptions } from '@/hooks/use-options';
 import { deriveStatus, isPlanificationStatus } from '@/lib/status-machine';
+import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -771,10 +772,17 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                   <p className="text-xs mt-1">Utilisez le bouton &quot;Prendre une photo&quot; pour capturer.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-                  {filteredPhotos.map((photo) => (
+                <CollapsedByDayList
+                  items={filteredPhotos}
+                  getDate={(photo) => (photo.uploadedAt?.toDate ? photo.uploadedAt.toDate() : null)}
+                  keyOf={(photo) => photo.id}
+                  defaultExpanded={false}
+                  gridItems
+                  groupLabel={(day, count) =>
+                    `${format(day, 'd MMMM yyyy', { locale: fr })} — ${count} photo${count > 1 ? 's' : ''}`
+                  }
+                  renderItem={(photo) => (
                     <div
-                      key={photo.id}
                       className="group relative aspect-square rounded-lg overflow-hidden border bg-muted cursor-pointer"
                       onClick={() => setPreviewPhoto(photo)}
                     >
@@ -807,8 +815,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                         <p className="text-[10px] text-white truncate">{photo.name}</p>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                />
               )}
             </CardContent>
           </Card>
