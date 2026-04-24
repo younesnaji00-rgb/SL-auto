@@ -1,33 +1,28 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useMemo, use } from 'react';
+import React, { useEffect, useState, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { collection, doc, onSnapshot } from 'firebase/firestore';
-import { ref, getDownloadURL } from 'firebase/storage';
-import { useCollection, useFirestore, useStorage } from '@/firebase';
+import { useCollection, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Dialog, DialogContent, DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Sheet, SheetContent, SheetHeader, SheetTitle,
-} from '@/components/ui/sheet';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import {
-  ArrowLeft, FileType, Eye, Loader2,
-  ChevronDown, ChevronRight, ImageIcon, FileText, ExternalLink,
-  Table2, History, Download, Scale,
-} from 'lucide-react';
+import { ArrowLeft, Scale } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { EDITABLE_DOC_TYPES, isEditableDocType } from '@/lib/devis-schema';
-import { parseAccordDocType, mapToAccorde } from '@/lib/docType-accorde';
+import { isEditableDocType } from '@/lib/devis-schema';
+import { parseAccordDocType } from '@/lib/docType-accorde';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useOptions } from '@/hooks/use-options';
+import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { getStatusBadgeStyles } from '@/lib/status-colors';
 import ObservationsTab from '@/components/observations-tab';
 import { ReformeDialog } from '@/components/chiffreurs/reforme-dialog';
+import {
+  DocumentsFilterPanel,
+  ALL_TYPES_KEY,
+  type DocumentsFilterPanelDoc,
+} from '@/components/chiffreurs/documents-filter-panel';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -52,22 +47,18 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const { id } = use(params);
   const router = useRouter();
   const db = useFirestore();
-  const storage = useStorage();
   const { toast } = useToast();
   const { canWrite } = useCurrentUser();
   const canEdit = canWrite('assignations-chiffrage');
 
   const [chiffrage, setChiffrage] = useState<ChiffrageDoc | null>(null);
   const [dossier, setDossier] = useState<any>(null);
-  const [downloadUrls, setDownloadUrls] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
-  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [isReformeOpen, setReformeOpen] = useState(false);
-  const [versionPreview, setVersionPreview] = useState<{ url: string; label: string } | null>(null);
-  const [historyDoc, setHistoryDoc] = useState<{ docType: string; name: string; versions: any[] } | null>(null);
 
-  const fetchedPathsRef = useRef<Set<string>>(new Set());
+  // Task #31 — DocumentsFilterPanel state (mirrors the dossier documents-tab).
+  const [selectedType, setSelectedType] = useState<string>(ALL_TYPES_KEY);
+  const [typeSearch, setTypeSearch] = useState('');
 
   // Listen to chiffrage doc
   useEffect(() => {
@@ -102,115 +93,70 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     if (!db || !chiffrage?.dossierId) return null;
     return collection(db, 'dossiers', chiffrage.dossierId, 'documents');
   }, [db, chiffrage?.dossierId]);
-  const { data: dossierDocs } = useCollection<any>(dossierDocsQuery);
+  const { data: dossierDocs, loading: docsLoading } = useCollection<any>(dossierDocsQuery);
 
-  useEffect(() => {
-    if (!chiffrage || !storage) return;
-    chiffrage.files.forEach((file, i) => {
-      const path = file.storagePath;
-      if (!path || fetchedPathsRef.current.has(path)) return;
-      fetchedPathsRef.current.add(path);
-      getDownloadURL(ref(storage, path))
-        .then((url) => setDownloadUrls((prev) => ({ ...prev, [i]: url })))
-        .catch(() => fetchedPathsRef.current.delete(path));
+  // Task #31 — Same docType options the dossier documents-tab uses, so the filter
+  // panel surfaces canonical types + cardinal/proposition-accord variants created
+  // upstream (tasks #24/#26) alongside admin-managed types.
+  const { options: dbDocTypes } = useOptions('options_types_documents', [...defaultDocTypes]);
+  const docTypes = useMemo(
+    () =>
+      dbDocTypes.length > 0
+        ? dbDocTypes
+        : defaultDocTypes.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })),
+    [dbDocTypes]
+  );
+
+  const sortedDocs = useMemo<DocumentsFilterPanelDoc[]>(() => {
+    if (!dossierDocs) return [];
+    return [...(dossierDocs as any[])].sort((a, b) => {
+      const tsA = a.dateUpload || a.uploadedAt;
+      const tsB = b.dateUpload || b.uploadedAt;
+      const dateA = tsA?.toDate ? tsA.toDate().getTime() : (tsA || 0);
+      const dateB = tsB?.toDate ? tsB.toDate().getTime() : (tsB || 0);
+      return dateB - dateA;
     });
-  }, [chiffrage?.files?.length, storage]);
-
-  // Task #29 — Cardinal + proposition-accord docTypes that exist on the parent
-  // dossier, in the canonical order used by the typed-documents-grid (#25):
-  //   Devis Garage (base)
-  //   → Devis accordé (ordinal 1), Devis 2ème accord, Devis 3ème accord
-  //   → 1ère/2ème/3ème proposition d'accord (devis)
-  //   Facture Garage (base) then the Facture variants in the same order.
-  // Only variants actually present on the dossier are included.
-  const cardinalSlotsPresent = useMemo(() => {
-    const present = new Set<string>();
-    if (dossierDocs) {
-      for (const d of dossierDocs as any[]) {
-        const label: string = d?.type || d?.typeDocument || '';
-        const parsed = parseAccordDocType(label);
-        if (!parsed) continue;
-        // Safety check — never let a base editable docType slip in here (it
-        // wouldn't round-trip through parseAccordDocType anyway).
-        if ((EDITABLE_DOC_TYPES as readonly string[]).includes(label)) continue;
-        present.add(label);
-      }
-    }
-    const ordered: string[] = [];
-    const sources: readonly ('Devis Garage' | 'Facture Garage')[] = ['Devis Garage', 'Facture Garage'];
-    for (const src of sources) {
-      for (const ord of [1, 2, 3]) {
-        const label = mapToAccorde(src, 'accord', ord);
-        if (present.has(label) && !ordered.includes(label)) ordered.push(label);
-      }
-      for (const ord of [1, 2, 3]) {
-        const label = mapToAccorde(src, 'proposition-accord', ord);
-        if (present.has(label) && !ordered.includes(label)) ordered.push(label);
-      }
-    }
-    return ordered;
   }, [dossierDocs]);
 
-  const groupedFiles = useMemo(() => {
-    const groups: Record<string, { label: string; icon: 'photo' | 'doc'; files: { file: ChiffrageFileDoc; index: number }[] }> = {};
+  // Task #31 — Route the panel's "open" action. Editable types (and cardinal /
+  // proposition-accord variants of those) deep-link into the DevisEditor using
+  // the same `chiffrageId` + `docType` + optional `accordSlot` query params task
+  // #29 introduced on the old per-docType group "Editer (web)" button. All other
+  // types fall back to opening the raw file URL in a new tab (matches the old
+  // `<a href>` behaviour on non-editable rows).
+  const handleOpenDocument = (docEntry: DocumentsFilterPanelDoc) => {
+    const label: string = (docEntry.type || docEntry.typeDocument || '') as string;
+    const parsed = parseAccordDocType(label);
+    if (isEditableDocType(label)) {
+      router.push(`/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(label)}`);
+      return;
+    }
+    if (parsed) {
+      router.push(
+        `/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(parsed.sourceDocType)}&accordSlot=${encodeURIComponent(label)}`,
+      );
+      return;
+    }
+    if (docEntry.url) {
+      window.open(docEntry.url, '_blank', 'noopener,noreferrer');
+    }
+  };
 
-    // Always-present groups (editable types) so the "Editer (web)" button is visible even when empty.
-    EDITABLE_DOC_TYPES.forEach((t) => {
-      groups[`doc_${t}`] = { label: t, icon: 'doc', files: [] };
-    });
+  const handleDownloadDocument = (docEntry: DocumentsFilterPanelDoc) => {
+    if (docEntry.url) {
+      window.open(docEntry.url, '_blank', 'noopener,noreferrer');
+    }
+  };
 
-    // Task #29 — Also register cardinal + proposition-accord groups that exist on
-    // the parent dossier. These render even when no chiffrage file matches the
-    // slot so the user can deep-link into the editor with the right accord context.
-    cardinalSlotsPresent.forEach((t) => {
-      groups[`doc_${t}`] = { label: t, icon: 'doc', files: [] };
-    });
-
-    (chiffrage?.files || []).forEach((file, i) => {
-      let groupKey: string;
-      let groupLabel: string;
-      let icon: 'photo' | 'doc';
-      if (file.type === 'photo') {
-        const cat = file.category || 'avant';
-        const catLabels: Record<string, string> = { avant: 'Photos - Avant', en_cours: 'Photos - En cours', apres: 'Photos - Apres' };
-        groupKey = `photo_${cat}`;
-        groupLabel = catLabels[cat] || `Photos - ${cat}`;
-        icon = 'photo';
-      } else {
-        groupKey = `doc_${file.docType || 'Autre'}`;
-        groupLabel = file.docType || 'Documents - Autre';
-        icon = 'doc';
-      }
-      if (!groups[groupKey]) groups[groupKey] = { label: groupLabel, icon, files: [] };
-      groups[groupKey].files.push({ file, index: i });
-    });
-
-    // Explicit ordering: editable-doc groups first (in EDITABLE_DOC_TYPES order),
-    // followed by cardinal/proposition-accord groups (in canonical source+kind+ordinal
-    // order from `cardinalSlotsPresent`), then photos, then remaining docs alphabetically.
-    const alwaysKeys = new Set<string>([
-      ...EDITABLE_DOC_TYPES.map((t) => `doc_${t}`),
-      ...cardinalSlotsPresent.map((t) => `doc_${t}`),
-    ]);
-    const entries = Object.entries(groups);
-    const editableEntries = EDITABLE_DOC_TYPES
-      .map((t) => entries.find(([k]) => k === `doc_${t}`))
-      .filter((e): e is [string, typeof groups[string]] => !!e);
-    const cardinalEntries = cardinalSlotsPresent
-      .map((t) => entries.find(([k]) => k === `doc_${t}`))
-      .filter((e): e is [string, typeof groups[string]] => !!e);
-    const photoEntries = entries.filter(([k]) => k.startsWith('photo_'));
-    const otherEntries = entries
-      .filter(([k]) => !alwaysKeys.has(k) && !k.startsWith('photo_'))
-      .sort((a, b) => a[1].label.localeCompare(b[1].label));
-    return [...editableEntries, ...cardinalEntries, ...photoEntries, ...otherEntries];
-  }, [chiffrage?.files, cardinalSlotsPresent]);
-
-  const toggleGroup = (group: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(group)) next.delete(group); else next.add(group);
-      return next;
+  // Task #31 — Import is intentionally not wired to a picker here: the chiffreur
+  // does not upload documents from this screen. Passing a no-op (rather than
+  // `undefined`) preserves the panel's CardHeader so the disabled "Importer"
+  // button + tooltip render per task #30's contract.
+  const handleImportClick = () => {
+    toast({
+      variant: 'default',
+      title: 'Import non disponible',
+      description: 'Import non disponible pour le chiffreur.',
     });
   };
 
@@ -270,227 +216,26 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         </Badge>
       </div>
 
-      {/* File groups — collapsed by default */}
-      <div className="space-y-4">
-        {groupedFiles.map(([groupKey, group]) => (
-          <div key={groupKey} className="border rounded-xl overflow-hidden bg-card shadow-sm">
-            <div
-              onClick={() => toggleGroup(groupKey)}
-              className="w-full flex items-center gap-2 px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors text-left cursor-pointer select-none"
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleGroup(groupKey); } }}
-            >
-              {expandedGroups.has(groupKey) ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-              {group.icon === 'photo' ? <ImageIcon className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-4 w-4 text-muted-foreground" />}
-              <span className="text-sm font-bold flex-1">{group.label}</span>
-              <Badge variant="secondary" className="text-[10px] font-mono">{group.files.length}</Badge>
-              {isEditableDocType(group.label) && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 gap-1.5 text-[11px]"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const versions = ((chiffrage as any)?.structuredEditables?.[group.label]?.versions || []) as any[];
-                    setHistoryDoc({ docType: group.label, name: group.label, versions });
-                  }}
-                  title={`Historique des versions — ${group.label}`}
-                >
-                  <History className="h-3.5 w-3.5" />
-                  Historique
-                </Button>
-              )}
-              {canEdit && (isEditableDocType(group.label) || parseAccordDocType(group.label)) && (
-                <Button
-                  size="sm"
-                  variant={group.files.length === 0 ? 'outline' : 'default'}
-                  className="h-7 gap-1.5 text-[11px]"
-                  disabled={group.files.length === 0 && isEditableDocType(group.label)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Task #29 — cardinal + proposition-accord slots deep-link into the
-                    // editor with the underlying source docType (Devis/Facture Garage)
-                    // and an `accordSlot` hint naming the exact cardinal label. Base
-                    // editable slots keep their existing URL unchanged.
-                    const parsed = parseAccordDocType(group.label);
-                    if (parsed) {
-                      router.push(
-                        `/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(parsed.sourceDocType)}&accordSlot=${encodeURIComponent(group.label)}`,
-                      );
-                    } else {
-                      router.push(`/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(group.label)}`);
-                    }
-                  }}
-                  title={group.files.length === 0 && isEditableDocType(group.label) ? `Aucun ${group.label.toLowerCase()} dans cette assignation` : `Editer les ${group.label.toLowerCase()}s`}
-                >
-                  <Table2 className="h-3.5 w-3.5" />
-                  Editer (web)
-                </Button>
-              )}
-            </div>
-            {expandedGroups.has(groupKey) && group.files.length === 0 && (
-              <div className="px-4 py-6 text-center text-xs italic text-muted-foreground">
-                Aucun {group.label.toLowerCase()} dans cette assignation.
-              </div>
-            )}
-            {expandedGroups.has(groupKey) && group.files.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-                {group.files.map(({ file, index: i }) => (
-                  <div
-                    key={`${file.storagePath}-${i}`}
-                    className="border rounded-xl p-4 flex gap-4 items-start bg-card shadow-sm hover:shadow-md transition-all group cursor-pointer"
-                    onClick={() => router.push(`/viewer?chiffrageId=${id}&dossierId=${chiffrage.dossierId}&fileIndex=${i}`)}
-                  >
-                    {/* Thumbnail */}
-                    <div
-                      className="w-12 h-12 rounded-md bg-muted flex items-center justify-center shrink-0 overflow-hidden shadow-inner cursor-pointer relative"
-                      onClick={(e) => { e.stopPropagation(); if (downloadUrls[i]) setPreviewIndex(i); }}
-                    >
-                      {downloadUrls[i] && (file.type === 'photo' || file.name.match(/\.(jpg|jpeg|png)$/i)) ? (
-                        <img src={downloadUrls[i]} alt={file.name} loading="lazy" decoding="async" className="object-cover w-full h-full" />
-                      ) : (
-                        <div className="flex flex-col items-center gap-1">
-                          <FileType className="h-6 w-6 text-muted-foreground opacity-40" />
-                          <span className="text-[8px] uppercase font-black text-muted-foreground">{file.type}</span>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
-                        <Eye className="h-5 w-5 text-white" />
-                      </div>
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 space-y-2 overflow-hidden">
-                      <div className="flex items-center gap-2 flex-wrap justify-between">
-                        <span className="font-bold text-xs truncate max-w-[150px]">{file.name}</span>
-                        <StatusBadge status={file.status} hasAnnotations={!!file.annotations?.length} />
-                      </div>
-                      <p className="text-[10px] text-muted-foreground italic">
-                        Cliquez pour ouvrir la vue de comparaison
-                      </p>
-                      {file.pdfUrl && (
-                        <a
-                          href={file.pdfUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="h-3 w-3" /> PDF Exporte
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+      {/* Task #31 — Documents filter panel (mirrors the dossier documents-tab's
+          "second page" / import view). Import is disabled for chiffreurs; the
+          disabled button + tooltip render per task #30's contract. */}
+      <DocumentsFilterPanel
+        documents={sortedDocs}
+        docTypes={docTypes}
+        selectedType={selectedType}
+        onSelectedTypeChange={setSelectedType}
+        typeSearch={typeSearch}
+        onTypeSearchChange={setTypeSearch}
+        loading={docsLoading}
+        canImport={false}
+        onImportClick={handleImportClick}
+        canDelete={false}
+        onOpenDocument={handleOpenDocument}
+        onDownloadDocument={handleDownloadDocument}
+      />
 
       {/* Observations section */}
       <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />
-
-      {/* Lightbox preview */}
-      {previewIndex !== null && chiffrage && downloadUrls[previewIndex] && (
-        <Dialog open onOpenChange={() => setPreviewIndex(null)}>
-          <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
-            <DialogTitle className="sr-only">Apercu du fichier</DialogTitle>
-            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
-              {chiffrage.files[previewIndex].name.match(/\.(jpg|jpeg|png|webp)$/i) ? (
-                <img src={downloadUrls[previewIndex]} className="max-w-full max-h-full object-contain" alt="Apercu" />
-              ) : (
-                <iframe src={downloadUrls[previewIndex]} className="w-full h-full border-none" title="Apercu" />
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Version preview */}
-      {versionPreview && (
-        <Dialog open onOpenChange={() => setVersionPreview(null)}>
-          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
-            <DialogTitle className="px-4 py-3 border-b text-sm truncate">
-              Version du {versionPreview.label}
-            </DialogTitle>
-            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
-              <iframe src={versionPreview.url} className="w-full h-full border-none" title={`Version ${versionPreview.label}`} />
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Historique drawer — right-side Sheet */}
-      <Sheet open={!!historyDoc} onOpenChange={(o) => !o && setHistoryDoc(null)}>
-        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <History className="h-4 w-4" />
-              Historique — {historyDoc?.name}
-            </SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 space-y-3">
-            {historyDoc && historyDoc.versions.length === 0 && (
-              <p className="text-sm text-muted-foreground">Aucune version enregistrée.</p>
-            )}
-            {historyDoc?.versions?.map((v: any, i: number) => {
-              const raw = v?.createdAt ?? v?.savedAt;
-              const d: Date | null = raw instanceof Date
-                ? raw
-                : typeof raw?.toDate === 'function'
-                  ? raw.toDate()
-                  : typeof raw?.seconds === 'number'
-                    ? new Date(raw.seconds * 1000)
-                    : raw ? new Date(raw) : null;
-              const label = d && !isNaN(d.getTime()) ? d.toLocaleString('fr-FR') : '';
-              const author = v?.createdByNom ?? v?.savedBy ?? 'Inconnu';
-              return (
-                <Card key={v?.id ?? i}>
-                  <CardHeader className="p-3 pb-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium">
-                        Version {historyDoc.versions.length - i}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{label}</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground">par {author}</p>
-                  </CardHeader>
-                  {(v?.note || v?.pdfUrl) && (
-                    <CardContent className="p-3 pt-0 text-xs space-y-2">
-                      {v?.note && <p>{v.note}</p>}
-                      {v?.pdfUrl && (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-[11px]"
-                            onClick={() => setVersionPreview({ url: v.pdfUrl, label: label || `Version ${historyDoc.versions.length - i}` })}
-                          >
-                            <Eye className="h-3.5 w-3.5 mr-1" />
-                            Voir
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                            <a
-                              href={v.pdfUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              download
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                            </a>
-                          </Button>
-                        </div>
-                      )}
-                    </CardContent>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        </SheetContent>
-      </Sheet>
 
       {/* Réforme Modal */}
       {chiffrage.dossierId && (
@@ -502,11 +247,4 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       )}
     </div>
   );
-}
-
-function StatusBadge({ hasAnnotations }: { status: string; hasAnnotations: boolean }) {
-  if (hasAnnotations) {
-    return <Badge variant="expertise" className="text-[9px] py-0 h-4 uppercase font-black">CORRIGE</Badge>;
-  }
-  return <Badge variant="secondary" className="text-[9px] py-0 h-4 uppercase font-black">EN ATTENTE</Badge>;
 }
