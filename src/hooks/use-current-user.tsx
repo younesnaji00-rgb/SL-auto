@@ -23,6 +23,9 @@ type Section = 'dossiers' | 'assignations-chiffrage' | 'assignations-atg' | 'uti
 function canRoleWrite(role: string | undefined, section: Section): boolean {
   if (!role) return false;
   if (role === 'Admin') return true;
+  // Directeur des opérations has no write permissions — only rapport validation
+  // (handled separately via canValidateRapport).
+  if (role === 'Directeur des opérations') return false;
   switch (section) {
     case 'dossiers': return role === 'Gestionnaire' || role === "Responsable d'équipe";
     case 'assignations-chiffrage': return role === 'Chiffreur';
@@ -30,6 +33,11 @@ function canRoleWrite(role: string | undefined, section: Section): boolean {
     case 'utilisateurs': return false;
     default: return false;
   }
+}
+
+/** Returns true if the given role may validate a dossier's rapport. */
+export function canValidateRapport(role: Role | undefined | null): boolean {
+  return role === 'Admin' || role === 'Directeur des opérations';
 }
 
 interface CurrentUserContextType {

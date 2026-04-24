@@ -105,7 +105,7 @@ export const compagnies = [
     'Allianz', 'RMA', 'Sanlam', 'Wafa', 'ATLANTA', 'CP', 'Fès RMA', 'Fès ATLANTASANAD', 'Fès Sanlam', 'Wafa Assurance', 'RMA Assurance', 'Zurich Assurance', 'Saham Assurance', 'Atlanta Assurance', 'AXA Assurance'
 ];
 
-export const roles = ['Admin', 'Responsable d\'équipe', 'Gestionnaire', 'Chiffreur', 'Agent de Terrain'] as const;
+export const roles = ['Admin', 'Responsable d\'équipe', 'Gestionnaire', 'Chiffreur', 'Agent de Terrain', 'Directeur des opérations'] as const;
 export type Role = typeof roles[number];
 
 export type User = {
