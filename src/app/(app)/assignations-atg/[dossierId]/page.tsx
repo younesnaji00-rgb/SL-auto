@@ -39,8 +39,43 @@ import ObservationsTab from '@/components/observations-tab';
 import CameraCapture from '@/components/camera-capture';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
 import { useOptions } from '@/hooks/use-options';
+import { deriveStatus, isPlanificationStatus } from '@/lib/status-machine';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
+
+/**
+ * Task #10 — After a photo upload (per category), advance the dossier status to
+ * `Planification expertise avant | en cours | après` on the 0 → ≥1 transition.
+ * Idempotent: if the dossier is already on the target status, it's a no-op.
+ * Also a no-op when the dossier has progressed past the planification phase
+ * (e.g. `Chiffrage en cours`, `Accord`, …) so we never regress the workflow.
+ */
+async function maybeAdvanceToExpertise(
+  db: any,
+  dossierId: string,
+  currentStatut: string | undefined,
+  category: PhotoCategory,
+  userEmail: string,
+) {
+  const targetStatut = deriveStatus({ kind: 'photo', category });
+  if (currentStatut === targetStatut) return; // already on target — idempotent
+  // Only advance from Création dossier or another Planification * state.
+  if (currentStatut && currentStatut !== 'Création dossier' && !isPlanificationStatus(currentStatut)) return;
+  try {
+    await updateDoc(doc(db, 'dossiers', dossierId), { statut: targetStatut });
+    await logHistorique(
+      db,
+      dossierId,
+      targetStatut,
+      userEmail,
+      `Statut mis à jour automatiquement par l'ajout de la première photo (${category}).`,
+      'statut',
+    );
+  } catch (err) {
+    // Non-blocking: don't fail the upload if the status update throws (offline, perms, etc.)
+    console.error('Auto-advance to expertise failed:', err);
+  }
+}
 
 interface Photo {
   id: string;
@@ -205,11 +240,15 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   // Upload photos (from camera capture)
   const handleUploadFiles = async (files: File[]) => {
     if (!db || !storage || files.length === 0) return;
+    // Capture the statut BEFORE the upload loop so the auto-advance check is
+    // race-free with respect to additional snapshots arriving mid-batch.
+    const statutBeforeUpload: string | undefined = dossier?.statut;
+    const categoryAtUpload: PhotoCategory = currentCategory;
     setIsUploading(true);
     try {
       for (const file of files) {
         const timestamp = Date.now();
-        const storagePath = `dossiers/${dossierId}/photos/${currentCategory}/${timestamp}_${file.name}`;
+        const storagePath = `dossiers/${dossierId}/photos/${categoryAtUpload}/${timestamp}_${file.name}`;
         await uploadFileWithOfflineSupport({
           storage,
           db,
@@ -219,17 +258,22 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           firestoreDocPath: `dossiers/${dossierId}/photos`,
           firestoreMetadata: {
             name: file.name,
-            category: currentCategory,
+            category: categoryAtUpload,
             uploadedAt: serverTimestamp(),
             uploadedBy: userEmail,
             storagePath,
           },
         });
-        await logHistorique(db, dossierId, 'Upload photo Agent de Terrain', userEmail, `Photo "${file.name}" uploadée (${currentCategory}).`, 'photo');
+        await logHistorique(db, dossierId, 'Upload photo Agent de Terrain', userEmail, `Photo "${file.name}" uploadée (${categoryAtUpload}).`, 'photo');
       }
-      const catLabel = currentCategory === 'avant' ? 'Avant' : currentCategory === 'en_cours' ? 'En cours' : 'Après';
+      const catLabel = categoryAtUpload === 'avant' ? 'Avant' : categoryAtUpload === 'en_cours' ? 'En cours' : 'Après';
       const userId = auth?.currentUser?.uid || 'unknown';
       await logWorkflow(db, dossierId, 'Agent de Terrain : photos ajoutées en planification', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${files.length} photos ${catLabel} ajoutées par Agent de Terrain` });
+      // Auto-advance status on first-photo-for-category transition. Non-blocking:
+      // fires and forgets so the UI isn't held on the status write even offline.
+      // Idempotent — re-uploads in the same category are no-ops because the
+      // helper early-returns when currentStatut already equals the target.
+      void maybeAdvanceToExpertise(db, dossierId, statutBeforeUpload, categoryAtUpload, userEmail);
       toast({ title: `${files.length} photo${files.length > 1 ? 's' : ''} uploadée${files.length > 1 ? 's' : ''} avec succès` });
     } catch {
       toast({ variant: 'destructive', title: "Erreur lors de l'upload" });
