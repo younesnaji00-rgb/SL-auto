@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { doc, getDoc, onSnapshot, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
-  ArrowLeft, Columns2, Download, FileText, History, Loader2, Plus, RefreshCcw,
+  ArrowLeft, Columns2, Copy, Download, FileText, History, Loader2, Plus, RefreshCcw,
   Save, Sparkles, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -305,6 +305,36 @@ export function DevisEditor({
     setExtraColumns((cols) =>
       cols.map((c) => (c.id === colId ? { ...c, values: { ...c.values, [rowId]: value } } : c))
     );
+  };
+
+  // Task #20: clone the P.U.H.T column into a new accord extra column.
+  // The header dropdown (task #21) lets the chiffreur switch between
+  // 'accord' and 'proposition-accord' kinds and picks the label. Until
+  // then the column starts as 'accord' with an empty label. `locked`
+  // stays false here — the save-time transition to locked=true is
+  // wired by task #24.
+  const hasAccordClone = useMemo(
+    () => extraColumns.some((c) => c.kind === 'accord' || c.kind === 'proposition-accord'),
+    [extraColumns],
+  );
+  const clonePuHt = () => {
+    if (hasAccordClone) return;
+    const newId =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2);
+    const values: Record<string, string> = {};
+    for (const r of rows) {
+      values[r.id] = String(r.puHT ?? '');
+    }
+    const newCol: DevisExtraColumn = {
+      id: newId,
+      label: '',
+      values,
+      kind: 'accord',
+      locked: false,
+    };
+    setExtraColumns((cols) => [...cols, newCol]);
   };
 
 
@@ -654,7 +684,27 @@ export function DevisEditor({
 
       {/* Rows table — fixed columns (no user-configurable columns per task #5). */}
       <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
-        {canEdit && (
+        {canEdit && !isGestionnaire && (
+          <div className="flex flex-wrap items-center gap-2 p-2 border-b bg-muted/20">
+            <Button variant="outline" size="sm" onClick={addRow}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Ajouter une ligne
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clonePuHt}
+              disabled={hasAccordClone}
+              title={
+                hasAccordClone
+                  ? 'Une colonne accord existe déjà. Suppression impossible.'
+                  : 'Cloner la colonne P.U.H.T pour saisir un accord'
+              }
+            >
+              <Copy className="h-3.5 w-3.5 mr-1.5" /> Cloner PU.HT
+            </Button>
+          </div>
+        )}
+        {canEdit && isGestionnaire && (
           <div className="flex flex-wrap items-center gap-2 p-2 border-b bg-muted/20">
             <Button variant="outline" size="sm" onClick={addRow}>
               <Plus className="h-3.5 w-3.5 mr-1.5" /> Ajouter une ligne
