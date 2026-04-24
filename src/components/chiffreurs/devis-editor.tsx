@@ -157,6 +157,11 @@ export function DevisEditor({
     return () => unsub();
   }, [db, dossierId]);
 
+  // task #17: scan header wins over dossier prefill — fall back to dossier only when scan is blank.
+  // `existing` here is the scan-extracted header (from structuredEditables[docType].header) when
+  // available, or an empty header for a brand-new gestionnaire doc. For each HEADER_FIELDS_*
+  // field we return `existing.<field> || dossier-derived-value || ''` so a non-empty scan value
+  // always wins and dossier metadata only fills gaps.
   const dossierPrefill = useCallback((existing: DevisHeader): DevisHeader => {
     if (!dossier) return existing;
     const v = dossier.vehicule || {};
