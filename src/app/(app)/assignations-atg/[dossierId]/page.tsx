@@ -40,6 +40,7 @@ import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
 import { useOptions } from '@/hooks/use-options';
 import { deriveStatus, isPlanificationStatus } from '@/lib/status-machine';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
+import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-grid';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -839,170 +840,13 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               </h3>
             </div>
 
-            {/* Hidden file inputs */}
-            <input
-              ref={docFileInputRef}
-              type="file"
-              multiple
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files && e.target.files.length > 0) handleDocFilesSelect(e.target.files);
-                if (docFileInputRef.current) docFileInputRef.current.value = '';
-              }}
-            />
-            <input
-              ref={docCameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files && e.target.files.length > 0) handleDocFilesSelect(e.target.files);
-                if (docCameraInputRef.current) docCameraInputRef.current.value = '';
-              }}
-            />
-
-            {/* Document type grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {docTypes.map((dt) => {
-                const docsOfType = documents.filter((d: any) => d.type === dt.label);
-                return (
-                  <div key={dt.id} className="border rounded-xl p-4 bg-card space-y-3">
-                    <h4 className="text-sm font-bold">{dt.label}</h4>
-
-                    {/* Existing documents of this type */}
-                    {docsOfType.length > 0 && (
-                      <div className="space-y-1.5">
-                        {docsOfType.map((item: any) => (
-                          <div key={item.id} className="flex items-center gap-2 p-1.5 rounded border bg-muted/30 text-xs">
-                            <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                            <span className="flex-1 truncate">{item.nom || item.name}</span>
-                            {item.pendingUpload && (
-                              <Badge variant="outline" className="text-amber-600 border-amber-300 text-[9px]">En attente</Badge>
-                            )}
-                            {canEdit && item.uploadSource === 'ATG' && item.uploadePar === auth?.currentUser?.email && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteDocument(item)}
-                                disabled={isDeletingDoc === item.id}
-                                className="shrink-0 rounded p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50"
-                                aria-label="Supprimer le document"
-                              >
-                                {isDeletingDoc === item.id
-                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  : <Trash2 className="h-3.5 w-3.5" />}
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Upload button */}
-                    {canEdit && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full gap-1.5 h-9 text-xs border-dashed"
-                        onClick={() => {
-                          setDocUploadType(dt.label);
-                          docFileInputRef.current?.click();
-                        }}
-                      >
-                        <Upload className="h-3.5 w-3.5" />
-                        Ajouter
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Fallback: documents whose type doesn't match any known docTypes
-                (e.g. gestionnaire-uploaded "Devis Garage", "Rapport final"…) */}
-            {(() => {
-              const knownLabels = new Set(docTypes.map((dt) => dt.label));
-              const otherDocs = documents.filter((d: any) => !knownLabels.has(d.type));
-              if (otherDocs.length === 0) return null;
-              return (
-                <div className="mt-4 border rounded-xl p-4 bg-card space-y-3">
-                  <h4 className="text-sm font-bold">Autres documents</h4>
-                  <div className="space-y-1.5">
-                    {otherDocs.map((item: any) => (
-                      <div key={item.id} className="flex items-center gap-2 p-1.5 rounded border bg-muted/30 text-xs">
-                        <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                        <span className="flex-1 truncate">{item.nom || item.name}</span>
-                        {item.type && (
-                          <Badge variant="outline" className="text-[9px] whitespace-nowrap">{item.type}</Badge>
-                        )}
-                        {canEdit && item.uploadSource === 'ATG' && item.uploadePar === auth?.currentUser?.email && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteDocument(item)}
-                            disabled={isDeletingDoc === item.id}
-                            className="shrink-0 rounded p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50"
-                            aria-label="Supprimer le document"
-                          >
-                            {isDeletingDoc === item.id
-                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              : <Trash2 className="h-3.5 w-3.5" />}
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
+            <TypedDocumentsGrid dossierId={dossierId} />
           </CardContent>
         </Card>
       )}
 
       {/* Observations section */}
       <ObservationsTab dossierId={dossierId} section="assignations-atg" variant="collapsible" />
-
-      {/* Document type selection modal */}
-      <Dialog open={isDocUploadModalOpen} onOpenChange={(open) => { if (!open) { setDocUploadModalOpen(false); setSelectedDocFile(null); } }}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Catégorie du document</DialogTitle>
-            <DialogDescription>
-              Fichier: <span className="font-semibold text-foreground">{selectedDocFile?.name}</span>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Type de document</Label>
-              <Select value={docUploadType} onValueChange={setDocUploadType} disabled={isDocUploading}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir une catégorie" />
-                </SelectTrigger>
-                <SelectContent>
-                  {docTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.label}>{type.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {isDocUploading && (
-              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Envoi en cours...</span>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setDocUploadModalOpen(false); setSelectedDocFile(null); }} disabled={isDocUploading}>
-              Annuler
-            </Button>
-            <Button onClick={handleDocUpload} disabled={!selectedDocFile || !docUploadType || isDocUploading}>
-              {isDocUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {isDocUploading ? 'Transfert...' : 'Uploader'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Photo preview dialog */}
       {previewPhoto && (

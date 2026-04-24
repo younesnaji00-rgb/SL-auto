@@ -80,7 +80,22 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
   const storage = useStorage();
   const { toast } = useToast();
   const { canWrite, profile } = useCurrentUser();
-  const canEdit = canWrite('dossiers');
+  // Gestionnaires / Admins edit via 'dossiers' section; ATG edits this same grid
+  // through their own assignation section. Upload is allowed for either.
+  const canEdit = canWrite('dossiers') || canWrite('assignations-atg');
+  const isATG = profile?.role === 'Agent de Terrain';
+  const currentEmail = auth?.currentUser?.email || profile?.email || '';
+  const currentUid = auth?.currentUser?.uid || '';
+  // ATG may delete only documents they uploaded themselves. Everyone else with
+  // canEdit may delete anything.
+  const canDeleteDoc = (d: TypedDoc): boolean => {
+    if (!canEdit) return false;
+    if (!isATG) return true;
+    return (
+      (!!currentUid && d.uploadedBy === currentUid) ||
+      (!!currentEmail && d.uploadePar === currentEmail)
+    );
+  };
 
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -289,6 +304,10 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
 
   const handleDelete = async (item: TypedDoc) => {
     if (!db || !storage) return;
+    if (!canDeleteDoc(item)) {
+      toast({ variant: 'destructive', title: 'Suppression refusée', description: 'Vous ne pouvez supprimer que les documents que vous avez vous-même téléversés.' });
+      return;
+    }
     if (!window.confirm('Supprimer ce document ?')) return;
 
     const userEmail = auth?.currentUser?.email || profile?.email || 'Admin';
@@ -336,6 +355,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
               slot={slot}
               docs={docsByType[slot] || []}
               canEdit={canEdit}
+              canDeleteDoc={canDeleteDoc}
               userRole={profile?.role}
               isUploading={uploadingSlot === slot}
               deletingId={deletingId}
@@ -405,6 +425,7 @@ interface SlotCardProps {
   slot: string;
   docs: TypedDoc[];
   canEdit: boolean;
+  canDeleteDoc: (d: TypedDoc) => boolean;
   userRole?: string;
   isUploading: boolean;
   deletingId: string | null;
@@ -418,6 +439,7 @@ function SlotCard({
   slot,
   docs,
   canEdit,
+  canDeleteDoc,
   userRole,
   isUploading,
   deletingId,
@@ -497,7 +519,7 @@ function SlotCard({
                       <p className="text-[10px] text-amber-700">En attente…</p>
                     )}
                   </div>
-                  {canEdit && (
+                  {canDeleteDoc(d) && (
                     <Button
                       type="button"
                       variant="ghost"
