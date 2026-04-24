@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
-  ArrowLeft, Columns2, Copy, Download, FileText, History, Loader2, Plus, RefreshCcw,
+  ArrowLeft, Columns2, Copy, Download, FileText, History, Loader2, Lock, Plus, RefreshCcw,
   Save, Sparkles, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,7 @@ import ReferencePanel from '@/app/editor/reference-panel';
 import { useSidebar } from '@/components/ui/sidebar';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 import { DevisPreviewDialog } from '@/components/chiffreurs/devis-preview-dialog';
+import { ScanWarningDialog } from '@/components/chiffreurs/scan-warning-dialog';
 
 /**
  * The devis editor is shared between two entry points:
@@ -129,6 +130,12 @@ export function DevisEditor({
     'accord' | 'proposition-accord' | undefined
   >(undefined);
   const [previewOrdinal, setPreviewOrdinal] = useState<number | undefined>(undefined);
+
+  // Task #33: post-scan warning / edit-lock state. `scanReviewed` defaults to
+  // true so the existing persisted-reload flow is untouched. Only a fresh
+  // successful `runExtraction` flips it false and opens the warning dialog.
+  const [scanWarningOpen, setScanWarningOpen] = useState(false);
+  const [scanReviewed, setScanReviewed] = useState(true);
 
   const initializedRef = useRef(false);
 
@@ -294,6 +301,10 @@ export function DevisEditor({
         setExtraColumns(cols);
         setVersions(sd.versions || []);
         toast({ title: 'Extraction automatique terminee', description: `${sd.rows.length} ligne(s) detectee(s) depuis ${devisFileNames.length} ${typeLabel.lower}(s).` });
+        // Task #33: a fresh scan just populated editor state — lock edits and
+        // surface the warning dialog until the chiffreur confirms review.
+        setScanReviewed(false);
+        setScanWarningOpen(true);
       }
     } catch (e: any) {
       console.error('[devis-editor] extraction failed', e);
@@ -362,6 +373,11 @@ export function DevisEditor({
     () => extraColumns.some((c) => c.kind === 'accord' || c.kind === 'proposition-accord'),
     [extraColumns],
   );
+
+  // Task #33: derived edit gate. `canEdit` is the role check (gestionnaire or
+  // authorised chiffreur); `scanReviewed` is the post-scan confirmation flag.
+  // Both must be true before any row/header affordance is enabled.
+  const isEditable = canEdit && scanReviewed;
   const clonePuHt = () => {
     if (hasAccordClone) return;
     const newId =
@@ -807,6 +823,22 @@ export function DevisEditor({
             Ré-extraire
           </Button>
         )}
+        {/*
+          Task #33: manual unlock bypass. Hidden once `scanReviewed` is true;
+          surfaces a Lock icon while a fresh-scan lock is active so the
+          chiffreur can flip to edit mode without reopening the dialog.
+        */}
+        {canEdit && !scanReviewed && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setScanReviewed(true)}
+            title="Déverrouiller les modifications"
+          >
+            <Lock className="h-3.5 w-3.5 mr-1.5" />
+            Modifications
+          </Button>
+        )}
         <Button variant="default" size="sm" onClick={handleSave} loading={saving} disabled={!canEdit}>
           {saving ? null : <Save className="h-3.5 w-3.5 mr-1.5" />}
           Enregistrer
@@ -840,7 +872,7 @@ export function DevisEditor({
               label={f.label}
               value={header[f.key] || ''}
               onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
-              disabled={!canEdit}
+              disabled={!isEditable}
             />
           ))}
         </div>
@@ -851,7 +883,7 @@ export function DevisEditor({
               label={f.label}
               value={header[f.key] || ''}
               onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
-              disabled={!canEdit}
+              disabled={!isEditable}
             />
           ))}
           <div className="grid grid-cols-2 gap-2 pt-1">
@@ -859,13 +891,13 @@ export function DevisEditor({
               label="Devis N°"
               value={header.devisNumero}
               onChange={(v) => setHeader((h) => ({ ...h, devisNumero: v }))}
-              disabled={!canEdit}
+              disabled={!isEditable}
             />
             <HeaderField
               label="Date"
               value={header.dateDevis}
               onChange={(v) => setHeader((h) => ({ ...h, dateDevis: v }))}
-              disabled={!canEdit}
+              disabled={!isEditable}
               placeholder="JJ/MM/AAAA"
             />
           </div>
@@ -876,14 +908,14 @@ export function DevisEditor({
       <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
         {canEdit && !isGestionnaire && (
           <div className="flex flex-wrap items-center gap-2 p-2 border-b bg-muted/20">
-            <Button variant="outline" size="sm" onClick={addRow}>
+            <Button variant="outline" size="sm" onClick={addRow} disabled={!isEditable}>
               <Plus className="h-3.5 w-3.5 mr-1.5" /> Ajouter une ligne
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={clonePuHt}
-              disabled={hasAccordClone}
+              disabled={hasAccordClone || !scanReviewed}
               title={
                 hasAccordClone
                   ? 'Une colonne accord existe déjà. Suppression impossible.'
@@ -896,7 +928,7 @@ export function DevisEditor({
         )}
         {canEdit && isGestionnaire && (
           <div className="flex flex-wrap items-center gap-2 p-2 border-b bg-muted/20">
-            <Button variant="outline" size="sm" onClick={addRow}>
+            <Button variant="outline" size="sm" onClick={addRow} disabled={!isEditable}>
               <Plus className="h-3.5 w-3.5 mr-1.5" /> Ajouter une ligne
             </Button>
           </div>
@@ -1023,7 +1055,7 @@ export function DevisEditor({
                             updateRow(r.id, { type: v });
                           }
                         }}
-                        disabled={!canEdit}
+                        disabled={!isEditable}
                       >
                         <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
                           <SelectValue placeholder="" />
@@ -1040,7 +1072,7 @@ export function DevisEditor({
                       <Select
                         value={(REF_OPTIONS as readonly string[]).includes(r.ref) ? r.ref : ''}
                         onValueChange={(v) => updateRow(r.id, { ref: v })}
-                        disabled={!canEdit}
+                        disabled={!isEditable}
                       >
                         <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
                           <SelectValue placeholder="" />
@@ -1053,19 +1085,19 @@ export function DevisEditor({
                       </Select>
                     </td>
                     <td>
-                      <CellInput value={r.designation} onChange={(v) => updateRow(r.id, { designation: v })} disabled={!canEdit} />
+                      <CellInput value={r.designation} onChange={(v) => updateRow(r.id, { designation: v })} disabled={!isEditable} />
                     </td>
                     <td>
-                      <CellNumberInput value={r.tva} onChange={(v) => updateRow(r.id, { tva: v })} disabled={!canEdit} suffix="%" decimals={0} align="center" allowNull />
+                      <CellNumberInput value={r.tva} onChange={(v) => updateRow(r.id, { tva: v })} disabled={!isEditable} suffix="%" decimals={0} align="center" allowNull />
                     </td>
                     <td>
-                      <CellNumberInput value={r.qte} onChange={(v) => updateRow(r.id, { qte: v })} disabled={!canEdit} decimals={0} align="center" allowNull />
+                      <CellNumberInput value={r.qte} onChange={(v) => updateRow(r.id, { qte: v })} disabled={!isEditable} decimals={0} align="center" allowNull />
                     </td>
                     <td>
                       <CellNumberInput
                         value={r.vetuste ?? null}
                         onChange={(v) => updateRow(r.id, { vetuste: v })}
-                        disabled={!canEdit}
+                        disabled={!isEditable}
                         suffix="%"
                         decimals={0}
                         align="center"
@@ -1073,7 +1105,7 @@ export function DevisEditor({
                       />
                     </td>
                     <td>
-                      <CellNumberInput value={r.puHT} onChange={(v) => updateRow(r.id, { puHT: v ?? 0 })} disabled={!canEdit} align="right" />
+                      <CellNumberInput value={r.puHT} onChange={(v) => updateRow(r.id, { puHT: v ?? 0 })} disabled={!isEditable} align="right" />
                     </td>
                     {/* Total H.T is computed — read-only, auto-updating. */}
                     <td className="text-right font-semibold pr-2">{formatFr(total)}</td>
@@ -1096,7 +1128,7 @@ export function DevisEditor({
                             <td>
                               <AccordPUInput
                                 value={raw}
-                                disabled={!canEdit || col.locked === true}
+                                disabled={!isEditable || col.locked === true}
                                 onChange={(v) => updateExtraCell(col.id, r.id, v)}
                                 onBlurClamp={() => {
                                   const current = parseFr(col.values[r.id] || '');
@@ -1128,7 +1160,7 @@ export function DevisEditor({
                           <CellInput
                             value={col.values[r.id] || ''}
                             onChange={(v) => updateExtraCell(col.id, r.id, v)}
-                            disabled={!canEdit}
+                            disabled={!isEditable}
                             className={col.kind === 'counter' ? 'text-destructive font-semibold' : undefined}
                           />
                         </td>
@@ -1322,6 +1354,21 @@ export function DevisEditor({
           }}
         />
       )}
+
+      {/*
+        Task #33 — post-scan warning dialog. Auto-opens after a successful
+        `runExtraction` (see above) and blocks editing via `isEditable` until
+        the chiffreur confirms "J'ai vérifié". Cancelling just closes the
+        dialog; the toolbar `Modifications` button provides a manual unlock.
+      */}
+      <ScanWarningDialog
+        open={scanWarningOpen}
+        onOpenChange={setScanWarningOpen}
+        onConfirm={() => {
+          setScanReviewed(true);
+          setScanWarningOpen(false);
+        }}
+      />
 
     </div>
   );
