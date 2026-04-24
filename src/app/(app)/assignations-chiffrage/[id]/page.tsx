@@ -3,11 +3,11 @@
 import React, { useEffect, useState, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { collection, doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { useCollection, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Scale } from 'lucide-react';
+import { ArrowLeft, Mail, Scale } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { isEditableDocType } from '@/lib/devis-schema';
 import { parseAccordDocType } from '@/lib/docType-accorde';
@@ -16,8 +16,15 @@ import { useOptions } from '@/hooks/use-options';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles } from '@/lib/status-colors';
+import { deriveStatus } from '@/lib/status-machine';
+import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
+import { addObservation } from '@/app/(app)/dossiers/[id]/log-observation';
 import ObservationsTab from '@/components/observations-tab';
 import { ReformeDialog } from '@/components/chiffreurs/reforme-dialog';
+import {
+  EnvoyerParMailDialog,
+  type EnvoyerParMailDialogDoc,
+} from '@/components/chiffreurs/envoyer-par-mail-dialog';
 import {
   DocumentsFilterPanel,
   ALL_TYPES_KEY,
@@ -48,13 +55,19 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
-  const { canWrite } = useCurrentUser();
+  const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('assignations-chiffrage');
+  // Task #36 — "Envoyer par mail" is a gestionnaire/admin action (not a
+  // chiffreur one). Gate the toolbar button on profile.role directly since
+  // `canWrite('assignations-chiffrage')` returns true only for Chiffreurs.
+  const canSendMail =
+    profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
 
   const [chiffrage, setChiffrage] = useState<ChiffrageDoc | null>(null);
   const [dossier, setDossier] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isReformeOpen, setReformeOpen] = useState(false);
+  const [mailDialogOpen, setMailDialogOpen] = useState(false);
 
   // Task #31 — DocumentsFilterPanel state (mirrors the dossier documents-tab).
   const [selectedType, setSelectedType] = useState<string>(ALL_TYPES_KEY);
@@ -162,6 +175,110 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
 
   const dossierStatut = dossier?.statut || 'Nouveau';
 
+  // Task #36 — filter dossier docs down to accord / proposition-accord types.
+  // Shape them for the EnvoyerParMailDialog. A doc is mailable iff (a) it
+  // parses as an accord variant AND (b) it has a resolvable URL.
+  const accordDocs = useMemo<EnvoyerParMailDialogDoc[]>(() => {
+    return sortedDocs
+      .filter((d) => {
+        const label = (d.type || d.typeDocument || '') as string;
+        return Boolean(d.url) && parseAccordDocType(label) != null;
+      })
+      .map((d) => ({
+        id: d.id,
+        type: (d.type || d.typeDocument || '') as string,
+        name: (d.nom || d.fileName || d.type || 'document') as string,
+        url: d.url as string,
+      }));
+  }, [sortedDocs]);
+
+  // Task #36 — dossier reference used in the email subject/body template.
+  // Prefer refExpert, then numero, then fall back to the dossier id.
+  const dossierNumero: string =
+    (dossier?.refExpert as string | undefined) ||
+    (dossier?.numero as string | undefined) ||
+    (chiffrage?.dossierId as string | undefined) ||
+    '';
+
+  const handleSendMail = async (payload: {
+    documentId: string;
+    recipient: string;
+    subject: string;
+    body: string;
+  }) => {
+    if (!db || !chiffrage?.dossierId) return;
+    const selected = accordDocs.find((d) => d.id === payload.documentId);
+    if (!selected) {
+      toast({ variant: 'destructive', title: 'Document introuvable.' });
+      return;
+    }
+
+    try {
+      // 1) POST to the nodemailer endpoint (task #12 + task #36 attachments).
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: payload.recipient,
+          subject: payload.subject,
+          text: payload.body,
+          attachments: [{ filename: selected.name, url: selected.url }],
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+
+      // 2) Transition dossier status to `Accord envoyé`.
+      const newStatus = deriveStatus({ kind: 'sendByMail' });
+      await updateDoc(doc(db, 'dossiers', chiffrage.dossierId), {
+        statut: newStatus,
+      });
+
+      // 3) Audit trail + observation.
+      const userName = profile
+        ? `${profile.prenom} ${profile.nom}`.trim() || profile.email
+        : 'Admin';
+      const userEmail = profile?.email || '';
+      const userRole = profile?.role || 'Admin';
+
+      await logHistorique(
+        db,
+        chiffrage.dossierId,
+        newStatus,
+        userName,
+        `Accord envoyé à ${payload.recipient} (${selected.type})`,
+        'statut',
+      );
+
+      await addObservation(
+        db,
+        chiffrage.dossierId,
+        `Accord envoyé par mail à ${payload.recipient} — document : ${selected.type} (${selected.name}).`,
+        'Décision de statut',
+        userName,
+        userEmail,
+        userRole,
+        'assignations-chiffrage',
+      );
+
+      toast({
+        title: 'Mail envoyé',
+        description: `Accord envoyé à ${payload.recipient}.`,
+      });
+    } catch (err: any) {
+      console.error('Failed to send accord mail:', err);
+      toast({
+        variant: 'destructive',
+        title: "Échec de l'envoi",
+        description: err?.message || 'Impossible d\'envoyer le mail.',
+      });
+      // Re-throw so the dialog keeps the form open for another attempt.
+      throw err;
+    }
+  };
+
   if (loading || !chiffrage) {
     return (
       <div className="max-w-5xl mx-auto space-y-6">
@@ -200,6 +317,17 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             Correcteur : <span className="font-bold text-foreground">{chiffrage.assignedChiffreurNom}</span>
           </p>
         </div>
+        {canSendMail && chiffrage.dossierId && (
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setMailDialogOpen(true)}
+          >
+            <Mail className="h-3.5 w-3.5" />
+            Envoyer par mail
+          </Button>
+        )}
         {canEdit && chiffrage.dossierId && (
           <Button
             variant="default"
@@ -243,6 +371,17 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           dossierId={chiffrage.dossierId}
           open={isReformeOpen}
           onOpenChange={setReformeOpen}
+        />
+      )}
+
+      {/* Task #36 — Envoyer par mail dialog (gestionnaire/admin only). */}
+      {canSendMail && chiffrage.dossierId && (
+        <EnvoyerParMailDialog
+          open={mailDialogOpen}
+          onOpenChange={setMailDialogOpen}
+          documents={accordDocs}
+          dossierNumero={dossierNumero}
+          onSend={handleSendMail}
         />
       )}
     </div>

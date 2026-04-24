@@ -35,3 +35,23 @@ export function buildGmailComposeUrl(opts: BuildGmailComposeUrlOptions): string 
   }
   return `https://mail.google.com/mail/?${params.toString()}`;
 }
+
+/**
+ * Task #36 — canonical subject + plain-text body for the "Envoyer par mail"
+ * accord flow. Kept here so the dialog default and any future programmatic
+ * caller stay in sync.
+ */
+export function buildAccordEmailTemplate(numero: string): {
+  subject: string;
+  body: string;
+} {
+  const ref = numero && numero.trim().length > 0 ? numero : '—';
+  return {
+    subject: `[SL-AUTO] Accord expertise - Dossier N° ${ref}`,
+    body:
+      `Madame, Monsieur,\n\n` +
+      `Veuillez trouver ci-joint l'accord d'expertise concernant le dossier N° ${ref}.\n\n` +
+      `Cordialement,\n\n` +
+      `L'équipe SL Auto Expertise`,
+  };
+}
