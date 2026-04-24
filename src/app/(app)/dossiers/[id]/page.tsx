@@ -7,7 +7,6 @@ import {
   Send,
   AlertTriangle,
   History,
-  GitBranch,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDoc, useFirestore } from '@/firebase';
@@ -38,7 +37,6 @@ import HistoriqueTab from './historique-tab';
 import ModalPlanification from './modal-planification';
 import ModalChiffrage from './modal-chiffrage';
 import ModalReclamation from './modal-reclamation';
-import ModalDecisionStatus from './modal-decision-status';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 export default function DossierDetailPage({
@@ -76,7 +74,6 @@ export default function DossierDetailPage({
   const [planificationInitialData, setPlanificationInitialData] = useState<any>(null);
   const [isChiffrageModalOpen, setChiffrageModalOpen] = useState(false);
   const [isReclamationModalOpen, setReclamationModalOpen] = useState(false);
-  const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
   const [isHistoriqueOpen, setHistoriqueOpen] = useState(false);
 
   const renderAssure = (assure: any) => {
@@ -155,9 +152,6 @@ export default function DossierDetailPage({
         <Button variant="outline" size="sm" onClick={() => setHistoriqueOpen(true)} className="h-8 text-xs gap-1.5">
           <History className="h-3.5 w-3.5" /> Historique
         </Button>
-        <Button variant="default" size="sm" onClick={() => setDecisionStatusOpen(true)} className="h-8 text-xs gap-1.5">
-          <GitBranch className="h-3.5 w-3.5" /> Décision de statut
-        </Button>
       </div>
       )}
 
@@ -184,17 +178,6 @@ export default function DossierDetailPage({
       <ModalPlanification open={isPlanificationModalOpen} onOpenChange={setPlanificationModalOpen} dossierId={id} initialData={planificationInitialData} dossierData={dossier} />
       <ModalChiffrage open={isChiffrageModalOpen} onOpenChange={setChiffrageModalOpen} dossierId={id} />
       <ModalReclamation open={isReclamationModalOpen} onOpenChange={setReclamationModalOpen} dossierId={id} />
-      <ModalDecisionStatus
-        open={isDecisionStatusOpen}
-        onOpenChange={setDecisionStatusOpen}
-        dossierId={id}
-        currentStatus={dossier.statut || 'Nouveau'}
-        dossierRef={dossier.refExpert || id}
-        currentObservation={dossier.observationDecision || ''}
-        currentObservationUpdatedAt={dossier.observationDecisionUpdatedAt}
-        currentObservationUpdatedBy={dossier.observationDecisionUpdatedBy}
-        source="dossiers"
-      />
       <Sheet open={isHistoriqueOpen} onOpenChange={setHistoriqueOpen}>
         <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
           <SheetHeader>

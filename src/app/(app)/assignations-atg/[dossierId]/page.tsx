@@ -22,7 +22,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  ArrowLeft, Loader2, Calendar, MapPin, Upload, Eye, Check, X, Pencil, ImageIcon, Camera, Paperclip, GitBranch, FileText,
+  ArrowLeft, Loader2, Calendar, MapPin, Upload, Eye, Check, X, Pencil, ImageIcon, Camera, Paperclip, FileText,
   ChevronDown, ChevronRight, Trash2,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -34,7 +34,6 @@ import { logHistorique, logWorkflow } from '../../dossiers/[id]/log-historique';
 import { addObservation } from '../../dossiers/[id]/log-observation';
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import ModalDecisionStatus from '../../dossiers/[id]/modal-decision-status';
 import ObservationsTab from '@/components/observations-tab';
 import CameraCapture from '@/components/camera-capture';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
@@ -118,7 +117,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const [editObservation, setEditObservation] = useState('');
   const [uploadingPreuveId, setUploadingPreuveId] = useState<string | null>(null);
   const [previewPreuvePhotos, setPreviewPreuvePhotos] = useState<{ urls: string[]; index: number } | null>(null);
-  const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
   // Document upload state
   const [isDocUploading, setIsDocUploading] = useState(false);
   const [isDocUploadModalOpen, setDocUploadModalOpen] = useState(false);
@@ -519,21 +517,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           </div>
         </div>
       </div>
-
-      {/* Action toolbar */}
-      {canEdit && (
-        <div className="bg-card border rounded-xl shadow-sm px-4 py-2 flex flex-wrap gap-2 items-center">
-          <div className="flex-1" />
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => setDecisionStatusOpen(true)}
-            className="h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700"
-          >
-            <GitBranch className="h-3.5 w-3.5" /> Décision de statut
-          </Button>
-        </div>
-      )}
 
       {/* Mission type tabs */}
       <div className="bg-card border rounded-xl shadow-sm sticky top-0 z-20">
@@ -1018,19 +1001,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         open={isCameraOpen}
         onClose={() => setIsCameraOpen(false)}
         onConfirm={handleCameraConfirm}
-      />
-
-      {/* Decision Status Modal */}
-      <ModalDecisionStatus
-        open={isDecisionStatusOpen}
-        onOpenChange={setDecisionStatusOpen}
-        dossierId={dossierId}
-        currentStatus={dossier?.statut || 'Nouveau'}
-        dossierRef={dossier?.refExpert || dossierId}
-        currentObservation={dossier?.observationDecision || ''}
-        currentObservationUpdatedAt={dossier?.observationDecisionUpdatedAt}
-        currentObservationUpdatedBy={dossier?.observationDecisionUpdatedBy}
-        source="assignations-atg"
       />
     </div>
   );

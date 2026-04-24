@@ -17,7 +17,7 @@ import {
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   ArrowLeft, FileType, Eye, Loader2,
-  ChevronDown, ChevronRight, ImageIcon, FileText, ExternalLink, GitBranch,
+  ChevronDown, ChevronRight, ImageIcon, FileText, ExternalLink,
   Table2, History, Download, Scale,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -25,7 +25,6 @@ import { EDITABLE_DOC_TYPES, isEditableDocType } from '@/lib/devis-schema';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
-import ModalDecisionStatus from '../../dossiers/[id]/modal-decision-status';
 import ObservationsTab from '@/components/observations-tab';
 import { ReformeDialog } from '@/components/chiffreurs/reforme-dialog';
 
@@ -63,7 +62,6 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const [loading, setLoading] = useState(true);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [isDecisionStatusOpen, setDecisionStatusOpen] = useState(false);
   const [isReformeOpen, setReformeOpen] = useState(false);
   const [versionPreview, setVersionPreview] = useState<{ url: string; label: string } | null>(null);
   const [historyDoc, setHistoryDoc] = useState<{ docType: string; name: string; versions: any[] } | null>(null);
@@ -197,17 +195,6 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             Correcteur : <span className="font-bold text-foreground">{chiffrage.assignedChiffreurNom}</span>
           </p>
         </div>
-        {canEdit && (
-          <Button
-            variant="default"
-            size="sm"
-            className="gap-1.5 bg-blue-600 hover:bg-blue-700"
-            onClick={() => setDecisionStatusOpen(true)}
-          >
-            <GitBranch className="h-3.5 w-3.5" />
-            Décision de statut
-          </Button>
-        )}
         {canEdit && chiffrage.dossierId && (
           <Button
             variant="default"
@@ -434,19 +421,6 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           </div>
         </SheetContent>
       </Sheet>
-
-      {/* Decision Status Modal */}
-      <ModalDecisionStatus
-        open={isDecisionStatusOpen}
-        onOpenChange={setDecisionStatusOpen}
-        dossierId={chiffrage.dossierId}
-        currentStatus={dossierStatut}
-        dossierRef={chiffrage.dossierNom || id}
-        currentObservation={dossier?.observationDecision || ''}
-        currentObservationUpdatedAt={dossier?.observationDecisionUpdatedAt}
-        currentObservationUpdatedBy={dossier?.observationDecisionUpdatedBy}
-        source="assignations-chiffrage"
-      />
 
       {/* Réforme Modal */}
       {chiffrage.dossierId && (
