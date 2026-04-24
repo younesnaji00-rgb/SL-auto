@@ -24,6 +24,7 @@ import { deleteObject, ref } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { extractAndPersistDossierDoc } from '@/lib/devis-extract';
 import { isEditableDocType } from '@/lib/devis-schema';
+import { parseAccordDocType, mapToAccorde } from '@/lib/docType-accorde';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
@@ -31,13 +32,16 @@ import { cn } from '@/lib/utils';
 
 // Slots shown in the typed-import grid. Photos (avant / en cours / après) are
 // intentionally omitted — they have their own dedicated Photos step.
-const DOC_SLOTS = [
+// Task #25 — the list is now dynamic: `BASE_DOC_SLOTS` is the canonical fixed
+// skeleton (always rendered), and `computedSlots` (inside the component)
+// appends cardinal-accord and proposition-accord variants found in the live
+// Firestore docs, contiguously after the matching source-accordé slot.
+const BASE_DOC_SLOTS = [
   'Rapport final',
   'Devis Garage',
   'Devis accordé',
   'Facture Garage',
   'Facture accordé',
-  '2ème accord',
   'PV-Constat / Récépissé de police',
   'Carte grise',
   'Attestation d\'assurance',
@@ -85,9 +89,54 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
 
   const { data: allDocs, loading } = useCollection<any>(collQuery);
 
+  // Task #25 — Build the final slot list dynamically. The base skeleton is
+  // always present; cardinal accord (ordinal ≥ 2) and proposition-accord
+  // variants are inserted contiguously after the matching source-accordé slot.
+  const computedSlots = useMemo(() => {
+    const dynamic = new Set<string>();
+    if (allDocs) {
+      for (const d of allDocs as TypedDoc[]) {
+        const label = d.type || d.typeDocument || '';
+        const parsed = parseAccordDocType(label);
+        if (!parsed) continue;
+        if (parsed.kind === 'accord' && parsed.ordinal >= 2) {
+          dynamic.add(label);
+        } else if (parsed.kind === 'proposition-accord') {
+          dynamic.add(label);
+        }
+      }
+    }
+
+    const slots: string[] = [];
+    for (const base of BASE_DOC_SLOTS) {
+      slots.push(base);
+      if (base === 'Devis accordé') {
+        for (const ord of [2, 3]) {
+          const label = mapToAccorde('Devis Garage', 'accord', ord);
+          if (dynamic.has(label) && !slots.includes(label)) slots.push(label);
+        }
+        for (const ord of [1, 2, 3]) {
+          const label = mapToAccorde('Devis Garage', 'proposition-accord', ord);
+          if (dynamic.has(label) && !slots.includes(label)) slots.push(label);
+        }
+      }
+      if (base === 'Facture accordé') {
+        for (const ord of [2, 3]) {
+          const label = mapToAccorde('Facture Garage', 'accord', ord);
+          if (dynamic.has(label) && !slots.includes(label)) slots.push(label);
+        }
+        for (const ord of [1, 2, 3]) {
+          const label = mapToAccorde('Facture Garage', 'proposition-accord', ord);
+          if (dynamic.has(label) && !slots.includes(label)) slots.push(label);
+        }
+      }
+    }
+    return slots;
+  }, [allDocs]);
+
   const docsByType = useMemo(() => {
     const map: Record<string, TypedDoc[]> = {};
-    for (const slot of DOC_SLOTS) map[slot] = [];
+    for (const slot of computedSlots) map[slot] = [];
     if (allDocs) {
       for (const d of allDocs as TypedDoc[]) {
         const t = d.type || d.typeDocument || '';
@@ -97,7 +146,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
       }
     }
     // Stable-ish sort: pending first (so user sees their fresh upload), then by name.
-    for (const slot of DOC_SLOTS) {
+    for (const slot of computedSlots) {
       map[slot].sort((a, b) => {
         if (a.pendingUpload && !b.pendingUpload) return -1;
         if (!a.pendingUpload && b.pendingUpload) return 1;
@@ -105,7 +154,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
       });
     }
     return map;
-  }, [allDocs]);
+  }, [allDocs, computedSlots]);
 
   const handleUpload = async (slot: string, files: File[]) => {
     if (!db || !storage || !auth) return;
@@ -246,7 +295,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {DOC_SLOTS.map((slot) => (
+          {computedSlots.map((slot) => (
             <SlotCard
               key={slot}
               slot={slot}
