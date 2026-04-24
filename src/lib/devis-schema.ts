@@ -147,13 +147,10 @@ export function emptyRow(): DevisRow {
 }
 
 export function rowTotalHT(r: { qte: number | null; puHT: number; vetuste?: number | null }): number {
-  // Blank qte (main d'oeuvre / labor row) means "one unit at this price" —
-  // the Total H.T equals the puHT, not zero. Only explicit numeric qte values
-  // (including 0 if a user typed it) multiply the price.
-  const q =
-    typeof r.qte === 'number' && Number.isFinite(r.qte)
-      ? r.qte
-      : 1;
+  // Blank qte (null) means the line explicitly doesn't count (source qty was 0).
+  // Legitimate blank-but-neutral rows (main d'oeuvre / labor rows) are stored
+  // with qte=1 by the extractor, so they multiply cleanly.
+  const q = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
   const p = Number.isFinite(r.puHT) ? r.puHT : 0;
   const vRaw = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
   // Clamp vétusté to [0, 100] so an out-of-range value never flips the sign.
@@ -205,15 +202,19 @@ export function numOrNull(v: unknown): number | null {
 }
 
 /**
- * Like numOrNull, but also treats an explicit 0 as blank. Use for fields where
- * 0 has no legitimate business meaning (e.g., quantity of a line item in a
- * devis is never 0 — it's either a positive count, or blank for labor rows).
- * Defensive: some AI extractors return 0 instead of null for empty source cells
- * despite the prompt instructions.
+ * Quantity extractor for AI-scanned devis rows. Rule:
+ *   - Source is blank / missing / unreadable → return 1 (neutral multiplier; the
+ *     line's Total H.T equals its puHT). This covers main d'oeuvre / labor rows
+ *     where the source PDF leaves the "Qté" column empty.
+ *   - Source is an explicit 0 → return null (the line explicitly does not
+ *     count; null is shown as blank in the UI and contributes 0 to totals).
+ *   - Otherwise → return the parsed number.
  */
-export function numOrNullNoZero(v: unknown): number | null {
+export function qteFromScan(v: unknown): number | null {
   const n = numOrNull(v);
-  return n === 0 ? null : n;
+  if (n === null) return 1;
+  if (n === 0) return null;
+  return n;
 }
 
 /** Parse "1 234,50" or "1234.50" or "1,234.50" → number */
