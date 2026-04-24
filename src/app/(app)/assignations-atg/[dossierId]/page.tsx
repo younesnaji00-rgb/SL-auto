@@ -312,6 +312,11 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   // Delete document
   const handleDeleteDocument = async (docItem: any) => {
     if (!db || !storage) return;
+    // ATG can only delete documents they uploaded themselves.
+    if (docItem.uploadSource !== 'ATG' || docItem.uploadePar !== auth?.currentUser?.email) {
+      toast({ variant: 'destructive', title: 'Suppression refusée', description: 'Vous ne pouvez supprimer que les documents que vous avez vous-même téléversés.' });
+      return;
+    }
     if (!window.confirm(`Supprimer le document "${docItem.nom || docItem.name || ''}" ?`)) return;
     setIsDeletingDoc(docItem.id);
     try {
@@ -876,7 +881,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                             {item.pendingUpload && (
                               <Badge variant="outline" className="text-amber-600 border-amber-300 text-[9px]">En attente</Badge>
                             )}
-                            {canEdit && (
+                            {canEdit && item.uploadSource === 'ATG' && item.uploadePar === auth?.currentUser?.email && (
                               <button
                                 type="button"
                                 onClick={() => handleDeleteDocument(item)}
@@ -913,6 +918,43 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                 );
               })}
             </div>
+
+            {/* Fallback: documents whose type doesn't match any known docTypes
+                (e.g. gestionnaire-uploaded "Devis Garage", "Rapport final"…) */}
+            {(() => {
+              const knownLabels = new Set(docTypes.map((dt) => dt.label));
+              const otherDocs = documents.filter((d: any) => !knownLabels.has(d.type));
+              if (otherDocs.length === 0) return null;
+              return (
+                <div className="mt-4 border rounded-xl p-4 bg-card space-y-3">
+                  <h4 className="text-sm font-bold">Autres documents</h4>
+                  <div className="space-y-1.5">
+                    {otherDocs.map((item: any) => (
+                      <div key={item.id} className="flex items-center gap-2 p-1.5 rounded border bg-muted/30 text-xs">
+                        <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                        <span className="flex-1 truncate">{item.nom || item.name}</span>
+                        {item.type && (
+                          <Badge variant="outline" className="text-[9px] whitespace-nowrap">{item.type}</Badge>
+                        )}
+                        {canEdit && item.uploadSource === 'ATG' && item.uploadePar === auth?.currentUser?.email && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDocument(item)}
+                            disabled={isDeletingDoc === item.id}
+                            className="shrink-0 rounded p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50"
+                            aria-label="Supprimer le document"
+                          >
+                            {isDeletingDoc === item.id
+                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              : <Trash2 className="h-3.5 w-3.5" />}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
