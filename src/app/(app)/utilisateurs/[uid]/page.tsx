@@ -213,7 +213,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         }
       }
 
-      await updateDoc(userRef, { ...formData, zone: nextZone });
+      await updateDoc(userRef, { ...formData, zone: nextZone, nomLowercase: (formData.nom || '').trim().toLowerCase() });
 
       // Mirror zone into options_agents when user is currently an Agent de Terrain.
       if (formData.role === 'Agent de Terrain' && formData.nom) {

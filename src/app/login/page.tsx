@@ -101,6 +101,7 @@ export default function LoginPage() {
 
       await setDoc(doc(db, 'users', cred.user.uid), {
         nom: setupName.trim(),
+        nomLowercase: setupName.trim().toLowerCase(),
         prenom: '',
         email: email,
         password: setupPassword,
@@ -126,11 +127,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const q = query(collection(db, 'users'), where('nom', '==', nom.trim()));
+      const q = query(collection(db, 'users'), where('nomLowercase', '==', nom.trim().toLowerCase()));
       const snap = await getDocs(q);
 
       if (snap.empty) {
-        setError('Utilisateur introuvable. Vérifiez votre nom.');
+        setError('Utilisateur introuvable. Vérifiez votre nom (insensible à la casse).');
         setLoading(false);
         return;
       }

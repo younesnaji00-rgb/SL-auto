@@ -190,6 +190,7 @@ export default function UtilisateursClientPage() {
       // Store user in Firestore with Auth UID as document ID
       await setDoc(doc(db, 'users', uid), {
         nom: data.nom,
+        nomLowercase: data.nom.trim().toLowerCase(),
         prenom: '',
         email: email,
         password: data.password, // stored so admin can see it
