@@ -133,7 +133,7 @@ export function renderDevisPdf(
 
   // ── Main table ──────────────────────────────────────────────────────────
   // Normalize extra columns from new (`extraColumns`) or legacy (`extraColumn`) shape.
-  const extraCols: Array<{ id: string; label: string; values: Record<string, string>; kind?: 'counter' | 'default' }> =
+  const extraCols: Array<{ id: string; label: string; values: Record<string, string>; kind?: 'counter' | 'default' | 'accord' | 'proposition-accord' }> =
     Array.isArray(devis.extraColumns) && devis.extraColumns.length > 0
       ? devis.extraColumns.filter((c) => !!c && !!c.label)
       : (devis.extraColumn && devis.extraColumn.label

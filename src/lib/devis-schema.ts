@@ -8,6 +8,14 @@ export function isEditableDocType(t?: string): t is EditableDocType {
   return !!t && (EDITABLE_DOC_TYPES as readonly string[]).includes(t);
 }
 
+/** Allowed values for the `ref` column of a devis row. */
+export const REF_OPTIONS = ['Remplacement', 'Réparation'] as const;
+export type RefOption = typeof REF_OPTIONS[number];
+
+/** Allowed values for the `type` column of a devis row. */
+export const TYPE_OPTIONS = ['Occasion', 'Originale', 'Adaptable'] as const;
+export type TypeOption = typeof TYPE_OPTIONS[number];
+
 export interface DevisHeader {
   marque: string;
   matricule: string;
@@ -45,9 +53,13 @@ export interface DevisExtraColumn {
   values: Record<string, string>;
   /**
    * 'counter' = imported counter-proposal from an opposing chiffreur; rendered red.
+   * 'accord' = finalized accord column.
+   * 'proposition-accord' = proposition for an accord column.
    * 'default' / undefined = manually-added column.
    */
-  kind?: 'counter' | 'default';
+  kind?: 'counter' | 'default' | 'accord' | 'proposition-accord';
+  /** When true, the column is locked against further edits. Defaults to false. */
+  locked?: boolean;
   /** For counter columns: public URL of the annotated source PDF for audit. */
   sourcePdfUrl?: string;
   /** For counter columns: Storage path of the source file — used for dedup across re-extractions. */
@@ -115,11 +127,16 @@ export function normalizeExtraColumns(s: { extraColumns?: DevisExtraColumn[]; ex
   if (!s) return [];
   if (Array.isArray(s.extraColumns) && s.extraColumns.length > 0) {
     return s.extraColumns.map((c) => {
+      const kind: DevisExtraColumn['kind'] =
+        c.kind === 'counter' || c.kind === 'accord' || c.kind === 'proposition-accord'
+          ? c.kind
+          : 'default';
       const normalized: DevisExtraColumn = {
         id: c.id || newId(),
         label: c.label || '',
         values: c.values || {},
-        kind: c.kind === 'counter' ? 'counter' : 'default',
+        kind,
+        locked: c.locked === true,
       };
       if (c.sourcePdfUrl) normalized.sourcePdfUrl = c.sourcePdfUrl;
       if (c.sourceStoragePath) normalized.sourceStoragePath = c.sourceStoragePath;
@@ -129,7 +146,7 @@ export function normalizeExtraColumns(s: { extraColumns?: DevisExtraColumn[]; ex
     });
   }
   if (s.extraColumn && s.extraColumn.label) {
-    return [{ id: newId(), label: s.extraColumn.label, values: s.extraColumn.values || {}, kind: 'default' }];
+    return [{ id: newId(), label: s.extraColumn.label, values: s.extraColumn.values || {}, kind: 'default', locked: false }];
   }
   return [];
 }
@@ -182,9 +199,15 @@ export function formatFr(n: number, fractionDigits = 2): string {
   return decPart ? `${withSpaces},${decPart}` : withSpaces;
 }
 
-/** 1 → "1er", 2 → "2ème", 3 → "3ème", ... French ordinals. */
+/** 1 → "1er", 2 → "2ème", 3 → "3ème", ... French ordinals (masculine). */
 export function toOrdinalFr(n: number): string {
   if (n === 1) return '1er';
+  return `${n}ème`;
+}
+
+/** 1 → "1ère", 2 → "2ème", 3 → "3ème", ... French ordinals (feminine). */
+export function toOrdinalFeminineFr(n: number): string {
+  if (n === 1) return '1ère';
   return `${n}ème`;
 }
 
