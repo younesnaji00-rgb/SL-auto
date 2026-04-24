@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useAuth, useCollection, useFirestore, useStorage } from '@/firebase';
-import { collection, deleteDoc, doc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { deleteObject, ref } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { extractAndPersistDossierDoc } from '@/lib/devis-extract';
@@ -252,6 +252,37 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
     }
   };
 
+  // Task #26 — create the next cardinal accord slot by inserting a placeholder
+  // doc into Firestore. The dynamic slot logic (task #25) picks it up and
+  // renders the fresh slot in the grid contiguously.
+  const handleCreateNextCardinal = async (slot: string) => {
+    if (!db || !auth) return;
+    const parsed = parseAccordDocType(slot);
+    if (!parsed || parsed.kind !== 'accord') return;
+    const nextOrdinal = parsed.ordinal + 1;
+    if (nextOrdinal > 3) return;
+    const nextLabel = mapToAccorde(parsed.sourceDocType, 'accord', nextOrdinal);
+    const userId = auth.currentUser?.uid || 'unknown';
+    try {
+      await addDoc(collection(db, 'dossiers', dossierId, 'documents'), {
+        type: nextLabel,
+        pendingUpload: true,
+        storagePath: null,
+        url: null,
+        createdAt: serverTimestamp(),
+        createdBy: userId,
+      });
+      toast({ title: `Nouveau slot créé : ${nextLabel}` });
+    } catch (err: any) {
+      console.error('[typed-docs-grid] create next cardinal failed', err);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur lors de la création du slot',
+        description: err?.message || 'Impossible de créer le cardinal suivant.',
+      });
+    }
+  };
+
   const handleDelete = async (item: TypedDoc) => {
     if (!db || !storage) return;
     if (!window.confirm('Supprimer ce document ?')) return;
@@ -301,10 +332,12 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
               slot={slot}
               docs={docsByType[slot] || []}
               canEdit={canEdit}
+              userRole={profile?.role}
               isUploading={uploadingSlot === slot}
               deletingId={deletingId}
               onUpload={(files) => handleUpload(slot, files)}
               onDelete={handleDelete}
+              onCreateNextCardinal={() => handleCreateNextCardinal(slot)}
               onPreview={(d) => {
                 if (d.url && !d.pendingUpload) {
                   setPreviewDoc({ url: d.url, nom: d.nom || d.fileName || 'document' });
@@ -368,10 +401,12 @@ interface SlotCardProps {
   slot: string;
   docs: TypedDoc[];
   canEdit: boolean;
+  userRole?: string;
   isUploading: boolean;
   deletingId: string | null;
   onUpload: (files: File[]) => void;
   onDelete: (d: TypedDoc) => void;
+  onCreateNextCardinal: () => void;
   onPreview: (d: TypedDoc) => void;
 }
 
@@ -379,10 +414,12 @@ function SlotCard({
   slot,
   docs,
   canEdit,
+  userRole,
   isUploading,
   deletingId,
   onUpload,
   onDelete,
+  onCreateNextCardinal,
   onPreview,
 }: SlotCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -393,8 +430,21 @@ function SlotCard({
     if (inputRef.current) inputRef.current.value = '';
   };
 
+  // Task #26 — accord/proposition slot detection.
+  const parsedAccord = parseAccordDocType(slot);
+  // Gestionnaires must not upload into accord/proposition slots — workflow
+  // drives the cardinal creation instead.
+  const hideUploadForRole =
+    !!parsedAccord && userRole === 'Gestionnaire';
+  // Pimple "+" button appears only on `accord` slots (not proposition) with a
+  // next-cardinal within cap (max 3ème).
+  const showPimple =
+    !!parsedAccord &&
+    parsedAccord.kind === 'accord' &&
+    parsedAccord.ordinal + 1 <= 3;
+
   return (
-    <Card className="shadow-sm border rounded-lg overflow-hidden flex flex-col">
+    <Card className="relative shadow-sm border rounded-lg overflow-visible flex flex-col">
       <CardHeader className="py-2.5 px-3 border-b">
         <CardTitle className="font-semibold text-sm flex items-center justify-between gap-2">
           <span className="truncate" title={slot}>{slot}</span>
@@ -469,7 +519,7 @@ function SlotCard({
           </ul>
         )}
 
-        {canEdit && (
+        {canEdit && !hideUploadForRole && (
           <>
             <input
               ref={inputRef}
@@ -502,6 +552,18 @@ function SlotCard({
           </>
         )}
       </CardContent>
+
+      {showPimple && canEdit && (
+        <button
+          type="button"
+          onClick={onCreateNextCardinal}
+          className="absolute -right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm shadow hover:scale-110 transition z-10"
+          title="Créer le cardinal suivant"
+          aria-label="Créer le cardinal suivant"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      )}
     </Card>
   );
 }
