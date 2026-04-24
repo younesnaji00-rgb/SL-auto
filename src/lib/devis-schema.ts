@@ -147,7 +147,13 @@ export function emptyRow(): DevisRow {
 }
 
 export function rowTotalHT(r: { qte: number | null; puHT: number; vetuste?: number | null }): number {
-  const q = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
+  // Blank qte (main d'oeuvre / labor row) means "one unit at this price" —
+  // the Total H.T equals the puHT, not zero. Only explicit numeric qte values
+  // (including 0 if a user typed it) multiply the price.
+  const q =
+    typeof r.qte === 'number' && Number.isFinite(r.qte)
+      ? r.qte
+      : 1;
   const p = Number.isFinite(r.puHT) ? r.puHT : 0;
   const vRaw = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
   // Clamp vétusté to [0, 100] so an out-of-range value never flips the sign.
