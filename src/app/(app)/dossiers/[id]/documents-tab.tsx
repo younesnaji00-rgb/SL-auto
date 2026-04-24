@@ -137,10 +137,19 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   }, [sortedDocs]);
 
   const filterRows = useMemo(() => {
-    const knownLabels = docTypes.map((t) => t.label);
-    // Include any type present in docs but missing from the canonical list
-    const allLabels = new Set<string>(knownLabels);
-    Object.keys(typeCounts).forEach((t) => allLabels.add(t));
+    // Task #27 — union of: static canonical list (always present so the filter
+    // stays stable even if admins prune Firestore options), the dynamic
+    // `docTypes` (admin-managed), and any `type` actually observed on the
+    // dossier's documents. The latter is what surfaces cardinal / proposition
+    // accord variants created by tasks #24/#26 (e.g. "Devis 2ème accord").
+    const allLabels = new Set<string>();
+    for (const t of defaultDocTypes) allLabels.add(t);
+    for (const t of docTypes) {
+      if (t.label) allLabels.add(t.label);
+    }
+    Object.keys(typeCounts).forEach((t) => {
+      if (t) allLabels.add(t);
+    });
     const rows = Array.from(allLabels).map((label) => ({ label, count: typeCounts[label] || 0 }));
     rows.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
     const search = typeSearch.toLowerCase().trim();
