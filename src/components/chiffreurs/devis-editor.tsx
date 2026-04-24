@@ -315,11 +315,8 @@ export function DevisEditor({
       (acc, r) => acc + (typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0),
       0,
     );
-    const puCount = rows.length;
-    const puSum = rows.reduce((acc, r) => acc + (Number.isFinite(r.puHT) ? r.puHT : 0), 0);
-    const puMean = puCount > 0 ? puSum / puCount : 0;
     const totalHt = rowTotals.reduce((acc, n) => acc + n, 0);
-    return { qteSum, puMean, puCount, totalHt };
+    return { qteSum, totalHt };
   }, [rows, rowTotals]);
 
   // Save ─────────────────────────────────────────────────────────────────
@@ -726,6 +723,7 @@ export function DevisEditor({
                   'sticky bottom-0 z-10 bg-muted/80 backdrop-blur-sm font-bold',
                   'border-t-2 border-foreground/20',
                   '[&>td]:px-1.5 [&>td]:py-2 [&>td]:border-t-2 [&>td]:border-foreground/20 [&>td]:bg-muted/80',
+                  '[&>td]:border-r [&>td:last-child]:border-r-0',
                 )}
               >
                 <td className="text-muted-foreground">Total</td>
@@ -734,9 +732,7 @@ export function DevisEditor({
                 <td />
                 <td className="text-center">{formatFr(totalsRow.qteSum, 0)}</td>
                 <td className="text-center text-muted-foreground">—</td>
-                <td className="text-right">
-                  {totalsRow.puCount > 0 ? formatFr(totalsRow.puMean) : ''}
-                </td>
+                <td />
                 <td className="text-right">{formatFr(totalsRow.totalHt)}</td>
                 {extraColumns.map((col) => {
                   // Σ for imported/extra columns, SR-tolerant.
