@@ -192,9 +192,7 @@ export default function AssignationsATGPage() {
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-atg', filterDefaults);
   const { activeTab, dateFrom, dateTo, compagnieFilter, agentFilter } = filters;
 
-  // View mode: "by-zone" groups options_agents by zone (default), "list" shows
-  // the flat planifications table. Local state — users pick fresh per visit.
-  const [viewMode, setViewMode] = useState<'by-zone' | 'list'>('by-zone');
+  const [viewMode, setViewMode] = useState<'by-zone' | 'list'>('list');
 
   // Agent source-of-truth (same data as the planification modal dropdown) so
   // the zones reflect configured agents, not just agents that happen to be
