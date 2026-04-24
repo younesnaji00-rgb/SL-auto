@@ -8,6 +8,13 @@
         { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" },
         { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
       ]
+    },
+    {
+      "collectionGroup": "users",
+      "fieldPath": "nomLowercase",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" }
+      ]
     }
   ]
 }

@@ -47,7 +47,7 @@ export interface CreateEmptyDossierInput {
 
 /**
  * Creates a blank dossier document and returns its id.
- * All fields are empty strings / defaults. Statut = 'Création de dossier'.
+ * All fields are empty strings / defaults. Statut = 'Création dossier' (canonical).
  *
  * `seed.experts` is a partial map keyed by role → expert info. Missing roles or
  * fields fall back to the empty shape (`{ nom: '', telephone: '', email: '', compagnie: '' }`).
@@ -68,7 +68,8 @@ export async function createEmptyDossier({ db, user, seed }: CreateEmptyDossierI
   };
 
   const ref = await addDoc(collection(db, 'dossiers'), {
-    statut: 'Création de dossier',
+    statut: 'Création dossier',
+    directorValidated: null,
     compagnie: s.compagnie ?? '',
     nature: s.nature ?? '',
     typeDossier: '',
