@@ -37,6 +37,7 @@ import { PageLoader } from '@/components/ui/page-loader';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonCard, SkeletonRow } from '@/components/ui/skeleton';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { isClosedStatus } from '@/lib/status-machine';
 import { cn } from '@/lib/utils';
 import { CreateDossierDialog } from '@/components/dossiers/create-dossier-dialog';
 
@@ -102,9 +103,9 @@ export default function CompagniesClientPage() {
     if (!dossiers) return { total: 0, nouveau: 0, enCours: 0, clos: 0 };
     return {
       total: dossiers.length,
-      nouveau: dossiers.filter(d => d.statut === 'Nouveau' || d.statut === 'Création de mission' || d.statut === 'Création de dossier' || d.statut === 'Demande expertise avant réparation').length,
+      nouveau: dossiers.filter(d => d.statut === 'Nouveau' || d.statut === 'Création dossier').length,
       enCours: dossiers.filter(d => d.statut?.toLowerCase().includes('cours') || d.statut?.toLowerCase().includes('programmée')).length,
-      clos: dossiers.filter(d => d.statut === 'Clôture' || d.statut === 'Dossier signé' || d.statut === 'Rapport Validé').length,
+      clos: dossiers.filter(d => isClosedStatus(d.statut || '')).length,
     };
   }, [dossiers]);
 

@@ -225,7 +225,7 @@ export default function DashboardPage() {
       counts[s] = (counts[s] || 0) + 1;
     });
     // Build a complete list: all known statuses + any extra from dossiers
-    const allNames = new Set([...ALL_STATUSES, 'Nouveau', 'Assigné au chiffrage', 'Rapport Validé']);
+    const allNames = new Set([...ALL_STATUSES, 'Nouveau']);
     Object.keys(counts).forEach((s) => allNames.add(s));
     return Array.from(allNames)
       .map((name) => ({ name, value: counts[name] || 0 }))
@@ -363,7 +363,7 @@ export default function DashboardPage() {
             <SelectContent>
               <SelectItem value="all">Tous les changements</SelectItem>
               <SelectItem value="statut">Changements de statut</SelectItem>
-              <SelectItem value="creation">Création de dossier</SelectItem>
+              <SelectItem value="creation">Création dossier</SelectItem>
               <SelectItem value="planification">Planification</SelectItem>
               <SelectItem value="chiffrage">Chiffrage</SelectItem>
               <SelectItem value="document">Documents / Photos / Rapports</SelectItem>

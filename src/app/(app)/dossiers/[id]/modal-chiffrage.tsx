@@ -151,8 +151,10 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
       });
 
       if (dossierRef) {
+        // NB: `sendToChiffrage` already sets `statut = 'Chiffrage en cours'`
+        // (canonical, task #11). We intentionally do NOT re-write `statut`
+        // here — follow-up #46, executed under #41.
         updateDoc(dossierRef, {
-          statut: 'Assigné au chiffrage',
           currentChiffrageId: chiffrageId,
           updatedAt: serverTimestamp()
         });

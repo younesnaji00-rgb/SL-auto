@@ -158,7 +158,7 @@ export function CreateDossierDialog({
       await logHistorique(
         db,
         id,
-        'Création de dossier',
+        'Création dossier',
         userName,
         `Dossier créé comme ${EXPERT_ROLE_LABELS[expertRole]}`,
         'statut'
