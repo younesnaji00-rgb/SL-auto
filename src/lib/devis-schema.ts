@@ -198,6 +198,18 @@ export function numOrNull(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Like numOrNull, but also treats an explicit 0 as blank. Use for fields where
+ * 0 has no legitimate business meaning (e.g., quantity of a line item in a
+ * devis is never 0 — it's either a positive count, or blank for labor rows).
+ * Defensive: some AI extractors return 0 instead of null for empty source cells
+ * despite the prompt instructions.
+ */
+export function numOrNullNoZero(v: unknown): number | null {
+  const n = numOrNull(v);
+  return n === 0 ? null : n;
+}
+
 /** Parse "1 234,50" or "1234.50" or "1,234.50" → number */
 export function parseFr(s: string): number {
   if (typeof s !== 'string') return Number(s) || 0;

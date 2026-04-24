@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
-import { numOrNull } from '@/lib/devis-schema';
+import { numOrNull, numOrNullNoZero } from '@/lib/devis-schema';
 
 /**
  * AI Devis Scanner API.
@@ -132,7 +132,10 @@ Conserve les marqueurs textuels comme "S/R" dans le champ "designation" si ils y
       designation: String(r.designation ?? '').trim(),
       type: String(r.type ?? '').trim(),
       tva: numOrNull(r.tva),
-      qte: numOrNull(r.qte),
+      // qte: AI sometimes returns 0 for blank source cells despite the prompt.
+      // Treat 0 as blank — a devis line never legitimately has qty 0 (it's
+      // either a positive count, or a labor/forfait row with no qty).
+      qte: numOrNullNoZero(r.qte),
       // puHT stays 0-defaulting — a line without a price is still a line, and
       // labor rows DO have a price (it's the labor cost itself).
       puHT: numOrNull(r.puHT) ?? 0,
