@@ -21,6 +21,9 @@ import {
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useFirestore, useStorage } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -963,9 +966,20 @@ export function DevisEditor({
                   // Task #21: accord columns render as a triple (PU / Total HT Accord / Prix TTC Accord).
                   if (isAccord) {
                     const puHeader = col.locked ? (
-                      <span className="truncate font-bold text-[11px]">
-                        {col.label || (col.kind === 'accord' ? 'Accord' : "Proposition d'accord")}
-                      </span>
+                      // Task #40: locked accord/proposition clones show a tooltip on
+                      // hover explaining how to reverse the save. Label stays plain text.
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="truncate font-bold text-[11px] cursor-help">
+                              {col.label || (col.kind === 'accord' ? 'Accord' : "Proposition d'accord")}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs text-xs">
+                            Pour annuler, contactez le gestionnaire pour une nouvelle planification.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     ) : (
                       <Popover
                         open={!!accordHeaderOpen[col.id]}
