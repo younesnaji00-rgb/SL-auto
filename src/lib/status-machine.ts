@@ -114,3 +114,14 @@ export function isAccordStatus(s: string): boolean {
 export function isClosedStatus(s: string): boolean {
   return s === 'Accord envoyé';
 }
+
+/**
+ * True when the ATG (agent de terrain) workflow is considered complete for
+ * this dossier. The ATG's in-flight work ends when the dossier has left the
+ * planification/chiffrage phase — i.e. the dossier has reached the terminal
+ * closed state. Used by workload counts and deadline bars to flag dossiers
+ * the ATG no longer needs to act on.
+ */
+export function isAtgCompletedStatus(s: string): boolean {
+  return isClosedStatus(s);
+}

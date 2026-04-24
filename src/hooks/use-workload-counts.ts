@@ -7,10 +7,8 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
-import { agentTerrainStatuses } from '@/lib/dossiers-data';
 import { subscribeAllChiffreurOpenCounts } from '@/lib/chiffreur-workload';
-
-const AGENT_TERRAIN_STATUS_SET = new Set<string>(agentTerrainStatuses as readonly string[]);
+import { isAtgCompletedStatus } from '@/lib/status-machine';
 
 /**
  * Active = chiffrage.status is not terminal (the chiffreur hasn't finalized
@@ -32,9 +30,14 @@ export function useChiffreurWorkload(): Record<string, number> {
 }
 
 /**
- * Active = planification whose parent dossier.statut has NOT been set to one
- * of the `agentTerrainStatuses` (i.e. the agent de terrain hasn't closed out
- * the mission from their decision modal). Keyed by agent-terrain name.
+ * Active = planification whose parent dossier.statut has not yet reached the
+ * terminal closed state (Accord envoyé). Keyed by agent-terrain name.
+ *
+ * NOTE: prior to task #47 this predicate skipped dossiers whose status was in
+ * the 6 "agentTerrainStatuses" planification labels — but after task #2
+ * repointed that export at the canonical planification labels, those are the
+ * in-flight statuses, not the completed ones. The correct "ATG done" check is
+ * `isAtgCompletedStatus` (alias of `isClosedStatus`).
  */
 export function useAgentTerrainWorkload(): Record<string, number> {
   const db = useFirestore();
@@ -84,7 +87,7 @@ export function useAgentTerrainWorkload(): Record<string, number> {
     const result: Record<string, number> = {};
     planifs.forEach((p) => {
       const statut = dossierStatuts[p.dossierId] || '';
-      if (AGENT_TERRAIN_STATUS_SET.has(statut)) return;
+      if (isAtgCompletedStatus(statut)) return;
       result[p.agentTerrain] = (result[p.agentTerrain] || 0) + 1;
     });
     return result;

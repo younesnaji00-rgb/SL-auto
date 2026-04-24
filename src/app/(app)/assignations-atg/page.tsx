@@ -23,9 +23,9 @@ import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
-import { agentTerrainStatuses } from '@/lib/dossiers-data';
 import { useOptions } from '@/hooks/use-options';
 import { useAgentTerrainWorkload } from '@/hooks/use-workload-counts';
+import { isAtgCompletedStatus } from '@/lib/status-machine';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -56,8 +56,6 @@ function missionToCategory(typeMission: string): PhotoCategory {
   if (n === 'Après') return 'apres';
   return 'avant';
 }
-
-const AGENT_TERRAIN_STATUS_SET = new Set<string>(agentTerrainStatuses as readonly string[]);
 
 const MISSION_TABS = [
   { id: 'Avant', label: 'Avant' },
@@ -818,9 +816,10 @@ export default function AssignationsATGPage() {
                   {(() => {
                     const live = dossierLive[p.dossierId];
                     const statut = live?.statut ?? p.statut ?? '';
-                    // Completion is driven by the status set in "Décision de statut".
-                    // Works uniformly across all deadline states (à venir, aujourd'hui, en retard).
-                    const completed = !!statut && AGENT_TERRAIN_STATUS_SET.has(statut);
+                    // Completion is driven by the dossier reaching the terminal
+                    // closed state (Accord envoyé). Works uniformly across all
+                    // deadline states (à venir, aujourd'hui, en retard).
+                    const completed = !!statut && isAtgCompletedStatus(statut);
                     return (
                       <DeadlineBar
                         dateRDV={p.dateRDV}
