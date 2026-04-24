@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Upload } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,11 @@ import {
 import { useStamps, loadStampImage } from '@/hooks/use-stamps';
 import { renderDevisPdf } from '@/lib/devis-pdf';
 import type { DevisSnapshot } from '@/lib/devis-schema';
+import { useFirestore, useStorage } from '@/firebase';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { useToast } from '@/hooks/use-toast';
 
 export interface DevisPreviewDialogProps {
   open: boolean;
@@ -45,6 +50,11 @@ export function DevisPreviewDialog({
   onEdit,
 }: DevisPreviewDialogProps) {
   const { stamps } = useStamps();
+  const db = useFirestore();
+  const storage = useStorage();
+  const { profile } = useCurrentUser();
+  const { toast } = useToast();
+  const stampFileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedStampId, setSelectedStampId] = useState<string>(NONE_VALUE);
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const [currentBlob, setCurrentBlob] = useState<Blob | null>(null);
@@ -53,6 +63,47 @@ export function DevisPreviewDialog({
   const [stampWarning, setStampWarning] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [renderTick, setRenderTick] = useState(0);
+  const [importingStamp, setImportingStamp] = useState(false);
+
+  const handleImportStamp = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
+    if (!file || !db || !storage) return;
+    setImportingStamp(true);
+    try {
+      const uuid =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const nameExt = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
+      const ext =
+        nameExt ||
+        (file.type === 'image/png' ? 'png' :
+         file.type === 'image/jpeg' ? 'jpg' :
+         file.type === 'image/webp' ? 'webp' :
+         file.type === 'image/svg+xml' ? 'svg' : 'img');
+      const storagePath = `stamps/${uuid}.${ext}`;
+      const storageRef = ref(storage, storagePath);
+      await uploadBytes(storageRef, file, { contentType: file.type || undefined });
+      const url = await getDownloadURL(storageRef);
+      const baseName = file.name.replace(/\.[^.]+$/, '').trim() || 'Tampon';
+      const docRef = await addDoc(collection(db, 'stamps'), {
+        name: baseName,
+        storagePath,
+        url,
+        active: true,
+        createdAt: serverTimestamp(),
+        createdBy: profile?.uid || '',
+      });
+      setSelectedStampId(docRef.id);
+      toast({ title: 'Tampon importé', description: baseName });
+    } catch (err: any) {
+      console.error('stamp import failed', err);
+      toast({ variant: 'destructive', title: 'Import impossible', description: err?.message || 'Erreur inconnue.' });
+    } finally {
+      setImportingStamp(false);
+    }
+  };
 
   const titleOverride = useMemo<
     'Devis' | 'Facture' | 'Accord' | "Proposition d'accord"
@@ -194,7 +245,7 @@ export function DevisPreviewDialog({
         )}
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 sm:min-w-[260px]">
+          <div className="flex items-center gap-2 sm:min-w-[320px]">
             <label className="text-sm text-muted-foreground whitespace-nowrap">
               Tampon
             </label>
@@ -214,6 +265,29 @@ export function DevisPreviewDialog({
                 ))}
               </SelectContent>
             </Select>
+            <input
+              ref={stampFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImportStamp}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5"
+              onClick={() => stampFileInputRef.current?.click()}
+              disabled={importingStamp}
+              title="Importer un nouveau tampon"
+            >
+              {importingStamp ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5" />
+              )}
+              Importer
+            </Button>
           </div>
 
           <div className="flex items-center justify-end gap-2">

@@ -161,53 +161,14 @@ export default function TamponsSettingsPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-1">
-          <Card className="border shadow-sm rounded-lg">
-            <CardHeader>
-              <CardTitle>Ajouter un tampon</CardTitle>
-              <CardDescription>Téléversez une image (PNG de préférence, avec fond transparent).</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="stamp-name">Nom du tampon</Label>
-                <Input
-                  id="stamp-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={isUploading}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="stamp-file">Image</Label>
-                <Input
-                  id="stamp-file"
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                  disabled={isUploading}
-                />
-                {file && (
-                  <p className="text-xs text-muted-foreground truncate">{file.name}</p>
-                )}
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button className="w-full" onClick={handleUpload} loading={isUploading} disabled={isUploading}>
-                <Upload className="mr-2 h-4 w-4" />
-                {isUploading ? 'Téléversement...' : 'Ajouter le tampon'}
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
-
-        <div className="md:col-span-2">
-          <Card className="border shadow-sm rounded-lg">
-            <CardHeader>
-              <CardTitle>Tampons enregistrés</CardTitle>
-              <CardDescription>Activez, désactivez ou supprimez les tampons existants.</CardDescription>
-            </CardHeader>
+      <div>
+        <Card className="border shadow-sm rounded-lg">
+          <CardHeader>
+            <CardTitle>Tampons enregistrés</CardTitle>
+            <CardDescription>
+              Activez, désactivez ou supprimez les tampons existants. L&apos;import d&apos;un nouveau tampon se fait directement depuis l&apos;aperçu PDF au moment d&apos;enregistrer un devis ou une facture.
+            </CardDescription>
+          </CardHeader>
             <CardContent>
               {stampsLoading ? (
                 <div className="space-y-2">
@@ -271,7 +232,6 @@ export default function TamponsSettingsPage() {
               )}
             </CardContent>
           </Card>
-        </div>
       </div>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}>
