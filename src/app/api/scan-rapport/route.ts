@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const dataUri = `data:${contentType || 'image/jpeg'};base64,${fileBase64}`;
 
     const { text } = await ai.generate({
-      model: 'googleai/gemini-2.5-flash',
+      model: 'googleai/gemini-3.0-flash',
       prompt: [
         {
           text: `Tu es un système d'extraction de données de haute précision spécialisé dans les rapports d'expertise automobile au Maroc. Tu analyses des factures de réparation, devis, rapports d'expertise, ou documents similaires pour en extraire les données structurées.
