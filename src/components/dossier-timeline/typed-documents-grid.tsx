@@ -38,6 +38,10 @@ import { cn } from '@/lib/utils';
 // Firestore docs, contiguously after the matching source-accordé slot.
 const BASE_DOC_SLOTS = [
   'Rapport final',
+  // Task #37 — réforme rapports live alongside the final rapport because
+  // they are a parallel terminal output (réforme instead of réparation).
+  'Réforme technique',
+  'Réforme économique',
   'Devis Garage',
   'Devis accordé',
   'Facture Garage',

@@ -92,7 +92,21 @@ async function fetchCompagnieLogo(db: any, compagnieName: string): Promise<{ dat
 }
 
 // ── Main export ────────────────────────────────────────────────────────
-export async function generateRapportPDF(db: any, dossierId: string, typeRapport?: string) {
+export interface GenerateRapportPDFOptions {
+  /**
+   * When true, skip the browser download (`pdf.save`) and return the PDF as
+   * a Blob instead. Callers use this to upload the rapport to Firebase
+   * Storage (e.g. the Réforme save pipeline — task #37).
+   */
+  returnBlob?: boolean;
+}
+
+export async function generateRapportPDF(
+  db: any,
+  dossierId: string,
+  typeRapport?: string,
+  options?: GenerateRapportPDFOptions
+): Promise<Blob | void> {
   if (!db || !dossierId) return;
 
   // Fetch all data in parallel
@@ -662,5 +676,8 @@ En foi de quoi,le présent rapport est établi en unique original pour servir et
 
   // ── Save ───────────────────────────────────────────────────────────
   const fileLabel = subtitle ? `Rapport_${subtitle.replace(/\s+/g, '_')}` : 'Rapport_Expertise';
+  if (options?.returnBlob) {
+    return pdf.output('blob');
+  }
   pdf.save(`${fileLabel}_${refExpert}_${today.replace(/\//g, '-')}.pdf`);
 }

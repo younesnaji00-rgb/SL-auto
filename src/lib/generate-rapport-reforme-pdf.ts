@@ -8,13 +8,21 @@
  * under a clearer name. When the préliminaire / réforme templates diverge
  * further, this file becomes the home for the réforme-specific layout.
  */
-import { generateRapportPDF } from './generate-rapport-pdf';
+import { generateRapportPDF, type GenerateRapportPDFOptions } from './generate-rapport-pdf';
 
 // Matches the existing generator signature (db is the Firestore instance).
+// `typeReforme` (e.g. 'Technique' | 'Économique') is folded into the PDF
+// subtitle so the generated report is labelled "Réforme technique" /
+// "Réforme économique". Task #37 also needs a Blob back for the save-pipeline
+// upload, hence `options.returnBlob`.
 export async function generateRapportReformePDF(
   db: unknown,
   dossierId: string,
-  typeRapport?: string
-): Promise<void> {
-  return generateRapportPDF(db, dossierId, typeRapport ?? 'Réforme');
+  typeReforme?: string,
+  options?: GenerateRapportPDFOptions
+): Promise<Blob | void> {
+  const subtitle = typeReforme
+    ? `Réforme ${typeReforme.toLowerCase()}`
+    : 'Réforme';
+  return generateRapportPDF(db, dossierId, subtitle, options);
 }

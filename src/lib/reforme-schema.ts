@@ -4,8 +4,15 @@ import type { Timestamp } from 'firebase/firestore';
  * Réforme data captured by the chiffreur when a dossier is deemed beyond
  * economical repair. Persisted at `dossiers/{id}.reforme`.
  */
+/** Canonical user-visible type labels for a réforme. */
+export type ReformeType = 'Technique' | 'Économique';
+
 export interface ReformeData {
-  /** Kept as free string so new types can be added without touching code. Typical value: 'technique'. */
+  /**
+   * Réforme flavour. Kept as `string` (not `ReformeType`) to stay backward-
+   * compatible with legacy docs written as 'technique' (lowercase) or empty.
+   * New writes should use `ReformeType` values ('Technique' | 'Économique').
+   */
   typeReforme: string;
   valeurVenale: number;
   valeurEpave: number;

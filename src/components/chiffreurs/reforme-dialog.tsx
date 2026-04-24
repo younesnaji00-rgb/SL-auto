@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useStorage } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import {
@@ -20,6 +20,8 @@ import {
   computeTotalIndemnisation,
   emptyReforme,
 } from '@/lib/reforme-schema';
+import { generateRapportReformePDF } from '@/lib/generate-rapport-reforme-pdf';
+import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 
 export interface ReformeDialogProps {
   dossierId: string;
@@ -27,10 +29,24 @@ export interface ReformeDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const REFORME_TYPES = ['technique'] as const;
+// Task #37 — Expand réforme flavours. Labels are capitalized because they are
+// rendered directly in the dropdown. The schema still accepts any string to
+// stay backward-compatible with legacy lowercase 'technique' records.
+const REFORME_TYPES = ['Technique', 'Économique'] as const;
+
+// Legacy lowercase 'technique' should map to the canonical 'Technique' label
+// when rehydrating existing dossiers.
+function normalizeReformeType(raw: string | undefined): string {
+  if (!raw) return '';
+  const low = raw.toLowerCase();
+  if (low === 'technique') return 'Technique';
+  if (low === 'économique' || low === 'economique') return 'Économique';
+  return raw;
+}
 
 export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogProps) {
   const db = useFirestore();
+  const storage = useStorage();
   const { toast } = useToast();
   const { profile } = useCurrentUser();
 
@@ -45,7 +61,9 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
       .then((snap) => {
         const data = snap.data() as any;
         if (data?.reforme) {
-          setState({ ...emptyReforme(), ...(data.reforme as ReformeData) });
+          const hydrated = { ...emptyReforme(), ...(data.reforme as ReformeData) };
+          hydrated.typeReforme = normalizeReformeType(hydrated.typeReforme);
+          setState(hydrated);
         } else {
           setState(emptyReforme());
         }
@@ -70,8 +88,10 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
     if (!db) return;
     setSaving(true);
     try {
+      const typeReforme = normalizeReformeType(state.typeReforme) || 'Technique';
       const finalData: ReformeData = {
         ...state,
+        typeReforme,
         difference,
         totalIndemnisation,
         updatedBy: profile?.uid || '',
@@ -80,6 +100,57 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
         reforme: { ...finalData, updatedAt: serverTimestamp() },
         updatedAt: serverTimestamp(),
       });
+
+      // Task #37 — Generate the réforme rapport PDF and persist it as a typed
+      // document in `dossiers/{id}/documents` so it surfaces in the grid and
+      // documents filter alongside the rest of the dossier's paperwork.
+      // Failures here must NOT roll back the save; the réforme data is the
+      // load-bearing write. We log + toast a soft warning instead.
+      if (storage) {
+        try {
+          const blob = await generateRapportReformePDF(db, dossierId, typeReforme, { returnBlob: true });
+          if (blob && blob instanceof Blob) {
+            const docLabel = typeReforme === 'Économique' ? 'Réforme économique' : 'Réforme technique';
+            const ts = Date.now();
+            const slug = typeReforme.toLowerCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/^-|-$/g, '');
+            const fileName = `reforme-${slug}.pdf`;
+            const storagePath = `dossiers/${dossierId}/documents/${ts}_${fileName}`;
+            await uploadFileWithOfflineSupport({
+              storage,
+              db,
+              file: blob,
+              fileName,
+              storagePath,
+              firestoreDocPath: `dossiers/${dossierId}/documents`,
+              firestoreMetadata: {
+                nom: fileName,
+                type: docLabel,
+                taille: blob.size,
+                storagePath,
+                uploadePar: profile?.email || 'Chiffreur',
+                uploadedBy: profile?.uid || 'unknown',
+                uploadedByName: profile
+                  ? `${profile.prenom || ''} ${profile.nom || ''}`.trim() || profile.email
+                  : 'Chiffreur',
+              },
+            });
+          }
+        } catch (pdfErr: any) {
+          console.error('[reforme-dialog] PDF generation/upload failed', pdfErr);
+          toast({
+            variant: 'destructive',
+            title: 'Réforme enregistrée — PDF indisponible',
+            description: pdfErr?.message || 'Le rapport PDF n\'a pas pu être généré.',
+          });
+          onOpenChange(false);
+          return;
+        }
+      }
+
       toast({ title: 'Réforme enregistrée' });
       onOpenChange(false);
     } catch (e: any) {
@@ -111,7 +182,7 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
               <div className="space-y-1.5">
                 <Label htmlFor="typeReforme">Type Réforme</Label>
                 <Select
-                  value={state.typeReforme || 'technique'}
+                  value={state.typeReforme || 'Technique'}
                   onValueChange={(v) => set('typeReforme', v)}
                 >
                   <SelectTrigger id="typeReforme"><SelectValue placeholder="Choisir" /></SelectTrigger>
