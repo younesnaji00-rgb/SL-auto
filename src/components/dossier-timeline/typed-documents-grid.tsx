@@ -1,18 +1,8 @@
 'use client';
 
-import React, { useMemo, useRef, useState } from 'react';
-import {
-  FileIcon,
-  FileText,
-  Loader2,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-  Download,
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Loader2, X, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -25,11 +15,13 @@ import { deleteObject, ref } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { extractAndPersistDossierDoc } from '@/lib/devis-extract';
 import { isEditableDocType } from '@/lib/devis-schema';
-import { parseAccordDocType, mapToAccorde } from '@/lib/docType-accorde';
+import { parseAccordDocType, mapToAccorde, parseAccordeParent } from '@/lib/docType-accorde';
+import { buildDocFamilies, collectFamilySlotLabels } from '@/lib/doc-family';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
-import { cn } from '@/lib/utils';
+import { SlotCard, isImage, type ExtraSlotKind, type TypedDoc } from './slot-card';
+import { FamilyRow } from './family-row';
 
 // Slots shown in the typed-import grid. Photos (avant / en cours / après) are
 // intentionally omitted — they have their own dedicated Photos step.
@@ -54,33 +46,9 @@ const BASE_DOC_SLOTS = [
   'Numéro de chassis',
 ];
 
-type ExtraSlotKind = 'devis' | 'facture';
-
-type TypedDoc = {
-  id: string;
-  nom?: string;
-  fileName?: string;
-  url?: string | null;
-  type?: string;
-  typeDocument?: string;
-  uploadePar?: string;
-  uploadedBy?: string;
-  uploadedByName?: string;
-  storagePath?: string;
-  pendingUpload?: boolean;
-  taille?: number;
-  // Marks a document as belonging to a gestionnaire-created extra slot
-  // (rendered after "Devis Garage" / "Facture Garage"). The slot grouping
-  // key is still the `type` string; this field is used only to detect
-  // which slots are user-managed (pimple + rename affordances).
-  extraSlot?: ExtraSlotKind;
-};
-
 interface TypedDocumentsGridProps {
   dossierId: string;
 }
-
-const isImage = (name: string) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(name || '');
 
 export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProps) {
   const db = useFirestore();
@@ -116,101 +84,77 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
 
   const { data: allDocs, loading } = useCollection<any>(collQuery);
 
-  // Task #25 — Build the final slot list dynamically. The base skeleton is
-  // always present; cardinal accord (ordinal ≥ 2) and proposition-accord
-  // variants are inserted contiguously after the matching source-accordé slot.
-  // Gestionnaire-created extras (flagged `extraSlot: 'devis' | 'facture'`) are
-  // inserted contiguously after the matching base Garage slot.
-  const { computedSlots, extraDevisLabels, extraFactureLabels } = useMemo(() => {
-    const dynamic = new Set<string>();
-    const extraDevis: string[] = [];
-    const extraFacture: string[] = [];
-    const seenExtraDevis = new Set<string>();
-    const seenExtraFacture = new Set<string>();
+  // Group live docs into Devis / Facture families (one row each). Non-family
+  // slots are rendered in a separate grid above/below the family rows.
+  const families = useMemo(
+    () => buildDocFamilies((allDocs as TypedDoc[]) || []),
+    [allDocs],
+  );
 
-    if (allDocs) {
-      for (const d of allDocs as TypedDoc[]) {
-        const label = d.type || d.typeDocument || '';
-        if (!label) continue;
-        const parsed = parseAccordDocType(label);
-        if (parsed) {
-          if (parsed.kind === 'accord' && parsed.ordinal >= 2) dynamic.add(label);
-          else if (parsed.kind === 'proposition-accord') dynamic.add(label);
-          continue;
-        }
-        if (d.extraSlot === 'devis' && !seenExtraDevis.has(label)) {
-          seenExtraDevis.add(label);
-          extraDevis.push(label);
-        } else if (d.extraSlot === 'facture' && !seenExtraFacture.has(label)) {
-          seenExtraFacture.add(label);
-          extraFacture.push(label);
-        }
-      }
+  // Split the non-family slots (BASE_DOC_SLOTS minus the two base garages)
+  // into the top (Rapport / Réforme) and bottom (PV / Carte grise / …) grids.
+  const FAMILY_BASE_SLOTS = new Set(['Devis Garage', 'Facture Garage']);
+  const { topNonFamily, bottomNonFamily } = useMemo(() => {
+    const devisIdx = BASE_DOC_SLOTS.indexOf('Devis Garage');
+    const top: string[] = [];
+    const bottom: string[] = [];
+    for (let i = 0; i < BASE_DOC_SLOTS.length; i++) {
+      const slot = BASE_DOC_SLOTS[i];
+      if (FAMILY_BASE_SLOTS.has(slot) || slot === 'Devis accordé' || slot === 'Facture accordé') continue;
+      if (i < devisIdx) top.push(slot);
+      else bottom.push(slot);
     }
+    return { topNonFamily: top, bottomNonFamily: bottom };
+  }, []);
 
-    // Stable ordering: numeric-aware sort so `Devis Garage 2, 3, 10` beats
-    // lexicographic `10, 2, 3`. Falls back to localeCompare for renamed labels.
-    const numericAware = (a: string, b: string) => {
-      const ra = /(\d+)\s*$/.exec(a);
-      const rb = /(\d+)\s*$/.exec(b);
-      if (ra && rb) return parseInt(ra[1], 10) - parseInt(rb[1], 10);
-      return a.localeCompare(b, 'fr');
-    };
-    extraDevis.sort(numericAware);
-    extraFacture.sort(numericAware);
+  // The full set of slot labels we need to populate `docsByType` for — all
+  // family slots + non-family slots.
+  const allSlotLabels = useMemo(() => {
+    const set = new Set<string>([...topNonFamily, ...bottomNonFamily]);
+    for (const fam of families) for (const s of fam.slots) set.add(s);
+    return set;
+  }, [families, topNonFamily, bottomNonFamily]);
 
-    const slots: string[] = [];
-    for (const base of BASE_DOC_SLOTS) {
-      slots.push(base);
-      if (base === 'Devis Garage') {
-        for (const label of extraDevis) {
-          if (!slots.includes(label)) slots.push(label);
-        }
-      }
-      if (base === 'Facture Garage') {
-        for (const label of extraFacture) {
-          if (!slots.includes(label)) slots.push(label);
-        }
-      }
-      if (base === 'Devis accordé') {
-        for (const ord of [2, 3]) {
-          const label = mapToAccorde('Devis Garage', 'accord', ord);
-          if (dynamic.has(label) && !slots.includes(label)) slots.push(label);
-        }
-        for (const ord of [1, 2, 3]) {
-          const label = mapToAccorde('Devis Garage', 'proposition-accord', ord);
-          if (dynamic.has(label) && !slots.includes(label)) slots.push(label);
-        }
-      }
-      if (base === 'Facture accordé') {
-        for (const ord of [2, 3]) {
-          const label = mapToAccorde('Facture Garage', 'accord', ord);
-          if (dynamic.has(label) && !slots.includes(label)) slots.push(label);
-        }
-        for (const ord of [1, 2, 3]) {
-          const label = mapToAccorde('Facture Garage', 'proposition-accord', ord);
-          if (dynamic.has(label) && !slots.includes(label)) slots.push(label);
-        }
-      }
-    }
-    return {
-      computedSlots: slots,
-      extraDevisLabels: extraDevis,
-      extraFactureLabels: extraFacture,
-    };
-  }, [allDocs]);
-
-  // Quick lookup: is this slot label a gestionnaire-managed extra?
+  // Quick lookup: is this slot label a gestionnaire-managed extra? Detected
+  // by its parent ordinal (extras are always ordinal ≥ 2 on Devis/Facture
+  // Garage), so no reliance on the `extraSlot` flag on individual docs.
   const extraSlotKindByLabel = useMemo(() => {
     const map: Record<string, ExtraSlotKind> = {};
-    for (const l of extraDevisLabels) map[l] = 'devis';
-    for (const l of extraFactureLabels) map[l] = 'facture';
+    for (const fam of families) {
+      if (fam.parentOrdinal < 2) continue;
+      const kind: ExtraSlotKind =
+        fam.sourceDocType === 'Devis Garage' ? 'devis' : 'facture';
+      map[fam.parent] = kind;
+    }
     return map;
-  }, [extraDevisLabels, extraFactureLabels]);
+  }, [families]);
+
+  // Collect extra labels per kind for handleCreateExtraSlot's next-N
+  // computation. Derived from families so it's always in sync.
+  const { extraDevisLabels, extraFactureLabels } = useMemo(() => {
+    const devis: string[] = [];
+    const facture: string[] = [];
+    for (const fam of families) {
+      if (fam.parentOrdinal < 2) continue;
+      if (fam.sourceDocType === 'Devis Garage') devis.push(fam.parent);
+      else facture.push(fam.parent);
+    }
+    return { extraDevisLabels: devis, extraFactureLabels: facture };
+  }, [families]);
+
+  // Ordered slot list for the flat grid render: top non-family slots,
+  // then each family's ordered slots, then bottom non-family slots.
+  const computedSlots = useMemo<string[]>(() => {
+    const slots: string[] = [];
+    for (const s of topNonFamily) slots.push(s);
+    for (const fam of families) for (const s of fam.slots) slots.push(s);
+    for (const s of bottomNonFamily) slots.push(s);
+    return slots;
+  }, [topNonFamily, bottomNonFamily, families]);
 
   const docsByType = useMemo(() => {
     const map: Record<string, TypedDoc[]> = {};
-    for (const slot of computedSlots) map[slot] = [];
+    for (const slot of allSlotLabels) map[slot] = [];
     if (allDocs) {
       for (const d of allDocs as TypedDoc[]) {
         const t = d.type || d.typeDocument || '';
@@ -220,7 +164,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
       }
     }
     // Stable-ish sort: pending first (so user sees their fresh upload), then by name.
-    for (const slot of computedSlots) {
+    for (const slot of allSlotLabels) {
       map[slot].sort((a, b) => {
         if (a.pendingUpload && !b.pendingUpload) return -1;
         if (!a.pendingUpload && b.pendingUpload) return 1;
@@ -228,7 +172,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
       });
     }
     return map;
-  }, [allDocs, computedSlots]);
+  }, [allDocs, allSlotLabels]);
 
   const handleUpload = async (slot: string, files: File[]) => {
     if (!db || !storage || !auth) return;
@@ -384,7 +328,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
     if (raw == null) return;
     const newLabel = raw.trim();
     if (!newLabel || newLabel === oldLabel) return;
-    if (computedSlots.includes(newLabel)) {
+    if (allSlotLabels.has(newLabel)) {
       toast({
         variant: 'destructive',
         title: 'Nom déjà utilisé',
@@ -417,14 +361,15 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
 
   // Task #26 — create the next cardinal accord slot by inserting a placeholder
   // doc into Firestore. The dynamic slot logic (task #25) picks it up and
-  // renders the fresh slot in the grid contiguously.
+  // renders the fresh slot in the grid contiguously. Uses `parsed.parent` so
+  // each parent family (base or extra) produces its own accord chain.
   const handleCreateNextCardinal = async (slot: string) => {
     if (!db || !auth) return;
     const parsed = parseAccordDocType(slot);
     if (!parsed || parsed.kind !== 'accord') return;
     const nextOrdinal = parsed.ordinal + 1;
     if (nextOrdinal > 3) return;
-    const nextLabel = mapToAccorde(parsed.sourceDocType, 'accord', nextOrdinal);
+    const nextLabel = mapToAccorde(parsed.parent, 'accord', nextOrdinal);
     const userId = auth.currentUser?.uid || 'unknown';
     try {
       await addDoc(collection(db, 'dossiers', dossierId, 'documents'), {
@@ -485,6 +430,36 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
     }
   };
 
+  const handlePreview = (d: TypedDoc) => {
+    if (d.url && !d.pendingUpload) {
+      setPreviewDoc({ url: d.url, nom: d.nom || d.fileName || 'document' });
+    }
+  };
+
+  const renderSlotCard = (slot: string) => (
+    <SlotCard
+      key={slot}
+      slot={slot}
+      docs={docsByType[slot] || []}
+      canEdit={canEdit}
+      canDeleteDoc={canDeleteDoc}
+      userRole={profile?.role}
+      isUploading={uploadingSlot === slot}
+      deletingId={deletingId}
+      extraSlotKind={extraSlotKindByLabel[slot]}
+      canManageExtraSlots={canWrite('dossiers')}
+      onUpload={(files) => handleUpload(slot, files)}
+      onDelete={handleDelete}
+      onCreateNextCardinal={() => handleCreateNextCardinal(slot)}
+      onCreateExtraSlot={handleCreateExtraSlot}
+      onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
+      onPreview={handlePreview}
+    />
+  );
+
+  const devisFamilies = families.filter((f) => f.sourceDocType === 'Devis Garage');
+  const factureFamilies = families.filter((f) => f.sourceDocType === 'Facture Garage');
+
   return (
     <div>
       {loading ? (
@@ -492,31 +467,64 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {computedSlots.map((slot) => (
-            <SlotCard
-              key={slot}
-              slot={slot}
-              docs={docsByType[slot] || []}
+        <div className="space-y-3">
+          {/* Top non-family grid — Rapport final + Réforme technique / économique */}
+          {topNonFamily.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {topNonFamily.map((slot) => renderSlotCard(slot))}
+            </div>
+          )}
+
+          {/* Devis families: one horizontal row per parent */}
+          {devisFamilies.map((group) => (
+            <FamilyRow
+              key={group.parent}
+              group={group}
+              docsByType={docsByType}
               canEdit={canEdit}
               canDeleteDoc={canDeleteDoc}
               userRole={profile?.role}
-              isUploading={uploadingSlot === slot}
-              deletingId={deletingId}
-              extraSlotKind={extraSlotKindByLabel[slot]}
               canManageExtraSlots={canWrite('dossiers')}
-              onUpload={(files) => handleUpload(slot, files)}
+              isUploading={(slot) => uploadingSlot === slot}
+              deletingId={deletingId}
+              extraSlotKindForSlot={(slot) => extraSlotKindByLabel[slot]}
+              onUpload={handleUpload}
               onDelete={handleDelete}
-              onCreateNextCardinal={() => handleCreateNextCardinal(slot)}
+              onCreateNextCardinal={handleCreateNextCardinal}
               onCreateExtraSlot={handleCreateExtraSlot}
-              onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
-              onPreview={(d) => {
-                if (d.url && !d.pendingUpload) {
-                  setPreviewDoc({ url: d.url, nom: d.nom || d.fileName || 'document' });
-                }
-              }}
+              onRenameExtraSlot={handleRenameExtraSlot}
+              onPreview={handlePreview}
             />
           ))}
+
+          {/* Facture families: same pattern */}
+          {factureFamilies.map((group) => (
+            <FamilyRow
+              key={group.parent}
+              group={group}
+              docsByType={docsByType}
+              canEdit={canEdit}
+              canDeleteDoc={canDeleteDoc}
+              userRole={profile?.role}
+              canManageExtraSlots={canWrite('dossiers')}
+              isUploading={(slot) => uploadingSlot === slot}
+              deletingId={deletingId}
+              extraSlotKindForSlot={(slot) => extraSlotKindByLabel[slot]}
+              onUpload={handleUpload}
+              onDelete={handleDelete}
+              onCreateNextCardinal={handleCreateNextCardinal}
+              onCreateExtraSlot={handleCreateExtraSlot}
+              onRenameExtraSlot={handleRenameExtraSlot}
+              onPreview={handlePreview}
+            />
+          ))}
+
+          {/* Bottom non-family grid */}
+          {bottomNonFamily.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {bottomNonFamily.map((slot) => renderSlotCard(slot))}
+            </div>
+          )}
         </div>
       )}
 
@@ -569,235 +577,3 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
   );
 }
 
-interface SlotCardProps {
-  slot: string;
-  docs: TypedDoc[];
-  canEdit: boolean;
-  canDeleteDoc: (d: TypedDoc) => boolean;
-  userRole?: string;
-  isUploading: boolean;
-  deletingId: string | null;
-  extraSlotKind?: ExtraSlotKind;
-  canManageExtraSlots: boolean;
-  onUpload: (files: File[]) => void;
-  onDelete: (d: TypedDoc) => void;
-  onCreateNextCardinal: () => void;
-  onCreateExtraSlot: (kind: ExtraSlotKind) => void;
-  onRenameExtraSlot: () => void;
-  onPreview: (d: TypedDoc) => void;
-}
-
-function SlotCard({
-  slot,
-  docs,
-  canEdit,
-  canDeleteDoc,
-  userRole,
-  isUploading,
-  deletingId,
-  extraSlotKind,
-  canManageExtraSlots,
-  onUpload,
-  onDelete,
-  onCreateNextCardinal,
-  onCreateExtraSlot,
-  onRenameExtraSlot,
-  onPreview,
-}: SlotCardProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files ? Array.from(e.target.files) : [];
-    if (files.length > 0) onUpload(files);
-    if (inputRef.current) inputRef.current.value = '';
-  };
-
-  // Task #26 — accord/proposition slot detection.
-  const parsedAccord = parseAccordDocType(slot);
-  // Gestionnaires must not upload into accord/proposition slots — workflow
-  // drives the cardinal creation instead.
-  const hideUploadForRole =
-    !!parsedAccord && userRole === 'Gestionnaire';
-  // Pimple "+" button appears only on `accord` slots (not proposition) with a
-  // next-cardinal within cap (max 3ème).
-  const showCardinalPimple =
-    !!parsedAccord &&
-    parsedAccord.kind === 'accord' &&
-    parsedAccord.ordinal + 1 <= 3;
-  // Gestionnaires may advance the accord chain only when the current slot has
-  // evidence. Non-gestionnaires (Admin / Responsable / Chiffreur) are free to
-  // create the next cardinal regardless.
-  const cardinalPimpleDisabled =
-    userRole === 'Gestionnaire' && docs.length === 0;
-  // Base-slot pimple: next to `Devis Garage` / `Facture Garage`, lets the
-  // gestionnaire spawn a new numbered slot (first = "… 2", then 3, etc.).
-  const baseExtraKind: ExtraSlotKind | null =
-    slot === 'Devis Garage' ? 'devis'
-    : slot === 'Facture Garage' ? 'facture'
-    : null;
-  const showExtraSlotPimple = !!baseExtraKind && canManageExtraSlots;
-  // Rename pencil: only on gestionnaire-managed extras (not on the base
-  // `Devis Garage` / `Facture Garage` and not on cardinal accord variants).
-  const showRenameButton = !!extraSlotKind && canManageExtraSlots;
-
-  return (
-    <Card className="relative shadow-sm border rounded-lg overflow-visible flex flex-col">
-      <CardHeader className="py-2.5 px-3 border-b">
-        <CardTitle className="font-semibold text-sm flex items-center justify-between gap-2">
-          <span className="truncate" title={slot}>{slot}</span>
-          <span className="flex items-center gap-1 shrink-0">
-            {showRenameButton && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                onClick={onRenameExtraSlot}
-                title="Renommer"
-                aria-label="Renommer le slot"
-              >
-                <Pencil className="h-3 w-3" />
-              </Button>
-            )}
-            <span className="text-[10px] font-normal text-muted-foreground">
-              {docs.length}
-            </span>
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-2 space-y-1.5 flex-1">
-        {docs.length === 0 ? (
-          <p className="text-xs italic text-muted-foreground text-center py-3">
-            Aucun document
-          </p>
-        ) : (
-          <ul className="space-y-1">
-            {docs.map((d) => {
-              const name = d.nom || d.fileName || 'document';
-              const img = d.url && isImage(name);
-              const clickable = !!d.url && !d.pendingUpload;
-              return (
-                <li
-                  key={d.id}
-                  className={cn(
-                    'flex items-center gap-2 rounded-md border bg-card px-2 py-1.5 hover:bg-accent/40 transition-colors',
-                    clickable && 'cursor-pointer',
-                  )}
-                  onClick={() => clickable && onPreview(d)}
-                >
-                  <div className="h-8 w-8 shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden">
-                    {img ? (
-                      <img
-                        src={d.url!}
-                        alt={name}
-                        className="object-cover w-full h-full"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate" title={name}>
-                      {name}
-                    </p>
-                    {d.pendingUpload && (
-                      <p className="text-[10px] text-amber-700">En attente…</p>
-                    )}
-                  </div>
-                  {canDeleteDoc(d) && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(d);
-                      }}
-                      disabled={deletingId === d.id || !!d.pendingUpload}
-                      title="Supprimer"
-                    >
-                      {deletingId === d.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        {canEdit && !hideUploadForRole && (
-          <>
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/*,.pdf"
-              multiple
-              className="hidden"
-              onChange={handlePick}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full border-dashed"
-              onClick={() => inputRef.current?.click()}
-              disabled={isUploading}
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                  Envoi…
-                </>
-              ) : (
-                <>
-                  <Plus className="mr-2 h-3.5 w-3.5" />
-                  Ajouter
-                </>
-              )}
-            </Button>
-          </>
-        )}
-      </CardContent>
-
-      {showCardinalPimple && canEdit && (
-        <button
-          type="button"
-          onClick={onCreateNextCardinal}
-          disabled={cardinalPimpleDisabled}
-          className={cn(
-            "absolute -right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm shadow transition z-10",
-            cardinalPimpleDisabled
-              ? "opacity-40 cursor-not-allowed"
-              : "hover:scale-110",
-          )}
-          title={
-            cardinalPimpleDisabled
-              ? "Téléversez un document dans ce slot avant de créer le prochain accord."
-              : "Créer le cardinal suivant"
-          }
-          aria-label="Créer le cardinal suivant"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-      )}
-
-      {showExtraSlotPimple && baseExtraKind && (
-        <button
-          type="button"
-          onClick={() => onCreateExtraSlot(baseExtraKind)}
-          className="absolute -right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm shadow hover:scale-110 transition z-10"
-          title={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
-          aria-label={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-      )}
-    </Card>
-  );
-}
