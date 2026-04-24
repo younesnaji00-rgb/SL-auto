@@ -18,6 +18,9 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from '@/components/ui/popover';
 import { useFirestore, useStorage } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -305,6 +308,38 @@ export function DevisEditor({
     setExtraColumns((cols) =>
       cols.map((c) => (c.id === colId ? { ...c, values: { ...c.values, [rowId]: value } } : c))
     );
+  };
+
+  // Task #21: patch metadata on an extra column (label / kind / locked).
+  // Used by the accord header popover to switch between
+  // 'accord' / 'proposition-accord' and set the displayed label.
+  const updateExtraColumn = (colId: string, patch: Partial<DevisExtraColumn>) => {
+    setExtraColumns((cols) =>
+      cols.map((c) => (c.id === colId ? { ...c, ...patch } : c))
+    );
+  };
+
+  // Task #21: local popover open state, keyed per accord column id.
+  const [accordHeaderOpen, setAccordHeaderOpen] = useState<Record<string, boolean>>({});
+
+  // Task #21: compute accord totals + hard clamp helper.
+  // - computeAccordTotalHT = puAccord * qte * (1 - vetuste/100)
+  // - computeAccordPrixTTC = TotalHTAccord * (1 + tva/100)
+  // - clampAccordPU returns a PU snapped DOWN so that
+  //   (puAccord * qte * (1 - vetuste/100) * (1 + tva/100)) === rowPrixTTC.
+  //   rowPrixTTC = rowTotalHT(r) * (1 + tva/100).
+  const computeAccordTotalHT = (puAccord: number, qte: number, vetuste: number) =>
+    puAccord * qte * (1 - vetuste / 100);
+  const computeAccordPrixTTC = (totalHTAccord: number, tva: number) =>
+    totalHTAccord * (1 + tva / 100);
+  const clampAccordPU = (r: DevisRow): number => {
+    const qte = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
+    const vetuste = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
+    const tva = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
+    const rowPrixTTC = rowTotalHT(r) * (1 + tva / 100);
+    const denom = qte * (1 - vetuste / 100) * (1 + tva / 100);
+    if (denom <= 0) return 0;
+    return rowPrixTTC / denom;
   };
 
   // Task #20: clone the P.U.H.T column into a new accord extra column.
@@ -730,6 +765,64 @@ export function DevisEditor({
                 <th style={{ width: '120px' }} className="text-right">Prix en TTC</th>
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
+                  const isAccord = col.kind === 'accord' || col.kind === 'proposition-accord';
+                  // Task #21: accord columns render as a triple (PU / Total HT Accord / Prix TTC Accord).
+                  if (isAccord) {
+                    const puHeader = col.locked ? (
+                      <span className="truncate font-bold text-[11px]">
+                        {col.label || (col.kind === 'accord' ? 'Accord' : "Proposition d'accord")}
+                      </span>
+                    ) : (
+                      <Popover
+                        open={!!accordHeaderOpen[col.id]}
+                        onOpenChange={(o) => setAccordHeaderOpen((s) => ({ ...s, [col.id]: o }))}
+                      >
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="w-full text-left truncate font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary"
+                            title="Choisir un type d'accord"
+                          >
+                            {col.label || 'Choisir un accord'}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-48 p-1">
+                          <button
+                            type="button"
+                            className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                            onClick={() => {
+                              updateExtraColumn(col.id, { label: 'Accord', kind: 'accord' });
+                              setAccordHeaderOpen((s) => ({ ...s, [col.id]: false }));
+                            }}
+                          >
+                            Accord
+                          </button>
+                          <button
+                            type="button"
+                            className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                            onClick={() => {
+                              updateExtraColumn(col.id, {
+                                label: "Proposition d'accord",
+                                kind: 'proposition-accord',
+                              });
+                              setAccordHeaderOpen((s) => ({ ...s, [col.id]: false }));
+                            }}
+                          >
+                            Proposition d'accord
+                          </button>
+                        </PopoverContent>
+                      </Popover>
+                    );
+                    return (
+                      <React.Fragment key={col.id}>
+                        <th style={{ width: '120px' }} className="text-right">
+                          {puHeader}
+                        </th>
+                        <th style={{ width: '130px' }} className="text-right">Total H.T Accord</th>
+                        <th style={{ width: '130px' }} className="text-right">Prix TTC Accord</th>
+                      </React.Fragment>
+                    );
+                  }
                   return (
                     <th
                       key={col.id}
@@ -833,16 +926,59 @@ export function DevisEditor({
                     <td className="text-right font-semibold pr-2">
                       {formatFr(total * (1 + (r.tva ?? 0) / 100))}
                     </td>
-                    {extraColumns.map((col) => (
-                      <td key={col.id}>
-                        <CellInput
-                          value={col.values[r.id] || ''}
-                          onChange={(v) => updateExtraCell(col.id, r.id, v)}
-                          disabled={!canEdit}
-                          className={col.kind === 'counter' ? 'text-destructive font-semibold' : undefined}
-                        />
-                      </td>
-                    ))}
+                    {extraColumns.map((col) => {
+                      const isAccord = col.kind === 'accord' || col.kind === 'proposition-accord';
+                      if (isAccord) {
+                        const raw = col.values[r.id] || '';
+                        const puAccord = parseFr(raw);
+                        const qte = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
+                        const vetuste = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
+                        const tva = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
+                        const totalHTAccord = computeAccordTotalHT(puAccord, qte, vetuste);
+                        const prixTTCAccord = computeAccordPrixTTC(totalHTAccord, tva);
+                        return (
+                          <React.Fragment key={col.id}>
+                            <td>
+                              <AccordPUInput
+                                value={raw}
+                                disabled={!canEdit || col.locked === true}
+                                onChange={(v) => updateExtraCell(col.id, r.id, v)}
+                                onBlurClamp={() => {
+                                  const current = parseFr(col.values[r.id] || '');
+                                  if (!(current > 0)) return;
+                                  const rowTTC = rowTotalHT(r) * (1 + tva / 100);
+                                  const currentAccordTTC =
+                                    current * qte * (1 - vetuste / 100) * (1 + tva / 100);
+                                  if (currentAccordTTC > rowTTC + 1e-9) {
+                                    const capped = clampAccordPU(r);
+                                    updateExtraCell(col.id, r.id, formatFr(capped));
+                                    toast({
+                                      title: `Plafonné au prix TTC : ${formatFr(capped)} DH`,
+                                    });
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td className="text-right font-semibold pr-2">
+                              {formatFr(totalHTAccord)}
+                            </td>
+                            <td className="text-right font-semibold pr-2">
+                              {formatFr(prixTTCAccord)}
+                            </td>
+                          </React.Fragment>
+                        );
+                      }
+                      return (
+                        <td key={col.id}>
+                          <CellInput
+                            value={col.values[r.id] || ''}
+                            onChange={(v) => updateExtraCell(col.id, r.id, v)}
+                            disabled={!canEdit}
+                            className={col.kind === 'counter' ? 'text-destructive font-semibold' : undefined}
+                          />
+                        </td>
+                      );
+                    })}
                     <td>
                       {canEdit && (
                         <div className="flex items-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
@@ -879,9 +1015,32 @@ export function DevisEditor({
                 <td className="text-right">{formatFr(totalsRow.totalHt)}</td>
                 <td className="text-right">{formatFr(totals.ttc)}</td>
                 {extraColumns.map((col) => {
+                  const isCounter = col.kind === 'counter';
+                  const isAccord = col.kind === 'accord' || col.kind === 'proposition-accord';
+                  if (isAccord) {
+                    // Task #21: accord footer — PU cell empty, Total H.T Accord
+                    // and Prix TTC Accord show column sums.
+                    let totalHTAccordSum = 0;
+                    let prixTTCAccordSum = 0;
+                    for (const r of rows) {
+                      const pu = parseFr(col.values[r.id] || '');
+                      const qte = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
+                      const vetuste = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
+                      const tva = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
+                      const tHt = computeAccordTotalHT(pu, qte, vetuste);
+                      totalHTAccordSum += tHt;
+                      prixTTCAccordSum += computeAccordPrixTTC(tHt, tva);
+                    }
+                    return (
+                      <React.Fragment key={col.id}>
+                        <td />
+                        <td className="text-right">{formatFr(totalHTAccordSum)}</td>
+                        <td className="text-right">{formatFr(prixTTCAccordSum)}</td>
+                      </React.Fragment>
+                    );
+                  }
                   // Σ for imported/extra columns, SR-tolerant.
                   const colSum = rows.reduce((acc, r) => acc + parseFr(col.values[r.id] || ''), 0);
-                  const isCounter = col.kind === 'counter';
                   return (
                     <td key={col.id} className={cn('text-right', isCounter && 'text-destructive')}>
                       {formatFr(colSum)}
@@ -1019,6 +1178,32 @@ function CellInput({
         "w-full h-7 px-1.5 text-xs bg-transparent outline-none rounded border border-transparent",
         "focus:border-primary/50 focus:bg-background disabled:cursor-not-allowed",
         className,
+      )}
+    />
+  );
+}
+
+// Task #21: accord PU cell. Stored as a string (matching extraColumn convention)
+// but represents a number. On blur, the parent clamp callback can overwrite the
+// cell value with a capped figure; the local text stays in sync through value.
+function AccordPUInput({
+  value, onChange, onBlurClamp, disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onBlurClamp: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlurClamp}
+      disabled={disabled}
+      inputMode="decimal"
+      className={cn(
+        "w-full h-7 px-1.5 text-xs bg-transparent outline-none rounded border border-transparent",
+        "focus:border-primary/50 focus:bg-background disabled:cursor-not-allowed text-right",
       )}
     />
   );
