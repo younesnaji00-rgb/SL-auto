@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, MapPin, Clock } from 'lucide-react';
+import { Loader2, Clock } from 'lucide-react';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -77,7 +77,6 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     typeMission: '',
     dateRDV: null as Date | null,
     timeRDV: '09:00',
-    zone: '',
     adresse: '',
     observation: '',
   });
@@ -96,12 +95,11 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         typeMission: initialData.typeMission || 'Avant',
         dateRDV,
         timeRDV,
-        zone: initialData.zone || '',
         adresse: initialData.adresse || '',
         observation: initialData.observation || '',
       });
     } else if (open) {
-      setFormData({ agentTerrain: '', typeMission: 'Avant', dateRDV: null, timeRDV: '09:00', zone: '', adresse: '', observation: '' });
+      setFormData({ agentTerrain: '', typeMission: 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '' });
     }
   }, [initialData, open]);
 
@@ -120,11 +118,14 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         finalRDV = Timestamp.fromDate(d);
       }
 
+      const selectedAgent = agents.find((a) => a.label === formData.agentTerrain);
+      const derivedZone = selectedAgent?.zone?.trim() || '';
+
       const payload: Record<string, any> = {
         agentTerrain: formData.agentTerrain,
         typeMission: formData.typeMission,
         dateRDV: finalRDV,
-        zone: formData.zone,
+        zone: derivedZone,
         adresse: formData.adresse,
         observation: formData.observation,
         modifiedAt: serverTimestamp(),
@@ -264,19 +265,6 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                   onChange={(e) => setFormData({...formData, timeRDV: e.target.value})} 
                 />
               </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Zone</Label>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-3 h-4 w-4 text-primary" />
-              <Input 
-                placeholder="Ex: Casablanca Anfa" 
-                className="pl-10 h-10"
-                value={formData.zone} 
-                onChange={(e) => setFormData({...formData, zone: e.target.value})} 
-              />
             </div>
           </div>
 
