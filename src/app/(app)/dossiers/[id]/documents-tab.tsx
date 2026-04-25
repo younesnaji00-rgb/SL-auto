@@ -61,6 +61,7 @@ import {
   ALL_TYPES_KEY,
   type DocumentsFilterPanelDoc,
 } from '@/components/chiffreurs/documents-filter-panel';
+import JSZip from 'jszip';
 
 type DocumentsTabProps = {
   dossierId: string;
@@ -314,12 +315,43 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
     if (chosen.length === 0) return;
     setIsBatchDownloading(true);
     try {
-      for (const d of chosen) {
-        const name = d.nom || d.fileName || 'document';
-        await handleDownload(d.url, name);
-        await new Promise((r) => setTimeout(r, 250));
+      const zip = new JSZip();
+      const sanitizeFolder = (s: string) =>
+        (s || 'Autres').trim().replace(/[\\/:*?"<>|]/g, '_') || 'Autres';
+
+      // Fetch all blobs in parallel for speed; then add each to its type folder.
+      const fetched = await Promise.all(
+        chosen.map(async (d: any) => {
+          const folderName = sanitizeFolder(d.type || d.typeDocument || 'Autres');
+          const fileName = d.nom || d.fileName || 'document';
+          const response = await fetch(d.url);
+          const blob = await response.blob();
+          return { folderName, fileName, blob };
+        })
+      );
+
+      const folderSet = new Set<string>();
+      for (const { folderName, fileName, blob } of fetched) {
+        folderSet.add(folderName);
+        zip.folder(folderName)!.file(fileName, blob);
       }
-      toast({ title: `${chosen.length} document(s) téléchargé(s)` });
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const blobUrl = window.URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `documents-${dossierId}-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      toast({
+        title: `Archive téléchargée (${chosen.length} document(s) dans ${folderSet.size} dossier(s))`,
+      });
+    } catch (e) {
+      console.error('Batch download error:', e);
+      toast({ variant: 'destructive', title: 'Erreur lors du téléchargement' });
     } finally {
       setIsBatchDownloading(false);
     }
