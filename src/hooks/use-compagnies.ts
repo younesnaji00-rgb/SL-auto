@@ -58,6 +58,18 @@ export function useCompagnies() {
     return unsub;
   }, [db]);
 
+  // Prefetch compagnie logos so the sidebar dropdown renders instantly.
+  // We don't keep the Image instances; the browser HTTP cache holds the response.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    for (const c of compagnies) {
+      if (c.logoUrl) {
+        const img = new window.Image();
+        img.src = c.logoUrl;
+      }
+    }
+  }, [compagnies]);
+
   const addCompagnie = async (nom: string, couleur?: string) => {
     if (!db || !nom.trim()) return;
     const colRef = collection(db, 'compagnies');
