@@ -72,6 +72,22 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   const agents = useMemo<Option[]>(() => dbAgents.length > 0 ? dbAgents : defaultAgents.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbAgents]);
   const agentWorkload = useAgentTerrainWorkload();
 
+  const [agentZoneFilter, setAgentZoneFilter] = useState('');
+
+  const availableAgentZones = useMemo(() => {
+    const zones = new Set<string>();
+    for (const agent of agents) {
+      const z = agent.zone?.trim();
+      if (z) zones.add(z);
+    }
+    return Array.from(zones).sort((a, b) => a.localeCompare(b, 'fr'));
+  }, [agents]);
+
+  const filteredAgents = useMemo(() => {
+    if (agentZoneFilter === '') return agents;
+    return agents.filter((a) => (a.zone?.trim() || '') === agentZoneFilter);
+  }, [agents, agentZoneFilter]);
+
   const [formData, setFormData] = useState({
     agentTerrain: '',
     typeMission: '',
@@ -198,10 +214,42 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 <Label>Agent de Terrain</Label>
                 <OptionsManagerModal collectionName="options_agents" title="Agents de terrain" defaultValues={defaultAgents} />
               </div>
+              {availableAgentZones.length > 0 && (
+                <Select
+                  value={agentZoneFilter === '' ? '__all__' : agentZoneFilter}
+                  onValueChange={(v) => {
+                    const next = v === '__all__' ? '' : v;
+                    setAgentZoneFilter(next);
+                    const stillVisible =
+                      next === ''
+                        ? true
+                        : agents.some(
+                            (a) =>
+                              a.label === formData.agentTerrain &&
+                              (a.zone?.trim() || '') === next,
+                          );
+                    if (!stillVisible && formData.agentTerrain) {
+                      setFormData((prev) => ({ ...prev, agentTerrain: '' }));
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs text-muted-foreground">
+                    <SelectValue placeholder="Filtrer par zone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Toutes les zones</SelectItem>
+                    {availableAgentZones.map((zone) => (
+                      <SelectItem key={zone} value={zone}>
+                        {zone}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <Select value={formData.agentTerrain} onValueChange={(v) => setFormData({...formData, agentTerrain: v})}>
                 <SelectTrigger><SelectValue placeholder="Choisir un agent" /></SelectTrigger>
                 <SelectContent>
-                  {agents.map(agent => {
+                  {filteredAgents.map(agent => {
                     const rawCount = agentWorkload[agent.label] || 0;
                     // When editing, the current planification is itself counted
                     // in `rawCount` for its currently-assigned agent. Exclude
