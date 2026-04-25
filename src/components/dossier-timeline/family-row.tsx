@@ -27,12 +27,11 @@ interface FamilyRowProps {
   onRenameExtraSlot: (slot: string) => void;
   onPreview: (d: TypedDoc) => void;
   /**
-   * Optional left-pinned action rendered first in the horizontal scroll row.
-   * Used on the chiffreur side for the "Éditer web" button. Background must
-   * match the row container so sticky positioning visually covers the
-   * scrolling cards underneath.
+   * Optional action rendered as a floating element absolutely positioned at
+   * the top-right of the family row, overlapping (bleeding into) the slot
+   * cards below. Used on the chiffreur side for the "Éditer web" button.
    */
-  leftAction?: React.ReactNode;
+  topAction?: React.ReactNode;
 }
 
 /**
@@ -40,8 +39,8 @@ interface FamilyRowProps {
  * a horizontal row with `overflow-x-auto` so children scroll when they
  * outgrow the container.
  *
- * `leftAction`, if provided, is rendered as a sticky-left element pinned to
- * the row's left edge during horizontal scroll.
+ * `topAction`, if provided, is rendered as an absolutely-positioned floating
+ * element at the top-right of the row container, overlapping the slot cards.
  */
 export function FamilyRow({
   group,
@@ -59,7 +58,7 @@ export function FamilyRow({
   onCreateExtraSlot,
   onRenameExtraSlot,
   onPreview,
-  leftAction,
+  topAction,
 }: FamilyRowProps) {
   const totalDocs = group.slots.reduce(
     (acc, s) => acc + (docsByType[s]?.length || 0),
@@ -68,7 +67,12 @@ export function FamilyRow({
 
   return (
     <div className="relative border rounded-lg bg-muted/10 p-2">
-      <div className="flex items-center justify-between px-1 pb-2">
+      {topAction && (
+        <div className="absolute top-3 right-3 z-30 drop-shadow-md">
+          {topAction}
+        </div>
+      )}
+      <div className="flex items-center justify-between px-1 pb-2 pr-32">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {group.parent}
         </h3>
@@ -77,11 +81,6 @@ export function FamilyRow({
         </span>
       </div>
       <div className="flex gap-3 overflow-x-auto scroll-smooth pb-1 snap-x snap-mandatory">
-        {leftAction && (
-          <div className="sticky left-0 z-20 flex items-center pr-3 bg-muted/10 shrink-0">
-            {leftAction}
-          </div>
-        )}
         {group.slots.map((slot) => (
           <div
             key={slot}

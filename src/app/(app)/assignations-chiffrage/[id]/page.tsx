@@ -444,7 +444,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
               onCreateExtraSlot={chiffreurNoOpCreateExtraSlot}
               onRenameExtraSlot={chiffreurNoOpRename}
               onPreview={handleFamilyDocPreview}
-              leftAction={
+              topAction={
                 <Button
                   type="button"
                   size="sm"
@@ -475,7 +475,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
               onCreateExtraSlot={chiffreurNoOpCreateExtraSlot}
               onRenameExtraSlot={chiffreurNoOpRename}
               onPreview={handleFamilyDocPreview}
-              leftAction={
+              topAction={
                 <Button
                   type="button"
                   size="sm"
