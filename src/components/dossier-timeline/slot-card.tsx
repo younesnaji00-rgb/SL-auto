@@ -98,17 +98,21 @@ export function SlotCard({
     !!parsedAccord &&
     parsedAccord.kind === 'accord' &&
     parsedAccord.ordinal + 1 <= 3;
-  // Gestionnaires may advance the accord chain only when the current slot has
-  // evidence. Non-gestionnaires (Admin / Responsable / Chiffreur) are free to
-  // create the next cardinal regardless.
-  const cardinalPimpleDisabled =
-    userRole === 'Gestionnaire' && docs.length === 0;
+  // Cardinal pimple is disabled until the current cardinal slot has a real (chiffreur-filled) doc
+  // — not just a placeholder. Applies to all roles; the chiffreur produces the source doc via
+  // the editor save flow, so other roles cannot bypass.
+  const cardinalPimpleDisabled = !docs.some((d) => !d.pendingUpload && !!d.url);
   // Base-slot pimple: next to `Devis Garage` / `Facture Garage`, lets the
   // gestionnaire spawn a new numbered slot (first = "… 2", then 3, etc.).
   const baseExtraKind: ExtraSlotKind | null =
     slot === 'Devis Garage' ? 'devis'
     : slot === 'Facture Garage' ? 'facture'
     : null;
+  // Extra garage slots created via the `+` file-picker are capped at 1 doc:
+  // once they hold a file, hide the in-card Ajouter affordance. Base
+  // `Devis Garage` / `Facture Garage` slots (extraSlotKind === undefined) keep
+  // their multi-doc behaviour.
+  const isFilledExtraSlot = !!extraSlotKind && docs.length >= 1;
   const showExtraSlotPimple = !!baseExtraKind && canManageExtraSlots;
   // Rename pencil: only on gestionnaire-managed extras (not on the base
   // `Devis Garage` / `Facture Garage` and not on cardinal accord variants).
@@ -208,7 +212,7 @@ export function SlotCard({
           </ul>
         )}
 
-        {canEdit && !hideUploadForAccord && (
+        {canEdit && !hideUploadForAccord && !isFilledExtraSlot && (
           <>
             <input
               ref={inputRef}
@@ -255,7 +259,7 @@ export function SlotCard({
           )}
           title={
             cardinalPimpleDisabled
-              ? "Téléversez un document dans ce slot avant de créer le prochain accord."
+              ? "En attente de chiffrage : remplissez ce slot avant de créer le suivant."
               : "Créer le cardinal suivant"
           }
           aria-label="Créer le cardinal suivant"
