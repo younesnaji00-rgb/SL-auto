@@ -32,7 +32,7 @@ import {
   type DocumentsFilterPanelDoc,
 } from '@/components/chiffreurs/documents-filter-panel';
 import { FamilyRow } from '@/components/dossier-timeline/family-row';
-import type { TypedDoc } from '@/components/dossier-timeline/slot-card';
+import type { ExtraSlotKind, TypedDoc } from '@/components/dossier-timeline/slot-card';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -229,7 +229,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const chiffreurNoOpUpload = () => {};
   const chiffreurNoOpDelete = () => {};
   const chiffreurNoOpCreateNextCardinal = () => {};
-  const chiffreurNoOpCreateExtraSlot = () => {};
+  const chiffreurNoOpCreateExtraSlot = (_kind: ExtraSlotKind, _files: File[]) => {};
   const chiffreurNoOpRename = () => {};
   const chiffreurNeverDelete = () => false;
 

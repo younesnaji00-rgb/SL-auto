@@ -174,7 +174,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
     return map;
   }, [allDocs, allSlotLabels]);
 
-  const handleUpload = async (slot: string, files: File[]) => {
+  const handleUpload = async (slot: string, files: File[], kindOverride?: ExtraSlotKind) => {
     if (!db || !storage || !auth) return;
     if (files.length === 0) return;
     const userEmail = auth.currentUser?.email || profile?.email || 'Admin';
@@ -195,7 +195,9 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
 
       // Tag uploads with `extraSlot` when targeting a gestionnaire-managed
       // slot, so the slot stays detectable after the placeholder is gone.
-      const extraKind = extraSlotKindByLabel[slot];
+      // `kindOverride` lets the +pimple flow tag uploads when the family doesn't
+      // exist yet (so `extraSlotKindByLabel[slot]` is undefined).
+      const extraKind = kindOverride ?? extraSlotKindByLabel[slot];
 
       // Fire all uploads in parallel so a batch of N files completes in ~1 file's time
       // instead of N × single-file time.
@@ -276,11 +278,14 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
   };
 
   // Create a fresh gestionnaire-managed slot (Devis Garage / Facture Garage
-  // extras). Default label is `<Base> <N>` with N = existingExtrasMax+1
-  // starting at 2 so the first extra is labelled "… 2". The gestionnaire can
-  // then rename it via the pencil affordance.
-  const handleCreateExtraSlot = async (kind: ExtraSlotKind) => {
-    if (!db || !auth) return;
+  // extras) atomically with the user's first file upload. Label is
+  // `<Base> <N>` with N = existingExtrasMax+1 starting at 2 so the first
+  // extra is "… 2". The gestionnaire can then rename it via the pencil
+  // affordance. No empty placeholder is written if the user picks no files
+  // (the OS picker was cancelled) — the slot only materialises when the
+  // upload succeeds and Firestore has the tagged document(s).
+  const handleCreateExtraSlot = async (kind: ExtraSlotKind, files: File[]) => {
+    if (files.length === 0) return;
     const existing = kind === 'devis' ? extraDevisLabels : extraFactureLabels;
     const base = kind === 'devis' ? 'Devis Garage' : 'Facture Garage';
     const pattern = kind === 'devis'
@@ -296,26 +301,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
     }
     const nextN = maxN + 1;
     const label = `${base} ${nextN}`;
-    const userId = auth.currentUser?.uid || 'unknown';
-    try {
-      await addDoc(collection(db, 'dossiers', dossierId, 'documents'), {
-        type: label,
-        extraSlot: kind,
-        pendingUpload: true,
-        storagePath: null,
-        url: null,
-        createdAt: serverTimestamp(),
-        createdBy: userId,
-      });
-      toast({ title: `Nouveau slot créé : ${label}` });
-    } catch (err: any) {
-      console.error('[typed-docs-grid] create extra slot failed', err);
-      toast({
-        variant: 'destructive',
-        title: 'Erreur lors de la création du slot',
-        description: err?.message || 'Impossible de créer le slot.',
-      });
-    }
+    await handleUpload(label, files, kind);
   };
 
   // Rename a gestionnaire-managed extra slot. The `type` string is the

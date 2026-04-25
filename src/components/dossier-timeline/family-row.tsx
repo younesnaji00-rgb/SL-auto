@@ -23,7 +23,7 @@ interface FamilyRowProps {
   onUpload: (slot: string, files: File[]) => void;
   onDelete: (d: TypedDoc) => void;
   onCreateNextCardinal: (slot: string) => void;
-  onCreateExtraSlot: (kind: ExtraSlotKind) => void;
+  onCreateExtraSlot: (kind: ExtraSlotKind, files: File[]) => void;
   onRenameExtraSlot: (slot: string) => void;
   onPreview: (d: TypedDoc) => void;
   /**

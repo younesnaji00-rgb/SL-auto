@@ -45,7 +45,7 @@ export interface SlotCardProps {
   onUpload: (files: File[]) => void;
   onDelete: (d: TypedDoc) => void;
   onCreateNextCardinal: () => void;
-  onCreateExtraSlot: (kind: ExtraSlotKind) => void;
+  onCreateExtraSlot: (kind: ExtraSlotKind, files: File[]) => void;
   onRenameExtraSlot: () => void;
   onPreview: (d: TypedDoc) => void;
 }
@@ -68,11 +68,20 @@ export function SlotCard({
   onPreview,
 }: SlotCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const extraSlotInputRef = useRef<HTMLInputElement>(null);
 
   const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
     if (files.length > 0) onUpload(files);
     if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const handleExtraSlotPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length > 0 && baseExtraKind) {
+      onCreateExtraSlot(baseExtraKind, files);
+    }
+    if (extraSlotInputRef.current) extraSlotInputRef.current.value = '';
   };
 
   // Task #26 — accord/proposition slot detection.
@@ -250,15 +259,25 @@ export function SlotCard({
       )}
 
       {showExtraSlotPimple && baseExtraKind && (
-        <button
-          type="button"
-          onClick={() => onCreateExtraSlot(baseExtraKind)}
-          className="absolute -right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm shadow hover:scale-110 transition z-10"
-          title={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
-          aria-label={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
+        <>
+          <input
+            ref={extraSlotInputRef}
+            type="file"
+            accept="image/*,.pdf"
+            multiple
+            className="hidden"
+            onChange={handleExtraSlotPick}
+          />
+          <button
+            type="button"
+            onClick={() => extraSlotInputRef.current?.click()}
+            className="absolute -right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm shadow hover:scale-110 transition z-10"
+            title={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
+            aria-label={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </>
       )}
     </Card>
   );
