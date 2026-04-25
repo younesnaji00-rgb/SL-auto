@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { cn } from '@/lib/utils';
+import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
 
 export type ExtraSlotKind = 'devis' | 'facture';
 
@@ -31,6 +32,8 @@ export type TypedDoc = {
 
 export const isImage = (name: string) =>
   /\.(jpe?g|png|gif|webp|bmp)$/i.test(name || '');
+
+export const isPdf = (name: string) => /\.pdf$/i.test(name || '');
 
 export interface SlotCardProps {
   slot: string;
@@ -146,6 +149,7 @@ export function SlotCard({
             {docs.map((d) => {
               const name = d.nom || d.fileName || 'document';
               const img = d.url && isImage(name);
+              const pdf = d.url && !img && isPdf(name);
               const clickable = !!d.url && !d.pendingUpload;
               return (
                 <li
@@ -164,6 +168,8 @@ export function SlotCard({
                         className="object-cover w-full h-full"
                         loading="lazy"
                       />
+                    ) : pdf ? (
+                      <PdfThumbnail url={d.url!} className="w-full h-full" width={64} />
                     ) : (
                       <FileText className="h-4 w-4 text-muted-foreground" />
                     )}
