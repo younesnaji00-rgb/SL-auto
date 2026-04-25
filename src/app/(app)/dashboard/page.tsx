@@ -226,7 +226,7 @@ export default function DashboardPage() {
     });
     // Build a complete list: all known statuses + any extra from dossiers
     const allNames = new Set([...ALL_STATUSES, 'Nouveau']);
-    Object.keys(counts).forEach((s) => allNames.add(s));
+    // Intentionally do NOT add non-canonical dossier.statut values — legacy/migration artifacts should not appear as filter rows.
     return Array.from(allNames)
       .map((name) => ({ name, value: counts[name] || 0 }))
       .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))
