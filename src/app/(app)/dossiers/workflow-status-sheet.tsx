@@ -36,7 +36,7 @@ export default function WorkflowStatusSheet({ open, onOpenChange, dossier }: Wor
     if (!db || !dossier?.id) return null;
     return query(
       collection(db, 'dossiers', dossier.id, 'workflow'),
-      orderBy('date', 'asc')
+      orderBy('date', 'desc')
     );
   }, [db, dossier?.id]);
 
