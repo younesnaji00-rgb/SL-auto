@@ -77,10 +77,9 @@ export function SlotCard({
 
   // Task #26 — accord/proposition slot detection.
   const parsedAccord = parseAccordDocType(slot);
-  // Gestionnaires must not upload into accord/proposition slots — workflow
-  // drives the cardinal creation instead.
-  const hideUploadForRole =
-    !!parsedAccord && userRole === 'Gestionnaire';
+  // Cardinal accord/proposition rows must never accept manual uploads — the
+  // chiffreur produces them via the editor save flow.
+  const hideUploadForAccord = !!parsedAccord;
   // Pimple "+" button appears only on `accord` slots (not proposition) with a
   // next-cardinal within cap (max 3ème).
   const showCardinalPimple =
@@ -194,7 +193,7 @@ export function SlotCard({
           </ul>
         )}
 
-        {canEdit && !hideUploadForRole && (
+        {canEdit && !hideUploadForAccord && (
           <>
             <input
               ref={inputRef}
