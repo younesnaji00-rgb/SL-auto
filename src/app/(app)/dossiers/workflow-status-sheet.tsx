@@ -56,14 +56,14 @@ export default function WorkflowStatusSheet({ open, onOpenChange, dossier }: Wor
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md">
+      <SheetContent className="w-full sm:max-w-md flex flex-col">
         <SheetHeader>
           <SheetTitle>Workflow du Dossier: {dossier.refExpert}</SheetTitle>
           <SheetDescription>
             Suivi en temps réel de l'état d'avancement.
           </SheetDescription>
         </SheetHeader>
-        <div className="py-6 pr-4">
+        <div className="flex-1 overflow-y-auto py-6 pr-4">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
