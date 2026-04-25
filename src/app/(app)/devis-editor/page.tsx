@@ -11,6 +11,7 @@ function DevisEditorInner() {
   const chiffrageId = searchParams.get('chiffrageId') || '';
   const docTypeRaw = searchParams.get('docType') || 'Devis Garage';
   const docType: EditableDocType = isEditableDocType(docTypeRaw) ? docTypeRaw : 'Devis Garage';
+  const accordSlot = searchParams.get('accordSlot') || undefined;
 
   if (!chiffrageId) {
     return (
@@ -20,7 +21,7 @@ function DevisEditorInner() {
     );
   }
 
-  return <DevisEditor chiffrageId={chiffrageId} docType={docType} />;
+  return <DevisEditor chiffrageId={chiffrageId} docType={docType} accordSlot={accordSlot} />;
 }
 
 export default function DevisEditorPage() {

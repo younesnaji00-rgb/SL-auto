@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
   ArrowLeft, Columns2, Copy, Download, FileText, History, Loader2, Lock, Plus, RefreshCcw,
@@ -63,6 +63,13 @@ interface DevisEditorProps {
   mode?: 'chiffreur' | 'gestionnaire';
   /** Required when `mode === 'gestionnaire'`. Used for the pieces-jointes write. */
   dossierId?: string;
+  /**
+   * Round-3: when the chiffreur opens a cardinal accord slot (Devis 2ème accord,
+   * 3ème accord, 1ère/2ème/3ème proposition d'accord), the editor seeds from the
+   * dossier's BASELINE scan rather than from the chiffrage's previous accord
+   * state. The slot label is forwarded so the init effect can detect this.
+   */
+  accordSlot?: string;
 }
 
 const HEADER_FIELDS_LEFT: Array<{ key: keyof DevisHeader; label: string }> = [
@@ -92,6 +99,7 @@ export function DevisEditor({
   docType,
   mode = 'chiffreur',
   dossierId: dossierIdProp,
+  accordSlot,
 }: DevisEditorProps) {
   const typeLabel = DOC_TYPE_LABEL[toBaseEditableDocType(docType)];
   const isGestionnaire = mode === 'gestionnaire';
@@ -239,34 +247,75 @@ export function DevisEditor({
       return;
     }
 
-    if (persisted) {
-      setHeader(dossierPrefill(persisted.header));
-      setRows(persisted.rows.length ? persisted.rows : [emptyRow()]);
-      const cols = normalizeExtraColumns(persisted);
-      setExtraColumns(cols);
-      setVersions(persisted.versions || []);
+    (async () => {
+      // Round-3: when opening the editor for a cardinal accord slot (2ème, 3ème,
+      // propositions), start from the BASELINE (original AI scan stored on the
+      // dossier) — NOT from the chiffrage's structuredEditables which holds the
+      // previous accord's edits. Skip when the cardinal slot already has a real
+      // saved doc (so re-opening preserves work).
+      const parsedSlot = accordSlot ? parseAccordDocType(accordSlot) : null;
+      const isCardinalRevision = !!parsedSlot && (
+        (parsedSlot.kind === 'accord' && parsedSlot.ordinal >= 2) ||
+        parsedSlot.kind === 'proposition-accord'
+      );
+      if (isCardinalRevision && dossierId) {
+        try {
+          const snap = await getDocs(query(
+            collection(db, 'dossiers', dossierId, 'documents'),
+            where('type', '==', accordSlot),
+          ));
+          const hasRealDoc = snap.docs.some((d) => {
+            const x = d.data() as any;
+            return !x.pendingUpload && !!x.url;
+          });
+          if (!hasRealDoc) {
+            const baseline = (dossier.structuredEditables || {})[docType] as StructuredDevis | undefined;
+            if (baseline) {
+              setHeader(dossierPrefill(baseline.header));
+              setRows(baseline.rows.length ? baseline.rows : [emptyRow()]);
+              const baselineCols = normalizeExtraColumns(baseline).filter(
+                (c) => c.kind !== 'accord' && c.kind !== 'proposition-accord',
+              );
+              setExtraColumns(baselineCols);
+              setVersions(baseline.versions || []);
+              initializedRef.current = true;
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('[devis-editor] cardinal baseline check failed; falling through:', e);
+        }
+      }
+
+      if (persisted) {
+        setHeader(dossierPrefill(persisted.header));
+        setRows(persisted.rows.length ? persisted.rows : [emptyRow()]);
+        const cols = normalizeExtraColumns(persisted);
+        setExtraColumns(cols);
+        setVersions(persisted.versions || []);
+        initializedRef.current = true;
+
+        // Re-run the extractor if new counter files have landed since the last extract.
+        // The extractor is idempotent; it no-ops when every counter is already represented.
+        const processedPaths = new Set(
+          cols.filter((c) => c.kind === 'counter' && c.sourceStoragePath).map((c) => c.sourceStoragePath as string)
+        );
+        const hasUnprocessedCounter = counterFilePaths.some((p) => !processedPaths.has(p));
+        if (hasUnprocessedCounter) runExtraction(false);
+        return;
+      }
+
+      // No persisted devis yet — pre-fill header from dossier.
+      setHeader((h) => dossierPrefill(h));
       initializedRef.current = true;
 
-      // Re-run the extractor if new counter files have landed since the last extract.
-      // The extractor is idempotent; it no-ops when every counter is already represented.
-      const processedPaths = new Set(
-        cols.filter((c) => c.kind === 'counter' && c.sourceStoragePath).map((c) => c.sourceStoragePath as string)
-      );
-      const hasUnprocessedCounter = counterFilePaths.some((p) => !processedPaths.has(p));
-      if (hasUnprocessedCounter) runExtraction(false);
-      return;
-    }
+      // If already attempted (success or fail) we leave it alone — user can force retry.
+      if (extractionAttempted) return;
+      if (devisFileNames.length === 0) return;
+      runExtraction(false);
+    })();
 
-    // No persisted devis yet — pre-fill header from dossier.
-    setHeader((h) => dossierPrefill(h));
-    initializedRef.current = true;
-
-    // If already attempted (success or fail) we leave it alone — user can force retry.
-    if (extractionAttempted) return;
-    if (devisFileNames.length === 0) return;
-    runExtraction(false);
-
-  }, [loading, persisted, extractionAttempted, devisFileNames.length, counterFilePaths, dossier, dossierPrefill, db, storage]);
+  }, [loading, persisted, extractionAttempted, devisFileNames.length, counterFilePaths, dossier, dossierPrefill, db, storage, accordSlot, dossierId, docType]);
 
   const runExtraction = useCallback(async (isManualRetry: boolean) => {
     if (!db || !storage) return;
