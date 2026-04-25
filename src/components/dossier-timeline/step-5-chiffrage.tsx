@@ -154,8 +154,28 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
       });
     });
 
+    // Surface réforme PDFs created by the chiffreur (persisted as docs in
+    // dossiers/{id}/documents with type 'Réforme technique' or 'Réforme économique').
+    if (Array.isArray(dossierDocs)) {
+      for (const d of dossierDocs as any[]) {
+        const dt = (d.type || d.typeDocument || '').trim();
+        if (dt !== 'Réforme technique' && dt !== 'Réforme économique') continue;
+        rows.push({
+          key: `reforme:${d.id}`,
+          fileName: d.nom || d.fileName || `${dt}.pdf`,
+          docType: dt,
+          updatedBy: d.createdBy || d.uploadedByName || d.uploadePar || null,
+          updatedAt: d.createdAt || null,
+          // Stub a single-version structured entry so the existing "Dernière modif." button
+          // resolves to this PDF's URL via row.structured.versions[0].pdfUrl.
+          structured: { versions: [{ pdfUrl: d.url, savedAt: d.createdAt, savedBy: d.createdBy || d.uploadedByName || null }] },
+          source: 'annotations',
+        });
+      }
+    }
+
     return rows;
-  }, [chiffrage]);
+  }, [chiffrage, dossierDocs]);
 
   const findDossierDocUrl = (fileName: string): string | null => {
     if (!dossierDocs || !fileName) return null;
