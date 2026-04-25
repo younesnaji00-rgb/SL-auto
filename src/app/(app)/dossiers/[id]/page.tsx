@@ -5,7 +5,6 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   Send,
-  AlertTriangle,
   History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -36,7 +35,6 @@ import HistoriqueTab from './historique-tab';
 // ── Modals ────────────────────────────────────────────────────────────────────
 import ModalPlanification from './modal-planification';
 import ModalChiffrage from './modal-chiffrage';
-import ModalReclamation from './modal-reclamation';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 export default function DossierDetailPage({
@@ -73,7 +71,6 @@ export default function DossierDetailPage({
   const [isPlanificationModalOpen, setPlanificationModalOpen] = useState(false);
   const [planificationInitialData, setPlanificationInitialData] = useState<any>(null);
   const [isChiffrageModalOpen, setChiffrageModalOpen] = useState(false);
-  const [isReclamationModalOpen, setReclamationModalOpen] = useState(false);
   const [isHistoriqueOpen, setHistoriqueOpen] = useState(false);
 
   const renderAssure = (assure: any) => {
@@ -145,9 +142,6 @@ export default function DossierDetailPage({
         <Button variant="outline" size="sm" onClick={() => setChiffrageModalOpen(true)} className="h-8 text-xs gap-1.5">
           <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
         </Button>
-        <Button variant="outline" size="sm" onClick={() => setReclamationModalOpen(true)} className="h-8 text-xs gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive">
-          <AlertTriangle className="h-3.5 w-3.5" /> Réclamation
-        </Button>
         <div className="flex-1" />
         <Button variant="outline" size="sm" onClick={() => setHistoriqueOpen(true)} className="h-8 text-xs gap-1.5">
           <History className="h-3.5 w-3.5" /> Historique
@@ -177,7 +171,6 @@ export default function DossierDetailPage({
       {/* MODALS */}
       <ModalPlanification open={isPlanificationModalOpen} onOpenChange={setPlanificationModalOpen} dossierId={id} initialData={planificationInitialData} dossierData={dossier} />
       <ModalChiffrage open={isChiffrageModalOpen} onOpenChange={setChiffrageModalOpen} dossierId={id} />
-      <ModalReclamation open={isReclamationModalOpen} onOpenChange={setReclamationModalOpen} dossierId={id} />
       <Sheet open={isHistoriqueOpen} onOpenChange={setHistoriqueOpen}>
         <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
           <SheetHeader>
