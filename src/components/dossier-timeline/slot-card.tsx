@@ -131,7 +131,7 @@ export function SlotCard({
       <CardContent className="p-2 space-y-1.5 flex-1">
         {docs.length === 0 ? (
           <p className="text-xs italic text-muted-foreground text-center py-3">
-            Aucun document
+            {parsedAccord ? 'En attente de chiffrage' : 'Aucun document'}
           </p>
         ) : (
           <ul className="space-y-1">
