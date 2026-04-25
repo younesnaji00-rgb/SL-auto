@@ -214,38 +214,41 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 <Label>Agent de Terrain</Label>
                 <OptionsManagerModal collectionName="options_agents" title="Agents de terrain" defaultValues={defaultAgents} />
               </div>
-              {availableAgentZones.length > 0 && (
-                <Select
-                  value={agentZoneFilter === '' ? '__all__' : agentZoneFilter}
-                  onValueChange={(v) => {
-                    const next = v === '__all__' ? '' : v;
-                    setAgentZoneFilter(next);
-                    const stillVisible =
-                      next === ''
-                        ? true
-                        : agents.some(
-                            (a) =>
-                              a.label === formData.agentTerrain &&
-                              (a.zone?.trim() || '') === next,
-                          );
-                    if (!stillVisible && formData.agentTerrain) {
-                      setFormData((prev) => ({ ...prev, agentTerrain: '' }));
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-8 text-xs text-muted-foreground">
-                    <SelectValue placeholder="Filtrer par zone" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Toutes les zones</SelectItem>
-                    {availableAgentZones.map((zone) => (
-                      <SelectItem key={zone} value={zone}>
-                        {zone}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              <Select
+                value={agentZoneFilter === '' ? '__all__' : agentZoneFilter}
+                onValueChange={(v) => {
+                  const next = v === '__all__' ? '' : v;
+                  setAgentZoneFilter(next);
+                  const stillVisible =
+                    next === ''
+                      ? true
+                      : agents.some(
+                          (a) =>
+                            a.label === formData.agentTerrain &&
+                            (a.zone?.trim() || '') === next,
+                        );
+                  if (!stillVisible && formData.agentTerrain) {
+                    setFormData((prev) => ({ ...prev, agentTerrain: '' }));
+                  }
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs text-muted-foreground">
+                  <SelectValue placeholder="Filtrer par zone" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Toutes les zones</SelectItem>
+                  {availableAgentZones.length === 0 && (
+                    <div className="px-2 py-1.5 text-[11px] italic text-muted-foreground">
+                      Aucune zone définie. Renseignez la zone via Agents de terrain.
+                    </div>
+                  )}
+                  {availableAgentZones.map((zone) => (
+                    <SelectItem key={zone} value={zone}>
+                      {zone}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={formData.agentTerrain} onValueChange={(v) => setFormData({...formData, agentTerrain: v})}>
                 <SelectTrigger><SelectValue placeholder="Choisir un agent" /></SelectTrigger>
                 <SelectContent>
