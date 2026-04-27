@@ -4,11 +4,13 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   doc as firestoreDoc,
   updateDoc,
+  deleteDoc,
+  deleteField,
   serverTimestamp,
   Timestamp,
   type DocumentReference,
 } from 'firebase/firestore';
-import { Eye, FileIcon, FileText, Loader2, ScanSearch, Upload } from 'lucide-react';
+import { Eye, FileIcon, FileText, Loader2, ScanSearch, Trash2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -135,6 +137,7 @@ export default function Step1Import({
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [isDeletingImport, setIsDeletingImport] = useState(false);
   const [lastFilledCount, setLastFilledCount] = useState<number | null>(null);
   const [previewDoc, setPreviewDoc] = useState<{ url: string; nom: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -279,6 +282,44 @@ export default function Step1Import({
     },
     [db, dossier, dossierId, dossierRef, toast]
   );
+
+  const handleDeleteImportDoc = useCallback(async () => {
+    if (!importDocRef || !db) return;
+    if (
+      !window.confirm(
+        'Supprimer ce document et permettre un nouveau scan ?'
+      )
+    )
+      return;
+    const userEmail = auth?.currentUser?.email || 'Utilisateur';
+    setIsDeletingImport(true);
+    try {
+      await deleteDoc(importDocRef);
+      await updateDoc(dossierRef, {
+        importDocId: deleteField(),
+        importDocScannedAt: deleteField(),
+      });
+      setLastFilledCount(null);
+      await logHistorique(
+        db,
+        dossierId,
+        'Suppression document source IA',
+        userEmail,
+        'Document source supprimé pour nouveau scan',
+        'document'
+      );
+      toast({ title: 'Document source supprimé' });
+    } catch (err: any) {
+      console.error('[Step1Import] delete import doc error:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur lors de la suppression',
+        description: err?.message || 'Impossible de supprimer le document.',
+      });
+    } finally {
+      setIsDeletingImport(false);
+    }
+  }, [db, dossierId, dossierRef, importDocRef, toast, auth]);
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -559,6 +600,23 @@ export default function Step1Import({
                         title="Aperçu"
                       >
                         <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {canEdit && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                        onClick={handleDeleteImportDoc}
+                        disabled={isDeletingImport}
+                        title="Supprimer pour nouveau scan"
+                      >
+                        {isDeletingImport ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
                       </Button>
                     )}
                   </li>
