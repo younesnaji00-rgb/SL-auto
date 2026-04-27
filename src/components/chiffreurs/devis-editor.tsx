@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
   ArrowLeft, Columns2, Copy, Download, FileText, History, Loader2, Lock, Plus, RefreshCcw,
@@ -727,6 +727,39 @@ export function DevisEditor({
       }
 
       const activeDossierId = dossierIdProp || dossierId;
+      if (activeDossierId && pdfUrl) {
+        try {
+          const documentsCol = collection(db, 'dossiers', activeDossierId, 'documents');
+          const placeholderSnap = await getDocs(query(
+            documentsCol,
+            where('type', '==', targetDocType),
+            where('pendingUpload', '==', true),
+          ));
+          const docPayload = {
+            type: targetDocType,
+            nom: `${targetDocType.toLowerCase()}-${versionId}.pdf`,
+            fileName: `${targetDocType.toLowerCase()}-${versionId}.pdf`,
+            storagePath: pdfStoragePath,
+            url: pdfUrl,
+            pendingUpload: false,
+            updatedAt: serverTimestamp(),
+            updatedBy: profile?.uid || '',
+            uploadedByName: profile?.nom || profile?.email || '',
+            uploadePar: profile?.email || '',
+          };
+          if (!placeholderSnap.empty) {
+            await updateDoc(placeholderSnap.docs[0].ref, docPayload);
+          } else {
+            await addDoc(documentsCol, {
+              ...docPayload,
+              createdAt: serverTimestamp(),
+              createdBy: profile?.uid || '',
+            });
+          }
+        } catch (e) {
+          console.warn('[devis-editor] dossier documents mirror failed (non-fatal)', e);
+        }
+      }
       if (activeDossierId) {
         await logHistorique(
           db, activeDossierId,

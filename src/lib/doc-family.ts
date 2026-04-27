@@ -92,17 +92,22 @@ export function buildDocFamilies(docs: ReadonlyArray<DocTypeLike>): DocFamily[] 
     parent: string,
     sourceDocType: AccordeSourceDocType,
   ): string[] {
-    const slots: string[] = [parent, mapToAccorde(parent, 'accord', 1)];
+    const slots: string[] = [
+      parent,
+      mapToAccorde(parent, 'accord', 1),
+      mapToAccorde(parent, 'proposition-accord', 1),
+    ];
     const extras = variantSlotsByParent.get(parent);
 
-    // Deterministic order: accord ordinals 2-3, then propositions 1-3. We
+    // Deterministic order: accord ordinals 2-3, then propositions 2-3. We
     // rebuild the expected labels from `mapToAccorde` and only include the
-    // ones that appear in our live set, so the row order is stable.
+    // ones that appear in our live set, so the row order is stable. Proposition
+    // ordinal 1 is included by default above.
     for (const ord of [2, 3]) {
       const label = mapToAccorde(parent, 'accord', ord);
       if (extras && extras.has(label)) slots.push(label);
     }
-    for (const ord of [1, 2, 3]) {
+    for (const ord of [2, 3]) {
       const label = mapToAccorde(parent, 'proposition-accord', ord);
       if (extras && extras.has(label)) slots.push(label);
     }
