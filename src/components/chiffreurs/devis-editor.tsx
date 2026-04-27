@@ -24,6 +24,15 @@ import {
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useFirestore, useStorage } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -142,6 +151,8 @@ export function DevisEditor({
   >(undefined);
   const [previewOrdinal, setPreviewOrdinal] = useState<number | undefined>(undefined);
 
+  const [kindLightboxOpen, setKindLightboxOpen] = useState(false);
+
   // Task #33: post-scan warning / edit-lock state. `scanReviewed` defaults to
   // true so the existing persisted-reload flow is untouched. Only a fresh
   // successful `runExtraction` flips it false and opens the warning dialog.
@@ -191,6 +202,13 @@ export function DevisEditor({
     });
     return () => unsub();
   }, [db, dossierId]);
+
+  useEffect(() => {
+    if (isGestionnaire) return;
+    if (!dossier || !docType) return;
+    const choice = (dossier as any).chiffrageKind?.[docType];
+    if (!choice) setKindLightboxOpen(true);
+  }, [dossier, docType, isGestionnaire]);
 
   // task #17: scan header wins over dossier prefill — fall back to dossier only when scan is blank.
   // `existing` here is the scan-extracted header (from structuredEditables[docType].header) when
@@ -488,6 +506,30 @@ export function DevisEditor({
   // ordinal up-front by scanning `dossiers/{id}/documents` for matching
   // accord variants. The dialog title + the save pipeline both use this
   // ordinal, so the preview and the final doc stay aligned.
+  const handleChooseKind = async (kind: 'accord' | 'proposition') => {
+    if (!db || !dossierId) {
+      setKindLightboxOpen(false);
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'dossiers', dossierId), {
+        [`chiffrageKind.${docType}`]: kind,
+      });
+    } catch (e) {
+      console.warn('[devis-editor] persisting chiffrageKind failed (non-fatal):', e);
+    }
+    const targetKind: 'accord' | 'proposition-accord' = kind === 'accord' ? 'accord' : 'proposition-accord';
+    const targetLabel = kind === 'accord' ? 'Accord' : "Proposition d'accord";
+    setExtraColumns((cols) =>
+      cols.map((c) =>
+        (c.kind === 'accord' || c.kind === 'proposition-accord')
+          ? { ...c, kind: targetKind, label: targetLabel }
+          : c,
+      ),
+    );
+    setKindLightboxOpen(false);
+  };
+
   const handleSave = async () => {
     if (!canEdit) {
       toast({ variant: 'destructive', title: 'Action non autorisee' });
@@ -1474,6 +1516,28 @@ export function DevisEditor({
           setScanWarningOpen(false);
         }}
       />
+
+      <AlertDialog
+        open={kindLightboxOpen}
+        onOpenChange={(o) => { if (!o) setKindLightboxOpen(false); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Type de document</AlertDialogTitle>
+            <AlertDialogDescription>
+              Quel type de document souhaitez-vous créer ? Vous pourrez changer ultérieurement via l'en-tête de la colonne.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:space-x-0">
+            <AlertDialogAction onClick={() => handleChooseKind('proposition')}>
+              Proposition d'accord
+            </AlertDialogAction>
+            <AlertDialogAction onClick={() => handleChooseKind('accord')}>
+              Accord
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );
