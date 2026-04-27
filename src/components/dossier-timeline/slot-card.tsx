@@ -72,6 +72,8 @@ export function SlotCard({
 }: SlotCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const extraSlotInputRef = useRef<HTMLInputElement>(null);
+  const [isDragOver, setIsDragOver] = React.useState(false);
+  const dragDepth = useRef(0);
 
   const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
@@ -120,8 +122,57 @@ export function SlotCard({
   // `Devis Garage` / `Facture Garage` and not on cardinal accord variants).
   const showRenameButton = !!extraSlotKind && canManageExtraSlots;
 
+  // Drop accepted only when the upload UI itself is allowed for this slot.
+  const dropEnabled = canEdit && !hideUploadForAccord && !isFilledExtraSlot;
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!dropEnabled) return;
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepth.current += 1;
+    setIsDragOver(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!dropEnabled) return;
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!dropEnabled) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!dropEnabled) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepth.current = 0;
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer.files || []).filter(
+      (f) => f.type.startsWith('image/') || /\.pdf$/i.test(f.name),
+    );
+    if (files.length > 0) onUpload(files);
+  };
+
   return (
-    <Card className="relative shadow-sm border rounded-lg overflow-visible flex flex-col">
+    <Card
+      className={cn(
+        'relative shadow-sm border rounded-lg overflow-visible flex flex-col transition-colors',
+        isDragOver && 'border-2 border-dashed border-primary bg-primary/5',
+      )}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <CardHeader className="py-2.5 px-3 border-b">
         <CardTitle className="font-semibold text-sm flex items-center justify-between gap-2">
           <span className="truncate" title={slot}>{slot}</span>
