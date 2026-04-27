@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
-  ArrowLeft, ChevronDown, Columns2, Download, FileText, History, Loader2, Lock, Plus, RefreshCcw,
+  ArrowLeft, Check, ChevronDown, Columns2, Download, FileText, History, Loader2, Plus, RefreshCcw,
   Save, Sparkles, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -976,6 +976,24 @@ export function DevisEditor({
           <Columns2 className="h-3.5 w-3.5 mr-1.5" />
           Comparer
         </Button>
+        {/*
+          Task #33 (revised): the post-scan warning dialog is now informational
+          only — it no longer carries its own "J'ai vérifié" action. The
+          chiffreur acknowledges the scan review by clicking THIS button,
+          which is the single canonical unlock entry-point. Visible only when
+          the table is locked (`!scanReviewed`) and the user can edit.
+        */}
+        {canEdit && !scanReviewed && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setScanReviewed(true)}
+            title="Confirmer la vérification du scan et déverrouiller le tableau"
+          >
+            <Check className="h-3.5 w-3.5 mr-1.5" />
+            J&apos;ai vérifié
+          </Button>
+        )}
         {!isGestionnaire && (
           <Button
             variant="outline"
@@ -987,22 +1005,6 @@ export function DevisEditor({
           >
             {extracting ? null : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
             Ré-extraire
-          </Button>
-        )}
-        {/*
-          Task #33: manual unlock bypass. Hidden once `scanReviewed` is true;
-          surfaces a Lock icon while a fresh-scan lock is active so the
-          chiffreur can flip to edit mode without reopening the dialog.
-        */}
-        {canEdit && !scanReviewed && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setScanReviewed(true)}
-            title="Déverrouiller les modifications"
-          >
-            <Lock className="h-3.5 w-3.5 mr-1.5" />
-            Modifications
           </Button>
         )}
         <Button variant="default" size="sm" onClick={handleSave} loading={saving} disabled={!canEdit}>
@@ -1518,19 +1520,17 @@ export function DevisEditor({
       )}
 
       {/*
-        Task #33 — post-scan warning dialog. Auto-opens after a successful
-        `runExtraction` (see above) and blocks editing via `isEditable` until
-        the chiffreur confirms "J'ai vérifié". Cancelling just closes the
-        dialog; the toolbar `Modifications` button provides a manual unlock.
+        Task #33 (revised) — post-scan warning dialog. Informational only:
+        it auto-opens after a successful `runExtraction` and lists the
+        per-line calculation mismatches. The dialog has no confirm button —
+        dismissing it leaves `scanReviewed=false`, so the table remains
+        locked. The chiffreur acknowledges the review by clicking the
+        toolbar `J'ai vérifié` button next to `Comparer`.
       */}
       <ScanWarningDialog
         open={scanWarningOpen}
         onOpenChange={setScanWarningOpen}
         calculationErrors={scanCalculationErrors}
-        onConfirm={() => {
-          setScanReviewed(true);
-          setScanWarningOpen(false);
-        }}
       />
 
       <AlertDialog

@@ -2,7 +2,6 @@
 
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -14,11 +13,11 @@ import {
 /**
  * Task #33 — post-scan warning dialog.
  *
- * Shown once after `runExtraction` succeeds. While the dialog is open (and
- * until the chiffreur confirms via "J'ai vérifié"), the editor gates every
- * edit affordance behind `scanReviewed=false`. Cancelling simply closes the
- * dialog; the chiffreur can either confirm later or use the toolbar
- * `Modifications` toggle to bypass the lock.
+ * Shown once after `runExtraction` succeeds. The dialog is informational only:
+ * dismissing it (via the close button or `Annuler`) leaves the table locked
+ * for editing. The chiffreur unlocks the table by clicking the toolbar
+ * `J'ai vérifié` button, which sits next to `Comparer` and is the single
+ * canonical confirmation entry-point.
  *
  * The optional `calculationErrors` list is populated by task #34 (scan
  * response shape) and wired through in #35. Each string renders as its own
@@ -29,8 +28,6 @@ export interface ScanWarningDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Task #34 — list of detected calculation mismatches, one per bullet. */
   calculationErrors?: string[];
-  /** "J'ai vérifié" — confirms the review and unlocks editing. */
-  onConfirm: () => void;
   /** Optional — fired from the Cancel button if provided. */
   onCancel?: () => void;
 }
@@ -39,7 +36,6 @@ export function ScanWarningDialog({
   open,
   onOpenChange,
   calculationErrors,
-  onConfirm,
   onCancel,
 }: ScanWarningDialogProps) {
   const hasErrors = Array.isArray(calculationErrors) && calculationErrors.length > 0;
@@ -49,7 +45,7 @@ export function ScanWarningDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Vérification du scan</AlertDialogTitle>
           <AlertDialogDescription>
-            Le scan est sujet à des erreurs. Merci de vérifier manuellement chaque ligne. Une fois terminé, cliquez sur "J'ai vérifié".
+            Le scan est sujet à des erreurs. Merci de vérifier manuellement chaque ligne. Une fois terminé, cliquez sur le bouton « J&apos;ai vérifié » dans la barre d&apos;outils pour déverrouiller le tableau.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {hasErrors && (
@@ -61,7 +57,6 @@ export function ScanWarningDialog({
         )}
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => onCancel?.()}>Annuler</AlertDialogCancel>
-          <AlertDialogAction onClick={() => onConfirm()}>J'ai vérifié</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
