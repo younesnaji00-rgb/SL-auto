@@ -91,29 +91,33 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
     [allDocs],
   );
 
-  // Split the non-family slots (BASE_DOC_SLOTS minus the two base garages)
-  // into the top (Rapport / Réforme) and bottom (PV / Carte grise / …) grids.
+  // Split non-family slots into three labelled sections:
+  //   - rapportSlots:  'Rapport final' alone (own section).
+  //   - reformeSlots:  'Réforme technique' + 'Réforme économique' together.
+  //   - otherSlots:    PV / Carte grise / Attestation / etc.
   const FAMILY_BASE_SLOTS = new Set(['Devis Garage', 'Facture Garage']);
-  const { topNonFamily, bottomNonFamily } = useMemo(() => {
-    const devisIdx = BASE_DOC_SLOTS.indexOf('Devis Garage');
-    const top: string[] = [];
-    const bottom: string[] = [];
-    for (let i = 0; i < BASE_DOC_SLOTS.length; i++) {
-      const slot = BASE_DOC_SLOTS[i];
+  const RAPPORT_LABELS = new Set(['Rapport final']);
+  const REFORME_LABELS = new Set(['Réforme technique', 'Réforme économique']);
+  const { rapportSlots, reformeSlots, otherSlots } = useMemo(() => {
+    const rapport: string[] = [];
+    const reforme: string[] = [];
+    const other: string[] = [];
+    for (const slot of BASE_DOC_SLOTS) {
       if (FAMILY_BASE_SLOTS.has(slot) || slot === 'Devis accordé' || slot === 'Facture accordé') continue;
-      if (i < devisIdx) top.push(slot);
-      else bottom.push(slot);
+      if (RAPPORT_LABELS.has(slot)) rapport.push(slot);
+      else if (REFORME_LABELS.has(slot)) reforme.push(slot);
+      else other.push(slot);
     }
-    return { topNonFamily: top, bottomNonFamily: bottom };
+    return { rapportSlots: rapport, reformeSlots: reforme, otherSlots: other };
   }, []);
 
   // The full set of slot labels we need to populate `docsByType` for — all
   // family slots + non-family slots.
   const allSlotLabels = useMemo(() => {
-    const set = new Set<string>([...topNonFamily, ...bottomNonFamily]);
+    const set = new Set<string>([...rapportSlots, ...reformeSlots, ...otherSlots]);
     for (const fam of families) for (const s of fam.slots) set.add(s);
     return set;
-  }, [families, topNonFamily, bottomNonFamily]);
+  }, [families, rapportSlots, reformeSlots, otherSlots]);
 
   // Quick lookup: is this slot label a gestionnaire-managed extra? Detected
   // by its parent ordinal (extras are always ordinal ≥ 2 on Devis/Facture
@@ -142,15 +146,16 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
     return { extraDevisLabels: devis, extraFactureLabels: facture };
   }, [families]);
 
-  // Ordered slot list for the flat grid render: top non-family slots,
-  // then each family's ordered slots, then bottom non-family slots.
+  // Ordered slot list for the flat grid render: families first, then the
+  // standalone Rapport / Réforme / other-docs sections.
   const computedSlots = useMemo<string[]>(() => {
     const slots: string[] = [];
-    for (const s of topNonFamily) slots.push(s);
     for (const fam of families) for (const s of fam.slots) slots.push(s);
-    for (const s of bottomNonFamily) slots.push(s);
+    for (const s of rapportSlots) slots.push(s);
+    for (const s of reformeSlots) slots.push(s);
+    for (const s of otherSlots) slots.push(s);
     return slots;
-  }, [topNonFamily, bottomNonFamily, families]);
+  }, [rapportSlots, reformeSlots, otherSlots, families]);
 
   const docsByType = useMemo(() => {
     const map: Record<string, TypedDoc[]> = {};
@@ -480,14 +485,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="space-y-3">
-          {/* Top non-family grid — Rapport final + Réforme technique / économique */}
-          {topNonFamily.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {topNonFamily.map((slot) => renderSlotCard(slot))}
-            </div>
-          )}
-
+        <div className="space-y-6">
           {/* Devis families: one horizontal row per parent */}
           {devisFamilies.map((group) => (
             <FamilyRow
@@ -532,11 +530,34 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
             />
           ))}
 
-          {/* Bottom non-family grid */}
-          {bottomNonFamily.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {bottomNonFamily.map((slot) => renderSlotCard(slot))}
-            </div>
+          {/* Rapport final — own section, single card */}
+          {rapportSlots.length > 0 && (
+            <section className="space-y-2">
+              <h4 className="text-sm font-semibold text-muted-foreground">Rapport final</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {rapportSlots.map((slot) => renderSlotCard(slot))}
+              </div>
+            </section>
+          )}
+
+          {/* Réforme — technique + économique together */}
+          {reformeSlots.length > 0 && (
+            <section className="space-y-2">
+              <h4 className="text-sm font-semibold text-muted-foreground">Réforme</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {reformeSlots.map((slot) => renderSlotCard(slot))}
+              </div>
+            </section>
+          )}
+
+          {/* Autres documents — PV, Carte grise, Attestation, etc. */}
+          {otherSlots.length > 0 && (
+            <section className="space-y-2">
+              <h4 className="text-sm font-semibold text-muted-foreground">Autres documents</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {otherSlots.map((slot) => renderSlotCard(slot))}
+              </div>
+            </section>
           )}
         </div>
       )}
