@@ -391,6 +391,32 @@ export function DevisEditor({
     }
   }, [db, storage, chiffrageId, docType, dossierPrefill, toast, devisFileNames.length, typeLabel.lower]);
 
+  // Always keep an accord column in the chiffreur's table. Default kind is
+  // 'accord'; the lightbox / column popover can flip to 'proposition-accord'.
+  // Skip for the gestionnaire path (their editor is the source devis).
+  useEffect(() => {
+    if (isGestionnaire) return;
+    if (loading || !dossier) return;
+    setExtraColumns((cols) => {
+      if (cols.some((c) => c.kind === 'accord' || c.kind === 'proposition-accord')) return cols;
+      const newId = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2);
+      const seededValues: Record<string, string> = {};
+      for (const r of rows) {
+        seededValues[r.id] = String(r.puHT ?? '');
+      }
+      const newCol: DevisExtraColumn = {
+        id: newId,
+        label: 'Accord',
+        values: seededValues,
+        kind: 'accord',
+        locked: false,
+      };
+      return [...cols, newCol];
+    });
+  }, [extraColumns, dossier, loading, isGestionnaire, rows]);
+
   // Row helpers ──────────────────────────────────────────────────────────
   const updateRow = (id: string, patch: Partial<DevisRow>) => {
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
