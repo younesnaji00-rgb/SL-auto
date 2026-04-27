@@ -9,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { Calculator, Clock, X } from 'lucide-react';
+import { Calculator, CheckCircle2, Clock, X } from 'lucide-react';
 import { DeadlineBar } from '@/components/deadline-bar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
@@ -38,6 +38,7 @@ interface ChiffrageItem {
   createdAt: any;
   sentByNom?: string;
   sentByEmail?: string;
+  completedAt?: any;
 }
 
 export default function AssignationsChiffragePage() {
@@ -342,7 +343,16 @@ export default function AssignationsChiffragePage() {
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{c.sentByNom || c.sentByEmail || '-'}</TableCell>
                       <TableCell>
-                        <DeadlineBar percent={deadline.percent} overdue={deadline.overdue} />
+                        {c.completedAt ? (
+                          <div className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-400">
+                            <CheckCircle2 className="h-4 w-4 shrink-0" />
+                            <span className="truncate">
+                              Chiffré le {format(c.completedAt?.toDate ? c.completedAt.toDate() : new Date(c.completedAt), "dd/MM/yyyy HH:mm")}
+                            </span>
+                          </div>
+                        ) : (
+                          <DeadlineBar percent={deadline.percent} overdue={deadline.overdue} />
+                        )}
                       </TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">
                         {formatDate(c.createdAt)}

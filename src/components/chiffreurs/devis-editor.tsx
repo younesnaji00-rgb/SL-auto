@@ -720,6 +720,7 @@ export function DevisEditor({
           [`structuredEditables.${targetDocType}`]: structuredDevis,
           editableExtractionAttempted: { ...freshAttempts, [targetDocType]: true },
           updatedAt: serverTimestamp(),
+          completedAt: serverTimestamp(),
           // Task #23: stamp selection is additive; not yet part of the
           // StructuredDevis type, just persisted alongside the chiffrage write.
           ...(stampId !== null ? { [`devisStampId.${targetDocType}`]: stampId } : {}),
