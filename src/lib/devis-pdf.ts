@@ -42,7 +42,17 @@ export function renderDevisPdf(
   }
 ): Blob {
   const showVetuste = (opts?.docType ?? 'Devis') === 'Devis';
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  // Switch to landscape when an accord/proposition triple is present — A4 portrait
+  // (190mm usable) cannot fit 11 columns without squeezing Designation to ~0 and
+  // wrapping its text letter-by-letter. Landscape (277mm usable) gives breathing room.
+  const hasAccordTriple = (devis.extraColumns ?? []).some(
+    (c) => c?.kind === 'accord' || c?.kind === 'proposition-accord',
+  );
+  const pdf = new jsPDF({
+    orientation: hasAccordTriple ? 'landscape' : 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
   const pageW = pdf.internal.pageSize.getWidth();
   const margin = 10;
 
@@ -262,6 +272,7 @@ export function renderDevisPdf(
   const accordStartIndex = nonAccordStartIndex + nonAccordExtras.length;
   const columnStyles: Record<number, any> = {
     0: { cellWidth: 22, halign: 'center' },                          // REF
+    1: { cellWidth: 'auto', halign: 'left' },                        // Designation — fills remaining width
     [2 + off]: { halign: 'center', cellWidth: 14 },                  // TYPE (was col 2)
     [3 + off]: { halign: 'center', cellWidth: 14 },                  // TVA
     [4 + off]: { halign: 'center', cellWidth: 12 },                  // Qte
@@ -289,9 +300,9 @@ export function renderDevisPdf(
     columnStyles[base + 2] = { halign: 'right', cellWidth: 22 };      // Prix TTC Accord
   });
 
-  // Shrink body font a notch when an accord triple is present — three extra
-  // columns push A4 portrait to its limit.
-  const tableFontSize = accordExtras.length > 0 ? 7.5 : 8.5;
+  // With landscape kicking in for accord triples (line 45), there's enough width
+  // to keep the readable 8.5pt body font in all cases.
+  const tableFontSize = 8.5;
 
   autoTable(pdf, {
     startY: blockY + blockH + 4,
