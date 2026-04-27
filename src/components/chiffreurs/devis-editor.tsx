@@ -1546,10 +1546,10 @@ export function DevisEditor({
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:space-x-0">
             <AlertDialogAction onClick={() => handleChooseKind('proposition')}>
-              PUHT proposé
+              Proposition
             </AlertDialogAction>
             <AlertDialogAction onClick={() => handleChooseKind('accord')}>
-              PUHT accordé
+              Accord
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
