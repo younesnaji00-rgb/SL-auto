@@ -9,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { Calculator, FileText, ChevronDown, ChevronRight, ImageIcon, Clock, X } from 'lucide-react';
+import { Calculator, Clock, X } from 'lucide-react';
 import { DeadlineBar } from '@/components/deadline-bar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
@@ -40,29 +40,6 @@ interface ChiffrageItem {
   sentByEmail?: string;
 }
 
-function computeFileCounts(files: any[]) {
-  const photos: Record<string, number> = { avant: 0, en_cours: 0, apres: 0 };
-  const docs: Record<string, number> = {};
-
-  (files || []).forEach((f: any) => {
-    if (f.type === 'photo') {
-      const cat = f.category || 'avant';
-      photos[cat] = (photos[cat] || 0) + 1;
-    } else {
-      const dt = f.docType || 'Autre';
-      docs[dt] = (docs[dt] || 0) + 1;
-    }
-  });
-
-  return { photos, docs };
-}
-
-const photoCatLabels: Record<string, string> = {
-  avant: 'Photos Avant',
-  en_cours: 'Photos En cours',
-  apres: 'Photos Après',
-};
-
 export default function AssignationsChiffragePage() {
   const db = useFirestore();
   const { profile } = useCurrentUser();
@@ -71,7 +48,6 @@ export default function AssignationsChiffragePage() {
   const [dossierStatuts, setDossierStatuts] = useState<Record<string, string>>({});
   const [dossierReformeTypes, setDossierReformeTypes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [expandedRows, setExpandedRows] = useState<Record<string, Set<string>>>({});
   const [deadlineSort, setDeadlineSort] = useState<SortDirection>(null);
   const filterDefaults = { dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', chiffreurFilter: 'Tous', typeReformeFilter: 'Tous' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-chiffrage', filterDefaults);
@@ -222,20 +198,11 @@ export default function AssignationsChiffragePage() {
     catch { return '-'; }
   };
 
-  const toggleRowSection = (chiffrageId: string, section: string) => {
-    setExpandedRows(prev => {
-      const current = prev[chiffrageId] || new Set<string>();
-      const next = new Set(current);
-      if (next.has(section)) next.delete(section); else next.add(section);
-      return { ...prev, [chiffrageId]: next };
-    });
-  };
-
   const isChiffreur = profile?.role === 'Chiffreur';
   const isATG = profile?.role === 'Agent de Terrain';
   const canSeeNameFilter = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
   const showChiffreurColumn = !isChiffreur;
-  const colCount = showChiffreurColumn ? 8 : 7;
+  const colCount = showChiffreurColumn ? 7 : 6;
 
   return (
     <div className="space-y-6">
@@ -314,7 +281,6 @@ export default function AssignationsChiffragePage() {
                 <TableHead className="font-bold text-xs">Dossier</TableHead>
                 {showChiffreurColumn && <TableHead className="font-bold text-xs">Chiffreur</TableHead>}
                 <TableHead className="font-bold text-xs">Nature du dossier</TableHead>
-                <TableHead className="font-bold text-xs">Fichiers</TableHead>
                 <TableHead className="font-bold text-xs">Statut</TableHead>
                 <TableHead className="font-bold text-xs">Assigné par</TableHead>
                 <TableHead className="font-bold text-xs w-[160px]">
@@ -346,8 +312,6 @@ export default function AssignationsChiffragePage() {
                 </TableRow>
               ) : (
                 filteredChiffrages.map((c) => {
-                  const { photos, docs } = computeFileCounts(c.files);
-                  const expanded = expandedRows[c.id] || new Set<string>();
                   const statut = dossierStatuts[c.dossierId] || 'Nouveau';
                   const nature = dossierNatures[c.dossierId] || '';
                   const today = isToday(c.createdAt);
@@ -373,42 +337,6 @@ export default function AssignationsChiffragePage() {
                       </TableCell>
                       {showChiffreurColumn && <TableCell className="text-sm">{c.assignedChiffreurNom || '-'}</TableCell>}
                       <TableCell className="text-xs">{nature || '-'}</TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          {/* Photo counts by category */}
-                          {Object.entries(photos).filter(([, count]) => count > 0).map(([cat, count]) => {
-                            const key = `photo_${cat}`;
-                            return (
-                              <button
-                                key={key}
-                                onClick={() => toggleRowSection(c.id, key)}
-                                className="flex items-center gap-1.5 text-xs w-full hover:bg-muted/50 rounded px-1 py-0.5 transition-colors"
-                              >
-                                {expanded.has(key) ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
-                                <ImageIcon className="h-3 w-3 text-muted-foreground" />
-                                <span className="flex-1 text-left">{photoCatLabels[cat] || cat}</span>
-                                <Badge variant="secondary" className="text-[9px] py-0 h-4 font-mono">{count}</Badge>
-                              </button>
-                            );
-                          })}
-                          {/* Document counts by type */}
-                          {Object.entries(docs).map(([docType, count]) => {
-                            const key = `doc_${docType}`;
-                            return (
-                              <button
-                                key={key}
-                                onClick={() => toggleRowSection(c.id, key)}
-                                className="flex items-center gap-1.5 text-xs w-full hover:bg-muted/50 rounded px-1 py-0.5 transition-colors"
-                              >
-                                {expanded.has(key) ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
-                                <FileText className="h-3 w-3 text-muted-foreground" />
-                                <span className="flex-1 text-left">{docType}</span>
-                                <Badge variant="secondary" className="text-[9px] py-0 h-4 font-mono">{count}</Badge>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut))}>{statut}</Badge>
                       </TableCell>
