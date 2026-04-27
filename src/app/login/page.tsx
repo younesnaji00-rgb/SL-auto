@@ -127,8 +127,22 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const q = query(collection(db, 'users'), where('nomLowercase', '==', nom.trim().toLowerCase()));
-      const snap = await getDocs(q);
+      const trimmed = nom.trim();
+      const lower = trimmed.toLowerCase();
+      let snap = await getDocs(
+        query(collection(db, 'users'), where('nomLowercase', '==', lower))
+      );
+
+      // Fallback for users whose docs predate the nomLowercase backfill:
+      // try an exact-case match on `nom` and opportunistically backfill
+      // the lowercase field so subsequent logins use the fast path.
+      let backfillNeeded = false;
+      if (snap.empty) {
+        snap = await getDocs(
+          query(collection(db, 'users'), where('nom', '==', trimmed))
+        );
+        if (!snap.empty) backfillNeeded = true;
+      }
 
       if (snap.empty) {
         setError('Utilisateur introuvable. Vérifiez votre nom (insensible à la casse).');
@@ -136,7 +150,8 @@ export default function LoginPage() {
         return;
       }
 
-      const userData = snap.docs[0].data();
+      const userDoc = snap.docs[0];
+      const userData = userDoc.data();
       const email = userData.email;
 
       if (!email) {
@@ -152,8 +167,13 @@ export default function LoginPage() {
       }
 
       const cred = await signInWithEmailAndPassword(auth, email, password);
-      // Update lastLogin timestamp
-      await updateDoc(doc(db, 'users', cred.user.uid), { lastLogin: serverTimestamp() });
+      // Update lastLogin timestamp; backfill nomLowercase if it was missing.
+      await updateDoc(
+        doc(db, 'users', cred.user.uid),
+        backfillNeeded
+          ? { lastLogin: serverTimestamp(), nomLowercase: lower }
+          : { lastLogin: serverTimestamp() }
+      );
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Login error:', err);
