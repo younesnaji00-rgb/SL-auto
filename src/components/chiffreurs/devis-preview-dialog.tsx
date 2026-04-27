@@ -234,7 +234,9 @@ export function DevisPreviewDialog({
     };
   }, [open, selectedStampId, snapshot, docType, titleOverride, stamps, renderTick, stampPlacement]);
 
-  // Render the current blob to canvases via pdf.js whenever the blob changes.
+  // Parse the blob into pageMetas. Canvases mount AFTER pageMetas updates
+  // (driven by the JSX map below), so the actual canvas paint happens in a
+  // separate effect that depends on pageMetas.
   useEffect(() => {
     if (!open || !currentBlob) return;
     let cancelled = false;
@@ -247,29 +249,10 @@ export function DevisPreviewDialog({
         const pdfDoc = await pdfjs.getDocument({ data: buf }).promise;
         if (cancelled) return;
         const metas: PageMeta[] = [];
-        const renderScale = 1.5;
         for (let pageNumber = 1; pageNumber <= pdfDoc.numPages; pageNumber++) {
           const page = await pdfDoc.getPage(pageNumber);
           if (cancelled) return;
           const baseViewport = page.getViewport({ scale: 1 });
-          const viewport = page.getViewport({ scale: renderScale });
-          const canvas = canvasRefs.current.get(pageNumber);
-          if (!canvas) {
-            // Canvas element may not be mounted yet on the very first render —
-            // we'll catch up on the next effect tick once metas trigger a re-render.
-            metas.push({
-              pageNumber,
-              pageWidthMm: (baseViewport.width * 25.4) / 72,
-              pageHeightMm: (baseViewport.height * 25.4) / 72,
-            });
-            continue;
-          }
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) continue;
-          await page.render({ canvasContext: ctx, viewport }).promise;
-          if (cancelled) return;
           metas.push({
             pageNumber,
             pageWidthMm: (baseViewport.width * 25.4) / 72,
@@ -278,10 +261,9 @@ export function DevisPreviewDialog({
         }
         if (cancelled) return;
         setPageMetas(metas);
-        setViewerReady(true);
       } catch (err) {
         if (cancelled) return;
-        console.error('DevisPreviewDialog pdf.js render failed', err);
+        console.error('DevisPreviewDialog pdf.js parse failed', err);
         setRenderError(
           err instanceof Error ? err.message : 'Erreur lors de l\'affichage du PDF.'
         );
@@ -292,39 +274,60 @@ export function DevisPreviewDialog({
     };
   }, [open, currentBlob]);
 
-  // Second pass: if pageMetas changed and the canvases now exist, render again.
-  // This handles the "first blob → no canvases yet" race.
+  // Paint each canvas. Track active RenderTasks so we can cancel them on
+  // cleanup — pdfjs errors out ("Cannot use the same canvas during multiple
+  // render() operations") if a previous task is still in flight when a new
+  // render starts on the same canvas (which happens whenever stampPlacement
+  // or any other dep triggers a fresh blob).
   useEffect(() => {
-    if (!open || !currentBlob || pageMetas.length === 0 || viewerReady) return;
+    if (!open || !currentBlob || pageMetas.length === 0) return;
     let cancelled = false;
+    const activeTasks: Array<{ cancel: () => void }> = [];
+    setViewerReady(false);
     (async () => {
       try {
         const pdfjs = await loadPdfJs();
         const buf = await currentBlob.arrayBuffer();
         if (cancelled) return;
         const pdfDoc = await pdfjs.getDocument({ data: buf }).promise;
+        if (cancelled) return;
         const renderScale = 1.5;
-        for (let pageNumber = 1; pageNumber <= pdfDoc.numPages; pageNumber++) {
-          const page = await pdfDoc.getPage(pageNumber);
+        for (const meta of pageMetas) {
+          if (cancelled) return;
+          const canvas = canvasRefs.current.get(meta.pageNumber);
+          if (!canvas) continue;
+          const page = await pdfDoc.getPage(meta.pageNumber);
           if (cancelled) return;
           const viewport = page.getViewport({ scale: renderScale });
-          const canvas = canvasRefs.current.get(pageNumber);
-          if (!canvas) continue;
           canvas.width = viewport.width;
           canvas.height = viewport.height;
           const ctx = canvas.getContext('2d');
           if (!ctx) continue;
-          await page.render({ canvasContext: ctx, viewport }).promise;
+          const task = page.render({ canvasContext: ctx, viewport });
+          activeTasks.push(task);
+          try {
+            await task.promise;
+          } catch (e: any) {
+            if (cancelled || e?.name === 'RenderingCancelledException') return;
+            throw e;
+          }
         }
         if (!cancelled) setViewerReady(true);
       } catch (err) {
-        if (!cancelled) console.warn('DevisPreviewDialog second-pass render failed', err);
+        if (cancelled) return;
+        console.error('DevisPreviewDialog pdf.js paint failed', err);
+        setRenderError(
+          err instanceof Error ? err.message : 'Erreur lors de l\'affichage du PDF.'
+        );
       }
     })();
     return () => {
       cancelled = true;
+      for (const t of activeTasks) {
+        try { t.cancel(); } catch { /* noop */ }
+      }
     };
-  }, [open, currentBlob, pageMetas.length, viewerReady]);
+  }, [open, currentBlob, pageMetas]);
 
   // Reset blob/viewer state when the dialog closes.
   useEffect(() => {
