@@ -32,6 +32,14 @@ export function renderDevisPdf(
      */
     stampImage?: { dataUrl: string; width: number; height: number } | null;
     /**
+     * Optional click-to-place position for the stamp. When set, the stamp is
+     * drawn at the given (page, xMm, yMm) anchor with `widthMm` width and
+     * height auto-derived from the source aspect ratio. When absent and
+     * `stampImage` is set, falls back to the legacy fixed position in the
+     * identity block.
+     */
+    stampPlacement?: { page: number; xMm: number; yMm: number; widthMm: number } | null;
+    /**
      * Overrides the PDF title. Used by accord/proposition-accord export flows
      * so the same renderer can produce a `Devis` / `Facture` / `Accord` /
      * `Proposition d'accord` header without threading docType-like enums.
@@ -143,22 +151,28 @@ export function renderDevisPdf(
   drawRows(leftRows, margin, blockY, colW);
   drawRows(rightRows, margin + colW, blockY, colW);
 
-  // Optional user-uploaded stamp image (right column, bottom).
-  // Occupies the same rectangle the old hardcoded "SL AUTO EXPERTISE" text
-  // stamp used. If no image is provided, nothing is rendered here.
-  // Known limitation: the image is stretched to fit the rectangle regardless
-  // of aspect ratio — no cropping UI yet.
-  const stampX = margin + colW + 40;
-  const stampY = blockY + 22;
-  const stampW = colW - 42;
-  const stampH = 14;
+  // Optional user-uploaded stamp image. When `stampPlacement` is provided,
+  // the stamp is drawn at the click-target page+coords with width preserved
+  // from the placement spec (height auto from the source aspect ratio).
+  // Otherwise, falls back to the legacy fixed rectangle in the identity
+  // block's right column.
   if (opts?.stampImage && opts.stampImage.dataUrl) {
     const dataUrl = opts.stampImage.dataUrl;
     const format = dataUrl.startsWith('data:image/jpeg')
       || dataUrl.startsWith('data:image/jpg')
       ? 'JPEG'
       : 'PNG';
-    pdf.addImage(dataUrl, format, stampX, stampY, stampW, stampH);
+    if (opts.stampPlacement) {
+      // Defer click-to-place rendering to AFTER autoTable so we can navigate
+      // to the target page and the stamp lands on top of any table content.
+      // Marker — actual draw happens after autoTable below.
+    } else {
+      const stampX = margin + colW + 40;
+      const stampY = blockY + 22;
+      const stampW = colW - 42;
+      const stampH = 14;
+      pdf.addImage(dataUrl, format, stampX, stampY, stampW, stampH);
+    }
   }
 
   // ── Main table ──────────────────────────────────────────────────────────
@@ -311,6 +325,28 @@ export function renderDevisPdf(
       pdf.internal.pageSize.getHeight() - 6
     );
     pdf.setTextColor(20, 20, 20);
+  }
+
+  // ── Click-to-place stamp ────────────────────────────────────────────────
+  // Drawn LAST so the stamp sits on top of any content at the user-chosen
+  // anchor (xMm, yMm) on the target page. Width comes from the placement;
+  // height is derived from the source aspect ratio. Placed after the
+  // watermark so changing the active page here doesn't affect earlier draws.
+  if (opts?.stampImage && opts.stampImage.dataUrl && opts.stampPlacement) {
+    const { dataUrl } = opts.stampImage;
+    const { page, xMm, yMm, widthMm } = opts.stampPlacement;
+    const totalPages = (pdf as any).internal?.getNumberOfPages?.() ?? pdf.getNumberOfPages?.() ?? 1;
+    const targetPage = Math.max(1, Math.min(totalPages, Math.round(page)));
+    pdf.setPage(targetPage);
+    const format = dataUrl.startsWith('data:image/jpeg')
+      || dataUrl.startsWith('data:image/jpg')
+      ? 'JPEG'
+      : 'PNG';
+    const aspect = opts.stampImage.height > 0
+      ? opts.stampImage.width / opts.stampImage.height
+      : 1;
+    const heightMm = aspect > 0 ? widthMm / aspect : widthMm;
+    pdf.addImage(dataUrl, format, xMm, yMm, widthMm, heightMm);
   }
 
   return pdf.output('blob');
