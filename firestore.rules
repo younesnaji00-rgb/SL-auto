@@ -28,9 +28,12 @@ service cloud.firestore {
         'Accord envoyé',
       ];
     }
-    // task #42: true if s is one of the canonical statuts
+    // task #42: true if s is one of the canonical statuts. Also accepts
+    // dynamic uncapped ordinal labels (`Nème accord` / `Nème proposition d'accord`)
+    // so 4ème+ writes from the uncapped status machine pass.
     function isValidStatut(s) {
-      return canonicalStatuts().hasAny([s]);
+      return canonicalStatuts().hasAny([s])
+        || s.matches("^[0-9]+ème (accord|proposition d'accord)$");
     }
     // task #42: writer must be Admin or Directeur des opérations
     function canValidateDossier() {

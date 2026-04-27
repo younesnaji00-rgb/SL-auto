@@ -383,6 +383,13 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
           statut: 'Chiffrage en cours',
           updatedAt: serverTimestamp(),
         });
+        await logHistorique(
+          db, dossierId,
+          'Chiffrage en cours',
+          currentEmail || profile?.nom || 'Utilisateur',
+          `Statut mis à jour automatiquement (création du slot ${nextLabel}).`,
+          'statut',
+        ).catch(() => {});
       } catch (statutErr) {
         console.warn('[typed-docs-grid] reset statut on cardinal create failed (non-fatal)', statutErr);
       }
