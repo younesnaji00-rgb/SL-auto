@@ -89,9 +89,11 @@ export function SlotCard({
 
   // Task #26 — accord/proposition slot detection.
   const parsedAccord = parseAccordDocType(slot);
+  const isReformeSlot = slot === 'Réforme technique' || slot === 'Réforme économique';
   // Cardinal accord/proposition rows must never accept manual uploads — the
-  // chiffreur produces them via the editor save flow.
-  const hideUploadForAccord = !!parsedAccord;
+  // chiffreur produces them via the editor save flow. Same applies to réforme
+  // technique/économique slots.
+  const hideUploadForAccord = !!parsedAccord || isReformeSlot;
   // Pimple "+" button appears on accord OR proposition slots; uncapped — chain
   // enforcement is via `cardinalPimpleDisabled` (current slot must be
   // chiffreur-filled before the next cardinal can be created).
@@ -146,7 +148,7 @@ export function SlotCard({
       <CardContent className="p-2 space-y-1.5 flex-1">
         {docs.length === 0 ? (
           <p className="text-xs italic text-muted-foreground text-center py-3">
-            {parsedAccord ? 'En attente de chiffrage' : 'Aucun document'}
+            {(parsedAccord || isReformeSlot) ? 'En attente de chiffrage' : 'Aucun document'}
           </p>
         ) : (
           <ul className="space-y-1">
