@@ -40,6 +40,20 @@ export interface DevisPreviewDialogProps {
 
 const NONE_VALUE = '__none__';
 const STAMP_DEFAULT_WIDTH_MM = 40;
+const STAMP_MIN_WIDTH_MM = 10;
+
+interface StampImage {
+  dataUrl: string;
+  width: number;
+  height: number;
+}
+
+interface StampPlacement {
+  page: number;
+  xMm: number;
+  yMm: number;
+  widthMm: number;
+}
 
 // PDF.js loader — same pattern as src/components/common/pdf-thumbnail.tsx.
 let pdfJsPromise: Promise<any> | null = null;
@@ -84,12 +98,10 @@ export function DevisPreviewDialog({
   const [importingStamp, setImportingStamp] = useState(false);
 
   // Click-to-place stamp state.
-  const [stampPlacement, setStampPlacement] = useState<
-    { page: number; xMm: number; yMm: number } | null
-  >(null);
+  const [stampPlacement, setStampPlacement] = useState<StampPlacement | null>(null);
   const [isPlacing, setIsPlacing] = useState(false);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
-  const [stampDataUrl, setStampDataUrl] = useState<string | null>(null);
+  const [stampImage, setStampImage] = useState<StampImage | null>(null);
 
   // pdf.js viewer state.
   const viewerContainerRef = useRef<HTMLDivElement | null>(null);
@@ -153,7 +165,7 @@ export function DevisPreviewDialog({
       setStampWarning(null);
       setStampPlacement(null);
       setIsPlacing(false);
-      setStampDataUrl(null);
+      setStampImage(null);
       setCursorPos(null);
     }
   }, [open]);
@@ -162,7 +174,7 @@ export function DevisPreviewDialog({
   useEffect(() => {
     let cancelled = false;
     if (selectedStampId === NONE_VALUE) {
-      setStampDataUrl(null);
+      setStampImage(null);
       setStampPlacement(null);
       setIsPlacing(false);
       return;
@@ -173,11 +185,11 @@ export function DevisPreviewDialog({
       const img = await loadStampImage(stamp.url);
       if (cancelled) return;
       if (img) {
-        setStampDataUrl(img.dataUrl);
+        setStampImage(img);
         setStampPlacement(null);
         setIsPlacing(true);
       } else {
-        setStampDataUrl(null);
+        setStampImage(null);
       }
     })();
     return () => {
@@ -185,8 +197,9 @@ export function DevisPreviewDialog({
     };
   }, [selectedStampId, stamps]);
 
-  // Render pipeline: debounce stamp/placement change, resolve stamp image, run renderer,
-  // publish blob. Re-render on placement change so the stamp lands at the click point.
+  // Render pipeline: produce the *preview* PDF blob WITHOUT the stamp baked in.
+  // The stamp is overlaid as an HTML <img> over the page canvas so drag/resize
+  // stay snappy. The final PDF (with the stamp) is only rendered on confirm.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -195,25 +208,11 @@ export function DevisPreviewDialog({
       setRenderError(null);
       setStampWarning(null);
       try {
-        let stampImage: { dataUrl: string; width: number; height: number } | null = null;
-        if (selectedStampId !== NONE_VALUE) {
-          const stamp = stamps.find((s) => s.id === selectedStampId);
-          if (stamp?.url) {
-            stampImage = await loadStampImage(stamp.url);
-            if (!cancelled && !stampImage) {
-              setStampWarning(
-                "Impossible de charger l'image du tampon. Rendu sans tampon."
-              );
-            }
-          }
-        }
         if (cancelled) return;
         const blob = renderDevisPdf(snapshot, {
           docType,
-          stampImage,
-          stampPlacement: stampPlacement
-            ? { ...stampPlacement, widthMm: STAMP_DEFAULT_WIDTH_MM }
-            : null,
+          stampImage: null,
+          stampPlacement: null,
           titleOverride,
         });
         if (cancelled) return;
@@ -232,7 +231,7 @@ export function DevisPreviewDialog({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [open, selectedStampId, snapshot, docType, titleOverride, stamps, renderTick, stampPlacement]);
+  }, [open, snapshot, docType, titleOverride, renderTick]);
 
   // Parse the blob into pageMetas. Canvases mount AFTER pageMetas updates
   // (driven by the JSX map below), so the actual canvas paint happens in a
@@ -277,8 +276,7 @@ export function DevisPreviewDialog({
   // Paint each canvas. Track active RenderTasks so we can cancel them on
   // cleanup — pdfjs errors out ("Cannot use the same canvas during multiple
   // render() operations") if a previous task is still in flight when a new
-  // render starts on the same canvas (which happens whenever stampPlacement
-  // or any other dep triggers a fresh blob).
+  // render starts on the same canvas.
   useEffect(() => {
     if (!open || !currentBlob || pageMetas.length === 0) return;
     let cancelled = false;
@@ -363,7 +361,12 @@ export function DevisPreviewDialog({
     const fracY = (e.clientY - rect.top) / rect.height;
     const xMm = fracX * meta.pageWidthMm;
     const yMm = fracY * meta.pageHeightMm;
-    setStampPlacement({ page: meta.pageNumber, xMm, yMm });
+    setStampPlacement({
+      page: meta.pageNumber,
+      xMm,
+      yMm,
+      widthMm: STAMP_DEFAULT_WIDTH_MM,
+    });
     setIsPlacing(false);
     setCursorPos(null);
   };
@@ -372,8 +375,21 @@ export function DevisPreviewDialog({
     if (!currentBlob || confirming) return;
     setConfirming(true);
     try {
+      let blobToSave: Blob = currentBlob;
+      if (
+        selectedStampId !== NONE_VALUE &&
+        stampPlacement &&
+        stampImage
+      ) {
+        blobToSave = renderDevisPdf(snapshot, {
+          docType,
+          stampImage,
+          stampPlacement,
+          titleOverride,
+        });
+      }
       await onConfirm({
-        blob: currentBlob,
+        blob: blobToSave,
         stampId: selectedStampId === NONE_VALUE ? null : selectedStampId,
       });
     } finally {
@@ -395,7 +411,7 @@ export function DevisPreviewDialog({
     setStampPlacement(null);
     setSelectedStampId(NONE_VALUE);
     setIsPlacing(false);
-    setStampDataUrl(null);
+    setStampImage(null);
   };
 
   const stampSelected = selectedStampId !== NONE_VALUE;
@@ -417,19 +433,32 @@ export function DevisPreviewDialog({
           {!renderError && (
             <div className="flex flex-col items-center gap-3 p-3">
               {pageMetas.map((meta) => (
-                <canvas
-                  key={meta.pageNumber}
-                  ref={(el) => {
-                    if (el) canvasRefs.current.set(meta.pageNumber, el);
-                    else canvasRefs.current.delete(meta.pageNumber);
-                  }}
-                  onClick={(e) => handleCanvasClick(e, meta)}
-                  className="shadow-sm bg-white max-w-full h-auto"
-                  style={{
-                    cursor: isPlacing ? 'none' : 'default',
-                    display: 'block',
-                  }}
-                />
+                <div key={meta.pageNumber} className="relative">
+                  <canvas
+                    ref={(el) => {
+                      if (el) canvasRefs.current.set(meta.pageNumber, el);
+                      else canvasRefs.current.delete(meta.pageNumber);
+                    }}
+                    onClick={(e) => handleCanvasClick(e, meta)}
+                    className="shadow-sm bg-white max-w-full h-auto"
+                    style={{
+                      cursor: isPlacing ? 'none' : 'default',
+                      display: 'block',
+                    }}
+                  />
+                  {stampPlacement &&
+                    stampPlacement.page === meta.pageNumber &&
+                    stampImage &&
+                    !isPlacing && (
+                      <StampOverlay
+                        meta={meta}
+                        placement={stampPlacement}
+                        stampImage={stampImage}
+                        onChange={setStampPlacement}
+                        getCanvas={() => canvasRefs.current.get(meta.pageNumber) ?? null}
+                      />
+                    )}
+                </div>
               ))}
             </div>
           )}
@@ -456,9 +485,9 @@ export function DevisPreviewDialog({
 
         {/* Mouse-follow stamp preview. Rendered as a portal-less fixed-position
             element; pointer-events: none so it never swallows clicks. */}
-        {isPlacing && stampDataUrl && cursorPos && (
+        {isPlacing && stampImage && cursorPos && (
           <img
-            src={stampDataUrl}
+            src={stampImage.dataUrl}
             alt=""
             aria-hidden
             style={{
@@ -581,5 +610,175 @@ export function DevisPreviewDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Draggable + resizable HTML overlay for the placed stamp. Lives over the
+ * page canvas during preview only — the stamp is baked into the PDF only on
+ * confirm. mm <-> px conversions use the live displayed canvas size, so the
+ * overlay tracks responsive resize of the canvas naturally.
+ */
+interface StampOverlayProps {
+  meta: PageMeta;
+  placement: StampPlacement;
+  stampImage: StampImage;
+  onChange: (next: StampPlacement) => void;
+  getCanvas: () => HTMLCanvasElement | null;
+}
+
+function StampOverlay({
+  meta,
+  placement,
+  stampImage,
+  onChange,
+  getCanvas,
+}: StampOverlayProps) {
+  const [dragging, setDragging] = useState(false);
+  const [resizing, setResizing] = useState(false);
+
+  // Re-measure on window resize so the overlay tracks responsive canvas changes.
+  const [, setMeasureTick] = useState(0);
+  useEffect(() => {
+    const handler = () => setMeasureTick((t) => t + 1);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+
+  const canvas = getCanvas();
+  const rect = canvas?.getBoundingClientRect();
+  if (!canvas || !rect || rect.width <= 0 || rect.height <= 0) {
+    return null;
+  }
+  const pxPerMm = rect.width / meta.pageWidthMm;
+  const aspect =
+    stampImage.width > 0 && stampImage.height > 0
+      ? stampImage.width / stampImage.height
+      : 1;
+  const widthPx = placement.widthMm * pxPerMm;
+  const heightPx = aspect > 0 ? widthPx / aspect : widthPx;
+  const leftPx = placement.xMm * pxPerMm;
+  const topPx = placement.yMm * pxPerMm;
+
+  const handleDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (resizing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startXMm = placement.xMm;
+    const startYMm = placement.yMm;
+    setDragging(true);
+
+    const onMove = (ev: MouseEvent) => {
+      const c = getCanvas();
+      const r = c?.getBoundingClientRect();
+      if (!c || !r || r.width <= 0) return;
+      const ratio = meta.pageWidthMm / r.width;
+      const dxMm = (ev.clientX - startX) * ratio;
+      const dyMm = (ev.clientY - startY) * ratio;
+      // Clamp so the stamp's anchor stays on the page.
+      const maxXMm = Math.max(0, meta.pageWidthMm - placement.widthMm);
+      const heightMm = aspect > 0 ? placement.widthMm / aspect : placement.widthMm;
+      const maxYMm = Math.max(0, meta.pageHeightMm - heightMm);
+      const nextXMm = Math.min(Math.max(startXMm + dxMm, 0), maxXMm);
+      const nextYMm = Math.min(Math.max(startYMm + dyMm, 0), maxYMm);
+      onChange({
+        ...placement,
+        xMm: nextXMm,
+        yMm: nextYMm,
+      });
+    };
+    const onUp = () => {
+      setDragging(false);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const handleResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidthMm = placement.widthMm;
+    setResizing(true);
+
+    const onMove = (ev: MouseEvent) => {
+      const c = getCanvas();
+      const r = c?.getBoundingClientRect();
+      if (!c || !r || r.width <= 0) return;
+      const ratio = meta.pageWidthMm / r.width;
+      const dWidthMm = (ev.clientX - startX) * ratio;
+      const maxWidthMm = Math.max(
+        STAMP_MIN_WIDTH_MM,
+        meta.pageWidthMm - placement.xMm,
+      );
+      const nextWidthMm = Math.min(
+        Math.max(startWidthMm + dWidthMm, STAMP_MIN_WIDTH_MM),
+        maxWidthMm,
+      );
+      onChange({
+        ...placement,
+        widthMm: nextWidthMm,
+      });
+    };
+    const onUp = () => {
+      setResizing(false);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onMouseDown={handleDragStart}
+      style={{
+        position: 'absolute',
+        left: leftPx,
+        top: topPx,
+        width: widthPx,
+        height: heightPx,
+        cursor: dragging ? 'grabbing' : 'grab',
+        userSelect: 'none',
+        touchAction: 'none',
+      }}
+    >
+      <img
+        src={stampImage.dataUrl}
+        alt=""
+        aria-hidden
+        draggable={false}
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          pointerEvents: 'none',
+        }}
+      />
+      {!dragging && (
+        <div
+          onMouseDown={handleResizeStart}
+          style={{
+            position: 'absolute',
+            right: -6,
+            bottom: -6,
+            width: 12,
+            height: 12,
+            background: 'white',
+            border: '1px solid rgba(0,0,0,0.6)',
+            borderRadius: 2,
+            cursor: 'nwse-resize',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
+          }}
+          aria-label="Redimensionner le tampon"
+        />
+      )}
+    </div>
   );
 }
