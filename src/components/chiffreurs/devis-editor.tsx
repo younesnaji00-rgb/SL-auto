@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
-  ArrowLeft, Columns2, Download, FileText, History, Loader2, Lock, Plus, RefreshCcw,
+  ArrowLeft, ChevronDown, Columns2, Download, FileText, History, Loader2, Lock, Plus, RefreshCcw,
   Save, Sparkles, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -1095,10 +1095,11 @@ export function DevisEditor({
                         <PopoverTrigger asChild>
                           <button
                             type="button"
-                            className="w-full text-left truncate font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary"
+                            className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary"
                             title="Choisir un type d'accord"
                           >
-                            {col.label || 'Choisir un accord'}
+                            <span className="truncate">{col.label || 'Choisir un accord'}</span>
+                            <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                           </button>
                         </PopoverTrigger>
                         <PopoverContent align="start" className="w-48 p-1">
