@@ -20,8 +20,18 @@ import { useStamps, loadStampImage } from '@/hooks/use-stamps';
 import { renderDevisPdf } from '@/lib/devis-pdf';
 import type { DevisSnapshot } from '@/lib/devis-schema';
 import { useFirestore, useStorage } from '@/firebase';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { addDoc, collection, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
 
@@ -96,6 +106,8 @@ export function DevisPreviewDialog({
   const [confirming, setConfirming] = useState(false);
   const [renderTick, setRenderTick] = useState(0);
   const [importingStamp, setImportingStamp] = useState(false);
+  const [libraryDeleteConfirmOpen, setLibraryDeleteConfirmOpen] = useState(false);
+  const [libraryDeleting, setLibraryDeleting] = useState(false);
 
   // Click-to-place stamp state.
   const [stampPlacement, setStampPlacement] = useState<StampPlacement | null>(null);
@@ -423,6 +435,34 @@ export function DevisPreviewDialog({
     setStampImage(null);
   };
 
+  const handleLibraryDelete = async () => {
+    if (!db) return;
+    if (selectedStampId === NONE_VALUE) return;
+    const stamp = stamps.find((s) => s.id === selectedStampId);
+    if (!stamp) return;
+    setLibraryDeleting(true);
+    try {
+      if (stamp.storagePath && storage) {
+        await deleteObject(ref(storage, stamp.storagePath)).catch((err) => {
+          console.warn('stamp storage delete failed (continuing):', err);
+        });
+      }
+      await deleteDoc(doc(db, 'stamps', stamp.id));
+      toast({ title: 'Tampon supprimé', description: stamp.name || stamp.id });
+      handleRemoveStamp();
+    } catch (err: any) {
+      console.error('stamp library delete failed', err);
+      toast({
+        variant: 'destructive',
+        title: 'Suppression impossible',
+        description: err?.message || 'Erreur inconnue.',
+      });
+    } finally {
+      setLibraryDeleting(false);
+      setLibraryDeleteConfirmOpen(false);
+    }
+  };
+
   const stampSelected = selectedStampId !== NONE_VALUE;
   const showRemoveButton = stampSelected;
 
@@ -581,6 +621,20 @@ export function DevisPreviewDialog({
               )}
               Importer
             </Button>
+            {stampSelected && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0 h-9 w-9 text-destructive hover:text-destructive"
+                onClick={() => setLibraryDeleteConfirmOpen(true)}
+                disabled={libraryDeleting}
+                title="Supprimer ce tampon de la bibliothèque"
+                aria-label="Supprimer ce tampon de la bibliothèque"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
             {showRemoveButton && (
               <Button
                 type="button"
@@ -617,6 +671,41 @@ export function DevisPreviewDialog({
           </div>
         </div>
       </DialogContent>
+      <AlertDialog
+        open={libraryDeleteConfirmOpen}
+        onOpenChange={(o) => {
+          if (!libraryDeleting) setLibraryDeleteConfirmOpen(o);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce tampon ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action retire le tampon de votre bibliothèque. L&apos;opération est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={libraryDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={libraryDeleting}
+              onClick={(e) => {
+                e.preventDefault();
+                handleLibraryDelete();
+              }}
+            >
+              {libraryDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Suppression…
+                </>
+              ) : (
+                'Supprimer'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
