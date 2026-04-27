@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 export interface Stamp {
   id: string;
@@ -12,21 +13,39 @@ export interface Stamp {
   active: boolean;
   createdAt: any;
   createdBy: string;
+  /**
+   * Display name of the user who imported the stamp, denormalized at write
+   * time. Optional for back-compat with stamps created before this field
+   * was added.
+   */
+  createdByName?: string;
 }
 
 /**
- * Subscribe to the `stamps` collection. By default returns only active stamps
- * (intended for consumers like the devis save flow). Pass `{ includeInactive: true }`
- * for the admin settings page.
+ * Subscribe to the `stamps` collection.
+ * - Default: active stamps only (intended for the devis save flow).
+ * - `includeInactive: true`: also returns soft-deleted (admin settings page).
+ * - `mineOnly: true`: filters to stamps owned by the current user (per-account
+ *   scoping for the chiffreur picker). Returns `[]` until the profile resolves.
  */
-export function useStamps(options?: { includeInactive?: boolean }): { stamps: Stamp[]; loading: boolean } {
+export function useStamps(
+  options?: { includeInactive?: boolean; mineOnly?: boolean },
+): { stamps: Stamp[]; loading: boolean } {
   const db = useFirestore();
+  const { profile } = useCurrentUser();
   const [stamps, setStamps] = useState<Stamp[]>([]);
   const [loading, setLoading] = useState(true);
   const includeInactive = options?.includeInactive ?? false;
+  const mineOnly = options?.mineOnly ?? false;
+  const uid = profile?.uid || '';
 
   useEffect(() => {
     if (!db) return;
+    if (mineOnly && !uid) {
+      // Profile hasn't resolved yet — return empty + loading until it does.
+      setStamps([]);
+      return;
+    }
     const colRef = collection(db, 'stamps');
     // Single-field query — no composite index needed. The active filter runs
     // client-side; the stamps collection is small enough that fetching all
@@ -46,9 +65,12 @@ export function useStamps(options?: { includeInactive?: boolean }): { stamps: St
             active: data.active ?? true,
             createdAt: data.createdAt,
             createdBy: data.createdBy || '',
-          };
+            createdByName: data.createdByName || undefined,
+          } as Stamp;
         });
-        setStamps(includeInactive ? all : all.filter((s) => s.active));
+        let filtered = includeInactive ? all : all.filter((s) => s.active);
+        if (mineOnly) filtered = filtered.filter((s) => s.createdBy === uid);
+        setStamps(filtered);
         setLoading(false);
       },
       (err) => {
@@ -58,7 +80,7 @@ export function useStamps(options?: { includeInactive?: boolean }): { stamps: St
     );
 
     return unsub;
-  }, [db, includeInactive]);
+  }, [db, includeInactive, mineOnly, uid]);
 
   return { stamps, loading };
 }

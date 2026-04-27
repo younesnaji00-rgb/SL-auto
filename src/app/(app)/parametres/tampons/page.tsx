@@ -23,6 +23,8 @@ import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from '
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { useStamps, type Stamp } from '@/hooks/use-stamps';
 import { SkeletonRow } from '@/components/ui/skeleton';
 
@@ -100,6 +102,10 @@ export default function TamponsSettingsPage() {
       await uploadBytes(storageRef, file, { contentType: file.type || undefined });
       const url = await getDownloadURL(storageRef);
 
+      const createdByName =
+        [profile.prenom, profile.nom].filter(Boolean).join(' ').trim() ||
+        profile.email ||
+        '';
       await addDoc(collection(db, 'stamps'), {
         name: trimmedName,
         storagePath,
@@ -107,6 +113,7 @@ export default function TamponsSettingsPage() {
         active: true,
         createdAt: serverTimestamp(),
         createdBy: profile.uid,
+        createdByName,
       });
 
       toast({ title: 'Tampon ajouté', description: trimmedName });
@@ -201,8 +208,20 @@ export default function TamponsSettingsPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{stamp.name || 'Sans nom'}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {stamp.active ? 'Actif' : 'Inactif'}
+                        <p className="text-xs text-muted-foreground truncate">
+                          {(() => {
+                            const importedBy = stamp.createdByName || stamp.createdBy || '—';
+                            const importedAt = (() => {
+                              const ts = stamp.createdAt as { toDate?: () => Date } | null | undefined;
+                              try {
+                                const d = ts?.toDate ? ts.toDate() : null;
+                                return d ? format(d, 'dd/MM/yyyy HH:mm', { locale: fr }) : '—';
+                              } catch {
+                                return '—';
+                              }
+                            })();
+                            return `Importé par ${importedBy} · ${importedAt}`;
+                          })()}
                         </p>
                       </div>
                       <div className="flex items-center gap-3">

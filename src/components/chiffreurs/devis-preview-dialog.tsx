@@ -82,7 +82,7 @@ export function DevisPreviewDialog({
   onConfirm,
   onEdit,
 }: DevisPreviewDialogProps) {
-  const { stamps } = useStamps();
+  const { stamps } = useStamps({ mineOnly: true });
   const db = useFirestore();
   const storage = useStorage();
   const { profile } = useCurrentUser();
@@ -131,6 +131,10 @@ export function DevisPreviewDialog({
       await uploadBytes(storageRef, file, { contentType: file.type || undefined });
       const url = await getDownloadURL(storageRef);
       const baseName = file.name.replace(/\.[^.]+$/, '').trim() || 'Tampon';
+      const createdByName =
+        [profile?.prenom, profile?.nom].filter(Boolean).join(' ').trim() ||
+        profile?.email ||
+        '';
       const docRef = await addDoc(collection(db, 'stamps'), {
         name: baseName,
         storagePath,
@@ -138,6 +142,7 @@ export function DevisPreviewDialog({
         active: true,
         createdAt: serverTimestamp(),
         createdBy: profile?.uid || '',
+        createdByName,
       });
       setSelectedStampId(docRef.id);
       toast({ title: 'Tampon importé', description: baseName });
