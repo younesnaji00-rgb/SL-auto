@@ -345,16 +345,25 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
     }
   };
 
-  // Task #26 — create the next cardinal accord slot by inserting a placeholder
-  // doc into Firestore. The dynamic slot logic (task #25) picks it up and
-  // renders the fresh slot in the grid contiguously. Uses `parsed.parent` so
-  // each parent family (base or extra) produces its own accord chain.
+  // Create the next cardinal accord slot by inserting a placeholder doc into
+  // Firestore. The dynamic slot logic picks it up and renders the fresh slot
+  // contiguously. Uses `parsed.parent` so each parent family (base or extra)
+  // produces its own accord chain. Dedup-guarded — clicking "+" multiple times
+  // never piles up duplicate placeholders in the same cardinal slot
+  // (cardinal slots are strictly 1-doc-per-slot).
   const handleCreateNextCardinal = async (slot: string) => {
     if (!db || !auth) return;
     const parsed = parseAccordDocType(slot);
     if (!parsed || (parsed.kind !== 'accord' && parsed.kind !== 'proposition-accord')) return;
     const nextOrdinal = parsed.ordinal + 1;
     const nextLabel = mapToAccorde(parsed.parent, parsed.kind, nextOrdinal);
+    const existingForLabel = ((allDocs as TypedDoc[] | undefined) || []).some(
+      (d) => (d.type || d.typeDocument) === nextLabel,
+    );
+    if (existingForLabel) {
+      toast({ title: `Le slot "${nextLabel}" existe déjà.` });
+      return;
+    }
     const userId = auth.currentUser?.uid || 'unknown';
     try {
       await addDoc(collection(db, 'dossiers', dossierId, 'documents'), {
