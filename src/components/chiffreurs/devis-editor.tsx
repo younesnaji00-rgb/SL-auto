@@ -561,13 +561,19 @@ export function DevisEditor({
       ? (accordColumn.kind as 'accord' | 'proposition-accord')
       : undefined;
 
-    // Task #24: derive the cardinal ordinal from existing dossier docs. Only
-    // relevant when an accord clone is present. Falls back to 1 if we can't
-    // read the dossier documents for any reason.
+    // Derive the cardinal ordinal. Priority order:
+    //  1. URL `accordSlot` param — chiffreur explicitly opened a specific
+    //     cardinal slot, save lands there.
+    //  2. computeCardinalOrdinal — fills the first empty placeholder created
+    //     by the gestionnaire's "+" pimple, otherwise appends a new ordinal.
+    //  3. Falls back to 1 on any read failure.
     let ordinal: number | undefined;
     if (accordKind) {
       const activeDossierId = dossierIdProp || dossierId;
-      if (activeDossierId && (docType === 'Devis Garage' || docType === 'Facture Garage')) {
+      const parsedAccordSlot = accordSlot ? parseAccordDocType(accordSlot) : null;
+      if (parsedAccordSlot && parsedAccordSlot.sourceDocType === docType) {
+        ordinal = parsedAccordSlot.ordinal;
+      } else if (activeDossierId && (docType === 'Devis Garage' || docType === 'Facture Garage')) {
         try {
           ordinal = await computeCardinalOrdinal(activeDossierId, docType, accordKind);
         } catch (e) {
@@ -585,9 +591,13 @@ export function DevisEditor({
     setPreviewOpen(true);
   };
 
-  // Task #24: scan `dossiers/{id}/documents` for existing accord variants that
-  // share the same source docType + kind, then return `maxOrdinal + 1`
-  // (clamped to 3). Labels that don't parse as accord variants are ignored.
+  // Scan `dossiers/{id}/documents` for accord variants matching the source
+  // docType + kind. Return the FIRST empty placeholder ordinal (a slot
+  // spawned by the gestionnaire's "+" pimple but not yet filled by the
+  // chiffreur), so saves don't jump over pre-created cardinal slots.
+  // If every existing ordinal already has a real saved doc, append a new
+  // ordinal (capped at 3). Labels that don't parse as accord variants
+  // are ignored.
   const computeCardinalOrdinal = useCallback(async (
     activeDossierId: string,
     sourceDocType: 'Devis Garage' | 'Facture Garage',
@@ -596,15 +606,26 @@ export function DevisEditor({
     if (!db) return 1;
     const documentsCol = collection(db, 'dossiers', activeDossierId, 'documents');
     const docsSnap = await getDocs(query(documentsCol));
+    // Per ordinal: true if at least one real (saved) doc exists; false if
+    // only a placeholder is present.
+    const realByOrdinal = new Map<number, boolean>();
     let maxOrdinal = 0;
     for (const d of docsSnap.docs) {
-      const type = (d.data() as Record<string, unknown>).type;
+      const data = d.data() as any;
+      const type = data.type;
       if (typeof type !== 'string') continue;
       const parsed = parseAccordDocType(type);
       if (!parsed) continue;
-      if (parsed.sourceDocType === sourceDocType && parsed.kind === accordKind) {
-        if (parsed.ordinal > maxOrdinal) maxOrdinal = parsed.ordinal;
-      }
+      if (parsed.sourceDocType !== sourceDocType || parsed.kind !== accordKind) continue;
+      if (parsed.ordinal > maxOrdinal) maxOrdinal = parsed.ordinal;
+      const isReal = !data.pendingUpload && !!data.url;
+      if (isReal) realByOrdinal.set(parsed.ordinal, true);
+      else if (!realByOrdinal.has(parsed.ordinal)) realByOrdinal.set(parsed.ordinal, false);
+    }
+    // Smallest placeholder-only ordinal (ascending) — that's the slot the
+    // chiffreur is meant to fill next.
+    for (let i = 1; i <= maxOrdinal; i++) {
+      if (realByOrdinal.get(i) === false) return i;
     }
     return Math.min(maxOrdinal + 1, 3);
   }, [db]);
