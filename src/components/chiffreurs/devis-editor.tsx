@@ -627,7 +627,7 @@ export function DevisEditor({
     for (let i = 1; i <= maxOrdinal; i++) {
       if (realByOrdinal.get(i) === false) return i;
     }
-    return Math.min(maxOrdinal + 1, 3);
+    return maxOrdinal + 1;
   }, [db]);
 
   // Task #23: Phase 2 — runs on preview confirm. Uses the blob produced by the

@@ -98,18 +98,27 @@ export function buildDocFamilies(docs: ReadonlyArray<DocTypeLike>): DocFamily[] 
       mapToAccorde(parent, 'proposition-accord', 1),
     ];
     const extras = variantSlotsByParent.get(parent);
+    if (!extras) return slots;
 
-    // Deterministic order: accord ordinals 2-3, then propositions 2-3. We
-    // rebuild the expected labels from `mapToAccorde` and only include the
-    // ones that appear in our live set, so the row order is stable. Proposition
-    // ordinal 1 is included by default above.
-    for (const ord of [2, 3]) {
-      const label = mapToAccorde(parent, 'accord', ord);
-      if (extras && extras.has(label)) slots.push(label);
+    // Collect every accord / proposition ordinal ≥ 2 that has a doc for this
+    // parent. No upper cap — 4ème, 5ème, … render as long as they exist in
+    // Firestore. Sorted ascending so the row order stays stable.
+    const accordOrdinals = new Set<number>();
+    const propositionOrdinals = new Set<number>();
+    for (const label of extras) {
+      const parsed = parseAccordDocType(label);
+      if (!parsed || parsed.parent !== parent) continue;
+      if (parsed.kind === 'accord' && parsed.ordinal >= 2) {
+        accordOrdinals.add(parsed.ordinal);
+      } else if (parsed.kind === 'proposition-accord' && parsed.ordinal >= 2) {
+        propositionOrdinals.add(parsed.ordinal);
+      }
     }
-    for (const ord of [2, 3]) {
-      const label = mapToAccorde(parent, 'proposition-accord', ord);
-      if (extras && extras.has(label)) slots.push(label);
+    for (const ord of [...accordOrdinals].sort((a, b) => a - b)) {
+      slots.push(mapToAccorde(parent, 'accord', ord));
+    }
+    for (const ord of [...propositionOrdinals].sort((a, b) => a - b)) {
+      slots.push(mapToAccorde(parent, 'proposition-accord', ord));
     }
     return slots;
   }
