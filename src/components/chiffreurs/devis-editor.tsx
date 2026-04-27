@@ -1041,7 +1041,7 @@ export function DevisEditor({
                 <th style={{ width: '80px' }} className="text-center">Vetuste</th>
                 <th style={{ width: '110px' }} className="text-right">P.U.H.T</th>
                 <th style={{ width: '120px' }} className="text-right">Total H.T</th>
-                <th style={{ width: '120px' }} className="text-right">Prix en TTC</th>
+                <th style={{ width: '120px' }} className="text-right bg-muted/40">Prix en TTC</th>
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
                   const isAccord = col.kind === 'accord' || col.kind === 'proposition-accord';
@@ -1105,11 +1105,11 @@ export function DevisEditor({
                     );
                     return (
                       <React.Fragment key={col.id}>
-                        <th style={{ width: '120px' }} className="text-right">
+                        <th style={{ width: '120px' }} className="text-right bg-muted/40">
                           {puHeader}
                         </th>
-                        <th style={{ width: '130px' }} className="text-right">Total H.T Accord</th>
-                        <th style={{ width: '130px' }} className="text-right">Prix TTC Accord</th>
+                        <th style={{ width: '130px' }} className="text-right bg-muted/40">Total H.T Accord</th>
+                        <th style={{ width: '130px' }} className="text-right bg-muted/40">Prix TTC Accord</th>
                       </React.Fragment>
                     );
                   }
@@ -1213,7 +1213,7 @@ export function DevisEditor({
                     {/* Total H.T is computed — read-only, auto-updating. */}
                     <td className="text-right font-semibold pr-2">{formatFr(total)}</td>
                     {/* Prix en TTC is computed — read-only: Total H.T * (1 + tva/100). */}
-                    <td className="text-right font-semibold pr-2">
+                    <td className="text-right font-semibold pr-2 bg-muted/40">
                       {formatFr(total * (1 + (r.tva ?? 0) / 100))}
                     </td>
                     {extraColumns.map((col) => {
@@ -1228,7 +1228,7 @@ export function DevisEditor({
                         const prixTTCAccord = computeAccordPrixTTC(totalHTAccord, tva);
                         return (
                           <React.Fragment key={col.id}>
-                            <td>
+                            <td className="bg-muted/40">
                               <AccordPUInput
                                 value={raw}
                                 disabled={!isEditable || col.locked === true}
@@ -1249,10 +1249,10 @@ export function DevisEditor({
                                 }}
                               />
                             </td>
-                            <td className="text-right font-semibold pr-2">
+                            <td className="text-right font-semibold pr-2 bg-muted/40">
                               {formatFr(totalHTAccord)}
                             </td>
-                            <td className="text-right font-semibold pr-2">
+                            <td className="text-right font-semibold pr-2 bg-muted/40">
                               {formatFr(prixTTCAccord)}
                             </td>
                           </React.Fragment>
