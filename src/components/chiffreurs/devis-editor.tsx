@@ -420,25 +420,12 @@ export function DevisEditor({
   // Task #21: local popover open state, keyed per accord column id.
   const [accordHeaderOpen, setAccordHeaderOpen] = useState<Record<string, boolean>>({});
 
-  // Task #21: compute accord totals + hard clamp helper.
-  // - computeAccordTotalHT = puAccord * qte * (1 - vetuste/100)
-  // - computeAccordPrixTTC = TotalHTAccord * (1 + tva/100)
-  // - clampAccordPU returns a PU snapped DOWN so that
-  //   (puAccord * qte * (1 - vetuste/100) * (1 + tva/100)) === rowPrixTTC.
-  //   rowPrixTTC = rowTotalHT(r) * (1 + tva/100).
+  // Accord totals helpers. The cap (accord PU ≤ row PUHT) is signalled
+  // inline (red border + message) on the cell — no clamping or revert.
   const computeAccordTotalHT = (puAccord: number, qte: number, vetuste: number) =>
     puAccord * qte * (1 - vetuste / 100);
   const computeAccordPrixTTC = (totalHTAccord: number, tva: number) =>
     totalHTAccord * (1 + tva / 100);
-  const clampAccordPU = (r: DevisRow): number => {
-    const qte = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
-    const vetuste = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
-    const tva = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
-    const rowPrixTTC = rowTotalHT(r) * (1 + tva / 100);
-    const denom = qte * (1 - vetuste / 100) * (1 + tva / 100);
-    if (denom <= 0) return 0;
-    return rowPrixTTC / denom;
-  };
 
   // Task #20: clone the P.U.H.T column into a new accord extra column.
   // The header dropdown (task #21) lets the chiffreur switch between
@@ -1289,28 +1276,22 @@ export function DevisEditor({
                         const tva = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
                         const totalHTAccord = computeAccordTotalHT(puAccord, qte, vetuste);
                         const prixTTCAccord = computeAccordPrixTTC(totalHTAccord, tva);
+                        const rowPuHT = typeof r.puHT === 'number' && Number.isFinite(r.puHT) ? r.puHT : 0;
+                        const isAccordOverCap = puAccord > 0 && puAccord > rowPuHT;
                         return (
                           <React.Fragment key={col.id}>
-                            <td className="bg-muted/40">
+                            <td className="bg-muted/40 align-top">
                               <AccordPUInput
                                 value={raw}
                                 disabled={!isEditable || col.locked === true}
+                                error={isAccordOverCap}
                                 onChange={(v) => updateExtraCell(col.id, r.id, v)}
-                                onBlurClamp={() => {
-                                  const current = parseFr(col.values[r.id] || '');
-                                  if (!(current > 0)) return;
-                                  const rowTTC = rowTotalHT(r) * (1 + tva / 100);
-                                  const currentAccordTTC =
-                                    current * qte * (1 - vetuste / 100) * (1 + tva / 100);
-                                  if (currentAccordTTC > rowTTC + 1e-9) {
-                                    const capped = clampAccordPU(r);
-                                    updateExtraCell(col.id, r.id, formatFr(capped));
-                                    toast({
-                                      title: `Plafonné au prix TTC : ${formatFr(capped)} DH`,
-                                    });
-                                  }
-                                }}
                               />
+                              {isAccordOverCap && (
+                                <p className="text-[10px] text-destructive mt-0.5 px-1.5 leading-tight">
+                                  Doit être ≤ P.U.H.T
+                                </p>
+                              )}
                             </td>
                             <td className="text-right font-semibold pr-2 bg-muted/40">
                               {formatFr(totalHTAccord)}
@@ -1599,27 +1580,29 @@ function CellInput({
   );
 }
 
-// Task #21: accord PU cell. Stored as a string (matching extraColumn convention)
-// but represents a number. On blur, the parent clamp callback can overwrite the
-// cell value with a capped figure; the local text stays in sync through value.
+// Accord PU cell. When `error` is true, the cell renders a destructive border
+// and a hover-title hint — the parent also renders an inline message below.
 function AccordPUInput({
-  value, onChange, onBlurClamp, disabled,
+  value, onChange, disabled, error,
 }: {
   value: string;
   onChange: (v: string) => void;
-  onBlurClamp: () => void;
   disabled?: boolean;
+  error?: boolean;
 }) {
   return (
     <input
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      onBlur={onBlurClamp}
       disabled={disabled}
       inputMode="decimal"
+      title={error ? 'La valeur ne peut pas dépasser le P.U.H.T.' : undefined}
       className={cn(
-        "w-full h-7 px-1.5 text-xs bg-transparent outline-none rounded border border-transparent",
-        "focus:border-primary/50 focus:bg-background disabled:cursor-not-allowed text-right",
+        "w-full h-7 px-1.5 text-xs bg-transparent outline-none rounded border text-right",
+        "focus:bg-background disabled:cursor-not-allowed",
+        error
+          ? "border-destructive focus:border-destructive"
+          : "border-transparent focus:border-primary/50",
       )}
     />
   );
