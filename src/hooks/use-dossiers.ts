@@ -44,70 +44,59 @@ export function useDossiers(allowedCompagnies?: string[]) {
         return () => unsub();
     }, [db, allowed]);
 
-    const deleteDossier = async (dossierId: string): Promise<void> => {
-        if (!db) throw new Error('DB not initialized');
+  const deleteDossier = async (dossierId: string): Promise<void> => {
+    if (!db) throw new Error('DB not initialized');
 
-        // List of subcollections to purge manually because Firestore doesn't auto-delete nested data
-        const subcollections = [
-            'documents',
-            'photos',
-            'commentaires',
-            'chiffrage',
-            'missions',
-            'reclamations',
-            'planifications',
-            'planificationHistory',
-            'historique',
-            'rapport_pieces',
-            'workflow',
-        ];
+    const subcollections = [
+      'documents', 'photos', 'commentaires', 'chiffrage',
+      'missions', 'reclamations', 'planifications',
+      'planificationHistory', 'historique', 'rapport_pieces', 'workflow',
+    ];
 
-        try {
-            console.log(`Starting cleanup for dossier: ${dossierId}`);
+    console.log(`[deleteDossier] starting cleanup: ${dossierId}`);
 
-            // 1. Delete all subcollections items
-            for (const sub of subcollections) {
-                const subRef = collection(db, 'dossiers', dossierId, sub);
-                const subSnap = await getDocs(subRef).catch(() => ({ docs: [] }));
-                const deletePromises = (subSnap as any).docs.map((docSnap: any) => deleteDoc(docSnap.ref));
-                await Promise.all(deletePromises);
-            }
+    // 1. Subcollections — per-batch try/catch + allSettled so partial
+    //    failures don't abort the operation.
+    for (const sub of subcollections) {
+      try {
+        const subSnap = await getDocs(collection(db, 'dossiers', dossierId, sub));
+        const results = await Promise.allSettled(subSnap.docs.map(d => deleteDoc(d.ref)));
+        const failed = results.filter(r => r.status === 'rejected').length;
+        if (failed > 0) console.warn(`[deleteDossier] ${sub}: ${failed} doc(s) failed to delete`);
+      } catch (err) {
+        console.warn(`[deleteDossier] ${sub} listing failed:`, err);
+      }
+    }
 
-            // 2. Delete related chiffrages from root collection
-            const chiffragesSnap = await getDocs(query(collection(db, 'chiffrages'), where('dossierId', '==', dossierId))).catch(() => ({ docs: [] }));
-            await Promise.all((chiffragesSnap as any).docs.map((d: any) => deleteDoc(d.ref)));
+    // 2. Related chiffrages from root.
+    try {
+      const chiffragesSnap = await getDocs(query(collection(db, 'chiffrages'), where('dossierId', '==', dossierId)));
+      await Promise.allSettled(chiffragesSnap.docs.map(d => deleteDoc(d.ref)));
+    } catch (err) {
+      console.warn('[deleteDossier] chiffrages cleanup failed:', err);
+    }
 
-            // 3. Recursive cleanup of Storage folder
-            if (storage) {
-                const storagePath = `dossiers/${dossierId}`;
-                const storageRef = ref(storage, storagePath);
-                
-                const deleteStorageFolder = async (folderRef: any) => {
-                    try {
-                        const list = await listAll(folderRef).catch(() => ({ items: [], prefixes: [] }));
-                        // Delete all files in current level
-                        const fileDeletes = list.items.map(item => deleteObject(item).catch(err => console.warn('File delete skip:', err)));
-                        // Recursively enter subfolders
-                        const folderDeletes = list.prefixes.map((subFolder: any) => deleteStorageFolder(subFolder));
-                        await Promise.all([...fileDeletes, ...folderDeletes]);
-                    } catch (e) {
-                        console.warn('Storage cleanup detail error:', e);
-                    }
-                };
+    // 3. Storage folder (recursive, best-effort).
+    if (storage) {
+      try {
+        const deleteStorageFolder = async (folderRef: any) => {
+          const list = await listAll(folderRef);
+          await Promise.allSettled([
+            ...list.items.map(item => deleteObject(item)),
+            ...list.prefixes.map((sub: any) => deleteStorageFolder(sub)),
+          ]);
+        };
+        await deleteStorageFolder(ref(storage, `dossiers/${dossierId}`));
+      } catch (err) {
+        console.warn('[deleteDossier] storage cleanup failed:', err);
+      }
+    }
 
-                await deleteStorageFolder(storageRef).catch(e => console.warn('Storage cleanup skipped:', e));
-            }
-
-            // 4. Delete the main document
-            const mainRef = doc(db, 'dossiers', dossierId);
-            await deleteDoc(mainRef);
-            
-            console.log(`Cleanup complete for dossier: ${dossierId}`);
-        } catch (err) {
-            console.error('Dossier deletion failed:', err);
-            throw err;
-        }
-    };
+    // 4. Main doc — outside the cleanup try blocks, so cleanup failures don't
+    //    block this. Errors here DO propagate to the caller.
+    await deleteDoc(doc(db, 'dossiers', dossierId));
+    console.log(`[deleteDossier] complete: ${dossierId}`);
+  };
 
     return { dossiers, loading, error, deleteDossier };
 }
