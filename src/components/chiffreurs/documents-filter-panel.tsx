@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Upload,
   Download,
@@ -10,6 +10,8 @@ import {
   FileText,
   Eye,
   Search,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -23,6 +25,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
+import {
+  parseAccordeParent,
+  parseAccordDocType,
+  type ParsedAccordDocType,
+  type AccordeSourceDocType,
+} from '@/lib/docType-accorde';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -108,6 +116,36 @@ const fileExt = (name?: string) => {
   return m ? m[1].toUpperCase() : 'FILE';
 };
 
+type FilterRow = { label: string; count: number };
+type FamilyAccordRow = FilterRow & { ordinal: number };
+
+type FilterFamily = {
+  parent: string;
+  sourceDocType: AccordeSourceDocType;
+  parentOrdinal: number;
+  parentEntry: FilterRow | null;
+  accords: FamilyAccordRow[];
+  propositions: FamilyAccordRow[];
+  totalCount: number;
+};
+
+type FilterGroups = {
+  nonFamily: FilterRow[];
+  devisFamilies: FilterFamily[];
+  factureFamilies: FilterFamily[];
+};
+
+// Inside a per-parent section the parent context is implicit, so display a
+// compact label that just describes the variant within the parent.
+const shortenAccordLabel = (parsed: ParsedAccordDocType): string => {
+  if (parsed.kind === 'accord') {
+    if (parsed.ordinal === 1) return 'Accordé';
+    return `${parsed.ordinal}ème accord`;
+  }
+  const fem = parsed.ordinal === 1 ? '1ère' : `${parsed.ordinal}ème`;
+  return `${fem} proposition`;
+};
+
 export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
   const {
     documents,
@@ -159,6 +197,93 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     const search = typeSearch.toLowerCase().trim();
     return search ? rows.filter((r) => r.label.toLowerCase().includes(search)) : rows;
   }, [docTypes, typeCounts, typeSearch]);
+
+  // Grouped view: each garage parent (Devis Garage, Devis Garage 2, …, Facture
+  // Garage, Facture Garage 2, …) is its own collapsible section with two
+  // subsections (Accords / Propositions). Non-family doc types stay in a flat
+  // list above the family sections. Search bypasses grouping (handled in render).
+  const filterGroups = useMemo<FilterGroups>(() => {
+    const allLabels = new Set<string>();
+    for (const t of defaultDocTypes) allLabels.add(t);
+    for (const t of docTypes) {
+      if (t.label) allLabels.add(t.label);
+    }
+    Object.keys(typeCounts).forEach((t) => {
+      if (t) allLabels.add(t);
+    });
+
+    const familyByParent = new Map<string, FilterFamily>();
+    const nonFamily: FilterRow[] = [];
+
+    const ensureFamily = (
+      parent: string,
+      sourceDocType: AccordeSourceDocType,
+      parentOrdinal: number,
+    ): FilterFamily => {
+      const existing = familyByParent.get(parent);
+      if (existing) return existing;
+      const fam: FilterFamily = {
+        parent,
+        sourceDocType,
+        parentOrdinal,
+        parentEntry: null,
+        accords: [],
+        propositions: [],
+        totalCount: 0,
+      };
+      familyByParent.set(parent, fam);
+      return fam;
+    };
+
+    for (const label of allLabels) {
+      const count = typeCounts[label] || 0;
+      const parsedParent = parseAccordeParent(label);
+      if (parsedParent) {
+        const fam = ensureFamily(label, parsedParent.sourceDocType, parsedParent.ordinal);
+        fam.parentEntry = { label, count };
+        fam.totalCount += count;
+        continue;
+      }
+      const parsedAccord = parseAccordDocType(label);
+      if (parsedAccord) {
+        const fam = ensureFamily(
+          parsedAccord.parent,
+          parsedAccord.sourceDocType,
+          parsedAccord.parentOrdinal,
+        );
+        const row: FamilyAccordRow = { label, count, ordinal: parsedAccord.ordinal };
+        if (parsedAccord.kind === 'accord') fam.accords.push(row);
+        else fam.propositions.push(row);
+        fam.totalCount += count;
+        continue;
+      }
+      nonFamily.push({ label, count });
+    }
+
+    for (const fam of familyByParent.values()) {
+      fam.accords.sort((a, b) => a.ordinal - b.ordinal);
+      fam.propositions.sort((a, b) => a.ordinal - b.ordinal);
+    }
+    nonFamily.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+
+    const allFamilies = Array.from(familyByParent.values()).sort(
+      (a, b) => a.parentOrdinal - b.parentOrdinal,
+    );
+    const dropEmpty = (fams: FilterFamily[]) =>
+      fams.filter((f) => f.parentEntry || f.accords.length > 0 || f.propositions.length > 0);
+
+    return {
+      nonFamily,
+      devisFamilies: dropEmpty(allFamilies.filter((f) => f.sourceDocType === 'Devis Garage')),
+      factureFamilies: dropEmpty(allFamilies.filter((f) => f.sourceDocType === 'Facture Garage')),
+    };
+  }, [docTypes, typeCounts]);
+
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const toggleSection = (parent: string) =>
+    setCollapsedSections((prev) => ({ ...prev, [parent]: !prev[parent] }));
+
+  const isSearchActive = typeSearch.trim().length > 0;
 
   const visibleDocs = useMemo(() => {
     if (selectedType === ALL_TYPES_KEY) return documents;
@@ -221,29 +346,181 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
             </span>
           </button>
 
-          {filterRows.length === 0 ? (
+          {isSearchActive ? (
+            filterRows.length === 0 ? (
+              <p className="text-xs italic text-muted-foreground text-center py-8">Aucun type.</p>
+            ) : (
+              filterRows.map((row, idx) => {
+                const isSelected = selectedType === row.label;
+                return (
+                  <button
+                    key={row.label}
+                    onClick={() => onSelectedTypeChange(row.label)}
+                    className={cn(
+                      'flex items-center justify-between w-full px-4 py-3 text-sm transition-colors text-left',
+                      idx !== filterRows.length - 1 && 'border-b',
+                      isSelected ? 'bg-accent border-l-2 border-l-primary' : 'hover:bg-accent/50',
+                      row.count === 0 && 'opacity-60'
+                    )}
+                  >
+                    <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{row.label}</span>
+                    <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
+                      {row.count}
+                    </span>
+                  </button>
+                );
+              })
+            )
+          ) : filterGroups.nonFamily.length === 0 &&
+            filterGroups.devisFamilies.length === 0 &&
+            filterGroups.factureFamilies.length === 0 ? (
             <p className="text-xs italic text-muted-foreground text-center py-8">Aucun type.</p>
           ) : (
-            filterRows.map((row, idx) => {
-              const isSelected = selectedType === row.label;
-              return (
-                <button
-                  key={row.label}
-                  onClick={() => onSelectedTypeChange(row.label)}
-                  className={cn(
-                    'flex items-center justify-between w-full px-4 py-3 text-sm transition-colors text-left',
-                    idx !== filterRows.length - 1 && 'border-b',
-                    isSelected ? 'bg-accent border-l-2 border-l-primary' : 'hover:bg-accent/50',
-                    row.count === 0 && 'opacity-60'
-                  )}
-                >
-                  <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{row.label}</span>
-                  <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
-                    {row.count}
-                  </span>
-                </button>
-              );
-            })
+            <>
+              {filterGroups.nonFamily.map((row) => {
+                const isSelected = selectedType === row.label;
+                return (
+                  <button
+                    key={row.label}
+                    onClick={() => onSelectedTypeChange(row.label)}
+                    className={cn(
+                      'flex items-center justify-between w-full px-4 py-3 text-sm transition-colors text-left border-b',
+                      isSelected ? 'bg-accent border-l-2 border-l-primary' : 'hover:bg-accent/50',
+                      row.count === 0 && 'opacity-60'
+                    )}
+                  >
+                    <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{row.label}</span>
+                    <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
+                      {row.count}
+                    </span>
+                  </button>
+                );
+              })}
+              {[...filterGroups.devisFamilies, ...filterGroups.factureFamilies].map((fam) => {
+                const collapsed = !!collapsedSections[fam.parent];
+                const isParentSelected = selectedType === fam.parent;
+                return (
+                  <div key={fam.parent} className="border-b">
+                    <div
+                      className={cn(
+                        'flex items-stretch w-full text-sm transition-colors',
+                        isParentSelected
+                          ? 'bg-accent border-l-2 border-l-primary'
+                          : 'hover:bg-accent/50'
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleSection(fam.parent)}
+                        className="flex items-center justify-center w-9 shrink-0 text-muted-foreground hover:text-foreground"
+                        aria-label={collapsed ? 'Développer la section' : 'Réduire la section'}
+                        aria-expanded={!collapsed}
+                      >
+                        {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onSelectedTypeChange(fam.parent)}
+                        className="flex items-center justify-between flex-1 pr-4 py-3 text-left"
+                      >
+                        <span
+                          className={cn(
+                            'truncate font-medium',
+                            isParentSelected && 'font-semibold text-primary'
+                          )}
+                        >
+                          {fam.parent}
+                        </span>
+                        <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
+                          {fam.totalCount}
+                        </span>
+                      </button>
+                    </div>
+
+                    {!collapsed && (fam.accords.length > 0 || fam.propositions.length > 0) && (
+                      <div>
+                        {fam.accords.length > 0 && (
+                          <>
+                            <div className="pl-12 pr-4 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/30">
+                              Accords
+                            </div>
+                            {fam.accords.map((row) => {
+                              const parsed = parseAccordDocType(row.label);
+                              const display = parsed ? shortenAccordLabel(parsed) : row.label;
+                              const rowSelected = selectedType === row.label;
+                              return (
+                                <button
+                                  key={row.label}
+                                  onClick={() => onSelectedTypeChange(row.label)}
+                                  className={cn(
+                                    'flex items-center justify-between w-full pl-12 pr-4 py-2.5 text-sm transition-colors text-left',
+                                    rowSelected
+                                      ? 'bg-accent border-l-2 border-l-primary'
+                                      : 'hover:bg-accent/50',
+                                    row.count === 0 && 'opacity-60'
+                                  )}
+                                  title={row.label}
+                                >
+                                  <span
+                                    className={cn(
+                                      'truncate',
+                                      rowSelected && 'font-semibold text-primary'
+                                    )}
+                                  >
+                                    {display}
+                                  </span>
+                                  <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
+                                    {row.count}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </>
+                        )}
+                        {fam.propositions.length > 0 && (
+                          <>
+                            <div className="pl-12 pr-4 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/30">
+                              Propositions
+                            </div>
+                            {fam.propositions.map((row) => {
+                              const parsed = parseAccordDocType(row.label);
+                              const display = parsed ? shortenAccordLabel(parsed) : row.label;
+                              const rowSelected = selectedType === row.label;
+                              return (
+                                <button
+                                  key={row.label}
+                                  onClick={() => onSelectedTypeChange(row.label)}
+                                  className={cn(
+                                    'flex items-center justify-between w-full pl-12 pr-4 py-2.5 text-sm transition-colors text-left',
+                                    rowSelected
+                                      ? 'bg-accent border-l-2 border-l-primary'
+                                      : 'hover:bg-accent/50',
+                                    row.count === 0 && 'opacity-60'
+                                  )}
+                                  title={row.label}
+                                >
+                                  <span
+                                    className={cn(
+                                      'truncate',
+                                      rowSelected && 'font-semibold text-primary'
+                                    )}
+                                  >
+                                    {display}
+                                  </span>
+                                  <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
+                                    {row.count}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
           )}
         </CardContent>
       </Card>
