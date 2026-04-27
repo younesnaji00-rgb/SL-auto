@@ -1,7 +1,7 @@
 import { doc, getDoc, serverTimestamp, updateDoc, type Firestore } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, type FirebaseStorage } from 'firebase/storage';
 import {
-  emptyHeader, formatFr, numOrNull, qteFromScan,
+  emptyHeader, formatFr, numOrNull, qteFromScan, toBaseEditableDocType,
   type DevisExtraColumn, type DevisHeader, type DevisRow, type EditableDocType, type StructuredDevis,
 } from './devis-schema';
 import type { ScanDevisCounterOutput } from './scan-devis-counter-schema';
@@ -77,8 +77,8 @@ export async function extractAndPersistChiffrageDevis(
       return { ok: true, reason: 'no-files', calculationErrors: [] };
     }
 
-    // Variant split — only relevant for Devis. Facture has no variants.
-    const isDevis = docType === 'Devis Garage';
+    // Variant split — only relevant for Devis (base or numbered extra). Facture has no variants.
+    const isDevis = toBaseEditableDocType(docType) === 'Devis Garage';
     const originalFiles = isDevis
       ? targetFiles.filter((f) => (f.devisVariant ?? 'original') === 'original')
       : targetFiles;

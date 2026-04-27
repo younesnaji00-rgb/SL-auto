@@ -19,7 +19,7 @@ import { logHistorique, logWorkflow } from './log-historique';
 import { Loader2, Send, ImageIcon, FileText } from 'lucide-react';
 import { sendToChiffrage, ChiffrageFile } from '@/lib/send-to-chiffrage';
 import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
-import { EDITABLE_DOC_TYPES } from '@/lib/devis-schema';
+import { isEditableDocType, type EditableDocType } from '@/lib/devis-schema';
 import { useChiffreurs } from '@/hooks/use-chiffreurs';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { cn } from '@/lib/utils';
@@ -164,14 +164,19 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
       await logWorkflow(db, dossierId, 'Dossier envoyé vers chiffrage', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Envoyé au chiffreur : ${chiffreur.nom} (${selectedFiles.length} fichiers)` });
 
       // Fire-and-forget background extraction, one call per editable doc type
-      // that has at least one file in this chiffrage. Each result lands in
+      // that has at least one file in this chiffrage. Iterates over the
+      // distinct docTypes actually present so numbered extras
+      // (`Devis Garage 2`, `Facture Garage 3`, …) are scanned, not just the
+      // two base slots. Each result lands in
       // chiffrage.structuredEditables[docType]; idempotent by design.
       if (storage) {
-        EDITABLE_DOC_TYPES.forEach((docType) => {
-          if (selectedFiles.some((f) => f.docType === docType)) {
-            extractAndPersistChiffrageDevis({ db, storage, chiffrageId, docType })
-              .catch((e) => console.error(`[modal-chiffrage] ${docType} extraction failed`, e));
-          }
+        const editableDocTypes = new Set<EditableDocType>();
+        for (const f of selectedFiles) {
+          if (f.docType && isEditableDocType(f.docType)) editableDocTypes.add(f.docType);
+        }
+        editableDocTypes.forEach((docType) => {
+          extractAndPersistChiffrageDevis({ db, storage, chiffrageId, docType })
+            .catch((e) => console.error(`[modal-chiffrage] ${docType} extraction failed`, e));
         });
       }
 

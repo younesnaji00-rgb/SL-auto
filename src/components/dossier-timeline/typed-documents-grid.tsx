@@ -10,10 +10,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useAuth, useCollection, useFirestore, useStorage } from '@/firebase';
-import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { deleteObject, ref } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
-import { extractAndPersistDossierDoc } from '@/lib/devis-extract';
+import { extractAndPersistChiffrageDevis, extractAndPersistDossierDoc } from '@/lib/devis-extract';
 import { isEditableDocType } from '@/lib/devis-schema';
 import { parseAccordDocType, mapToAccorde, parseAccordeParent } from '@/lib/docType-accorde';
 import { buildDocFamilies, collectFamilySlotLabels } from '@/lib/doc-family';
@@ -234,9 +234,9 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
       const failCount = results.length - successCount;
 
       // Fire-and-forget AI extraction when the slot is editable (Devis Garage /
-      // Facture Garage). Each successful upload kicks off its own scan that
-      // writes into `dossiers/{id}.structuredEditables[slot]` so the chiffreur
-      // sees pre-extracted data the moment they open the chiffrage.
+      // Facture Garage / numbered extras). Each successful upload kicks off its
+      // own scan that writes into `dossiers/{id}.structuredEditables[slot]` so
+      // the chiffreur sees pre-extracted data the moment they open the chiffrage.
       if (isEditableDocType(slot)) {
         uploadJobs.forEach(({ file, storagePath }, idx) => {
           const r = results[idx];
@@ -245,6 +245,50 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
             db, storage, dossierId, docType: slot, storagePath, name: file.name,
           }).catch((e) => console.error(`[typed-docs-grid] pre-extraction failed for ${file.name}`, e));
         });
+      }
+
+      // Sync the new file(s) into the dossier's currently-active chiffrage if
+      // one exists. Without this, files uploaded AFTER `Envoyer vers chiffrage`
+      // (e.g. a freshly-created `Devis Garage 2` slot) would never appear in
+      // the chiffreur's editor — the chiffrage's `files` array is frozen at
+      // send-time. Best-effort: failures here don't block the upload.
+      if (successCount > 0) {
+        try {
+          const dossierSnap = await getDoc(doc(db, 'dossiers', dossierId));
+          const currentChiffrageId = (dossierSnap.data() as any)?.currentChiffrageId;
+          if (currentChiffrageId) {
+            const chiffrageRef = doc(db, 'chiffrages', currentChiffrageId);
+            const chiffrageSnap = await getDoc(chiffrageRef);
+            if (chiffrageSnap.exists()) {
+              const newChiffrageFiles = uploadJobs
+                .filter((_, idx) => results[idx].status === 'fulfilled')
+                .map(({ file, storagePath }) => ({
+                  name: file.name,
+                  storagePath,
+                  type: 'rapport',
+                  docType: slot,
+                  status: 'pending',
+                  recognizedText: null,
+                  pdfUrl: null,
+                }));
+              if (newChiffrageFiles.length > 0) {
+                await updateDoc(chiffrageRef, {
+                  files: arrayUnion(...newChiffrageFiles),
+                  updatedAt: serverTimestamp(),
+                });
+                if (isEditableDocType(slot)) {
+                  extractAndPersistChiffrageDevis({
+                    db, storage, chiffrageId: currentChiffrageId, docType: slot,
+                  }).catch((e) =>
+                    console.error(`[typed-docs-grid] chiffrage extraction failed for ${slot}`, e),
+                  );
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[typed-docs-grid] chiffrage sync failed (non-fatal)', err);
+        }
       }
 
       // Log one batch entry rather than N per-file entries.
