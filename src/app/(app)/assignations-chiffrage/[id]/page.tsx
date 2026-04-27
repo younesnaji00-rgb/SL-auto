@@ -7,7 +7,13 @@ import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { useCollection, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Mail, Scale, PencilLine } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ArrowLeft, Download, Mail, Scale, PencilLine, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { isEditableDocType } from '@/lib/devis-schema';
 import { parseAccordDocType } from '@/lib/docType-accorde';
@@ -70,6 +76,10 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const [loading, setLoading] = useState(true);
   const [isReformeOpen, setReformeOpen] = useState(false);
   const [mailDialogOpen, setMailDialogOpen] = useState(false);
+  // Lightbox preview state for slot-card document clicks (chiffreur expects a
+  // preview, not direct routing to the editor — they enter the editor via the
+  // floating "Éditer web" button on each family row).
+  const [previewDoc, setPreviewDoc] = useState<{ url: string; nom: string } | null>(null);
 
   // Task #31 — DocumentsFilterPanel state (mirrors the dossier documents-tab).
   const [selectedType, setSelectedType] = useState<string>(ALL_TYPES_KEY);
@@ -205,23 +215,13 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     router.push(`/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(parent)}`);
   };
 
-  // Chiffreur-side slot card click handler. Routes to the same targets as the
-  // docs-filter-panel's open action: editable types + accord variants open
-  // the structured editor; non-editable types open the raw file.
+  // Slot-card click handler: open a preview lightbox. The chiffreur enters the
+  // editor explicitly via the floating "Éditer web" button on each family row —
+  // clicking the doc thumbnail should preview the file, not jump into editing.
   const handleFamilyDocPreview = (d: TypedDoc) => {
-    const label = (d.type || d.typeDocument || '') as string;
-    if (isEditableDocType(label)) {
-      router.push(`/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(label)}`);
-      return;
+    if (d.url && !d.pendingUpload) {
+      setPreviewDoc({ url: d.url, nom: d.nom || d.fileName || 'document' });
     }
-    const parsed = parseAccordDocType(label);
-    if (parsed) {
-      router.push(
-        `/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(parsed.parent)}&accordSlot=${encodeURIComponent(label)}`,
-      );
-      return;
-    }
-    if (d.url) window.open(d.url, '_blank', 'noopener,noreferrer');
   };
 
   // No-op handlers for the chiffreur-side slot card: uploads and slot
@@ -530,6 +530,52 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           dossierNumero={dossierNumero}
           onSend={handleSendMail}
         />
+      )}
+
+      {/* Lightbox preview for slot-card document clicks */}
+      {previewDoc && (
+        <Dialog open onOpenChange={() => setPreviewDoc(null)}>
+          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
+            <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2">
+              <DialogTitle className="text-sm truncate flex-1">{previewDoc.nom}</DialogTitle>
+              <a
+                href={previewDoc.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex"
+                title="Ouvrir / télécharger"
+              >
+                <Button variant="ghost" size="icon" className="h-7 w-7" type="button">
+                  <Download className="h-4 w-4" />
+                </Button>
+              </a>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setPreviewDoc(null)}
+                title="Fermer"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </DialogHeader>
+            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
+              {/\.(jpe?g|png|gif|webp|bmp)$/i.test(previewDoc.nom) ? (
+                <img
+                  src={previewDoc.url}
+                  className="max-w-full max-h-full object-contain"
+                  alt={previewDoc.nom}
+                />
+              ) : (
+                <iframe
+                  src={previewDoc.url}
+                  className="w-full h-full border-none"
+                  title={previewDoc.nom}
+                />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
