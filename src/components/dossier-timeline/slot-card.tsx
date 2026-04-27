@@ -92,12 +92,12 @@ export function SlotCard({
   // Cardinal accord/proposition rows must never accept manual uploads — the
   // chiffreur produces them via the editor save flow.
   const hideUploadForAccord = !!parsedAccord;
-  // Pimple "+" button appears only on `accord` slots (not proposition) with a
-  // next-cardinal within cap (max 3ème).
+  // Pimple "+" button appears on accord OR proposition slots; uncapped — chain
+  // enforcement is via `cardinalPimpleDisabled` (current slot must be
+  // chiffreur-filled before the next cardinal can be created).
   const showCardinalPimple =
     !!parsedAccord &&
-    parsedAccord.kind === 'accord' &&
-    parsedAccord.ordinal + 1 <= 3;
+    (parsedAccord.kind === 'accord' || parsedAccord.kind === 'proposition-accord');
   // Cardinal pimple is disabled until the current cardinal slot has a real (chiffreur-filled) doc
   // — not just a placeholder. Applies to all roles; the chiffreur produces the source doc via
   // the editor save flow, so other roles cannot bypass.

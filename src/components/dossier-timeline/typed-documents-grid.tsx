@@ -352,10 +352,9 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
   const handleCreateNextCardinal = async (slot: string) => {
     if (!db || !auth) return;
     const parsed = parseAccordDocType(slot);
-    if (!parsed || parsed.kind !== 'accord') return;
+    if (!parsed || (parsed.kind !== 'accord' && parsed.kind !== 'proposition-accord')) return;
     const nextOrdinal = parsed.ordinal + 1;
-    if (nextOrdinal > 3) return;
-    const nextLabel = mapToAccorde(parsed.parent, 'accord', nextOrdinal);
+    const nextLabel = mapToAccorde(parsed.parent, parsed.kind, nextOrdinal);
     const userId = auth.currentUser?.uid || 'unknown';
     try {
       await addDoc(collection(db, 'dossiers', dossierId, 'documents'), {

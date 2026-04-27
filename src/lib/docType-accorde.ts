@@ -78,7 +78,7 @@ export function mapToAccorde(
     return ACCORDE_MAP[parent] ?? parent;
   }
 
-  const clamped = Math.max(1, Math.min(3, ordinal));
+  const clamped = Math.max(1, ordinal);
   const parsedParent = parseAccordeParent(parent);
   if (!parsedParent) {
     // Unknown parent: fall back to treating it as a base docType string if it
