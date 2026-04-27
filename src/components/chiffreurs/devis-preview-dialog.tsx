@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Upload, MapPin } from 'lucide-react';
+import { Loader2, Upload, MapPin, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -339,14 +339,18 @@ export function DevisPreviewDialog({
     }
   }, [open]);
 
-  const handleViewerMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isPlacing) return;
-    setCursorPos({ x: e.clientX, y: e.clientY });
-  };
-
-  const handleViewerMouseLeave = () => {
-    setCursorPos(null);
-  };
+  // Track the cursor at the window level while in placing mode so the
+  // mouse-follow stamp preview keeps up across the entire viewport — not just
+  // the viewer container (the dialog only spans part of the screen).
+  useEffect(() => {
+    if (!isPlacing) {
+      setCursorPos(null);
+      return;
+    }
+    const handler = (e: MouseEvent) => setCursorPos({ x: e.clientX, y: e.clientY });
+    window.addEventListener('mousemove', handler);
+    return () => window.removeEventListener('mousemove', handler);
+  }, [isPlacing]);
 
   const handleCanvasClick = (
     e: React.MouseEvent<HTMLCanvasElement>,
@@ -387,8 +391,16 @@ export function DevisPreviewDialog({
     setIsPlacing(true);
   };
 
+  const handleRemoveStamp = () => {
+    setStampPlacement(null);
+    setSelectedStampId(NONE_VALUE);
+    setIsPlacing(false);
+    setStampDataUrl(null);
+  };
+
   const stampSelected = selectedStampId !== NONE_VALUE;
   const showReplaceButton = stampSelected && stampPlacement !== null;
+  const showRemoveButton = stampSelected;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -401,8 +413,6 @@ export function DevisPreviewDialog({
           ref={viewerContainerRef}
           className="relative w-full h-[70vh] rounded-md border overflow-auto bg-muted/20"
           style={isPlacing ? { cursor: 'none' } : undefined}
-          onMouseMove={handleViewerMouseMove}
-          onMouseLeave={handleViewerMouseLeave}
         >
           {!renderError && (
             <div className="flex flex-col items-center gap-3 p-3">
@@ -532,6 +542,19 @@ export function DevisPreviewDialog({
               >
                 <MapPin className="h-3.5 w-3.5" />
                 Replacer
+              </Button>
+            )}
+            {showRemoveButton && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1.5 text-destructive hover:text-destructive"
+                onClick={handleRemoveStamp}
+                title="Retirer le tampon"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Retirer
               </Button>
             )}
           </div>
