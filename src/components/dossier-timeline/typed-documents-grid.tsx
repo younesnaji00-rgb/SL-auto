@@ -30,15 +30,15 @@ import { FamilyRow } from './family-row';
 // appends cardinal-accord and proposition-accord variants found in the live
 // Firestore docs, contiguously after the matching source-accordé slot.
 const BASE_DOC_SLOTS = [
+  'Devis Garage',
+  'Devis accordé',
+  'Facture Garage',
+  'Facture accordé',
   'Rapport final',
   // Task #37 — réforme rapports live alongside the final rapport because
   // they are a parallel terminal output (réforme instead of réparation).
   'Réforme technique',
   'Réforme économique',
-  'Devis Garage',
-  'Devis accordé',
-  'Facture Garage',
-  'Facture accordé',
   'PV-Constat / Récépissé de police',
   'Carte grise',
   'Attestation d\'assurance',
