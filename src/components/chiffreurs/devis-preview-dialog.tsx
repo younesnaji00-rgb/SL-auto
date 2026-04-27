@@ -359,13 +359,22 @@ export function DevisPreviewDialog({
     if (rect.width <= 0 || rect.height <= 0) return;
     const fracX = (e.clientX - rect.left) / rect.width;
     const fracY = (e.clientY - rect.top) / rect.height;
-    const xMm = fracX * meta.pageWidthMm;
-    const yMm = fracY * meta.pageHeightMm;
+    const clickXMm = fracX * meta.pageWidthMm;
+    const clickYMm = fracY * meta.pageHeightMm;
+    // The cursor preview shows the stamp CENTERED on the cursor (via
+    // translate(-50%, -50%)). The PDF renderer paints at the top-left
+    // corner, so shift the stored placement by half the stamp size to keep
+    // the stamp aligned with where the user clicked.
+    const widthMm = STAMP_DEFAULT_WIDTH_MM;
+    const aspect = stampImage && stampImage.height > 0
+      ? stampImage.width / stampImage.height
+      : 1;
+    const heightMm = aspect > 0 ? widthMm / aspect : widthMm;
     setStampPlacement({
       page: meta.pageNumber,
-      xMm,
-      yMm,
-      widthMm: STAMP_DEFAULT_WIDTH_MM,
+      xMm: clickXMm - widthMm / 2,
+      yMm: clickYMm - heightMm / 2,
+      widthMm,
     });
     setIsPlacing(false);
     setCursorPos(null);
@@ -484,25 +493,37 @@ export function DevisPreviewDialog({
         </div>
 
         {/* Mouse-follow stamp preview. Rendered as a portal-less fixed-position
-            element; pointer-events: none so it never swallows clicks. */}
-        {isPlacing && stampImage && cursorPos && (
-          <img
-            src={stampImage.dataUrl}
-            alt=""
-            aria-hidden
-            style={{
-              position: 'fixed',
-              left: cursorPos.x,
-              top: cursorPos.y,
-              width: 90,
-              height: 'auto',
-              opacity: 0.7,
-              transform: 'translate(-50%, -50%)',
-              pointerEvents: 'none',
-              zIndex: 9999,
-            }}
-          />
-        )}
+            element; pointer-events: none so it never swallows clicks. The
+            preview width matches the actual placed stamp size (40 mm at the
+            current canvas display ratio) so the cursor stays aligned with
+            the stamp before AND after the click. */}
+        {isPlacing && stampImage && cursorPos && (() => {
+          const firstMeta = pageMetas[0];
+          const firstCanvas = firstMeta ? canvasRefs.current.get(firstMeta.pageNumber) : null;
+          const rectWidth = firstCanvas?.getBoundingClientRect().width ?? 0;
+          const pxPerMm = rectWidth > 0 && firstMeta && firstMeta.pageWidthMm > 0
+            ? rectWidth / firstMeta.pageWidthMm
+            : 3.5;
+          const previewPxWidth = Math.max(40, STAMP_DEFAULT_WIDTH_MM * pxPerMm);
+          return (
+            <img
+              src={stampImage.dataUrl}
+              alt=""
+              aria-hidden
+              style={{
+                position: 'fixed',
+                left: cursorPos.x,
+                top: cursorPos.y,
+                width: previewPxWidth,
+                height: 'auto',
+                opacity: 0.7,
+                transform: 'translate(-50%, -50%)',
+                pointerEvents: 'none',
+                zIndex: 9999,
+              }}
+            />
+          );
+        })()}
 
         {stampWarning && (
           <p className="text-xs text-amber-700 dark:text-amber-400">
