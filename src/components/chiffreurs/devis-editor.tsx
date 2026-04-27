@@ -520,13 +520,33 @@ export function DevisEditor({
     }
     const targetKind: 'accord' | 'proposition-accord' = kind === 'accord' ? 'accord' : 'proposition-accord';
     const targetLabel = kind === 'accord' ? 'Accord' : "Proposition d'accord";
-    setExtraColumns((cols) =>
-      cols.map((c) =>
-        (c.kind === 'accord' || c.kind === 'proposition-accord')
-          ? { ...c, kind: targetKind, label: targetLabel }
-          : c,
-      ),
-    );
+    // Seed values from each row's puHT (mirrors clonePuHt at L458-475) in case
+    // we need to spawn a fresh column.
+    const seededValues: Record<string, string> = {};
+    for (const r of rows) {
+      seededValues[r.id] = String(r.puHT ?? '');
+    }
+    setExtraColumns((cols) => {
+      const hasAccord = cols.some((c) => c.kind === 'accord' || c.kind === 'proposition-accord');
+      if (hasAccord) {
+        return cols.map((c) =>
+          (c.kind === 'accord' || c.kind === 'proposition-accord')
+            ? { ...c, kind: targetKind, label: targetLabel }
+            : c,
+        );
+      }
+      const newId = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2);
+      const newCol: DevisExtraColumn = {
+        id: newId,
+        label: targetLabel,
+        values: seededValues,
+        kind: targetKind,
+        locked: false,
+      };
+      return [...cols, newCol];
+    });
     setKindLightboxOpen(false);
   };
 
@@ -1082,9 +1102,9 @@ export function DevisEditor({
                 <th style={{ width: '70px' }} className="text-center">T.V.A</th>
                 <th style={{ width: '70px' }} className="text-center">Quantite</th>
                 <th style={{ width: '80px' }} className="text-center">Vetuste</th>
-                <th style={{ width: '110px' }} className="text-right">P.U.H.T</th>
+                <th style={{ width: '110px' }} className="text-right bg-muted/40">P.U.H.T</th>
                 <th style={{ width: '120px' }} className="text-right">Total H.T</th>
-                <th style={{ width: '120px' }} className="text-right bg-muted/40">Prix en TTC</th>
+                <th style={{ width: '120px' }} className="text-right">Prix en TTC</th>
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
                   const isAccord = col.kind === 'accord' || col.kind === 'proposition-accord';
@@ -1250,13 +1270,13 @@ export function DevisEditor({
                         allowNull
                       />
                     </td>
-                    <td>
+                    <td className="bg-muted/40">
                       <CellNumberInput value={r.puHT} onChange={(v) => updateRow(r.id, { puHT: v ?? 0 })} disabled={!isEditable} align="right" />
                     </td>
                     {/* Total H.T is computed — read-only, auto-updating. */}
                     <td className="text-right font-semibold pr-2">{formatFr(total)}</td>
                     {/* Prix en TTC is computed — read-only: Total H.T * (1 + tva/100). */}
-                    <td className="text-right font-semibold pr-2 bg-muted/40">
+                    <td className="text-right font-semibold pr-2">
                       {formatFr(total * (1 + (r.tva ?? 0) / 100))}
                     </td>
                     {extraColumns.map((col) => {
