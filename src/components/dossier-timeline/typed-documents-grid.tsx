@@ -374,6 +374,18 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
         createdAt: serverTimestamp(),
         createdBy: userId,
       });
+      // A new empty cardinal slot is awaiting the chiffreur — roll the dossier
+      // statut back to `Chiffrage en cours` so the gestion des dossiers list
+      // reflects the queue state. Force-update (not gated on current statut).
+      try {
+        const dossierRef = doc(db, 'dossiers', dossierId);
+        await updateDoc(dossierRef, {
+          statut: 'Chiffrage en cours',
+          updatedAt: serverTimestamp(),
+        });
+      } catch (statutErr) {
+        console.warn('[typed-docs-grid] reset statut on cardinal create failed (non-fatal)', statutErr);
+      }
       toast({ title: `Nouveau slot créé : ${nextLabel}` });
     } catch (err: any) {
       console.error('[typed-docs-grid] create next cardinal failed', err);

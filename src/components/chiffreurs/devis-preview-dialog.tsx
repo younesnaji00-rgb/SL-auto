@@ -928,8 +928,13 @@ function StampOverlay({
         cursor: dragging ? 'grabbing' : 'grab',
         userSelect: 'none',
         touchAction: 'none',
-        border: '2px dashed rgba(20,184,166,0.7)',
-        boxSizing: 'border-box',
+        // Outline (not border) so the dashed selection frame doesn't take up
+        // 2px of inner space. With border + box-sizing:border-box the inner
+        // <img> would render 4px smaller than the wrapper, and the cursor
+        // preview would no longer match the placed stamp's size. Outline
+        // is drawn outside the box and doesn't affect layout.
+        outline: '2px dashed rgba(20,184,166,0.7)',
+        outlineOffset: 0,
       }}
     >
       <img

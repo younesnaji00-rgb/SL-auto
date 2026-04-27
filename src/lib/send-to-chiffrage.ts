@@ -374,9 +374,41 @@ export async function saveGestionnaireDevisAsPieceJointe(
     { details: `${snapshot.rows.length} ligne(s)` }
   ).catch(() => {});
 
-  // Task #11: advance dossier statut to `Chiffrage en cours` once the
-  // gestionnaire-side piece-jointe has landed. Idempotent + non-fatal.
-  await advanceStatutToChiffrageEnCours(db, dossierId, author.email || author.nom || author.uid);
+  // Task #11: advance dossier statut. When the saved snapshot carries a locked
+  // accord/proposition column (the gestionnaire saved a cardinal slot), bump
+  // statut to the cardinal label so the gestion des dossiers list reflects the
+  // most recent cardinal action. Otherwise fall back to `Chiffrage en cours`.
+  const accordColumn = (snapshot.extraColumns ?? []).find(
+    (c) => c.kind === 'accord' || c.kind === 'proposition-accord',
+  );
+  if (accordColumn) {
+    const accordKind: 'accord' | 'proposition' =
+      accordColumn.kind === 'accord' ? 'accord' : 'proposition';
+    const target = deriveStatus({
+      kind: 'chiffreurSave',
+      accordKind,
+      ordinal: cardinalOrdinal,
+    });
+    try {
+      const freshSnap = await getDoc(dossierRef);
+      const currentStatut = freshSnap.exists()
+        ? ((freshSnap.data() as Record<string, unknown>).statut as string | undefined)
+        : undefined;
+      if (currentStatut !== target) {
+        await updateDoc(dossierRef, { statut: target, updatedAt: serverTimestamp() });
+        await logHistorique(
+          db, dossierId, target,
+          author.email || author.nom || 'Utilisateur',
+          `Statut mis à jour automatiquement (enregistrement ${accordKind === 'accord' ? 'accord' : "proposition d'accord"}).`,
+          'statut',
+        ).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('[send-to-chiffrage] cardinal statut bump failed (non-fatal)', err);
+    }
+  } else {
+    await advanceStatutToChiffrageEnCours(db, dossierId, author.email || author.nom || author.uid);
+  }
 
   // 5. Mirror into the existing chiffrage when one is attached so the chiffreur
   //    sees the table the moment they open their editor. Matches the contract

@@ -8,8 +8,6 @@
  * live elsewhere (tasks #9, #10, #11 wire this in).
  */
 
-import type { CanonicalStatut } from './dossiers-data';
-
 /** Event union consumed by deriveStatus. Discriminated on `kind`. */
 export type StatusEvent =
   | { kind: 'create' }
@@ -24,7 +22,7 @@ export type StatusEvent =
  * Throws at compile time (exhaustiveness check) if a new event `kind` is
  * added without a matching branch.
  */
-export function deriveStatus(event: StatusEvent): CanonicalStatut {
+export function deriveStatus(event: StatusEvent): string {
   switch (event.kind) {
     case 'create':
       return 'Création dossier';
@@ -70,23 +68,20 @@ export function deriveStatus(event: StatusEvent): CanonicalStatut {
 }
 
 /**
- * Maps (accordKind, ordinal) → canonical label. Clamps ordinals > 3 to the
- * 3ème variant since 3ème is the hard cap for this product.
+ * Maps (accordKind, ordinal) → label. Uncapped — emits `Nème` for any N≥2
+ * (parallels round-3 #18's uncap of `mapToAccorde`). Returns `string` because
+ * the literal CanonicalStatut union only covers up through 3ème; 4ème+ values
+ * are dynamic strings written to `dossier.statut` (typed `string`).
  */
 export function ordinalAccordLabel(
   accordKind: 'accord' | 'proposition',
   ordinal: number,
-): CanonicalStatut {
-  const clamped = Math.max(1, Math.min(3, Math.floor(ordinal)));
+): string {
+  const n = Math.max(1, Math.floor(ordinal));
   if (accordKind === 'accord') {
-    if (clamped === 1) return 'Accord';
-    if (clamped === 2) return '2ème accord';
-    return '3ème accord';
+    return n === 1 ? 'Accord' : `${n}ème accord`;
   }
-  // proposition
-  if (clamped === 1) return 'Proposition d\'accord';
-  if (clamped === 2) return '2ème proposition d\'accord';
-  return '3ème proposition d\'accord';
+  return n === 1 ? "Proposition d'accord" : `${n}ème proposition d'accord`;
 }
 
 /** True when the label is one of the 6 Planification * states. */
@@ -105,9 +100,13 @@ const ACCORD_STATUSES: ReadonlySet<string> = new Set<string>([
   'Accord envoyé',
 ]);
 
-/** True when the label is an accord, a proposition d'accord, or Accord envoyé. */
+/** True when the label is an accord, a proposition d'accord, or Accord envoyé.
+ *  Also matches dynamic `Nème accord` / `Nème proposition d'accord` for N≥2 so
+ *  uncapped ordinals are recognized as accord states. */
 export function isAccordStatus(s: string): boolean {
-  return typeof s === 'string' && ACCORD_STATUSES.has(s);
+  if (typeof s !== 'string') return false;
+  if (ACCORD_STATUSES.has(s)) return true;
+  return /^\d+ème (?:accord|proposition d'accord)$/.test(s);
 }
 
 /** True when the label is the terminal closed state. */
