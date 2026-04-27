@@ -4,7 +4,6 @@ import {
   type DevisSnapshot,
   type EditableDocType,
   formatFr,
-  rowTotalHT,
   sumHT,
   sumTTC,
 } from './devis-schema';
@@ -41,7 +40,6 @@ export function renderDevisPdf(
     titleOverride?: 'Devis' | 'Facture' | 'Accord' | "Proposition d'accord";
   }
 ): Blob {
-  const showVetuste = (opts?.docType ?? 'Devis') === 'Devis';
   // Switch to landscape when an accord/proposition triple is present — A4 portrait
   // (190mm usable) cannot fit 11 columns without squeezing Designation to ~0 and
   // wrapping its text letter-by-letter. Landscape (277mm usable) gives breathing room.
@@ -172,21 +170,12 @@ export function renderDevisPdf(
           ? [{ id: 'legacy', label: devis.extraColumn.label, values: devis.extraColumn.values || {} }]
           : []);
 
-  // Partition extras: non-accord extras render as-is (one column each); accord /
-  // proposition-accord extras render as a triple (PU / Total HT Accord / Prix TTC
-  // Accord) on the far right.
-  const nonAccordExtras = extraCols.filter(
-    (c) => c.kind !== 'accord' && c.kind !== 'proposition-accord'
-  );
+  // Only accord / proposition-accord extras are rendered (as a triple:
+  // PU / Total HT Accord / Prix TTC Accord). Non-accord extras (counters, etc.)
+  // are intentionally omitted — the accord doc reflects the agreed values only.
   const accordExtras = extraCols.filter(
     (c) => c.kind === 'accord' || c.kind === 'proposition-accord'
   );
-
-  // Per-row TTC helper: rowTotalHT × (1 + tva/100). Blank tva → 0% multiplier.
-  const rowPrixTTC = (r: (typeof devis.rows)[number]): number => {
-    const pct = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
-    return rowTotalHT(r) * (1 + pct / 100);
-  };
 
   // Parse an accord column's per-row PU value (user-entered as a fr-formatted
   // string). Invalid / blank → 0 so the computed Total HT Accord stays numeric.
@@ -221,40 +210,31 @@ export function renderDevisPdf(
     'Prix TTC Accord',
   ]);
 
+  // Final accord/proposition document: only the agreed-upon columns. Original
+  // garage values (P.U H.T, Total H.T, Prix en TTC, Vetuste) and counter
+  // columns are dropped — the saved doc reflects what the chiffreur committed,
+  // not the source devis.
   const head: string[][] = [
     [
       'REF',
       'Designation',
-      ...(showVetuste ? ['Vetuste'] : []),
       'TYPE',
       'T.V.A',
       'Qte',
-      'P.U H.T',
-      'Total H.T',
-      'Prix en TTC',
-      ...nonAccordExtras.map((c) => c.label),
       ...accordTripleHeaders,
     ],
   ];
 
   const body = devis.rows.map((r) => {
-    // Blank cells in the source (main d'oeuvre / labor rows have no qté/tva/vétusté)
-    // must stay blank in the PDF — don't print "0" where the source had nothing.
-    const vetusteCell = r.vetuste == null ? '' : `${formatFr(r.vetuste, 0)}%`;
     const tvaCell = r.tva == null ? '' : `${formatFr(r.tva, 0)}%`;
     const qteCell = r.qte == null ? '' : formatFr(r.qte, 0);
     const base = [
       r.ref || '',
       r.designation || '',
-      ...(showVetuste ? [vetusteCell] : []),
       r.type || '',
       tvaCell,
       qteCell,
-      formatFr(r.puHT),
-      formatFr(rowTotalHT(r)),
-      formatFr(rowPrixTTC(r)),
     ];
-    nonAccordExtras.forEach((c) => base.push(c.values[r.id] || ''));
     accordExtras.forEach((c) => {
       const pu = c.values[r.id] || '';
       base.push(pu);
@@ -264,40 +244,20 @@ export function renderDevisPdf(
     return base;
   });
 
-  // Column indices shift by 1 when Vetuste is inserted between Designation (1) and TYPE.
-  const off = showVetuste ? 1 : 0;
-  const totalHtIndex = 7 + off;
-  const prixTTCIndex = totalHtIndex + 1;                                // NEW column
-  const nonAccordStartIndex = prixTTCIndex + 1;
-  const accordStartIndex = nonAccordStartIndex + nonAccordExtras.length;
+  const accordStartIndex = 5;
   const columnStyles: Record<number, any> = {
-    0: { cellWidth: 22, halign: 'center' },                          // REF
-    1: { cellWidth: 'auto', halign: 'left' },                        // Designation — fills remaining width
-    [2 + off]: { halign: 'center', cellWidth: 14 },                  // TYPE (was col 2)
-    [3 + off]: { halign: 'center', cellWidth: 14 },                  // TVA
-    [4 + off]: { halign: 'center', cellWidth: 12 },                  // Qte
-    [5 + off]: { halign: 'right', cellWidth: 24 },                   // P.U H.T
-    [6 + off]: { halign: 'right', cellWidth: 26 },                   // Total H.T
-    [prixTTCIndex]: { halign: 'right', cellWidth: 26 },              // Prix en TTC
+    0: { cellWidth: 22, halign: 'center' },        // REF
+    1: { cellWidth: 'auto', halign: 'left' },      // Designation — fills remaining width
+    2: { halign: 'center', cellWidth: 16 },        // TYPE
+    3: { halign: 'center', cellWidth: 14 },        // T.V.A
+    4: { halign: 'center', cellWidth: 14 },        // Qte
   };
-  if (showVetuste) columnStyles[2] = { halign: 'center', cellWidth: 16 }; // Vetuste
-  // Counter columns (non-accord extras): render in red for visual parity with the editor.
-  nonAccordExtras.forEach((c, i) => {
-    if (c.kind === 'counter') {
-      columnStyles[nonAccordStartIndex + i] = {
-        halign: 'right',
-        cellWidth: 24,
-        textColor: [220, 38, 38],
-        fontStyle: 'bold',
-      };
-    }
-  });
-  // Accord triples: right-aligned, slightly narrower so the triple fits.
+  // Accord triples: each is (PU / Total HT Accord / Prix TTC Accord).
   accordExtras.forEach((_c, i) => {
     const base = accordStartIndex + i * 3;
-    columnStyles[base] = { halign: 'right', cellWidth: 20 };          // PU
-    columnStyles[base + 1] = { halign: 'right', cellWidth: 22 };      // Total HT Accord
-    columnStyles[base + 2] = { halign: 'right', cellWidth: 22 };      // Prix TTC Accord
+    columnStyles[base] = { halign: 'right', cellWidth: 28 };          // PU
+    columnStyles[base + 1] = { halign: 'right', cellWidth: 30 };      // Total HT Accord
+    columnStyles[base + 2] = { halign: 'right', cellWidth: 30 };      // Prix TTC Accord
   });
 
   // With landscape kicking in for accord triples (line 45), there's enough width

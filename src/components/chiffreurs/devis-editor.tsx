@@ -416,7 +416,7 @@ export function DevisEditor({
       }
       const newCol: DevisExtraColumn = {
         id: newId,
-        label: 'Accord',
+        label: 'PUHT accordé',
         values: seededValues,
         kind: 'accord',
         locked: false,
@@ -510,7 +510,7 @@ export function DevisEditor({
       console.warn('[devis-editor] persisting chiffrageKind failed (non-fatal):', e);
     }
     const targetKind: 'accord' | 'proposition-accord' = kind === 'accord' ? 'accord' : 'proposition-accord';
-    const targetLabel = kind === 'accord' ? 'Accord' : "Proposition d'accord";
+    const targetLabel = kind === 'accord' ? 'PUHT accordé' : 'PUHT proposé';
     // Seed values from each row's puHT in case we need to spawn a fresh column.
     const seededValues: Record<string, string> = {};
     for (const r of rows) {
@@ -1100,7 +1100,7 @@ export function DevisEditor({
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span className="truncate font-bold text-[11px] cursor-help">
-                              {col.label || (col.kind === 'accord' ? 'Accord' : "Proposition d'accord")}
+                              {col.label || (col.kind === 'accord' ? 'PUHT accordé' : 'PUHT proposé')}
                             </span>
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-xs text-xs">
@@ -1128,24 +1128,24 @@ export function DevisEditor({
                             type="button"
                             className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
                             onClick={() => {
-                              updateExtraColumn(col.id, { label: 'Accord', kind: 'accord' });
+                              updateExtraColumn(col.id, { label: 'PUHT accordé', kind: 'accord' });
                               setAccordHeaderOpen((s) => ({ ...s, [col.id]: false }));
                             }}
                           >
-                            Accord
+                            PUHT accordé
                           </button>
                           <button
                             type="button"
                             className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
                             onClick={() => {
                               updateExtraColumn(col.id, {
-                                label: "Proposition d'accord",
+                                label: 'PUHT proposé',
                                 kind: 'proposition-accord',
                               });
                               setAccordHeaderOpen((s) => ({ ...s, [col.id]: false }));
                             }}
                           >
-                            Proposition d'accord
+                            PUHT proposé
                           </button>
                         </PopoverContent>
                       </Popover>
@@ -1546,10 +1546,10 @@ export function DevisEditor({
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:space-x-0">
             <AlertDialogAction onClick={() => handleChooseKind('proposition')}>
-              Proposition d'accord
+              PUHT proposé
             </AlertDialogAction>
             <AlertDialogAction onClick={() => handleChooseKind('accord')}>
-              Accord
+              PUHT accordé
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
