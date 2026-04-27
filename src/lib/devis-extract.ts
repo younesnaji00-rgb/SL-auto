@@ -30,7 +30,7 @@ export type ExtractResult =
        */
       calculationErrors: string[];
     }
-  | { ok: false; reason: 'missing-chiffrage' | 'fetch-failed' | 'api-failed' | 'persist-failed' | 'no-original-for-counter'; error?: string };
+  | { ok: false; reason: 'missing-chiffrage' | 'fetch-failed' | 'api-failed' | 'persist-failed' | 'no-original-for-counter' | 'service-overloaded'; error?: string };
 
 /**
  * Per-docType extractor.
@@ -112,6 +112,21 @@ export async function extractAndPersistChiffrageDevis(
       const successful = originalExtractions.filter((r) => r.ok) as Array<{ ok: true; parsed: any; calculationErrors: string[] }>;
 
       if (successful.length === 0) {
+        // Distinguish a transient service-overload (503/UNAVAILABLE/high demand)
+        // from a permanent api failure. On overload we DON'T mark attempted —
+        // the chiffreur can retry naturally a few minutes later.
+        const overloaded = originalExtractions.some((r) => {
+          if (r.ok) return false;
+          const msg = ((r as { error?: string }).error || '').toLowerCase();
+          return msg.includes('unavailable')
+            || msg.includes('overloaded')
+            || msg.includes('high demand')
+            || msg.includes(' 503')
+            || msg.startsWith('api 503');
+        });
+        if (overloaded) {
+          return { ok: false, reason: 'service-overloaded', error: 'Le service IA est momentanément surchargé.' };
+        }
         await markAttempted(docRef, docType);
         return { ok: false, reason: 'api-failed', error: `Aucun ${docType.toLowerCase()} n'a pu etre extrait.` };
       }
@@ -383,7 +398,18 @@ async function scanOriginal(
     const calculationErrors: string[] = Array.isArray(parsed?.calculationErrors) ? parsed.calculationErrors : [];
     return { ok: true, parsed, calculationErrors };
   } catch (e: any) {
-    console.error('[devis-extract] original scan failed for', file?.storagePath, e);
+    const msg = String(e?.message || '').toLowerCase();
+    const isOverload = msg.includes('unavailable')
+      || msg.includes('overloaded')
+      || msg.includes('high demand')
+      || msg.includes(' 503')
+      || msg.startsWith('api 503');
+    if (isOverload) {
+      // Transient upstream condition — log as warn to keep the dev console clean.
+      console.warn('[devis-extract] original scan deferred (service overloaded):', file?.storagePath);
+    } else {
+      console.error('[devis-extract] original scan failed for', file?.storagePath, e);
+    }
     return { ok: false, error: e?.message };
   }
 }

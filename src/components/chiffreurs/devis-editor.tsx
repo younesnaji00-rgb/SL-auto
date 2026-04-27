@@ -355,6 +355,14 @@ export function DevisEditor({
           });
           return;
         }
+        if (result.reason === 'service-overloaded') {
+          toast({
+            variant: 'destructive',
+            title: 'Service IA surchargé',
+            description: 'Le service IA est momentanément surchargé. Réessayez dans quelques minutes.',
+          });
+          return;
+        }
         if (isManualRetry) {
           toast({ variant: 'destructive', title: 'Extraction impossible', description: 'Veuillez saisir les donnees manuellement.' });
         } else {
