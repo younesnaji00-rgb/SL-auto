@@ -4,7 +4,6 @@ import React, { useState, useMemo, use, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
-  Send,
   History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -139,9 +138,6 @@ export default function DossierDetailPage({
       {/* ACTION BUTTONS ROW */}
       {!readOnly && (
       <div className="bg-card border-b px-6 py-2 flex flex-wrap gap-2 items-center sticky top-0 z-40">
-        <Button variant="outline" size="sm" onClick={() => setChiffrageModalOpen(true)} className="h-8 text-xs gap-1.5">
-          <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
-        </Button>
         <div className="flex-1" />
         <Button variant="outline" size="sm" onClick={() => setHistoriqueOpen(true)} className="h-8 text-xs gap-1.5">
           <History className="h-3.5 w-3.5" /> Historique
@@ -159,7 +155,7 @@ export default function DossierDetailPage({
             2: <Step2Observations dossierId={id} />,
             3: <Step2Information dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
             4: <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
-            5: <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
+            5: <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} />,
             6: <Step5Chiffrage dossierId={id} />,
             7: <Step6Rapport dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
           }}

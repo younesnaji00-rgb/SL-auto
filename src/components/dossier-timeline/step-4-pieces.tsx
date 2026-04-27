@@ -2,13 +2,14 @@
 
 import React from 'react';
 import type { DocumentReference } from 'firebase/firestore';
-import { Camera, ChevronDown, FileText, FolderOpen, Upload } from 'lucide-react';
+import { Camera, ChevronDown, FileText, FolderOpen, Send, Upload } from 'lucide-react';
 
 import DocumentsTab from '@/app/(app)/dossiers/[id]/documents-tab';
 import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
 import TypedDocumentsGrid from './typed-documents-grid';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 export interface Step4PiecesProps {
@@ -16,6 +17,7 @@ export interface Step4PiecesProps {
   dossier: Record<string, any> | null | undefined;
   dossierRef: DocumentReference;
   readOnly?: boolean;
+  onSendToChiffrage?: () => void;
 }
 
 function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolean, (v: boolean) => void] {
@@ -32,7 +34,7 @@ function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolea
   return [open, setOpen];
 }
 
-export default function Step4Pieces({ dossierId }: Step4PiecesProps) {
+export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage }: Step4PiecesProps) {
   const [docsOpen, setDocsOpen] = useSectionOpen(dossierId, 'documents');
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
@@ -48,14 +50,25 @@ export default function Step4Pieces({ dossierId }: Step4PiecesProps) {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <Tabs defaultValue="browse" className="w-full">
-            <TabsList>
-              <TabsTrigger value="browse" className="gap-1.5">
-                <FolderOpen className="h-4 w-4" /> Documents
-              </TabsTrigger>
-              <TabsTrigger value="import" className="gap-1.5">
-                <Upload className="h-4 w-4" /> Importer un document
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex items-center justify-between gap-2">
+              <TabsList>
+                <TabsTrigger value="browse" className="gap-1.5">
+                  <FolderOpen className="h-4 w-4" /> Documents
+                </TabsTrigger>
+                <TabsTrigger value="import" className="gap-1.5">
+                  <Upload className="h-4 w-4" /> Importer un document
+                </TabsTrigger>
+              </TabsList>
+              {!readOnly && onSendToChiffrage && (
+                <Button
+                  size="sm"
+                  onClick={onSendToChiffrage}
+                  className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                >
+                  <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
+                </Button>
+              )}
+            </div>
             <TabsContent value="browse" className="mt-4">
               <DocumentsTab dossierId={dossierId} />
             </TabsContent>
