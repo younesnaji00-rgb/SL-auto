@@ -15,7 +15,6 @@ import {
   FileText,
   History,
   Loader2,
-  Scale,
   Sparkles,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -45,15 +44,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
-import {
-  computeDifference,
-  computeTotalIndemnisation,
-  type ReformeData,
-} from '@/lib/reforme-schema';
 
 interface Step5ChiffrageProps {
   dossierId: string;
-  dossier: any;
 }
 
 type ModifiedRow = {
@@ -90,7 +83,7 @@ function formatMoney(n: number | undefined | null): string {
   return v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffrageProps) {
+export default function Step5Chiffrage({ dossierId }: Step5ChiffrageProps) {
   const db = useFirestore();
   const { toast } = useToast();
 
@@ -243,8 +236,6 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
     });
   };
 
-  const reforme = dossier?.reforme as ReformeData | undefined;
-
   if (chiffragesLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -271,53 +262,6 @@ export default function Step5Chiffrage({ dossierId, dossier }: Step5ChiffragePro
   return (
     <TooltipProvider>
       <div className="space-y-6">
-        {/* Réforme summary */}
-        {reforme?.updatedAt ? (
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Scale className="h-4 w-4 text-primary" />
-                Réforme
-                {reforme.avecTva ? (
-                  <Badge variant="secondary" className="text-[10px]">Avec TVA</Badge>
-                ) : null}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
-                <div className="flex justify-between border-b pb-1">
-                  <span className="text-muted-foreground">Valeur vénale</span>
-                  <span className="font-medium">{formatMoney(reforme.valeurVenale)}</span>
-                </div>
-                <div className="flex justify-between border-b pb-1">
-                  <span className="text-muted-foreground">Valeur épave</span>
-                  <span className="font-medium">{formatMoney(reforme.valeurEpave)}</span>
-                </div>
-                <div className="flex justify-between border-b pb-1">
-                  <span className="text-muted-foreground">Différence</span>
-                  <span className="font-medium">{formatMoney(computeDifference(reforme))}</span>
-                </div>
-                <div className="flex justify-between border-b pb-1">
-                  <span className="text-muted-foreground">Montant Accord</span>
-                  <span className="font-medium">{formatMoney(reforme.montantAccord)}</span>
-                </div>
-                <div className="flex justify-between border-b pb-1">
-                  <span className="text-muted-foreground">Total indemnisation</span>
-                  <span className="font-semibold text-primary">
-                    {formatMoney(computeTotalIndemnisation(reforme))}
-                  </span>
-                </div>
-                <div className="flex justify-between border-b pb-1">
-                  <span className="text-muted-foreground">Méthode</span>
-                  <span className="font-medium truncate ml-2" title={reforme.methodeCalcul || '—'}>
-                    {reforme.methodeCalcul || '—'}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-
         {/* Modified files */}
         <Card className="shadow-sm">
           <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">

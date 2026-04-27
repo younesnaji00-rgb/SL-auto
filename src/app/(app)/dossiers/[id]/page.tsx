@@ -160,7 +160,7 @@ export default function DossierDetailPage({
             3: <Step2Information dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
             4: <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
             5: <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
-            6: <Step5Chiffrage dossierId={id} dossier={dossier} />,
+            6: <Step5Chiffrage dossierId={id} />,
             7: <Step6Rapport dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
           }}
           activeStep={activeStep}
