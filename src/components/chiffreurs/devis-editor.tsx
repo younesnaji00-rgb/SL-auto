@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
-  ArrowLeft, Columns2, Copy, Download, FileText, History, Loader2, Lock, Plus, RefreshCcw,
+  ArrowLeft, Columns2, Download, FileText, History, Loader2, Lock, Plus, RefreshCcw,
   Save, Sparkles, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -427,40 +427,10 @@ export function DevisEditor({
   const computeAccordPrixTTC = (totalHTAccord: number, tva: number) =>
     totalHTAccord * (1 + tva / 100);
 
-  // Task #20: clone the P.U.H.T column into a new accord extra column.
-  // The header dropdown (task #21) lets the chiffreur switch between
-  // 'accord' and 'proposition-accord' kinds and picks the label. Until
-  // then the column starts as 'accord' with an empty label. `locked`
-  // stays false here — the save-time transition to locked=true is
-  // wired by task #24.
-  const hasAccordClone = useMemo(
-    () => extraColumns.some((c) => c.kind === 'accord' || c.kind === 'proposition-accord'),
-    [extraColumns],
-  );
-
-  // Task #33: derived edit gate. `canEdit` is the role check (gestionnaire or
-  // authorised chiffreur); `scanReviewed` is the post-scan confirmation flag.
-  // Both must be true before any row/header affordance is enabled.
+  // Derived edit gate. `canEdit` is the role check (gestionnaire or authorised
+  // chiffreur); `scanReviewed` is the post-scan confirmation flag. Both must be
+  // true before any row/header affordance is enabled.
   const isEditable = canEdit && scanReviewed;
-  const clonePuHt = () => {
-    if (hasAccordClone) return;
-    const newId =
-      typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : Math.random().toString(36).slice(2);
-    const values: Record<string, string> = {};
-    for (const r of rows) {
-      values[r.id] = String(r.puHT ?? '');
-    }
-    const newCol: DevisExtraColumn = {
-      id: newId,
-      label: '',
-      values,
-      kind: 'accord',
-      locked: false,
-    };
-    setExtraColumns((cols) => [...cols, newCol]);
-  };
 
 
   // Totals ───────────────────────────────────────────────────────────────
@@ -507,8 +477,7 @@ export function DevisEditor({
     }
     const targetKind: 'accord' | 'proposition-accord' = kind === 'accord' ? 'accord' : 'proposition-accord';
     const targetLabel = kind === 'accord' ? 'Accord' : "Proposition d'accord";
-    // Seed values from each row's puHT (mirrors clonePuHt at L458-475) in case
-    // we need to spawn a fresh column.
+    // Seed values from each row's puHT in case we need to spawn a fresh column.
     const seededValues: Record<string, string> = {};
     for (const r of rows) {
       seededValues[r.id] = String(r.puHT ?? '');
@@ -1046,40 +1015,12 @@ export function DevisEditor({
         </div>
       </div>
 
-      {/* Rows table — fixed columns (no user-configurable columns per task #5). */}
+      {/* Rows table — fixed columns. The accord/proposition column is created
+          automatically when the chiffreur picks via the first-open lightbox; the
+          "Ajouter une ligne" affordance lives at the bottom of the card. The
+          table grows to its natural height — only horizontal scroll on overflow. */}
       <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
-        {canEdit && !isGestionnaire && (
-          <div className="flex flex-wrap items-center gap-2 p-2 border-b bg-muted/20">
-            <Button variant="outline" size="sm" onClick={addRow} disabled={!isEditable}>
-              <Plus className="h-3.5 w-3.5 mr-1.5" /> Ajouter une ligne
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={clonePuHt}
-              disabled={hasAccordClone || !scanReviewed}
-              title={
-                hasAccordClone
-                  ? 'Une colonne accord existe déjà. Suppression impossible.'
-                  : 'Cloner la colonne P.U.H.T pour saisir un accord'
-              }
-            >
-              <Copy className="h-3.5 w-3.5 mr-1.5" /> Cloner PU.HT
-            </Button>
-          </div>
-        )}
-        {canEdit && isGestionnaire && (
-          <div className="flex flex-wrap items-center gap-2 p-2 border-b bg-muted/20">
-            <Button variant="outline" size="sm" onClick={addRow} disabled={!isEditable}>
-              <Plus className="h-3.5 w-3.5 mr-1.5" /> Ajouter une ligne
-            </Button>
-          </div>
-        )}
-        {/*
-          The table is rendered inside a scroll container so the inline totals
-          row can stick to the bottom for long devis (task #5 part B).
-        */}
-        <div className="overflow-auto max-h-[65vh] relative">
+        <div className="overflow-x-auto relative">
           <table className="min-w-[900px] w-full text-xs border-collapse">
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:font-bold [&>th]:text-[11px] [&>th]:border-b [&>th]:border-r [&>th:last-child]:border-r-0 [&>th]:bg-muted/50">
@@ -1286,6 +1227,17 @@ export function DevisEditor({
                                 disabled={!isEditable || col.locked === true}
                                 error={isAccordOverCap}
                                 onChange={(v) => updateExtraCell(col.id, r.id, v)}
+                                onBlurValidate={() => {
+                                  const current = parseFr(col.values[r.id] || '');
+                                  if (current > 0 && current > rowPuHT) {
+                                    updateExtraCell(col.id, r.id, '');
+                                    toast({
+                                      variant: 'destructive',
+                                      title: 'Valeur supérieure au P.U.H.T.',
+                                      description: 'La cellule a été effacée.',
+                                    });
+                                  }
+                                }}
                               />
                               {isAccordOverCap && (
                                 <p className="text-[10px] text-destructive mt-0.5 px-1.5 leading-tight">
@@ -1400,6 +1352,13 @@ export function DevisEditor({
             <span className="w-28 text-right font-bold">{formatFr(totals.ttc)}</span>
           </div>
         </div>
+        {canEdit && (
+          <div className="flex p-2 border-t bg-muted/20">
+            <Button variant="outline" size="sm" onClick={addRow} disabled={!isEditable}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Ajouter une ligne
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Version history */}
@@ -1581,12 +1540,14 @@ function CellInput({
 }
 
 // Accord PU cell. When `error` is true, the cell renders a destructive border
-// and a hover-title hint — the parent also renders an inline message below.
+// and a hover-title hint. On blur, `onBlurValidate` runs — the parent uses it to
+// clear over-cap values (and toast the user).
 function AccordPUInput({
-  value, onChange, disabled, error,
+  value, onChange, onBlurValidate, disabled, error,
 }: {
   value: string;
   onChange: (v: string) => void;
+  onBlurValidate?: () => void;
   disabled?: boolean;
   error?: boolean;
 }) {
@@ -1594,6 +1555,7 @@ function AccordPUInput({
     <input
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlurValidate}
       disabled={disabled}
       inputMode="decimal"
       title={error ? 'La valeur ne peut pas dépasser le P.U.H.T.' : undefined}
