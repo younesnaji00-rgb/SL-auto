@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Upload, MapPin, Trash2 } from 'lucide-react';
+import { Loader2, Upload, Trash2, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -411,11 +411,6 @@ export function DevisPreviewDialog({
     onOpenChange(false);
   };
 
-  const handleReplaceStamp = () => {
-    setStampPlacement(null);
-    setIsPlacing(true);
-  };
-
   const handleRemoveStamp = () => {
     setStampPlacement(null);
     setSelectedStampId(NONE_VALUE);
@@ -424,7 +419,6 @@ export function DevisPreviewDialog({
   };
 
   const stampSelected = selectedStampId !== NONE_VALUE;
-  const showReplaceButton = stampSelected && stampPlacement !== null;
   const showRemoveButton = stampSelected;
 
   return (
@@ -464,6 +458,7 @@ export function DevisPreviewDialog({
                         placement={stampPlacement}
                         stampImage={stampImage}
                         onChange={setStampPlacement}
+                        onDelete={() => setStampPlacement(null)}
                         getCanvas={() => canvasRefs.current.get(meta.pageNumber) ?? null}
                       />
                     )}
@@ -581,19 +576,6 @@ export function DevisPreviewDialog({
               )}
               Importer
             </Button>
-            {showReplaceButton && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0 gap-1.5"
-                onClick={handleReplaceStamp}
-                title="Replacer le tampon"
-              >
-                <MapPin className="h-3.5 w-3.5" />
-                Replacer
-              </Button>
-            )}
             {showRemoveButton && (
               <Button
                 type="button"
@@ -640,11 +622,14 @@ export function DevisPreviewDialog({
  * confirm. mm <-> px conversions use the live displayed canvas size, so the
  * overlay tracks responsive resize of the canvas naturally.
  */
+type StampCorner = 'tl' | 'tr' | 'bl' | 'br';
+
 interface StampOverlayProps {
   meta: PageMeta;
   placement: StampPlacement;
   stampImage: StampImage;
   onChange: (next: StampPlacement) => void;
+  onDelete: () => void;
   getCanvas: () => HTMLCanvasElement | null;
 }
 
@@ -653,6 +638,7 @@ function StampOverlay({
   placement,
   stampImage,
   onChange,
+  onDelete,
   getCanvas,
 }: StampOverlayProps) {
   const [dragging, setDragging] = useState(false);
@@ -677,7 +663,8 @@ function StampOverlay({
       ? stampImage.width / stampImage.height
       : 1;
   const widthPx = placement.widthMm * pxPerMm;
-  const heightPx = aspect > 0 ? widthPx / aspect : widthPx;
+  const heightMm = aspect > 0 ? placement.widthMm / aspect : placement.widthMm;
+  const heightPx = heightMm * pxPerMm;
   const leftPx = placement.xMm * pxPerMm;
   const topPx = placement.yMm * pxPerMm;
 
@@ -698,17 +685,12 @@ function StampOverlay({
       const ratio = meta.pageWidthMm / r.width;
       const dxMm = (ev.clientX - startX) * ratio;
       const dyMm = (ev.clientY - startY) * ratio;
-      // Clamp so the stamp's anchor stays on the page.
       const maxXMm = Math.max(0, meta.pageWidthMm - placement.widthMm);
-      const heightMm = aspect > 0 ? placement.widthMm / aspect : placement.widthMm;
-      const maxYMm = Math.max(0, meta.pageHeightMm - heightMm);
+      const hMm = aspect > 0 ? placement.widthMm / aspect : placement.widthMm;
+      const maxYMm = Math.max(0, meta.pageHeightMm - hMm);
       const nextXMm = Math.min(Math.max(startXMm + dxMm, 0), maxXMm);
       const nextYMm = Math.min(Math.max(startYMm + dyMm, 0), maxYMm);
-      onChange({
-        ...placement,
-        xMm: nextXMm,
-        yMm: nextYMm,
-      });
+      onChange({ ...placement, xMm: nextXMm, yMm: nextYMm });
     };
     const onUp = () => {
       setDragging(false);
@@ -719,39 +701,123 @@ function StampOverlay({
     window.addEventListener('mouseup', onUp);
   };
 
-  const handleResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const startX = e.clientX;
-    const startWidthMm = placement.widthMm;
-    setResizing(true);
+  // Aspect-locked resize from any corner. The OPPOSITE corner stays anchored
+  // in mm coords; the dragged corner follows the cursor. The new width is
+  // driven by max(|dx|, |dy| * aspect) so dragging in either direction grows
+  // the stamp naturally.
+  const handleResizeStart =
+    (corner: StampCorner) =>
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setResizing(true);
 
-    const onMove = (ev: MouseEvent) => {
-      const c = getCanvas();
-      const r = c?.getBoundingClientRect();
-      if (!c || !r || r.width <= 0) return;
-      const ratio = meta.pageWidthMm / r.width;
-      const dWidthMm = (ev.clientX - startX) * ratio;
-      const maxWidthMm = Math.max(
-        STAMP_MIN_WIDTH_MM,
-        meta.pageWidthMm - placement.xMm,
-      );
-      const nextWidthMm = Math.min(
-        Math.max(startWidthMm + dWidthMm, STAMP_MIN_WIDTH_MM),
-        maxWidthMm,
-      );
-      onChange({
-        ...placement,
-        widthMm: nextWidthMm,
-      });
+      const startWidthMm = placement.widthMm;
+      const startHeightMm = aspect > 0 ? startWidthMm / aspect : startWidthMm;
+      let anchorXMm: number;
+      let anchorYMm: number;
+      switch (corner) {
+        case 'tl':
+          anchorXMm = placement.xMm + startWidthMm;
+          anchorYMm = placement.yMm + startHeightMm;
+          break;
+        case 'tr':
+          anchorXMm = placement.xMm;
+          anchorYMm = placement.yMm + startHeightMm;
+          break;
+        case 'bl':
+          anchorXMm = placement.xMm + startWidthMm;
+          anchorYMm = placement.yMm;
+          break;
+        case 'br':
+        default:
+          anchorXMm = placement.xMm;
+          anchorYMm = placement.yMm;
+          break;
+      }
+
+      const onMove = (ev: MouseEvent) => {
+        const c = getCanvas();
+        const r = c?.getBoundingClientRect();
+        if (!c || !r || r.width <= 0) return;
+        const ratio = meta.pageWidthMm / r.width;
+        const cursorXMm = (ev.clientX - r.left) * ratio;
+        const cursorYMm = (ev.clientY - r.top) * ratio;
+        const dxMm = Math.abs(cursorXMm - anchorXMm);
+        const dyMm = Math.abs(cursorYMm - anchorYMm);
+        const candidateWidthMm = Math.max(dxMm, dyMm * aspect);
+        // Per-corner page-bound constraints — keep the new bounding box on page.
+        const headroomLeft = anchorXMm;
+        const headroomRight = meta.pageWidthMm - anchorXMm;
+        const headroomTop = anchorYMm;
+        const headroomBottom = meta.pageHeightMm - anchorYMm;
+        const maxByX =
+          corner === 'tl' || corner === 'bl' ? headroomLeft : headroomRight;
+        const maxByY =
+          (corner === 'tl' || corner === 'tr' ? headroomTop : headroomBottom) * aspect;
+        const maxWidthMm = Math.max(
+          STAMP_MIN_WIDTH_MM,
+          Math.min(maxByX, maxByY),
+        );
+        const newWidthMm = Math.min(
+          Math.max(candidateWidthMm, STAMP_MIN_WIDTH_MM),
+          maxWidthMm,
+        );
+        const newHeightMm = aspect > 0 ? newWidthMm / aspect : newWidthMm;
+
+        let newXMm: number;
+        let newYMm: number;
+        switch (corner) {
+          case 'tl':
+            newXMm = anchorXMm - newWidthMm;
+            newYMm = anchorYMm - newHeightMm;
+            break;
+          case 'tr':
+            newXMm = anchorXMm;
+            newYMm = anchorYMm - newHeightMm;
+            break;
+          case 'bl':
+            newXMm = anchorXMm - newWidthMm;
+            newYMm = anchorYMm;
+            break;
+          case 'br':
+          default:
+            newXMm = anchorXMm;
+            newYMm = anchorYMm;
+            break;
+        }
+        onChange({
+          ...placement,
+          xMm: newXMm,
+          yMm: newYMm,
+          widthMm: newWidthMm,
+        });
+      };
+      const onUp = () => {
+        setResizing(false);
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
     };
-    const onUp = () => {
-      setResizing(false);
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+
+  const cornerHandleStyle = (corner: StampCorner): React.CSSProperties => {
+    const base: React.CSSProperties = {
+      position: 'absolute',
+      width: 12,
+      height: 12,
+      background: 'white',
+      border: '1px solid rgba(0,0,0,0.6)',
+      borderRadius: 2,
+      boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
     };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    switch (corner) {
+      case 'tl': return { ...base, left: -6, top: -6, cursor: 'nwse-resize' };
+      case 'tr': return { ...base, right: -6, top: -6, cursor: 'nesw-resize' };
+      case 'bl': return { ...base, left: -6, bottom: -6, cursor: 'nesw-resize' };
+      case 'br': return { ...base, right: -6, bottom: -6, cursor: 'nwse-resize' };
+    }
   };
 
   return (
@@ -768,6 +834,8 @@ function StampOverlay({
         cursor: dragging ? 'grabbing' : 'grab',
         userSelect: 'none',
         touchAction: 'none',
+        border: '2px dashed rgba(20,184,166,0.7)',
+        boxSizing: 'border-box',
       }}
     >
       <img
@@ -783,22 +851,57 @@ function StampOverlay({
         }}
       />
       {!dragging && (
-        <div
-          onMouseDown={handleResizeStart}
-          style={{
-            position: 'absolute',
-            right: -6,
-            bottom: -6,
-            width: 12,
-            height: 12,
-            background: 'white',
-            border: '1px solid rgba(0,0,0,0.6)',
-            borderRadius: 2,
-            cursor: 'nwse-resize',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
-          }}
-          aria-label="Redimensionner le tampon"
-        />
+        <>
+          <div
+            onMouseDown={handleResizeStart('tl')}
+            style={cornerHandleStyle('tl')}
+            aria-label="Redimensionner depuis le coin haut-gauche"
+          />
+          <div
+            onMouseDown={handleResizeStart('tr')}
+            style={cornerHandleStyle('tr')}
+            aria-label="Redimensionner depuis le coin haut-droit"
+          />
+          <div
+            onMouseDown={handleResizeStart('bl')}
+            style={cornerHandleStyle('bl')}
+            aria-label="Redimensionner depuis le coin bas-gauche"
+          />
+          <div
+            onMouseDown={handleResizeStart('br')}
+            style={cornerHandleStyle('br')}
+            aria-label="Redimensionner depuis le coin bas-droit"
+          />
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            aria-label="Retirer le tampon du rapport"
+            title="Retirer du rapport"
+            style={{
+              position: 'absolute',
+              top: -10,
+              right: -10,
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              background: '#ef4444',
+              color: 'white',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+              padding: 0,
+            }}
+          >
+            <X style={{ width: 12, height: 12 }} aria-hidden />
+          </button>
+        </>
       )}
     </div>
   );
