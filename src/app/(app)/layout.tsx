@@ -3,6 +3,7 @@
 import React from 'react';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/layout/sidebar';
+import { CompagnieLogosPreload } from '@/components/layout/compagnie-logos-preload';
 import Header from '@/components/layout/header';
 import { OfflineIndicator } from '@/components/offline-indicator';
 import { CurrentUserProvider, useCurrentUser } from '@/hooks/use-current-user';
@@ -47,6 +48,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative flex h-svh w-full overflow-hidden">
+      <CompagnieLogosPreload />
       <AppSidebar />
       <SidebarInset className="flex flex-col h-svh transition-all duration-300 ease-in-out overflow-hidden">
         <Header />
