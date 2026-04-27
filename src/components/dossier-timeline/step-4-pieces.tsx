@@ -60,11 +60,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage }: 
                 </TabsTrigger>
               </TabsList>
               {!readOnly && onSendToChiffrage && (
-                <Button
-                  size="sm"
-                  onClick={onSendToChiffrage}
-                  className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
-                >
+                <Button size="sm" onClick={onSendToChiffrage} className="gap-1.5">
                   <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
                 </Button>
               )}
