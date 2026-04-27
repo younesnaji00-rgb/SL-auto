@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 
 export interface Stamp {
@@ -28,27 +28,27 @@ export function useStamps(options?: { includeInactive?: boolean }): { stamps: St
   useEffect(() => {
     if (!db) return;
     const colRef = collection(db, 'stamps');
-    const q = includeInactive
-      ? query(colRef, orderBy('createdAt', 'desc'))
-      : query(colRef, where('active', '==', true), orderBy('createdAt', 'desc'));
+    // Single-field query — no composite index needed. The active filter runs
+    // client-side; the stamps collection is small enough that fetching all
+    // and filtering in memory is cheaper than maintaining a composite index.
+    const q = query(colRef, orderBy('createdAt', 'desc'));
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        setStamps(
-          snap.docs.map((d) => {
-            const data = d.data() as any;
-            return {
-              id: d.id,
-              name: data.name || '',
-              storagePath: data.storagePath || '',
-              url: data.url || '',
-              active: data.active ?? true,
-              createdAt: data.createdAt,
-              createdBy: data.createdBy || '',
-            };
-          })
-        );
+        const all = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            name: data.name || '',
+            storagePath: data.storagePath || '',
+            url: data.url || '',
+            active: data.active ?? true,
+            createdAt: data.createdAt,
+            createdBy: data.createdBy || '',
+          };
+        });
+        setStamps(includeInactive ? all : all.filter((s) => s.active));
         setLoading(false);
       },
       (err) => {
