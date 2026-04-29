@@ -390,6 +390,11 @@ export function DevisEditor({
         setScanCalculationErrors(Array.isArray(result.calculationErrors) ? result.calculationErrors : []);
         setScanReviewed(false);
         setScanWarningOpen(true);
+        // Auto-open the comparison panel so the chiffreur can verify each line
+        // against the source devis/facture without having to click `Comparer`.
+        // ReferencePanel auto-selects the matching `docType` document.
+        setComparisonOpen(true);
+        setAppSidebarOpen(false);
       }
     } catch (e: any) {
       console.error('[devis-editor] extraction failed', e);
@@ -1026,6 +1031,7 @@ export function DevisEditor({
             dossierId={dossierId}
             isOpen={comparisonOpen}
             onClose={() => setComparisonOpen(false)}
+            initialDocType={docType}
             className="sticky top-4 self-start h-[calc(100vh-7rem)] w-1/2 min-w-[320px] max-w-[640px] border rounded-xl overflow-hidden"
           />
         )}

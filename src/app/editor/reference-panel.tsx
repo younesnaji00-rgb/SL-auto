@@ -1,7 +1,16 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { X, Image as ImageIcon, FileText, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown } from 'lucide-react';
+import {
+  X,
+  Image as ImageIcon,
+  FileText,
+  ChevronDown,
+  ChevronsUp,
+  ChevronsDown,
+  Rows2,
+  Minimize2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useFirestore, useStorage, useCollection } from '@/firebase';
@@ -16,13 +25,72 @@ interface ReferencePanelProps {
   onClose: () => void;
   /** Overrides the default root classes (width/border). Default: "w-1/2 min-w-[300px] border-r". */
   className?: string;
+  /**
+   * When provided, the first pane opens in `documents` mode and auto-selects
+   * the first document whose `type` matches. Used by the chiffrage editor to
+   * surface the scanned source devis/facture next to the table during the
+   * post-scan review.
+   */
+  initialDocType?: string;
 }
 
-export default function ReferencePanel({ dossierId, isOpen, onClose, className }: ReferencePanelProps) {
+export default function ReferencePanel({ dossierId, isOpen, onClose, className, initialDocType }: ReferencePanelProps) {
+  const [split, setSplit] = useState(false);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className={cn('bg-card flex flex-col shrink-0', className ?? 'w-1/2 min-w-[300px] border-r')}>
+      {/* Outer panel header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/50 shrink-0">
+        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Comparaison</span>
+        <div className="flex items-center gap-1">
+          <Button
+            variant={split ? 'default' : 'ghost'}
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => setSplit((s) => !s)}
+            title={split ? 'Fermer le second panneau' : 'Diviser le panneau pour comparer 2 documents'}
+            aria-pressed={split}
+          >
+            {split ? <Minimize2 className="h-3.5 w-3.5" /> : <Rows2 className="h-3.5 w-3.5" />}
+          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose} title="Fermer">
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Pane 1 */}
+      <ReferencePane dossierId={dossierId} label={split ? 'Vue 1' : null} initialDocType={initialDocType} />
+
+      {/* Pane 2 (split) */}
+      {split && (
+        <>
+          <div className="border-t-2 border-primary/40 shrink-0" aria-hidden />
+          <ReferencePane dossierId={dossierId} label="Vue 2" />
+        </>
+      )}
+    </div>
+  );
+}
+
+function ReferencePane({
+  dossierId,
+  label,
+  initialDocType,
+}: {
+  dossierId: string;
+  /** When non-null, a small label is shown in the pane header to disambiguate split panes. */
+  label: string | null;
+  /** Optional doc type to auto-select on first load (forces `documents` mode). */
+  initialDocType?: string;
+}) {
   const db = useFirestore();
   const storage = useStorage();
-  const [mode, setMode] = useState<Mode>('photos');
+  const [mode, setMode] = useState<Mode>(initialDocType ? 'documents' : 'photos');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const autoSelectedRef = useRef(false);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
   const [listOpen, setListOpen] = useState(true);
@@ -59,6 +127,21 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className }
     en_cours: 'En cours',
     apres: 'Après',
   };
+
+  // Auto-select the first document matching `initialDocType` once the
+  // documents collection arrives. Runs at most once (autoSelectedRef guard)
+  // so the chiffreur can later switch to a different doc without us
+  // re-clobbering the selection. Falls through silently if no doc matches.
+  useEffect(() => {
+    if (!initialDocType || autoSelectedRef.current) return;
+    if (!documents || documents.length === 0) return;
+    const match = documents.find((d: any) => (d.type || d.typeDocument) === initialDocType);
+    if (match) {
+      autoSelectedRef.current = true;
+      setSelectedId(match.id);
+      setListOpen(false);
+    }
+  }, [documents, initialDocType]);
 
   // Load the URL for the selected item
   useEffect(() => {
@@ -101,61 +184,54 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className }
 
   const isImageFile = (name: string) => /\.(jpg|jpeg|png|webp|gif)$/i.test(name || '');
 
-  if (!isOpen) return null;
-
   return (
-    <div className={cn('bg-card flex flex-col shrink-0', className ?? 'w-1/2 min-w-[300px] border-r')}>
-
-
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/50">
-        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Comparaison</span>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => setListOpen((o) => !o)}
-            title={listOpen ? 'Reduire la liste' : 'Afficher la liste'}
-          >
-            {listOpen ? <ChevronsUp className="h-3.5 w-3.5" /> : <ChevronsDown className="h-3.5 w-3.5" />}
-          </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose} title="Fermer">
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* Pane mini-header: label (if any) + listOpen toggle */}
+      <div className="flex items-center justify-between px-3 py-1 border-b bg-muted/30 shrink-0">
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+          {label ?? ''}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5"
+          onClick={() => setListOpen((o) => !o)}
+          title={listOpen ? 'Reduire la liste' : 'Afficher la liste'}
+          aria-pressed={listOpen}
+        >
+          {listOpen ? <ChevronsUp className="h-3 w-3" /> : <ChevronsDown className="h-3 w-3" />}
+        </Button>
       </div>
 
       {/* Mode toggle */}
       {listOpen && (
-      <div className="flex border-b shrink-0">
-        <button
-          className={cn(
-            'flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors',
-            mode === 'photos' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:bg-muted/50'
-          )}
-          onClick={() => setMode('photos')}
-        >
-          <ImageIcon className="h-3.5 w-3.5" />
-          Photos ({photos?.length || 0})
-        </button>
-        <button
-          className={cn(
-            'flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors',
-            mode === 'documents' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:bg-muted/50'
-          )}
-          onClick={() => setMode('documents')}
-        >
-          <FileText className="h-3.5 w-3.5" />
-          Documents ({documents?.length || 0})
-        </button>
-      </div>
+        <div className="flex border-b shrink-0">
+          <button
+            className={cn(
+              'flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors',
+              mode === 'photos' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:bg-muted/50'
+            )}
+            onClick={() => setMode('photos')}
+          >
+            <ImageIcon className="h-3.5 w-3.5" />
+            Photos ({photos?.length || 0})
+          </button>
+          <button
+            className={cn(
+              'flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors',
+              mode === 'documents' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:bg-muted/50'
+            )}
+            onClick={() => setMode('documents')}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Documents ({documents?.length || 0})
+          </button>
+        </div>
       )}
 
       {/* Compact item selector */}
       {listOpen && mode === 'photos' && (
         <div className="shrink-0 border-b flex flex-col">
-          {/* Photo sub-tab bar */}
           <div className="flex border-b shrink-0">
             {(['avant', 'en_cours', 'apres'] as const).map((key) => (
               <button
@@ -173,7 +249,6 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className }
               </button>
             ))}
           </div>
-          {/* Thumbnail grid */}
           <div className="max-h-[220px] overflow-y-auto">
             {groupedPhotos[photoSubTab].length === 0 ? (
               <div className="px-3 py-8 text-center text-xs text-muted-foreground italic">Aucune photo</div>
@@ -197,7 +272,7 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className }
       )}
 
       {listOpen && mode === 'documents' && (
-        <div className="shrink-0 border-b">
+        <div className="border-b max-h-[260px] overflow-auto">
           {(() => {
             if (!documents || documents.length === 0) {
               return <div className="px-3 py-4 text-center text-xs text-muted-foreground italic">Aucun document</div>;
@@ -208,35 +283,40 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className }
               if (!groups[type]) groups[type] = [];
               groups[type].push(d);
             }
-            return Object.entries(groups).map(([type, items]) => (
-              <div key={type}>
-                <div className="px-3 py-1 bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  {type} ({items.length})
-                </div>
-                {items.map((d: any) => (
-                  <button
-                    key={d.id}
-                    className={cn(
-                      'w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors flex items-center gap-2',
-                      selectedId === d.id && 'bg-primary/10 text-primary font-semibold'
-                    )}
-                    onClick={() => {
-                      setSelectedId(d.id);
-                      setListOpen(false);
-                    }}
-                  >
-                    <FileText className="h-3 w-3 shrink-0" />
-                    <span className="truncate flex-1">{d.nom || d.name || 'Document'}</span>
-                  </button>
+            return (
+              <div className="min-w-max">
+                {Object.entries(groups).map(([type, items]) => (
+                  <div key={type}>
+                    <div className="px-3 py-1 bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      {type} ({items.length})
+                    </div>
+                    {items.map((d: any) => (
+                      <button
+                        key={d.id}
+                        className={cn(
+                          'w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors flex items-center gap-2',
+                          selectedId === d.id && 'bg-primary/10 text-primary font-semibold'
+                        )}
+                        onClick={() => {
+                          setSelectedId(d.id);
+                          setListOpen(false);
+                        }}
+                        title={d.nom || d.name || 'Document'}
+                      >
+                        <FileText className="h-3 w-3 shrink-0" />
+                        <span className="whitespace-nowrap">{d.nom || d.name || 'Document'}</span>
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
-            ));
+            );
           })()}
         </div>
       )}
 
       {/* Full-height viewer */}
-      <div className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+      <div className="flex-1 min-h-0 overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
         {!selectedId ? (
           <div className="text-center p-6">
             <ChevronDown className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
