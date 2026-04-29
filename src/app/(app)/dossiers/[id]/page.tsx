@@ -57,11 +57,16 @@ export default function DossierDetailPage({
 
   useEffect(() => {
     if (!id || !dossier) return;
-    const d = dossier as { refExpert?: string; numero?: string };
-    const label = d.refExpert || d.numero;
-    if (label && label.trim().length > 0) {
-      refreshTabLabel(id, label);
+    const d = dossier as { assure?: any };
+    const a = d.assure;
+    let label = '';
+    if (typeof a === 'string') {
+      label = a.trim();
+    } else if (a && typeof a === 'object') {
+      label = `${a.prenom || ''} ${a.nom || ''}`.trim();
     }
+    if (!label) label = 'Sans nom';
+    refreshTabLabel(id, label);
   }, [id, dossier, refreshTabLabel]);
 
   const [activeStep, setActiveStep] = useLastStep(id);

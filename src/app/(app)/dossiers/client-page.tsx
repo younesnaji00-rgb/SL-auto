@@ -65,8 +65,15 @@ export default function DossiersClientPage() {
   const canEditDossiers = canWrite('dossiers');
   const { openTab } = useDossierTabs();
 
-  const openDossier = useCallback((d: { id: string; refExpert?: string; numero?: string }) => {
-    const label = d.refExpert || d.numero || d.id;
+  const openDossier = useCallback((d: { id: string; refExpert?: string; numero?: string; assure?: any }) => {
+    const a = d.assure;
+    let label = '';
+    if (typeof a === 'string') {
+      label = a.trim();
+    } else if (a && typeof a === 'object') {
+      label = `${a.prenom || ''} ${a.nom || ''}`.trim();
+    }
+    if (!label) label = 'Sans nom';
     openTab(d.id, label);
     router.push(`/dossiers/${d.id}`);
   }, [openTab, router]);
