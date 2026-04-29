@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     }));
 
     const { text } = await ai.generate({
-      model: 'googleai/gemini-2.5-flash',
+      model: 'googleai/gemini-3-flash-preview',
       config: { responseMimeType: 'application/json' },
       prompt: [
         {
