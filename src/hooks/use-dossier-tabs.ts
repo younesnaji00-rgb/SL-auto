@@ -103,17 +103,14 @@ export function DossierTabsProvider({ children }: { children: React.ReactNode })
     if (!dossierId) return;
     // The list tab is always present and is not stored in `tabs`; opening it is a no-op.
     if (dossierId === LIST_TAB_ID) return;
-    const safeLabel = label && label.trim().length > 0 ? label.trim() : defaultLabel(dossierId);
+    const hasExplicitLabel = !!label && label.trim().length > 0;
+    const safeLabel = hasExplicitLabel ? label!.trim() : defaultLabel(dossierId);
     setTabs((prev) => {
       const existing = prev.find((t) => t.dossierId === dossierId);
       if (existing) {
-        // If we now have a better (non-default) label, upgrade it
-        if (
-          label &&
-          label.trim().length > 0 &&
-          existing.label !== safeLabel &&
-          existing.label === defaultLabel(dossierId)
-        ) {
+        // Caller passed a real label: always overwrite (handles stale labels
+        // persisted in sessionStorage from prior sessions). No-op if equal.
+        if (hasExplicitLabel && existing.label !== safeLabel) {
           return prev.map((t) => (t.dossierId === dossierId ? { ...t, label: safeLabel } : t));
         }
         return prev;
