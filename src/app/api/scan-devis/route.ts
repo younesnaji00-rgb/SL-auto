@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
 import { formatFr, numOrNull, qteFromScan } from '@/lib/devis-schema';
+import { parseAiJson } from '@/lib/ai-json';
 
 /**
  * AI Devis Scanner API.
@@ -106,19 +107,18 @@ Conserve les marqueurs textuels comme "S/R" dans le champ "designation" si ils y
       ],
     });
 
-    const cleanedText = (text || '').replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-
-    let extracted: any;
-    try {
-      extracted = JSON.parse(cleanedText);
-    } catch {
-      console.error('[scan-devis] Failed to parse AI response:', cleanedText);
-      const snippet = cleanedText.length > 500 ? cleanedText.slice(0, 500) + '…' : cleanedText;
+    const parsed = parseAiJson<any>(text || '');
+    if (!parsed.ok) {
+      console.error('[scan-devis] Failed to parse AI response:', parsed.cleaned);
       return NextResponse.json(
-        { error: `Impossible de parser la réponse AI. Début: ${snippet}`, raw: cleanedText },
+        { error: `Impossible de parser la réponse AI. Début: ${parsed.snippet}`, raw: parsed.cleaned },
         { status: 422 },
       );
     }
+    if (parsed.repaired) {
+      console.warn('[scan-devis] AI response required jsonrepair fallback');
+    }
+    const extracted = parsed.data;
 
     const header = extracted.header || {};
     const rows = Array.isArray(extracted.rows) ? extracted.rows : [];

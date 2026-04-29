@@ -48,6 +48,7 @@
     "firebase": "^11.9.1",
     "genkit": "^1.28.0",
     "html2canvas": "^1.4.1",
+    "jsonrepair": "^3.14.0",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
     "jszip": "^3.10.1",

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
+import { parseAiJson } from '@/lib/ai-json';
 
 /**
  * AI Rapport Scanner API.
@@ -91,15 +92,18 @@ RÈGLES STRICTES:
       ]
     });
 
-    const cleanedText = (text || '').replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-
-    let extracted;
-    try {
-      extracted = JSON.parse(cleanedText);
-    } catch {
-      console.error('[scan-rapport] Failed to parse AI response:', cleanedText);
-      return NextResponse.json({ error: 'Impossible de parser la réponse AI.', raw: cleanedText }, { status: 422 });
+    const parsed = parseAiJson<any>(text || '');
+    if (!parsed.ok) {
+      console.error('[scan-rapport] Failed to parse AI response:', parsed.cleaned);
+      return NextResponse.json(
+        { error: `Impossible de parser la réponse AI. Début: ${parsed.snippet}`, raw: parsed.cleaned },
+        { status: 422 },
+      );
     }
+    if (parsed.repaired) {
+      console.warn('[scan-rapport] AI response required jsonrepair fallback');
+    }
+    const extracted = parsed.data;
 
     return NextResponse.json({
       data: {

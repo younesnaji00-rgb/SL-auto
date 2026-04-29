@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
 import { matchRows } from '@/lib/row-match';
 import { GeminiRawOutput, type ScanDevisCounterOutput } from '@/lib/scan-devis-counter-schema';
+import { parseAiJson } from '@/lib/ai-json';
 
 /**
  * AI Counter-Devis Scanner API.
@@ -90,18 +91,18 @@ Renvoie EXACTEMENT ${rows.length} entrée(s) dans "matches" (une par désignatio
       ],
     });
 
-    const cleaned = (text || '').replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-
-    let raw: unknown;
-    try {
-      raw = JSON.parse(cleaned);
-    } catch {
-      console.error('[scan-devis-counter] Failed to parse AI response:', cleaned);
+    const parsedJson = parseAiJson<unknown>(text || '');
+    if (!parsedJson.ok) {
+      console.error('[scan-devis-counter] Failed to parse AI response:', parsedJson.cleaned);
       return NextResponse.json(
-        { error: 'Impossible de parser la réponse AI.', raw: cleaned },
+        { error: `Impossible de parser la réponse AI. Début: ${parsedJson.snippet}`, raw: parsedJson.cleaned },
         { status: 422 }
       );
     }
+    if (parsedJson.repaired) {
+      console.warn('[scan-devis-counter] AI response required jsonrepair fallback');
+    }
+    const raw: unknown = parsedJson.data;
 
     const parsed = GeminiRawOutput.safeParse(raw);
     if (!parsed.success) {

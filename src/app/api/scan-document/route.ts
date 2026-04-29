@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
+import { parseAiJson } from '@/lib/ai-json';
 
 /**
  * AI Document Scanner API.
@@ -123,15 +124,18 @@ RÈGLES STRICTES (ZÉRO TOLÉRANCE AUX ERREURS):
       ]
     });
 
-    const cleanedText = (text || '').replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-
-    let extracted;
-    try {
-      extracted = JSON.parse(cleanedText);
-    } catch {
-      console.error('[scan-document] Failed to parse AI response:', cleanedText);
-      return NextResponse.json({ error: 'Impossible de parser la réponse AI.', raw: cleanedText }, { status: 422 });
+    const parsed = parseAiJson<any>(text || '');
+    if (!parsed.ok) {
+      console.error('[scan-document] Failed to parse AI response:', parsed.cleaned);
+      return NextResponse.json(
+        { error: `Impossible de parser la réponse AI. Début: ${parsed.snippet}`, raw: parsed.cleaned },
+        { status: 422 },
+      );
     }
+    if (parsed.repaired) {
+      console.warn('[scan-document] AI response required jsonrepair fallback');
+    }
+    const extracted = parsed.data;
 
     // Normalize to { data: { key: value }, regions: { key: { fileIndex, box: {xMin,yMin,xMax,yMax} in 0-1 } } }
     // Accepts both the new wrapped shape { value, fileIndex, box } and the legacy flat shape (backward-compatible).
