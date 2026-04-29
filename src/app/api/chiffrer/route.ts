@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const dataUri = `data:${contentType};base64,${base64}`;
 
     const { text } = await ai.generate({
-      model: 'googleai/gemini-3-flash-preview',
+      model: 'googleai/gemini-1.5-pro',
       prompt: [
         { text: `Tu es un expert en reconstruction documentaire pixel-perfect pour l'assurance automobile.
 Ton objectif est de transcrire ce document en HTML SÉMANTIQUE PUR qui reproduit FIDÈLEMENT la mise en page originale (polices, tableaux, alignements).
