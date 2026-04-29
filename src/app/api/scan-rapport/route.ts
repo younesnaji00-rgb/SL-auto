@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     const dataUri = `data:${contentType || 'image/jpeg'};base64,${fileBase64}`;
 
     const { text } = await ai.generate({
-      model: 'googleai/gemini-2.5-flash',
+      model: 'googleai/gemini-3-flash-preview',
       config: { responseMimeType: 'application/json' },
       prompt: [
         {
