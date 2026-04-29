@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
+import { withAiRetry } from '@/lib/ai-retry';
 
 /**
  * AI High-Fidelity Document Reconstruction API.
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     const base64 = Buffer.from(arrayBuffer).toString('base64');
     const dataUri = `data:${contentType};base64,${base64}`;
 
-    const { text } = await ai.generate({
+    const { text } = await withAiRetry(() => ai.generate({
       model: 'googleai/gemini-3-flash-preview',
       prompt: [
         { text: `Tu es un expert en reconstruction documentaire pixel-perfect pour l'assurance automobile.
@@ -45,7 +46,7 @@ RÈGLES CRITIQUES DE RECONSTRUCTION :
 6. NE METS PAS de balises <html>, <body>, <head> ou de blocs markdown (\`\`\`html). Renvoie uniquement le contenu HTML brut.` },
         { media: { url: dataUri } }
       ]
-    });
+    }), { label: 'chiffrer' });
 
     const resultHtml = text ? text.trim() : "";
     const resultText = resultHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();

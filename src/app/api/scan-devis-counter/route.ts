@@ -3,6 +3,7 @@ import { ai } from '@/ai/genkit';
 import { matchRows } from '@/lib/row-match';
 import { GeminiRawOutput, type ScanDevisCounterOutput } from '@/lib/scan-devis-counter-schema';
 import { parseAiJson } from '@/lib/ai-json';
+import { withAiRetry } from '@/lib/ai-retry';
 
 /**
  * AI Counter-Devis Scanner API.
@@ -82,14 +83,14 @@ SCHÉMA JSON STRICT — renvoie UNIQUEMENT ce JSON brut, pas de markdown, pas de
 
 Renvoie EXACTEMENT ${rows.length} entrée(s) dans "matches" (une par désignation, dans l'ordre donné).`;
 
-    const { text } = await ai.generate({
+    const { text } = await withAiRetry(() => ai.generate({
       model: 'googleai/gemini-3-flash-preview',
       config: { responseMimeType: 'application/json' },
       prompt: [
         { text: prompt },
         { media: { url: dataUri } },
       ],
-    });
+    }), { label: 'scan-devis-counter' });
 
     const parsedJson = parseAiJson<unknown>(text || '');
     if (!parsedJson.ok) {

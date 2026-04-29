@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
 import { parseAiJson } from '@/lib/ai-json';
+import { withAiRetry } from '@/lib/ai-retry';
 
 /**
  * AI Document Scanner API.
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
       media: { url: `data:${f.contentType || 'image/jpeg'};base64,${f.fileBase64}` }
     }));
 
-    const { text } = await ai.generate({
+    const { text } = await withAiRetry(() => ai.generate({
       model: 'googleai/gemini-3-flash-preview',
       config: { responseMimeType: 'application/json' },
       prompt: [
@@ -122,7 +123,7 @@ RÈGLES STRICTES (ZÉRO TOLÉRANCE AUX ERREURS):
         },
         ...mediaParts,
       ]
-    });
+    }), { label: 'scan-document' });
 
     const parsed = parseAiJson<any>(text || '');
     if (!parsed.ok) {

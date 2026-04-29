@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
 import { formatFr, numOrNull, qteFromScan } from '@/lib/devis-schema';
 import { parseAiJson } from '@/lib/ai-json';
+import { withAiRetry } from '@/lib/ai-retry';
 
 /**
  * AI Devis Scanner API.
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     const dataUri = `data:${contentType || 'application/pdf'};base64,${fileBase64}`;
 
-    const { text } = await ai.generate({
+    const { text } = await withAiRetry(() => ai.generate({
       model: 'googleai/gemini-3-flash-preview',
       config: { responseMimeType: 'application/json' },
       prompt: [
@@ -105,7 +106,7 @@ Conserve les marqueurs textuels comme "S/R" dans le champ "designation" si ils y
         },
         { media: { url: dataUri } },
       ],
-    });
+    }), { label: 'scan-devis' });
 
     const parsed = parseAiJson<any>(text || '');
     if (!parsed.ok) {
