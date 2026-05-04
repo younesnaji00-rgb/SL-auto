@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { CellNumberInput } from '@/components/ui/cell-number-input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -1275,6 +1276,10 @@ export function DevisEditor({
                           decimals={0}
                           align="center"
                           allowNull
+                          step={5}
+                          min={0}
+                          max={50}
+                          showSteppers
                         />
                         {vetusteMissing && (
                           <span className="absolute -top-1 -right-1 text-red-500 text-[10px] leading-none pointer-events-none">*</span>
@@ -1648,69 +1653,6 @@ function AccordPUInput({
           : "border-transparent focus:border-primary/50",
       )}
     />
-  );
-}
-
-function CellNumberInput({
-  value, onChange, disabled, align = 'left', suffix, decimals = 2, allowNull = false,
-}: {
-  value: number | null | undefined;
-  onChange: (v: number | null) => void;
-  disabled?: boolean;
-  align?: 'left' | 'center' | 'right';
-  suffix?: string;
-  decimals?: number;
-  /**
-   * When true, an empty input emits `null` (blank cell — main d'oeuvre has no qte/tva/vetuste).
-   * When false, an empty input emits 0 (legacy default, used for puHT / Total).
-   */
-  allowNull?: boolean;
-}) {
-  const displayFor = (v: number | null | undefined) =>
-    v === null || v === undefined ? '' : formatFr(v, decimals);
-
-  const [text, setText] = useState<string>(displayFor(value));
-  const [focused, setFocused] = useState(false);
-
-  useEffect(() => {
-    if (!focused) setText(displayFor(value));
-  }, [value, decimals, focused]);
-
-  return (
-    <div className="relative">
-      <input
-        value={text}
-        onChange={(e) => {
-          const next = e.target.value;
-          setText(next);
-          if (next.trim() === '') {
-            onChange(allowNull ? null : 0);
-          } else {
-            onChange(parseFr(next));
-          }
-        }}
-        onFocus={(e) => { setFocused(true); e.currentTarget.select(); }}
-        onBlur={() => {
-          setFocused(false);
-          if (text.trim() === '') {
-            setText('');
-            onChange(allowNull ? null : 0);
-          } else {
-            setText(formatFr(parseFr(text), decimals));
-          }
-        }}
-        disabled={disabled}
-        inputMode="decimal"
-        className={cn(
-          "w-full h-7 px-1.5 text-xs bg-transparent outline-none rounded border border-transparent",
-          "focus:border-primary/50 focus:bg-background disabled:cursor-not-allowed",
-          align === 'center' && 'text-center',
-          align === 'right' && 'text-right',
-          suffix && 'pr-5',
-        )}
-      />
-      {suffix && <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">{suffix}</span>}
-    </div>
   );
 }
 
