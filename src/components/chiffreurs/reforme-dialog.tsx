@@ -22,6 +22,7 @@ import {
 } from '@/lib/reforme-schema';
 import { generateRapportReformePDF } from '@/lib/generate-rapport-reforme-pdf';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
+import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 
 export interface ReformeDialogProps {
   dossierId: string;
@@ -53,6 +54,9 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
   const [state, setState] = useState<ReformeData>(emptyReforme());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Captured from the same getDoc that hydrates the réforme form so handleSave
+  // can guard the status flip without an extra read.
+  const [currentStatut, setCurrentStatut] = useState<string>('');
 
   useEffect(() => {
     if (!open || !db || !dossierId) return;
@@ -60,6 +64,7 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
     getDoc(doc(db, 'dossiers', dossierId))
       .then((snap) => {
         const data = snap.data() as any;
+        setCurrentStatut(typeof data?.statut === 'string' ? data.statut : '');
         if (data?.reforme) {
           const hydrated = { ...emptyReforme(), ...(data.reforme as ReformeData) };
           hydrated.typeReforme = normalizeReformeType(hydrated.typeReforme);
@@ -68,7 +73,10 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
           setState(emptyReforme());
         }
       })
-      .catch(() => setState(emptyReforme()))
+      .catch(() => {
+        setCurrentStatut('');
+        setState(emptyReforme());
+      })
       .finally(() => setLoading(false));
   }, [open, db, dossierId]);
 
@@ -100,6 +108,38 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
         reforme: { ...finalData, updatedAt: serverTimestamp() },
         updatedAt: serverTimestamp(),
       });
+
+      // [reforme-verdict-trigger] When the chiffreur deposits a réforme, the
+      // dossier's verdict is now "Réforme" — flip the dossier statut and log
+      // the change. Guarded so re-saving an already-Réforme dossier does not
+      // emit duplicate writes / log spam.
+      if (currentStatut !== 'Réforme') {
+        try {
+          await updateDoc(doc(db, 'dossiers', dossierId), { statut: 'Réforme' });
+          const authorName = profile
+            ? `${profile.prenom || ''} ${profile.nom || ''}`.trim() || profile.email || 'Chiffreur'
+            : 'Chiffreur';
+          await logHistorique(
+            db,
+            dossierId,
+            'Statut changé en Réforme',
+            authorName,
+            '',
+            'statut',
+          );
+          await logWorkflow(
+            db,
+            dossierId,
+            'Verdict Réforme déposé',
+            authorName,
+            profile?.uid || 'unknown',
+            'done',
+          );
+          setCurrentStatut('Réforme');
+        } catch (statutErr) {
+          console.error('[reforme-dialog] statut flip failed', statutErr);
+        }
+      }
 
       // Task #37 — Generate the réforme rapport PDF and persist it as a typed
       // document in `dossiers/{id}/documents` so it surfaces in the grid and
