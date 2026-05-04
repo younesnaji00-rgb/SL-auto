@@ -18,6 +18,7 @@ export type Dossier = {
   garageName: string;
   dateSinistre: any;
   dateRequete: any;
+  dateMissionAgentTerrain?: any;
   // Structured objects
   assure: { nom: string; prenom: string; telephone: string; whatsapp: string; telephone2: string; email: string; adresse: string; cin: string } | string;
   vehicule: { marque: string; modele: string; immatriculation: string; serie: string; energie: string; puissance: string; mec: any; km: string };

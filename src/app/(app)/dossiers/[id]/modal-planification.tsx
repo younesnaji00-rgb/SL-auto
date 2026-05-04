@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2, Clock } from 'lucide-react';
-import { collection, addDoc, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfToday } from 'date-fns';
@@ -55,7 +55,7 @@ type ModalPlanificationProps = {
   onOpenChange: (open: boolean) => void;
   initialData?: any;
   dossierId: string;
-  dossierData?: { refExpert?: string; assure?: any; compagnie?: string; expertRank?: string };
+  dossierData?: { refExpert?: string; assure?: any; compagnie?: string; expertRank?: string; dateMissionAgentTerrain?: any };
 };
 
 export default function ModalPlanification({ open, onOpenChange, initialData, dossierId, dossierData }: ModalPlanificationProps) {
@@ -167,6 +167,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         toast({ title: "Planification mise à jour" });
       } else {
         await addDoc(collection(db, 'dossiers', dossierId, 'planifications'), { ...payload, dossierId, createdAt: serverTimestamp(), active: true });
+        // Set dateMissionAgentTerrain only if not already set (first planification = mission date)
+        if (!dossierData?.dateMissionAgentTerrain) {
+          await setDoc(doc(db, 'dossiers', dossierId), { dateMissionAgentTerrain: serverTimestamp() }, { merge: true });
+        }
         await logHistorique(db, dossierId, 'Planification ajoutée', userEmail, `Nouvelle mission ${formData.typeMission} créée pour ${formData.agentTerrain}.`, 'planification');
         await logWorkflow(db, dossierId, 'Création de planification', userEmail, userId, 'done', { dossierRef: dossierData?.refExpert || dossierId, details: `Mission ${formData.typeMission} pour ${formData.agentTerrain}` });
         toast({ title: "Nouvelle planification créée" });
