@@ -63,6 +63,7 @@ export const CANONICAL_STATUTS = [
     '3ème accord',
     '3ème proposition d\'accord',
     'Accord envoyé',
+    'Réforme',
 ] as const;
 
 export type CanonicalStatut = typeof CANONICAL_STATUTS[number];
