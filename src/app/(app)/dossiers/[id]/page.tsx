@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   History,
+  Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDoc, useFirestore } from '@/firebase';
@@ -34,6 +35,7 @@ import HistoriqueTab from './historique-tab';
 // ── Modals ────────────────────────────────────────────────────────────────────
 import ModalPlanification from './modal-planification';
 import ModalChiffrage from './modal-chiffrage';
+import { EnvoyerEmailDialog } from '@/components/dossiers/envoyer-email-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 export default function DossierDetailPage({
@@ -76,6 +78,7 @@ export default function DossierDetailPage({
   const [planificationInitialData, setPlanificationInitialData] = useState<any>(null);
   const [isChiffrageModalOpen, setChiffrageModalOpen] = useState(false);
   const [isHistoriqueOpen, setHistoriqueOpen] = useState(false);
+  const [isEmailDialogOpen, setEmailDialogOpen] = useState(false);
 
   const renderAssure = (assure: any) => {
     if (!assure) return 'N/A';
@@ -144,6 +147,9 @@ export default function DossierDetailPage({
       {!readOnly && (
       <div className="bg-card border-b px-6 py-2 flex flex-wrap gap-2 items-center sticky top-0 z-40">
         <div className="flex-1" />
+        <Button variant="outline" size="sm" onClick={() => setEmailDialogOpen(true)} className="h-8 text-xs gap-1.5">
+          <Mail className="h-3.5 w-3.5" /> Envoyer un email
+        </Button>
         <Button variant="outline" size="sm" onClick={() => setHistoriqueOpen(true)} className="h-8 text-xs gap-1.5">
           <History className="h-3.5 w-3.5" /> Historique
         </Button>
@@ -172,6 +178,12 @@ export default function DossierDetailPage({
       {/* MODALS */}
       <ModalPlanification open={isPlanificationModalOpen} onOpenChange={setPlanificationModalOpen} dossierId={id} initialData={planificationInitialData} dossierData={dossier} />
       <ModalChiffrage open={isChiffrageModalOpen} onOpenChange={setChiffrageModalOpen} dossierId={id} />
+      <EnvoyerEmailDialog
+        open={isEmailDialogOpen}
+        onOpenChange={setEmailDialogOpen}
+        dossierId={id}
+        refExpert={dossier.refExpert as string | undefined}
+      />
       <Sheet open={isHistoriqueOpen} onOpenChange={setHistoriqueOpen}>
         <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
           <SheetHeader>
