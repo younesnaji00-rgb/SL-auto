@@ -22,6 +22,7 @@ import {
   doc,
   onSnapshot,
   serverTimestamp,
+  setDoc,
   updateDoc,
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
@@ -159,6 +160,17 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
         await logWorkflow(db, dossierId, 'Nouvelle photo ajoutée', userEmail, userId, 'done', {
           details: `${successful} photo(s) ajoutée(s) dans la section ${cat}`,
         });
+
+        // Denormalize "latest photo upload" timestamp per category onto the dossier doc.
+        const fieldMap: Record<string, string> = {
+          avant: 'datePhotosAvant',
+          en_cours: 'datePhotosEnCours',
+          apres: 'datePhotosApres',
+        };
+        const field = fieldMap[cat];
+        if (field) {
+          await setDoc(doc(db, 'dossiers', dossierId), { [field]: serverTimestamp() }, { merge: true });
+        }
       }
 
       if (failed === 0) {
