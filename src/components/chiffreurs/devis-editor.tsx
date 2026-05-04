@@ -1209,6 +1209,9 @@ export function DevisEditor({
                           // This preserves any manual tva edit when re-selecting 'Originale' (no-op transition).
                           if (v === 'Originale' && r.type !== 'Originale') {
                             updateRow(r.id, { type: 'Originale', tva: 20 });
+                          } else if (v === 'Occasion') {
+                            // Occasion clears vétusté (and the cell becomes disabled below).
+                            updateRow(r.id, { type: 'Occasion', vetuste: null });
                           } else {
                             updateRow(r.id, { type: v });
                           }
@@ -1262,7 +1265,7 @@ export function DevisEditor({
                       <CellNumberInput
                         value={r.vetuste ?? null}
                         onChange={(v) => updateRow(r.id, { vetuste: v })}
-                        disabled={!isEditable}
+                        disabled={!isEditable || r.type === 'Occasion'}
                         suffix="%"
                         decimals={0}
                         align="center"
