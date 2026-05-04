@@ -218,14 +218,43 @@ export default function DashboardPage() {
     'hsl(var(--chart-5))',
   ];
 
+  // Render-time bucketing: collapse the 8 accord/proposition/réforme statuses
+  // into a single dashboard row. Detail pages, filters, and the chiffrage flow
+  // continue to use the canonical statuses individually.
+  const ACCORD_BUCKET_LABEL = "Accord / Proposition d'accord / Réforme";
+  const ACCORD_BUCKET_MEMBERS = useMemo(
+    () =>
+      new Set<string>([
+        'Accord',
+        "Proposition d'accord",
+        '2ème accord',
+        "2ème proposition d'accord",
+        '3ème accord',
+        "3ème proposition d'accord",
+        'Accord envoyé',
+        'Réforme',
+      ]),
+    []
+  );
+
   const statusBarData = useMemo(() => {
     const counts: Record<string, number> = {};
     dossiers.forEach((d) => {
-      const s = d.statut || 'Nouveau';
-      counts[s] = (counts[s] || 0) + 1;
+      const raw = d.statut || 'Nouveau';
+      const key = ACCORD_BUCKET_MEMBERS.has(raw) ? ACCORD_BUCKET_LABEL : raw;
+      counts[key] = (counts[key] || 0) + 1;
     });
-    // Build a complete list: all known statuses + any extra from dossiers
-    const allNames = new Set([...ALL_STATUSES, 'Nouveau']);
+    // Build a complete list: all known statuses + any extra from dossiers,
+    // with the 8 accord/proposition/réforme members replaced by a single bucket.
+    const allNames = new Set<string>();
+    for (const name of ALL_STATUSES) {
+      if (ACCORD_BUCKET_MEMBERS.has(name)) {
+        allNames.add(ACCORD_BUCKET_LABEL);
+      } else {
+        allNames.add(name);
+      }
+    }
+    allNames.add('Nouveau');
     // Intentionally do NOT add non-canonical dossier.statut values — legacy/migration artifacts should not appear as filter rows.
     return Array.from(allNames)
       .map((name) => ({ name, value: counts[name] || 0 }))
@@ -234,7 +263,7 @@ export default function DashboardPage() {
         ...item,
         fill: chartColors[i % chartColors.length],
       }));
-  }, [dossiers]);
+  }, [dossiers, ACCORD_BUCKET_MEMBERS]);
 
   // Only non-zero statuses for the pie chart
   const statusChartData = useMemo(() => {
@@ -256,11 +285,15 @@ export default function DashboardPage() {
     }
   }, [statusBarData]);
 
-  // Dossiers filtered by selected status
+  // Dossiers filtered by selected status. When the accord/proposition/réforme
+  // bucket is selected, match any of its 8 member statuses.
   const dossiersByStatus = useMemo(() => {
     if (!selectedStatus) return [];
+    if (selectedStatus === ACCORD_BUCKET_LABEL) {
+      return dossiers.filter((d) => ACCORD_BUCKET_MEMBERS.has(d.statut || 'Nouveau'));
+    }
     return dossiers.filter((d) => (d.statut || 'Nouveau') === selectedStatus);
-  }, [dossiers, selectedStatus]);
+  }, [dossiers, selectedStatus, ACCORD_BUCKET_MEMBERS]);
 
   // Repartition par Compagnie
   const compagnieData = useMemo(() => {
