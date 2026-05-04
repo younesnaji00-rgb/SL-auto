@@ -2,9 +2,13 @@
 
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { collection, orderBy, query } from 'firebase/firestore';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { TimelineBar, type TimelineStep } from './timeline-bar';
 import { useCollapsedSteps } from '@/hooks/use-collapsed-steps';
+import { useCollection, useFirestore } from '@/firebase';
 
 export interface TimelineSectionProps {
   id: number;
@@ -12,9 +16,11 @@ export interface TimelineSectionProps {
   children: React.ReactNode;
   collapsed: boolean;
   onToggle: () => void;
+  /** Latest workflow entry that matched this step's keyword, or null. */
+  stamp: { date: Date; user: string } | null;
 }
 
-function TimelineSection({ id, label, children, collapsed, onToggle }: TimelineSectionProps) {
+function TimelineSection({ id, label, children, collapsed, onToggle, stamp }: TimelineSectionProps) {
   return (
     <section
       id={`step-${id}`}
@@ -30,7 +36,14 @@ function TimelineSection({ id, label, children, collapsed, onToggle }: TimelineS
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold">
           {id}
         </span>
-        <h2 className="text-lg font-bold flex-1">{label}</h2>
+        <div className="flex-1 flex flex-col items-start min-w-0">
+          <h2 className="text-lg font-bold leading-tight">{label}</h2>
+          <span className="text-xs text-muted-foreground mt-0.5 truncate max-w-full">
+            {stamp
+              ? `${format(stamp.date, 'dd/MM/yyyy HH:mm', { locale: fr })} — ${stamp.user}`
+              : '—'}
+          </span>
+        </div>
         <ChevronDown
           className={cn(
             'h-4 w-4 text-muted-foreground transition-transform',
@@ -41,6 +54,29 @@ function TimelineSection({ id, label, children, collapsed, onToggle }: TimelineS
       {!collapsed && children}
     </section>
   );
+}
+
+// Keyword heuristic: for each step id, the (lowercased) action substring(s) that
+// indicate that step. Order in `keywords` doesn't matter — a match is a match.
+// Sourced from the task spec; aligns with the strings used by existing
+// `logWorkflow` callers (e.g. "Création de planification", "Dossier envoyé vers
+// chiffrage", "Rapport mis à jour", "Nouveau document ajouté", etc.).
+const STEP_KEYWORDS: Record<number, string[]> = {
+  1: ['import'],
+  2: ['observation'],
+  3: ['information'],
+  4: ['planification'],
+  5: ['pièce', 'piece'],
+  6: ['chiffrage'],
+  7: ['rapport'],
+};
+
+function matchStepId(action: string): number | null {
+  const lower = (action ?? '').toLowerCase();
+  for (const [idStr, kws] of Object.entries(STEP_KEYWORDS)) {
+    if (kws.some((k) => lower.includes(k))) return Number(idStr);
+  }
+  return null;
 }
 
 export interface TimelineProps {
@@ -98,6 +134,35 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
   const orderedSteps = useMemo(() => [...steps].sort((a, b) => a.id - b.id), [steps]);
   const stepIds = useMemo(() => orderedSteps.map((s) => s.id), [orderedSteps]);
   const { isCollapsed, toggle } = useCollapsedSteps(dossierId, stepIds);
+
+  // Subscribe once to dossiers/{dossierId}/workflow, ordered newest first, then
+  // pick the latest entry whose `action` matches each step's keyword. Single
+  // pass — see STEP_KEYWORDS above.
+  const db = useFirestore();
+  const workflowQuery = useMemo(() => {
+    if (!db || !dossierId) return null;
+    return query(
+      collection(db, 'dossiers', dossierId, 'workflow'),
+      orderBy('date', 'desc')
+    );
+  }, [db, dossierId]);
+  const { data: workflowEntries } = useCollection<any>(workflowQuery);
+  const stampByStep = useMemo(() => {
+    const map = new Map<number, { date: Date; user: string }>();
+    if (!workflowEntries) return map;
+    // workflowEntries is ordered date desc, so the first match for a step id
+    // wins (latest entry for that step).
+    for (const entry of workflowEntries) {
+      if (!entry?.action || !entry?.date?.toDate) continue;
+      const stepId = matchStepId(entry.action);
+      if (stepId == null || map.has(stepId)) continue;
+      map.set(stepId, {
+        date: entry.date.toDate(),
+        user: entry.user || 'Admin',
+      });
+    }
+    return map;
+  }, [workflowEntries]);
 
   // Smooth-scroll to a step when the bar is clicked.
   const handleStepClick = useCallback(
@@ -172,6 +237,7 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
             label={step.label}
             collapsed={isCollapsed(step.id)}
             onToggle={() => toggle(step.id)}
+            stamp={stampByStep.get(step.id) ?? null}
           >
             {sections[step.id] ?? null}
           </TimelineSection>
