@@ -385,12 +385,17 @@ export default function UtilisateursClientPage() {
                     name="zone"
                     render={({ field }) => {
                       const trimmedQuery = zoneQuery.trim();
-                      const qLower = trimmedQuery.toLowerCase();
-                      const filteredZones = qLower
-                        ? zones.filter(z => z.label.toLowerCase().startsWith(qLower))
-                        : zones;
+                      const normalize = (s: string) =>
+                        s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+                      const qNorm = normalize(trimmedQuery);
+                      const sortedZones = [...zones].sort((a, b) =>
+                        a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })
+                      );
+                      const filteredZones = qNorm
+                        ? sortedZones.filter(z => normalize(z.label).startsWith(qNorm))
+                        : sortedZones;
                       const exactMatch = trimmedQuery
-                        ? zones.some(z => z.label.toLowerCase() === qLower)
+                        ? zones.some(z => normalize(z.label) === qNorm)
                         : true;
                       const selected = field.value || '';
                       return (
