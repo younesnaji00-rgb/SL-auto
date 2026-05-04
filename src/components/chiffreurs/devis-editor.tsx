@@ -1198,6 +1198,10 @@ export function DevisEditor({
             <tbody>
               {rows.map((r, i) => {
                 const total = rowTotals[i] ?? 0;
+                // Visual-only required marker: Adaptable/Originale must have a
+                // vétusté value. `r.vetuste == null` catches both null and
+                // undefined; 0 is a valid filled-in value.
+                const vetusteMissing = (r.type === 'Adaptable' || r.type === 'Originale') && r.vetuste == null;
                 return (
                   <tr key={r.id} className="[&>td]:px-1.5 [&>td]:py-1 [&>td]:border-b [&>td]:border-r [&>td:last-child]:border-r-0 group hover:bg-muted/30">
                     <td>
@@ -1262,15 +1266,20 @@ export function DevisEditor({
                       }} disabled={!isEditable} decimals={0} align="center" allowNull />
                     </td>
                     <td>
-                      <CellNumberInput
-                        value={r.vetuste ?? null}
-                        onChange={(v) => updateRow(r.id, { vetuste: v })}
-                        disabled={!isEditable || r.type === 'Occasion'}
-                        suffix="%"
-                        decimals={0}
-                        align="center"
-                        allowNull
-                      />
+                      <div className={cn("relative rounded", vetusteMissing && "ring-1 ring-red-500")}>
+                        <CellNumberInput
+                          value={r.vetuste ?? null}
+                          onChange={(v) => updateRow(r.id, { vetuste: v })}
+                          disabled={!isEditable || r.type === 'Occasion'}
+                          suffix="%"
+                          decimals={0}
+                          align="center"
+                          allowNull
+                        />
+                        {vetusteMissing && (
+                          <span className="absolute -top-1 -right-1 text-red-500 text-[10px] leading-none pointer-events-none">*</span>
+                        )}
+                      </div>
                     </td>
                     <td className="bg-muted/40">
                       <CellNumberInput value={r.puHT} onChange={(v) => updateRow(r.id, { puHT: v ?? 0 })} disabled={!isEditable} align="right" />
