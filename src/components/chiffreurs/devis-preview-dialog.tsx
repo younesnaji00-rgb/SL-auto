@@ -57,10 +57,12 @@ interface StampPlacement {
 }
 
 // PDF.js loader — same pattern as src/components/common/pdf-thumbnail.tsx.
+// Use the legacy single-file build to avoid Turbopack splitting pdf.mjs into
+// a dynamic chunk whose hash mismatches after rebuilds.
 let pdfJsPromise: Promise<any> | null = null;
 function loadPdfJs(): Promise<any> {
   if (!pdfJsPromise) {
-    pdfJsPromise = import('pdfjs-dist').then((pdfjsLib) => {
+    pdfJsPromise = import('pdfjs-dist/legacy/build/pdf.mjs').then((pdfjsLib) => {
       pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
       return pdfjsLib;
     });

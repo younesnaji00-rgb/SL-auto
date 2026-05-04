@@ -9,7 +9,10 @@ const thumbnailCache = new Map<string, string>();
 let pdfJsPromise: Promise<any> | null = null;
 function loadPdfJs(): Promise<any> {
   if (!pdfJsPromise) {
-    pdfJsPromise = import('pdfjs-dist').then((pdfjsLib) => {
+    // Use the legacy single-file build to avoid Turbopack splitting pdf.mjs
+    // into a dynamic chunk whose hash mismatches after rebuilds (manifests as
+    // "Failed to load chunk node_modules_pdfjs-dist_build_pdf_mjs_*.js").
+    pdfJsPromise = import('pdfjs-dist/legacy/build/pdf.mjs').then((pdfjsLib) => {
       pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
       return pdfjsLib;
     });
