@@ -48,6 +48,7 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'refExpert', label: 'Réf Expert' },
   { key: 'assure', label: 'Assuré' },
   { key: 'compagnie', label: 'Compagnie' },
+  { key: 'referenceCompagnie', label: 'Référence de compagnie' },
   { key: 'nature', label: 'Nature du dossier' },
   { key: 'typeDossier', label: 'Type Dossier' },
   { key: 'statut', label: 'Statut' },
@@ -421,14 +422,14 @@ export default function DossiersClientPage() {
             {loading ? (
               Array.from({ length: 8 }).map((_, i) => (
                 <TableRow key={`sk-${i}`}>
-                  <TableCell colSpan={9} className="p-0">
+                  <TableCell colSpan={10} className="p-0">
                     <SkeletonRow />
                   </TableCell>
                 </TableRow>
               ))
             ) : dossierList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="p-0">
+                <TableCell colSpan={10} className="p-0">
                   <EmptyState
                     icon={<FolderOpen />}
                     title="Aucun dossier trouvé"
@@ -469,6 +470,7 @@ export default function DossiersClientPage() {
                   <TableCell className="font-mono text-sm font-semibold text-primary tabular-nums">{d.refExpert}</TableCell>
                   <TableCell>{renderAssure(d.assure)}</TableCell>
                   <TableCell>{d.compagnie || '-'}</TableCell>
+                  <TableCell>{d.referenceCompagnie || ''}</TableCell>
                   <TableCell>{d.nature || '-'}</TableCell>
                   <TableCell>{d.typeDossier || '-'}</TableCell>
                   <TableCell
