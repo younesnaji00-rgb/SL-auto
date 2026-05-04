@@ -25,7 +25,7 @@ import { Loader2, Clock } from 'lucide-react';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, startOfToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { logHistorique, logWorkflow } from './log-historique';
 import { addObservation } from './log-observation';
@@ -300,9 +300,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Date RDV</Label>
-              <DatePicker 
-                value={formData.dateRDV} 
-                onChange={(d) => setFormData({...formData, dateRDV: d})} 
+              <DatePicker
+                value={formData.dateRDV}
+                onChange={(d) => setFormData({...formData, dateRDV: d})}
+                disabledDates={(date) => date < startOfToday()}
               />
             </div>
             <div className="space-y-2">
