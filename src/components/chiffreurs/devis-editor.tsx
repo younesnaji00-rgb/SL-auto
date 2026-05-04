@@ -551,6 +551,20 @@ export function DevisEditor({
       toast({ variant: 'destructive', title: 'Action non autorisee' });
       return;
     }
+    // Task #7: vétusté is required for Adaptable / Originale rows. Block the
+    // finalize/publish flow (preview → PDF write) when any such row still has
+    // an empty vétusté. The visual marker (red ring + asterisk) is rendered
+    // row-by-row in the table; this is the matching submit-block half.
+    const missingVetuste = rows.some(
+      (r) => (r.type === 'Adaptable' || r.type === 'Originale') && r.vetuste == null,
+    );
+    if (missingVetuste) {
+      toast({
+        variant: 'destructive',
+        title: 'Vétusté manquante pour les pièces Adaptable / Originale',
+      });
+      return;
+    }
     if (!db || !storage) return;
 
     const snapshot: DevisSnapshot = extraColumns.length > 0
