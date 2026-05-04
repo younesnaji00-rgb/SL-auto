@@ -1249,7 +1249,14 @@ export function DevisEditor({
                       <CellNumberInput value={r.tva} onChange={(v) => updateRow(r.id, { tva: v })} disabled={!isEditable} suffix="%" decimals={0} align="center" allowNull />
                     </td>
                     <td>
-                      <CellNumberInput value={r.qte} onChange={(v) => updateRow(r.id, { qte: v })} disabled={!isEditable} decimals={0} align="center" allowNull />
+                      <CellNumberInput value={r.qte} onChange={(v) => {
+                        // Task #6: After scanReviewed flips true, qte is locked
+                        // to decrease-only. Silent no-op on upward changes (no
+                        // toast, no UI affordance). Decreasing and clearing to
+                        // null still work. Treat null as 0 for the comparison.
+                        if (scanReviewed && (v ?? 0) > (r.qte ?? 0)) return;
+                        updateRow(r.id, { qte: v });
+                      }} disabled={!isEditable} decimals={0} align="center" allowNull />
                     </td>
                     <td>
                       <CellNumberInput
