@@ -94,7 +94,7 @@ export function CreateDossierDialog({
       if (primedRole && primedRole !== expertRole && next[primedRole]?.nom === userName) {
         next[primedRole] = { ...next[primedRole], nom: '' };
       }
-      next[expertRole] = { ...next[expertRole], nom: next[expertRole].nom || userName };
+      next[expertRole] = { ...next[expertRole], nom: next[expertRole].nom || '' };
       return next;
     });
     setPrimedRole(expertRole);
