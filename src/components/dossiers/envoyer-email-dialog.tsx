@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import {
   findLatestChiffrageDocs,
   type LatestChiffrageDoc,
@@ -50,6 +51,7 @@ export function EnvoyerEmailDialog({
 }: EnvoyerEmailDialogProps) {
   const db = useFirestore();
   const { toast } = useToast();
+  const { firebaseUser } = useCurrentUser();
 
   const [recipient, setRecipient] = useState('');
   const [subject, setSubject] = useState('');
@@ -57,6 +59,7 @@ export function EnvoyerEmailDialog({
   const [sources, setSources] = useState<LatestChiffrageDoc[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const refLabel = refExpert?.trim() || 'Sans Ref.';
 
@@ -124,22 +127,88 @@ export function EnvoyerEmailDialog({
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    const uid = firebaseUser?.uid;
+    if (!uid) {
+      toast({
+        title: 'Utilisateur non authentifié',
+        variant: 'destructive',
+      });
+      return;
+    }
     const picked = sources.filter((s) => checked.has(s.sourceId));
-    // Stub: log + toast. Real Gmail integration arrives in slice 2.
-    // eslint-disable-next-line no-console
-    console.log('[EnvoyerEmailDialog] submit', {
-      dossierId,
-      recipient,
+    if (picked.length === 0) {
+      toast({
+        title: 'Sélectionnez au moins un document à joindre',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const payload = {
+      uid,
+      to: recipient,
       subject,
       body,
-      sources: picked,
-    });
-    toast({ title: 'Brouillon Gmail à venir' });
-    onOpenChange(false);
+      attachments: picked.map((s) => ({
+        url: s.pdfUrl,
+        filename: `${s.label}.pdf`,
+      })),
+    };
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/email/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        // ignore JSON parse failure; handled below
+      }
+
+      if (res.status === 200 && data?.gmailDraftUrl) {
+        window.open(data.gmailDraftUrl, '_blank');
+        onOpenChange(false);
+        toast({ title: 'Brouillon créé dans Gmail' });
+        return;
+      }
+
+      if (res.status === 401 && data?.error === 'needsReauth') {
+        toast({ title: 'Autorisez Gmail pour continuer' });
+        window.location.href = `/api/auth/google?uid=${uid}`;
+        return;
+      }
+
+      if (res.status === 413 && data?.error === 'tooLarge') {
+        toast({
+          title: 'Pièces jointes trop volumineuses (>25 MB)',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      toast({
+        title: data?.error || 'Erreur lors de la création du brouillon',
+        variant: 'destructive',
+      });
+    } catch (err) {
+      console.error('[EnvoyerEmailDialog] submit failed', err);
+      toast({
+        title: 'Erreur lors de la création du brouillon',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const canSubmit = recipient.trim().length > 0 && checked.size > 0;
+  const canSubmit =
+    recipient.trim().length > 0 && checked.size > 0 && !isSubmitting;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -228,11 +297,22 @@ export function EnvoyerEmailDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isSubmitting}
+          >
             Annuler
           </Button>
           <Button onClick={handleSubmit} disabled={!canSubmit}>
-            Envoyer
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Envoi…
+              </>
+            ) : (
+              'Envoyer'
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
