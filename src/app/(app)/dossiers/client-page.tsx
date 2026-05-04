@@ -59,6 +59,7 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'datePhotosAvant', label: 'Photos avant' },
   { key: 'datePhotosEnCours', label: 'Photos en cours' },
   { key: 'datePhotosApres', label: 'Photos après' },
+  { key: 'dateChiffrage', label: 'Date chiffrage' },
 ];
 const ALL_COLUMN_KEYS = new Set(EXPORT_COLUMNS.map(c => c.key));
 
@@ -427,14 +428,14 @@ export default function DossiersClientPage() {
             {loading ? (
               Array.from({ length: 8 }).map((_, i) => (
                 <TableRow key={`sk-${i}`}>
-                  <TableCell colSpan={15} className="p-0">
+                  <TableCell colSpan={16} className="p-0">
                     <SkeletonRow />
                   </TableCell>
                 </TableRow>
               ))
             ) : dossierList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={15} className="p-0">
+                <TableCell colSpan={16} className="p-0">
                   <EmptyState
                     icon={<FolderOpen />}
                     title="Aucun dossier trouvé"
@@ -504,6 +505,7 @@ export default function DossiersClientPage() {
                   <TableCell className="tabular-nums">{formatDate(d.datePhotosAvant)}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.datePhotosEnCours)}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.datePhotosApres)}</TableCell>
+                  <TableCell className="tabular-nums">{formatDate(d.dateChiffrage)}</TableCell>
 
                   {!exportMode && (
                     <TableCell

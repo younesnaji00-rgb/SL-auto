@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
   ArrowLeft, Check, ChevronDown, Columns2, Download, FileText, History, Loader2, Plus, RefreshCcw,
@@ -855,6 +855,15 @@ export function DevisEditor({
         }
       }
       if (activeDossierId) {
+        // Task #10 slice 5: denormalize the chiffrage publish timestamp onto
+        // the dossier doc so the dossiers list can render a "Date chiffrage"
+        // column without per-row chiffrage lookups. Always overwrite — single
+        // "latest publish" timestamp across all stages.
+        await setDoc(
+          doc(db, 'dossiers', activeDossierId),
+          { dateChiffrage: serverTimestamp() },
+          { merge: true },
+        );
         await logHistorique(
           db, activeDossierId,
           `Enregistré ${targetDocType}`,
