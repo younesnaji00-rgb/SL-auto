@@ -44,7 +44,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonCard, SkeletonChart } from '@/components/ui/skeleton';
 import { collection, onSnapshot, query, orderBy, collectionGroup } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
-import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { format, startOfDay, endOfDay, isWithinInterval, startOfToday } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart } from 'recharts';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -77,6 +77,10 @@ export default function DashboardPage() {
   // Volume par statut — selected status filter + search within the filter list
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [statusFilterSearch, setStatusFilterSearch] = useState('');
+
+  // Flight-style date range filter for dossier list (defaults to today / today)
+  const [dateFromFilter, setDateFromFilter] = useState<Date | undefined>(() => startOfToday());
+  const [dateToFilter, setDateToFilter] = useState<Date | undefined>(() => startOfToday());
 
   // Track last visit for "new" entry indicators
   const lastVisitRef = useRef<Date | null>(null);
@@ -237,9 +241,24 @@ export default function DashboardPage() {
     []
   );
 
+  // Apply the flight-style date range to the dossier list BEFORE computing
+  // any dashboard counts/widgets (status bar, pie, compagnie chart, table).
+  // When either bound is undefined, that side of the comparison is skipped.
+  const filteredDossiers = useMemo(() => {
+    const from = dateFromFilter ? startOfDay(dateFromFilter) : undefined;
+    const to = dateToFilter ? endOfDay(dateToFilter) : undefined;
+    return dossiers.filter((d) => {
+      if (!d.createdAt) return false;
+      const created = d.createdAt.toDate ? d.createdAt.toDate() : new Date(d.createdAt);
+      if (from && created < from) return false;
+      if (to && created > to) return false;
+      return true;
+    });
+  }, [dossiers, dateFromFilter, dateToFilter]);
+
   const statusBarData = useMemo(() => {
     const counts: Record<string, number> = {};
-    dossiers.forEach((d) => {
+    filteredDossiers.forEach((d) => {
       const raw = d.statut || 'Nouveau';
       const key = ACCORD_BUCKET_MEMBERS.has(raw) ? ACCORD_BUCKET_LABEL : raw;
       counts[key] = (counts[key] || 0) + 1;
@@ -263,7 +282,7 @@ export default function DashboardPage() {
         ...item,
         fill: chartColors[i % chartColors.length],
       }));
-  }, [dossiers, ACCORD_BUCKET_MEMBERS]);
+  }, [filteredDossiers, ACCORD_BUCKET_MEMBERS]);
 
   // Only non-zero statuses for the pie chart
   const statusChartData = useMemo(() => {
@@ -290,15 +309,15 @@ export default function DashboardPage() {
   const dossiersByStatus = useMemo(() => {
     if (!selectedStatus) return [];
     if (selectedStatus === ACCORD_BUCKET_LABEL) {
-      return dossiers.filter((d) => ACCORD_BUCKET_MEMBERS.has(d.statut || 'Nouveau'));
+      return filteredDossiers.filter((d) => ACCORD_BUCKET_MEMBERS.has(d.statut || 'Nouveau'));
     }
-    return dossiers.filter((d) => (d.statut || 'Nouveau') === selectedStatus);
-  }, [dossiers, selectedStatus, ACCORD_BUCKET_MEMBERS]);
+    return filteredDossiers.filter((d) => (d.statut || 'Nouveau') === selectedStatus);
+  }, [filteredDossiers, selectedStatus, ACCORD_BUCKET_MEMBERS]);
 
   // Repartition par Compagnie
   const compagnieData = useMemo(() => {
     const byCompagnie: Record<string, number> = {};
-    dossiers.forEach((d) => {
+    filteredDossiers.forEach((d) => {
       const key = d.compagnie || 'Inconnue';
       byCompagnie[key] = (byCompagnie[key] || 0) + 1;
     });
@@ -309,7 +328,7 @@ export default function DashboardPage() {
         value,
         fill: chartColors[index % chartColors.length],
       }));
-  }, [dossiers]);
+  }, [filteredDossiers]);
 
   const barChartConfig = useMemo(() => {
     const config: any = { value: { label: 'Dossiers' } };
@@ -512,6 +531,8 @@ export default function DashboardPage() {
     item.name.toLowerCase().includes(statusFilterSearch.toLowerCase().trim())
   );
 
+  const filteredCount = filteredDossiers.length;
+
   const filterCard = (
     <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg overflow-hidden">
       <CardHeader className="py-4 flex flex-row items-center justify-between gap-2">
@@ -526,6 +547,34 @@ export default function DashboardPage() {
           />
         </div>
       </CardHeader>
+      <div className="px-4 pb-3 pt-0 bg-muted/10 border-b">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Du</label>
+            <DatePicker
+              value={dateFromFilter ?? null}
+              onChange={(d) => setDateFromFilter(d ?? undefined)}
+              placeholder="Date de début"
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Au</label>
+            <DatePicker
+              value={dateToFilter ?? null}
+              onChange={(d) => setDateToFilter(d ?? undefined)}
+              placeholder="Date de fin"
+              className="h-8 text-xs"
+            />
+          </div>
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-2 tabular-nums">
+          <span className="font-semibold text-foreground">{filteredCount}</span> dossier{filteredCount === 1 ? '' : 's'} créé{filteredCount === 1 ? '' : 's'} entre{' '}
+          <span className="font-semibold text-foreground">{dateFromFilter ? format(dateFromFilter, 'dd/MM/yyyy', { locale: fr }) : '—'}</span>{' '}
+          et{' '}
+          <span className="font-semibold text-foreground">{dateToFilter ? format(dateToFilter, 'dd/MM/yyyy', { locale: fr }) : '—'}</span>
+        </p>
+      </div>
       <CardContent className="p-0 max-h-[520px] overflow-y-auto">
         {filteredStatusRows.length === 0 ? (
           <EmptyState
