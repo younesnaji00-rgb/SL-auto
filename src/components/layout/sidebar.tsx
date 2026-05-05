@@ -116,6 +116,14 @@ const AppSidebar = () => {
   const [showAddInput, setShowAddInput] = useState(false);
   const [newName, setNewName] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string } | null>(null);
+  const [logoErrors, setLogoErrors] = useState<Set<string>>(new Set());
+  const markLogoFailed = (id: string) =>
+    setLogoErrors((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
 
   const isCollapsed = state === 'collapsed';
 
@@ -188,8 +196,13 @@ const AppSidebar = () => {
                                 <SidebarMenuSubItem key={c.id}>
                                   <SidebarMenuSubButton asChild isActive={pathname.includes(`selected=${c.id}`)}>
                                     <NextLink href={`/compagnies?selected=${c.id}`} className="group flex items-center gap-2">
-                                      {c.logoUrl ? (
-                                        <img src={c.logoUrl} alt="" className="h-8 w-8 rounded-sm object-contain shrink-0" />
+                                      {c.logoUrl && !logoErrors.has(c.id) ? (
+                                        <img
+                                          src={c.logoUrl}
+                                          alt=""
+                                          className="h-8 w-8 rounded-sm object-contain shrink-0"
+                                          onError={() => markLogoFailed(c.id)}
+                                        />
                                       ) : (
                                         <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: c.couleur }} />
                                       )}

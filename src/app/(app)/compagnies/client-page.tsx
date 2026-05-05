@@ -52,6 +52,14 @@ export default function CompagniesClientPage() {
   const { toast } = useToast();
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [logoErrors, setLogoErrors] = useState<Set<string>>(new Set());
+  const markLogoFailed = (id: string) =>
+    setLogoErrors((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
 
   const handleLogoUpload = async (compagnieId: string, file: File) => {
     if (!storage || !db) return;
@@ -149,8 +157,13 @@ export default function CompagniesClientPage() {
                     }}
                     title="Cliquez pour importer un logo"
                   >
-                    {c.logoUrl ? (
-                      <img src={c.logoUrl} alt={c.nom} className="h-6 w-6 object-contain" />
+                    {c.logoUrl && !logoErrors.has(c.id) ? (
+                      <img
+                        src={c.logoUrl}
+                        alt={c.nom}
+                        className="h-6 w-6 object-contain"
+                        onError={() => markLogoFailed(c.id)}
+                      />
                     ) : (
                       <Building2 className="h-6 w-6 text-muted-foreground group-hover:text-primary" />
                     )}
@@ -201,8 +214,13 @@ export default function CompagniesClientPage() {
             }}
             title="Cliquez pour modifier le logo"
           >
-            {selectedCompagnie.logoUrl ? (
-              <img src={selectedCompagnie.logoUrl} alt={selectedCompagnie.nom} className="h-full w-full object-contain p-2" />
+            {selectedCompagnie.logoUrl && !logoErrors.has(selectedCompagnie.id) ? (
+              <img
+                src={selectedCompagnie.logoUrl}
+                alt={selectedCompagnie.nom}
+                className="h-full w-full object-contain p-2"
+                onError={() => markLogoFailed(selectedCompagnie.id)}
+              />
             ) : (
               <Building2 className="h-14 w-14 text-muted-foreground" />
             )}
