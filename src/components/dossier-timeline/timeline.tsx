@@ -63,7 +63,6 @@ function TimelineSection({ id, label, children, collapsed, onToggle, stamp }: Ti
 // chiffrage", "Rapport mis à jour", "Nouveau document ajouté", etc.).
 const STEP_KEYWORDS: Record<number, string[]> = {
   1: ['import'],
-  2: ['observation'],
   3: ['information'],
   4: ['planification'],
   5: ['pièce', 'piece'],
