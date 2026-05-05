@@ -319,6 +319,28 @@ export const dossiersForStep = (
 };
 
 /**
+ * Dossiers flagged as hors-délai for a given step. Subset of `dossiersForStep`
+ * whose `STEP_DEFS[step].horsDelaiAt(d)` returned a non-null Date.
+ */
+export const dossiersHorsDelai = (
+  dossiers: FunnelDossier[],
+  logs: WorkflowLog[],
+  step: StepKey,
+): DossierForStep[] => {
+  const def = STEP_DEFS[step];
+  const out: DossierForStep[] = [];
+  for (const d of dossiers) {
+    if (def.horsDelaiAt(d) == null) continue;
+    out.push({ dossier: d, doneAt: def.doneAt(d), author: def.authorOf(d, logs) });
+  }
+  return out.sort((a, b) => {
+    const ad = a.doneAt?.getTime() ?? 0;
+    const bd = b.doneAt?.getTime() ?? 0;
+    return bd - ad;
+  });
+};
+
+/**
  * Inverse of `dossiersForStep` — return dossiers that have NOT done the step.
  * Returns [] for step `creation` (every in-scope dossier has been "created" by
  * definition, so there's no non-réalisé bucket). Sorted by createdAt desc.

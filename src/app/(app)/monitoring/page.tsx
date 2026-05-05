@@ -64,13 +64,14 @@ import {
   computeStepCounts,
   computeStepCountsHorsDelai,
   dossiersForStep,
+  dossiersHorsDelai,
   dossiersNotForStep,
   type FunnelDossier,
   type StepKey,
   type WorkflowLog,
 } from './funnel';
 
-type DrawerMode = 'realise' | 'nonRealise';
+type DrawerMode = 'realise' | 'nonRealise' | 'horsDelai';
 import { DossierDrawer } from './dossier-drawer';
 
 const tabular = { fontVariantNumeric: 'tabular-nums' as const };
@@ -334,6 +335,9 @@ export default function MonitoringPage() {
   }, [dedupedPerUser, roleFilter, userSearch]);
   const drawerRows = useMemo(() => {
     if (!selectedStep) return [];
+    if (selectedStepMode === 'horsDelai') {
+      return dossiersHorsDelai(dossiers, workflowLogs, selectedStep);
+    }
     if (selectedStepMode === 'nonRealise') {
       return dossiersNotForStep(dossiers, workflowLogs, selectedStep);
     }
@@ -483,7 +487,7 @@ export default function MonitoringPage() {
         open={selectedStep != null}
         onOpenChange={(v) => !v && setSelectedStep(null)}
         step={selectedStep}
-        mode={selectedStepMode}
+        mode={selectedStepMode === 'nonRealise' ? 'nonRealise' : 'realise'}
         rows={drawerRows}
         userLookup={userLookup}
       />
@@ -540,6 +544,7 @@ function GlobalView({
               nonRealise={nonRealise}
               total={totalDossiers}
               onSelectRealise={() => onSelectStep(key, 'realise')}
+              onSelectHorsDelai={() => onSelectStep(key, 'horsDelai')}
               onSelectNonRealise={() => onSelectStep(key, 'nonRealise')}
             />
           );
@@ -581,6 +586,7 @@ function KpiCard({
   nonRealise,
   total,
   onSelectRealise,
+  onSelectHorsDelai,
   onSelectNonRealise,
 }: {
   index: number;
@@ -590,6 +596,7 @@ function KpiCard({
   nonRealise: number | null;
   total: number;
   onSelectRealise: () => void;
+  onSelectHorsDelai: () => void;
   onSelectNonRealise: () => void;
 }) {
   const realiseEnDelai = Math.max(value - horsDelai, 0);
@@ -625,7 +632,7 @@ function KpiCard({
           {pctHorsDelai > 0 && (
             <button
               type="button"
-              onClick={onSelectRealise}
+              onClick={onSelectHorsDelai}
               className="bg-amber-500 transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               style={{ width: `${pctHorsDelai}%` }}
               title={`Hors délai : ${horsDelai}`}
