@@ -70,7 +70,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
       arbitre: emptyExpertInfo(),
     } as Record<ExpertRole, ExpertInfo>,
     assure: { nom: '', prenom: '', telephone: '', whatsapp: '', telephone2: '', email: '', adresse: '', cin: '' },
-    vehicule: { marque: '', modele: '', immatriculation: '', serie: '', energie: '', puissance: '', mec: null, km: '' },
+    vehicule: { marque: '', modele: '', immatriculation: '', immatriculationAnterieur: '', serie: '', energie: '', puissance: '', mec: null, km: '' },
     adverseNom: '', adversePrenom: '', adverseTelephone: '', adverseEmail: '',
     adverseAdresse: '', adverseCompagnie: '', adverseMatricule: '', adversePermis: '',
     intermediaireNom: '', intermediairePrenom: '', intermediaireTelephone: '', intermediaireEmail: '',
@@ -125,7 +125,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
         },
         vehicule: {
           marque: v.marque || v.brand || '', modele: v.modele || v.model || '',
-          immatriculation: v.immatriculation || v.registration || '', serie: v.serie || '',
+          immatriculation: v.immatriculation || v.registration || '', immatriculationAnterieur: v.immatriculationAnterieur || '', serie: v.serie || '',
           energie: v.energie || '', puissance: v.puissance || v.puissanceFiscale || '',
           mec: parseDate(v.mec), km: v.km || v.kilometrage || '',
         },
@@ -413,6 +413,9 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             { label: 'Puissance fiscale', value: form.vehicule.puissance, edit: <Input className="h-9" value={form.vehicule.puissance} onChange={(e) => handleNestedChange('vehicule', 'puissance', e.target.value)} /> },
             { label: 'Mise en circ. (Date)', value: formatDateDisplay(form.vehicule.mec), edit: <DatePicker value={form.vehicule.mec} onChange={(d) => handleNestedChange('vehicule', 'mec', d)} /> },
             { label: 'Kilométrage', value: form.vehicule.km, edit: <Input type="number" className="h-9" value={form.vehicule.km} onChange={(e) => handleNestedChange('vehicule', 'km', e.target.value)} /> },
+          ]} />
+          <FieldRow fields={[
+            { label: 'Immatriculation antérieure', value: form.vehicule.immatriculationAnterieur, edit: <Input className="h-9" value={form.vehicule.immatriculationAnterieur} onChange={(e) => handleNestedChange('vehicule', 'immatriculationAnterieur', e.target.value)} /> },
           ]} />
         </CardContent>
       </Card>
