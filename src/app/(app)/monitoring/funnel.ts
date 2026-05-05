@@ -62,6 +62,9 @@ export interface FunnelDossier {
   datePhotosAvant?: any;
   datePhotosEnCours?: any;
   datePhotosApres?: any;
+  dateDemandeExpertiseAvant?: any;
+  dateDemandeExpertiseEnCours?: any;
+  dateDemandeExpertiseApres?: any;
   lastStatusChange?: { status?: string; at?: any; by?: string };
   dateFactureValide?: any;
   authorFactureValide?: string;
@@ -103,6 +106,15 @@ function sameCalendarDay(a: Date, b: Date): boolean {
     && a.getDate() === b.getDate();
 }
 
+const SLA_24H_MS = 24 * 60 * 60 * 1000;
+
+function photoHorsDelai(d: FunnelDossier, demandeKey: string, photoKey: string): Date | null {
+  const demande = toDate((d as any)[demandeKey]);
+  const photos = toDate((d as any)[photoKey]);
+  if (!demande || !photos) return null;
+  return photos.getTime() - demande.getTime() > SLA_24H_MS ? photos : null;
+}
+
 const photoAuthor = (
   d: FunnelDossier,
   logs: WorkflowLog[],
@@ -142,21 +154,21 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
     label: STEP_LABELS.photosAvant,
     doneAt: (d) => toDate(d.datePhotosAvant),
     authorOf: (d, logs) => photoAuthor(d, logs, 'avant'),
-    horsDelaiAt: () => null,
+    horsDelaiAt: (d) => photoHorsDelai(d, 'dateDemandeExpertiseAvant', 'datePhotosAvant'),
   },
   photosEnCours: {
     key: 'photosEnCours',
     label: STEP_LABELS.photosEnCours,
     doneAt: (d) => toDate(d.datePhotosEnCours),
     authorOf: (d, logs) => photoAuthor(d, logs, 'en cours'),
-    horsDelaiAt: () => null,
+    horsDelaiAt: (d) => photoHorsDelai(d, 'dateDemandeExpertiseEnCours', 'datePhotosEnCours'),
   },
   photosApres: {
     key: 'photosApres',
     label: STEP_LABELS.photosApres,
     doneAt: (d) => toDate(d.datePhotosApres),
     authorOf: (d, logs) => photoAuthor(d, logs, 'après'),
-    horsDelaiAt: () => null,
+    horsDelaiAt: (d) => photoHorsDelai(d, 'dateDemandeExpertiseApres', 'datePhotosApres'),
   },
   accord: {
     key: 'accord',
