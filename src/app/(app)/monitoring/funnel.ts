@@ -181,7 +181,14 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
       return null;
     },
     authorOf: (d) => d.lastStatusChange?.by ?? null,
-    horsDelaiAt: () => null,
+    horsDelaiAt: (d) => {
+      const status = d.lastStatusChange?.status ?? d.statut;
+      if (!status || !ACCORD_BUCKET_MEMBERS.has(status)) return null;
+      const accordAt = toDate(d.lastStatusChange?.at);
+      const chiffrageAt = toDate((d as any).dateChiffrage);
+      if (!accordAt || !chiffrageAt) return null;
+      return accordAt.getTime() - chiffrageAt.getTime() > SLA_24H_MS ? accordAt : null;
+    },
   },
   facture: {
     key: 'facture',
