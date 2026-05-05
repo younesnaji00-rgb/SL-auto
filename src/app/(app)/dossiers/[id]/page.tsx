@@ -27,6 +27,7 @@ import Step3Planification from '@/components/dossier-timeline/step-3-planificati
 import Step4Pieces from '@/components/dossier-timeline/step-4-pieces';
 import Step5Chiffrage from '@/components/dossier-timeline/step-5-chiffrage';
 import Step6Rapport from '@/components/dossier-timeline/step-6-rapport';
+import ObservationsTab from '@/components/observations-tab';
 
 // ── Historique (kept for drawer dialog; full drawer in task #17) ─────────────
 import HistoriqueTab from './historique-tab';
@@ -170,7 +171,14 @@ export default function DossierDetailPage({
           sections={{
             1: <Step1Import dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
             3: <Step2Information dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
-            4: <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
+            4: (
+              <>
+                <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />
+                <div className="mt-4">
+                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
+                </div>
+              </>
+            ),
             5: <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} />,
             6: <Step5Chiffrage dossierId={id} />,
             7: <Step6Rapport dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
