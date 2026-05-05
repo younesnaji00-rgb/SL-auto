@@ -13,16 +13,16 @@ export type StepKey =
 export const STEP_KEYS: StepKey[] = [
   'creation',
   'photosAvant',
+  'accord',
   'photosEnCours',
   'photosApres',
-  'accord',
   'facture',
   'rapportValide',
   'rapport',
 ];
 
 export const STEP_LABELS: Record<StepKey, string> = {
-  creation: 'Missions reçues / créées',
+  creation: 'Missions créées',
   photosAvant: 'Expertise avant',
   photosEnCours: 'Expertise en cours',
   photosApres: 'Expertise après',
