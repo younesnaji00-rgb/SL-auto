@@ -8,7 +8,7 @@ import {
   orderBy,
   query,
 } from 'firebase/firestore';
-import { Activity, Gauge, Building2, Users, RotateCcw } from 'lucide-react';
+import { Activity, Gauge, Building2, Users, RotateCcw, Search } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
 
@@ -41,6 +41,7 @@ import {
   ChartTooltipContent,
 } from '@/components/ui/chart';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonCard, SkeletonChart } from '@/components/ui/skeleton';
@@ -123,6 +124,7 @@ export default function MonitoringPage() {
   const [selectedStep, setSelectedStep] = useState<StepKey | null>(null);
   const [selectedStepMode, setSelectedStepMode] = useState<DrawerMode>('realise');
   const [roleFilter, setRoleFilter] = useState<string>(ROLE_FILTER_ALL);
+  const [userSearch, setUserSearch] = useState<string>('');
 
   const openDrawer = (step: StepKey, mode: DrawerMode) => {
     setSelectedStep(step);
@@ -263,13 +265,41 @@ export default function MonitoringPage() {
         });
       }
     }
+    // Surface every user from the users collection — even those with no
+    // activity in scope appear as a zero-count row.
+    for (const u of users) {
+      const name = (u.nom || u.email || '').trim();
+      if (!name) continue;
+      if (merged.has(name)) {
+        if (!merged.get(name)!.role && u.role) {
+          merged.get(name)!.role = u.role;
+        }
+        continue;
+      }
+      merged.set(name, {
+        user: name,
+        role: u.role,
+        realise: STEP_KEYS.reduce((acc, k) => {
+          acc[k] = 0;
+          return acc;
+        }, {} as Record<StepKey, number>),
+        totalRealise: 0,
+      });
+    }
     return Array.from(merged.values()).sort((a, b) => b.totalRealise - a.totalRealise);
-  }, [perUser, userLookup]);
+  }, [perUser, userLookup, users]);
 
   const filteredPerUser = useMemo(() => {
-    if (roleFilter === ROLE_FILTER_ALL) return dedupedPerUser;
-    return dedupedPerUser.filter((r) => r.role === roleFilter);
-  }, [dedupedPerUser, roleFilter]);
+    let rows = dedupedPerUser;
+    if (roleFilter !== ROLE_FILTER_ALL) {
+      rows = rows.filter((r) => r.role === roleFilter);
+    }
+    const q = userSearch.toLowerCase().trim();
+    if (q) {
+      rows = rows.filter((r) => r.user.toLowerCase().includes(q));
+    }
+    return rows;
+  }, [dedupedPerUser, roleFilter, userSearch]);
   const drawerRows = useMemo(() => {
     if (!selectedStep) return [];
     if (selectedStepMode === 'nonRealise') {
@@ -364,6 +394,18 @@ export default function MonitoringPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Utilisateur</label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Rechercher un utilisateur…"
+                  className="h-10 w-64 pl-8"
+                />
+              </div>
             </div>
           </div>
           <UserView rows={filteredPerUser} loading={loading} userLookup={userLookup} />
