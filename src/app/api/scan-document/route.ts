@@ -60,6 +60,7 @@ SCHÉMA JSON STRICT — renvoie exactement cette structure, où chaque champ est
   "model": { "value": string | null, "fileIndex": number | null, "box": [number,number,number,number] | null },
   "registration": { "value": string | null, "fileIndex": number | null, "box": [number,number,number,number] | null },
   "registrationW": { "value": string | null, "fileIndex": number | null, "box": [number,number,number,number] | null },
+  "previousRegistration": { "value": string | null, "fileIndex": number | null, "box": [number,number,number,number] | null },
   "intermediaryName": { "value": string | null, "fileIndex": number | null, "box": [number,number,number,number] | null },
   "intermediaryEmail": { "value": string | null, "fileIndex": number | null, "box": [number,number,number,number] | null },
   "refExpert": { "value": string | null, "fileIndex": number | null, "box": [number,number,number,number] | null },
@@ -107,7 +108,7 @@ RÈGLES STRICTES (ZÉRO TOLÉRANCE AUX ERREURS):
 1. Renvoie UNIQUEMENT le JSON brut. Pas de markdown, pas de commentaires, pas de \`\`\`, pas de texte avant ou après.
 2. DATES: Format YYYY-MM-DD uniquement. Si le document dit "15/03/2024", renvoie "2024-03-15". Si le format est ambigu (ex: 03/04/2024 pourrait être mars ou avril), utilise le format DD/MM/YYYY qui est le standard marocain/français.
 3. NOMS DE COMPAGNIES: Copie le nom EXACT tel qu'il apparaît dans le document. Ne corrige pas l'orthographe, ne standardise pas.
-4. IMMATRICULATION: Copie le format EXACT du document, caractère par caractère.
+4. IMMATRICULATION: Copie le format EXACT du document, caractère par caractère. Sur la carte grise, deux numéros peuvent figurer: le numéro courant ("Immatriculation" / "N° d'immatriculation" / "Numéro d'immatriculation") va dans \`registration\`; le numéro antérieur ("Immatriculation antérieure" / "Ancien numéro" / "Précédente immatriculation"), s'il est présent, va dans \`previousRegistration\`. Si un seul numéro est donné, remplis uniquement \`registration\` et laisse \`previousRegistration\` à null. \`registrationW\` reste réservé aux plaques W (transit).
 5. NOMS DE PERSONNES: Copie exactement comme écrit dans le document, avec la casse originale.
 6. NUMÉROS DE TÉLÉPHONE: Copie le format exact du document.
 7. MARQUE & MODÈLE VÉHICULE:

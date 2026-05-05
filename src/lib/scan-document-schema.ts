@@ -44,6 +44,7 @@ export const ScanDocumentOutput = z.object({
   model: extractedString,
   registration: extractedString,
   registrationW: extractedString,
+  previousRegistration: extractedString,
   intermediaryName: extractedString,
   intermediaryEmail: extractedString,
   refExpert: extractedString,
