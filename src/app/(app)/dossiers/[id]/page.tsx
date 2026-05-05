@@ -180,7 +180,14 @@ export default function DossierDetailPage({
               </>
             ),
             5: <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} />,
-            6: <Step5Chiffrage dossierId={id} />,
+            6: (
+              <>
+                <Step5Chiffrage dossierId={id} />
+                <div className="mt-4">
+                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
+                </div>
+              </>
+            ),
             7: <Step6Rapport dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
             8: (
               <div className="rounded-lg border border-dashed border-border/40 bg-muted/20 p-8 text-center">
