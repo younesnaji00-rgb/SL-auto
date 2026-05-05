@@ -169,8 +169,14 @@ export default function DossierDetailPage({
           dossierId={id}
           steps={DOSSIER_TIMELINE_STEPS}
           sections={{
-            1: <Step1Import dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
-            3: <Step2Information dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
+            1: (
+              <>
+                <Step1Import dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />
+                <div className="mt-4">
+                  <Step2Information dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />
+                </div>
+              </>
+            ),
             4: (
               <>
                 <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" />
