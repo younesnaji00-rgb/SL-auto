@@ -243,6 +243,30 @@ export const dossiersForStep = (
   });
 };
 
+/**
+ * Inverse of `dossiersForStep` — return dossiers that have NOT done the step.
+ * Returns [] for step `creation` (every in-scope dossier has been "created" by
+ * definition, so there's no non-réalisé bucket). Sorted by createdAt desc.
+ */
+export const dossiersNotForStep = (
+  dossiers: FunnelDossier[],
+  _logs: WorkflowLog[],
+  step: StepKey,
+): DossierForStep[] => {
+  if (step === 'creation') return [];
+  const def = STEP_DEFS[step];
+  const out: DossierForStep[] = [];
+  for (const d of dossiers) {
+    if (def.doneAt(d) != null) continue;
+    out.push({ dossier: d, doneAt: null, author: null });
+  }
+  return out.sort((a, b) => {
+    const ad = toDate(a.dossier.createdAt)?.getTime() ?? 0;
+    const bd = toDate(b.dossier.createdAt)?.getTime() ?? 0;
+    return bd - ad;
+  });
+};
+
 export const computePerCompagnieCounts = (
   dossiers: FunnelDossier[],
   range: FunnelRange,

@@ -61,10 +61,13 @@ import {
   computePerUserCounts,
   computeStepCounts,
   dossiersForStep,
+  dossiersNotForStep,
   type FunnelDossier,
   type StepKey,
   type WorkflowLog,
 } from './funnel';
+
+type DrawerMode = 'realise' | 'nonRealise';
 import { DossierDrawer } from './dossier-drawer';
 
 const tabular = { fontVariantNumeric: 'tabular-nums' as const };
@@ -118,7 +121,13 @@ export default function MonitoringPage() {
   const [dateFrom, setDateFrom] = useState<Date | null>(() => subDays(startOfDay(new Date()), 6));
   const [dateTo, setDateTo] = useState<Date | null>(() => endOfDay(new Date()));
   const [selectedStep, setSelectedStep] = useState<StepKey | null>(null);
+  const [selectedStepMode, setSelectedStepMode] = useState<DrawerMode>('realise');
   const [roleFilter, setRoleFilter] = useState<string>(ROLE_FILTER_ALL);
+
+  const openDrawer = (step: StepKey, mode: DrawerMode) => {
+    setSelectedStep(step);
+    setSelectedStepMode(mode);
+  };
 
   useEffect(() => {
     if (!db) return;
@@ -261,10 +270,13 @@ export default function MonitoringPage() {
     if (roleFilter === ROLE_FILTER_ALL) return dedupedPerUser;
     return dedupedPerUser.filter((r) => r.role === roleFilter);
   }, [dedupedPerUser, roleFilter]);
-  const drawerRows = useMemo(
-    () => (selectedStep ? dossiersForStep(dossiers, workflowLogs, range, selectedStep) : []),
-    [selectedStep, dossiers, workflowLogs, range],
-  );
+  const drawerRows = useMemo(() => {
+    if (!selectedStep) return [];
+    if (selectedStepMode === 'nonRealise') {
+      return dossiersNotForStep(dossiers, workflowLogs, selectedStep);
+    }
+    return dossiersForStep(dossiers, workflowLogs, range, selectedStep);
+  }, [selectedStep, selectedStepMode, dossiers, workflowLogs, range]);
 
   const totalDossiersInScope = dossiers.length;
 
@@ -326,7 +338,7 @@ export default function MonitoringPage() {
               counts={globalCounts}
               totalDossiers={totalDossiersInScope}
               loading={loading}
-              onSelectStep={setSelectedStep}
+              onSelectStep={openDrawer}
             />
           )}
         </TabsContent>
@@ -362,6 +374,7 @@ export default function MonitoringPage() {
         open={selectedStep != null}
         onOpenChange={(v) => !v && setSelectedStep(null)}
         step={selectedStep}
+        mode={selectedStepMode}
         rows={drawerRows}
         userLookup={userLookup}
       />
@@ -378,7 +391,7 @@ function GlobalView({
   counts: Record<StepKey, number>;
   totalDossiers: number;
   loading: boolean;
-  onSelectStep: (step: StepKey) => void;
+  onSelectStep: (step: StepKey, mode: DrawerMode) => void;
 }) {
   const chartData = STEP_KEYS.map((key) => ({
     step: STEP_LABELS_SHORT[key],
@@ -402,15 +415,21 @@ function GlobalView({
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {STEP_KEYS.map((key, idx) => (
-          <KpiCard
-            key={key}
-            index={idx + 1}
-            label={STEP_LABELS[key]}
-            value={counts[key]}
-            onSelect={() => onSelectStep(key)}
-          />
-        ))}
+        {STEP_KEYS.map((key, idx) => {
+          const realise = counts[key];
+          const nonRealise = key === 'creation' ? null : Math.max(totalDossiers - realise, 0);
+          return (
+            <KpiCard
+              key={key}
+              index={idx + 1}
+              label={STEP_LABELS[key]}
+              value={realise}
+              nonRealise={nonRealise}
+              onSelectRealise={() => onSelectStep(key, 'realise')}
+              onSelectNonRealise={() => onSelectStep(key, 'nonRealise')}
+            />
+          );
+        })}
       </div>
 
       <Card>
@@ -444,38 +463,55 @@ function KpiCard({
   index,
   label,
   value,
-  onSelect,
+  nonRealise,
+  onSelectRealise,
+  onSelectNonRealise,
 }: {
   index: number;
   label: string;
   value: number;
-  onSelect: () => void;
+  nonRealise: number | null;
+  onSelectRealise: () => void;
+  onSelectNonRealise: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className="rounded-lg text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <Card className="overflow-hidden transition hover:border-primary/40 hover:shadow-sm">
-        <CardHeader className="pb-2">
-          <div className="flex items-center gap-2">
-            <span
-              className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary"
-              style={tabular}
-            >
-              {index}
-            </span>
-            <CardTitle className="text-sm font-semibold">{label}</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
+    <Card className="overflow-hidden transition hover:border-primary/40 hover:shadow-sm">
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary"
+            style={tabular}
+          >
+            {index}
+          </span>
+          <CardTitle className="text-sm font-semibold">{label}</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2 pb-3">
+        <button
+          type="button"
+          onClick={onSelectRealise}
+          className="block w-full rounded-md text-left transition hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Réalisé</div>
           <div className="text-3xl font-semibold text-foreground" style={tabular}>
             {value}
           </div>
-        </CardContent>
-      </Card>
-    </button>
+        </button>
+        {nonRealise != null && (
+          <button
+            type="button"
+            onClick={onSelectNonRealise}
+            className="block w-full rounded-md border border-amber-300/40 bg-amber-50/40 px-2 py-1 text-left transition hover:bg-amber-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-amber-700/30 dark:bg-amber-950/20 dark:hover:bg-amber-900/30"
+          >
+            <div className="text-[10px] uppercase tracking-wider text-amber-800/80 dark:text-amber-200/80">Non réalisé</div>
+            <div className="text-lg font-semibold text-amber-900 dark:text-amber-100" style={tabular}>
+              {nonRealise}
+            </div>
+          </button>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

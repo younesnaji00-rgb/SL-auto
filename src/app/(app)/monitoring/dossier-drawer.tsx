@@ -67,12 +67,14 @@ export function DossierDrawer({
   open,
   onOpenChange,
   step,
+  mode,
   rows,
   userLookup,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   step: StepKey | null;
+  mode: 'realise' | 'nonRealise';
   rows: DossierForStep[];
   userLookup: UserLookup;
 }) {
@@ -84,14 +86,24 @@ export function DossierDrawer({
     router.push(`/dossiers/${id}${hash}`);
   };
 
+  const isNonRealise = mode === 'nonRealise';
+  const stepLabel = step ? STEP_LABELS[step] : 'Dossiers';
+  const title = step ? `${stepLabel} — ${isNonRealise ? 'non réalisé' : 'réalisé'}` : 'Dossiers';
+  const description = rows.length === 0
+    ? (isNonRealise
+        ? 'Aucun dossier en attente sur cette étape.'
+        : 'Aucun dossier n’a franchi cette étape.')
+    : `${rows.length} dossier${rows.length > 1 ? 's' : ''} ${isNonRealise ? 'en attente sur cette étape' : 'ayant franchi cette étape'}.`;
+  const emptyDescription = isNonRealise
+    ? 'Tous les dossiers en périmètre ont franchi cette étape.'
+    : 'Aucun dossier n’est encore associé à cette étape.';
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
         <SheetHeader>
-          <SheetTitle>{step ? STEP_LABELS[step] : 'Dossiers'}</SheetTitle>
-          <SheetDescription>
-            {rows.length} dossier{rows.length > 1 ? 's' : ''} ayant franchi cette étape.
-          </SheetDescription>
+          <SheetTitle>{title}</SheetTitle>
+          <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-1">
@@ -99,7 +111,7 @@ export function DossierDrawer({
             <EmptyState
               icon={<Inbox />}
               title="Aucun dossier"
-              description="Aucun dossier ne correspond à cette étape dans la plage sélectionnée."
+              description={emptyDescription}
             />
           ) : (
             rows.map(({ dossier, doneAt, author }) => (
@@ -111,14 +123,16 @@ export function DossierDrawer({
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{dossierIdentifier(dossier)}</div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span>par {resolveUserName(author, userLookup)}</span>
-                    {doneAt && (
-                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {format(doneAt, 'dd/MM/yyyy HH:mm', { locale: fr })}
-                      </span>
-                    )}
-                  </div>
+                  {!isNonRealise && (
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span>par {resolveUserName(author, userLookup)}</span>
+                      {doneAt && (
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {format(doneAt, 'dd/MM/yyyy HH:mm', { locale: fr })}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition group-hover:text-foreground" />
               </button>
