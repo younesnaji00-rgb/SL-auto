@@ -29,7 +29,7 @@ export type Dossier = {
   authorRapportDepose?: string;
   // Structured objects
   assure: { nom: string; prenom: string; telephone: string; whatsapp: string; telephone2: string; email: string; adresse: string; cin: string } | string;
-  vehicule: { marque: string; modele: string; immatriculation: string; serie: string; energie: string; puissance: string; mec: any; km: string };
+  vehicule: { marque: string; modele: string; immatriculation: string; immatriculationAnterieur?: string; serie: string; energie: string; puissance: string; mec: any; km: string };
   partieAdverse: { assure: string; matricule: string; marque: string; police: string; compagnie: string };
   // Adverse flat fields
   adverseNom: string;

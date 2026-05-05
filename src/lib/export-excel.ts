@@ -5,6 +5,11 @@ export type ExportColumn = { key: string; label: string };
 
 function formatCellValue(row: Record<string, any>, key: string): string {
   const val = row[key];
+
+  if (key === 'matriculeAnterieur') {
+    return row.vehicule?.immatriculationAnterieur ?? '';
+  }
+
   if (val == null) return '';
 
   if (key === 'assure') {

@@ -52,6 +52,7 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'typeDossier', label: 'Type Dossier' },
   { key: 'statut', label: 'Statut' },
   { key: 'matricule', label: 'Matricule' },
+  { key: 'matriculeAnterieur', label: 'Matricule antérieur' },
   { key: 'dateSinistre', label: 'Date sinistre' },
   { key: 'dateRequete', label: 'Date Requête' },
   { key: 'dateMissionAgentTerrain', label: 'Date mission AT' },
@@ -529,6 +530,7 @@ export default function DossiersClientPage() {
                     </div>
                   </TableCell>
                   <TableCell className="font-mono text-xs tabular-nums">{d.matricule || '-'}</TableCell>
+                  <TableCell className="font-mono text-xs tabular-nums">{d.vehicule?.immatriculationAnterieur || '-'}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateSinistre)}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateRequete)}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateMissionAgentTerrain)}</TableCell>
