@@ -71,7 +71,7 @@ import {
   collectionGroup,
   serverTimestamp
 } from 'firebase/firestore';
-import { roles, type Role, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
+import { roles, type Role } from '@/lib/dossiers-data';
 import { Eye, EyeOff, Check, ChevronsUpDown, Plus, Search } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useOptions } from '@/hooks/use-options';
@@ -89,14 +89,15 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const userRef = useMemo(() => doc(db, 'users', uid), [db, uid]);
   const { data: userData, loading: userLoading } = useDoc(userRef);
 
-  const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
-  const companyOptions = useMemo(() => {
-    const opts = dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true }));
-    return opts.map(c => ({ value: c.label, label: c.label }));
-  }, [dbCompagnies]);
+  // Single source of truth: Firestore. Filter inactive entries client-side.
+  const { options: dbCompagnies } = useOptions('compagnies');
+  const companyOptions = useMemo(
+    () => dbCompagnies.filter(o => o.active !== false).map(c => ({ value: c.label, label: c.label })),
+    [dbCompagnies],
+  );
 
-  const { options: dbZones } = useOptions('options_zones', []);
-  const zoneOptions = dbZones;
+  const { options: dbZones } = useOptions('options_zones');
+  const zoneOptions = useMemo(() => dbZones.filter(o => o.active !== false), [dbZones]);
 
   // Zone typeahead combobox state
   const [zonePopoverOpen, setZonePopoverOpen] = useState(false);

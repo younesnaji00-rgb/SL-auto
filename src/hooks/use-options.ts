@@ -28,10 +28,17 @@ export type Option = {
 };
 
 /**
- * Hook to listen to a dynamic option collection.
- * Seeding is now handled centrally in src/lib/seed-options.ts
+ * Hook to listen to a dynamic option collection. Returns whatever's in
+ * Firestore — no in-memory fallback. The collection is seeded once on app
+ * start by `src/lib/seed-options.ts`, after which it is the single source of
+ * truth for dropdown contents.
+ *
+ * The legacy `defaultValues` parameter is accepted for backwards compat but
+ * IGNORED — call sites that still pass it should be cleaned up. Do not
+ * re-introduce a runtime fallback: any divergence between Firestore and the
+ * hardcoded constants in `dossiers-data.ts` becomes a silent drift bug.
  */
-export function useOptions(collectionName: string, defaultValues: string[] = []) {
+export function useOptions(collectionName: string, _defaultValues?: string[]) {
   const db = useFirestore();
   const [options, setOptions] = useState<Option[]>([]);
   const [loading, setLoading] = useState(true);

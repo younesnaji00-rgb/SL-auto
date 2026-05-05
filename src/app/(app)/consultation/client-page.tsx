@@ -11,7 +11,6 @@ import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { natures as defaultNatures, statuses as defaultStatuses, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 import { useDossiers } from '@/hooks/use-dossiers';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import { useOptions } from '@/hooks/use-options';
@@ -21,13 +20,14 @@ import { SkeletonRow } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 
 export default function ConsultationClientPage() {
-  const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
-  const { options: dbNatures } = useOptions('options_natures', defaultNatures);
-  const { options: dbStatuses } = useOptions('options_statuts', defaultStatuses);
+  const { options: dbCompagnies } = useOptions('compagnies');
+  const { options: dbNatures } = useOptions('options_natures');
+  const { options: dbStatuses } = useOptions('options_statuts');
 
-  const compagnies = useMemo(() => dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbCompagnies]);
-  const natures = useMemo(() => dbNatures.length > 0 ? dbNatures : defaultNatures.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbNatures]);
-  const statuses = useMemo(() => dbStatuses.length > 0 ? dbStatuses : defaultStatuses.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbStatuses]);
+  // Single source of truth: Firestore. Filter inactive entries client-side.
+  const compagnies = useMemo(() => dbCompagnies.filter(o => o.active !== false), [dbCompagnies]);
+  const natures = useMemo(() => dbNatures.filter(o => o.active !== false), [dbNatures]);
+  const statuses = useMemo(() => dbStatuses.filter(o => o.active !== false), [dbStatuses]);
 
   // Fetch ALL dossiers — no company restriction
   const { dossiers: allDossiers, loading, error: fetchError } = useDossiers();

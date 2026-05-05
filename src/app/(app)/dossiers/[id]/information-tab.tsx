@@ -11,7 +11,6 @@ import { Badge } from '@/components/ui/badge';
 import { updateDoc, type DocumentReference, Timestamp } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { statuses as defaultStatuses, natures as defaultNatures, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 import { logHistorique, logWorkflow } from './log-historique';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
@@ -29,8 +28,6 @@ import {
   type ExpertInfo,
 } from '@/lib/create-empty-dossier';
 
-const defaultDossierTypes = ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'];
-
 interface InformationTabProps {
   dossier: any;
   dossierRef: DocumentReference;
@@ -47,15 +44,16 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
   const { canWrite } = useCurrentUser();
   const canEdit = canWrite('dossiers');
 
-  const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
-  const { options: dbStatuses } = useOptions('options_statuts', defaultStatuses);
-  const { options: dbNatures } = useOptions('options_natures', defaultNatures);
-  const { options: dbDossierTypes } = useOptions('options_types_dossier', defaultDossierTypes);
+  // Single source of truth: Firestore. Filter inactive entries client-side.
+  const { options: dbCompagnies } = useOptions('compagnies');
+  const { options: dbStatuses } = useOptions('options_statuts');
+  const { options: dbNatures } = useOptions('options_natures');
+  const { options: dbDossierTypes } = useOptions('options_types_dossier');
 
-  const compagnies = useMemo(() => dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbCompagnies]);
-  const statuses = useMemo(() => dbStatuses.length > 0 ? dbStatuses : defaultStatuses.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbStatuses]);
-  const natures = useMemo(() => dbNatures.length > 0 ? dbNatures : defaultNatures.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbNatures]);
-  const dossierTypes = useMemo(() => dbDossierTypes.length > 0 ? dbDossierTypes : defaultDossierTypes.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbDossierTypes]);
+  const compagnies = useMemo(() => dbCompagnies.filter(o => o.active !== false), [dbCompagnies]);
+  const statuses = useMemo(() => dbStatuses.filter(o => o.active !== false), [dbStatuses]);
+  const natures = useMemo(() => dbNatures.filter(o => o.active !== false), [dbNatures]);
+  const dossierTypes = useMemo(() => dbDossierTypes.filter(o => o.active !== false), [dbDossierTypes]);
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -292,7 +290,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             },
             {
               label: 'Type de dossier', value: form.typeDossier,
-              modal: <OptionsManagerModal collectionName="options_types_dossier" title="Types de dossier" defaultValues={defaultDossierTypes} />,
+              modal: <OptionsManagerModal collectionName="options_types_dossier" title="Types de dossier" />,
               edit: (
                 <Select value={form.typeDossier} onValueChange={(v) => handleChange('typeDossier', v)}>
                   <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
@@ -302,7 +300,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             },
             {
               label: 'Nature du dossier', value: form.nature,
-              modal: <OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />,
+              modal: <OptionsManagerModal collectionName="options_natures" title="Natures" />,
               edit: (
                 <Select value={form.nature} onValueChange={(v) => handleChange('nature', v)}>
                   <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
@@ -312,7 +310,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             },
             {
               label: 'Statut', value: form.statut,
-              modal: <OptionsManagerModal collectionName="options_statuts" title="Statuts" defaultValues={defaultStatuses} />,
+              modal: <OptionsManagerModal collectionName="options_statuts" title="Statuts" />,
               edit: (
                 <Select value={form.statut} onValueChange={(v) => handleChange('statut', v)}>
                   <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>

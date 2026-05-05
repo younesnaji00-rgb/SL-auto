@@ -53,7 +53,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { MultiSelect } from '@/components/ui/multi-select';
-import { roles as defaultRoles, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useFirebaseApp } from '@/firebase';
 import { collection, setDoc, serverTimestamp, doc, deleteDoc, query, where, getDocs, addDoc } from 'firebase/firestore';
@@ -105,14 +104,15 @@ export default function UtilisateursClientPage() {
   const db = useFirestore();
   const app = useFirebaseApp();
 
-  const { options: dbRoles } = useOptions('options_roles', [...defaultRoles]);
-  const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
-  const { options: dbAgentsRaw } = useOptions('options_agents', []);
-  const { options: dbZones } = useOptions('options_zones', []);
+  // Single source of truth: Firestore. Filter inactive entries client-side.
+  const { options: dbRoles } = useOptions('options_roles');
+  const { options: dbCompagnies } = useOptions('compagnies');
+  const { options: dbAgentsRaw } = useOptions('options_agents');
+  const { options: dbZones } = useOptions('options_zones');
 
-  const roles = useMemo(() => dbRoles.length > 0 ? dbRoles : defaultRoles.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbRoles]);
-  const compagniesOptions = useMemo(() => dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbCompagnies]);
-  const zones = dbZones;
+  const roles = useMemo(() => dbRoles.filter(o => o.active !== false), [dbRoles]);
+  const compagniesOptions = useMemo(() => dbCompagnies.filter(o => o.active !== false), [dbCompagnies]);
+  const zones = useMemo(() => dbZones.filter(o => o.active !== false), [dbZones]);
 
   // Zone typeahead combobox state
   const [zonePopoverOpen, setZonePopoverOpen] = useState(false);
@@ -346,7 +346,7 @@ export default function UtilisateursClientPage() {
                     <FormItem>
                       <div className="flex items-center justify-between">
                         <FormLabel>Rôle</FormLabel>
-                        <OptionsManagerModal collectionName="options_roles" title="Rôles" defaultValues={[...defaultRoles]} />
+                        <OptionsManagerModal collectionName="options_roles" title="Rôles" />
                       </div>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>

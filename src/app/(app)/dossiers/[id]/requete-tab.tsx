@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { updateDoc, type DocumentReference, Timestamp } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { statuses as defaultStatuses, natures as defaultNatures, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { logHistorique, logWorkflow } from './log-historique';
@@ -23,24 +22,23 @@ import { getStatusDotColor } from '@/lib/status-colors';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-const defaultDossierTypes = ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'];
-
 export default function RequeteTab({ dossier, dossierRef }: { dossier: any; dossierRef: DocumentReference }) {
   const { canWrite } = useCurrentUser();
   const canEdit = canWrite('dossiers');
     const db = useFirestore();
     const auth = useAuth();
     const { toast } = useToast();
-    
-    const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
-    const { options: dbStatuses } = useOptions('options_statuts', defaultStatuses);
-    const { options: dbNatures } = useOptions('options_natures', defaultNatures);
-    const { options: dbDossierTypes } = useOptions('options_types_dossier', defaultDossierTypes);
 
-    const compagnies = useMemo(() => dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbCompagnies]);
-    const statuses = useMemo(() => dbStatuses.length > 0 ? dbStatuses : defaultStatuses.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbStatuses]);
-    const natures = useMemo(() => dbNatures.length > 0 ? dbNatures : defaultNatures.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbNatures]);
-    const dossierTypes = useMemo(() => dbDossierTypes.length > 0 ? dbDossierTypes : defaultDossierTypes.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbDossierTypes]);
+    // Single source of truth: Firestore. Filter inactive entries client-side.
+    const { options: dbCompagnies } = useOptions('compagnies');
+    const { options: dbStatuses } = useOptions('options_statuts');
+    const { options: dbNatures } = useOptions('options_natures');
+    const { options: dbDossierTypes } = useOptions('options_types_dossier');
+
+    const compagnies = useMemo(() => dbCompagnies.filter(o => o.active !== false), [dbCompagnies]);
+    const statuses = useMemo(() => dbStatuses.filter(o => o.active !== false), [dbStatuses]);
+    const natures = useMemo(() => dbNatures.filter(o => o.active !== false), [dbNatures]);
+    const dossierTypes = useMemo(() => dbDossierTypes.filter(o => o.active !== false), [dbDossierTypes]);
 
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -231,7 +229,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
                     <Field 
                       label="Type de dossier" 
                       value={formValues.typeDossier}
-                      managerModal={<OptionsManagerModal collectionName="options_types_dossier" title="Types de dossier" defaultValues={defaultDossierTypes} />}
+                      managerModal={<OptionsManagerModal collectionName="options_types_dossier" title="Types de dossier" />}
                     >
                         <Select value={formValues.typeDossier} onValueChange={(v) => handleFormChange('typeDossier', v)}>
                             <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
@@ -243,7 +241,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
                     <Field 
                       label="Nature du dossier" 
                       value={formValues.nature}
-                      managerModal={<OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />}
+                      managerModal={<OptionsManagerModal collectionName="options_natures" title="Natures" />}
                     >
                         <Select value={formValues.nature} onValueChange={(v) => handleFormChange('nature', v)}>
                             <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
@@ -255,7 +253,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
                     <Field 
                       label="Statut" 
                       value={formValues.statut}
-                      managerModal={<OptionsManagerModal collectionName="options_statuts" title="Statuts" defaultValues={defaultStatuses} />}
+                      managerModal={<OptionsManagerModal collectionName="options_statuts" title="Statuts" />}
                     >
                         <Select value={formValues.statut} onValueChange={(v) => handleFormChange('statut', v)}>
                             <SelectTrigger className="h-9"><SelectValue placeholder="Choisir un statut" /></SelectTrigger>

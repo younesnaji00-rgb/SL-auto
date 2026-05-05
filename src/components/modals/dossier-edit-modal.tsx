@@ -29,9 +29,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
-import { natures as defaultNatures, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
-
-const defaultDossierTypes = ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'];
 
 interface DossierEditModalProps {
   isOpen: boolean;
@@ -45,14 +42,14 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // DB-driven options — same sources as creation form and information tab
-  const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
-  const { options: dbNatures } = useOptions('options_natures', defaultNatures);
-  const { options: dbDossierTypes } = useOptions('options_types_dossier', defaultDossierTypes);
+  // DB-driven options — Firestore is the single source of truth.
+  const { options: dbCompagnies } = useOptions('compagnies');
+  const { options: dbNatures } = useOptions('options_natures');
+  const { options: dbDossierTypes } = useOptions('options_types_dossier');
 
-  const compagnies = useMemo(() => dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbCompagnies]);
-  const natures = useMemo(() => dbNatures.length > 0 ? dbNatures : defaultNatures.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbNatures]);
-  const dossierTypes = useMemo(() => dbDossierTypes.length > 0 ? dbDossierTypes : defaultDossierTypes.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbDossierTypes]);
+  const compagnies = useMemo(() => dbCompagnies.filter(o => o.active !== false), [dbCompagnies]);
+  const natures = useMemo(() => dbNatures.filter(o => o.active !== false), [dbNatures]);
+  const dossierTypes = useMemo(() => dbDossierTypes.filter(o => o.active !== false), [dbDossierTypes]);
 
   const [formData, setFormData] = useState<any>({
     expertRank: '1er expert',
@@ -214,7 +211,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs text-muted-foreground font-semibold">Type Dossier</Label>
-                    <OptionsManagerModal collectionName="options_types_dossier" title="Types de dossier" defaultValues={defaultDossierTypes} />
+                    <OptionsManagerModal collectionName="options_types_dossier" title="Types de dossier" />
                   </div>
                   <Select value={formData.typeDossier} onValueChange={(v) => setFormData({ ...formData, typeDossier: v })}>
                     <SelectTrigger className="h-10"><SelectValue placeholder="Choisir" /></SelectTrigger>
@@ -224,7 +221,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
                 <div className="col-span-2 space-y-1">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs text-muted-foreground font-semibold">Nature du dossier</Label>
-                    <OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />
+                    <OptionsManagerModal collectionName="options_natures" title="Natures" />
                   </div>
                   <Select value={formData.nature} onValueChange={(v) => setFormData({ ...formData, nature: v })}>
                     <SelectTrigger className="h-10"><SelectValue placeholder="Choisir" /></SelectTrigger>

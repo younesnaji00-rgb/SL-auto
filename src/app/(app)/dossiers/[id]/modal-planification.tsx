@@ -36,9 +36,6 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useAgentTerrainWorkload } from '@/hooks/use-workload-counts';
 import { deriveStatus } from '@/lib/status-machine';
 
-const defaultRDVTypes = ['Avant', 'En cours', 'Après'];
-const defaultAgents = ['Agent 1', 'Agent 2'];
-
 /** Narrows a free-form typeMission string to the canonical tri-state, or null. */
 function normalizeTypeMission(
   typeMission: string,
@@ -65,11 +62,11 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   const { profile } = useCurrentUser();
   const [loading, setLoading] = useState(false);
 
-  const { options: dbRDVTypes } = useOptions('options_types_rdv', defaultRDVTypes);
-  const rdvTypes = useMemo(() => dbRDVTypes.length > 0 ? dbRDVTypes : defaultRDVTypes.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbRDVTypes]);
+  const { options: dbRDVTypes } = useOptions('options_types_rdv');
+  const rdvTypes = useMemo(() => dbRDVTypes.filter(o => o.active !== false), [dbRDVTypes]);
 
-  const { options: dbAgents } = useOptions('options_agents', defaultAgents);
-  const agents = useMemo<Option[]>(() => dbAgents.length > 0 ? dbAgents : defaultAgents.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbAgents]);
+  const { options: dbAgents } = useOptions('options_agents');
+  const agents = useMemo<Option[]>(() => dbAgents.filter(o => o.active !== false), [dbAgents]);
   const agentWorkload = useAgentTerrainWorkload();
 
   const [agentZoneFilter, setAgentZoneFilter] = useState('');
@@ -216,7 +213,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Agent de Terrain</Label>
-                <OptionsManagerModal collectionName="options_agents" title="Agents de terrain" defaultValues={defaultAgents} />
+                <OptionsManagerModal collectionName="options_agents" title="Agents de terrain" />
               </div>
               <Select
                 value={agentZoneFilter === '' ? '__all__' : agentZoneFilter}
@@ -288,7 +285,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Type de RDV</Label>
-                <OptionsManagerModal collectionName="options_types_rdv" title="Types de RDV" defaultValues={defaultRDVTypes} />
+                <OptionsManagerModal collectionName="options_types_rdv" title="Types de RDV" />
               </div>
               <Select value={formData.typeMission} onValueChange={(v) => setFormData({...formData, typeMission: v})}>
                 <SelectTrigger><SelectValue placeholder="Choisir un type" /></SelectTrigger>

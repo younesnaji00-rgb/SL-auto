@@ -10,7 +10,6 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { natures as defaultNatures, statuses as defaultStatuses, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 import { useToast } from '@/hooks/use-toast';
 import { useDossiers } from '@/hooks/use-dossiers';
 import { useAuth, useFirestore } from '@/firebase';
@@ -82,13 +81,15 @@ export default function DossiersClientPage() {
     router.push(`/dossiers/${d.id}`);
   }, [openTab, router]);
 
-  const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
-  const { options: dbNatures } = useOptions('options_natures', defaultNatures);
-  const { options: dbStatuses } = useOptions('options_statuts', defaultStatuses);
+  const { options: dbCompagnies } = useOptions('compagnies');
+  const { options: dbNatures } = useOptions('options_natures');
+  const { options: dbStatuses } = useOptions('options_statuts');
 
-  const allCompagnies = useMemo(() => dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbCompagnies]);
-  const natures = useMemo(() => dbNatures.length > 0 ? dbNatures : defaultNatures.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbNatures]);
-  const statuses = useMemo(() => dbStatuses.length > 0 ? dbStatuses : defaultStatuses.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbStatuses]);
+  // Single source of truth: Firestore. Filter inactive entries client-side so
+  // an option deactivated via the manager modal disappears from every dropdown.
+  const allCompagnies = useMemo(() => dbCompagnies.filter(o => o.active !== false), [dbCompagnies]);
+  const natures = useMemo(() => dbNatures.filter(o => o.active !== false), [dbNatures]);
+  const statuses = useMemo(() => dbStatuses.filter(o => o.active !== false), [dbStatuses]);
 
   const userCompagnies = profile?.compagnies || [];
 
@@ -297,7 +298,7 @@ export default function DossiersClientPage() {
               {filterNatures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />
+          <OptionsManagerModal collectionName="options_natures" title="Natures" />
         </div>
 
         <div className="flex items-center gap-1">
@@ -308,7 +309,7 @@ export default function DossiersClientPage() {
               {filterStatuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
             </SelectContent>
           </Select>
-          <OptionsManagerModal collectionName="options_statuts" title="Statuts" defaultValues={defaultStatuses} />
+          <OptionsManagerModal collectionName="options_statuts" title="Statuts" />
         </div>
 
         <div className="flex items-center gap-1">

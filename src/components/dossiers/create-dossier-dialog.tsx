@@ -33,7 +33,6 @@ import {
   type ExpertInfo,
 } from '@/lib/create-empty-dossier';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
-import { compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 
 // Radix Select disallows empty-string values on <SelectItem>.
 const NONE_VALUE = '__none__';
@@ -66,7 +65,11 @@ export function CreateDossierDialog({
   const db = useFirestore();
   const { profile } = useCurrentUser();
 
-  const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
+  const { options: dbCompagnies } = useOptions('compagnies');
+  const compagnieOptions = React.useMemo(
+    () => dbCompagnies.filter((o) => o.active !== false),
+    [dbCompagnies],
+  );
 
   const [compagnie, setCompagnie] = useState<string>(initialCompagnie || NONE_VALUE);
   const [expertRole, setExpertRole] = useState<ExpertRole>('1er');
@@ -203,7 +206,7 @@ export function CreateDossierDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NONE_VALUE}>—</SelectItem>
-                {dbCompagnies.map((c) => (
+                {compagnieOptions.map((c) => (
                   <SelectItem key={c.id} value={c.label}>
                     {c.label}
                   </SelectItem>

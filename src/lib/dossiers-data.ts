@@ -94,10 +94,22 @@ export const ACCORD_BUCKET_MEMBERS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Mutable-array aliases kept for compatibility with existing callers that
- * pass these into APIs typed `string[]` (e.g. select option lists). They all
- * shadow the same canonical set — editing them at runtime has no effect on
- * the source of truth (CANONICAL_STATUTS).
+ * Mutable-array aliases of the canonical status set.
+ *
+ * Single source of truth at runtime: the `options_statuts` Firestore
+ * collection (seeded once from `CANONICAL_STATUTS` via
+ * `src/lib/seed-options.ts`). Dropdown call sites read it via `useOptions`,
+ * not from the constants below.
+ *
+ * These exports remain only for:
+ *   - Seeding (consumed by `seed-options.ts`)
+ *   - Read-only TypeScript narrowing (e.g., `Dossier.statut`)
+ *   - The dashboard pie chart's fixed-enum baseline
+ *     (`src/app/(app)/dashboard/page.tsx`) where the chart slices are
+ *     intentionally bounded to the canonical set.
+ *
+ * Do NOT import these into new dropdowns or filters — they should always
+ * come from `useOptions(<collection>)`.
  */
 export const statuses: string[] = [...CANONICAL_STATUTS];
 

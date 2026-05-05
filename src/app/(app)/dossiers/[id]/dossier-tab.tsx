@@ -12,7 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { updateDoc, doc, Timestamp } from 'firebase/firestore';
 import { useFirestore, useDoc, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { natures as defaultNatures, compagnies as defaultCompagnies } from '@/lib/dossiers-data';
 import { logHistorique } from './log-historique';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
@@ -20,25 +19,23 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
 
-const defaultDossierTypes = ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'];
-const defaultRepairerTypes = ['Agréé', 'Normal'];
-
 export default function DossierTab({ dossierId }: { dossierId: string }) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
   const { canWrite } = useCurrentUser();
   const canEdit = canWrite('dossiers');
-  
-  const { options: dbCompagnies } = useOptions('compagnies', defaultCompagnies);
-  const { options: dbNatures } = useOptions('options_natures', defaultNatures);
-  const { options: dbTypes } = useOptions('options_types_dossier', defaultDossierTypes);
-  const { options: dbRepairerTypes } = useOptions('options_reparateur_types', defaultRepairerTypes);
 
-  const compagnies = useMemo(() => dbCompagnies.length > 0 ? dbCompagnies : defaultCompagnies.map((l, i) => ({ id: `f-${i}`, label: l })), [dbCompagnies]);
-  const natures = useMemo(() => dbNatures.length > 0 ? dbNatures : defaultNatures.map((l, i) => ({ id: `f-${i}`, label: l })), [dbNatures]);
-  const dossierTypes = useMemo(() => dbTypes.length > 0 ? dbTypes : defaultDossierTypes.map((l, i) => ({ id: `f-${i}`, label: l })), [dbTypes]);
-  const repairerTypes = useMemo(() => dbRepairerTypes.length > 0 ? dbRepairerTypes : defaultRepairerTypes.map((l, i) => ({ id: `f-${i}`, label: l })), [dbRepairerTypes]);
+  // Single source of truth: Firestore. Filter inactive entries client-side.
+  const { options: dbCompagnies } = useOptions('compagnies');
+  const { options: dbNatures } = useOptions('options_natures');
+  const { options: dbTypes } = useOptions('options_types_dossier');
+  const { options: dbRepairerTypes } = useOptions('options_reparateur_types');
+
+  const compagnies = useMemo(() => dbCompagnies.filter(o => o.active !== false), [dbCompagnies]);
+  const natures = useMemo(() => dbNatures.filter(o => o.active !== false), [dbNatures]);
+  const dossierTypes = useMemo(() => dbTypes.filter(o => o.active !== false), [dbTypes]);
+  const repairerTypes = useMemo(() => dbRepairerTypes.filter(o => o.active !== false), [dbRepairerTypes]);
 
   const dossierRef = doc(db, 'dossiers', dossierId);
   const { data: dossier, loading } = useDoc(dossierRef);
@@ -172,7 +169,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Compagnie d'assurance</Label>
-                    <OptionsManagerModal collectionName="compagnies" title="Compagnies" defaultValues={defaultCompagnies} />
+                    <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
                   </div>
                   <Select value={formValues.compagnie} onValueChange={(v) => setFormValues({...formValues, compagnie: v})}>
                     <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
@@ -184,7 +181,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Type Dossier</Label>
-                    <OptionsManagerModal collectionName="options_types_dossier" title="Types de dossier" defaultValues={defaultDossierTypes} />
+                    <OptionsManagerModal collectionName="options_types_dossier" title="Types de dossier" />
                   </div>
                   <Select value={formValues.typeDossier} onValueChange={(v) => setFormValues({...formValues, typeDossier: v})}>
                     <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
@@ -196,7 +193,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                 <div className="space-y-2 md:col-span-2">
                   <div className="flex items-center justify-between">
                     <Label>Nature du dossier</Label>
-                    <OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />
+                    <OptionsManagerModal collectionName="options_natures" title="Natures" />
                   </div>
                   <Select value={formValues.nature} onValueChange={(v) => setFormValues({...formValues, nature: v})}>
                     <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
@@ -346,7 +343,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label>Réparateur</Label>
-                      <OptionsManagerModal collectionName="options_reparateur_types" title="Types de réparateur" defaultValues={defaultRepairerTypes} />
+                      <OptionsManagerModal collectionName="options_reparateur_types" title="Types de réparateur" />
                     </div>
                     <Select value={formValues.repairerType} onValueChange={(v) => setFormValues({...formValues, repairerType: v})}>
                       <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
