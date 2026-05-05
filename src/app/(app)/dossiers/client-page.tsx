@@ -51,6 +51,7 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'nature', label: 'Nature du dossier' },
   { key: 'typeDossier', label: 'Type Dossier' },
   { key: 'statut', label: 'Statut' },
+  { key: 'observation', label: 'Observation' },
   { key: 'matricule', label: 'Matricule' },
   { key: 'matriculeAnterieur', label: 'Matricule antérieur' },
   { key: 'dateSinistre', label: 'Date sinistre' },
@@ -554,6 +555,15 @@ export default function DossiersClientPage() {
                         </span>
                       )}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {d.lastObservation?.text ? (
+                      <Badge className="bg-amber-50 text-amber-800 hover:bg-amber-50 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/50">
+                        {d.lastObservation.text}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
                   </TableCell>
                   <TableCell className="font-mono text-xs tabular-nums">{d.matricule || '-'}</TableCell>
                   <TableCell className="font-mono text-xs tabular-nums">{d.vehicule?.immatriculationAnterieur || '-'}</TableCell>

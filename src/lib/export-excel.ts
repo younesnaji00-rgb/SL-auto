@@ -10,6 +10,10 @@ function formatCellValue(row: Record<string, any>, key: string): string {
     return row.vehicule?.immatriculationAnterieur ?? '';
   }
 
+  if (key === 'observation') {
+    return row.lastObservation?.text ?? '';
+  }
+
   if (val == null) return '';
 
   if (key === 'assure') {
