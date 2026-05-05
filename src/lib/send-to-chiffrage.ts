@@ -403,6 +403,14 @@ export async function saveGestionnaireDevisAsPieceJointe(
           'statut',
         ).catch(() => {});
       }
+      if (cardinalOrdinal === 1) {
+        const firstAccordExists = freshSnap.exists()
+          ? Boolean((freshSnap.data() as Record<string, unknown>).firstAccordReachedAt)
+          : false;
+        if (!firstAccordExists) {
+          await updateDoc(dossierRef, { firstAccordReachedAt: serverTimestamp() });
+        }
+      }
     } catch (err) {
       console.warn('[send-to-chiffrage] cardinal statut bump failed (non-fatal)', err);
     }
