@@ -9,7 +9,6 @@ import { ref, getDownloadURL, uploadBytes, deleteObject } from 'firebase/storage
 import { useFirestore, useStorage, useAuth, useDoc, useCollection } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -38,6 +37,7 @@ import ObservationsTab from '@/components/observations-tab';
 import CameraCapture from '@/components/camera-capture';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
 import { useOptions } from '@/hooks/use-options';
+import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { deriveStatus, isPlanificationStatus } from '@/lib/status-machine';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
 import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-grid';
@@ -152,6 +152,13 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   // Document types
   const { options: dbDocTypes } = useOptions('options_types_documents', [...defaultDocTypes]);
   const docTypes = useMemo(() => dbDocTypes.length > 0 ? dbDocTypes : defaultDocTypes.map((label, i) => ({ id: `fallback-${i}`, label, order: i, active: true })), [dbDocTypes]);
+
+  // Observation presets (shared with planification modal)
+  const { options: dbObservationPresets, loading: observationPresetsLoading } = useOptions('options_observations');
+  const activeObservationPresets = useMemo(
+    () => dbObservationPresets.filter((o) => o.active !== false),
+    [dbObservationPresets],
+  );
 
   // Photos listener
   useEffect(() => {
@@ -587,14 +594,35 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                     <TableCell className="text-xs">
                       {editingPlanId === p.id ? (
                         <div className="space-y-2">
-                          <Textarea
-                            value={editObservation}
-                            onChange={(e) => setEditObservation(e.target.value)}
-                            rows={3}
-                            className="text-xs"
-                            placeholder="Saisir l'observation..."
-                            autoFocus
-                          />
+                          <div className="flex items-center gap-2">
+                            <Select
+                              value={editObservation}
+                              onValueChange={(v) => setEditObservation(v)}
+                              disabled={observationPresetsLoading || activeObservationPresets.length === 0}
+                            >
+                              <SelectTrigger className="flex-1 h-8 text-xs">
+                                <SelectValue
+                                  placeholder={
+                                    observationPresetsLoading
+                                      ? 'Chargement…'
+                                      : activeObservationPresets.length === 0
+                                        ? 'Aucune observation disponible'
+                                        : "Saisir l'observation..."
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {activeObservationPresets.map((opt) => (
+                                  <SelectItem key={opt.id} value={opt.label}>{opt.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <OptionsManagerModal
+                              collectionName="options_observations"
+                              title="Observations"
+                              defaultValues={['Assuré injoignable', "Véhicule hors ville d'expertise", 'Autre']}
+                            />
+                          </div>
                           <div className="flex gap-1">
                             <Button size="sm" className="h-7 text-xs gap-1" onClick={() => handleSaveObservation(p.id)}>
                               <Check className="h-3 w-3" /> Enregistrer
