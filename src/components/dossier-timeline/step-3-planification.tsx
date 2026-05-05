@@ -12,12 +12,14 @@ export interface Step3PlanificationProps {
   readOnly?: boolean;
   onEditPlanification: (data: any) => void;
   onNewPlanification: () => void;
+  typeFilter?: 'Avant' | 'En cours' | 'Après';
 }
 
 export default function Step3Planification({
   dossierId,
   onEditPlanification,
   onNewPlanification,
+  typeFilter,
 }: Step3PlanificationProps) {
   // The existing PlanificationTab exposes an `onOpenHistory` prop that is
   // wired to a separate history modal on legacy screens. The timeline panel
@@ -34,6 +36,7 @@ export default function Step3Planification({
         onOpenHistory={handleOpenHistory}
         onEditPlanification={onEditPlanification}
         onNewPlanification={onNewPlanification}
+        typeFilter={typeFilter}
       />
     </div>
   );

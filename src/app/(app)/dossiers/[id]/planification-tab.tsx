@@ -30,13 +30,15 @@ type PlanificationTabProps = {
   onOpenHistory: () => void;
   onEditPlanification: (data: any) => void;
   onNewPlanification: () => void;
+  typeFilter?: 'Avant' | 'En cours' | 'Après';
 };
 
 export default function PlanificationTab({
   dossierId,
   onOpenHistory,
   onEditPlanification,
-  onNewPlanification
+  onNewPlanification,
+  typeFilter
 }: PlanificationTabProps) {
     const db = useFirestore();
     const [plans, setPlans] = useState<any[] | null>(null);
@@ -76,6 +78,10 @@ export default function PlanificationTab({
 
     if (loading) return <Skeleton className="h-[300px] w-full" />;
 
+    const visiblePlans = typeFilter
+        ? (plans ?? []).filter((p: any) => p.typeMission === typeFilter)
+        : (plans ?? []);
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-end">
@@ -84,7 +90,7 @@ export default function PlanificationTab({
                 </Button>
             </div>
 
-            {!plans || plans.length === 0 ? (
+            {!visiblePlans || visiblePlans.length === 0 ? (
                 <Card className="flex flex-col items-center justify-center p-20 text-center border-dashed">
                     <CalendarIcon className="h-12 w-12 text-muted-foreground mb-4" />
                     <CardTitle>Aucune planification</CardTitle>
@@ -107,14 +113,14 @@ export default function PlanificationTab({
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {plans.map((plan: any, index: number) => (
+                                {visiblePlans.map((plan: any, index: number) => (
                                     <TableRow
                                         key={plan.id}
                                         className="cursor-pointer hover:bg-muted/50 transition-colors"
                                         onClick={() => setExpandedPlan(plan)}
                                     >
                                         <TableCell className="font-mono text-xs font-bold text-primary">
-                                            {plans.length - index}
+                                            {visiblePlans.length - index}
                                             {index === 0 && (
                                                 <Badge variant="default" className="ml-2 text-[9px] px-1 h-4">Dernière</Badge>
                                             )}
