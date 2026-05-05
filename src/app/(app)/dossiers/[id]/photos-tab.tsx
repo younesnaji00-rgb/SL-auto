@@ -62,7 +62,7 @@ const CATEGORIES: { id: PhotoCategory; label: string; fullLabel: string }[] = [
   { id: 'apres', label: 'Photos après', fullLabel: 'Photos après' },
 ];
 
-export default function PhotosTab({ dossierId }: { dossierId: string }) {
+export default function PhotosTab({ dossierId, initialCategory }: { dossierId: string; initialCategory?: PhotoCategory }) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -271,7 +271,7 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="avant" className="w-full">
+      <Tabs defaultValue={initialCategory ?? 'avant'} className="w-full">
         <TabsList>
           {CATEGORIES.map((cat) => {
             const count = photosForCategory(cat.id).length;
