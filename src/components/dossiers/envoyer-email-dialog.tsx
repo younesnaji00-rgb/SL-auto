@@ -1,10 +1,11 @@
 'use client';
 
 /**
- * EnvoyerEmailDialog — UI shell for the "Envoyer un email" action on a
- * dossier. Slice 1 of #4: UI only; no Gmail API, no OAuth, no real send.
- * Submit logs the picked sources + recipient and shows a "Brouillon Gmail à
- * venir" toast.
+ * EnvoyerEmailDialog — UI for the "Envoyer un email" action on a dossier.
+ * Sends via the server-side SMTP route (`/api/send-email`) using the single
+ * configured `SMTP_USER` account. Recipients see all emails as coming from
+ * that account; per-user Gmail drafts were considered and dropped (too much
+ * OAuth setup for a small team).
  *
  * Source list is populated from `findLatestChiffrageDocs(db, dossierId)`,
  * one row per chiffrage source (Devis Garage, Devis Garage 2, …) with the
@@ -29,7 +30,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { useCurrentUser } from '@/hooks/use-current-user';
 import {
   findLatestChiffrageDocs,
   type LatestChiffrageDoc,
@@ -51,7 +51,6 @@ export function EnvoyerEmailDialog({
 }: EnvoyerEmailDialogProps) {
   const db = useFirestore();
   const { toast } = useToast();
-  const { firebaseUser } = useCurrentUser();
 
   const [recipient, setRecipient] = useState('');
   const [subject, setSubject] = useState('');
@@ -128,14 +127,6 @@ export function EnvoyerEmailDialog({
   };
 
   const handleSubmit = async () => {
-    const uid = firebaseUser?.uid;
-    if (!uid) {
-      toast({
-        title: 'Utilisateur non authentifié',
-        variant: 'destructive',
-      });
-      return;
-    }
     const picked = sources.filter((s) => checked.has(s.sourceId));
     if (picked.length === 0) {
       toast({
@@ -146,10 +137,9 @@ export function EnvoyerEmailDialog({
     }
 
     const payload = {
-      uid,
       to: recipient,
       subject,
-      body,
+      text: body,
       attachments: picked.map((s) => ({
         url: s.pdfUrl,
         filename: `${s.label}.pdf`,
@@ -158,7 +148,7 @@ export function EnvoyerEmailDialog({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/email/draft', {
+      const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -171,35 +161,20 @@ export function EnvoyerEmailDialog({
         // ignore JSON parse failure; handled below
       }
 
-      if (res.status === 200 && data?.gmailDraftUrl) {
-        window.open(data.gmailDraftUrl, '_blank');
+      if (res.ok && data?.success) {
         onOpenChange(false);
-        toast({ title: 'Brouillon créé dans Gmail' });
-        return;
-      }
-
-      if (res.status === 401 && data?.error === 'needsReauth') {
-        toast({ title: 'Autorisez Gmail pour continuer' });
-        window.location.href = `/api/auth/google?uid=${uid}`;
-        return;
-      }
-
-      if (res.status === 413 && data?.error === 'tooLarge') {
-        toast({
-          title: 'Pièces jointes trop volumineuses (>25 MB)',
-          variant: 'destructive',
-        });
+        toast({ title: 'Email envoyé' });
         return;
       }
 
       toast({
-        title: data?.error || 'Erreur lors de la création du brouillon',
+        title: data?.error || "Erreur lors de l'envoi de l'email",
         variant: 'destructive',
       });
     } catch (err) {
       console.error('[EnvoyerEmailDialog] submit failed', err);
       toast({
-        title: 'Erreur lors de la création du brouillon',
+        title: "Erreur lors de l'envoi de l'email",
         variant: 'destructive',
       });
     } finally {
@@ -220,7 +195,6 @@ export function EnvoyerEmailDialog({
           </DialogTitle>
           <DialogDescription>
             Sélectionnez les documents à joindre puis rédigez votre message.
-            L'envoi via Gmail sera disponible prochainement.
           </DialogDescription>
         </DialogHeader>
 
