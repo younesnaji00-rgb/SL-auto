@@ -198,6 +198,42 @@ export const computeStepCounts = (
   return out;
 };
 
+export interface DossierForStep {
+  dossier: FunnelDossier;
+  doneAt: Date | null;
+  author: string | null;
+}
+
+/**
+ * Resolve the list of dossiers that count for a given step, mirroring the
+ * filtering used by `computeStepCounts`. Step `creation` ignores the date range
+ * (it's the total in scope); other steps require the step timestamp to fall in
+ * `range`. Sorted most-recent first.
+ */
+export const dossiersForStep = (
+  dossiers: FunnelDossier[],
+  logs: WorkflowLog[],
+  range: FunnelRange,
+  step: StepKey,
+): DossierForStep[] => {
+  const def = STEP_DEFS[step];
+  const out: DossierForStep[] = [];
+  for (const d of dossiers) {
+    if (step === 'creation') {
+      out.push({ dossier: d, doneAt: def.doneAt(d), author: def.authorOf(d, logs) });
+      continue;
+    }
+    const at = def.doneAt(d);
+    if (!at || !inRange(at, range)) continue;
+    out.push({ dossier: d, doneAt: at, author: def.authorOf(d, logs) });
+  }
+  return out.sort((a, b) => {
+    const ad = a.doneAt?.getTime() ?? 0;
+    const bd = b.doneAt?.getTime() ?? 0;
+    return bd - ad;
+  });
+};
+
 export const computePerCompagnieCounts = (
   dossiers: FunnelDossier[],
   range: FunnelRange,

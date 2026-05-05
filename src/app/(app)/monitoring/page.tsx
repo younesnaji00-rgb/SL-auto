@@ -51,10 +51,12 @@ import {
   computePerCompagnieCounts,
   computePerUserCounts,
   computeStepCounts,
+  dossiersForStep,
   type FunnelDossier,
   type StepKey,
   type WorkflowLog,
 } from './funnel';
+import { DossierDrawer } from './dossier-drawer';
 
 const tabular = { fontVariantNumeric: 'tabular-nums' as const };
 
@@ -102,6 +104,7 @@ export default function MonitoringPage() {
 
   const [dateFrom, setDateFrom] = useState<Date | null>(() => subDays(startOfDay(new Date()), 6));
   const [dateTo, setDateTo] = useState<Date | null>(() => endOfDay(new Date()));
+  const [selectedStep, setSelectedStep] = useState<StepKey | null>(null);
 
   useEffect(() => {
     if (!db) return;
@@ -184,6 +187,10 @@ export default function MonitoringPage() {
     () => computePerUserCounts(dossiers, workflowLogs, range),
     [dossiers, workflowLogs, range],
   );
+  const drawerRows = useMemo(
+    () => (selectedStep ? dossiersForStep(dossiers, workflowLogs, range, selectedStep) : []),
+    [selectedStep, dossiers, workflowLogs, range],
+  );
 
   const totalDossiersInScope = dossiers.length;
 
@@ -241,7 +248,12 @@ export default function MonitoringPage() {
               ))}
             </div>
           ) : (
-            <GlobalView counts={globalCounts} totalDossiers={totalDossiersInScope} loading={loading} />
+            <GlobalView
+              counts={globalCounts}
+              totalDossiers={totalDossiersInScope}
+              loading={loading}
+              onSelectStep={setSelectedStep}
+            />
           )}
         </TabsContent>
 
@@ -253,6 +265,14 @@ export default function MonitoringPage() {
           <UserView rows={perUser} loading={loading} userLookup={userLookup} />
         </TabsContent>
       </Tabs>
+
+      <DossierDrawer
+        open={selectedStep != null}
+        onOpenChange={(v) => !v && setSelectedStep(null)}
+        step={selectedStep}
+        rows={drawerRows}
+        userLookup={userLookup}
+      />
     </div>
   );
 }
@@ -261,10 +281,12 @@ function GlobalView({
   counts,
   totalDossiers,
   loading,
+  onSelectStep,
 }: {
   counts: Record<StepKey, number>;
   totalDossiers: number;
   loading: boolean;
+  onSelectStep: (step: StepKey) => void;
 }) {
   const chartData = STEP_KEYS.map((key) => ({
     step: STEP_LABELS_SHORT[key],
@@ -289,7 +311,13 @@ function GlobalView({
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {STEP_KEYS.map((key, idx) => (
-          <KpiCard key={key} index={idx + 1} label={STEP_LABELS[key]} value={counts[key]} />
+          <KpiCard
+            key={key}
+            index={idx + 1}
+            label={STEP_LABELS[key]}
+            value={counts[key]}
+            onSelect={() => onSelectStep(key)}
+          />
         ))}
       </div>
 
@@ -320,26 +348,42 @@ function GlobalView({
   );
 }
 
-function KpiCard({ index, label, value }: { index: number; label: string; value: number }) {
+function KpiCard({
+  index,
+  label,
+  value,
+  onSelect,
+}: {
+  index: number;
+  label: string;
+  value: number;
+  onSelect: () => void;
+}) {
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <span
-            className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary"
-            style={tabular}
-          >
-            {index}
-          </span>
-          <CardTitle className="text-sm font-semibold">{label}</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-semibold text-foreground" style={tabular}>
-          {value}
-        </div>
-      </CardContent>
-    </Card>
+    <button
+      type="button"
+      onClick={onSelect}
+      className="rounded-lg text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <Card className="overflow-hidden transition hover:border-primary/40 hover:shadow-sm">
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary"
+              style={tabular}
+            >
+              {index}
+            </span>
+            <CardTitle className="text-sm font-semibold">{label}</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-3xl font-semibold text-foreground" style={tabular}>
+            {value}
+          </div>
+        </CardContent>
+      </Card>
+    </button>
   );
 }
 
