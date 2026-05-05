@@ -100,6 +100,38 @@ export default function DossiersClientPage() {
   }, [allCompagnies, userCompagnies]);
 
   const { dossiers: allDossiers, loading, error: fetchError, deleteDossier } = useDossiers(userCompagnies.length > 0 ? userCompagnies : undefined);
+
+  // Union the seeded option lists with any values present on real dossiers,
+  // so the filter dropdowns include values that live data has but the seeded
+  // list doesn't (e.g., `4ème accord` produced by the uncapped status machine,
+  // or legacy values from deleted options that some dossiers still reference).
+  const augmentWithLiveValues = (
+    seeded: { id: string; label: string; order: number; active: boolean }[],
+    rawValues: (string | undefined)[],
+  ) => {
+    const seen = new Set(seeded.map((o) => o.label));
+    const extras: typeof seeded = [];
+    for (const v of rawValues) {
+      if (!v || typeof v !== 'string') continue;
+      const trimmed = v.trim();
+      if (!trimmed || seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      extras.push({ id: `live-${trimmed}`, label: trimmed, order: 9999, active: true });
+    }
+    return extras.length === 0 ? seeded : [...seeded, ...extras];
+  };
+  const filterStatuses = useMemo(
+    () => augmentWithLiveValues(statuses, allDossiers.map((d) => d.statut)),
+    [statuses, allDossiers],
+  );
+  const filterNatures = useMemo(
+    () => augmentWithLiveValues(natures, allDossiers.map((d) => d.nature)),
+    [natures, allDossiers],
+  );
+  const filterCompagnies = useMemo(
+    () => augmentWithLiveValues(compagnies, allDossiers.map((d) => d.compagnie)),
+    [compagnies, allDossiers],
+  );
   
   const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', dateFrom: '', dateTo: '', rowsPerPage: 25 };
   const [filters, setFilters, clearFilter] = usePersistedFilters('dossiers', filterDefaults);
@@ -262,7 +294,7 @@ export default function DossiersClientPage() {
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Nature du dossier" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="Toutes">Toutes les natures</SelectItem>
-              {natures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
+              {filterNatures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
             </SelectContent>
           </Select>
           <OptionsManagerModal collectionName="options_natures" title="Natures" defaultValues={defaultNatures} />
@@ -273,7 +305,7 @@ export default function DossiersClientPage() {
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Statut" /></SelectTrigger>
             <SelectContent className="max-h-[300px]">
               <SelectItem value="Tous">Tous les statuts</SelectItem>
-              {statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
+              {filterStatuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
             </SelectContent>
           </Select>
           <OptionsManagerModal collectionName="options_statuts" title="Statuts" defaultValues={defaultStatuses} />
@@ -284,7 +316,7 @@ export default function DossiersClientPage() {
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Compagnie" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
-              {compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
+              {filterCompagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
             </SelectContent>
           </Select>
           <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
