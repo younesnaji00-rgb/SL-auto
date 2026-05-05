@@ -13,7 +13,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -68,6 +67,12 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   const { options: dbAgents } = useOptions('options_agents');
   const agents = useMemo<Option[]>(() => dbAgents.filter(o => o.active !== false), [dbAgents]);
   const agentWorkload = useAgentTerrainWorkload();
+
+  const { options: dbObservationPresets, loading: observationPresetsLoading } = useOptions('options_observations');
+  const activeObservationPresets = useMemo(
+    () => dbObservationPresets.filter((o) => o.active !== false),
+    [dbObservationPresets],
+  );
 
   const [agentZoneFilter, setAgentZoneFilter] = useState('');
 
@@ -333,14 +338,35 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
 
           <div className="space-y-2">
             <Label>Observation</Label>
-            <Textarea
-              placeholder="Aucune observation"
-              rows={3}
-              value={formData.observation}
-              readOnly
-              disabled
-              className="opacity-70 cursor-not-allowed"
-            />
+            <div className="flex items-center gap-2">
+              <Select
+                value={formData.observation}
+                onValueChange={(v) => setFormData({ ...formData, observation: v })}
+                disabled={observationPresetsLoading || activeObservationPresets.length === 0}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue
+                    placeholder={
+                      observationPresetsLoading
+                        ? 'Chargement…'
+                        : activeObservationPresets.length === 0
+                          ? 'Aucune observation disponible'
+                          : 'Aucune observation'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeObservationPresets.map((opt) => (
+                    <SelectItem key={opt.id} value={opt.label}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <OptionsManagerModal
+                collectionName="options_observations"
+                title="Observations"
+                defaultValues={['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre']}
+              />
+            </div>
           </div>
         </div>
         <DialogFooter>
