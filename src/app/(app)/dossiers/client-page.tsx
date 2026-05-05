@@ -85,6 +85,7 @@ export default function DossiersClientPage() {
   const { options: dbCompagnies } = useOptions('compagnies');
   const { options: dbNatures } = useOptions('options_natures');
   const { options: dbStatuses } = useOptions('options_statuts');
+  const { options: dbObservationOptions } = useOptions('options_observations');
 
   // Single source of truth: Firestore. Filter inactive entries client-side so
   // an option deactivated via the manager modal disappears from every dropdown.
@@ -134,8 +135,12 @@ export default function DossiersClientPage() {
     () => augmentWithLiveValues(compagnies, allDossiers.map((d) => d.compagnie)),
     [compagnies, allDossiers],
   );
-  
-  const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', dateFrom: '', dateTo: '', rowsPerPage: 25 };
+  const filterObservations = useMemo(
+    () => dbObservationOptions.filter(o => o.active !== false),
+    [dbObservationOptions]
+  );
+
+  const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', dateFrom: '', dateTo: '', rowsPerPage: 25 };
   const [filters, setFilters, clearFilter] = usePersistedFilters('dossiers', filterDefaults);
   const rowsPerPage = filters.rowsPerPage;
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -155,6 +160,7 @@ export default function DossiersClientPage() {
     if (filters.nature !== 'Toutes') results = results.filter(d => d.nature === filters.nature);
     if (filters.status !== 'Tous') results = results.filter(d => d.statut === filters.status);
     if (filters.compagnie !== 'Toutes') results = results.filter(d => d.compagnie === filters.compagnie);
+    if (filters.observation !== 'Toutes') results = results.filter(d => d.lastObservation?.text === filters.observation);
     if (filters.search) {
       const s = filters.search.toLowerCase();
       results = results.filter(d =>
@@ -324,6 +330,17 @@ export default function DossiersClientPage() {
           <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
         </div>
 
+        <div className="flex items-center gap-1">
+          <Select value={filters.observation} onValueChange={v => setFilters({ observation: v })}>
+            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Type d'observation" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Toutes">Toutes les observations</SelectItem>
+              {filterObservations.map(o => <SelectItem key={o.id} value={o.label}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <OptionsManagerModal collectionName="options_observations" title="Observations" />
+        </div>
+
         <DateRangeFilter
           dateFrom={filters.dateFrom}
           dateTo={filters.dateTo}
@@ -333,7 +350,7 @@ export default function DossiersClientPage() {
       </div>
 
       {/* Active filters strip */}
-      {(filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.dateFrom || filters.dateTo) && (
+      {(filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.observation !== 'Toutes' || filters.dateFrom || filters.dateTo) && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Filtres actifs</span>
           {filters.nature !== 'Toutes' && (
@@ -356,6 +373,14 @@ export default function DossiersClientPage() {
             <Badge variant="outline" className="gap-1 pr-1">
               Compagnie : {filters.compagnie}
               <button onClick={() => clearFilter('compagnie')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre compagnie">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {filters.observation !== 'Toutes' && (
+            <Badge variant="outline" className="gap-1 pr-1">
+              Observation : {filters.observation}
+              <button onClick={() => clearFilter('observation')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre observation">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
@@ -384,6 +409,7 @@ export default function DossiersClientPage() {
               clearFilter('nature');
               clearFilter('status');
               clearFilter('compagnie');
+              clearFilter('observation');
               clearFilter('dateFrom');
               clearFilter('dateTo');
             }}

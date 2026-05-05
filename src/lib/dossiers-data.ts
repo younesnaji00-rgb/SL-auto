@@ -44,6 +44,8 @@ export type Dossier = {
   secondExpertCompany: string;
   // Denormalized summary of the last status change — written by logHistorique when type === 'statut'.
   lastStatusChange?: { status: string; at: any; by: string; details?: string };
+  // Denormalized summary of the last observation — written by addObservation in log-observation.ts.
+  lastObservation?: { text: string; type: string; author: string; authorRole: string; at: any };
   // Director validation for rapport gating (task #39). null = not yet validated.
   directorValidated?: { by: string; at: any; role?: string } | null;
 };
