@@ -58,7 +58,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
     nature: '',
     assure: { nom: '', telephone: '', whatsapp: '', telephone2: '' },
     dateRequete: null as Date | null,
-    vehicule: { marque: '', modele: '', immatriculation: '', registrationW: '', mec: null as Date | null },
+    vehicule: { marque: '', modele: '', immatriculation: '', immatriculationAnterieur: '', registrationW: '', mec: null as Date | null },
     dateSinistre: null as Date | null,
     // Flat fields matching information-tab
     intermediaireNom: '',
@@ -100,6 +100,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
                 marque: data.vehicule?.marque || '',
                 modele: data.vehicule?.modele || '',
                 immatriculation: data.vehicule?.immatriculation || '',
+                immatriculationAnterieur: data.vehicule?.immatriculationAnterieur || '',
                 registrationW: data.vehicule?.registrationW || '',
                 mec: parseDate(data.vehicule?.mec),
               },
@@ -249,6 +250,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
                 <InputField label="Marque" value={formData.vehicule.marque} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, marque: e.target.value } })} />
                 <InputField label="Modèle" value={formData.vehicule.modele} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, modele: e.target.value } })} />
                 <InputField label="Immatriculation" value={formData.vehicule.immatriculation} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, immatriculation: e.target.value } })} />
+                <InputField label="Immatriculation antérieure" value={formData.vehicule.immatriculationAnterieur} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, immatriculationAnterieur: e.target.value } })} />
                 <InputField label="Immatriculation W" value={formData.vehicule.registrationW} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, registrationW: e.target.value } })} />
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground font-semibold">Date Sinistre</Label>
