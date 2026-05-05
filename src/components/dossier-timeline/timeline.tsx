@@ -62,8 +62,7 @@ function TimelineSection({ id, label, children, collapsed, onToggle, stamp }: Ti
 // `logWorkflow` callers (e.g. "Création de planification", "Dossier envoyé vers
 // chiffrage", "Rapport mis à jour", "Nouveau document ajouté", etc.).
 const STEP_KEYWORDS: Record<number, string[]> = {
-  1: ['import'],
-  3: ['information'],
+  1: ['import', 'information'],
   4: ['planification'],
   5: ['pièce', 'piece'],
   6: ['chiffrage'],
