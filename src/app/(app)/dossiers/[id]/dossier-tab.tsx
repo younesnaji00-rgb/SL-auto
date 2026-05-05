@@ -57,6 +57,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
       marque: '',
       modele: '',
       immatriculation: '',
+      immatriculationAnterieur: '',
       registrationW: '',
       mec: null,
     },
@@ -99,6 +100,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
           marque: dossier.vehicule?.marque || '',
           modele: dossier.vehicule?.modele || '',
           immatriculation: dossier.vehicule?.immatriculation || '',
+          immatriculationAnterieur: dossier.vehicule?.immatriculationAnterieur || '',
           registrationW: dossier.vehicule?.registrationW || '',
           mec: parseDate(dossier.vehicule?.mec),
         },
@@ -276,9 +278,16 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                   </div>
                   <div className="space-y-2">
                     <Label>Immatriculation</Label>
-                    <Input 
-                      value={formValues.vehicule.immatriculation} 
-                      onChange={(e) => setFormValues({...formValues, vehicule: {...formValues.vehicule, immatriculation: e.target.value}})} 
+                    <Input
+                      value={formValues.vehicule.immatriculation}
+                      onChange={(e) => setFormValues({...formValues, vehicule: {...formValues.vehicule, immatriculation: e.target.value}})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Immatriculation antérieure</Label>
+                    <Input
+                      value={formValues.vehicule.immatriculationAnterieur}
+                      onChange={(e) => setFormValues({...formValues, vehicule: {...formValues.vehicule, immatriculationAnterieur: e.target.value}})}
                     />
                   </div>
                   <div className="space-y-2">
