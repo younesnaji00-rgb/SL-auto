@@ -173,6 +173,15 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         if (!dossierData?.dateMissionAgentTerrain) {
           await setDoc(doc(db, 'dossiers', dossierId), { dateMissionAgentTerrain: serverTimestamp() }, { merge: true });
         }
+        const typeFieldMap: Record<string, string> = {
+          'Avant': 'dateDemandeExpertiseAvant',
+          'En cours': 'dateDemandeExpertiseEnCours',
+          'Après': 'dateDemandeExpertiseApres',
+        };
+        const typeField = typeFieldMap[formData.typeMission];
+        if (typeField && !(dossierData as Record<string, any> | undefined)?.[typeField]) {
+          await setDoc(doc(db, 'dossiers', dossierId), { [typeField]: serverTimestamp() }, { merge: true });
+        }
         await logHistorique(db, dossierId, 'Planification ajoutée', userEmail, `Nouvelle mission ${formData.typeMission} créée pour ${formData.agentTerrain}.`, 'planification');
         await logWorkflow(db, dossierId, 'Création de planification', userEmail, userId, 'done', { dossierRef: dossierData?.refExpert || dossierId, details: `Mission ${formData.typeMission} pour ${formData.agentTerrain}` });
         toast({ title: "Nouvelle planification créée" });
