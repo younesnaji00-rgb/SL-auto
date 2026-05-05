@@ -22,6 +22,7 @@ import { STEP_LABELS, type DossierForStep, type StepKey } from './funnel';
 const STEP_TO_TIMELINE: Record<StepKey, number> = {
   creation: 3,        // Information
   photosAvant: 5,     // Pièces jointes
+  accord1er: 6,       // Chiffrage
   photosEnCours: 5,   // Pièces jointes
   photosApres: 5,     // Pièces jointes
   accord: 6,          // Chiffrage

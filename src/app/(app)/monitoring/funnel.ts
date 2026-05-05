@@ -3,9 +3,10 @@ import { ACCORD_BUCKET_MEMBERS } from '@/lib/dossiers-data';
 export type StepKey =
   | 'creation'
   | 'photosAvant'
+  | 'accord1er'
   | 'photosEnCours'
-  | 'photosApres'
   | 'accord'
+  | 'photosApres'
   | 'facture'
   | 'rapportValide'
   | 'rapport'
@@ -14,8 +15,9 @@ export type StepKey =
 export const STEP_KEYS: StepKey[] = [
   'creation',
   'photosAvant',
-  'accord',
+  'accord1er',
   'photosEnCours',
+  'accord',
   'photosApres',
   'facture',
   'rapportValide',
@@ -26,9 +28,10 @@ export const STEP_KEYS: StepKey[] = [
 export const STEP_LABELS: Record<StepKey, string> = {
   creation: 'Missions créées',
   photosAvant: 'Expertise avant',
+  accord1er: '1er accord ou 1ère proposition',
   photosEnCours: 'Expertise en cours',
   photosApres: 'Expertise après',
-  accord: 'Accord',
+  accord: '2ème accord et +',
   facture: 'Facture validée',
   rapportValide: 'Rapport validé',
   rapport: 'Rapport déposé',
@@ -38,9 +41,10 @@ export const STEP_LABELS: Record<StepKey, string> = {
 export const STEP_LABELS_SHORT: Record<StepKey, string> = {
   creation: 'Création',
   photosAvant: 'Avant',
+  accord1er: '1er accord',
   photosEnCours: 'En cours',
   photosApres: 'Après',
-  accord: 'Accord',
+  accord: '2ème+',
   facture: 'Facture',
   rapportValide: 'Validé',
   rapport: 'Rapport',
@@ -170,20 +174,28 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
     authorOf: (d, logs) => photoAuthor(d, logs, 'après'),
     horsDelaiAt: (d) => photoHorsDelai(d, 'dateDemandeExpertiseApres', 'datePhotosApres'),
   },
+  accord1er: {
+    key: 'accord1er',
+    label: STEP_LABELS.accord1er,
+    doneAt: (d) => toDate((d as any).firstAccordReachedAt),
+    authorOf: () => null,
+    horsDelaiAt: () => null,
+  },
   accord: {
     key: 'accord',
     label: STEP_LABELS.accord,
     doneAt: (d) => {
       const status = d.lastStatusChange?.status ?? d.statut;
-      if (status && ACCORD_BUCKET_MEMBERS.has(status)) {
-        return toDate(d.lastStatusChange?.at);
-      }
-      return null;
+      if (!status) return null;
+      if (!ACCORD_BUCKET_MEMBERS.has(status)) return null;
+      if (status === 'Accord' || status === "Proposition d'accord") return null;
+      return toDate(d.lastStatusChange?.at);
     },
     authorOf: (d) => d.lastStatusChange?.by ?? null,
     horsDelaiAt: (d) => {
       const status = d.lastStatusChange?.status ?? d.statut;
       if (!status || !ACCORD_BUCKET_MEMBERS.has(status)) return null;
+      if (status === 'Accord' || status === "Proposition d'accord") return null;
       const accordAt = toDate(d.lastStatusChange?.at);
       const chiffrageAt = toDate((d as any).dateChiffrage);
       if (!accordAt || !chiffrageAt) return null;
