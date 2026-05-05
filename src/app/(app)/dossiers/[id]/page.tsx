@@ -176,6 +176,12 @@ export default function DossierDetailPage({
             5: <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} />,
             6: <Step5Chiffrage dossierId={id} />,
             7: <Step6Rapport dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
+            8: (
+              <div className="rounded-lg border border-dashed border-border/40 bg-muted/20 p-8 text-center">
+                <p className="text-sm font-semibold">Note d'honoraire</p>
+                <p className="mt-1 text-xs text-muted-foreground">Cette section sera disponible ultérieurement.</p>
+              </div>
+            ),
           }}
           activeStep={activeStep}
           onActiveStepChange={setActiveStep}

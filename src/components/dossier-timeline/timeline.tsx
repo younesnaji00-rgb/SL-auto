@@ -255,4 +255,5 @@ export const DOSSIER_TIMELINE_STEPS: TimelineStep[] = [
   { id: 5, label: 'Pièces jointes' },
   { id: 6, label: 'Chiffrage' },
   { id: 7, label: 'Rapport' },
+  { id: 8, label: "Note d'honoraire" },
 ];
