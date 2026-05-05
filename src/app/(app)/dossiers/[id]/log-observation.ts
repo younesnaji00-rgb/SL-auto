@@ -1,4 +1,4 @@
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export type ObservationType = 'Planification' | 'Décision de statut' | 'Expert' | 'Général';
 
@@ -29,6 +29,19 @@ export async function addObservation(
       createdAt: serverTimestamp(),
       dossierId,
     });
+    await setDoc(
+      doc(db, 'dossiers', dossierId),
+      {
+        lastObservation: {
+          text: text.trim(),
+          type,
+          author,
+          authorRole,
+          at: serverTimestamp(),
+        },
+      },
+      { merge: true }
+    );
   } catch (err) {
     console.error('Failed to log observation:', err);
   }
