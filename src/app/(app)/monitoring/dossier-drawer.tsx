@@ -28,6 +28,7 @@ const STEP_TO_TIMELINE: Record<StepKey, number> = {
   facture: 7,         // Rapport (facturation lives here)
   rapportValide: 7,   // Rapport
   rapport: 7,         // Rapport
+  noteHonoraire: 7,   // Rapport (placeholder — no tracking yet)
 };
 
 export interface UserLookup {

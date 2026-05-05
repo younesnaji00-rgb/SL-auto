@@ -8,7 +8,8 @@ export type StepKey =
   | 'accord'
   | 'facture'
   | 'rapportValide'
-  | 'rapport';
+  | 'rapport'
+  | 'noteHonoraire';
 
 export const STEP_KEYS: StepKey[] = [
   'creation',
@@ -19,6 +20,7 @@ export const STEP_KEYS: StepKey[] = [
   'facture',
   'rapportValide',
   'rapport',
+  'noteHonoraire',
 ];
 
 export const STEP_LABELS: Record<StepKey, string> = {
@@ -30,6 +32,7 @@ export const STEP_LABELS: Record<StepKey, string> = {
   facture: 'Facture validée',
   rapportValide: 'Rapport validé',
   rapport: 'Rapport déposé',
+  noteHonoraire: "Note d'honoraire",
 };
 
 export const STEP_LABELS_SHORT: Record<StepKey, string> = {
@@ -41,6 +44,7 @@ export const STEP_LABELS_SHORT: Record<StepKey, string> = {
   facture: 'Facture',
   rapportValide: 'Validé',
   rapport: 'Rapport',
+  noteHonoraire: "Note d'honoraire",
 };
 
 export interface FunnelRange {
@@ -166,6 +170,12 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
     label: STEP_LABELS.rapport,
     doneAt: (d) => toDate(d.dateRapportDepose),
     authorOf: (d) => d.authorRapportDepose ?? null,
+  },
+  noteHonoraire: {
+    key: 'noteHonoraire',
+    label: STEP_LABELS.noteHonoraire,
+    doneAt: () => null,
+    authorOf: () => null,
   },
 };
 
