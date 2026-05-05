@@ -519,7 +519,8 @@ export default function DossiersClientPage() {
                   className={cn(
                     "group hover:bg-muted/50 transition-colors",
                     !exportMode && "cursor-pointer",
-                    exportMode && selectedRows.has(d.id) && "bg-primary/5"
+                    exportMode && selectedRows.has(d.id) && "bg-primary/5",
+                    d.lastObservation?.text && 'bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-50/70 dark:hover:bg-amber-950/30'
                   )}
                   onClick={() => exportMode ? handleToggleRow(d.id) : openDossier(d)}
                 >
