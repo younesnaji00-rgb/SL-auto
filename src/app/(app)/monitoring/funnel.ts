@@ -58,6 +58,7 @@ export interface FunnelDossier {
   statut?: string;
   createdAt?: any;
   createdBy?: string;
+  dateRequete?: any;
   datePhotosAvant?: any;
   datePhotosEnCours?: any;
   datePhotosApres?: any;
@@ -96,6 +97,12 @@ const inRange = (d: Date | null, range?: FunnelRange) => {
   return true;
 };
 
+function sameCalendarDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate();
+}
+
 const photoAuthor = (
   d: FunnelDossier,
   logs: WorkflowLog[],
@@ -114,6 +121,7 @@ export interface StepDef {
   label: string;
   doneAt(d: FunnelDossier): Date | null;
   authorOf(d: FunnelDossier, logs: WorkflowLog[]): string | null;
+  horsDelaiAt(d: FunnelDossier): Date | null;
 }
 
 export const STEP_DEFS: Record<StepKey, StepDef> = {
@@ -122,24 +130,33 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
     label: STEP_LABELS.creation,
     doneAt: (d) => toDate(d.createdAt),
     authorOf: (d) => d.createdBy ?? null,
+    horsDelaiAt: (d) => {
+      const created = toDate(d.createdAt);
+      const requete = toDate(d.dateRequete);
+      if (!created || !requete) return null;
+      return sameCalendarDay(created, requete) ? null : created;
+    },
   },
   photosAvant: {
     key: 'photosAvant',
     label: STEP_LABELS.photosAvant,
     doneAt: (d) => toDate(d.datePhotosAvant),
     authorOf: (d, logs) => photoAuthor(d, logs, 'avant'),
+    horsDelaiAt: () => null,
   },
   photosEnCours: {
     key: 'photosEnCours',
     label: STEP_LABELS.photosEnCours,
     doneAt: (d) => toDate(d.datePhotosEnCours),
     authorOf: (d, logs) => photoAuthor(d, logs, 'en cours'),
+    horsDelaiAt: () => null,
   },
   photosApres: {
     key: 'photosApres',
     label: STEP_LABELS.photosApres,
     doneAt: (d) => toDate(d.datePhotosApres),
     authorOf: (d, logs) => photoAuthor(d, logs, 'après'),
+    horsDelaiAt: () => null,
   },
   accord: {
     key: 'accord',
@@ -152,30 +169,35 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
       return null;
     },
     authorOf: (d) => d.lastStatusChange?.by ?? null,
+    horsDelaiAt: () => null,
   },
   facture: {
     key: 'facture',
     label: STEP_LABELS.facture,
     doneAt: (d) => toDate(d.dateFactureValide),
     authorOf: (d) => d.authorFactureValide ?? null,
+    horsDelaiAt: () => null,
   },
   rapportValide: {
     key: 'rapportValide',
     label: STEP_LABELS.rapportValide,
     doneAt: (d) => toDate(d.directorValidated?.at),
     authorOf: (d) => d.directorValidated?.by ?? null,
+    horsDelaiAt: () => null,
   },
   rapport: {
     key: 'rapport',
     label: STEP_LABELS.rapport,
     doneAt: (d) => toDate(d.dateRapportDepose),
     authorOf: (d) => d.authorRapportDepose ?? null,
+    horsDelaiAt: () => null,
   },
   noteHonoraire: {
     key: 'noteHonoraire',
     label: STEP_LABELS.noteHonoraire,
     doneAt: () => null,
     authorOf: () => null,
+    horsDelaiAt: () => null,
   },
 };
 
