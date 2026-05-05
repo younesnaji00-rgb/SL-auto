@@ -167,6 +167,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
               { label: 'Date envoi accord devis', value: dossier?.dateEnvoiAccordDevis },
               { label: 'Date validation rapport', value: dossier?.directorValidated?.at },
               { label: 'Date dépôt rapport', value: dossier?.dateRapportDepose },
+              { label: "Date dépôt note d'honoraire", value: (dossier as any)?.dateDepotNoteHonoraire },
             ].map((row) => (
               <div key={row.label} className="flex justify-between text-sm py-1.5 border-b border-border/30 last:border-0">
                 <span className="text-muted-foreground">{row.label}</span>
