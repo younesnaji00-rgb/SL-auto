@@ -75,7 +75,7 @@ export function DossierDrawer({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   step: StepKey | null;
-  mode: 'realise' | 'nonRealise';
+  mode: 'realise' | 'nonRealise' | 'horsDelai';
   rows: DossierForStep[];
   userLookup: UserLookup;
 }) {
@@ -88,16 +88,30 @@ export function DossierDrawer({
   };
 
   const isNonRealise = mode === 'nonRealise';
+  const isHorsDelai = mode === 'horsDelai';
   const stepLabel = step ? STEP_LABELS[step] : 'Dossiers';
-  const title = step ? `${stepLabel} — ${isNonRealise ? 'non réalisé' : 'réalisé'}` : 'Dossiers';
+  const modeLabel = isNonRealise ? 'non réalisé' : isHorsDelai ? 'hors délai' : 'réalisé';
+  const title = step ? `${stepLabel} — ${modeLabel}` : 'Dossiers';
+
   const description = rows.length === 0
     ? (isNonRealise
         ? 'Aucun dossier en attente sur cette étape.'
-        : 'Aucun dossier n’a franchi cette étape.')
-    : `${rows.length} dossier${rows.length > 1 ? 's' : ''} ${isNonRealise ? 'en attente sur cette étape' : 'ayant franchi cette étape'}.`;
+        : isHorsDelai
+          ? 'Aucun dossier n’est hors délai sur cette étape.'
+          : 'Aucun dossier n’a franchi cette étape.')
+    : `${rows.length} dossier${rows.length > 1 ? 's' : ''} ${
+        isNonRealise
+          ? 'en attente sur cette étape'
+          : isHorsDelai
+            ? 'hors délai sur cette étape'
+            : 'ayant franchi cette étape'
+      }.`;
+
   const emptyDescription = isNonRealise
     ? 'Tous les dossiers en périmètre ont franchi cette étape.'
-    : 'Aucun dossier n’est encore associé à cette étape.';
+    : isHorsDelai
+      ? 'Tous les dossiers en périmètre sont dans les délais.'
+      : 'Aucun dossier n’est encore associé à cette étape.';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

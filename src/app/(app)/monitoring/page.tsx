@@ -487,7 +487,7 @@ export default function MonitoringPage() {
         open={selectedStep != null}
         onOpenChange={(v) => !v && setSelectedStep(null)}
         step={selectedStep}
-        mode={selectedStepMode === 'nonRealise' ? 'nonRealise' : 'realise'}
+        mode={selectedStepMode}
         rows={drawerRows}
         userLookup={userLookup}
       />
