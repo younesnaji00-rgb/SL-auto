@@ -474,12 +474,19 @@ export default function PhotosTab({ dossierId }: { dossierId: string }) {
                               </Button>
                             </div>
                           ) : (
-                            <p
-                              className="text-[10px] text-muted-foreground font-medium truncate"
-                              title={photo.name}
-                            >
-                              {photo.name}
-                            </p>
+                            <>
+                              <p
+                                className="text-[10px] text-muted-foreground font-medium truncate"
+                                title={photo.name}
+                              >
+                                {photo.name}
+                              </p>
+                              {photo.uploadedAt?.toDate && (
+                                <p className="text-[9px] text-muted-foreground/70 mt-0.5">
+                                  {dateFormat(photo.uploadedAt.toDate(), 'd MMM HH:mm', { locale: fr })}
+                                </p>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
