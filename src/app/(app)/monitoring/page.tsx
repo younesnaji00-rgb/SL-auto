@@ -62,6 +62,7 @@ import {
   computePerCompagnieCounts,
   computePerUserCounts,
   computeStepCounts,
+  computeStepCountsHorsDelai,
   dossiersForStep,
   dossiersNotForStep,
   type FunnelDossier,
@@ -245,6 +246,10 @@ export default function MonitoringPage() {
   };
 
   const globalCounts = useMemo(() => computeStepCounts(dossiers, range), [dossiers, range]);
+  const globalHorsDelaiCounts = useMemo(
+    () => computeStepCountsHorsDelai(dossiers),
+    [dossiers],
+  );
   const scopedCompagnieNames = useMemo(() => {
     const allowed = (profile?.compagnies || []).map((c: string) => c.toLowerCase().trim());
     const names = allCompagnies.map((c) => c.nom).filter((n): n is string => !!n);
@@ -427,6 +432,7 @@ export default function MonitoringPage() {
           ) : (
             <GlobalView
               counts={globalCounts}
+              horsDelaiCounts={globalHorsDelaiCounts}
               totalDossiers={totalDossiersInScope}
               loading={loading}
               onSelectStep={openDrawer}
@@ -487,11 +493,13 @@ export default function MonitoringPage() {
 
 function GlobalView({
   counts,
+  horsDelaiCounts,
   totalDossiers,
   loading,
   onSelectStep,
 }: {
   counts: Record<StepKey, number>;
+  horsDelaiCounts: Record<StepKey, number>;
   totalDossiers: number;
   loading: boolean;
   onSelectStep: (step: StepKey, mode: DrawerMode) => void;
@@ -520,6 +528,7 @@ function GlobalView({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {STEP_KEYS.map((key, idx) => {
           const realise = counts[key];
+          const horsDelai = horsDelaiCounts[key] ?? 0;
           const nonRealise = key === 'creation' ? null : Math.max(totalDossiers - realise, 0);
           return (
             <KpiCard
@@ -527,7 +536,9 @@ function GlobalView({
               index={idx + 1}
               label={STEP_LABELS[key]}
               value={realise}
+              horsDelai={horsDelai}
               nonRealise={nonRealise}
+              total={totalDossiers}
               onSelectRealise={() => onSelectStep(key, 'realise')}
               onSelectNonRealise={() => onSelectStep(key, 'nonRealise')}
             />
@@ -566,17 +577,27 @@ function KpiCard({
   index,
   label,
   value,
+  horsDelai,
   nonRealise,
+  total,
   onSelectRealise,
   onSelectNonRealise,
 }: {
   index: number;
   label: string;
   value: number;
+  horsDelai: number;
   nonRealise: number | null;
+  total: number;
   onSelectRealise: () => void;
   onSelectNonRealise: () => void;
 }) {
+  const realiseEnDelai = Math.max(value - horsDelai, 0);
+  const denominator = total <= 0 ? 1 : total;
+  const pctEnDelai = (realiseEnDelai / denominator) * 100;
+  const pctHorsDelai = (horsDelai / denominator) * 100;
+  const pctNonRealise = nonRealise != null ? (nonRealise / denominator) * 100 : 0;
+
   return (
     <Card className="overflow-hidden transition hover:border-primary/40 hover:shadow-sm">
       <CardHeader className="pb-2">
@@ -591,28 +612,54 @@ function KpiCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-2 pb-3">
-        <button
-          type="button"
-          onClick={onSelectRealise}
-          className="block w-full rounded-md text-left transition hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Réalisé</div>
-          <div className="text-3xl font-semibold text-foreground" style={tabular}>
-            {value}
-          </div>
-        </button>
-        {nonRealise != null && (
-          <button
-            type="button"
-            onClick={onSelectNonRealise}
-            className="block w-full rounded-md border border-amber-300/40 bg-amber-50/40 px-2 py-1 text-left transition hover:bg-amber-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-amber-700/30 dark:bg-amber-950/20 dark:hover:bg-amber-900/30"
-          >
-            <div className="text-[10px] uppercase tracking-wider text-amber-800/80 dark:text-amber-200/80">Non réalisé</div>
-            <div className="text-lg font-semibold text-amber-900 dark:text-amber-100" style={tabular}>
-              {nonRealise}
-            </div>
-          </button>
-        )}
+        <div className="flex h-5 w-full overflow-hidden rounded-md border border-border/40 bg-muted">
+          {pctEnDelai > 0 && (
+            <button
+              type="button"
+              onClick={onSelectRealise}
+              className="bg-emerald-500 transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              style={{ width: `${pctEnDelai}%` }}
+              title={`Réalisé en délai : ${realiseEnDelai}`}
+            />
+          )}
+          {pctHorsDelai > 0 && (
+            <button
+              type="button"
+              onClick={onSelectRealise}
+              className="bg-amber-500 transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              style={{ width: `${pctHorsDelai}%` }}
+              title={`Hors délai : ${horsDelai}`}
+            />
+          )}
+          {nonRealise != null && pctNonRealise > 0 && (
+            <button
+              type="button"
+              onClick={onSelectNonRealise}
+              className="bg-muted-foreground/30 transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              style={{ width: `${pctNonRealise}%` }}
+              title={`Non réalisé : ${nonRealise}`}
+            />
+          )}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px]">
+          <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
+            <span className="inline-block h-2 w-2 rounded-sm bg-emerald-500" />
+            <span className="font-semibold tabular-nums">{realiseEnDelai}</span>
+            <span className="text-muted-foreground">en délai</span>
+          </span>
+          <span className="flex items-center gap-1 text-amber-700 dark:text-amber-300">
+            <span className="inline-block h-2 w-2 rounded-sm bg-amber-500" />
+            <span className="font-semibold tabular-nums">{horsDelai}</span>
+            <span className="text-muted-foreground">hors délai</span>
+          </span>
+          {nonRealise != null && (
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <span className="inline-block h-2 w-2 rounded-sm bg-muted-foreground/30" />
+              <span className="font-semibold tabular-nums">{nonRealise}</span>
+              <span>non réalisé</span>
+            </span>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
