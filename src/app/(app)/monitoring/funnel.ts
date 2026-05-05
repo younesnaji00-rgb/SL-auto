@@ -256,6 +256,30 @@ export const computeStepCounts = (
   return out;
 };
 
+/**
+ * Per-step count of dossiers flagged as hors-délai. A dossier is hors-délai
+ * for a given step when `STEP_DEFS[key].horsDelaiAt(d)` returns a non-null
+ * Date. Steps with stub predicates (returning null for everything) contribute
+ * 0 across the board until their SLA logic is wired in.
+ *
+ * For the `creation` card, hors-délai means the dossier was created on a
+ * different calendar day than its imported `dateRequete`. For `photosAvant`
+ * / `photosEnCours` / `photosApres`, the SLA is 24h after the corresponding
+ * `dateDemandeExpertise${X}`. For `accord`, 24h after `dateChiffrage`.
+ */
+export const computeStepCountsHorsDelai = (
+  dossiers: FunnelDossier[],
+): Record<StepKey, number> => {
+  const out = emptyCounts();
+  for (const d of dossiers) {
+    for (const key of STEP_KEYS) {
+      const at = STEP_DEFS[key].horsDelaiAt(d);
+      if (at != null) out[key] += 1;
+    }
+  }
+  return out;
+};
+
 export interface DossierForStep {
   dossier: FunnelDossier;
   doneAt: Date | null;
