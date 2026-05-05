@@ -63,6 +63,8 @@ export interface FunnelDossier {
   createdAt?: any;
   createdBy?: string;
   dateRequete?: any;
+  dateChiffrage?: any;
+  firstAccordReachedAt?: any;
   datePhotosAvant?: any;
   datePhotosEnCours?: any;
   datePhotosApres?: any;
@@ -177,7 +179,7 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
   accord1er: {
     key: 'accord1er',
     label: STEP_LABELS.accord1er,
-    doneAt: (d) => toDate((d as any).firstAccordReachedAt),
+    doneAt: (d) => toDate(d.firstAccordReachedAt),
     authorOf: () => null,
     horsDelaiAt: () => null,
   },
@@ -197,7 +199,7 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
       if (!status || !ACCORD_BUCKET_MEMBERS.has(status)) return null;
       if (status === 'Accord' || status === "Proposition d'accord") return null;
       const accordAt = toDate(d.lastStatusChange?.at);
-      const chiffrageAt = toDate((d as any).dateChiffrage);
+      const chiffrageAt = toDate(d.dateChiffrage);
       if (!accordAt || !chiffrageAt) return null;
       return accordAt.getTime() - chiffrageAt.getTime() > SLA_24H_MS ? accordAt : null;
     },
