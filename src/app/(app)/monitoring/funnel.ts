@@ -39,12 +39,6 @@ export const STEP_LABELS_SHORT: Record<StepKey, string> = {
   rapport: 'Rapport',
 };
 
-export interface StepCounts {
-  realise: number;
-  nonRealise: number;
-  bloqueIci: number;
-}
-
 export interface FunnelRange {
   from?: Date;
   to?: Date;
@@ -98,8 +92,6 @@ const photoAuthor = (
   logs: WorkflowLog[],
   category: 'avant' | 'en cours' | 'après',
 ): string | null => {
-  // logs are assumed sorted desc by date by the caller (matches dashboard subscription).
-  // We pick the most recent matching log for the given dossier + category.
   const match = logs.find((l) => {
     if (l._dossierId !== d.id) return false;
     const action = (l.action || '').toLowerCase();
@@ -166,57 +158,30 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
   },
 };
 
-const isStepDone = (d: FunnelDossier, key: StepKey): boolean =>
-  STEP_DEFS[key].doneAt(d) != null;
-
-/** Furthest completed step index (0..n-1). -1 if no step is done. */
-export const furthestStepIndex = (d: FunnelDossier): number => {
-  let last = -1;
-  for (let i = 0; i < STEP_KEYS.length; i++) {
-    if (isStepDone(d, STEP_KEYS[i])) last = i;
-  }
-  return last;
-};
-
-/**
- * The step where the dossier is currently stuck = next gap after the furthest
- * completed step. -1 if the dossier has no step done OR every step is done.
- */
-export const stuckAtStepIndex = (d: FunnelDossier): number => {
-  const last = furthestStepIndex(d);
-  if (last < 0) return -1;
-  if (last >= STEP_KEYS.length - 1) return -1;
-  return last + 1;
-};
-
-const emptyCounts = (): Record<StepKey, StepCounts> =>
+const emptyCounts = (): Record<StepKey, number> =>
   STEP_KEYS.reduce((acc, k) => {
-    acc[k] = { realise: 0, nonRealise: 0, bloqueIci: 0 };
+    acc[k] = 0;
     return acc;
-  }, {} as Record<StepKey, StepCounts>);
+  }, {} as Record<StepKey, number>);
 
 /**
- * For each step, count:
- *  - realise: step done AND its date falls in range
- *  - nonRealise: step's date is NOT set on the dossier
- *  - bloqueIci: dossier is currently stuck right at this step
+ * For each step, count the dossiers that have completed it. Step `creation`
+ * counts every dossier passed in (no date filter — it's the total in scope).
+ * Other steps count only dossiers whose step timestamp falls in `range`.
  */
 export const computeStepCounts = (
   dossiers: FunnelDossier[],
   range: FunnelRange,
-): Record<StepKey, StepCounts> => {
+): Record<StepKey, number> => {
   const out = emptyCounts();
   for (const d of dossiers) {
-    const stuck = stuckAtStepIndex(d);
-    for (let i = 0; i < STEP_KEYS.length; i++) {
-      const key = STEP_KEYS[i];
-      const at = STEP_DEFS[key].doneAt(d);
-      if (at != null) {
-        if (inRange(at, range)) out[key].realise += 1;
-      } else {
-        out[key].nonRealise += 1;
-        if (stuck === i) out[key].bloqueIci += 1;
+    for (const key of STEP_KEYS) {
+      if (key === 'creation') {
+        out[key] += 1;
+        continue;
       }
+      const at = STEP_DEFS[key].doneAt(d);
+      if (at != null && inRange(at, range)) out[key] += 1;
     }
   }
   return out;
@@ -225,7 +190,7 @@ export const computeStepCounts = (
 export const computePerCompagnieCounts = (
   dossiers: FunnelDossier[],
   range: FunnelRange,
-): Array<{ compagnie: string; counts: Record<StepKey, StepCounts> }> => {
+): Array<{ compagnie: string; counts: Record<StepKey, number> }> => {
   const groups = new Map<string, FunnelDossier[]>();
   for (const d of dossiers) {
     const key = (d.compagnie || '').trim() || '— non précisé —';
@@ -242,14 +207,11 @@ export interface PerUserRow {
   user: string;
   realise: Record<StepKey, number>;
   totalRealise: number;
-  bottleneck: number;
 }
 
 /**
- * Per-user breakdown:
- *  - realise[stepKey]: # dossiers where the user authored this step AND it happened in range
- *  - bottleneck: # dossiers where the user did the LAST completed step (i.e. the
- *    work is now waiting on whatever comes next — they're the holder of the baton)
+ * Per-user breakdown: for each user, count the dossiers where they authored
+ * a step that completed within `range`.
  */
 export const computePerUserCounts = (
   dossiers: FunnelDossier[],
@@ -267,7 +229,6 @@ export const computePerUserCounts = (
           return acc;
         }, {} as Record<StepKey, number>),
         totalRealise: 0,
-        bottleneck: 0,
       };
       map.set(user, row);
     }
@@ -284,13 +245,7 @@ export const computePerUserCounts = (
       row.realise[key] += 1;
       row.totalRealise += 1;
     }
-
-    const last = furthestStepIndex(d);
-    if (last >= 0 && last < STEP_KEYS.length - 1) {
-      const author = STEP_DEFS[STEP_KEYS[last]].authorOf(d, logs);
-      if (author) ensure(author).bottleneck += 1;
-    }
   }
 
-  return Array.from(map.values()).sort((a, b) => b.bottleneck - a.bottleneck || b.totalRealise - a.totalRealise);
+  return Array.from(map.values()).sort((a, b) => b.totalRealise - a.totalRealise);
 };

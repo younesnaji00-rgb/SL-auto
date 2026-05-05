@@ -35,18 +35,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { DatePicker } from '@/components/ui/date-picker';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonCard, SkeletonChart } from '@/components/ui/skeleton';
@@ -59,7 +52,6 @@ import {
   computePerUserCounts,
   computeStepCounts,
   type FunnelDossier,
-  type StepCounts,
   type StepKey,
   type WorkflowLog,
 } from './funnel';
@@ -67,22 +59,17 @@ import {
 const tabular = { fontVariantNumeric: 'tabular-nums' as const };
 
 /**
- * Heat-map background for numeric cells.
- * - value: cell value (0+)
- * - max: column max (or table max — whichever scope you want to compare on)
- * Returns a soft warm-green tint that scales with intensity.
- * Empty / zero cells return undefined so the cell stays neutral.
+ * Heat-map background for numeric cells. Higher value within a column = greener.
  */
 const heatStyle = (value: number, max: number): React.CSSProperties | undefined => {
   if (!value || value <= 0 || max <= 0) return undefined;
   const intensity = Math.min(value / max, 1);
-  // Quadratic ramp so small values stay subtle and only big ones really pop.
   const alpha = 0.08 + intensity * intensity * 0.42;
   return { backgroundColor: `hsla(150, 55%, 45%, ${alpha})` };
 };
 
 interface UserLookup {
-  byKey: Map<string, string>; // uid OR email (lowercased) -> display name
+  byKey: Map<string, string>;
 }
 
 const SYSTEM_LABELS: Record<string, string> = {
@@ -99,9 +86,7 @@ const resolveUserName = (raw: string, lookup: UserLookup): string => {
   if (direct) return direct;
   const lower = lookup.byKey.get(trimmed.toLowerCase());
   if (lower) return lower;
-  // Email fallback: show local part instead of full address
   if (trimmed.includes('@')) return trimmed.split('@')[0];
-  // UID fallback: shorten the opaque identifier
   if (trimmed.length > 16) return `${trimmed.slice(0, 6)}…`;
   return trimmed;
 };
@@ -213,7 +198,7 @@ export default function MonitoringPage() {
         <div>
           <h1 className="font-headline text-2xl font-semibold tracking-tight">Suivi d'équipe</h1>
           <p className="text-sm text-muted-foreground">
-            Funnel des 7 étapes — où est bloqué chaque dossier, et qui en est responsable.
+            Funnel des étapes — combien de dossiers ont franchi chaque étape.
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
@@ -277,19 +262,17 @@ function GlobalView({
   totalDossiers,
   loading,
 }: {
-  counts: Record<StepKey, StepCounts>;
+  counts: Record<StepKey, number>;
   totalDossiers: number;
   loading: boolean;
 }) {
   const chartData = STEP_KEYS.map((key) => ({
     step: STEP_LABELS_SHORT[key],
-    bloqueIci: counts[key].bloqueIci,
-    realise: counts[key].realise,
+    value: counts[key],
   }));
 
   const chartConfig = {
-    bloqueIci: { label: 'Bloqué ici', color: 'hsl(var(--chart-4))' },
-    realise: { label: 'Réalisé', color: 'hsl(var(--chart-5))' },
+    value: { label: 'Dossiers', color: 'hsl(var(--chart-5))' },
   };
 
   if (totalDossiers === 0 && !loading) {
@@ -306,16 +289,16 @@ function GlobalView({
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {STEP_KEYS.map((key, idx) => (
-          <KpiCard key={key} index={idx + 1} label={STEP_LABELS[key]} counts={counts[key]} />
+          <KpiCard key={key} index={idx + 1} label={STEP_LABELS[key]} value={counts[key]} />
         ))}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Bottleneck — dossiers bloqués par étape</CardTitle>
+          <CardTitle className="text-base">Volume par étape</CardTitle>
         </CardHeader>
         <CardContent>
-          {chartData.every((d) => d.bloqueIci === 0 && d.realise === 0) ? (
+          {chartData.every((d) => d.value === 0) ? (
             <EmptyState
               title="Aucune activité dans cette plage"
               description="Aucun dossier n'a réalisé une étape dans la période sélectionnée."
@@ -327,8 +310,7 @@ function GlobalView({
                 <XAxis dataKey="step" tickLine={false} axisLine={false} fontSize={12} />
                 <YAxis tickLine={false} axisLine={false} fontSize={12} allowDecimals={false} />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="realise" fill="var(--color-realise)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="bloqueIci" fill="var(--color-bloqueIci)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" fill="var(--color-value)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ChartContainer>
           )}
@@ -338,7 +320,7 @@ function GlobalView({
   );
 }
 
-function KpiCard({ index, label, counts }: { index: number; label: string; counts: StepCounts }) {
+function KpiCard({ index, label, value }: { index: number; label: string; value: number }) {
   return (
     <Card className="overflow-hidden">
       <CardHeader className="pb-2">
@@ -352,51 +334,12 @@ function KpiCard({ index, label, counts }: { index: number; label: string; count
           <CardTitle className="text-sm font-semibold">{label}</CardTitle>
         </div>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent>
         <div className="text-3xl font-semibold text-foreground" style={tabular}>
-          {counts.realise}
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <Stat label="Non réalisé" value={counts.nonRealise} muted />
-          <Stat label="Bloqué ici" value={counts.bloqueIci} highlight={counts.bloqueIci > 0} />
+          {value}
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  muted,
-  highlight,
-}: {
-  label: string;
-  value: number;
-  muted?: boolean;
-  highlight?: boolean;
-}) {
-  return (
-    <div
-      className={
-        highlight
-          ? 'rounded-md border border-amber-300/60 bg-amber-50/70 px-2 py-1 dark:border-amber-700/40 dark:bg-amber-950/30'
-          : muted
-          ? 'rounded-md bg-muted/40 px-2 py-1'
-          : 'px-2 py-1'
-      }
-    >
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div
-        className={
-          'text-sm font-semibold ' +
-          (highlight ? 'text-amber-800 dark:text-amber-200' : 'text-foreground')
-        }
-        style={tabular}
-      >
-        {value}
-      </div>
-    </div>
   );
 }
 
@@ -404,10 +347,9 @@ function CompagnieView({
   rows,
   loading,
 }: {
-  rows: Array<{ compagnie: string; counts: Record<StepKey, StepCounts> }>;
+  rows: Array<{ compagnie: string; counts: Record<StepKey, number> }>;
   loading: boolean;
 }) {
-  // Per-column max (on the réalisé value) for the heat map.
   const columnMax = useMemo(() => {
     const max: Record<StepKey, number> = STEP_KEYS.reduce((acc, k) => {
       acc[k] = 0;
@@ -415,7 +357,7 @@ function CompagnieView({
     }, {} as Record<StepKey, number>);
     for (const r of rows) {
       for (const k of STEP_KEYS) {
-        if (r.counts[k].realise > max[k]) max[k] = r.counts[k].realise;
+        if (r.counts[k] > max[k]) max[k] = r.counts[k];
       }
     }
     return max;
@@ -453,53 +395,24 @@ function CompagnieView({
             {rows.map(({ compagnie, counts }) => (
               <TableRow key={compagnie} className="hover:bg-accent/30">
                 <TableCell className="font-medium">{compagnie}</TableCell>
-                {STEP_KEYS.map((key) => (
-                  <TableCell
-                    key={key}
-                    className="text-center"
-                    style={{ ...tabular, ...heatStyle(counts[key].realise, columnMax[key]) }}
-                  >
-                    <StepCell counts={counts[key]} />
-                  </TableCell>
-                ))}
+                {STEP_KEYS.map((key) => {
+                  const v = counts[key];
+                  return (
+                    <TableCell
+                      key={key}
+                      className="text-center font-semibold"
+                      style={{ ...tabular, ...heatStyle(v, columnMax[key]) }}
+                    >
+                      {v || <span className="font-normal text-muted-foreground/50">—</span>}
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </CardContent>
     </Card>
-  );
-}
-
-function StepCell({ counts }: { counts: StepCounts }) {
-  return (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="inline-flex items-center justify-center gap-2">
-            <span className="font-semibold text-foreground" style={tabular}>
-              {counts.realise}
-            </span>
-            {counts.bloqueIci > 0 && (
-              <Badge
-                variant="outline"
-                className="border-amber-300/60 bg-amber-50/70 text-amber-800 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200"
-                style={tabular}
-              >
-                {counts.bloqueIci}
-              </Badge>
-            )}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-xs">
-          <div className="space-y-0.5" style={tabular}>
-            <div>Réalisé : <span className="font-semibold">{counts.realise}</span></div>
-            <div>Non réalisé : <span className="font-semibold">{counts.nonRealise}</span></div>
-            <div>Bloqué ici : <span className="font-semibold">{counts.bloqueIci}</span></div>
-          </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
   );
 }
 
@@ -512,14 +425,10 @@ function UserView({
     user: string;
     realise: Record<StepKey, number>;
     totalRealise: number;
-    bottleneck: number;
   }>;
   loading: boolean;
   userLookup: UserLookup;
 }) {
-  // Per-column max for réalisé columns + the Total column. Bottleneck is excluded
-  // from the green heat scale (it has its own amber treatment because high =
-  // bad, not good — opposite semantic from "réalisé").
   const columnMax = useMemo(() => {
     const realiseMax: Record<StepKey, number> = STEP_KEYS.reduce((acc, k) => {
       acc[k] = 0;
@@ -562,7 +471,6 @@ function UserView({
                 </TableHead>
               ))}
               <TableHead className="text-center text-xs">Total</TableHead>
-              <TableHead className="text-center text-xs">Bottleneck</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -588,18 +496,6 @@ function UserView({
                     style={{ ...tabular, ...heatStyle(r.totalRealise, columnMax.total) }}
                   >
                     {r.totalRealise}
-                  </TableCell>
-                  <TableCell className="text-center" style={tabular}>
-                    {r.bottleneck > 0 ? (
-                      <Badge
-                        variant="outline"
-                        className="border-amber-300/60 bg-amber-50/70 text-amber-800 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200"
-                      >
-                        {r.bottleneck}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground/50">—</span>
-                    )}
                   </TableCell>
                 </TableRow>
               );
