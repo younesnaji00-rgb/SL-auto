@@ -237,6 +237,7 @@ export const dossiersForStep = (
 export const computePerCompagnieCounts = (
   dossiers: FunnelDossier[],
   range: FunnelRange,
+  allCompagnies?: string[],
 ): Array<{ compagnie: string; counts: Record<StepKey, number> }> => {
   const groups = new Map<string, FunnelDossier[]>();
   for (const d of dossiers) {
@@ -244,6 +245,14 @@ export const computePerCompagnieCounts = (
     const arr = groups.get(key) || [];
     arr.push(d);
     groups.set(key, arr);
+  }
+  // Surface every assigned compagnie even when it has no dossiers yet.
+  if (allCompagnies) {
+    for (const raw of allCompagnies) {
+      const key = (raw || '').trim();
+      if (!key) continue;
+      if (!groups.has(key)) groups.set(key, []);
+    }
   }
   return Array.from(groups.entries())
     .sort(([a], [b]) => a.localeCompare(b, 'fr'))

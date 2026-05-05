@@ -14,6 +14,7 @@ import { startOfDay, endOfDay, subDays } from 'date-fns';
 
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useCompagnies } from '@/hooks/use-compagnies';
 import {
   Card,
   CardContent,
@@ -96,6 +97,7 @@ const resolveUserName = (raw: string, lookup: UserLookup): string => {
 export default function MonitoringPage() {
   const db = useFirestore();
   const { profile } = useCurrentUser();
+  const { compagnies: allCompagnies } = useCompagnies();
 
   const [dossiers, setDossiers] = useState<FunnelDossier[]>([]);
   const [workflowLogs, setWorkflowLogs] = useState<WorkflowLog[]>([]);
@@ -182,7 +184,16 @@ export default function MonitoringPage() {
   );
 
   const globalCounts = useMemo(() => computeStepCounts(dossiers, range), [dossiers, range]);
-  const perCompagnie = useMemo(() => computePerCompagnieCounts(dossiers, range), [dossiers, range]);
+  const scopedCompagnieNames = useMemo(() => {
+    const allowed = (profile?.compagnies || []).map((c: string) => c.toLowerCase().trim());
+    const names = allCompagnies.map((c) => c.nom).filter((n): n is string => !!n);
+    if (allowed.length === 0) return names;
+    return names.filter((n) => allowed.includes(n.toLowerCase().trim()));
+  }, [allCompagnies, profile]);
+  const perCompagnie = useMemo(
+    () => computePerCompagnieCounts(dossiers, range, scopedCompagnieNames),
+    [dossiers, range, scopedCompagnieNames],
+  );
   const perUser = useMemo(
     () => computePerUserCounts(dossiers, workflowLogs, range),
     [dossiers, workflowLogs, range],
