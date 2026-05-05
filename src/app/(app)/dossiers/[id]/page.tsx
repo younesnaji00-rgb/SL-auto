@@ -196,6 +196,14 @@ export default function DossierDetailPage({
                 </div>
               </>
             ),
+            10: (
+              <>
+                <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" />
+                <div className="mt-4">
+                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
+                </div>
+              </>
+            ),
             7: <Step6Rapport dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
             8: (
               <div className="rounded-lg border border-dashed border-border/40 bg-muted/20 p-8 text-center">
