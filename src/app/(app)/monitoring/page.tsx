@@ -10,7 +10,8 @@ import {
 } from 'firebase/firestore';
 import { Activity, Gauge, Building2, Users, RotateCcw, Search } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
-import { startOfDay, endOfDay } from 'date-fns';
+import { startOfDay, endOfDay, startOfWeek, startOfMonth, isSameDay } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -217,6 +218,32 @@ export default function MonitoringPage() {
     [dateFrom, dateTo],
   );
 
+  const activePreset = useMemo<'jour' | 'semaine' | 'mois' | 'custom'>(() => {
+    if (!dateFrom || !dateTo) return 'custom';
+    const now = new Date();
+    const today = startOfDay(now);
+    const todayEnd = endOfDay(now);
+    if (isSameDay(dateFrom, today) && isSameDay(dateTo, todayEnd)) return 'jour';
+    const weekStart = startOfWeek(now, { locale: fr });
+    if (isSameDay(dateFrom, weekStart) && isSameDay(dateTo, todayEnd)) return 'semaine';
+    const monthStart = startOfMonth(now);
+    if (isSameDay(dateFrom, monthStart) && isSameDay(dateTo, todayEnd)) return 'mois';
+    return 'custom';
+  }, [dateFrom, dateTo]);
+
+  const applyJour = () => {
+    setDateFrom(startOfDay(new Date()));
+    setDateTo(endOfDay(new Date()));
+  };
+  const applySemaine = () => {
+    setDateFrom(startOfWeek(new Date(), { locale: fr }));
+    setDateTo(endOfDay(new Date()));
+  };
+  const applyMois = () => {
+    setDateFrom(startOfMonth(new Date()));
+    setDateTo(endOfDay(new Date()));
+  };
+
   const globalCounts = useMemo(() => computeStepCounts(dossiers, range), [dossiers, range]);
   const scopedCompagnieNames = useMemo(() => {
     const allowed = (profile?.compagnies || []).map((c: string) => c.toLowerCase().trim());
@@ -325,6 +352,40 @@ export default function MonitoringPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
+          <div className="flex items-center gap-1 rounded-md border p-0.5 self-end h-10">
+            <Button
+              size="sm"
+              variant={activePreset === 'jour' ? 'default' : 'ghost'}
+              className="h-8"
+              onClick={applyJour}
+            >
+              Jour
+            </Button>
+            <Button
+              size="sm"
+              variant={activePreset === 'semaine' ? 'default' : 'ghost'}
+              className="h-8"
+              onClick={applySemaine}
+            >
+              Semaine
+            </Button>
+            <Button
+              size="sm"
+              variant={activePreset === 'mois' ? 'default' : 'ghost'}
+              className="h-8"
+              onClick={applyMois}
+            >
+              Mois
+            </Button>
+            <Button
+              size="sm"
+              variant={activePreset === 'custom' ? 'default' : 'ghost'}
+              className="h-8"
+              disabled
+            >
+              Personnalisé
+            </Button>
+          </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Du</label>
             <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Date de début" className="w-44" />
