@@ -30,6 +30,7 @@ const ALL_DEFAULTS: Record<string, string[]> = {
   options_rapport_types_pieces: ['ORG', 'ADP', 'REC', 'ORGs', 'ADPs', 'RECs', 'P.P', 'P.Ps', 'R.P', 'R.Ps'],
   options_rapport_operations: ['Echange', 'Réparation', 'Peinture'],
   options_mdo_types: ['Tolerie', 'Peinture', 'Mécanique', 'Electrique'],
+  options_observations: ['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre'],
 };
 
 /**

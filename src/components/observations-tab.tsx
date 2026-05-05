@@ -3,19 +3,21 @@
 import React, { useState, useMemo } from 'react';
 import { Send, Loader2, Eye, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { collection, addDoc, serverTimestamp, orderBy, query } from 'firebase/firestore';
 import { useFirestore, useAuth, useCollection } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useOptions } from '@/hooks/use-options';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { addObservation } from '@/app/(app)/dossiers/[id]/log-observation';
+import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 
 type Observation = {
   id: string;
@@ -57,9 +59,15 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
   const { toast } = useToast();
   const canAdd = canWrite(section);
 
-  const [text, setText] = useState('');
+  const [selectedPreset, setSelectedPreset] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOpen, setIsOpen] = useState(true);
+
+  const { options: observationPresets, loading: presetsLoading } = useOptions('options_observations');
+  const activePresets = useMemo(
+    () => observationPresets.filter((o) => o.active !== false),
+    [observationPresets]
+  );
 
   const obsQuery = useMemo(() => {
     if (!db) return null;
@@ -81,7 +89,7 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
   }, [rawObservations]);
 
   const handleSubmit = async () => {
-    if (!text.trim() || !db) return;
+    if (!selectedPreset.trim() || !db) return;
     setIsSubmitting(true);
 
     const userEmail = auth?.currentUser?.email || 'Admin';
@@ -89,8 +97,8 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
     const userRole = profile?.role || 'Admin';
 
     try {
-      await addObservation(db, dossierId, text.trim(), 'Général', userName, userEmail, userRole, section);
-      setText('');
+      await addObservation(db, dossierId, selectedPreset.trim(), 'Général', userName, userEmail, userRole, section);
+      setSelectedPreset('');
       toast({ title: 'Observation ajoutée' });
     } catch (err: any) {
       console.error('Failed to add observation:', err);
@@ -105,18 +113,40 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
       {/* Compose area */}
       {canAdd && (
         <div className="flex flex-col gap-2">
-          <Textarea
-            placeholder="Ajouter une observation..."
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={3}
-            className="resize-none text-sm"
-          />
+          <div className="flex items-center gap-2">
+            <Select
+              value={selectedPreset}
+              onValueChange={setSelectedPreset}
+              disabled={presetsLoading || activePresets.length === 0}
+            >
+              <SelectTrigger className="flex-1 text-sm">
+                <SelectValue
+                  placeholder={
+                    presetsLoading
+                      ? 'Chargement…'
+                      : activePresets.length === 0
+                        ? 'Aucune observation disponible'
+                        : 'Choisir une observation...'
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {activePresets.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.label}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <OptionsManagerModal
+              collectionName="options_observations"
+              title="Observations"
+              defaultValues={['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre']}
+            />
+          </div>
           <div className="flex justify-end">
             <Button
               size="sm"
               onClick={handleSubmit}
-              disabled={!text.trim() || isSubmitting}
+              disabled={!selectedPreset.trim() || isSubmitting}
               className="h-8 text-xs gap-1.5"
             >
               {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
