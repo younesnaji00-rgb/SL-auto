@@ -28,6 +28,7 @@ import Step4Pieces from '@/components/dossier-timeline/step-4-pieces';
 import Step5Chiffrage from '@/components/dossier-timeline/step-5-chiffrage';
 import Step6Rapport from '@/components/dossier-timeline/step-6-rapport';
 import ObservationsTab from '@/components/observations-tab';
+import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
 
 // ── Historique (kept for drawer dialog; full drawer in task #17) ─────────────
 import HistoriqueTab from './historique-tab';
@@ -181,6 +182,9 @@ export default function DossierDetailPage({
               <>
                 <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" />
                 <div className="mt-4">
+                  <PhotosTab dossierId={id} initialCategory="avant" />
+                </div>
+                <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
                 </div>
               </>
@@ -198,6 +202,9 @@ export default function DossierDetailPage({
               <>
                 <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="En cours" />
                 <div className="mt-4">
+                  <PhotosTab dossierId={id} initialCategory="en_cours" />
+                </div>
+                <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
                 </div>
               </>
@@ -205,6 +212,9 @@ export default function DossierDetailPage({
             10: (
               <>
                 <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" />
+                <div className="mt-4">
+                  <PhotosTab dossierId={id} initialCategory="apres" />
+                </div>
                 <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
                 </div>
