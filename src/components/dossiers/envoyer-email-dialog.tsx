@@ -16,6 +16,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2, Mail } from 'lucide-react';
 
 import { useFirestore } from '@/firebase';
+import { setDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -162,6 +163,17 @@ export function EnvoyerEmailDialog({
       }
 
       if (res.ok && data?.success) {
+        if (db && dossierId) {
+          try {
+            const dRef = doc(db, 'dossiers', dossierId);
+            const dSnap = await getDoc(dRef);
+            if (!dSnap.data()?.dateEnvoiAccordDevis) {
+              await setDoc(dRef, { dateEnvoiAccordDevis: serverTimestamp() }, { merge: true });
+            }
+          } catch (err) {
+            console.warn('[EnvoyerEmailDialog] failed to denorm dateEnvoiAccordDevis', err);
+          }
+        }
         onOpenChange(false);
         toast({ title: 'Email envoyé' });
         return;
