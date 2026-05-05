@@ -236,7 +236,7 @@ export default function MonitoringPage() {
         <TabsContent value="global" className="space-y-4">
           {loading ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {Array.from({ length: 7 }).map((_, i) => (
+              {Array.from({ length: STEP_KEYS.length }).map((_, i) => (
                 <SkeletonCard key={i} />
               ))}
             </div>

@@ -7,6 +7,7 @@ export type StepKey =
   | 'photosApres'
   | 'accord'
   | 'facture'
+  | 'rapportValide'
   | 'rapport';
 
 export const STEP_KEYS: StepKey[] = [
@@ -16,6 +17,7 @@ export const STEP_KEYS: StepKey[] = [
   'photosApres',
   'accord',
   'facture',
+  'rapportValide',
   'rapport',
 ];
 
@@ -26,6 +28,7 @@ export const STEP_LABELS: Record<StepKey, string> = {
   photosApres: 'Expertise après',
   accord: 'Accord',
   facture: 'Facture validée',
+  rapportValide: 'Rapport validé',
   rapport: 'Rapport déposé',
 };
 
@@ -36,6 +39,7 @@ export const STEP_LABELS_SHORT: Record<StepKey, string> = {
   photosApres: 'Après',
   accord: 'Accord',
   facture: 'Facture',
+  rapportValide: 'Validé',
   rapport: 'Rapport',
 };
 
@@ -56,6 +60,7 @@ export interface FunnelDossier {
   lastStatusChange?: { status?: string; at?: any; by?: string };
   dateFactureValide?: any;
   authorFactureValide?: string;
+  directorValidated?: { by?: string; at?: any; role?: string } | null;
   dateRapportDepose?: any;
   authorRapportDepose?: string;
 }
@@ -149,6 +154,12 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
     label: STEP_LABELS.facture,
     doneAt: (d) => toDate(d.dateFactureValide),
     authorOf: (d) => d.authorFactureValide ?? null,
+  },
+  rapportValide: {
+    key: 'rapportValide',
+    label: STEP_LABELS.rapportValide,
+    doneAt: (d) => toDate(d.directorValidated?.at),
+    authorOf: (d) => d.directorValidated?.by ?? null,
   },
   rapport: {
     key: 'rapport',
