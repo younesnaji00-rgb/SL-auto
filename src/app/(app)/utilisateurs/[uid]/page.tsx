@@ -14,9 +14,6 @@ import {
   Clock,
   ExternalLink,
   AlertCircle,
-  ShieldAlert,
-  Ban,
-  UserCheck
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -249,21 +246,6 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       toast({ variant: 'destructive', title: "Erreur", description: "Impossible de sauvegarder les modifications." });
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleToggleStatus = async () => {
-    const newStatus = formData.statut === 'Actif' ? 'Inactif' : 'Actif';
-    try {
-      await updateDoc(userRef, { statut: newStatus });
-      setFormData(p => ({ ...p, statut: newStatus as 'Actif' | 'Inactif' }));
-      toast({
-        title: newStatus === 'Actif' ? "Utilisateur activé" : "Utilisateur désactivé",
-        description: `Le statut de l'utilisateur a été mis à jour avec succès.`
-      });
-    } catch (error) {
-      console.error(error);
-      toast({ variant: 'destructive', title: "Erreur", description: "Impossible de changer le statut." });
     }
   };
 
@@ -645,48 +627,21 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             </CardContent>
           </Card>
 
-          <Card className={formData.statut === 'Actif' ? "border-destructive/20 bg-destructive/5" : "border-primary/20 bg-primary/5"}>
+          <Card>
             <CardHeader>
-              <CardTitle className={`flex items-center gap-2 ${formData.statut === 'Actif' ? "text-destructive" : "text-primary"}`}>
-                <ShieldAlert className="h-5 w-5" />
-                Zone de danger
-              </CardTitle>
+              <CardTitle className="text-base">Supprimer cet utilisateur</CardTitle>
+              <CardDescription>
+                L&apos;utilisateur sera retiré du système. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold">
-                  {formData.statut === 'Actif' ? "Désactiver l'accès" : "Réactiver l'accès"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formData.statut === 'Actif' 
-                    ? "L'utilisateur ne pourra plus se connecter mais ses données seront conservées."
-                    : "L'utilisateur pourra à nouveau accéder au système."
-                  }
-                </p>
-                <Button 
-                  variant={formData.statut === 'Actif' ? "destructive" : "default"} 
-                  className="w-full mt-2" 
-                  onClick={handleToggleStatus}
-                >
-                  {formData.statut === 'Actif' ? (
-                    <><Ban className="mr-2 h-4 w-4" /> Désactiver l'utilisateur</>
-                  ) : (
-                    <><UserCheck className="mr-2 h-4 w-4" /> Activer l'utilisateur</>
-                  )}
-                </Button>
-              </div>
-
-              <div className={`space-y-1 pt-4 border-t ${formData.statut === 'Actif' ? "border-destructive/10" : "border-primary/10"}`}>
-                <p className="text-sm font-semibold">Suppression définitive</p>
-                <p className="text-xs text-muted-foreground">Cette action est irréversible. Toutes les données associées seront supprimées.</p>
-                <Button 
-                  variant="outline" 
-                  className="w-full mt-2 border-destructive text-destructive hover:bg-destructive hover:text-white"
-                  onClick={() => setShowDeleteDialog(true)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer l'utilisateur
-                </Button>
-              </div>
+            <CardContent>
+              <Button
+                variant="outline"
+                className="w-full border-destructive text-destructive hover:bg-destructive hover:text-white"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Supprimer l&apos;utilisateur
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -697,8 +652,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer définitivement l'utilisateur <strong>{formData.prenom} {formData.nom}</strong> ? 
-              Cette action est irréversible.
+              Êtes-vous sûr de vouloir supprimer définitivement l&apos;utilisateur <strong>{formData.prenom} {formData.nom}</strong> ?
+              Cette action est irréversible. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
