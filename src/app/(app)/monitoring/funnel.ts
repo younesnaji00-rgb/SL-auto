@@ -176,13 +176,20 @@ const emptyCounts = (): Record<StepKey, number> =>
   }, {} as Record<StepKey, number>);
 
 /**
- * For each step, count the dossiers that have completed it. Step `creation`
- * counts every dossier passed in (no date filter — it's the total in scope).
- * Other steps count only dossiers whose step timestamp falls in `range`.
+ * For each step, count the dossiers that have completed it. Cumulative:
+ * once a dossier has crossed a step, it counts regardless of when. Step
+ * `accord` is special — its `doneAt` uses the dossier's CURRENT status,
+ * so when the gestionnaire's "+" button rolls statut back to "Chiffrage
+ * en cours" awaiting the next cardinal accord, doneAt returns null and
+ * the dossier drops out of the count until the chiffreur saves again.
+ *
+ * `range` is kept on the signature for stability with callers that pass
+ * a range, but is intentionally unused here — see `computePerUserCounts`
+ * for the place that still applies it.
  */
 export const computeStepCounts = (
   dossiers: FunnelDossier[],
-  range: FunnelRange,
+  _range: FunnelRange,
 ): Record<StepKey, number> => {
   const out = emptyCounts();
   for (const d of dossiers) {
@@ -192,7 +199,7 @@ export const computeStepCounts = (
         continue;
       }
       const at = STEP_DEFS[key].doneAt(d);
-      if (at != null && inRange(at, range)) out[key] += 1;
+      if (at != null) out[key] += 1;
     }
   }
   return out;
@@ -205,15 +212,17 @@ export interface DossierForStep {
 }
 
 /**
- * Resolve the list of dossiers that count for a given step, mirroring the
- * filtering used by `computeStepCounts`. Step `creation` ignores the date range
- * (it's the total in scope); other steps require the step timestamp to fall in
- * `range`. Sorted most-recent first.
+ * Resolve the list of dossiers that count for a given step. Mirrors
+ * `computeStepCounts` cumulative semantics — a dossier appears whenever
+ * its step's `doneAt` is non-null. Sorted most-recent first.
+ *
+ * `range` is kept on the signature for stability and is intentionally
+ * unused (cumulative semantics).
  */
 export const dossiersForStep = (
   dossiers: FunnelDossier[],
   logs: WorkflowLog[],
-  range: FunnelRange,
+  _range: FunnelRange,
   step: StepKey,
 ): DossierForStep[] => {
   const def = STEP_DEFS[step];
@@ -224,7 +233,7 @@ export const dossiersForStep = (
       continue;
     }
     const at = def.doneAt(d);
-    if (!at || !inRange(at, range)) continue;
+    if (!at) continue;
     out.push({ dossier: d, doneAt: at, author: def.authorOf(d, logs) });
   }
   return out.sort((a, b) => {
