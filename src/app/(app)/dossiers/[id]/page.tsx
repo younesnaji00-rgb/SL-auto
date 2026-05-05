@@ -137,9 +137,16 @@ export default function DossierDetailPage({
               </p>
             </div>
           </div>
-          <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(dossier.statut || 'Nouveau'))}>
-            {dossier.statut || 'Nouveau'}
-          </Badge>
+          <div className="flex items-center gap-2 flex-wrap">
+            {dossier.lastObservation?.text && (
+              <Badge className="bg-amber-50 text-amber-800 hover:bg-amber-50 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/50">
+                {dossier.lastObservation.text}
+              </Badge>
+            )}
+            <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(dossier.statut || 'Nouveau'))}>
+              {dossier.statut || 'Nouveau'}
+            </Badge>
+          </div>
         </div>
       </div>
 
