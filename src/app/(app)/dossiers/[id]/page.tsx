@@ -22,7 +22,6 @@ import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { Timeline, DOSSIER_TIMELINE_STEPS } from '@/components/dossier-timeline/timeline';
 import { useLastStep } from '@/hooks/use-last-step';
 import Step1Import from '@/components/dossier-timeline/step-1-import';
-import Step2Observations from '@/components/dossier-timeline/step-2-observations';
 import Step2Information from '@/components/dossier-timeline/step-2-information';
 import Step3Planification from '@/components/dossier-timeline/step-3-planification';
 import Step4Pieces from '@/components/dossier-timeline/step-4-pieces';
@@ -170,7 +169,6 @@ export default function DossierDetailPage({
           steps={DOSSIER_TIMELINE_STEPS}
           sections={{
             1: <Step1Import dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
-            2: <Step2Observations dossierId={id} />,
             3: <Step2Information dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
             4: <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />,
             5: <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} />,
