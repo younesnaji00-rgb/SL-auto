@@ -164,6 +164,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
               { label: 'Date expertise (après)', value: dossier?.datePhotosApres },
               { label: 'Date chiffrage', value: dossier?.dateChiffrage },
               { label: 'Date validation facture', value: dossier?.dateFactureValide },
+              { label: 'Date envoi accord devis', value: dossier?.dateEnvoiAccordDevis },
               { label: 'Date validation rapport', value: dossier?.directorValidated?.at },
               { label: 'Date dépôt rapport', value: dossier?.dateRapportDepose },
             ].map((row) => (
