@@ -44,6 +44,14 @@ import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/ui/date-picker';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonCard, SkeletonChart } from '@/components/ui/skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { roles } from '@/lib/dossiers-data';
 
 import {
   STEP_KEYS,
@@ -73,7 +81,10 @@ const heatStyle = (value: number, max: number): React.CSSProperties | undefined 
 
 interface UserLookup {
   byKey: Map<string, string>;
+  roleByKey: Map<string, string>;
 }
+
+const ROLE_FILTER_ALL = 'Tous';
 
 const SYSTEM_LABELS: Record<string, string> = {
   system: 'Système',
@@ -101,12 +112,13 @@ export default function MonitoringPage() {
 
   const [dossiers, setDossiers] = useState<FunnelDossier[]>([]);
   const [workflowLogs, setWorkflowLogs] = useState<WorkflowLog[]>([]);
-  const [users, setUsers] = useState<Array<{ id: string; nom?: string; email?: string }>>([]);
+  const [users, setUsers] = useState<Array<{ id: string; nom?: string; email?: string; role?: string }>>([]);
   const [loading, setLoading] = useState(true);
 
   const [dateFrom, setDateFrom] = useState<Date | null>(() => subDays(startOfDay(new Date()), 6));
   const [dateTo, setDateTo] = useState<Date | null>(() => endOfDay(new Date()));
   const [selectedStep, setSelectedStep] = useState<StepKey | null>(null);
+  const [roleFilter, setRoleFilter] = useState<string>(ROLE_FILTER_ALL);
 
   useEffect(() => {
     if (!db) return;
@@ -163,16 +175,27 @@ export default function MonitoringPage() {
 
   const userLookup = useMemo<UserLookup>(() => {
     const byKey = new Map<string, string>();
+    const roleByKey = new Map<string, string>();
     for (const u of users) {
       const name = (u.nom || u.email || '').trim();
-      if (!name) continue;
-      if (u.id) byKey.set(u.id, name);
+      const role = (u.role || '').trim();
+      if (!name && !role) continue;
+      if (u.id) {
+        if (name) byKey.set(u.id, name);
+        if (role) roleByKey.set(u.id, role);
+      }
       if (u.email) {
-        byKey.set(u.email, name);
-        byKey.set(u.email.toLowerCase(), name);
+        if (name) {
+          byKey.set(u.email, name);
+          byKey.set(u.email.toLowerCase(), name);
+        }
+        if (role) {
+          roleByKey.set(u.email, role);
+          roleByKey.set(u.email.toLowerCase(), role);
+        }
       }
     }
-    return { byKey };
+    return { byKey, roleByKey };
   }, [users]);
 
   const range = useMemo(
@@ -204,20 +227,28 @@ export default function MonitoringPage() {
   const dedupedPerUser = useMemo(() => {
     const merged = new Map<string, {
       user: string;
+      role?: string;
       realise: Record<StepKey, number>;
       totalRealise: number;
     }>();
     for (const r of perUser) {
       const name = resolveUserName(r.user, userLookup);
+      const trimmed = (r.user || '').trim();
+      const role =
+        userLookup.roleByKey.get(trimmed) ??
+        userLookup.roleByKey.get(trimmed.toLowerCase()) ??
+        undefined;
       const existing = merged.get(name);
       if (existing) {
         for (const key of STEP_KEYS) {
           existing.realise[key] += r.realise[key];
         }
         existing.totalRealise += r.totalRealise;
+        if (!existing.role && role) existing.role = role;
       } else {
         merged.set(name, {
           user: name,
+          role,
           realise: { ...r.realise },
           totalRealise: r.totalRealise,
         });
@@ -225,6 +256,11 @@ export default function MonitoringPage() {
     }
     return Array.from(merged.values()).sort((a, b) => b.totalRealise - a.totalRealise);
   }, [perUser, userLookup]);
+
+  const filteredPerUser = useMemo(() => {
+    if (roleFilter === ROLE_FILTER_ALL) return dedupedPerUser;
+    return dedupedPerUser.filter((r) => r.role === roleFilter);
+  }, [dedupedPerUser, roleFilter]);
   const drawerRows = useMemo(
     () => (selectedStep ? dossiersForStep(dossiers, workflowLogs, range, selectedStep) : []),
     [selectedStep, dossiers, workflowLogs, range],
@@ -300,7 +336,25 @@ export default function MonitoringPage() {
         </TabsContent>
 
         <TabsContent value="user" className="space-y-4">
-          <UserView rows={dedupedPerUser} loading={loading} userLookup={userLookup} />
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Rôle</label>
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="h-10 w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ROLE_FILTER_ALL}>Tous les rôles</SelectItem>
+                  {roles.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <UserView rows={filteredPerUser} loading={loading} userLookup={userLookup} />
         </TabsContent>
       </Tabs>
 
