@@ -146,6 +146,30 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
         <p className="text-sm text-muted-foreground">Suivez la progression du dossier étape par étape.</p>
       </div>
 
+      {/* DATES CLÉS */}
+      <Card>
+        <CardContent className="p-6 space-y-3">
+          <h3 className="font-semibold text-base">Dates clés</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+            {[
+              { label: 'Date réception mission', value: dossier?.dateRequete },
+              { label: 'Date sinistre', value: dossier?.dateSinistre },
+              { label: 'Date création mission', value: dossier?.createdAt },
+              { label: 'Date mission ATG', value: dossier?.dateMissionAgentTerrain },
+              { label: 'Date chiffrage', value: dossier?.dateChiffrage },
+              { label: 'Date validation facture', value: dossier?.dateFactureValide },
+              { label: 'Date validation rapport', value: dossier?.directorValidated?.at },
+              { label: 'Date dépôt rapport', value: dossier?.dateRapportDepose },
+            ].map((row) => (
+              <div key={row.label} className="flex justify-between text-sm py-1.5 border-b border-border/30 last:border-0">
+                <span className="text-muted-foreground">{row.label}</span>
+                <span className="font-medium tabular-nums">{row.value ? formatDate(row.value) : '—'}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* SINISTRE DOUTEUX APPROVAL BANNER */}
       {dossier?.sinistreDouteux?.active && (
         <Card className="border-red-200 bg-red-50 dark:bg-red-900/10 dark:border-red-800">
