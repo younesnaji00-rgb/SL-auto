@@ -1,0 +1,612 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import {
+  collection,
+  collectionGroup,
+  onSnapshot,
+  orderBy,
+  query,
+} from 'firebase/firestore';
+import { Activity, Gauge, Building2, Users, RotateCcw } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { startOfDay, endOfDay, subDays } from 'date-fns';
+
+import { useFirestore } from '@/firebase';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from '@/components/ui/chart';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { DatePicker } from '@/components/ui/date-picker';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonCard, SkeletonChart } from '@/components/ui/skeleton';
+
+import {
+  STEP_KEYS,
+  STEP_LABELS,
+  STEP_LABELS_SHORT,
+  computePerCompagnieCounts,
+  computePerUserCounts,
+  computeStepCounts,
+  type FunnelDossier,
+  type StepCounts,
+  type StepKey,
+  type WorkflowLog,
+} from './funnel';
+
+const tabular = { fontVariantNumeric: 'tabular-nums' as const };
+
+/**
+ * Heat-map background for numeric cells.
+ * - value: cell value (0+)
+ * - max: column max (or table max — whichever scope you want to compare on)
+ * Returns a soft warm-green tint that scales with intensity.
+ * Empty / zero cells return undefined so the cell stays neutral.
+ */
+const heatStyle = (value: number, max: number): React.CSSProperties | undefined => {
+  if (!value || value <= 0 || max <= 0) return undefined;
+  const intensity = Math.min(value / max, 1);
+  // Quadratic ramp so small values stay subtle and only big ones really pop.
+  const alpha = 0.08 + intensity * intensity * 0.42;
+  return { backgroundColor: `hsla(150, 55%, 45%, ${alpha})` };
+};
+
+interface UserLookup {
+  byKey: Map<string, string>; // uid OR email (lowercased) -> display name
+}
+
+const SYSTEM_LABELS: Record<string, string> = {
+  system: 'Système',
+  'admin-guest': 'Invité (admin)',
+  unknown: 'Inconnu',
+};
+
+const resolveUserName = (raw: string, lookup: UserLookup): string => {
+  if (!raw) return SYSTEM_LABELS.unknown;
+  const trimmed = raw.trim();
+  if (SYSTEM_LABELS[trimmed]) return SYSTEM_LABELS[trimmed];
+  const direct = lookup.byKey.get(trimmed);
+  if (direct) return direct;
+  const lower = lookup.byKey.get(trimmed.toLowerCase());
+  if (lower) return lower;
+  // Email fallback: show local part instead of full address
+  if (trimmed.includes('@')) return trimmed.split('@')[0];
+  // UID fallback: shorten the opaque identifier
+  if (trimmed.length > 16) return `${trimmed.slice(0, 6)}…`;
+  return trimmed;
+};
+
+export default function MonitoringPage() {
+  const db = useFirestore();
+  const { profile } = useCurrentUser();
+
+  const [dossiers, setDossiers] = useState<FunnelDossier[]>([]);
+  const [workflowLogs, setWorkflowLogs] = useState<WorkflowLog[]>([]);
+  const [users, setUsers] = useState<Array<{ id: string; nom?: string; email?: string }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [dateFrom, setDateFrom] = useState<Date | null>(() => subDays(startOfDay(new Date()), 6));
+  const [dateTo, setDateTo] = useState<Date | null>(() => endOfDay(new Date()));
+
+  useEffect(() => {
+    if (!db) return;
+    const allowedLower = (profile?.compagnies || []).map((c: string) => c.toLowerCase().trim());
+
+    const qDossiers = query(collection(db, 'dossiers'), orderBy('createdAt', 'desc'));
+    const unsubDossiers = onSnapshot(
+      qDossiers,
+      (snap) => {
+        let data: FunnelDossier[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        if (allowedLower.length > 0) {
+          data = data.filter((d) => allowedLower.includes((d.compagnie || '').toLowerCase().trim()));
+        }
+        setDossiers(data);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Monitoring dossier sync error:', err);
+        setLoading(false);
+      },
+    );
+
+    const qWorkflow = query(collectionGroup(db, 'workflow'), orderBy('date', 'desc'));
+    const unsubWorkflow = onSnapshot(
+      qWorkflow,
+      (snap) => {
+        const logs: WorkflowLog[] = snap.docs.map((d) => ({
+          ...(d.data() as any),
+          _dossierId: d.ref.parent.parent?.id || '',
+        }));
+        setWorkflowLogs(logs);
+      },
+      (err) => {
+        console.warn('Monitoring workflow sync error:', err);
+      },
+    );
+
+    const unsubUsers = onSnapshot(
+      collection(db, 'users'),
+      (snap) => {
+        setUsers(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+      },
+      (err) => {
+        console.warn('Monitoring users sync error:', err);
+      },
+    );
+
+    return () => {
+      unsubDossiers();
+      unsubWorkflow();
+      unsubUsers();
+    };
+  }, [db, profile]);
+
+  const userLookup = useMemo<UserLookup>(() => {
+    const byKey = new Map<string, string>();
+    for (const u of users) {
+      const name = (u.nom || u.email || '').trim();
+      if (!name) continue;
+      if (u.id) byKey.set(u.id, name);
+      if (u.email) {
+        byKey.set(u.email, name);
+        byKey.set(u.email.toLowerCase(), name);
+      }
+    }
+    return { byKey };
+  }, [users]);
+
+  const range = useMemo(
+    () => ({
+      from: dateFrom ? startOfDay(dateFrom) : undefined,
+      to: dateTo ? endOfDay(dateTo) : undefined,
+    }),
+    [dateFrom, dateTo],
+  );
+
+  const globalCounts = useMemo(() => computeStepCounts(dossiers, range), [dossiers, range]);
+  const perCompagnie = useMemo(() => computePerCompagnieCounts(dossiers, range), [dossiers, range]);
+  const perUser = useMemo(
+    () => computePerUserCounts(dossiers, workflowLogs, range),
+    [dossiers, workflowLogs, range],
+  );
+
+  const totalDossiersInScope = dossiers.length;
+
+  const resetRange = () => {
+    setDateFrom(subDays(startOfDay(new Date()), 6));
+    setDateTo(endOfDay(new Date()));
+  };
+
+  return (
+    <div className="space-y-6 p-4 md:p-6">
+      <header className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="font-headline text-2xl font-semibold tracking-tight">Suivi d'équipe</h1>
+          <p className="text-sm text-muted-foreground">
+            Funnel des 7 étapes — où est bloqué chaque dossier, et qui en est responsable.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Du</label>
+            <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Date de début" className="w-44" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Au</label>
+            <DatePicker value={dateTo} onChange={setDateTo} placeholder="Date de fin" className="w-44" />
+          </div>
+          <Button variant="outline" size="sm" onClick={resetRange} className="h-10">
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Réinitialiser
+          </Button>
+        </div>
+      </header>
+
+      <Tabs defaultValue="global" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="global" className="gap-2">
+            <Gauge className="h-4 w-4" />
+            Global
+          </TabsTrigger>
+          <TabsTrigger value="compagnie" className="gap-2">
+            <Building2 className="h-4 w-4" />
+            Par compagnie
+          </TabsTrigger>
+          <TabsTrigger value="user" className="gap-2">
+            <Users className="h-4 w-4" />
+            Par utilisateur
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="global" className="space-y-4">
+          {loading ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          ) : (
+            <GlobalView counts={globalCounts} totalDossiers={totalDossiersInScope} loading={loading} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="compagnie" className="space-y-4">
+          <CompagnieView rows={perCompagnie} loading={loading} />
+        </TabsContent>
+
+        <TabsContent value="user" className="space-y-4">
+          <UserView rows={perUser} loading={loading} userLookup={userLookup} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function GlobalView({
+  counts,
+  totalDossiers,
+  loading,
+}: {
+  counts: Record<StepKey, StepCounts>;
+  totalDossiers: number;
+  loading: boolean;
+}) {
+  const chartData = STEP_KEYS.map((key) => ({
+    step: STEP_LABELS_SHORT[key],
+    bloqueIci: counts[key].bloqueIci,
+    realise: counts[key].realise,
+  }));
+
+  const chartConfig = {
+    bloqueIci: { label: 'Bloqué ici', color: 'hsl(var(--chart-4))' },
+    realise: { label: 'Réalisé', color: 'hsl(var(--chart-5))' },
+  };
+
+  if (totalDossiers === 0 && !loading) {
+    return (
+      <EmptyState
+        icon={<Activity />}
+        title="Aucun dossier dans votre périmètre"
+        description="Aucune compagnie assignée n'a de dossiers à analyser."
+      />
+    );
+  }
+
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {STEP_KEYS.map((key, idx) => (
+          <KpiCard key={key} index={idx + 1} label={STEP_LABELS[key]} counts={counts[key]} />
+        ))}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Bottleneck — dossiers bloqués par étape</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {chartData.every((d) => d.bloqueIci === 0 && d.realise === 0) ? (
+            <EmptyState
+              title="Aucune activité dans cette plage"
+              description="Aucun dossier n'a réalisé une étape dans la période sélectionnée."
+            />
+          ) : (
+            <ChartContainer config={chartConfig} className="h-72 w-full">
+              <BarChart data={chartData} margin={{ top: 8, right: 16, left: -8, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="step" tickLine={false} axisLine={false} fontSize={12} />
+                <YAxis tickLine={false} axisLine={false} fontSize={12} allowDecimals={false} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="realise" fill="var(--color-realise)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="bloqueIci" fill="var(--color-bloqueIci)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ChartContainer>
+          )}
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+function KpiCard({ index, label, counts }: { index: number; label: string; counts: StepCounts }) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary"
+            style={tabular}
+          >
+            {index}
+          </span>
+          <CardTitle className="text-sm font-semibold">{label}</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="text-3xl font-semibold text-foreground" style={tabular}>
+          {counts.realise}
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <Stat label="Non réalisé" value={counts.nonRealise} muted />
+          <Stat label="Bloqué ici" value={counts.bloqueIci} highlight={counts.bloqueIci > 0} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  muted,
+  highlight,
+}: {
+  label: string;
+  value: number;
+  muted?: boolean;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={
+        highlight
+          ? 'rounded-md border border-amber-300/60 bg-amber-50/70 px-2 py-1 dark:border-amber-700/40 dark:bg-amber-950/30'
+          : muted
+          ? 'rounded-md bg-muted/40 px-2 py-1'
+          : 'px-2 py-1'
+      }
+    >
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div
+        className={
+          'text-sm font-semibold ' +
+          (highlight ? 'text-amber-800 dark:text-amber-200' : 'text-foreground')
+        }
+        style={tabular}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function CompagnieView({
+  rows,
+  loading,
+}: {
+  rows: Array<{ compagnie: string; counts: Record<StepKey, StepCounts> }>;
+  loading: boolean;
+}) {
+  // Per-column max (on the réalisé value) for the heat map.
+  const columnMax = useMemo(() => {
+    const max: Record<StepKey, number> = STEP_KEYS.reduce((acc, k) => {
+      acc[k] = 0;
+      return acc;
+    }, {} as Record<StepKey, number>);
+    for (const r of rows) {
+      for (const k of STEP_KEYS) {
+        if (r.counts[k].realise > max[k]) max[k] = r.counts[k].realise;
+      }
+    }
+    return max;
+  }, [rows]);
+
+  if (loading) return <SkeletonChart />;
+  if (rows.length === 0) {
+    return (
+      <EmptyState
+        icon={<Building2 />}
+        title="Aucune compagnie à afficher"
+        description="Aucun dossier n'est rattaché à une compagnie dans votre périmètre."
+      />
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Répartition par compagnie</CardTitle>
+      </CardHeader>
+      <CardContent className="overflow-x-auto p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="min-w-[12rem]">Compagnie</TableHead>
+              {STEP_KEYS.map((key) => (
+                <TableHead key={key} className="text-center text-xs">
+                  {STEP_LABELS_SHORT[key]}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map(({ compagnie, counts }) => (
+              <TableRow key={compagnie} className="hover:bg-accent/30">
+                <TableCell className="font-medium">{compagnie}</TableCell>
+                {STEP_KEYS.map((key) => (
+                  <TableCell
+                    key={key}
+                    className="text-center"
+                    style={{ ...tabular, ...heatStyle(counts[key].realise, columnMax[key]) }}
+                  >
+                    <StepCell counts={counts[key]} />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StepCell({ counts }: { counts: StepCounts }) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="inline-flex items-center justify-center gap-2">
+            <span className="font-semibold text-foreground" style={tabular}>
+              {counts.realise}
+            </span>
+            {counts.bloqueIci > 0 && (
+              <Badge
+                variant="outline"
+                className="border-amber-300/60 bg-amber-50/70 text-amber-800 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200"
+                style={tabular}
+              >
+                {counts.bloqueIci}
+              </Badge>
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs">
+          <div className="space-y-0.5" style={tabular}>
+            <div>Réalisé : <span className="font-semibold">{counts.realise}</span></div>
+            <div>Non réalisé : <span className="font-semibold">{counts.nonRealise}</span></div>
+            <div>Bloqué ici : <span className="font-semibold">{counts.bloqueIci}</span></div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function UserView({
+  rows,
+  loading,
+  userLookup,
+}: {
+  rows: Array<{
+    user: string;
+    realise: Record<StepKey, number>;
+    totalRealise: number;
+    bottleneck: number;
+  }>;
+  loading: boolean;
+  userLookup: UserLookup;
+}) {
+  // Per-column max for réalisé columns + the Total column. Bottleneck is excluded
+  // from the green heat scale (it has its own amber treatment because high =
+  // bad, not good — opposite semantic from "réalisé").
+  const columnMax = useMemo(() => {
+    const realiseMax: Record<StepKey, number> = STEP_KEYS.reduce((acc, k) => {
+      acc[k] = 0;
+      return acc;
+    }, {} as Record<StepKey, number>);
+    let totalMax = 0;
+    for (const r of rows) {
+      for (const k of STEP_KEYS) {
+        if (r.realise[k] > realiseMax[k]) realiseMax[k] = r.realise[k];
+      }
+      if (r.totalRealise > totalMax) totalMax = r.totalRealise;
+    }
+    return { realise: realiseMax, total: totalMax };
+  }, [rows]);
+
+  if (loading) return <SkeletonChart />;
+  if (rows.length === 0) {
+    return (
+      <EmptyState
+        icon={<Users />}
+        title="Aucune activité utilisateur"
+        description="Aucun utilisateur n'a réalisé d'étape dans la plage sélectionnée."
+      />
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Activité par utilisateur</CardTitle>
+      </CardHeader>
+      <CardContent className="overflow-x-auto p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="min-w-[14rem]">Utilisateur</TableHead>
+              {STEP_KEYS.map((key) => (
+                <TableHead key={key} className="text-center text-xs">
+                  {STEP_LABELS_SHORT[key]}
+                </TableHead>
+              ))}
+              <TableHead className="text-center text-xs">Total</TableHead>
+              <TableHead className="text-center text-xs">Bottleneck</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => {
+              const displayName = resolveUserName(r.user, userLookup);
+              return (
+                <TableRow key={r.user} className="hover:bg-accent/30">
+                  <TableCell className="font-medium">{displayName}</TableCell>
+                  {STEP_KEYS.map((key) => {
+                    const v = r.realise[key];
+                    return (
+                      <TableCell
+                        key={key}
+                        className="text-center"
+                        style={{ ...tabular, ...heatStyle(v, columnMax.realise[key]) }}
+                      >
+                        {v || <span className="text-muted-foreground/50">—</span>}
+                      </TableCell>
+                    );
+                  })}
+                  <TableCell
+                    className="text-center font-semibold"
+                    style={{ ...tabular, ...heatStyle(r.totalRealise, columnMax.total) }}
+                  >
+                    {r.totalRealise}
+                  </TableCell>
+                  <TableCell className="text-center" style={tabular}>
+                    {r.bottleneck > 0 ? (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-300/60 bg-amber-50/70 text-amber-800 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200"
+                      >
+                        {r.bottleneck}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground/50">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}

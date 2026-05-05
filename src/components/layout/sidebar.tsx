@@ -52,6 +52,7 @@ import {
   UserCheck,
   BookOpen,
   Bug,
+  Gauge,
 } from 'lucide-react';
 import Logo from '@/components/logo';
 import { useCompagnies } from '@/hooks/use-compagnies';
@@ -76,6 +77,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'ESPACE',
     items: [
       { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: ['Admin', "Responsable d'équipe"] },
+      { href: '/monitoring', icon: Gauge, label: "Suivi d'équipe", roles: ['Admin', "Responsable d'équipe"] },
       { href: '/dossiers', icon: FolderOpen, label: 'Gestion des dossiers', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'] },
       { href: '/consultation', icon: BookOpen, label: 'Consultation', roles: null },
       { href: '/compagnies', icon: Building2, label: 'Compagnies', roles: ['Admin', "Responsable d'équipe"] },

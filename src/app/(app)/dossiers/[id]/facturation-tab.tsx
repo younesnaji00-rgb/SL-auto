@@ -7,11 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { updateDoc, type DocumentReference } from 'firebase/firestore';
+import { updateDoc, serverTimestamp, type DocumentReference } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/firebase';
 
 export default function FacturationTab({ dossier, dossierRef }: { dossier: any; dossierRef: DocumentReference }) {
     const { toast } = useToast();
+    const auth = useAuth();
     const [isSaving, setIsSaving] = useState(false);
     const [values, setValues] = useState({
         montantHT: 0,
@@ -37,7 +39,15 @@ export default function FacturationTab({ dossier, dossierRef }: { dossier: any; 
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await updateDoc(dossierRef, { facturation: values });
+            const payload: Record<string, any> = { facturation: values };
+            const wasPaye = dossier?.facturation?.statutPaiement === 'Payé';
+            const isNowPaye = values.statutPaiement === 'Payé';
+            const alreadyStamped = !!dossier?.dateFactureValide;
+            if (isNowPaye && !wasPaye && !alreadyStamped) {
+                payload.dateFactureValide = serverTimestamp();
+                payload.authorFactureValide = auth?.currentUser?.email || 'Admin';
+            }
+            await updateDoc(dossierRef, payload);
             toast({ title: "Facturation enregistrée" });
         } catch (e) {
             console.error(e);

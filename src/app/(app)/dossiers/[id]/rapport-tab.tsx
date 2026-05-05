@@ -60,6 +60,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   const [directorValidated, setDirectorValidated] = useState<
     { by?: string; at?: any; role?: string } | null
   >(null);
+  const [rapportAlreadyDepose, setRapportAlreadyDepose] = useState(false);
 
   // Chiffrage type state
   const [typeChiffrage, setTypeChiffrage] = useState<'Réparation' | 'Réforme' | ''>('');
@@ -104,6 +105,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
         }
 
         setDirectorValidated(data.directorValidated ?? null);
+        setRapportAlreadyDepose(!!data.dateRapportDepose);
       }
       setLoading(false);
     }, () => {
@@ -241,6 +243,19 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
         await generateRapportPreliminairePDF(db, dossierId);
       } else {
         await generateRapportReformePDF(db, dossierId);
+      }
+      if (db && !rapportAlreadyDepose) {
+        const userEmail = auth?.currentUser?.email || 'Admin';
+        const userId = auth?.currentUser?.uid || 'unknown';
+        try {
+          await updateDoc(doc(db, 'dossiers', dossierId), {
+            dateRapportDepose: serverTimestamp(),
+            authorRapportDepose: userEmail,
+          });
+        } catch { /* silent — funnel-only data, must not break the user-facing flow */ }
+        try {
+          await logWorkflow(db, dossierId, 'Rapport déposé', userEmail, userId, 'done', { details: `Type: ${type}` });
+        } catch { /* silent */ }
       }
       toast({ title: 'Rapport généré' });
       setTypeDialogOpen(false);

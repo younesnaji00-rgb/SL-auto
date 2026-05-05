@@ -23,6 +23,10 @@ export type Dossier = {
   datePhotosEnCours?: any;
   datePhotosApres?: any;
   dateChiffrage?: any;
+  dateFactureValide?: any;
+  authorFactureValide?: string;
+  dateRapportDepose?: any;
+  authorRapportDepose?: string;
   // Structured objects
   assure: { nom: string; prenom: string; telephone: string; whatsapp: string; telephone2: string; email: string; adresse: string; cin: string } | string;
   vehicule: { marque: string; modele: string; immatriculation: string; serie: string; energie: string; puissance: string; mec: any; km: string };
@@ -72,6 +76,22 @@ export const CANONICAL_STATUTS = [
 ] as const;
 
 export type CanonicalStatut = typeof CANONICAL_STATUTS[number];
+
+/**
+ * Statuses that collectively represent "an accord exists" for a dossier.
+ * Shared by the dashboard (visual bucket) and the monitoring funnel
+ * (step 5 — Accord — réalisé indicator).
+ */
+export const ACCORD_BUCKET_MEMBERS: ReadonlySet<string> = new Set([
+    'Accord',
+    "Proposition d'accord",
+    '2ème accord',
+    "2ème proposition d'accord",
+    '3ème accord',
+    "3ème proposition d'accord",
+    'Accord envoyé',
+    'Réforme',
+]);
 
 /**
  * Mutable-array aliases kept for compatibility with existing callers that
