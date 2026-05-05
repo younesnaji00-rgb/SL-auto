@@ -187,6 +187,33 @@ export default function MonitoringPage() {
     () => computePerUserCounts(dossiers, workflowLogs, range),
     [dossiers, workflowLogs, range],
   );
+  // Merge rows that resolve to the same display name (e.g. one row keyed by
+  // Firebase UID for `createdBy` + another row keyed by email for
+  // `lastStatusChange.by` are the same person).
+  const dedupedPerUser = useMemo(() => {
+    const merged = new Map<string, {
+      user: string;
+      realise: Record<StepKey, number>;
+      totalRealise: number;
+    }>();
+    for (const r of perUser) {
+      const name = resolveUserName(r.user, userLookup);
+      const existing = merged.get(name);
+      if (existing) {
+        for (const key of STEP_KEYS) {
+          existing.realise[key] += r.realise[key];
+        }
+        existing.totalRealise += r.totalRealise;
+      } else {
+        merged.set(name, {
+          user: name,
+          realise: { ...r.realise },
+          totalRealise: r.totalRealise,
+        });
+      }
+    }
+    return Array.from(merged.values()).sort((a, b) => b.totalRealise - a.totalRealise);
+  }, [perUser, userLookup]);
   const drawerRows = useMemo(
     () => (selectedStep ? dossiersForStep(dossiers, workflowLogs, range, selectedStep) : []),
     [selectedStep, dossiers, workflowLogs, range],
@@ -262,7 +289,7 @@ export default function MonitoringPage() {
         </TabsContent>
 
         <TabsContent value="user" className="space-y-4">
-          <UserView rows={perUser} loading={loading} userLookup={userLookup} />
+          <UserView rows={dedupedPerUser} loading={loading} userLookup={userLookup} />
         </TabsContent>
       </Tabs>
 
