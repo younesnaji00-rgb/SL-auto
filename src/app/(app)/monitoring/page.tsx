@@ -10,7 +10,7 @@ import {
 } from 'firebase/firestore';
 import { Activity, Gauge, Building2, Users, RotateCcw, Search } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
-import { startOfDay, endOfDay, subDays } from 'date-fns';
+import { startOfDay, endOfDay } from 'date-fns';
 
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -119,7 +119,7 @@ export default function MonitoringPage() {
   const [users, setUsers] = useState<Array<{ id: string; nom?: string; email?: string; role?: string }>>([]);
   const [loading, setLoading] = useState(true);
 
-  const [dateFrom, setDateFrom] = useState<Date | null>(() => subDays(startOfDay(new Date()), 6));
+  const [dateFrom, setDateFrom] = useState<Date | null>(() => startOfDay(new Date()));
   const [dateTo, setDateTo] = useState<Date | null>(() => endOfDay(new Date()));
   const [selectedStep, setSelectedStep] = useState<StepKey | null>(null);
   const [selectedStepMode, setSelectedStepMode] = useState<DrawerMode>('realise');
@@ -311,7 +311,7 @@ export default function MonitoringPage() {
   const totalDossiersInScope = dossiers.length;
 
   const resetRange = () => {
-    setDateFrom(subDays(startOfDay(new Date()), 6));
+    setDateFrom(startOfDay(new Date()));
     setDateTo(endOfDay(new Date()));
   };
 
