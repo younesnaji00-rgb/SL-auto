@@ -18,6 +18,7 @@ export interface Step4PiecesProps {
   dossierRef: DocumentReference;
   readOnly?: boolean;
   onSendToChiffrage?: () => void;
+  hidePhotos?: boolean;
 }
 
 function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolean, (v: boolean) => void] {
@@ -34,7 +35,7 @@ function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolea
   return [open, setOpen];
 }
 
-export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage }: Step4PiecesProps) {
+export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos }: Step4PiecesProps) {
   const [docsOpen, setDocsOpen] = useSectionOpen(dossierId, 'documents');
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
@@ -75,18 +76,20 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage }: 
         </CollapsibleContent>
       </Collapsible>
 
-      <Collapsible open={photosOpen} onOpenChange={setPhotosOpen}>
-        <CollapsibleTrigger asChild>
-          <button type="button" className="flex items-center gap-2 mb-3 w-full">
-            <Camera className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-base font-semibold">Photos</h3>
-            <ChevronDown className={cn('h-4 w-4 ml-auto transition-transform', !photosOpen && '-rotate-90')} />
-          </button>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <PhotosTab dossierId={dossierId} />
-        </CollapsibleContent>
-      </Collapsible>
+      {!hidePhotos && (
+        <Collapsible open={photosOpen} onOpenChange={setPhotosOpen}>
+          <CollapsibleTrigger asChild>
+            <button type="button" className="flex items-center gap-2 mb-3 w-full">
+              <Camera className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-base font-semibold">Photos</h3>
+              <ChevronDown className={cn('h-4 w-4 ml-auto transition-transform', !photosOpen && '-rotate-90')} />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <PhotosTab dossierId={dossierId} />
+          </CollapsibleContent>
+        </Collapsible>
+      )}
     </div>
   );
 }

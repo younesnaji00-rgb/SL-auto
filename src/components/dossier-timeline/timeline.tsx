@@ -248,7 +248,6 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
 export const DOSSIER_TIMELINE_STEPS: TimelineStep[] = [
   { id: 1, label: 'Création de mission' },
   { id: 4, label: 'Planification avant' },
-  { id: 5, label: 'Pièces jointes' },
   { id: 6, label: 'Accord' },
   { id: 9, label: 'Planification en cours' },
   { id: 10, label: 'Planification après' },

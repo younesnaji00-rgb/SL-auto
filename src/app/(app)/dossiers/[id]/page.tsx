@@ -178,6 +178,9 @@ export default function DossierDetailPage({
                 <div className="mt-4">
                   <Step2Information dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />
                 </div>
+                <div className="mt-4">
+                  <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos />
+                </div>
               </>
             ),
             4: (
@@ -191,7 +194,6 @@ export default function DossierDetailPage({
                 </div>
               </>
             ),
-            5: <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} />,
             6: (
               <>
                 <Step5Chiffrage dossierId={id} />
