@@ -44,9 +44,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
+import { parseAccordDocType } from '@/lib/docType-accorde';
 
 interface Step5ChiffrageProps {
   dossierId: string;
+  cardinalFilter?: 'all' | '1-only' | '2-plus';
 }
 
 type ModifiedRow = {
@@ -83,7 +85,7 @@ function formatMoney(n: number | undefined | null): string {
   return v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function Step5Chiffrage({ dossierId }: Step5ChiffrageProps) {
+export default function Step5Chiffrage({ dossierId, cardinalFilter = 'all' }: Step5ChiffrageProps) {
   const db = useFirestore();
   const { toast } = useToast();
 
@@ -170,6 +172,16 @@ export default function Step5Chiffrage({ dossierId }: Step5ChiffrageProps) {
     return rows;
   }, [chiffrage, dossierDocs]);
 
+  const visibleRows = useMemo(() => {
+    if (cardinalFilter === 'all') return modifiedRows;
+    return modifiedRows.filter((row) => {
+      const parsed = parseAccordDocType(row.docType);
+      if (cardinalFilter === '1-only') return parsed == null || parsed.ordinal === 1;
+      // '2-plus'
+      return parsed != null && parsed.ordinal >= 2;
+    });
+  }, [modifiedRows, cardinalFilter]);
+
   const findDossierDocUrl = (fileName: string): string | null => {
     if (!dossierDocs || !fileName) return null;
     const match = dossierDocs.find(
@@ -189,11 +201,11 @@ export default function Step5Chiffrage({ dossierId }: Step5ChiffrageProps) {
     });
   };
   const allSelected =
-    modifiedRows.length > 0 && modifiedRows.every((r) => selectedKeys.has(r.key));
+    visibleRows.length > 0 && visibleRows.every((r) => selectedKeys.has(r.key));
   const toggleAll = () => {
     setSelectedKeys((prev) => {
       if (allSelected) return new Set();
-      return new Set(modifiedRows.map((r) => r.key));
+      return new Set(visibleRows.map((r) => r.key));
     });
   };
 
@@ -268,7 +280,7 @@ export default function Step5Chiffrage({ dossierId }: Step5ChiffrageProps) {
             <CardTitle className="text-sm flex items-center gap-2">
               <FileText className="h-4 w-4 text-primary" />
               Fichiers modifiés par le chiffreur
-              <Badge variant="secondary" className="text-[10px]">{modifiedRows.length}</Badge>
+              <Badge variant="secondary" className="text-[10px]">{visibleRows.length}</Badge>
             </CardTitle>
             <Button
               size="sm"
@@ -281,7 +293,7 @@ export default function Step5Chiffrage({ dossierId }: Step5ChiffrageProps) {
             </Button>
           </CardHeader>
           <CardContent className="p-0">
-            {modifiedRows.length === 0 ? (
+            {visibleRows.length === 0 ? (
               <p className="text-xs italic text-muted-foreground text-center py-8">
                 Aucune modification enregistrée.
               </p>
@@ -299,7 +311,7 @@ export default function Step5Chiffrage({ dossierId }: Step5ChiffrageProps) {
                   <span className="w-[130px]" />
                   <span className="w-[100px]" />
                 </div>
-                {modifiedRows.map((row) => {
+                {visibleRows.map((row) => {
                   const originalUrl = findDossierDocUrl(row.fileName);
                   const latestVersion = Array.isArray(row.structured?.versions) ? row.structured.versions[0] : null;
                   const latestUrl: string | undefined = latestVersion?.pdfUrl ?? latestVersion?.url;

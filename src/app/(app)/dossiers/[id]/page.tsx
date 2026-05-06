@@ -196,7 +196,7 @@ export default function DossierDetailPage({
             ),
             6: (
               <>
-                <Step5Chiffrage dossierId={id} />
+                <Step5Chiffrage dossierId={id} cardinalFilter="1-only" />
                 <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
                 </div>
@@ -214,10 +214,7 @@ export default function DossierDetailPage({
               </>
             ),
             11: (
-              <div className="rounded-lg border border-dashed border-border/40 bg-muted/20 p-8 text-center">
-                <p className="text-sm font-semibold">2ème accord et +</p>
-                <p className="mt-1 text-xs text-muted-foreground">Les cardinaux 2ème accord et + apparaîtront ici lorsque le chiffreur ajoute des accords/propositions supplémentaires depuis l'étape Accord.</p>
-              </div>
+              <Step5Chiffrage dossierId={id} cardinalFilter="2-plus" />
             ),
             10: (
               <>
