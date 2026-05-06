@@ -196,9 +196,9 @@ export default function DossierDetailPage({
             ),
             6: (
               <>
-                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} hidePhotos showOnlyAccordSlots hideCardinalPlus />
+                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab />
                 <div className="mt-4">
-                  <Step5Chiffrage dossierId={id} cardinalFilter="1-only" />
+                  <Step5Chiffrage dossierId={id} cardinalFilter="1-only" hideEmptyState />
                 </div>
                 <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />

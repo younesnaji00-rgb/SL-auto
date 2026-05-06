@@ -49,6 +49,8 @@ import { parseAccordDocType } from '@/lib/docType-accorde';
 interface Step5ChiffrageProps {
   dossierId: string;
   cardinalFilter?: 'all' | '1-only' | '2-plus';
+  /** Suppress the "Aucun chiffrage pour ce dossier" empty card when no chiffrage exists. */
+  hideEmptyState?: boolean;
 }
 
 type ModifiedRow = {
@@ -85,7 +87,7 @@ function formatMoney(n: number | undefined | null): string {
   return v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function Step5Chiffrage({ dossierId, cardinalFilter = 'all' }: Step5ChiffrageProps) {
+export default function Step5Chiffrage({ dossierId, cardinalFilter = 'all', hideEmptyState }: Step5ChiffrageProps) {
   const db = useFirestore();
   const { toast } = useToast();
 
@@ -257,6 +259,7 @@ export default function Step5Chiffrage({ dossierId, cardinalFilter = 'all' }: St
   }
 
   if (!chiffrage) {
+    if (hideEmptyState) return null;
     return (
       <div className="space-y-6">
         <Card className="shadow-sm border-dashed">

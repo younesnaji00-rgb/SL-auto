@@ -27,6 +27,12 @@ export interface Step4PiecesProps {
    * lock the cardinal chain to the current revision.
    */
   hideCardinalPlus?: boolean;
+  /**
+   * When true, render only the typed-documents grid directly (no Documents
+   * collapsible header, no Documents/Importer tabs, no DocumentsTab browser).
+   * Used in step 6 (Accord) to surface the import cards as the primary affordance.
+   */
+  onlyImportTab?: boolean;
 }
 
 function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolean, (v: boolean) => void] {
@@ -43,9 +49,22 @@ function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolea
   return [open, setOpen];
 }
 
-export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus }: Step4PiecesProps) {
+export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab }: Step4PiecesProps) {
   const [docsOpen, setDocsOpen] = useSectionOpen(dossierId, 'documents');
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
+
+  if (onlyImportTab) {
+    return (
+      <div className="space-y-8">
+        <TypedDocumentsGrid
+          dossierId={dossierId}
+          hideAccordSlots={hideAccordSlots}
+          showOnlyAccordSlots={showOnlyAccordSlots}
+          hideCardinalPlus={hideCardinalPlus}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
