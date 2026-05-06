@@ -31,7 +31,9 @@ export function initializeFirebase() {
   setPersistence(auth, browserSessionPersistence);
   const db = initializeFirestore(app, {
     localCache: memoryLocalCache(),
-    experimentalAutoDetectLongPolling: true,
+    // Force long-polling unconditionally. AutoDetect was insufficient in
+    // some Firefox + network combos and triggered the WebChannel ca9 cascade.
+    experimentalForceLongPolling: true,
   });
   const storage = getStorage(app);
 
