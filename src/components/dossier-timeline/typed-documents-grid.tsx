@@ -542,8 +542,24 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     />
   );
 
-  const devisFamilies = families.filter((f) => f.sourceDocType === 'Devis Garage');
-  const factureFamilies = families.filter((f) => f.sourceDocType === 'Facture Garage');
+  // When rendering step 11 (cardinalFilter='2-plus'), synthesise 2ème accord +
+  // 2ème proposition slots on each family so empty placeholder cards always
+  // appear. The pimple+ on a synthesised slot stays disabled until the
+  // chiffreur fills it; once filled, clicking pimple+ spawns 3ème, etc.
+  const familiesForRender = useMemo(() => {
+    if (cardinalFilter !== '2-plus') return families;
+    return families.map((f) => {
+      const accord2 = mapToAccorde(f.parent, 'accord', 2);
+      const prop2 = mapToAccorde(f.parent, 'proposition-accord', 2);
+      const slots = [...f.slots];
+      if (!slots.includes(accord2)) slots.push(accord2);
+      if (!slots.includes(prop2)) slots.push(prop2);
+      return { ...f, slots };
+    });
+  }, [families, cardinalFilter]);
+
+  const devisFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Devis Garage');
+  const factureFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Facture Garage');
 
   return (
     <div>
