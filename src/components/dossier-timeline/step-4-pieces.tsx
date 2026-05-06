@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import type { DocumentReference } from 'firebase/firestore';
+import React, { useMemo } from 'react';
+import { collection, type DocumentReference } from 'firebase/firestore';
 import { Camera, ChevronDown, FileText, FolderOpen, Send, Upload } from 'lucide-react';
 
 import DocumentsTab from '@/app/(app)/dossiers/[id]/documents-tab';
@@ -10,7 +10,10 @@ import TypedDocumentsGrid from './typed-documents-grid';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useCollection, useFirestore } from '@/firebase';
+import { parseAccordDocType } from '@/lib/docType-accorde';
 
 export interface Step4PiecesProps {
   dossierId: string;
@@ -37,6 +40,14 @@ export interface Step4PiecesProps {
   cardinalFilter?: 'all' | '1-only' | '2-plus';
   /** Forwarded to TypedDocumentsGrid — render base devis/facture display-only slots. */
   showBaseGarageSlots?: boolean;
+  /**
+   * When true, the "Assigner au chiffrage" button (in `onlyImportTab` mode) is
+   * disabled until at least one filled 1er accord doc AND one filled 1er
+   * proposition doc exist on the dossier (regardless of family). Used in
+   * step 11 (2ème accord et +) so the gestionnaire can't escalate before the
+   * first round is in.
+   */
+  requireFirstAccordFilled?: boolean;
 }
 
 function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolean, (v: boolean) => void] {
@@ -53,13 +64,68 @@ function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolea
   return [open, setOpen];
 }
 
-export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots }: Step4PiecesProps) {
+export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, requireFirstAccordFilled }: Step4PiecesProps) {
   const [docsOpen, setDocsOpen] = useSectionOpen(dossierId, 'documents');
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
+  // Subscribe to documents only when we need the filled-check (step 11).
+  // Avoids a redundant listener for step 6's enabled button.
+  const db = useFirestore();
+  const docsQuery = useMemo(() => {
+    if (!requireFirstAccordFilled || !db || !dossierId) return null;
+    return collection(db, 'dossiers', dossierId, 'documents');
+  }, [requireFirstAccordFilled, db, dossierId]);
+  const { data: docs } = useCollection<any>(docsQuery);
+  const firstRoundFilled = useMemo(() => {
+    if (!requireFirstAccordFilled) return true;
+    if (!docs) return false;
+    let has1erAccord = false;
+    let has1erProposition = false;
+    for (const d of docs) {
+      if (!d?.url || d.pendingUpload) continue;
+      const type = (d.type || d.typeDocument || '').trim();
+      const parsed = parseAccordDocType(type);
+      if (!parsed || parsed.ordinal !== 1) continue;
+      if (parsed.kind === 'accord') has1erAccord = true;
+      else if (parsed.kind === 'proposition-accord') has1erProposition = true;
+      if (has1erAccord && has1erProposition) return true;
+    }
+    return has1erAccord && has1erProposition;
+  }, [docs, requireFirstAccordFilled]);
+  const assignerDisabled = !!requireFirstAccordFilled && !firstRoundFilled;
+
   if (onlyImportTab) {
+    const showAssigner = !readOnly && !!onSendToChiffrage;
+    const buttonNode = (
+      <Button
+        size="sm"
+        onClick={onSendToChiffrage}
+        disabled={assignerDisabled}
+        className="gap-1.5"
+      >
+        <Send className="h-3.5 w-3.5" /> Assigner au chiffrage
+      </Button>
+    );
     return (
-      <div className="space-y-8">
+      <div className="space-y-4">
+        {showAssigner && (
+          <div className="flex justify-end">
+            {assignerDisabled ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0}>{buttonNode}</span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Le 1er accord et la 1ère proposition doivent être remplis avant d'assigner.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              buttonNode
+            )}
+          </div>
+        )}
         <TypedDocumentsGrid
           dossierId={dossierId}
           hideAccordSlots={hideAccordSlots}

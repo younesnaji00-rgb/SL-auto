@@ -196,7 +196,7 @@ export default function DossierDetailPage({
             ),
             6: (
               <>
-                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab />
+                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab />
                 <div className="mt-4">
                   <Step5Chiffrage dossierId={id} cardinalFilter="1-only" hideEmptyState />
                 </div>
@@ -217,7 +217,7 @@ export default function DossierDetailPage({
               </>
             ),
             11: (
-              <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" />
+              <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" />
             ),
             10: (
               <>
