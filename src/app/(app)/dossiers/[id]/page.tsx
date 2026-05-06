@@ -213,6 +213,11 @@ export default function DossierDetailPage({
                 </div>
               </>
             ),
+            11: (
+              <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground italic">
+                Les cardinaux 2ème accord et + apparaîtront ici lorsque le chiffreur ajoute des accords/propositions supplémentaires depuis l'étape Accord.
+              </div>
+            ),
             10: (
               <>
                 <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" />

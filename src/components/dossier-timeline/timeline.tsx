@@ -250,6 +250,7 @@ export const DOSSIER_TIMELINE_STEPS: TimelineStep[] = [
   { id: 4, label: 'Planification avant' },
   { id: 6, label: 'Accord' },
   { id: 9, label: 'Planification en cours' },
+  { id: 11, label: '2ème accord et +' },
   { id: 10, label: 'Planification après' },
   { id: 7, label: 'Rapport' },
   { id: 8, label: "Note d'honoraire" },
