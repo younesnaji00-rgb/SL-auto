@@ -48,9 +48,10 @@ const BASE_DOC_SLOTS = [
 
 interface TypedDocumentsGridProps {
   dossierId: string;
+  hideAccordSlots?: boolean;
 }
 
-export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProps) {
+export default function TypedDocumentsGrid({ dossierId, hideAccordSlots }: TypedDocumentsGridProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -531,7 +532,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
       ) : (
         <div className="space-y-6">
           {/* Devis families: one horizontal row per parent */}
-          {devisFamilies.map((group) => (
+          {!hideAccordSlots && devisFamilies.map((group) => (
             <FamilyRow
               key={group.parent}
               group={group}
@@ -553,7 +554,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
           ))}
 
           {/* Facture families: same pattern */}
-          {factureFamilies.map((group) => (
+          {!hideAccordSlots && factureFamilies.map((group) => (
             <FamilyRow
               key={group.parent}
               group={group}
@@ -585,7 +586,7 @@ export default function TypedDocumentsGrid({ dossierId }: TypedDocumentsGridProp
           )}
 
           {/* Réforme — technique + économique together */}
-          {reformeSlots.length > 0 && (
+          {!hideAccordSlots && reformeSlots.length > 0 && (
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-muted-foreground">Réforme</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

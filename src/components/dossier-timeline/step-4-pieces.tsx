@@ -19,6 +19,7 @@ export interface Step4PiecesProps {
   readOnly?: boolean;
   onSendToChiffrage?: () => void;
   hidePhotos?: boolean;
+  hideAccordSlots?: boolean;
 }
 
 function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolean, (v: boolean) => void] {
@@ -35,7 +36,7 @@ function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolea
   return [open, setOpen];
 }
 
-export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos }: Step4PiecesProps) {
+export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots }: Step4PiecesProps) {
   const [docsOpen, setDocsOpen] = useSectionOpen(dossierId, 'documents');
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
@@ -70,7 +71,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
               <DocumentsTab dossierId={dossierId} />
             </TabsContent>
             <TabsContent value="import" className="mt-4">
-              <TypedDocumentsGrid dossierId={dossierId} />
+              <TypedDocumentsGrid dossierId={dossierId} hideAccordSlots={hideAccordSlots} />
             </TabsContent>
           </Tabs>
         </CollapsibleContent>
