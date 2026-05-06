@@ -569,6 +569,39 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
         </div>
       ) : (
         <div className="space-y-6">
+          {/* Base Devis Garage / Facture Garage — display-only, no pimples.
+              Pinned at the top (above family rows / autres) so step 1's primary
+              upload affordance is the first thing the gestionnaire sees. */}
+          {showBaseGarageSlots && (
+            <section className="space-y-2">
+              <h4 className="text-sm font-semibold text-muted-foreground">Devis et Facture</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {(['Devis Garage', 'Facture Garage'] as const).map((slot) => (
+                  <SlotCard
+                    key={slot}
+                    slot={slot}
+                    docs={docsByType[slot] || []}
+                    canEdit={canEdit}
+                    canDeleteDoc={canDeleteDoc}
+                    userRole={profile?.role}
+                    isUploading={uploadingSlot === slot}
+                    deletingId={deletingId}
+                    extraSlotKind={extraSlotKindByLabel[slot]}
+                    canManageExtraSlots={canWrite('dossiers')}
+                    onUpload={(files) => handleUpload(slot, files)}
+                    onDelete={handleDelete}
+                    onCreateNextCardinal={() => handleCreateNextCardinal(slot)}
+                    onCreateExtraSlot={handleCreateExtraSlot}
+                    onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
+                    onPreview={handlePreview}
+                    hideCardinalPlus
+                    hideExtraSlotPlus
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Devis families: one horizontal row per parent */}
           {!hideAccordSlots && devisFamilies.map((group) => (
             <FamilyRow
@@ -617,16 +650,6 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
             />
           ))}
 
-          {/* Rapport final — own section, single card */}
-          {!showOnlyAccordSlots && rapportSlots.length > 0 && (
-            <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">Rapport final</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {rapportSlots.map((slot) => renderSlotCard(slot))}
-              </div>
-            </section>
-          )}
-
           {/* Réforme — technique + économique together */}
           {!hideAccordSlots && cardinalFilter !== '2-plus' && reformeSlots.length > 0 && (
             <section className="space-y-2">
@@ -643,37 +666,6 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               <h4 className="text-sm font-semibold text-muted-foreground">Autres documents</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {otherSlots.map((slot) => renderSlotCard(slot))}
-              </div>
-            </section>
-          )}
-
-          {/* Base Devis Garage / Facture Garage — display-only, no pimples */}
-          {showBaseGarageSlots && (
-            <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">Devis et Facture</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {(['Devis Garage', 'Facture Garage'] as const).map((slot) => (
-                  <SlotCard
-                    key={slot}
-                    slot={slot}
-                    docs={docsByType[slot] || []}
-                    canEdit={canEdit}
-                    canDeleteDoc={canDeleteDoc}
-                    userRole={profile?.role}
-                    isUploading={uploadingSlot === slot}
-                    deletingId={deletingId}
-                    extraSlotKind={extraSlotKindByLabel[slot]}
-                    canManageExtraSlots={canWrite('dossiers')}
-                    onUpload={(files) => handleUpload(slot, files)}
-                    onDelete={handleDelete}
-                    onCreateNextCardinal={() => handleCreateNextCardinal(slot)}
-                    onCreateExtraSlot={handleCreateExtraSlot}
-                    onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
-                    onPreview={handlePreview}
-                    hideCardinalPlus
-                    hideExtraSlotPlus
-                  />
-                ))}
               </div>
             </section>
           )}
