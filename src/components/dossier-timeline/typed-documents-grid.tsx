@@ -62,9 +62,17 @@ interface TypedDocumentsGridProps {
    * 1er accord/proposition + the Réforme section (reforme has no cardinals).
    */
   cardinalFilter?: 'all' | '1-only' | '2-plus';
+  /**
+   * When true, render an additional section showing two standalone base
+   * `Devis Garage` / `Facture Garage` SlotCards with no cardinal `+` and no
+   * extra-slot `+`. Used in step 1 (Création de mission) so gestionnaires
+   * can collect base garage docs without spawning accord/proposition or
+   * extra ordinals from there.
+   */
+  showBaseGarageSlots?: boolean;
 }
 
-export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, cardinalFilter = 'all' }: TypedDocumentsGridProps) {
+export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, cardinalFilter = 'all', showBaseGarageSlots }: TypedDocumentsGridProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -619,6 +627,37 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               <h4 className="text-sm font-semibold text-muted-foreground">Autres documents</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {otherSlots.map((slot) => renderSlotCard(slot))}
+              </div>
+            </section>
+          )}
+
+          {/* Base Devis Garage / Facture Garage — display-only, no pimples */}
+          {showBaseGarageSlots && (
+            <section className="space-y-2">
+              <h4 className="text-sm font-semibold text-muted-foreground">Devis et Facture</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {(['Devis Garage', 'Facture Garage'] as const).map((slot) => (
+                  <SlotCard
+                    key={slot}
+                    slot={slot}
+                    docs={docsByType[slot] || []}
+                    canEdit={canEdit}
+                    canDeleteDoc={canDeleteDoc}
+                    userRole={profile?.role}
+                    isUploading={uploadingSlot === slot}
+                    deletingId={deletingId}
+                    extraSlotKind={extraSlotKindByLabel[slot]}
+                    canManageExtraSlots={canWrite('dossiers')}
+                    onUpload={(files) => handleUpload(slot, files)}
+                    onDelete={handleDelete}
+                    onCreateNextCardinal={() => handleCreateNextCardinal(slot)}
+                    onCreateExtraSlot={handleCreateExtraSlot}
+                    onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
+                    onPreview={handlePreview}
+                    hideCardinalPlus
+                    hideExtraSlotPlus
+                  />
+                ))}
               </div>
             </section>
           )}

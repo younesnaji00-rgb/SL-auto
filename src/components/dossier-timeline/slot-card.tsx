@@ -58,6 +58,13 @@ export interface SlotCardProps {
    * Used by step 6 to lock the cardinal chain to the current revision.
    */
   hideCardinalPlus?: boolean;
+  /**
+   * When true, the "extra slot" `+` pimple button next to base
+   * `Devis Garage` / `Facture Garage` slots is not rendered (the one that
+   * spawns Devis Garage 2 etc.). Used in step 1 where the base devis/facture
+   * cards are display-only — extras live in the Accord step.
+   */
+  hideExtraSlotPlus?: boolean;
 }
 
 export function SlotCard({
@@ -77,6 +84,7 @@ export function SlotCard({
   onRenameExtraSlot,
   onPreview,
   hideCardinalPlus,
+  hideExtraSlotPlus,
 }: SlotCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const extraSlotInputRef = useRef<HTMLInputElement>(null);
@@ -125,7 +133,7 @@ export function SlotCard({
   // `Devis Garage` / `Facture Garage` slots (extraSlotKind === undefined) keep
   // their multi-doc behaviour.
   const isFilledExtraSlot = !!extraSlotKind && docs.length >= 1;
-  const showExtraSlotPimple = !!baseExtraKind && canManageExtraSlots;
+  const showExtraSlotPimple = !!baseExtraKind && canManageExtraSlots && !hideExtraSlotPlus;
   // Rename pencil: only on gestionnaire-managed extras (not on the base
   // `Devis Garage` / `Facture Garage` and not on cardinal accord variants).
   const showRenameButton = !!extraSlotKind && canManageExtraSlots;
