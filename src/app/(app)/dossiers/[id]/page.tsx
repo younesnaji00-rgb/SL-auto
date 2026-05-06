@@ -196,7 +196,10 @@ export default function DossierDetailPage({
             ),
             6: (
               <>
-                <Step5Chiffrage dossierId={id} cardinalFilter="1-only" />
+                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} hidePhotos showOnlyAccordSlots />
+                <div className="mt-4">
+                  <Step5Chiffrage dossierId={id} cardinalFilter="1-only" />
+                </div>
                 <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
                 </div>

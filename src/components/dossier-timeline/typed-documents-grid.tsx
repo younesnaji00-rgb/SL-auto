@@ -49,9 +49,10 @@ const BASE_DOC_SLOTS = [
 interface TypedDocumentsGridProps {
   dossierId: string;
   hideAccordSlots?: boolean;
+  showOnlyAccordSlots?: boolean;
 }
 
-export default function TypedDocumentsGrid({ dossierId, hideAccordSlots }: TypedDocumentsGridProps) {
+export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots }: TypedDocumentsGridProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -576,7 +577,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots }: Typed
           ))}
 
           {/* Rapport final — own section, single card */}
-          {rapportSlots.length > 0 && (
+          {!showOnlyAccordSlots && rapportSlots.length > 0 && (
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-muted-foreground">Rapport final</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -596,7 +597,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots }: Typed
           )}
 
           {/* Autres documents — PV, Carte grise, Attestation, etc. */}
-          {otherSlots.length > 0 && (
+          {!showOnlyAccordSlots && otherSlots.length > 0 && (
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-muted-foreground">Autres documents</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
