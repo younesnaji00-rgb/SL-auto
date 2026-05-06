@@ -12,6 +12,7 @@ import { useCollection, useFirestore } from '@/firebase';
 
 export interface TimelineSectionProps {
   id: number;
+  position: number;
   label: string;
   children: React.ReactNode;
   collapsed: boolean;
@@ -20,7 +21,7 @@ export interface TimelineSectionProps {
   stamp: { date: Date; user: string } | null;
 }
 
-function TimelineSection({ id, label, children, collapsed, onToggle, stamp }: TimelineSectionProps) {
+function TimelineSection({ id, position, label, children, collapsed, onToggle, stamp }: TimelineSectionProps) {
   return (
     <section
       id={`step-${id}`}
@@ -34,7 +35,7 @@ function TimelineSection({ id, label, children, collapsed, onToggle, stamp }: Ti
         aria-expanded={!collapsed}
       >
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold">
-          {id}
+          {position}
         </span>
         <div className="flex-1 flex flex-col items-start min-w-0">
           <h2 className="text-lg font-bold leading-tight">{label}</h2>
@@ -227,10 +228,11 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
     <div ref={containerRef} className="w-full">
       <TimelineBar steps={orderedSteps} activeId={activeStep} onStepClick={handleStepClick} />
       <div className="px-3 sm:px-6 max-w-screen-xl mx-auto">
-        {orderedSteps.map((step) => (
+        {orderedSteps.map((step, idx) => (
           <TimelineSection
             key={step.id}
             id={step.id}
+            position={idx + 1}
             label={step.label}
             collapsed={isCollapsed(step.id)}
             onToggle={() => toggle(step.id)}

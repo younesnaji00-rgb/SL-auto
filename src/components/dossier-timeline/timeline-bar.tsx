@@ -15,12 +15,13 @@ export interface TimelineBarProps {
 }
 
 export function TimelineBar({ steps, activeId, onStepClick }: TimelineBarProps) {
+  const activeIdx = steps.findIndex((s) => s.id === activeId);
   return (
     <div className="sticky top-[49px] z-30 w-full bg-background/95 backdrop-blur border-b" /* flush under action bar */>
       <div className="flex items-center gap-2 px-3 sm:px-6 py-3 overflow-x-auto">
         {steps.map((step, idx) => {
           const isActive = step.id === activeId;
-          const isPast = step.id < activeId;
+          const isPast = activeIdx >= 0 && idx < activeIdx;
           return (
             <React.Fragment key={step.id}>
               <button
@@ -41,7 +42,7 @@ export function TimelineBar({ steps, activeId, onStepClick }: TimelineBarProps) 
                     !isActive && !isPast && 'bg-muted text-muted-foreground border-muted-foreground/30'
                   )}
                 >
-                  {step.id}
+                  {idx + 1}
                 </span>
                 <span
                   className={cn(
