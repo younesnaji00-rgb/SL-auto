@@ -154,7 +154,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
             {[
               { label: 'Date réception mission', value: dossier?.dateRequete },
               { label: 'Date sinistre', value: dossier?.dateSinistre },
-              { label: 'Date création mission', value: dossier?.createdAt },
+              { label: 'Date création dossier', value: dossier?.createdAt },
               { label: 'Date mission ATG', value: dossier?.dateMissionAgentTerrain },
               { label: 'Date demande expertise (avant)', value: dossier?.dateDemandeExpertiseAvant },
               { label: 'Date demande expertise (en cours)', value: dossier?.dateDemandeExpertiseEnCours },
