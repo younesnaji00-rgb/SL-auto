@@ -217,7 +217,7 @@ export default function DossierDetailPage({
               </>
             ),
             11: (
-              <Step5Chiffrage dossierId={id} cardinalFilter="2-plus" />
+              <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" />
             ),
             10: (
               <>

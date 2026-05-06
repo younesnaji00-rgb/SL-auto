@@ -33,6 +33,8 @@ export interface Step4PiecesProps {
    * Used in step 6 (Accord) to surface the import cards as the primary affordance.
    */
   onlyImportTab?: boolean;
+  /** Forwarded to TypedDocumentsGrid → FamilyRow to filter slots by cardinal ordinal. */
+  cardinalFilter?: 'all' | '1-only' | '2-plus';
 }
 
 function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolean, (v: boolean) => void] {
@@ -49,7 +51,7 @@ function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolea
   return [open, setOpen];
 }
 
-export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab }: Step4PiecesProps) {
+export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter }: Step4PiecesProps) {
   const [docsOpen, setDocsOpen] = useSectionOpen(dossierId, 'documents');
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
@@ -61,6 +63,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
           hideAccordSlots={hideAccordSlots}
           showOnlyAccordSlots={showOnlyAccordSlots}
           hideCardinalPlus={hideCardinalPlus}
+          cardinalFilter={cardinalFilter}
         />
       </div>
     );
@@ -97,7 +100,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
               <DocumentsTab dossierId={dossierId} />
             </TabsContent>
             <TabsContent value="import" className="mt-4">
-              <TypedDocumentsGrid dossierId={dossierId} hideAccordSlots={hideAccordSlots} showOnlyAccordSlots={showOnlyAccordSlots} hideCardinalPlus={hideCardinalPlus} />
+              <TypedDocumentsGrid dossierId={dossierId} hideAccordSlots={hideAccordSlots} showOnlyAccordSlots={showOnlyAccordSlots} hideCardinalPlus={hideCardinalPlus} cardinalFilter={cardinalFilter} />
             </TabsContent>
           </Tabs>
         </CollapsibleContent>

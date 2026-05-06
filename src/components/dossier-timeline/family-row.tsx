@@ -8,6 +8,7 @@ import {
   type TypedDoc,
 } from './slot-card';
 import type { DocFamily } from '@/lib/doc-family';
+import { parseAccordDocType } from '@/lib/docType-accorde';
 
 interface FamilyRowProps {
   /** The family group (parent + ordered slot labels) to render as a row. */
@@ -37,6 +38,12 @@ interface FamilyRowProps {
    * not rendered. Forwarded to each `SlotCard` in the row.
    */
   hideCardinalPlus?: boolean;
+  /**
+   * Filter the row's slots by parsed cardinal ordinal. `'1-only'` keeps the
+   * parent base + ordinal===1 slots; `'2-plus'` keeps only ordinal>=2 slots
+   * (used by step 11 to show 2ème, 3ème, … cardinals exclusively).
+   */
+  cardinalFilter?: 'all' | '1-only' | '2-plus';
 }
 
 /**
@@ -65,8 +72,20 @@ export function FamilyRow({
   onPreview,
   topAction,
   hideCardinalPlus,
+  cardinalFilter = 'all',
 }: FamilyRowProps) {
-  const totalDocs = group.slots.reduce(
+  const visibleSlots = cardinalFilter === 'all'
+    ? group.slots
+    : group.slots.filter((s) => {
+        const parsed = parseAccordDocType(s);
+        if (cardinalFilter === '1-only') return parsed == null || parsed.ordinal === 1;
+        // '2-plus'
+        return parsed != null && parsed.ordinal >= 2;
+      });
+
+  if (visibleSlots.length === 0) return null;
+
+  const totalDocs = visibleSlots.reduce(
     (acc, s) => acc + (docsByType[s]?.length || 0),
     0,
   );
@@ -87,7 +106,7 @@ export function FamilyRow({
         </span>
       </div>
       <div className="flex gap-3 overflow-x-auto scroll-smooth pb-1 snap-x snap-mandatory">
-        {group.slots.map((slot) => (
+        {visibleSlots.map((slot) => (
           <div
             key={slot}
             className={cn(

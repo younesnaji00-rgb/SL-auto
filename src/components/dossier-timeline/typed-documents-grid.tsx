@@ -56,9 +56,15 @@ interface TypedDocumentsGridProps {
    * lock the cardinal chain to the current revision.
    */
   hideCardinalPlus?: boolean;
+  /**
+   * Filter family rows by parsed cardinal ordinal. `'2-plus'` shows only
+   * 2ème, 3ème, … cardinals (used in step 11) and hides the parent base +
+   * 1er accord/proposition + the Réforme section (reforme has no cardinals).
+   */
+  cardinalFilter?: 'all' | '1-only' | '2-plus';
 }
 
-export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus }: TypedDocumentsGridProps) {
+export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, cardinalFilter = 'all' }: TypedDocumentsGridProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -559,6 +565,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               onRenameExtraSlot={handleRenameExtraSlot}
               onPreview={handlePreview}
               hideCardinalPlus={hideCardinalPlus}
+              cardinalFilter={cardinalFilter}
             />
           ))}
 
@@ -582,6 +589,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               onRenameExtraSlot={handleRenameExtraSlot}
               onPreview={handlePreview}
               hideCardinalPlus={hideCardinalPlus}
+              cardinalFilter={cardinalFilter}
             />
           ))}
 
@@ -596,7 +604,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           )}
 
           {/* Réforme — technique + économique together */}
-          {!hideAccordSlots && reformeSlots.length > 0 && (
+          {!hideAccordSlots && cardinalFilter !== '2-plus' && reformeSlots.length > 0 && (
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-muted-foreground">Réforme</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
