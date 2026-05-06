@@ -62,7 +62,8 @@ const CATEGORIES: { id: PhotoCategory; label: string; fullLabel: string }[] = [
   { id: 'apres', label: 'Photos après', fullLabel: 'Photos après' },
 ];
 
-export default function PhotosTab({ dossierId, initialCategory }: { dossierId: string; initialCategory?: PhotoCategory }) {
+export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: { dossierId: string; initialCategory?: PhotoCategory; onlyCategory?: PhotoCategory }) {
+  const visibleCategories = onlyCategory ? CATEGORIES.filter((c) => c.id === onlyCategory) : CATEGORIES;
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -271,9 +272,9 @@ export default function PhotosTab({ dossierId, initialCategory }: { dossierId: s
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue={initialCategory ?? 'avant'} className="w-full">
+      <Tabs defaultValue={onlyCategory ?? initialCategory ?? 'avant'} className="w-full">
         <TabsList>
-          {CATEGORIES.map((cat) => {
+          {visibleCategories.map((cat) => {
             const count = photosForCategory(cat.id).length;
             return (
               <TabsTrigger key={cat.id} value={cat.id} className="gap-2">
@@ -287,7 +288,7 @@ export default function PhotosTab({ dossierId, initialCategory }: { dossierId: s
           })}
         </TabsList>
 
-        {CATEGORIES.map((cat) => {
+        {visibleCategories.map((cat) => {
           const catPhotos = photosForCategory(cat.id);
           return (
             <TabsContent key={cat.id} value={cat.id} className="mt-4">

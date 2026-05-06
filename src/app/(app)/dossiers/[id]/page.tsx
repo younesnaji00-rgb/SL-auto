@@ -187,7 +187,7 @@ export default function DossierDetailPage({
               <>
                 <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" />
                 <div className="mt-4">
-                  <PhotosTab dossierId={id} initialCategory="avant" />
+                  <PhotosTab dossierId={id} onlyCategory="avant" />
                 </div>
                 <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
@@ -209,7 +209,7 @@ export default function DossierDetailPage({
               <>
                 <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="En cours" />
                 <div className="mt-4">
-                  <PhotosTab dossierId={id} initialCategory="en_cours" />
+                  <PhotosTab dossierId={id} onlyCategory="en_cours" />
                 </div>
                 <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
@@ -223,7 +223,7 @@ export default function DossierDetailPage({
               <>
                 <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" />
                 <div className="mt-4">
-                  <PhotosTab dossierId={id} initialCategory="apres" />
+                  <PhotosTab dossierId={id} onlyCategory="apres" />
                 </div>
                 <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
