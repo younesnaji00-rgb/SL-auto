@@ -196,7 +196,7 @@ export default function DossierDetailPage({
             ),
             6: (
               <>
-                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} hidePhotos showOnlyAccordSlots />
+                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} hidePhotos showOnlyAccordSlots hideCardinalPlus />
                 <div className="mt-4">
                   <Step5Chiffrage dossierId={id} cardinalFilter="1-only" />
                 </div>

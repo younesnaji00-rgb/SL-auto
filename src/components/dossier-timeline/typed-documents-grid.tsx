@@ -50,9 +50,15 @@ interface TypedDocumentsGridProps {
   dossierId: string;
   hideAccordSlots?: boolean;
   showOnlyAccordSlots?: boolean;
+  /**
+   * When true, the cardinal `+` pimple button on devis/facture accord slots
+   * is not rendered. Forwarded down to every `SlotCard`. Used by step 6 to
+   * lock the cardinal chain to the current revision.
+   */
+  hideCardinalPlus?: boolean;
 }
 
-export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots }: TypedDocumentsGridProps) {
+export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus }: TypedDocumentsGridProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -518,6 +524,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
       onCreateExtraSlot={handleCreateExtraSlot}
       onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
       onPreview={handlePreview}
+      hideCardinalPlus={hideCardinalPlus}
     />
   );
 
@@ -551,6 +558,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               onCreateExtraSlot={handleCreateExtraSlot}
               onRenameExtraSlot={handleRenameExtraSlot}
               onPreview={handlePreview}
+              hideCardinalPlus={hideCardinalPlus}
             />
           ))}
 
@@ -573,6 +581,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               onCreateExtraSlot={handleCreateExtraSlot}
               onRenameExtraSlot={handleRenameExtraSlot}
               onPreview={handlePreview}
+              hideCardinalPlus={hideCardinalPlus}
             />
           ))}
 

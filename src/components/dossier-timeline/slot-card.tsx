@@ -51,6 +51,13 @@ export interface SlotCardProps {
   onCreateExtraSlot: (kind: ExtraSlotKind, files: File[]) => void;
   onRenameExtraSlot: () => void;
   onPreview: (d: TypedDoc) => void;
+  /**
+   * When true, the cardinal `+` pimple button (used to create the next
+   * accord/proposition cardinal slot) is not rendered. The "extra slot"
+   * pimple+ for spawning Devis Garage 2 / Facture Garage 2 is unaffected.
+   * Used by step 6 to lock the cardinal chain to the current revision.
+   */
+  hideCardinalPlus?: boolean;
 }
 
 export function SlotCard({
@@ -69,6 +76,7 @@ export function SlotCard({
   onCreateExtraSlot,
   onRenameExtraSlot,
   onPreview,
+  hideCardinalPlus,
 }: SlotCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const extraSlotInputRef = useRef<HTMLInputElement>(null);
@@ -299,7 +307,7 @@ export function SlotCard({
         )}
       </CardContent>
 
-      {showCardinalPimple && canEdit && (
+      {showCardinalPimple && canEdit && !hideCardinalPlus && (
         <button
           type="button"
           onClick={onCreateNextCardinal}

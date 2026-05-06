@@ -32,6 +32,11 @@ interface FamilyRowProps {
    * cards below. Used on the chiffreur side for the "Éditer web" button.
    */
   topAction?: React.ReactNode;
+  /**
+   * When true, the cardinal `+` pimple button on accord/proposition slots is
+   * not rendered. Forwarded to each `SlotCard` in the row.
+   */
+  hideCardinalPlus?: boolean;
 }
 
 /**
@@ -59,6 +64,7 @@ export function FamilyRow({
   onRenameExtraSlot,
   onPreview,
   topAction,
+  hideCardinalPlus,
 }: FamilyRowProps) {
   const totalDocs = group.slots.reduce(
     (acc, s) => acc + (docsByType[s]?.length || 0),
@@ -104,6 +110,7 @@ export function FamilyRow({
               onCreateExtraSlot={onCreateExtraSlot}
               onRenameExtraSlot={() => onRenameExtraSlot(slot)}
               onPreview={onPreview}
+              hideCardinalPlus={hideCardinalPlus}
             />
           </div>
         ))}
