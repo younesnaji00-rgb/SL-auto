@@ -129,7 +129,7 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
   const containerRef = useRef<HTMLDivElement>(null);
   const suppressScrollRef = useRef(false);
 
-  const orderedSteps = useMemo(() => [...steps].sort((a, b) => a.id - b.id), [steps]);
+  const orderedSteps = useMemo(() => [...steps], [steps]);
   const stepIds = useMemo(() => orderedSteps.map((s) => s.id), [orderedSteps]);
   const { isCollapsed, toggle } = useCollapsedSteps(dossierId, stepIds);
 
