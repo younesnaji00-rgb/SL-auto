@@ -106,12 +106,6 @@ const inRange = (d: Date | null, range?: FunnelRange) => {
   return true;
 };
 
-function sameCalendarDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear()
-    && a.getMonth() === b.getMonth()
-    && a.getDate() === b.getDate();
-}
-
 const SLA_24H_MS = 24 * 60 * 60 * 1000;
 
 function photoHorsDelai(d: FunnelDossier, demandeKey: string, photoKey: string): Date | null {
@@ -152,7 +146,10 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
       const created = toDate(d.createdAt);
       const requete = toDate(d.dateRequete);
       if (!created || !requete) return null;
-      return sameCalendarDay(created, requete) ? null : created;
+      // 24h sliding window (not calendar day) between dateRequete and createdAt.
+      // |delta| > 24h → hors délai. Math.abs guards against data-entry rows
+      // where the two dates land in the wrong order.
+      return Math.abs(created.getTime() - requete.getTime()) > SLA_24H_MS ? created : null;
     },
   },
   photosAvant: {
@@ -241,20 +238,40 @@ const emptyCounts = (): Record<StepKey, number> =>
   }, {} as Record<StepKey, number>);
 
 /**
- * For each step, count the dossiers that have completed it. Cumulative:
- * once a dossier has crossed a step, it counts regardless of when. Step
- * `accord` is special — its `doneAt` uses the dossier's CURRENT status,
- * so when the gestionnaire's "+" button rolls statut back to "Chiffrage
- * en cours" awaiting the next cardinal accord, doneAt returns null and
- * the dossier drops out of the count until the chiffreur saves again.
+ * Per-step count of dossiers that completed the step IN RANGE and ON TIME.
+ * Drives the green "en délai" segment in the KPI cards. A dossier counts when
+ * `STEP_DEFS[key].doneAt(d)` falls within `range` AND `horsDelaiAt(d)` is null.
  *
- * `range` is kept on the signature for stability with callers that pass
- * a range, but is intentionally unused here — see `computePerUserCounts`
- * for the place that still applies it.
+ * Step `accord` remains sensitive to the current status — when the
+ * gestionnaire's "+" button rolls statut back to "Chiffrage en cours"
+ * awaiting the next cardinal accord, `doneAt` returns null and the dossier
+ * drops out of the count until the chiffreur saves again.
  */
 export const computeStepCounts = (
   dossiers: FunnelDossier[],
-  _range: FunnelRange,
+  range: FunnelRange,
+): Record<StepKey, number> => {
+  const out = emptyCounts();
+  for (const d of dossiers) {
+    for (const key of STEP_KEYS) {
+      const def = STEP_DEFS[key];
+      const at = def.doneAt(d);
+      if (!at) continue;
+      if (!inRange(at, range)) continue;
+      if (def.horsDelaiAt(d) != null) continue;
+      out[key] += 1;
+    }
+  }
+  return out;
+};
+
+/**
+ * Per-step cumulative count of dossiers that have completed the step at any
+ * time. Used to compute "non réalisé" (= total in scope − completed all-time)
+ * which must NOT respect the date filter.
+ */
+export const computeStepCountsRealiseAllTime = (
+  dossiers: FunnelDossier[],
 ): Record<StepKey, number> => {
   const out = emptyCounts();
   for (const d of dossiers) {
@@ -301,28 +318,23 @@ export interface DossierForStep {
 }
 
 /**
- * Resolve the list of dossiers that count for a given step. Mirrors
- * `computeStepCounts` cumulative semantics — a dossier appears whenever
- * its step's `doneAt` is non-null. Sorted most-recent first.
- *
- * `range` is kept on the signature for stability and is intentionally
- * unused (cumulative semantics).
+ * Dossiers that completed `step` WITHIN `range` AND ON TIME — mirrors the
+ * "en délai" count in `computeStepCounts`. Used by the drawer when the user
+ * clicks the green "en délai" bar. Sorted most-recent first.
  */
 export const dossiersForStep = (
   dossiers: FunnelDossier[],
   logs: WorkflowLog[],
-  _range: FunnelRange,
+  range: FunnelRange,
   step: StepKey,
 ): DossierForStep[] => {
   const def = STEP_DEFS[step];
   const out: DossierForStep[] = [];
   for (const d of dossiers) {
-    if (step === 'creation') {
-      out.push({ dossier: d, doneAt: def.doneAt(d), author: def.authorOf(d, logs) });
-      continue;
-    }
     const at = def.doneAt(d);
     if (!at) continue;
+    if (!inRange(at, range)) continue;
+    if (def.horsDelaiAt(d) != null) continue;
     out.push({ dossier: d, doneAt: at, author: def.authorOf(d, logs) });
   }
   return out.sort((a, b) => {
@@ -380,7 +392,7 @@ export const dossiersNotForStep = (
 
 export const computePerCompagnieCounts = (
   dossiers: FunnelDossier[],
-  range: FunnelRange,
+  _range: FunnelRange,
   allCompagnies?: string[],
 ): Array<{ compagnie: string; counts: Record<StepKey, number> }> => {
   const groups = new Map<string, FunnelDossier[]>();
@@ -400,7 +412,7 @@ export const computePerCompagnieCounts = (
   }
   return Array.from(groups.entries())
     .sort(([a], [b]) => a.localeCompare(b, 'fr'))
-    .map(([compagnie, arr]) => ({ compagnie, counts: computeStepCounts(arr, range) }));
+    .map(([compagnie, arr]) => ({ compagnie, counts: computeStepCountsRealiseAllTime(arr) }));
 };
 
 export interface PerUserRow {
