@@ -214,8 +214,9 @@ export default function DossierDetailPage({
               </>
             ),
             11: (
-              <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground italic">
-                Les cardinaux 2ème accord et + apparaîtront ici lorsque le chiffreur ajoute des accords/propositions supplémentaires depuis l'étape Accord.
+              <div className="rounded-lg border border-dashed border-border/40 bg-muted/20 p-8 text-center">
+                <p className="text-sm font-semibold">2ème accord et +</p>
+                <p className="mt-1 text-xs text-muted-foreground">Les cardinaux 2ème accord et + apparaîtront ici lorsque le chiffreur ajoute des accords/propositions supplémentaires depuis l'étape Accord.</p>
               </div>
             ),
             10: (
