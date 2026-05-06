@@ -454,7 +454,7 @@ export default function DossiersClientPage() {
         </div>
       )}
 
-      <Card className="overflow-hidden border rounded-lg">
+      <Card className="overflow-x-auto border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
@@ -479,7 +479,11 @@ export default function DossiersClientPage() {
                   ) : col.label}
                 </TableHead>
               ))}
-              {!exportMode && <TableHead className="text-right">Actions</TableHead>}
+              {!exportMode && (
+                <TableHead className="text-right sticky right-0 bg-muted/50 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                  Actions
+                </TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -576,7 +580,7 @@ export default function DossiersClientPage() {
                   {!exportMode && (
                     <TableCell
                       onClick={e => e.stopPropagation()}
-                      className="text-right"
+                      className="text-right sticky right-0 bg-card z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] group-hover:bg-muted/50"
                     >
                       <div className="flex items-center justify-end gap-1">
                         <Button
