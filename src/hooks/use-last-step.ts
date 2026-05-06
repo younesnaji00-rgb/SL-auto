@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
 const MIN_STEP = 1;
-const MAX_STEP = 7;
+// Timeline IDs can be sparse (current set: 1, 4, 6, 7, 8, 9, 10, 11).
+// Cap at 99 so future re-numbering doesn't silently clamp clicks back to 7.
+const MAX_STEP = 99;
 
 function storageKey(dossierId: string) {
   return `dossier-${dossierId}-step`;
