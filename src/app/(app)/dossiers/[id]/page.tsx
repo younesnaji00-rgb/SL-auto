@@ -77,6 +77,7 @@ export default function DossierDetailPage({
   // Modal states
   const [isPlanificationModalOpen, setPlanificationModalOpen] = useState(false);
   const [planificationInitialData, setPlanificationInitialData] = useState<any>(null);
+  const [planificationDefaultType, setPlanificationDefaultType] = useState<'Avant' | 'En cours' | 'Après' | null>(null);
   const [isChiffrageModalOpen, setChiffrageModalOpen] = useState(false);
   const [isHistoriqueOpen, setHistoriqueOpen] = useState(false);
   const [isEmailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -92,8 +93,9 @@ export default function DossierDetailPage({
     setPlanificationModalOpen(true);
   };
 
-  const handleNewPlanification = () => {
+  const handleNewPlanification = (defaultType?: 'Avant' | 'En cours' | 'Après') => {
     setPlanificationInitialData(null);
+    setPlanificationDefaultType(defaultType ?? null);
     setPlanificationModalOpen(true);
   };
 
@@ -234,7 +236,7 @@ export default function DossierDetailPage({
       </div>
 
       {/* MODALS */}
-      <ModalPlanification open={isPlanificationModalOpen} onOpenChange={setPlanificationModalOpen} dossierId={id} initialData={planificationInitialData} dossierData={dossier} />
+      <ModalPlanification open={isPlanificationModalOpen} onOpenChange={setPlanificationModalOpen} dossierId={id} initialData={planificationInitialData} dossierData={dossier} defaultTypeMission={planificationDefaultType ?? undefined} />
       <ModalChiffrage open={isChiffrageModalOpen} onOpenChange={setChiffrageModalOpen} dossierId={id} />
       <EnvoyerEmailDialog
         open={isEmailDialogOpen}

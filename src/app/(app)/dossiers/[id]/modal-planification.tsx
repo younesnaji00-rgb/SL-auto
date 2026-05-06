@@ -52,9 +52,10 @@ type ModalPlanificationProps = {
   initialData?: any;
   dossierId: string;
   dossierData?: { refExpert?: string; assure?: any; compagnie?: string; expertRank?: string; dateMissionAgentTerrain?: any };
+  defaultTypeMission?: 'Avant' | 'En cours' | 'Après';
 };
 
-export default function ModalPlanification({ open, onOpenChange, initialData, dossierId, dossierData }: ModalPlanificationProps) {
+export default function ModalPlanification({ open, onOpenChange, initialData, dossierId, dossierData, defaultTypeMission }: ModalPlanificationProps) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -117,9 +118,9 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         observation: initialData.observation || '',
       });
     } else if (open) {
-      setFormData({ agentTerrain: '', typeMission: 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '' });
+      setFormData({ agentTerrain: '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '' });
     }
-  }, [initialData, open]);
+  }, [initialData, open, defaultTypeMission]);
 
   const handleSave = async () => {
     if (!db) return;
@@ -223,7 +224,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           <DialogDescription>Remplissez les informations pour programmer la mission de terrain.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-6 py-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className={defaultTypeMission ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4"}>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Agent de Terrain</Label>
@@ -296,20 +297,22 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Type de RDV</Label>
-                <OptionsManagerModal collectionName="options_types_rdv" title="Types de RDV" />
+            {!defaultTypeMission && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Type de RDV</Label>
+                  <OptionsManagerModal collectionName="options_types_rdv" title="Types de RDV" />
+                </div>
+                <Select value={formData.typeMission} onValueChange={(v) => setFormData({...formData, typeMission: v})}>
+                  <SelectTrigger><SelectValue placeholder="Choisir un type" /></SelectTrigger>
+                  <SelectContent>
+                    {rdvTypes.map(type => (
+                      <SelectItem key={type.id} value={type.label}>{type.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <Select value={formData.typeMission} onValueChange={(v) => setFormData({...formData, typeMission: v})}>
-                <SelectTrigger><SelectValue placeholder="Choisir un type" /></SelectTrigger>
-                <SelectContent>
-                  {rdvTypes.map(type => (
-                    <SelectItem key={type.id} value={type.label}>{type.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

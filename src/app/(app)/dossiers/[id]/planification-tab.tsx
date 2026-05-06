@@ -29,7 +29,7 @@ type PlanificationTabProps = {
   dossierId: string;
   onOpenHistory: () => void;
   onEditPlanification: (data: any) => void;
-  onNewPlanification: () => void;
+  onNewPlanification: (defaultType?: 'Avant' | 'En cours' | 'Après') => void;
   typeFilter?: 'Avant' | 'En cours' | 'Après';
 };
 
@@ -85,7 +85,7 @@ export default function PlanificationTab({
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-end">
-                <Button size="sm" onClick={onNewPlanification}>
+                <Button size="sm" onClick={() => onNewPlanification(typeFilter)}>
                   <Plus className="mr-2 h-4 w-4" /> Nouvelle planification
                 </Button>
             </div>
@@ -95,7 +95,7 @@ export default function PlanificationTab({
                     <CalendarIcon className="h-12 w-12 text-muted-foreground mb-4" />
                     <CardTitle>Aucune planification</CardTitle>
                     <CardDescription className="mb-6">Ce dossier n'a pas encore de mission planifiée.</CardDescription>
-                    <Button onClick={onNewPlanification}>Programmer une mission</Button>
+                    <Button onClick={() => onNewPlanification(typeFilter)}>Programmer une mission</Button>
                 </Card>
             ) : (
                 <Card className="overflow-hidden shadow-sm">

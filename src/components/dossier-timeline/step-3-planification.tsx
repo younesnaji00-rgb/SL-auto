@@ -11,7 +11,7 @@ export interface Step3PlanificationProps {
   dossierRef: DocumentReference;
   readOnly?: boolean;
   onEditPlanification: (data: any) => void;
-  onNewPlanification: () => void;
+  onNewPlanification: (defaultType?: 'Avant' | 'En cours' | 'Après') => void;
   typeFilter?: 'Avant' | 'En cours' | 'Après';
 }
 
