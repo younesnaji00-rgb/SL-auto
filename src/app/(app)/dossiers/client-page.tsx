@@ -56,8 +56,6 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'matriculeAnterieur', label: 'Matricule antérieur' },
   { key: 'dateSinistre', label: 'Date sinistre' },
   { key: 'dateRequete', label: 'Date Requête' },
-  { key: 'dateMissionAgentTerrain', label: 'Date mission AT' },
-  { key: 'dateChiffrage', label: 'Date chiffrage' },
 ];
 const ALL_COLUMN_KEYS = new Set(EXPORT_COLUMNS.map(c => c.key));
 
@@ -574,8 +572,6 @@ export default function DossiersClientPage() {
                   <TableCell className="font-mono text-xs tabular-nums">{d.vehicule?.immatriculationAnterieur || '-'}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateSinistre)}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateRequete)}</TableCell>
-                  <TableCell className="tabular-nums">{formatDate(d.dateMissionAgentTerrain)}</TableCell>
-                  <TableCell className="tabular-nums">{formatDate(d.dateChiffrage)}</TableCell>
 
                   {!exportMode && (
                     <TableCell
