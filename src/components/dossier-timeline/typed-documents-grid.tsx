@@ -57,6 +57,13 @@ interface TypedDocumentsGridProps {
    */
   hideCardinalPlus?: boolean;
   /**
+   * When true, the extra-slot `+` pimple (next to base `Devis Garage` /
+   * `Facture Garage`, spawns numbered variants) is not rendered. Forwarded
+   * down to every `SlotCard`. Used in views like assignations-atg where
+   * spawning new garage chains doesn't belong.
+   */
+  hideExtraSlotPlus?: boolean;
+  /**
    * Filter family rows by parsed cardinal ordinal. `'2-plus'` shows only
    * 2ème, 3ème, … cardinals (used in step 11) and hides the parent base +
    * 1er accord/proposition + the Réforme section (reforme has no cardinals).
@@ -72,7 +79,7 @@ interface TypedDocumentsGridProps {
   showBaseGarageSlots?: boolean;
 }
 
-export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, cardinalFilter = 'all', showBaseGarageSlots }: TypedDocumentsGridProps) {
+export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots }: TypedDocumentsGridProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -539,24 +546,33 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
       onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
       onPreview={handlePreview}
       hideCardinalPlus={hideCardinalPlus}
+      hideExtraSlotPlus={hideExtraSlotPlus}
     />
   );
 
-  // When rendering step 11 (cardinalFilter='2-plus'), synthesise 2ème accord +
-  // 2ème proposition slots on each family so empty placeholder cards always
-  // appear. The pimple+ on a synthesised slot stays disabled until the
-  // chiffreur fills it; once filled, clicking pimple+ spawns 3ème, etc.
+  // When rendering step 11 (cardinalFilter='2-plus'), synthesise 2ème slots on
+  // a per-kind, per-family basis: only add 2ème accord if the family's 1er
+  // accord is filled (real url, non-pending), and likewise for 2ème
+  // proposition. If neither 1er is filled the family contributes no 2ème
+  // slots, FamilyRow's 2-plus filter strips the 1ers, and the row drops out.
   const familiesForRender = useMemo(() => {
     if (cardinalFilter !== '2-plus') return families;
+    const docsArr = (allDocs as TypedDoc[] | undefined) ?? [];
+    const isFilled = (label: string) =>
+      docsArr.some(
+        (d) => (d.type || d.typeDocument || '') === label && !!d.url && !d.pendingUpload,
+      );
     return families.map((f) => {
+      const accord1 = mapToAccorde(f.parent, 'accord', 1);
+      const prop1 = mapToAccorde(f.parent, 'proposition-accord', 1);
       const accord2 = mapToAccorde(f.parent, 'accord', 2);
       const prop2 = mapToAccorde(f.parent, 'proposition-accord', 2);
       const slots = [...f.slots];
-      if (!slots.includes(accord2)) slots.push(accord2);
-      if (!slots.includes(prop2)) slots.push(prop2);
+      if (isFilled(accord1) && !slots.includes(accord2)) slots.push(accord2);
+      if (isFilled(prop1) && !slots.includes(prop2)) slots.push(prop2);
       return { ...f, slots };
     });
-  }, [families, cardinalFilter]);
+  }, [families, cardinalFilter, allDocs]);
 
   const devisFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Devis Garage');
   const factureFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Facture Garage');
@@ -622,6 +638,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               onRenameExtraSlot={handleRenameExtraSlot}
               onPreview={handlePreview}
               hideCardinalPlus={hideCardinalPlus}
+              hideExtraSlotPlus={hideExtraSlotPlus}
               cardinalFilter={cardinalFilter}
             />
           ))}
@@ -646,6 +663,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               onRenameExtraSlot={handleRenameExtraSlot}
               onPreview={handlePreview}
               hideCardinalPlus={hideCardinalPlus}
+              hideExtraSlotPlus={hideExtraSlotPlus}
               cardinalFilter={cardinalFilter}
             />
           ))}

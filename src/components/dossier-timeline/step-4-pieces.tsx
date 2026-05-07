@@ -79,18 +79,16 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
   const firstRoundFilled = useMemo(() => {
     if (!requireFirstAccordFilled) return true;
     if (!docs) return false;
-    let has1erAccord = false;
-    let has1erProposition = false;
+    // Any single 1er accord OR 1er proposition (across either family) is
+    // enough to enable the button.
     for (const d of docs) {
       if (!d?.url || d.pendingUpload) continue;
       const type = (d.type || d.typeDocument || '').trim();
       const parsed = parseAccordDocType(type);
       if (!parsed || parsed.ordinal !== 1) continue;
-      if (parsed.kind === 'accord') has1erAccord = true;
-      else if (parsed.kind === 'proposition-accord') has1erProposition = true;
-      if (has1erAccord && has1erProposition) return true;
+      if (parsed.kind === 'accord' || parsed.kind === 'proposition-accord') return true;
     }
-    return has1erAccord && has1erProposition;
+    return false;
   }, [docs, requireFirstAccordFilled]);
   const assignerDisabled = !!requireFirstAccordFilled && !firstRoundFilled;
 
@@ -117,7 +115,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
                     <span tabIndex={0}>{buttonNode}</span>
                   </TooltipTrigger>
                   <TooltipContent>
-                    Le 1er accord et la 1ère proposition doivent être remplis avant d'assigner.
+                    Au moins un 1er accord ou une 1ère proposition doit être rempli avant d'assigner.
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
