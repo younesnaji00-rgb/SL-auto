@@ -21,8 +21,6 @@ import WorkflowStatusSheet from './workflow-status-sheet';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import AssignmentHistorySheet from './assignment-history-sheet';
 import StatusHistorySheet from './status-history-sheet';
-import { formatDistanceToNow } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useDossierTabs } from '@/hooks/use-dossier-tabs';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
@@ -527,7 +525,7 @@ export default function DossiersClientPage() {
                 <TableRow
                   key={d.id}
                   className={cn(
-                    "group hover:bg-muted/50 transition-colors",
+                    "group hover:bg-muted/50 transition-colors [&_td]:!py-2",
                     !exportMode && "cursor-pointer",
                     exportMode && selectedRows.has(d.id) && "bg-primary/5",
                     d.lastObservation?.text && 'bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-50/70 dark:hover:bg-amber-950/30'
@@ -556,16 +554,9 @@ export default function DossiersClientPage() {
                     className={cn(!exportMode && "cursor-pointer hover:bg-muted/60 transition-colors")}
                     title={!exportMode ? "Voir l'historique des statuts" : undefined}
                   >
-                    <div className="flex flex-col gap-1">
-                      <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>
-                        {d.statut || 'Nouveau'}
-                      </Badge>
-                      {!exportMode && d.lastStatusChange?.at && d.lastStatusChange?.status === d.statut && (
-                        <span className="text-[10px] text-muted-foreground">
-                          il y a {formatDistanceToNow(d.lastStatusChange.at.toDate ? d.lastStatusChange.at.toDate() : new Date(d.lastStatusChange.at), { locale: fr })}
-                        </span>
-                      )}
-                    </div>
+                    <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>
+                      {d.statut || 'Nouveau'}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     {d.lastObservation?.text ? (
@@ -590,6 +581,7 @@ export default function DossiersClientPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8"
                           title="Gérer"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -601,6 +593,7 @@ export default function DossiersClientPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8"
                           title="Assignations"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -612,6 +605,7 @@ export default function DossiersClientPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8"
                           title="Workflow"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -625,7 +619,7 @@ export default function DossiersClientPage() {
                             variant="ghost"
                             size="icon"
                             title="Supprimer"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/5"
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/5"
                             loading={deletingId === d.id}
                             onClick={(e) => {
                               e.stopPropagation();
