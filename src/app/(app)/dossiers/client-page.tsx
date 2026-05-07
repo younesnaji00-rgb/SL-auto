@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, Settings, Users, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -471,7 +471,7 @@ export default function DossiersClientPage() {
                 </TableHead>
               )}
               {EXPORT_COLUMNS.map(col => (
-                <TableHead key={col.key}>
+                <TableHead key={col.key} className={col.key === 'statut' ? 'min-w-[200px]' : undefined}>
                   {exportMode ? (
                     <div className="flex items-center gap-2">
                       <Checkbox
@@ -551,7 +551,7 @@ export default function DossiersClientPage() {
                       e.stopPropagation();
                       setStatusHistoryDossier(d);
                     }}
-                    className={cn(!exportMode && "cursor-pointer hover:bg-muted/60 transition-colors")}
+                    className={cn("min-w-[200px]", !exportMode && "cursor-pointer hover:bg-muted/60 transition-colors")}
                     title={!exportMode ? "Voir l'historique des statuts" : undefined}
                   >
                     <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>
@@ -589,18 +589,6 @@ export default function DossiersClientPage() {
                           }}
                         >
                           <Eye className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Assignations"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setAssignmentDossier(d);
-                          }}
-                        >
-                          <Users className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
                         </Button>
                         <Button
                           variant="ghost"
