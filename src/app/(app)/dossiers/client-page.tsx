@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, Settings, Users, X, Download, Plus, FolderOpen } from 'lucide-react';
+import { Search, Trash2, AlertCircle, Eye, History, Settings, Users, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -142,6 +142,7 @@ export default function DossiersClientPage() {
   const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', dateFrom: '', dateTo: '', rowsPerPage: 25 };
   const [filters, setFilters, clearFilter] = usePersistedFilters('dossiers', filterDefaults);
   const rowsPerPage = filters.rowsPerPage;
+  const [page, setPage] = useState(1);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; refExpert: string } | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -187,6 +188,13 @@ export default function DossiersClientPage() {
     }
     return results;
   }, [allDossiers, filters]);
+
+  // Pagination — total pages, and clamp current page when filtered list shrinks
+  // (e.g. user searches and the previously-viewed page no longer exists).
+  const totalPages = Math.max(1, Math.ceil(dossierList.length / rowsPerPage));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   // Clean up stale row selections when filters change
   const dossierIds = useMemo(() => new Set(dossierList.map(d => d.id)), [dossierList]);
@@ -515,7 +523,7 @@ export default function DossiersClientPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              dossierList.slice(0, rowsPerPage).map(d => (
+              dossierList.slice((page - 1) * rowsPerPage, page * rowsPerPage).map(d => (
                 <TableRow
                   key={d.id}
                   className={cn(
@@ -640,13 +648,38 @@ export default function DossiersClientPage() {
       <div className="flex items-center justify-between px-2">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Afficher</span>
-          <Select value={String(rowsPerPage)} onValueChange={v => setFilters({ rowsPerPage: Number(v) })}>
+          <Select value={String(rowsPerPage)} onValueChange={v => { setFilters({ rowsPerPage: Number(v) }); setPage(1); }}>
             <SelectTrigger className="h-8 w-[70px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {[10, 25, 50, 100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
             </SelectContent>
           </Select>
           <span className="text-sm text-muted-foreground ml-4">Total: {dossierList.length} dossiers</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground tabular-nums">
+            Page {page} / {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            aria-label="Page précédente"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            aria-label="Page suivante"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
