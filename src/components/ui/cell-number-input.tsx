@@ -63,6 +63,10 @@ export function CellNumberInput({
     if (disabled) return;
     const cur = typeof value === 'number' && Number.isFinite(value) ? value : 0;
     const next = clamp(Math.floor(cur / step) * step + step, min, max);
+    // Steppers fire while the input is focused (mousedown is prevented to keep
+    // focus). The value-syncing useEffect bails when focused, so push the new
+    // formatted text directly here so the displayed number tracks the click.
+    setText(formatFr(next, decimals));
     onChange(next);
   };
 
@@ -70,6 +74,7 @@ export function CellNumberInput({
     if (disabled) return;
     const cur = typeof value === 'number' && Number.isFinite(value) ? value : 0;
     const next = clamp(Math.ceil(cur / step) * step - step, min, max);
+    setText(formatFr(next, decimals));
     onChange(next);
   };
 
