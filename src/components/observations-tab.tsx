@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Send, Loader2, Eye, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -61,7 +61,34 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
 
   const [selectedPreset, setSelectedPreset] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isOpen, setIsOpen] = useState(true);
+  // Collapsible variant defaults to CLOSED so observations don't dominate the
+  // step's vertical space. Unread count below acts as the notification.
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Persist the timestamp of the last time this user opened the observations
+  // panel for this dossier+section, so a count of new observations since that
+  // moment can drive a notification dot.
+  const lastSeenStorageKey = `observations-${section}-${dossierId}-lastSeenAt`;
+  const [lastSeenAt, setLastSeenAt] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0;
+    try {
+      const raw = window.localStorage.getItem(lastSeenStorageKey);
+      const n = raw ? parseInt(raw, 10) : 0;
+      return Number.isFinite(n) ? n : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  // Mark as seen when the user opens the panel — clears the badge.
+  useEffect(() => {
+    if (!isOpen) return;
+    const now = Date.now();
+    setLastSeenAt(now);
+    if (typeof window !== 'undefined') {
+      try { window.localStorage.setItem(lastSeenStorageKey, String(now)); } catch { /* quota */ }
+    }
+  }, [isOpen, lastSeenStorageKey]);
 
   const { options: observationPresets, loading: presetsLoading } = useOptions('options_observations');
   const activePresets = useMemo(
@@ -87,6 +114,20 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
       return dateB - dateA;
     });
   }, [rawObservations]);
+
+  // Count of observations newer than the last time the panel was opened by
+  // this user on this device. While the panel is open we treat new docs as
+  // already seen (lastSeenAt is bumped on open via the effect above).
+  const unseenCount = useMemo(() => {
+    if (!observations.length) return 0;
+    if (isOpen) return 0;
+    let n = 0;
+    for (const o of observations) {
+      const t = o.createdAt?.toDate ? o.createdAt.toDate().getTime() : 0;
+      if (t > lastSeenAt) n += 1;
+    }
+    return n;
+  }, [observations, lastSeenAt, isOpen]);
 
   const handleSubmit = async () => {
     if (!selectedPreset.trim() || !db) return;
@@ -212,6 +253,11 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
                 {observations.length > 0 && (
                   <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
                     {observations.length}
+                  </Badge>
+                )}
+                {unseenCount > 0 && (
+                  <Badge className="text-[10px] h-5 px-1.5 bg-red-500 text-white hover:bg-red-500" aria-label={`${unseenCount} nouvelles observations`}>
+                    {unseenCount} nouvelle{unseenCount > 1 ? 's' : ''}
                   </Badge>
                 )}
               </div>
