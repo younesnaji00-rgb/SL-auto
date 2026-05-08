@@ -25,7 +25,6 @@ import Step1Import from '@/components/dossier-timeline/step-1-import';
 import Step2Information from '@/components/dossier-timeline/step-2-information';
 import Step3Planification from '@/components/dossier-timeline/step-3-planification';
 import Step4Pieces from '@/components/dossier-timeline/step-4-pieces';
-import Step5Chiffrage from '@/components/dossier-timeline/step-5-chiffrage';
 import Step6Rapport from '@/components/dossier-timeline/step-6-rapport';
 import ObservationsTab from '@/components/observations-tab';
 import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
@@ -197,9 +196,6 @@ export default function DossierDetailPage({
             6: (
               <>
                 <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab />
-                <div className="mt-4">
-                  <Step5Chiffrage dossierId={id} cardinalFilter="1-only" hideEmptyState />
-                </div>
                 <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
                 </div>

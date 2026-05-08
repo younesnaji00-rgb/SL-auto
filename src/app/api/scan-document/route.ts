@@ -92,6 +92,7 @@ SCHÉMA JSON STRICT — renvoie exactement cette structure, où chaque champ est
 IMPORTANT: Pour chaque champ rempli, donne la position (bounding box) aussi précise que possible autour du texte correspondant. Convention: [yMin, xMin, yMax, xMax] en coordonnées normalisées 0-1000.
 
 INFOS SUPPLÉMENTAIRES (souvent présentes dans les portails Sanlam / RMA / Wafa et sur la carte grise):
+- "dateOfRequest" (Date de réception de la mission) = date à laquelle la mission a été émise/reçue par l'expert. Synonymes courants dans les documents importés: "Date de réception mission", "Date de réception", "Date de mission", "Date de création", "Date de création mission", "Date d'émission", "Date d'envoi". Tous ces libellés mappent sur \`dateOfRequest\`.
 - "insuredSubscriber" (Souscripteur) = personne qui a souscrit le contrat. Format typique: "NOM Prénom" ou "Prénom NOM".
 - "insuredCardHolder" (Titulaire Carte Grise) = propriétaire inscrit sur la carte grise. Peut différer du souscripteur.
 - "insuredAddress" = adresse complète de l'assuré (rue, ville).

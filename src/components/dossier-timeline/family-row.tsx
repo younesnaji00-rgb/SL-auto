@@ -39,6 +39,11 @@ interface FamilyRowProps {
    */
   hideCardinalPlus?: boolean;
   /**
+   * When true, the extra-slot `+` pimple (spawns Devis/Facture Garage 2, 3 …)
+   * is not rendered. Forwarded to each `SlotCard` in the row.
+   */
+  hideExtraSlotPlus?: boolean;
+  /**
    * Filter the row's slots by parsed cardinal ordinal. `'1-only'` keeps the
    * parent base + ordinal===1 slots; `'2-plus'` keeps only ordinal>=2 slots
    * (used by step 11 to show 2ème, 3ème, … cardinals exclusively).
@@ -72,6 +77,7 @@ export function FamilyRow({
   onPreview,
   topAction,
   hideCardinalPlus,
+  hideExtraSlotPlus,
   cardinalFilter = 'all',
 }: FamilyRowProps) {
   const visibleSlots = cardinalFilter === 'all'
@@ -130,6 +136,7 @@ export function FamilyRow({
               onRenameExtraSlot={() => onRenameExtraSlot(slot)}
               onPreview={onPreview}
               hideCardinalPlus={hideCardinalPlus}
+              hideExtraSlotPlus={hideExtraSlotPlus}
             />
           </div>
         ))}

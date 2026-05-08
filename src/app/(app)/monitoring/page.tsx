@@ -63,6 +63,7 @@ import {
   computePerUserCounts,
   computeStepCounts,
   computeStepCountsHorsDelai,
+  computeStepCountsRealiseAllTime,
   dossiersForStep,
   dossiersHorsDelai,
   dossiersNotForStep,
@@ -251,6 +252,10 @@ export default function MonitoringPage() {
     () => computeStepCountsHorsDelai(dossiers),
     [dossiers],
   );
+  const globalRealiseAllTime = useMemo(
+    () => computeStepCountsRealiseAllTime(dossiers),
+    [dossiers],
+  );
   const scopedCompagnieNames = useMemo(() => {
     const allowed = (profile?.compagnies || []).map((c: string) => c.toLowerCase().trim());
     const names = allCompagnies.map((c) => c.nom).filter((n): n is string => !!n);
@@ -437,6 +442,7 @@ export default function MonitoringPage() {
             <GlobalView
               counts={globalCounts}
               horsDelaiCounts={globalHorsDelaiCounts}
+              realiseAllTimeCounts={globalRealiseAllTime}
               totalDossiers={totalDossiersInScope}
               loading={loading}
               onSelectStep={openDrawer}
@@ -498,12 +504,14 @@ export default function MonitoringPage() {
 function GlobalView({
   counts,
   horsDelaiCounts,
+  realiseAllTimeCounts,
   totalDossiers,
   loading,
   onSelectStep,
 }: {
   counts: Record<StepKey, number>;
   horsDelaiCounts: Record<StepKey, number>;
+  realiseAllTimeCounts: Record<StepKey, number>;
   totalDossiers: number;
   loading: boolean;
   onSelectStep: (step: StepKey, mode: DrawerMode) => void;
@@ -531,15 +539,17 @@ function GlobalView({
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {STEP_KEYS.map((key, idx) => {
-          const realise = counts[key];
+          const realiseEnDelai = counts[key];
           const horsDelai = horsDelaiCounts[key] ?? 0;
-          const nonRealise = key === 'creation' ? null : Math.max(totalDossiers - realise, 0);
+          const realiseAllTime = realiseAllTimeCounts[key] ?? 0;
+          const nonRealise =
+            key === 'creation' ? null : Math.max(totalDossiers - realiseAllTime, 0);
           return (
             <KpiCard
               key={key}
               index={idx + 1}
               label={STEP_LABELS[key]}
-              value={realise}
+              realiseEnDelai={realiseEnDelai}
               horsDelai={horsDelai}
               nonRealise={nonRealise}
               total={totalDossiers}
@@ -581,7 +591,7 @@ function GlobalView({
 function KpiCard({
   index,
   label,
-  value,
+  realiseEnDelai,
   horsDelai,
   nonRealise,
   total,
@@ -591,7 +601,7 @@ function KpiCard({
 }: {
   index: number;
   label: string;
-  value: number;
+  realiseEnDelai: number;
   horsDelai: number;
   nonRealise: number | null;
   total: number;
@@ -599,7 +609,6 @@ function KpiCard({
   onSelectHorsDelai: () => void;
   onSelectNonRealise: () => void;
 }) {
-  const realiseEnDelai = Math.max(value - horsDelai, 0);
   const denominator = total <= 0 ? 1 : total;
   const pctEnDelai = (realiseEnDelai / denominator) * 100;
   const pctHorsDelai = (horsDelai / denominator) * 100;
@@ -618,57 +627,79 @@ function KpiCard({
           <CardTitle className="text-sm font-semibold">{label}</CardTitle>
         </div>
       </CardHeader>
-      <CardContent className="space-y-2 pb-3">
-        <div className="flex h-5 w-full overflow-hidden rounded-md border border-border/40 bg-muted">
-          {pctEnDelai > 0 && (
-            <button
-              type="button"
-              onClick={onSelectRealise}
-              className="bg-emerald-500 transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              style={{ width: `${pctEnDelai}%` }}
-              title={`Réalisé en délai : ${realiseEnDelai}`}
-            />
-          )}
-          {pctHorsDelai > 0 && (
-            <button
-              type="button"
-              onClick={onSelectHorsDelai}
-              className="bg-amber-500 transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              style={{ width: `${pctHorsDelai}%` }}
-              title={`Hors délai : ${horsDelai}`}
-            />
-          )}
-          {nonRealise != null && pctNonRealise > 0 && (
-            <button
-              type="button"
-              onClick={onSelectNonRealise}
-              className="bg-muted-foreground/30 transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              style={{ width: `${pctNonRealise}%` }}
-              title={`Non réalisé : ${nonRealise}`}
-            />
-          )}
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px]">
-          <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
-            <span className="inline-block h-2 w-2 rounded-sm bg-emerald-500" />
-            <span className="font-semibold tabular-nums">{realiseEnDelai}</span>
-            <span className="text-muted-foreground">en délai</span>
-          </span>
-          <span className="flex items-center gap-1 text-amber-700 dark:text-amber-300">
-            <span className="inline-block h-2 w-2 rounded-sm bg-amber-500" />
-            <span className="font-semibold tabular-nums">{horsDelai}</span>
-            <span className="text-muted-foreground">hors délai</span>
-          </span>
-          {nonRealise != null && (
-            <span className="flex items-center gap-1 text-muted-foreground">
-              <span className="inline-block h-2 w-2 rounded-sm bg-muted-foreground/30" />
-              <span className="font-semibold tabular-nums">{nonRealise}</span>
-              <span>non réalisé</span>
-            </span>
-          )}
-        </div>
+      <CardContent className="space-y-1.5 pb-3">
+        <KpiBarRow
+          label="en délai"
+          count={realiseEnDelai}
+          pct={pctEnDelai}
+          fillClass="bg-emerald-500"
+          textClass="text-emerald-700 dark:text-emerald-300"
+          swatchClass="bg-emerald-500"
+          onClick={onSelectRealise}
+        />
+        <KpiBarRow
+          label="hors délai"
+          count={horsDelai}
+          pct={pctHorsDelai}
+          fillClass="bg-amber-500"
+          textClass="text-amber-700 dark:text-amber-300"
+          swatchClass="bg-amber-500"
+          onClick={onSelectHorsDelai}
+        />
+        {nonRealise != null && (
+          <KpiBarRow
+            label="non réalisé"
+            count={nonRealise}
+            pct={pctNonRealise}
+            fillClass="bg-muted-foreground/30"
+            textClass="text-muted-foreground"
+            swatchClass="bg-muted-foreground/30"
+            onClick={onSelectNonRealise}
+          />
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function KpiBarRow({
+  label,
+  count,
+  pct,
+  fillClass,
+  textClass,
+  swatchClass,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  pct: number;
+  fillClass: string;
+  textClass: string;
+  swatchClass: string;
+  onClick: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-[10px]">
+      <span className={`flex w-20 shrink-0 items-center gap-1 ${textClass}`}>
+        <span className={`inline-block h-2 w-2 rounded-sm ${swatchClass}`} />
+        <span>{label}</span>
+      </span>
+      <div className="relative h-3 flex-1 overflow-hidden rounded-md border border-border/40 bg-muted">
+        {pct > 0 && (
+          <button
+            type="button"
+            onClick={onClick}
+            className={`absolute inset-y-0 left-0 ${fillClass} transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+            style={{ width: `${pct}%` }}
+            title={`${label} : ${count}`}
+          />
+        )}
+      </div>
+      <span className="w-6 shrink-0 text-right font-semibold tabular-nums text-foreground">
+        {count}
+      </span>
+    </div>
   );
 }
 

@@ -110,6 +110,16 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const { toast } = useToast();
   const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('assignations-atg');
+  const isATG = profile?.role === 'Agent de Terrain';
+  // ATG may delete a photo only if they uploaded it themselves. Anyone else
+  // with edit rights (gestionnaire / admin) may delete any photo on the
+  // dossier — including the ATG's own — for moderation purposes.
+  const canDeletePhoto = (photo: Photo): boolean => {
+    if (!canEdit) return false;
+    if (!isATG) return true;
+    const me = auth?.currentUser?.email || profile?.email || '';
+    return !!me && photo.uploadedBy === me;
+  };
 
   const [activeTab, setActiveTab] = useState('Avant');
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -298,6 +308,14 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   // Delete photo
   const handleDeletePhoto = async (photo: Photo) => {
     if (!db || !storage) return;
+    if (!canDeletePhoto(photo)) {
+      toast({
+        variant: 'destructive',
+        title: 'Suppression refusée',
+        description: 'Vous ne pouvez supprimer que les photos que vous avez vous-même téléversées.',
+      });
+      return;
+    }
     setIsDeletingPhoto(photo.id);
     try {
       if (photo.storagePath) {
@@ -830,7 +848,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <Eye className="h-5 w-5 text-white" />
                       </div>
-                      {canEdit && (
+                      {canDeletePhoto(photo) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -868,7 +886,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               </h3>
             </div>
 
-            <TypedDocumentsGrid dossierId={dossierId} />
+            <TypedDocumentsGrid dossierId={dossierId} hideCardinalPlus hideExtraSlotPlus />
           </CardContent>
         </Card>
       )}

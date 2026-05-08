@@ -209,19 +209,19 @@ export default function Step1Import({
           return;
         }
 
-        // Build a merge-style update that only writes fields that are
-        // currently empty on the dossier — never overwrite user input.
+        // Build the update. Every extracted value is written: empty fields
+        // are filled, populated fields are overwritten. The previous values
+        // of overwritten fields are stored on the dossier under
+        // `lastImportOverwrites` so the user can see what changed.
         const updates: Record<string, any> = {};
-        let written = 0;
+        const filledFields: string[] = [];
+        const overwrittenFields: { field: string; previousValue: any }[] = [];
 
         for (const [scanKey, rawValue] of Object.entries(data)) {
           const target = FIELD_MAP[scanKey];
           if (!target) continue;
           if (rawValue === null || rawValue === undefined) continue;
           if (typeof rawValue === 'string' && rawValue.trim() === '') continue;
-
-          const existing = readPath(dossier, target);
-          if (!isEmpty(existing)) continue;
 
           let finalValue: any = rawValue;
           const dateKind = DATE_FIELDS[scanKey];
@@ -236,8 +236,23 @@ export default function Step1Import({
             finalValue = rawValue.trim();
           }
 
+          const existing = readPath(dossier, target);
           updates[target] = finalValue;
-          written += 1;
+          if (isEmpty(existing)) {
+            filledFields.push(target);
+          } else {
+            overwrittenFields.push({ field: target, previousValue: existing ?? null });
+          }
+        }
+
+        const written = filledFields.length + overwrittenFields.length;
+
+        if (overwrittenFields.length > 0) {
+          updates.lastImportOverwrites = overwrittenFields;
+          updates.lastImportOverwriteAt = serverTimestamp();
+        } else {
+          updates.lastImportOverwrites = deleteField();
+          updates.lastImportOverwriteAt = deleteField();
         }
 
         // Record the scanned document as Step 1's single source, whether or
@@ -252,23 +267,41 @@ export default function Step1Import({
           updates.updatedAt = serverTimestamp();
           await updateDoc(dossierRef, updates);
           if (db && written > 0) {
+            const parts = [
+              filledFields.length > 0
+                ? `${filledFields.length} champ(s) pré-rempli(s)`
+                : null,
+              overwrittenFields.length > 0
+                ? `${overwrittenFields.length} champ(s) écrasé(s) (${overwrittenFields
+                    .map((o) => o.field)
+                    .join(', ')})`
+                : null,
+            ].filter(Boolean);
             await logHistorique(
               db,
               dossierId,
               'Import document IA',
               userEmail,
-              `${written} champ(s) pré-rempli(s) par l'IA depuis les documents importés.`,
+              `${parts.join(' ; ')} par l'IA depuis les documents importés.`,
               'document'
             );
           }
         }
         setLastFilledCount(written);
+        const toastParts = [
+          filledFields.length > 0
+            ? `${filledFields.length} champ(s) pré-rempli(s)`
+            : null,
+          overwrittenFields.length > 0
+            ? `${overwrittenFields.length} écrasé(s)`
+            : null,
+        ].filter(Boolean);
         toast({
           title: 'Scan terminé',
           description:
             written > 0
-              ? `${written} champ(s) vide(s) pré-rempli(s). Vérifiez à l'étape Information.`
-              : "Aucun champ vide n'a pu être pré-rempli (champs déjà saisis).",
+              ? `${toastParts.join(', ')}. Vérifiez à l'étape Information.`
+              : "Aucune valeur extraite par l'IA.",
         });
       } catch (err: any) {
         console.error('[Step1Import] scan error:', err);

@@ -93,7 +93,7 @@ export async function createEmptyDossier({ db, user, seed }: CreateEmptyDossierI
     intermediaireEmail: '',
     experts,
     dateSinistre: '',
-    dateRequete: serverTimestamp(),
+    dateRequete: null,
     createdAt: serverTimestamp(),
     createdBy: user.uid,
     createdByName: user.displayName ?? user.email ?? 'Utilisateur',

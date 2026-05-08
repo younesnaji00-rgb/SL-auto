@@ -14,6 +14,7 @@ import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, serverTimestamp
 import { deleteObject, ref } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { extractAndPersistChiffrageDevis, extractAndPersistDossierDoc } from '@/lib/devis-extract';
+import { scanAndPersistCarteGrise } from '@/lib/scan-carte-grise';
 import { isEditableDocType } from '@/lib/devis-schema';
 import { parseAccordDocType, mapToAccorde, parseAccordeParent } from '@/lib/docType-accorde';
 import { buildDocFamilies, collectFamilySlotLabels } from '@/lib/doc-family';
@@ -273,6 +274,18 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           extractAndPersistDossierDoc({
             db, storage, dossierId, docType: slot, storagePath, name: file.name,
           }).catch((e) => console.error(`[typed-docs-grid] pre-extraction failed for ${file.name}`, e));
+        });
+      }
+
+      // Carte Grise narrow scan: extract matricule + matricule antérieur and
+      // write them to the dossier so they show up in the dossiers table.
+      if (slot === 'Carte grise') {
+        uploadJobs.forEach(({ file, storagePath }, idx) => {
+          const r = results[idx];
+          if (r.status !== 'fulfilled') return;
+          scanAndPersistCarteGrise({
+            db, storage, dossierId, storagePath, contentType: file.type,
+          }).catch((e) => console.error(`[typed-docs-grid] carte-grise scan failed for ${file.name}`, e));
         });
       }
 
