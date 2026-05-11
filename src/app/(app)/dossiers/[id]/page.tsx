@@ -189,7 +189,7 @@ export default function DossierDetailPage({
                   <PhotosTab dossierId={id} onlyCategory="avant" />
                 </div>
                 <div className="mt-4">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
+                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="Avant" />
                 </div>
               </>
             ),
@@ -197,7 +197,7 @@ export default function DossierDetailPage({
               <>
                 <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab />
                 <div className="mt-4">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
+                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="1er accord" />
                 </div>
               </>
             ),
@@ -208,7 +208,7 @@ export default function DossierDetailPage({
                   <PhotosTab dossierId={id} onlyCategory="en_cours" />
                 </div>
                 <div className="mt-4">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
+                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="En cours" />
                 </div>
               </>
             ),
@@ -222,7 +222,7 @@ export default function DossierDetailPage({
                   <PhotosTab dossierId={id} onlyCategory="apres" />
                 </div>
                 <div className="mt-4">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" />
+                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="Après" />
                 </div>
               </>
             ),

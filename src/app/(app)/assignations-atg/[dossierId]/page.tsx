@@ -247,9 +247,16 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       const userId = auth?.currentUser?.uid || 'unknown';
       await logWorkflow(db, dossierId, 'Agent de Terrain : remarque ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Observation mise à jour par Agent de Terrain` });
 
-      // Persist observation to subcollection for history
+      // Persist observation to subcollection for history. Round 8 — tag with
+      // phaseATG matching the active mission tab (Q-3 → A) so the obs is
+      // scoped to the right step in the dossier view.
       if (editObservation.trim()) {
-        await addObservation(db, dossierId, editObservation.trim(), 'Planification', profile?.nom || userEmail, userEmail, profile?.role || 'Agent de Terrain', 'assignations-atg');
+        const phaseTag = (activeTab as 'Avant' | 'En cours' | 'Après');
+        await addObservation(
+          db, dossierId, editObservation.trim(), 'Planification',
+          profile?.nom || userEmail, userEmail, profile?.role || 'Agent de Terrain',
+          'assignations-atg', phaseTag, null,
+        );
       }
 
       toast({ title: 'Observation enregistrée' });
@@ -947,8 +954,16 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         </Card>
       )}
 
-      {/* Observations section */}
-      <ObservationsTab dossierId={dossierId} section="assignations-atg" variant="collapsible" />
+      {/* Observations section — scoped to the AT's current mission tab. The
+          panel auto-tags new obs with phaseATG=activeTab (round 8 Q-3 → A)
+          and only shows obs (or legacy un-tagged AT/dossiers obs) for that
+          phase. */}
+      <ObservationsTab
+        dossierId={dossierId}
+        section="assignations-atg"
+        variant="collapsible"
+        contextPhase={activeTab as 'Avant' | 'En cours' | 'Après'}
+      />
 
       {/* Photo preview dialog */}
       {previewPhoto && (
