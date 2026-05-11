@@ -340,7 +340,7 @@ export default function ObservationsTab({
                 onValueChange={setSelectedPreset}
                 disabled={presetsLoading || activePresets.length === 0 || customFilled}
               >
-                <SelectTrigger className="text-sm pr-9">
+                <SelectTrigger className="text-sm pr-14">
                   <SelectValue
                     placeholder={
                       presetsLoading
@@ -358,14 +358,16 @@ export default function ObservationsTab({
                 </SelectContent>
               </Select>
               {/* Round 8 item 008 — inline X clears the selected preset so the
-                  user can switch to custom text (Q-8 → A). */}
+                  user can switch to custom text. Positioned at right-9 to sit
+                  clear of the Radix Select chevron (which lives at right-3
+                  inside a ~28px hit area). Round 9 item 003 — fixed overlap. */}
               {presetFilled && (
                 <button
                   type="button"
                   aria-label="Effacer la sélection"
                   onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedPreset(''); }}
-                  className="absolute right-7 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-sm"
+                  className="absolute right-9 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-sm z-10"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
