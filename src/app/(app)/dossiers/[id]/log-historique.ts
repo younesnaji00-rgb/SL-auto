@@ -4,6 +4,10 @@ import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/fi
  * Utility function to log actions to the dossier's audit trail (historique subcollection).
  * When type === 'statut', also denormalize `lastStatusChange` onto the dossier doc so
  * the dossiers list can render the last status + time without an extra subquery per row.
+ *
+ * Round 8: optional trailing `userNom` is persisted alongside `user` (email)
+ * so display surfaces can render the name instead of the email. When
+ * absent, readers fall back to "Utilisateur inconnu" (Q-7 → B).
  */
 export async function logHistorique(
   db: any,
@@ -11,28 +15,33 @@ export async function logHistorique(
   action: string,
   user: string,
   details?: string,
-  type?: string
+  type?: string,
+  userNom?: string,
 ) {
   if (!db || !dossierId) return;
 
   try {
-    await addDoc(collection(db, 'dossiers', dossierId, 'historique'), {
+    const payload: Record<string, any> = {
       action,
       date: serverTimestamp(),
       user: user || 'Admin',
       details: details || '',
       type: type || 'autre',
-    });
+    };
+    if (userNom && userNom.trim()) payload.userNom = userNom.trim();
+    await addDoc(collection(db, 'dossiers', dossierId, 'historique'), payload);
 
     if (type === 'statut') {
       try {
+        const denorm: Record<string, any> = {
+          status: action,
+          at: serverTimestamp(),
+          by: user || 'Admin',
+          details: details || '',
+        };
+        if (userNom && userNom.trim()) denorm.byNom = userNom.trim();
         await updateDoc(doc(db, 'dossiers', dossierId), {
-          lastStatusChange: {
-            status: action,
-            at: serverTimestamp(),
-            by: user || 'Admin',
-            details: details || '',
-          },
+          lastStatusChange: denorm,
         });
       } catch (err) {
         console.error('Failed to denormalize lastStatusChange:', err);
@@ -44,7 +53,8 @@ export async function logHistorique(
 }
 
 /**
- * Utility function to log workflow progress steps.
+ * Utility function to log workflow progress steps. See `logHistorique` for
+ * the userNom contract.
  */
 export async function logWorkflow(
   db: any,
@@ -53,12 +63,13 @@ export async function logWorkflow(
   user: string,
   userId: string,
   status: 'done' | 'pending' = 'done',
-  extra?: { dossierRef?: string; details?: string }
+  extra?: { dossierRef?: string; details?: string },
+  userNom?: string,
 ) {
   if (!db || !dossierId) return;
 
   try {
-    await addDoc(collection(db, 'dossiers', dossierId, 'workflow'), {
+    const payload: Record<string, any> = {
       action,
       date: serverTimestamp(),
       user: user || 'Admin',
@@ -66,7 +77,9 @@ export async function logWorkflow(
       status,
       ...(extra?.dossierRef && { dossierRef: extra.dossierRef }),
       ...(extra?.details && { details: extra.details }),
-    });
+    };
+    if (userNom && userNom.trim()) payload.userNom = userNom.trim();
+    await addDoc(collection(db, 'dossiers', dossierId, 'workflow'), payload);
   } catch (err) {
     console.error('Failed to log workflow step:', err);
   }
