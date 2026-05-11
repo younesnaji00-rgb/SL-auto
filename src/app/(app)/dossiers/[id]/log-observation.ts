@@ -1,10 +1,21 @@
 import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export type ObservationType = 'Planification' | 'Décision de statut' | 'Expert' | 'Général';
+export type PhaseATG = 'Avant' | 'En cours' | 'Après';
+export type AccordSlot = '1er accord' | '2ème accord ou +';
 
 /**
  * Append an observation to the dossier's observations subcollection.
  * Fire-and-forget — errors are logged but never thrown.
+ *
+ * Context tags (round 8):
+ *  - `phaseATG`  → scopes the observation to a planification phase (Avant /
+ *    En cours / Après). Visible only in that step's dossier panel + the
+ *    AT's ATG view when that tab is active.
+ *  - `accordSlot` → scopes to an accord context (1er accord / 2ème accord
+ *    ou +). Visible only in that accord step's dossier panel + the
+ *    chiffreur's chiffrage view.
+ *  An observation should have AT MOST ONE of the two tags set.
  */
 export async function addObservation(
   db: any,
@@ -14,12 +25,14 @@ export async function addObservation(
   author: string,
   authorEmail: string,
   authorRole: string,
-  source: 'dossiers' | 'assignations-atg' | 'assignations-chiffrage'
+  source: 'dossiers' | 'assignations-atg' | 'assignations-chiffrage',
+  phaseATG?: PhaseATG | null,
+  accordSlot?: AccordSlot | null,
 ): Promise<void> {
   if (!db || !dossierId || !text.trim()) return;
 
   try {
-    await addDoc(collection(db, 'dossiers', dossierId, 'observations'), {
+    const docPayload: Record<string, any> = {
       text: text.trim(),
       type,
       author,
@@ -28,18 +41,25 @@ export async function addObservation(
       source,
       createdAt: serverTimestamp(),
       dossierId,
-    });
+    };
+    if (phaseATG) docPayload.phaseATG = phaseATG;
+    if (accordSlot) docPayload.accordSlot = accordSlot;
+
+    await addDoc(collection(db, 'dossiers', dossierId, 'observations'), docPayload);
+
+    const lastObservation: Record<string, any> = {
+      text: text.trim(),
+      type,
+      author,
+      authorRole,
+      at: serverTimestamp(),
+    };
+    if (phaseATG) lastObservation.phaseATG = phaseATG;
+    if (accordSlot) lastObservation.accordSlot = accordSlot;
+
     await setDoc(
       doc(db, 'dossiers', dossierId),
-      {
-        lastObservation: {
-          text: text.trim(),
-          type,
-          author,
-          authorRole,
-          at: serverTimestamp(),
-        },
-      },
+      { lastObservation },
       { merge: true }
     );
   } catch (err) {

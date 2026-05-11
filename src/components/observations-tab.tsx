@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Send, Loader2, Eye, ChevronDown, ChevronRight, CheckCircle2, Paperclip, ExternalLink } from 'lucide-react';
+import { Send, Loader2, Eye, ChevronDown, ChevronRight, CheckCircle2, Paperclip, ExternalLink, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -65,19 +65,41 @@ const ROLE_BADGE_STYLES: Record<string, string> = {
   'Chiffreur':            'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
 };
 
+type PhaseATG = 'Avant' | 'En cours' | 'Après';
+type AccordSlot = '1er accord' | '2ème accord ou +';
+
 type ObservationsTabProps = {
   dossierId: string;
   section: 'dossiers' | 'assignations-atg' | 'assignations-chiffrage';
   variant?: 'tab' | 'collapsible';
+  /** Scope the panel to a planification phase. Filters list AND auto-tags
+   *  new observations written from this panel. */
+  contextPhase?: PhaseATG;
+  /** Scope the panel to an accord context. Filters list AND auto-tags new
+   *  observations written from this panel. */
+  contextAccord?: AccordSlot;
 };
 
-export default function ObservationsTab({ dossierId, section, variant = 'tab' }: ObservationsTabProps) {
+export default function ObservationsTab({
+  dossierId,
+  section,
+  variant = 'tab',
+  contextPhase,
+  contextAccord,
+}: ObservationsTabProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
   const { canWrite, profile } = useCurrentUser();
   const { toast } = useToast();
-  const isGestionnaire = profile?.role === 'Gestionnaire';
+  // Q-5 → B: gestionnaire + admin + directeur family can validate.
+  const role = profile?.role;
+  const canValidate =
+    role === 'Gestionnaire' ||
+    role === 'Admin' ||
+    role === 'Directeur' ||
+    role === 'Directeur des opérations' ||
+    role === 'Directeur technique';
   // Validation + proof are mutually exclusive concerns:
   //   - Only Gestionnaire flips the "Valider le traitement" flag.
   //   - Anyone whose canAdd is true on this section may upload proofs once
@@ -136,22 +158,46 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
 
   const { data: rawObservations, loading } = useCollection<Observation>(obsQuery as any);
 
-  // Items 017–018 — cross-role visibility filter:
-  //   - Agent de Terrain users do NOT see observations written by Chiffreurs
-  //     from the chiffrage flow.
-  //   - Chiffreur users do NOT see observations written by Agents de Terrain
-  //     from the ATG flow.
-  // Everyone else (gestionnaire, admin, directeur family) sees every entry.
-  // Per P-LEGACY-OBS-VISIBLE we keep legacy entries visible by checking both
-  // authorRole AND source — only the intentional cross-role chain hides.
-  const currentRole = profile?.role;
+  // Round 8 — context-driven visibility (REPLACES the round-7 cross-role
+  // filter). Each observation can carry a `phaseATG` tag (planification
+  // context) or an `accordSlot` tag (accord context). The panel's
+  // contextPhase / contextAccord props determine which obs are visible.
+  // Legacy obs (no tag) fall back per Q-4 → A.
   const observations = useMemo(() => {
     if (!rawObservations) return [];
     const filtered = rawObservations.filter((o) => {
-      if (currentRole === 'Agent de Terrain') {
-        if (o.authorRole === 'Chiffreur' && o.source === 'assignations-chiffrage') return false;
-      } else if (currentRole === 'Chiffreur') {
-        if (o.authorRole === 'Agent de Terrain' && o.source === 'assignations-atg') return false;
+      const oPhase = (o as any).phaseATG as PhaseATG | undefined;
+      const oAccord = (o as any).accordSlot as AccordSlot | undefined;
+      const isLegacy = !oPhase && !oAccord;
+
+      if (contextPhase) {
+        // Phase-scoped panel: show obs tagged with this exact phase plus
+        // legacy AT/dossiers obs (no tag, no accord).
+        if (oPhase === contextPhase) return true;
+        if (isLegacy && (o.source === 'assignations-atg' || o.source === 'dossiers')) return true;
+        return false;
+      }
+      if (contextAccord) {
+        // Accord-scoped panel: show obs tagged with this exact accord plus
+        // legacy chiffreur/dossiers obs (only for step 6 = '1er accord').
+        if (oAccord === contextAccord) return true;
+        if (isLegacy && contextAccord === '1er accord' &&
+            (o.source === 'assignations-chiffrage' || o.source === 'dossiers')) return true;
+        return false;
+      }
+      // No explicit context — fall back to section-scoped views:
+      //   - assignations-chiffrage list view: any accord-tagged obs + legacy chiffreur/dossiers
+      //   - assignations-atg list view: any phase-tagged obs + legacy AT/dossiers
+      //   - dossiers (no context): show everything (gestionnaire's main view never lands here today)
+      if (section === 'assignations-chiffrage') {
+        if (oAccord) return true;
+        if (isLegacy && (o.source === 'assignations-chiffrage' || o.source === 'dossiers')) return true;
+        return false;
+      }
+      if (section === 'assignations-atg') {
+        if (oPhase) return true;
+        if (isLegacy && (o.source === 'assignations-atg' || o.source === 'dossiers')) return true;
+        return false;
       }
       return true;
     });
@@ -160,7 +206,7 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
       const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
       return dateB - dateA;
     });
-  }, [rawObservations, currentRole]);
+  }, [rawObservations, contextPhase, contextAccord, section]);
 
   // Count of observations newer than the last time the panel was opened by
   // this user on this device. While the panel is open we treat new docs as
@@ -179,12 +225,24 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
   const presetFilled = selectedPreset.trim().length > 0;
   const customFilled = customText.trim().length > 0;
   // Exclusive OR — both filled means the gestionnaire must clear one before
-  // sending. Matches Q-7 answer C (reject when both filled).
+  // sending. Matches round 7 Q-7 answer C (reject when both filled).
   const bothFilled = presetFilled && customFilled;
-  const submitDisabled = (!presetFilled && !customFilled) || bothFilled || isSubmitting;
+
+  // Round 8 Q-2 → A: when the chiffreur writes from the chiffrage list view
+  // (no contextAccord prop), they must pick an accord context from a Select
+  // before submission. The picked value becomes the `accordSlot` tag.
+  const [chiffrageAccordChoice, setChiffrageAccordChoice] = useState<AccordSlot | ''>('');
+  const needsChiffrageAccordPick = section === 'assignations-chiffrage' && !contextAccord;
+  const chiffrageAccordMissing = needsChiffrageAccordPick && !chiffrageAccordChoice;
+
+  const submitDisabled =
+    (!presetFilled && !customFilled) ||
+    bothFilled ||
+    isSubmitting ||
+    chiffrageAccordMissing;
 
   const handleValidate = async (obsId: string) => {
-    if (!db || !isGestionnaire) return;
+    if (!db || !canValidate) return;
     setValidatingId(obsId);
     try {
       const userEmail = auth?.currentUser?.email || profile?.email || '';
@@ -246,10 +304,21 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
     const userRole = profile?.role || 'Admin';
     const text = (customFilled ? customText : selectedPreset).trim();
 
+    // Round 8 Q-1 + Q-2 + Q-3: writes carry the panel's context tag so the
+    // observation is naturally scoped to where it was authored. For the
+    // chiffrage list view (no contextAccord prop), the chiffreur picks via
+    // an inline Select (chiffrageAccordChoice).
+    const phaseTag = contextPhase ?? null;
+    const accordTag = contextAccord ?? (needsChiffrageAccordPick ? (chiffrageAccordChoice || null) : null);
+
     try {
-      await addObservation(db, dossierId, text, 'Général', userName, userEmail, userRole, section);
+      await addObservation(
+        db, dossierId, text, 'Général', userName, userEmail, userRole, section,
+        phaseTag, accordTag,
+      );
       setSelectedPreset('');
       setCustomText('');
+      setChiffrageAccordChoice('');
       toast({ title: 'Observation ajoutée' });
     } catch (err: any) {
       console.error('Failed to add observation:', err);
@@ -265,34 +334,65 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
       {canAdd && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <Select
-              value={selectedPreset}
-              onValueChange={setSelectedPreset}
-              disabled={presetsLoading || activePresets.length === 0 || customFilled}
-            >
-              <SelectTrigger className="flex-1 text-sm">
-                <SelectValue
-                  placeholder={
-                    presetsLoading
-                      ? 'Chargement…'
-                      : activePresets.length === 0
-                        ? 'Aucune observation disponible'
-                        : 'Choisir une observation...'
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {activePresets.map((opt) => (
-                  <SelectItem key={opt.id} value={opt.label}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="relative flex-1">
+              <Select
+                value={selectedPreset}
+                onValueChange={setSelectedPreset}
+                disabled={presetsLoading || activePresets.length === 0 || customFilled}
+              >
+                <SelectTrigger className="text-sm pr-9">
+                  <SelectValue
+                    placeholder={
+                      presetsLoading
+                        ? 'Chargement…'
+                        : activePresets.length === 0
+                          ? 'Aucune observation disponible'
+                          : 'Choisir une observation...'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {activePresets.map((opt) => (
+                    <SelectItem key={opt.id} value={opt.label}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {/* Round 8 item 008 — inline X clears the selected preset so the
+                  user can switch to custom text (Q-8 → A). */}
+              {presetFilled && (
+                <button
+                  type="button"
+                  aria-label="Effacer la sélection"
+                  onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedPreset(''); }}
+                  className="absolute right-7 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-sm"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             <OptionsManagerModal
               collectionName="options_observations"
               title="Observations"
               defaultValues={['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre']}
             />
           </div>
+          {/* Chiffrage compose form needs an explicit accord context pick
+              (Q-2 → A). Only shown when the panel has no contextAccord
+              prop (i.e. the chiffrage list view, not the dossier step). */}
+          {needsChiffrageAccordPick && (
+            <div className="flex items-center gap-2">
+              <Select value={chiffrageAccordChoice} onValueChange={(v) => setChiffrageAccordChoice(v as AccordSlot)}>
+                <SelectTrigger className="flex-1 text-sm">
+                  <SelectValue placeholder="À propos de quel accord ?" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1er accord">1er accord</SelectItem>
+                  <SelectItem value="2ème accord ou +">2ème accord ou +</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <Textarea
             value={customText}
             onChange={(e) => setCustomText(e.target.value)}
@@ -304,6 +404,11 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
           {bothFilled && (
             <p className="text-[11px] text-destructive">
               Choisissez une observation prédéfinie OU écrivez du texte personnalisé, pas les deux.
+            </p>
+          )}
+          {chiffrageAccordMissing && (presetFilled || customFilled) && (
+            <p className="text-[11px] text-destructive">
+              Sélectionnez à propos de quel accord (1er ou 2ème ou +).
             </p>
           )}
           <div className="flex justify-end">
@@ -372,7 +477,7 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
                       </span>
                     </div>
                   ) : (
-                    isGestionnaire && (
+                    canValidate && (
                       <Button
                         size="sm"
                         variant="outline"
