@@ -150,18 +150,40 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       <Card>
         <CardContent className="p-6 space-y-3">
           <h3 className="font-semibold text-base">Dates clés</h3>
+          {/* Top block: single-column rows (no left/right pairing). */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             {[
               { label: 'Date réception mission', value: dossier?.dateRequete },
               { label: 'Date sinistre', value: dossier?.dateSinistre },
               { label: 'Date création dossier', value: dossier?.createdAt },
-              { label: 'Date mission ATG', value: dossier?.dateMissionAgentTerrain },
-              { label: 'Date demande expertise (avant)', value: dossier?.dateDemandeExpertiseAvant },
-              { label: 'Date demande expertise (en cours)', value: dossier?.dateDemandeExpertiseEnCours },
-              { label: 'Date demande expertise (après)', value: dossier?.dateDemandeExpertiseApres },
-              { label: 'Date expertise (avant)', value: dossier?.datePhotosAvant },
-              { label: 'Date expertise (en cours)', value: dossier?.datePhotosEnCours },
-              { label: 'Date expertise (après)', value: dossier?.datePhotosApres },
+              { label: 'Date mission AT', value: dossier?.dateMissionAgentTerrain },
+            ].map((row) => (
+              <div key={row.label} className="flex justify-between text-sm py-1.5 border-b border-border/30 last:border-0">
+                <span className="text-muted-foreground">{row.label}</span>
+                <span className="font-medium tabular-nums">{row.value ? formatDate(row.value) : '—'}</span>
+              </div>
+            ))}
+          </div>
+          {/* Paired rows: demande on the left, expertise on the right, per phase. */}
+          {([
+            { phase: 'avant',    demande: dossier?.dateDemandeExpertiseAvant,    expertise: dossier?.datePhotosAvant },
+            { phase: 'en cours', demande: dossier?.dateDemandeExpertiseEnCours,  expertise: dossier?.datePhotosEnCours },
+            { phase: 'après',    demande: dossier?.dateDemandeExpertiseApres,    expertise: dossier?.datePhotosApres },
+          ] as const).map((row) => (
+            <div key={row.phase} className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+              <div className="flex justify-between text-sm py-1.5 border-b border-border/30">
+                <span className="text-muted-foreground">{`Date demande expertise (${row.phase})`}</span>
+                <span className="font-medium tabular-nums">{row.demande ? formatDate(row.demande) : '—'}</span>
+              </div>
+              <div className="flex justify-between text-sm py-1.5 border-b border-border/30">
+                <span className="text-muted-foreground">{`Date expertise (${row.phase})`}</span>
+                <span className="font-medium tabular-nums">{row.expertise ? formatDate(row.expertise) : '—'}</span>
+              </div>
+            </div>
+          ))}
+          {/* Tail block: remaining single-column rows. */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+            {[
               { label: 'Date chiffrage', value: dossier?.dateChiffrage },
               { label: 'Date validation facture', value: dossier?.dateFactureValide },
               { label: 'Date envoi accord devis', value: dossier?.dateEnvoiAccordDevis },
