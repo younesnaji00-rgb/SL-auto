@@ -13,6 +13,8 @@ import {
   Eye,
   Camera,
   ImageIcon,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
 import {
@@ -500,23 +502,69 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
         })}
       </Tabs>
 
-      {/* Preview Modal */}
-      {previewPhoto && (
-        <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
-          <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
-            <DialogHeader className="px-4 py-3 border-b shrink-0">
-              <DialogTitle className="text-sm truncate">{previewPhoto.name}</DialogTitle>
-            </DialogHeader>
-            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
-              <img
-                src={previewPhoto.url}
-                className="max-w-full max-h-full object-contain"
-                alt={previewPhoto.name}
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Preview Modal — fullscreen with ←/→ navigation within the same
+          category. Closes on Esc / outside-click (shadcn default). */}
+      {previewPhoto && (() => {
+        const siblings = photosForCategory(previewPhoto.category);
+        const currentIdx = siblings.findIndex((p) => p.id === previewPhoto.id);
+        const total = siblings.length;
+        const hasPrev = currentIdx > 0;
+        const hasNext = currentIdx >= 0 && currentIdx < total - 1;
+        const goto = (delta: -1 | 1) => {
+          const next = siblings[currentIdx + delta];
+          if (next) setPreviewPhoto(next);
+        };
+        const onKey = (e: React.KeyboardEvent) => {
+          if (e.key === 'ArrowLeft' && hasPrev) goto(-1);
+          else if (e.key === 'ArrowRight' && hasNext) goto(1);
+        };
+        return (
+          <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
+            <DialogContent
+              className="max-w-[100vw] w-screen h-screen p-0 rounded-none border-0 flex flex-col bg-black/95"
+              onKeyDown={onKey}
+            >
+              <DialogHeader className="px-4 py-3 border-b border-white/10 shrink-0">
+                <DialogTitle className="text-sm truncate text-white">
+                  {previewPhoto.name}
+                  {total > 1 && (
+                    <span className="ml-2 text-white/60 tabular-nums">
+                      {currentIdx + 1}/{total}
+                    </span>
+                  )}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+                <img
+                  src={previewPhoto.url}
+                  className="max-w-full max-h-full object-contain"
+                  alt={previewPhoto.name}
+                />
+                {hasPrev && (
+                  <button
+                    type="button"
+                    onClick={() => goto(-1)}
+                    aria-label="Photo précédente"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+                  >
+                    <ChevronLeft className="h-7 w-7" />
+                  </button>
+                )}
+                {hasNext && (
+                  <button
+                    type="button"
+                    onClick={() => goto(1)}
+                    aria-label="Photo suivante"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+                  >
+                    <ChevronRight className="h-7 w-7" />
+                  </button>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }
