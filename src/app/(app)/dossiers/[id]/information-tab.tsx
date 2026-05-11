@@ -41,7 +41,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
-  const { canWrite } = useCurrentUser();
+  const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('dossiers');
 
   // Single source of truth: Firestore. Filter inactive entries client-side.
@@ -184,11 +184,11 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
       await updateDoc(dossierRef, payload);
       const ref = dossier.refExpert || dossierId;
       if (form.statut !== dossier.statut) {
-        await logHistorique(db, dossierId, form.statut, userEmail, `Statut changé en "${form.statut}".`, 'statut');
-        await logWorkflow(db, dossierId, `Changement de statut : ${form.statut}`, userEmail, userId, 'done', { dossierRef: ref, details: `Statut changé en "${form.statut}"` });
+        await logHistorique(db, dossierId, form.statut, userEmail, `Statut changé en "${form.statut}".`, 'statut', profile?.nom);
+        await logWorkflow(db, dossierId, `Changement de statut : ${form.statut}`, userEmail, userId, 'done', { dossierRef: ref, details: `Statut changé en "${form.statut}"` }, profile?.nom);
       } else {
-        await logHistorique(db, dossierId, 'Mise à jour', userEmail, 'Informations du dossier mises à jour.', 'autre');
-        await logWorkflow(db, dossierId, 'Modification de dossier', userEmail, userId, 'done', { dossierRef: ref, details: 'Informations du dossier mises à jour' });
+        await logHistorique(db, dossierId, 'Mise à jour', userEmail, 'Informations du dossier mises à jour.', 'autre', profile?.nom);
+        await logWorkflow(db, dossierId, 'Modification de dossier', userEmail, userId, 'done', { dossierRef: ref, details: 'Informations du dossier mises à jour' }, profile?.nom);
       }
       toast({ title: 'Informations mises à jour' });
       setEditing(false);

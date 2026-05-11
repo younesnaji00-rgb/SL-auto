@@ -51,7 +51,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
-  const { canWrite } = useCurrentUser();
+  const { canWrite, profile } = useCurrentUser();
   const canEditDossiers = canWrite('dossiers');
 
   const [loading, setLoading] = useState(true);
@@ -203,7 +203,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
       const userEmail = auth?.currentUser?.email || 'Admin';
       const userId = auth?.currentUser?.uid || 'unknown';
-      await logWorkflow(db, dossierId, 'Rapport mis à jour', userEmail, userId, 'done', { details: `Importation IA : ${data.pieces?.length || 0} pièce(s) extraite(s)` });
+      await logWorkflow(db, dossierId, 'Rapport mis à jour', userEmail, userId, 'done', { details: `Importation IA : ${data.pieces?.length || 0} pièce(s) extraite(s)` }, profile?.nom);
 
       toast({
         title: 'Importation réussie',
@@ -254,7 +254,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           });
         } catch { /* silent — funnel-only data, must not break the user-facing flow */ }
         try {
-          await logWorkflow(db, dossierId, 'Rapport déposé', userEmail, userId, 'done', { details: `Type: ${type}` });
+          await logWorkflow(db, dossierId, 'Rapport déposé', userEmail, userId, 'done', { details: `Type: ${type}` }, profile?.nom);
         } catch { /* silent */ }
       }
       toast({ title: 'Rapport généré' });

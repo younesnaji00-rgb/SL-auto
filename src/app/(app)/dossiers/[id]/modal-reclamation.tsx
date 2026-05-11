@@ -141,7 +141,7 @@ export default function ModalReclamation({ open, onOpenChange, dossierId }: Moda
       });
 
       const userId = auth?.currentUser?.uid || 'unknown';
-      await logWorkflow(db, dossierId, 'Réclamation ajoutée', userEmail, userId, 'done', { details: reclamationText.trim().substring(0, 100) });
+      await logWorkflow(db, dossierId, 'Réclamation ajoutée', userEmail, userId, 'done', { details: reclamationText.trim().substring(0, 100) }, auth?.currentUser?.displayName ?? undefined);
 
       toast({ title: "Réclamation soumise" });
       setReclamationText('');

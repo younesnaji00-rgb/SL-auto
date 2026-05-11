@@ -72,6 +72,7 @@ async function maybeAdvanceToExpertise(
       userEmail,
       `Statut mis à jour automatiquement par l'ajout de la première photo (${category}).`,
       'statut',
+      undefined,
     );
   } catch (err) {
     // Non-blocking: don't fail the upload if the status update throws (offline, perms, etc.)
@@ -243,9 +244,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         observationUpdatedBy: profile?.nom || userEmail,
         observationSource: 'ATG',
       });
-      await logHistorique(db, dossierId, 'Observation Agent de Terrain mise à jour', userEmail, `Observation mise à jour pour la planification.`, 'planification');
+      await logHistorique(db, dossierId, 'Observation Agent de Terrain mise à jour', userEmail, `Observation mise à jour pour la planification.`, 'planification', profile?.nom);
       const userId = auth?.currentUser?.uid || 'unknown';
-      await logWorkflow(db, dossierId, 'Agent de Terrain : remarque ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Observation mise à jour par Agent de Terrain` });
+      await logWorkflow(db, dossierId, 'Agent de Terrain : remarque ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Observation mise à jour par Agent de Terrain` }, profile?.nom);
 
       // Persist observation to subcollection for history. Round 8 — tag with
       // phaseATG matching the active mission tab (Q-3 → A) so the obs is
@@ -313,11 +314,11 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             storagePath,
           },
         });
-        await logHistorique(db, dossierId, 'Upload photo Agent de Terrain', userEmail, `Photo "${file.name}" uploadée (${categoryAtUpload}).`, 'photo');
+        await logHistorique(db, dossierId, 'Upload photo Agent de Terrain', userEmail, `Photo "${file.name}" uploadée (${categoryAtUpload}).`, 'photo', profile?.nom);
       }
       const catLabel = categoryAtUpload === 'avant' ? 'Avant' : categoryAtUpload === 'en_cours' ? 'En cours' : 'Après';
       const userId = auth?.currentUser?.uid || 'unknown';
-      await logWorkflow(db, dossierId, 'Agent de Terrain : photos ajoutées en planification', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${files.length} photos ${catLabel} ajoutées par Agent de Terrain` });
+      await logWorkflow(db, dossierId, 'Agent de Terrain : photos ajoutées en planification', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${files.length} photos ${catLabel} ajoutées par Agent de Terrain` }, profile?.nom);
       // Auto-advance status on first-photo-for-category transition. Non-blocking:
       // fires and forgets so the UI isn't held on the status write even offline.
       // Idempotent — re-uploads in the same category are no-ops because the
@@ -356,8 +357,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       }
       await deleteDoc(doc(db, 'dossiers', dossierId, 'photos', photo.id));
       const userId = auth?.currentUser?.uid || 'unknown';
-      await logHistorique(db, dossierId, 'Suppression photo Agent de Terrain', userEmail, `Photo "${photo.name || 'inconnue'}" supprimée.`, 'photo');
-      await logWorkflow(db, dossierId, 'Photo supprimée par Agent de Terrain', userEmail, userId, 'done', { details: `Photo "${photo.name || 'inconnue'}" supprimée` });
+      await logHistorique(db, dossierId, 'Suppression photo Agent de Terrain', userEmail, `Photo "${photo.name || 'inconnue'}" supprimée.`, 'photo', profile?.nom);
+      await logWorkflow(db, dossierId, 'Photo supprimée par Agent de Terrain', userEmail, userId, 'done', { details: `Photo "${photo.name || 'inconnue'}" supprimée` }, profile?.nom);
       toast({ title: 'Photo supprimée' });
     } catch (err: any) {
       console.error('Delete error:', err);
@@ -386,8 +387,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       }
       await deleteDoc(doc(db, 'dossiers', dossierId, 'documents', docItem.id));
       const userId = auth?.currentUser?.uid || 'unknown';
-      await logHistorique(db, dossierId, 'Suppression document Agent de Terrain', userEmail, `Document "${docItem.nom || docItem.name || 'inconnu'}" supprimé.`, 'document');
-      await logWorkflow(db, dossierId, 'Document supprimé par Agent de Terrain', userEmail, userId, 'done', { details: `Document "${docItem.nom || docItem.name || 'inconnu'}" supprimé` });
+      await logHistorique(db, dossierId, 'Suppression document Agent de Terrain', userEmail, `Document "${docItem.nom || docItem.name || 'inconnu'}" supprimé.`, 'document', profile?.nom);
+      await logWorkflow(db, dossierId, 'Document supprimé par Agent de Terrain', userEmail, userId, 'done', { details: `Document "${docItem.nom || docItem.name || 'inconnu'}" supprimé` }, profile?.nom);
       toast({ title: 'Document supprimé' });
     } catch (err) {
       console.error('Delete doc error:', err);
@@ -422,9 +423,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       } catch (e) {
         console.warn('Preuve path parse warn:', e);
       }
-      await logHistorique(db, dossierId, 'Suppression preuve Agent de Terrain', userEmail, `Photo de preuve supprimée.`, 'planification');
+      await logHistorique(db, dossierId, 'Suppression preuve Agent de Terrain', userEmail, `Photo de preuve supprimée.`, 'planification', profile?.nom);
       const userId = auth?.currentUser?.uid || 'unknown';
-      await logWorkflow(db, dossierId, 'Preuve supprimée par Agent de Terrain', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: 'Photo de preuve supprimée par Agent de Terrain' });
+      await logWorkflow(db, dossierId, 'Preuve supprimée par Agent de Terrain', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: 'Photo de preuve supprimée par Agent de Terrain' }, profile?.nom);
       toast({ title: 'Preuve supprimée' });
     } catch (err) {
       console.error('Delete preuve error:', err);
@@ -461,9 +462,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         preuveUpdatedAt: serverTimestamp(),
         preuveUpdatedBy: userEmail,
       });
-      await logHistorique(db, dossierId, 'Preuve Agent de Terrain ajoutée', userEmail, `${newUrls.length} photo(s) de preuve ajoutée(s).`, 'planification');
+      await logHistorique(db, dossierId, 'Preuve Agent de Terrain ajoutée', userEmail, `${newUrls.length} photo(s) de preuve ajoutée(s).`, 'planification', profile?.nom);
       const userId = auth?.currentUser?.uid || 'unknown';
-      await logWorkflow(db, dossierId, 'Agent de Terrain : preuve ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${newUrls.length} photo(s) de preuve ajoutée(s) par Agent de Terrain` });
+      await logWorkflow(db, dossierId, 'Agent de Terrain : preuve ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${newUrls.length} photo(s) de preuve ajoutée(s) par Agent de Terrain` }, profile?.nom);
       toast({ title: 'Preuve(s) uploadée(s)' });
     } catch (err) {
       console.error('Preuve upload error:', err);
@@ -497,9 +498,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         uploadSource: 'ATG',
       },
     });
-    await logHistorique(db, dossierId, 'Upload document Agent de Terrain', userEmail, `Document "${file.name}" uploadé (type: ${type}).`, 'document');
+    await logHistorique(db, dossierId, 'Upload document Agent de Terrain', userEmail, `Document "${file.name}" uploadé (type: ${type}).`, 'document', profile?.nom);
     const userId = auth?.currentUser?.uid || 'unknown';
-    await logWorkflow(db, dossierId, 'Agent de Terrain : document ajouté', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Document "${file.name}" ajouté par Agent de Terrain (${type})` });
+    await logWorkflow(db, dossierId, 'Agent de Terrain : document ajouté', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Document "${file.name}" ajouté par Agent de Terrain (${type})` }, profile?.nom);
   };
 
   // Document files picked — skip the type modal if docUploadType is already set
@@ -600,6 +601,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                   next ? 'Proposition réforme activée' : 'Proposition réforme annulée',
                   userEmail, userId, 'done',
                   { details: `Limite photo par section : ${next ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION}` },
+                  profile?.nom,
                 );
                 toast({ title: next ? 'Proposition réforme activée' : 'Proposition réforme annulée' });
               } catch (e) {

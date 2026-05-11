@@ -23,7 +23,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
-  const { canWrite } = useCurrentUser();
+  const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('dossiers');
 
   // Single source of truth: Firestore. Filter inactive entries client-side.
@@ -133,7 +133,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
       };
 
       await updateDoc(dossierRef, payload);
-      await logHistorique(db, dossierId, 'Mise à jour dossier', userEmail, 'Informations générales du dossier mises à jour.', 'autre');
+      await logHistorique(db, dossierId, 'Mise à jour dossier', userEmail, 'Informations générales du dossier mises à jour.', 'autre', profile?.nom);
       toast({ title: "Dossier mis à jour avec succès" });
     } catch (error) {
       console.error(error);

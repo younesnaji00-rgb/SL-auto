@@ -126,6 +126,7 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
             authorName,
             '',
             'statut',
+            authorName,
           );
           await logWorkflow(
             db,
@@ -134,6 +135,8 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
             authorName,
             profile?.uid || 'unknown',
             'done',
+            undefined,
+            authorName,
           );
           setCurrentStatut('Réforme');
         } catch (statutErr) {

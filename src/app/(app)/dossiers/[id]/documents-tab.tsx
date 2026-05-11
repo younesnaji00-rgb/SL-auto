@@ -69,7 +69,7 @@ type DocumentsTabProps = {
 
 export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   const db = useFirestore();
-  const { canWrite } = useCurrentUser();
+  const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('dossiers');
   const auth = useAuth();
   const storage = useStorage();
@@ -210,8 +210,8 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
             ...devisMetadata,
           },
         });
-        await logHistorique(db, dossierId, 'Upload document', userEmail, `Document "${file.name}" uploadé.`, 'document');
-        await logWorkflow(db, dossierId, 'Nouveau document ajouté', userEmail, userId, 'done', { details: `Document "${file.name}" ajouté (par gestionnaire)` });
+        await logHistorique(db, dossierId, 'Upload document', userEmail, `Document "${file.name}" uploadé.`, 'document', profile?.nom);
+        await logWorkflow(db, dossierId, 'Nouveau document ajouté', userEmail, userId, 'done', { details: `Document "${file.name}" ajouté (par gestionnaire)` }, profile?.nom);
       }
 
       toast({ title: selectedFiles.length === 1 ? 'Document uploadé avec succès' : `${selectedFiles.length} documents uploadés` });
@@ -244,7 +244,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
         });
       }
       await deleteDoc(doc(db, 'dossiers', dossierId, 'documents', document.id));
-      await logHistorique(db, dossierId, 'Suppression document', userEmail, `Document "${document.nom || 'inconnu'}" supprimé.`, 'document');
+      await logHistorique(db, dossierId, 'Suppression document', userEmail, `Document "${document.nom || 'inconnu'}" supprimé.`, 'document', profile?.nom);
       toast({ title: 'Document supprimé avec succès' });
     } catch (error: any) {
       console.error('Document delete error:', error);

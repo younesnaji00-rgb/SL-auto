@@ -130,7 +130,7 @@ export default function Step1Import({
   const db = useFirestore();
   const storage = useStorage();
   const auth = useAuth();
-  const { canWrite, canDelete } = useCurrentUser();
+  const { canWrite, canDelete, profile } = useCurrentUser();
   const { toast } = useToast();
 
   const canEdit = !readOnly && canWrite('dossiers');
@@ -283,7 +283,8 @@ export default function Step1Import({
               'Import document IA',
               userEmail,
               `${parts.join(' ; ')} par l'IA depuis les documents importés.`,
-              'document'
+              'document',
+              profile?.nom,
             );
           }
         }
@@ -340,7 +341,8 @@ export default function Step1Import({
         'Suppression document source IA',
         userEmail,
         'Document source supprimé pour nouveau scan',
-        'document'
+        'document',
+        profile?.nom,
       );
       toast({ title: 'Document source supprimé' });
     } catch (err: any) {
@@ -402,7 +404,8 @@ export default function Step1Import({
             'Upload document',
             userEmail,
             `Document "${file.name}" importé via l'étape 1.`,
-            'document'
+            'document',
+            profile?.nom,
           );
           await logWorkflow(
             db,
@@ -411,7 +414,8 @@ export default function Step1Import({
             userEmail,
             userId,
             'done',
-            { details: `Document "${file.name}" ajouté` }
+            { details: `Document "${file.name}" ajouté` },
+            profile?.nom,
           );
         }
 

@@ -23,7 +23,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function RequeteTab({ dossier, dossierRef }: { dossier: any; dossierRef: DocumentReference }) {
-  const { canWrite } = useCurrentUser();
+  const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('dossiers');
     const db = useFirestore();
     const auth = useAuth();
@@ -141,10 +141,10 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
             await updateDoc(dossierRef, payload);
             
             if (formValues.statut !== dossier.statut) {
-                await logHistorique(db, dossierId, formValues.statut, userEmail, `Statut changé en "${formValues.statut}".`, 'statut');
-                await logWorkflow(db, dossierId, `Changement de statut : ${formValues.statut}`, userEmail, userId, 'done', { dossierRef: dossier.refExpert || dossierId, details: `Statut changé en "${formValues.statut}"` });
+                await logHistorique(db, dossierId, formValues.statut, userEmail, `Statut changé en "${formValues.statut}".`, 'statut', profile?.nom);
+                await logWorkflow(db, dossierId, `Changement de statut : ${formValues.statut}`, userEmail, userId, 'done', { dossierRef: dossier.refExpert || dossierId, details: `Statut changé en "${formValues.statut}"` }, profile?.nom);
             }
-            await logHistorique(db, dossierId, 'Mise à jour requête', userEmail, 'Informations générales du dossier mises à jour.', 'autre');
+            await logHistorique(db, dossierId, 'Mise à jour requête', userEmail, 'Informations générales du dossier mises à jour.', 'autre', profile?.nom);
 
             toast({ title: "Requête mise à jour" });
             setEditing(false);

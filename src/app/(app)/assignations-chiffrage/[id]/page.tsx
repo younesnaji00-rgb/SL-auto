@@ -322,6 +322,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         userName,
         `Accord envoyé à ${payload.recipient} (${selected.type})`,
         'statut',
+        profile?.nom,
       );
 
       await addObservation(

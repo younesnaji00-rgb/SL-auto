@@ -869,7 +869,8 @@ export function DevisEditor({
           `Enregistré ${targetDocType}`,
           profile?.email || profile?.nom || 'Utilisateur',
           `${snapshot.rows.length} ligne(s) enregistrée(s)`,
-          'document'
+          'document',
+          profile?.nom,
         ).catch(() => {});
         await logWorkflow(
           db, activeDossierId,
@@ -877,7 +878,8 @@ export function DevisEditor({
           profile?.email || profile?.nom || 'Utilisateur',
           profile?.uid || '',
           'done',
-          { details: `${snapshot.rows.length} ligne(s)` }
+          { details: `${snapshot.rows.length} ligne(s)` },
+          profile?.nom,
         ).catch(() => {});
 
         // Task #11 / Task #24: if the snapshot carries a committed accord /
@@ -912,6 +914,7 @@ export function DevisEditor({
                 profile?.email || profile?.nom || 'Utilisateur',
                 `Statut mis à jour automatiquement (enregistrement ${persistAccordKind === 'accord' ? 'accord' : "proposition d'accord"}).`,
                 'statut',
+                profile?.nom,
               ).catch(() => {});
             }
           }

@@ -58,6 +58,7 @@ async function advanceStatutToChiffrageEnCours(
       userLabel || 'Utilisateur',
       'Statut mis à jour automatiquement (envoi au chiffrage).',
       'statut',
+      undefined,
     ).catch(() => {});
   } catch (err) {
     console.warn('[send-to-chiffrage] advance statut failed (non-fatal)', err);
@@ -363,7 +364,8 @@ export async function saveGestionnaireDevisAsPieceJointe(
     `Enregistré ${targetDocType}`,
     author.email || author.nom || 'Utilisateur',
     `${snapshot.rows.length} ligne(s) enregistrée(s)`,
-    'document'
+    'document',
+    author.nom,
   ).catch(() => {});
   await logWorkflow(
     db, dossierId,
@@ -371,7 +373,8 @@ export async function saveGestionnaireDevisAsPieceJointe(
     author.email || author.nom || 'Utilisateur',
     author.uid || '',
     'done',
-    { details: `${snapshot.rows.length} ligne(s)` }
+    { details: `${snapshot.rows.length} ligne(s)` },
+    author.nom,
   ).catch(() => {});
 
   // Task #11: advance dossier statut. When the saved snapshot carries a locked
@@ -401,6 +404,7 @@ export async function saveGestionnaireDevisAsPieceJointe(
           author.email || author.nom || 'Utilisateur',
           `Statut mis à jour automatiquement (enregistrement ${accordKind === 'accord' ? 'accord' : "proposition d'accord"}).`,
           'statut',
+          author.nom,
         ).catch(() => {});
       }
       if (cardinalOrdinal === 1) {

@@ -53,6 +53,7 @@ export function ValiderDossierButton({
         userEmail,
         `Validation par ${profile.role}`,
         'validation',
+        profile?.nom,
       );
       toast({
         title: 'Dossier validé',

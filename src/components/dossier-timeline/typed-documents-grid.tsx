@@ -364,10 +364,11 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           userEmail,
           `${successCount} document(s) uploadé(s) dans "${slot}".`,
           'document',
+          profile?.nom,
         );
         await logWorkflow(db, dossierId, 'Nouveau document ajouté', userEmail, userId, 'done', {
           details: `${successCount} document(s) ajouté(s) dans "${slot}".`,
-        });
+        }, profile?.nom);
       }
 
       if (failCount === 0) {
@@ -502,6 +503,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           currentEmail || profile?.nom || 'Utilisateur',
           `Statut mis à jour automatiquement (création du slot ${nextLabel}).`,
           'statut',
+          profile?.nom,
         ).catch(() => {});
       } catch (statutErr) {
         console.warn('[typed-docs-grid] reset statut on cardinal create failed (non-fatal)', statutErr);
@@ -542,6 +544,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
         userEmail,
         `Document "${item.nom || item.fileName || 'inconnu'}" supprimé.`,
         'document',
+        profile?.nom,
       );
       toast({ title: 'Document supprimé' });
     } catch (err: any) {

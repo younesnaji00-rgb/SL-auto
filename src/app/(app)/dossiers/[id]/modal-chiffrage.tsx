@@ -160,8 +160,8 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
         });
       }
 
-      await logHistorique(db, dossierId, 'Assignation Chiffrage', userEmail, `Dossier envoyé au chiffreur : ${chiffreur.nom} (${selectedFiles.length} fichiers)`, 'assignation');
-      await logWorkflow(db, dossierId, 'Dossier envoyé vers chiffrage', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Envoyé au chiffreur : ${chiffreur.nom} (${selectedFiles.length} fichiers)` });
+      await logHistorique(db, dossierId, 'Assignation Chiffrage', userEmail, `Dossier envoyé au chiffreur : ${chiffreur.nom} (${selectedFiles.length} fichiers)`, 'assignation', profile?.nom);
+      await logWorkflow(db, dossierId, 'Dossier envoyé vers chiffrage', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Envoyé au chiffreur : ${chiffreur.nom} (${selectedFiles.length} fichiers)` }, profile?.nom);
 
       // Fire-and-forget background extraction, one call per editable doc type
       // that has at least one file in this chiffrage. Iterates over the

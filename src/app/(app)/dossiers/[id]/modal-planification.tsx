@@ -165,8 +165,8 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
 
       if (initialData?.id) {
         await updateDoc(doc(db, 'dossiers', dossierId, 'planifications', initialData.id), payload);
-        await logHistorique(db, dossierId, 'Planification modifiée', userEmail, `Mission ${formData.typeMission} mise à jour pour ${formData.agentTerrain}.`, 'planification');
-        await logWorkflow(db, dossierId, 'Planification modifiée', userEmail, userId, 'done', { dossierRef: dossierData?.refExpert || dossierId, details: `Mission ${formData.typeMission} mise à jour pour ${formData.agentTerrain}` });
+        await logHistorique(db, dossierId, 'Planification modifiée', userEmail, `Mission ${formData.typeMission} mise à jour pour ${formData.agentTerrain}.`, 'planification', profile?.nom);
+        await logWorkflow(db, dossierId, 'Planification modifiée', userEmail, userId, 'done', { dossierRef: dossierData?.refExpert || dossierId, details: `Mission ${formData.typeMission} mise à jour pour ${formData.agentTerrain}` }, profile?.nom);
         toast({ title: "Planification mise à jour" });
       } else {
         await addDoc(collection(db, 'dossiers', dossierId, 'planifications'), { ...payload, dossierId, createdAt: serverTimestamp(), active: true });
@@ -183,8 +183,8 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         if (typeField && !(dossierData as Record<string, any> | undefined)?.[typeField]) {
           await setDoc(doc(db, 'dossiers', dossierId), { [typeField]: serverTimestamp() }, { merge: true });
         }
-        await logHistorique(db, dossierId, 'Planification ajoutée', userEmail, `Nouvelle mission ${formData.typeMission} créée pour ${formData.agentTerrain}.`, 'planification');
-        await logWorkflow(db, dossierId, 'Création de planification', userEmail, userId, 'done', { dossierRef: dossierData?.refExpert || dossierId, details: `Mission ${formData.typeMission} pour ${formData.agentTerrain}` });
+        await logHistorique(db, dossierId, 'Planification ajoutée', userEmail, `Nouvelle mission ${formData.typeMission} créée pour ${formData.agentTerrain}.`, 'planification', profile?.nom);
+        await logWorkflow(db, dossierId, 'Création de planification', userEmail, userId, 'done', { dossierRef: dossierData?.refExpert || dossierId, details: `Mission ${formData.typeMission} pour ${formData.agentTerrain}` }, profile?.nom);
         toast({ title: "Nouvelle planification créée" });
       }
 
@@ -198,7 +198,8 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           plannedStatus,
           userEmail,
           `Statut mis à jour automatiquement par la planification (${formData.typeMission}).`,
-          'statut'
+          'statut',
+          profile?.nom,
         );
       }
 

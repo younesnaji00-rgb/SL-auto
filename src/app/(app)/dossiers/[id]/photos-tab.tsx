@@ -77,7 +77,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
   const auth = useAuth();
   const storage = useStorage();
   const { toast } = useToast();
-  const { canWrite } = useCurrentUser();
+  const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('dossiers');
   // Reads the propositionReforme flag (item 021). When true, the per-section
   // cap is 60 instead of 30.
@@ -192,10 +192,11 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
           userEmail,
           `${successful} photo(s) uploadée(s) dans la section ${cat}.`,
           'photo',
+          profile?.nom,
         );
         await logWorkflow(db, dossierId, 'Nouvelle photo ajoutée', userEmail, userId, 'done', {
           details: `${successful} photo(s) ajoutée(s) dans la section ${cat}`,
-        });
+        }, profile?.nom);
 
         // Denormalize "latest photo upload" timestamp per category onto the dossier doc.
         const fieldMap: Record<string, string> = {
@@ -251,10 +252,11 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
         userEmail,
         `Photo "${photo.name || 'inconnue'}" supprimée.`,
         'photo',
+        profile?.nom,
       );
       await logWorkflow(db, dossierId, 'Photo supprimée', userEmail, userId, 'done', {
         details: `Photo "${photo.name || 'inconnue'}" supprimée (par gestionnaire)`,
-      });
+      }, profile?.nom);
       toast({ title: 'Photo supprimée' });
     } catch (err: any) {
       console.error('Delete error:', err);

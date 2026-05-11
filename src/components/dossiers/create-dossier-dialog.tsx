@@ -164,7 +164,8 @@ export function CreateDossierDialog({
         'Création dossier',
         userName,
         `Dossier créé comme ${EXPERT_ROLE_LABELS[expertRole]}`,
-        'statut'
+        'statut',
+        userName,
       );
       resetForm();
       onOpenChange(false);

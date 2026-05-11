@@ -51,7 +51,7 @@ export default function PartieAdverseTab({ dossier, dossierRef }: { dossier: any
     setSaving(true);
     try {
       await updateDoc(dossierRef, form);
-      await logHistorique(db, dossierId, 'Mise à jour', userEmail, 'Informations de la partie adverse mises à jour.', 'autre');
+      await logHistorique(db, dossierId, 'Mise à jour', userEmail, 'Informations de la partie adverse mises à jour.', 'autre', auth?.currentUser?.displayName ?? undefined);
       toast({ title: 'Partie adverse mise à jour' });
       setEditing(false);
     } catch (error) {

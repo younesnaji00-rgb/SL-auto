@@ -257,7 +257,7 @@ export default function DossiersClientPage() {
       const userEmail = auth?.currentUser?.email || 'Admin';
       const userId = auth?.currentUser?.uid || 'unknown';
       const dossierRef = (dossier as any)?.refExpert || dossierId;
-      await logWorkflow(db, dossierId, 'Suppression de dossier', userEmail, userId, 'done', { dossierRef, details: `Dossier "${dossierRef}" supprimé définitivement` });
+      await logWorkflow(db, dossierId, 'Suppression de dossier', userEmail, userId, 'done', { dossierRef, details: `Dossier "${dossierRef}" supprimé définitivement` }, profile?.nom);
       await deleteDossier(dossierId);
       toast({ title: 'Dossier supprimé', description: 'Le dossier et ses données ont été purgés.' });
     } catch (err: any) {

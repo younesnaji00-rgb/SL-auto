@@ -183,7 +183,7 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
         _localCreatedAt: Date.now(),
       });
 
-      await logHistorique(db, dossierId, 'Commentaire ajouté', userEmail, 'Un nouveau commentaire a été posté.', 'commentaire');
+      await logHistorique(db, dossierId, 'Commentaire ajouté', userEmail, 'Un nouveau commentaire a été posté.', 'commentaire', auteurNom);
 
       setCommentText('');
       setSelectedFile(null);
