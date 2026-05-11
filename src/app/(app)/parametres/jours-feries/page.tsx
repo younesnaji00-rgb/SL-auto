@@ -1,0 +1,256 @@
+'use client';
+
+import React, { useMemo, useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Trash2, Plus, Loader2, CalendarDays, Upload } from 'lucide-react';
+import { useFirestore } from '@/firebase';
+import { useOptions } from '@/hooks/use-options';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { useToast } from '@/hooks/use-toast';
+import {
+  addDoc, collection, deleteDoc, doc, serverTimestamp, writeBatch,
+} from 'firebase/firestore';
+import { MOROCCAN_HOLIDAYS_DEFAULT } from '@/lib/business-days';
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export default function JoursFeriesSettingsPage() {
+  const { profile, loading: userLoading, canDelete } = useCurrentUser();
+  const db = useFirestore();
+  const { toast } = useToast();
+  const { options, loading } = useOptions('options_holidays');
+
+  const [newDate, setNewDate] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const sorted = useMemo(
+    () => [...options].sort((a, b) => a.label.localeCompare(b.label)),
+    [options],
+  );
+
+  if (userLoading) {
+    return <div className="py-12 text-sm text-muted-foreground">Chargement...</div>;
+  }
+  if (profile?.role !== 'Admin' && profile?.role !== 'Directeur' && profile?.role !== 'Directeur des opérations' && profile?.role !== 'Directeur technique') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Accès refusé</CardTitle>
+          <CardDescription>Cette page est réservée aux administrateurs et directeurs.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  const addOne = async (label: string) => {
+    if (!db) return;
+    const clean = label.trim();
+    if (!ISO_DATE.test(clean)) {
+      toast({ variant: 'destructive', title: 'Format invalide', description: 'Utilisez YYYY-MM-DD (ex: 2026-07-30).' });
+      return;
+    }
+    if (options.some((o) => o.label === clean)) {
+      toast({ variant: 'destructive', title: 'Doublon', description: 'Cette date est déjà dans la liste.' });
+      return;
+    }
+    const nextOrder = options.length > 0 ? Math.max(...options.map((o) => o.order ?? 0)) + 1 : 0;
+    await addDoc(collection(db, 'options_holidays'), {
+      label: clean,
+      order: nextOrder,
+      active: true,
+      createdAt: serverTimestamp(),
+    });
+  };
+
+  const handleAdd = async () => {
+    if (!newDate) return;
+    setIsAdding(true);
+    try {
+      await addOne(newDate);
+      setNewDate('');
+      toast({ title: 'Jour férié ajouté' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!db) return;
+    setDeletingId(id);
+    try {
+      await deleteDoc(doc(db, 'options_holidays', id));
+      toast({ title: 'Jour férié supprimé' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!db || !importText.trim()) return;
+    setIsImporting(true);
+    try {
+      const lines = importText.split(/[\n,;]/).map((l) => l.trim()).filter(Boolean);
+      const validLines = lines.filter((l) => ISO_DATE.test(l));
+      const skipped = lines.length - validLines.length;
+      const existing = new Set(options.map((o) => o.label));
+      const fresh = validLines.filter((l) => !existing.has(l));
+      if (fresh.length === 0) {
+        toast({ title: 'Rien à importer', description: 'Toutes les dates étaient déjà présentes ou invalides.' });
+        return;
+      }
+      const batch = writeBatch(db);
+      const baseOrder = options.length;
+      fresh.forEach((label, i) => {
+        const ref = doc(collection(db, 'options_holidays'));
+        batch.set(ref, { label, order: baseOrder + i, active: true, createdAt: serverTimestamp() });
+      });
+      await batch.commit();
+      setImportText('');
+      toast({
+        title: `${fresh.length} date(s) importée(s)`,
+        description: skipped > 0 ? `${skipped} ligne(s) ignorée(s) (format invalide).` : undefined,
+      });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleSeedDefaults = async () => {
+    if (!db) return;
+    setIsImporting(true);
+    try {
+      const existing = new Set(options.map((o) => o.label));
+      const fresh = Array.from(MOROCCAN_HOLIDAYS_DEFAULT).filter((d) => !existing.has(d));
+      if (fresh.length === 0) {
+        toast({ title: 'Liste déjà complète' });
+        return;
+      }
+      const batch = writeBatch(db);
+      const baseOrder = options.length;
+      fresh.forEach((label, i) => {
+        const ref = doc(collection(db, 'options_holidays'));
+        batch.set(ref, { label, order: baseOrder + i, active: true, createdAt: serverTimestamp() });
+      });
+      await batch.commit();
+      toast({ title: `${fresh.length} jour(s) férié(s) par défaut importé(s)` });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <CalendarDays className="h-6 w-6 text-primary" /> Jours fériés
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Dates pendant lesquelles les délais ne sont pas comptés (compteur hors délai). Format YYYY-MM-DD.
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Ajouter une date</CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-end gap-2">
+          <div className="flex-1 space-y-1.5">
+            <Label htmlFor="new-date">Date</Label>
+            <Input
+              id="new-date"
+              type="date"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
+              className="h-9"
+            />
+          </div>
+          <Button onClick={handleAdd} disabled={!newDate || isAdding} className="gap-1.5">
+            {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Ajouter
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Importer des dates</CardTitle>
+          <CardDescription>
+            Une date par ligne au format YYYY-MM-DD. Les doublons et formats invalides sont ignorés.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Textarea
+            rows={5}
+            placeholder={'2026-01-01\n2026-05-01\n2026-07-30'}
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+            className="font-mono text-sm"
+          />
+          <div className="flex justify-between">
+            <Button variant="outline" size="sm" onClick={handleSeedDefaults} disabled={isImporting} className="gap-1.5">
+              Importer le calendrier marocain par défaut
+            </Button>
+            <Button onClick={handleImport} disabled={!importText.trim() || isImporting} className="gap-1.5">
+              {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              Importer
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            Liste actuelle
+            <Badge variant="secondary" className="text-[10px] font-mono">{options.length}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Chargement...</p>
+          ) : sorted.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">
+              Aucune date enregistrée. Utilisez «Importer le calendrier marocain par défaut» pour démarrer.
+            </p>
+          ) : (
+            <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {sorted.map((o) => (
+                <li key={o.id} className="flex items-center justify-between px-3 py-1.5 rounded-md border bg-card">
+                  <span className="font-mono text-sm tabular-nums">{o.label}</span>
+                  {canDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive"
+                      disabled={deletingId === o.id}
+                      onClick={() => handleDelete(o.id)}
+                      title="Supprimer"
+                    >
+                      {deletingId === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
