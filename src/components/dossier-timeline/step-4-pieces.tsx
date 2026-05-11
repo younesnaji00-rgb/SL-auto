@@ -6,7 +6,7 @@ import { Camera, ChevronDown, FileText, FolderOpen, Send, Upload } from 'lucide-
 
 import DocumentsTab from '@/app/(app)/dossiers/[id]/documents-tab';
 import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
-import TypedDocumentsGrid from './typed-documents-grid';
+import TypedDocumentsGrid, { REQUIRED_SOURCE_SLOTS } from './typed-documents-grid';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
@@ -68,13 +68,14 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
   const [docsOpen, setDocsOpen] = useSectionOpen(dossierId, 'documents');
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
-  // Subscribe to documents only when we need the filled-check (step 11).
-  // Avoids a redundant listener for step 6's enabled button.
+  // Subscribe to documents so we can gate the "Assigner au chiffrage" button
+  // on (a) the 7 required source slots being filled (item 023) and (b) when
+  // `requireFirstAccordFilled` is set, at least one 1er accord/proposition.
   const db = useFirestore();
   const docsQuery = useMemo(() => {
-    if (!requireFirstAccordFilled || !db || !dossierId) return null;
+    if (!db || !dossierId) return null;
     return collection(db, 'dossiers', dossierId, 'documents');
-  }, [requireFirstAccordFilled, db, dossierId]);
+  }, [db, dossierId]);
   const { data: docs } = useCollection<any>(docsQuery);
   const firstRoundFilled = useMemo(() => {
     if (!requireFirstAccordFilled) return true;
@@ -90,7 +91,21 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
     }
     return false;
   }, [docs, requireFirstAccordFilled]);
-  const assignerDisabled = !!requireFirstAccordFilled && !firstRoundFilled;
+  // Item 023 — the 7 source-doc slots must each have a non-pending document
+  // before the gestionnaire can send the dossier to chiffrage. "Autre" is
+  // intentionally excluded (optional slot).
+  const missingRequired = useMemo<string[]>(() => {
+    if (!docs) return [...REQUIRED_SOURCE_SLOTS];
+    const filled = new Set<string>();
+    for (const d of docs) {
+      if (!d?.url || d.pendingUpload) continue;
+      const type = (d.type || d.typeDocument || '').trim();
+      if (type) filled.add(type);
+    }
+    return REQUIRED_SOURCE_SLOTS.filter((slot) => !filled.has(slot));
+  }, [docs]);
+  const allRequiredFilled = missingRequired.length === 0;
+  const assignerDisabled = (!!requireFirstAccordFilled && !firstRoundFilled) || !allRequiredFilled;
 
   if (onlyImportTab) {
     const showAssigner = !readOnly && !!onSendToChiffrage;
@@ -115,7 +130,13 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
                     <span tabIndex={0}>{buttonNode}</span>
                   </TooltipTrigger>
                   <TooltipContent>
-                    Au moins un 1er accord ou une 1ère proposition doit être rempli avant d'assigner.
+                    {!allRequiredFilled ? (
+                      <>
+                        Documents requis manquants : {missingRequired.join(', ')}.
+                      </>
+                    ) : (
+                      <>Au moins un 1er accord ou une 1ère proposition doit être rempli avant d'assigner.</>
+                    )}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -158,9 +179,26 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
                 </TabsTrigger>
               </TabsList>
               {!readOnly && onSendToChiffrage && (
-                <Button size="sm" onClick={onSendToChiffrage} className="gap-1.5">
-                  <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
-                </Button>
+                assignerDisabled ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span tabIndex={0}>
+                          <Button size="sm" disabled className="gap-1.5">
+                            <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Documents requis manquants : {missingRequired.join(', ')}.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  <Button size="sm" onClick={onSendToChiffrage} className="gap-1.5">
+                    <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
+                  </Button>
+                )
               )}
             </div>
             <TabsContent value="browse" className="mt-4">
