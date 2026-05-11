@@ -136,14 +136,31 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
 
   const { data: rawObservations, loading } = useCollection<Observation>(obsQuery as any);
 
+  // Items 017–018 — cross-role visibility filter:
+  //   - Agent de Terrain users do NOT see observations written by Chiffreurs
+  //     from the chiffrage flow.
+  //   - Chiffreur users do NOT see observations written by Agents de Terrain
+  //     from the ATG flow.
+  // Everyone else (gestionnaire, admin, directeur family) sees every entry.
+  // Per P-LEGACY-OBS-VISIBLE we keep legacy entries visible by checking both
+  // authorRole AND source — only the intentional cross-role chain hides.
+  const currentRole = profile?.role;
   const observations = useMemo(() => {
     if (!rawObservations) return [];
-    return [...rawObservations].sort((a, b) => {
+    const filtered = rawObservations.filter((o) => {
+      if (currentRole === 'Agent de Terrain') {
+        if (o.authorRole === 'Chiffreur' && o.source === 'assignations-chiffrage') return false;
+      } else if (currentRole === 'Chiffreur') {
+        if (o.authorRole === 'Agent de Terrain' && o.source === 'assignations-atg') return false;
+      }
+      return true;
+    });
+    return [...filtered].sort((a, b) => {
       const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
       const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
       return dateB - dateA;
     });
-  }, [rawObservations]);
+  }, [rawObservations, currentRole]);
 
   // Count of observations newer than the last time the panel was opened by
   // this user on this device. While the panel is open we treat new docs as
