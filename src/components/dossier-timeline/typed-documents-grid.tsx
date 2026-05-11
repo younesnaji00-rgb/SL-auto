@@ -45,7 +45,26 @@ const BASE_DOC_SLOTS = [
   'Attestation d\'assurance',
   'Kilométrage',
   'Numéro de chassis',
+  // Optional catch-all for unrelated documents. Does NOT count toward the
+  // assigner-au-chiffrage required-slot gate (see step-4-pieces.tsx).
+  'Autre',
 ];
+
+/**
+ * Source documents the gestionnaire must import before the dossier can be
+ * sent to chiffrage. The "Assigner au chiffrage" button on step 4 stays
+ * disabled until ALL of these are populated. "Autre" is intentionally
+ * NOT on this list — it's optional. See item 023.
+ */
+export const REQUIRED_SOURCE_SLOTS = [
+  'Devis Garage',
+  'Facture Garage',
+  'PV-Constat / Récépissé de police',
+  'Carte grise',
+  'Attestation d\'assurance',
+  'Kilométrage',
+  'Numéro de chassis',
+] as const;
 
 interface TypedDocumentsGridProps {
   dossierId: string;
