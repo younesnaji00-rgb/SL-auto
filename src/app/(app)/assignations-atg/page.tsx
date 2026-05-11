@@ -26,6 +26,8 @@ import { SortableHeader, type SortDirection } from '@/components/ui/sortable-hea
 import { useOptions } from '@/hooks/use-options';
 import { useAgentTerrainWorkload } from '@/hooks/use-workload-counts';
 import { isAtgCompletedStatus } from '@/lib/status-machine';
+import { businessHoursBetween } from '@/lib/business-days';
+import { useHolidays } from '@/hooks/use-holidays';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -74,7 +76,11 @@ function isToday(ts: any): boolean {
     date.getDate() === now.getDate();
 }
 
-function getDeadlineInfo(dateRDV: any, createdAt: any): { percent: number; remaining: string; expired: boolean; pending: boolean } {
+function getDeadlineInfo(
+  dateRDV: any,
+  createdAt: any,
+  holidays?: ReadonlySet<string>,
+): { percent: number; remaining: string; expired: boolean; pending: boolean } {
   // Use dateRDV at 8am as start time; fall back to createdAt if no dateRDV
   const refDate = dateRDV || createdAt;
   if (!refDate) return { percent: 0, remaining: '-', expired: false, pending: false };
@@ -88,16 +94,16 @@ function getDeadlineInfo(dateRDV: any, createdAt: any): { percent: number; remai
   const now = new Date();
   if (now < startTime) return { percent: 0, remaining: 'En attente', expired: false, pending: true };
 
-  const elapsedMs = now.getTime() - startTime.getTime();
-  const totalMs = DEADLINE_HOURS * 60 * 60 * 1000;
-  const elapsed = Math.max(0, Math.min(elapsedMs / totalMs, 1));
+  // Business-hours model: weekends + Moroccan holidays don't tick.
+  const elapsedHours = businessHoursBetween(startTime, now, holidays);
+  const elapsed = Math.max(0, Math.min(elapsedHours / DEADLINE_HOURS, 1));
   const percent = Math.round(elapsed * 100);
 
   if (elapsed >= 1) return { percent: 100, remaining: 'En retard', expired: true, pending: false };
 
-  const remainMs = totalMs - elapsedMs;
-  const remainH = Math.floor(remainMs / (60 * 60 * 1000));
-  const remainM = Math.floor((remainMs % (60 * 60 * 1000)) / (60 * 1000));
+  const remainHours = DEADLINE_HOURS - elapsedHours;
+  const remainH = Math.floor(remainHours);
+  const remainM = Math.floor((remainHours - remainH) * 60);
   const remaining = remainH > 0 ? `${remainH}h ${remainM}m` : `${remainM}m`;
 
   return { percent, remaining, expired: false, pending: false };
@@ -121,7 +127,8 @@ function DeadlineBar({
     return () => clearInterval(id);
   }, [completed]);
 
-  const { percent, remaining, expired, pending } = getDeadlineInfo(dateRDV, createdAt);
+  const holidays = useHolidays();
+  const { percent, remaining, expired, pending } = getDeadlineInfo(dateRDV, createdAt, holidays);
 
   // Completed: ATG uploaded photos + set a terrain status → hide progress bar,
   // show checkmark + the chosen status instead.
