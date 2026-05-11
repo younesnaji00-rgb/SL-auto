@@ -4,6 +4,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { UserNameLink } from '@/components/user-name-link';
 
 export interface TimelineStep {
   id: number;
@@ -16,7 +17,7 @@ export interface TimelineBarProps {
   onStepClick: (stepId: number) => void;
   /** Map of step id → realised-at stamp. Steps without a stamp render no
    *  metadata row (the sticky bar stays tight). */
-  stamps?: Map<number, { date: Date; user: string }>;
+  stamps?: Map<number, { date: Date; user: string; userNom?: string }>;
 }
 
 export function TimelineBar({ steps, activeId, onStepClick, stamps }: TimelineBarProps) {
@@ -62,8 +63,11 @@ export function TimelineBar({ steps, activeId, onStepClick, stamps }: TimelineBa
                 </div>
                 {stamp && (
                   <span className="text-[10px] text-muted-foreground leading-tight ml-9 max-w-[180px] truncate">
-                    {format(stamp.date, 'dd/MM/yyyy HH:mm', { locale: fr })}
-                    {stamp.user ? ` — ${stamp.user}` : ''}
+                    {format(stamp.date, 'dd/MM/yyyy HH:mm', { locale: fr })} —{' '}
+                    <UserNameLink
+                      entry={{ userNom: stamp.userNom, user: stamp.user }}
+                      className="text-muted-foreground"
+                    />
                   </span>
                 )}
               </button>

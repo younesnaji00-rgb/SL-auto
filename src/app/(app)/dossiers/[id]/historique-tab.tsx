@@ -21,6 +21,8 @@ import {
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { displayUserName } from '@/lib/display-user';
+import { UserNameLink } from '@/components/user-name-link';
 
 /**
  * AI-sourced date fields visible in Dates clés. For these fields:
@@ -369,9 +371,12 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
         </Card>
       )}
 
-      {/* TIMELINE — only status changes */}
+      {/* TIMELINE — status changes + chiffreur document saves. Round 9
+          item 005: include 'document' so the gestionnaire sees exactly
+          what type of doc the chiffreur edited ("Enregistré Devis Garage"
+          etc.) in the same audit timeline. */}
       {(() => {
-        const statusEntries = entries.filter((e) => e.type === 'statut' || e.type === 'sinistre_douteux');
+        const statusEntries = entries.filter((e) => e.type === 'statut' || e.type === 'sinistre_douteux' || e.type === 'document');
         return statusEntries.length === 0 ? (
           <div className="text-center py-20 text-muted-foreground italic">
             Aucun changement de statut enregistré pour ce dossier.
@@ -390,7 +395,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
                   <div className="space-y-1">
                     <p className="font-semibold text-base">{entry.action}</p>
                     <p className="text-sm text-muted-foreground">
-                      {formatDate(entry.date)} par <span className="font-bold text-foreground">{entry.user}</span>
+                      {formatDate(entry.date)} par <UserNameLink entry={entry} className="font-bold" />
                     </p>
                     {entry.details && (
                       <div className="mt-2 pl-4 border-l-2 border-primary/40 text-sm italic text-muted-foreground bg-muted/50 py-2 rounded-r-md">

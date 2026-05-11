@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { TimelineBar, type TimelineStep } from './timeline-bar';
 import { useCollapsedSteps } from '@/hooks/use-collapsed-steps';
 import { useCollection, useFirestore } from '@/firebase';
+import { UserNameLink } from '@/components/user-name-link';
 
 export interface TimelineSectionProps {
   id: number;
@@ -18,7 +19,7 @@ export interface TimelineSectionProps {
   collapsed: boolean;
   onToggle: () => void;
   /** Latest workflow entry that matched this step's keyword, or null. */
-  stamp: { date: Date; user: string } | null;
+  stamp: { date: Date; user: string; userNom?: string } | null;
 }
 
 function TimelineSection({ id, position, label, children, collapsed, onToggle, stamp }: TimelineSectionProps) {
@@ -40,9 +41,17 @@ function TimelineSection({ id, position, label, children, collapsed, onToggle, s
         <div className="flex-1 flex flex-col items-start min-w-0">
           <h2 className="text-lg font-bold leading-tight">{label}</h2>
           <span className="text-xs text-muted-foreground mt-0.5 truncate max-w-full">
-            {stamp
-              ? `${format(stamp.date, 'dd/MM/yyyy HH:mm', { locale: fr })} — ${stamp.user}`
-              : '—'}
+            {stamp ? (
+              <>
+                {format(stamp.date, 'dd/MM/yyyy HH:mm', { locale: fr })} —{' '}
+                <UserNameLink
+                  entry={{ userNom: stamp.userNom, user: stamp.user }}
+                  className="text-muted-foreground"
+                />
+              </>
+            ) : (
+              '—'
+            )}
           </span>
         </div>
         <ChevronDown
@@ -146,7 +155,7 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
   }, [db, dossierId]);
   const { data: workflowEntries } = useCollection<any>(workflowQuery);
   const stampByStep = useMemo(() => {
-    const map = new Map<number, { date: Date; user: string }>();
+    const map = new Map<number, { date: Date; user: string; userNom?: string }>();
     if (!workflowEntries) return map;
     // workflowEntries is ordered date desc, so the first match for a step id
     // wins (latest entry for that step).
@@ -157,6 +166,7 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
       map.set(stepId, {
         date: entry.date.toDate(),
         user: entry.user || 'Admin',
+        userNom: entry.userNom,
       });
     }
     return map;

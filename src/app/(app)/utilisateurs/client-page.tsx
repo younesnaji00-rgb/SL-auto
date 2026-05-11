@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -132,6 +133,20 @@ export default function UtilisateursClientPage() {
 
   const filterDefaults = { search: '', role: 'Tous' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('utilisateurs', filterDefaults);
+
+  // Round 9 item 001 — deep-link by email: when a user clicks a username
+  // anywhere in the app (timeline / historique / etc.), they're routed to
+  // /utilisateurs?email=<email>. Pre-fill the search filter so the matching
+  // user surfaces immediately.
+  const searchParams = useSearchParams();
+  const emailParam = searchParams?.get('email') ?? '';
+  useEffect(() => {
+    if (emailParam && emailParam !== filters.search) {
+      setFilters({ search: emailParam });
+    }
+    // Only react when the email param changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailParam]);
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -298,7 +313,12 @@ export default function UtilisateursClientPage() {
     if (!userList) return [];
     return userList.filter((user: any) => {
       const searchLower = filters.search.toLowerCase();
-      const nameMatch = (user.nom || '').toLowerCase().includes(searchLower) || (user.prenom || '').toLowerCase().includes(searchLower);
+      // Match search against nom, prenom, OR email — the last is required
+      // so the deep-link `?email=` filter (item 001) actually finds users.
+      const nameMatch =
+        (user.nom || '').toLowerCase().includes(searchLower) ||
+        (user.prenom || '').toLowerCase().includes(searchLower) ||
+        (user.email || '').toLowerCase().includes(searchLower);
       const roleMatch = filters.role === 'Tous' || user.role === filters.role;
       return nameMatch && roleMatch;
     });
