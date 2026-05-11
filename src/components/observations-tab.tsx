@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Send, Loader2, Eye, ChevronDown, ChevronRight } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Send, Loader2, Eye, ChevronDown, ChevronRight, CheckCircle2, Paperclip, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -9,8 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { collection, addDoc, serverTimestamp, orderBy, query } from 'firebase/firestore';
-import { useFirestore, useAuth, useCollection } from '@/firebase';
+import {
+  collection, addDoc, serverTimestamp, orderBy, query,
+  updateDoc, doc, arrayUnion,
+} from 'firebase/firestore';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useFirestore, useAuth, useCollection, useStorage } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOptions } from '@/hooks/use-options';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +23,15 @@ import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { addObservation } from '@/app/(app)/dossiers/[id]/log-observation';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
+
+type ProofFile = {
+  url: string;
+  name: string;
+  uploadedBy: string;       // email
+  uploadedByNom?: string;
+  uploadedByRole?: string;
+  uploadedAt: any;
+};
 
 type Observation = {
   id: string;
@@ -30,6 +43,11 @@ type Observation = {
   source: string;
   createdAt: any;
   dossierId: string;
+  // Item 014–016 — per-observation "Valider le traitement".
+  traitementValideAt?: any;
+  traitementValidePar?: string;     // email
+  traitementValideParNom?: string;
+  traitementProofs?: ProofFile[];
 };
 
 const TYPE_BADGE_STYLES: Record<string, string> = {
@@ -56,8 +74,18 @@ type ObservationsTabProps = {
 export default function ObservationsTab({ dossierId, section, variant = 'tab' }: ObservationsTabProps) {
   const db = useFirestore();
   const auth = useAuth();
+  const storage = useStorage();
   const { canWrite, profile } = useCurrentUser();
   const { toast } = useToast();
+  const isGestionnaire = profile?.role === 'Gestionnaire';
+  // Validation + proof are mutually exclusive concerns:
+  //   - Only Gestionnaire flips the "Valider le traitement" flag.
+  //   - Anyone whose canAdd is true on this section may upload proofs once
+  //     the observation has been validated (chiffreur from the chiffrage
+  //     view, AT from the ATG view, gestionnaire / admin / dir anywhere).
+  const [validatingId, setValidatingId] = useState<string | null>(null);
+  const [uploadingProofFor, setUploadingProofFor] = useState<string | null>(null);
+  const proofInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const canAdd = canWrite(section);
 
   const [selectedPreset, setSelectedPreset] = useState('');
@@ -137,6 +165,60 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
   // sending. Matches Q-7 answer C (reject when both filled).
   const bothFilled = presetFilled && customFilled;
   const submitDisabled = (!presetFilled && !customFilled) || bothFilled || isSubmitting;
+
+  const handleValidate = async (obsId: string) => {
+    if (!db || !isGestionnaire) return;
+    setValidatingId(obsId);
+    try {
+      const userEmail = auth?.currentUser?.email || profile?.email || '';
+      const userNom = profile?.nom || userEmail;
+      await updateDoc(doc(db, 'dossiers', dossierId, 'observations', obsId), {
+        traitementValideAt: serverTimestamp(),
+        traitementValidePar: userEmail,
+        traitementValideParNom: userNom,
+      });
+      toast({ title: 'Traitement validé' });
+    } catch (err: any) {
+      console.error('Validate observation error:', err);
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message || 'Impossible de valider.' });
+    } finally {
+      setValidatingId(null);
+    }
+  };
+
+  const handleProofUpload = async (obsId: string, files: FileList) => {
+    if (!db || !storage || files.length === 0) return;
+    setUploadingProofFor(obsId);
+    try {
+      const userEmail = auth?.currentUser?.email || profile?.email || '';
+      const userNom = profile?.nom || userEmail;
+      const userRole = profile?.role || '';
+      const uploaded: ProofFile[] = [];
+      for (const file of Array.from(files)) {
+        const path = `dossiers/${dossierId}/observations/${obsId}/${Date.now()}_${file.name}`;
+        const ref = storageRef(storage, path);
+        await uploadBytes(ref, file);
+        const url = await getDownloadURL(ref);
+        uploaded.push({
+          url,
+          name: file.name,
+          uploadedBy: userEmail,
+          uploadedByNom: userNom,
+          uploadedByRole: userRole,
+          uploadedAt: new Date(),
+        });
+      }
+      await updateDoc(doc(db, 'dossiers', dossierId, 'observations', obsId), {
+        traitementProofs: arrayUnion(...uploaded),
+      });
+      toast({ title: `${uploaded.length} preuve(s) ajoutée(s)` });
+    } catch (err: any) {
+      console.error('Proof upload error:', err);
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message || 'Impossible d\'envoyer la preuve.' });
+    } finally {
+      setUploadingProofFor(null);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!db || submitDisabled) return;
@@ -233,32 +315,109 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
         </div>
       ) : (
         <div className="space-y-3">
-          {observations.map((obs) => (
-            <div key={obs.id} className="flex gap-3 p-3 rounded-lg border bg-card">
-              <Avatar className="h-8 w-8 shrink-0 mt-0.5">
-                <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
-                  {(obs.author || '?')[0].toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0 space-y-1">
-                <div className="flex items-center flex-wrap gap-1.5">
-                  <span className="text-sm font-semibold truncate">{obs.author || 'Inconnu'}</span>
-                  <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0', ROLE_BADGE_STYLES[obs.authorRole] || '')}>
-                    {obs.authorRole || 'N/A'}
-                  </Badge>
-                  <Badge className={cn('text-[10px] px-1.5 py-0 border-0', TYPE_BADGE_STYLES[obs.type] || TYPE_BADGE_STYLES['Général'])}>
-                    {obs.type}
-                  </Badge>
-                  {obs.createdAt?.toDate && (
-                    <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
-                      {format(obs.createdAt.toDate(), 'dd MMM yyyy à HH:mm', { locale: fr })}
-                    </span>
+          {observations.map((obs) => {
+            const isValidated = !!obs.traitementValideAt;
+            const proofs = obs.traitementProofs || [];
+            return (
+              <div key={obs.id} className="flex gap-3 p-3 rounded-lg border bg-card">
+                <Avatar className="h-8 w-8 shrink-0 mt-0.5">
+                  <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
+                    {(obs.author || '?')[0].toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-center flex-wrap gap-1.5">
+                    <span className="text-sm font-semibold truncate">{obs.author || 'Inconnu'}</span>
+                    <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0', ROLE_BADGE_STYLES[obs.authorRole] || '')}>
+                      {obs.authorRole || 'N/A'}
+                    </Badge>
+                    <Badge className={cn('text-[10px] px-1.5 py-0 border-0', TYPE_BADGE_STYLES[obs.type] || TYPE_BADGE_STYLES['Général'])}>
+                      {obs.type}
+                    </Badge>
+                    {obs.createdAt?.toDate && (
+                      <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                        {format(obs.createdAt.toDate(), 'dd MMM yyyy à HH:mm', { locale: fr })}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-foreground/90 whitespace-pre-wrap break-words">{obs.text}</p>
+
+                  {/* Item 014 — gestionnaire-only "Valider le traitement" button.
+                      Once flipped, item 015/016 show a green badge + proof
+                      upload affordance for everyone with canAdd on the section. */}
+                  {isValidated ? (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px]">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                      <span className="text-emerald-700 dark:text-emerald-300">
+                        Traitement validé
+                        {obs.traitementValideParNom ? ` par ${obs.traitementValideParNom}` : ''}
+                        {obs.traitementValideAt?.toDate ? ` — ${format(obs.traitementValideAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: fr })}` : ''}
+                      </span>
+                    </div>
+                  ) : (
+                    isGestionnaire && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] gap-1.5 mt-1"
+                        onClick={() => handleValidate(obs.id)}
+                        disabled={validatingId === obs.id}
+                      >
+                        {validatingId === obs.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                        Valider le traitement
+                      </Button>
+                    )
+                  )}
+
+                  {/* Proofs list */}
+                  {proofs.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {proofs.map((p, i) => (
+                        <a
+                          key={i}
+                          href={p.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-background hover:bg-accent transition-colors"
+                          title={`${p.name} — ${p.uploadedByNom || p.uploadedBy}${p.uploadedAt?.toDate ? ` (${format(p.uploadedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: fr })})` : ''}`}
+                        >
+                          <Paperclip className="h-3 w-3" />
+                          <span className="truncate max-w-[140px]">{p.name}</span>
+                          <ExternalLink className="h-3 w-3 opacity-50" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Proof upload affordance — visible once validated, to any
+                      role with canAdd (chiffreur from chiffrage view, AT from
+                      ATG view, gestionnaire/admin/dir anywhere). */}
+                  {isValidated && canAdd && (
+                    <div className="mt-1.5">
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,application/pdf"
+                        className="hidden"
+                        ref={(el) => { proofInputRefs.current[obs.id] = el; }}
+                        onChange={(e) => e.target.files && handleProofUpload(obs.id, e.target.files)}
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-[10px] gap-1.5 px-2"
+                        disabled={uploadingProofFor === obs.id}
+                        onClick={() => proofInputRefs.current[obs.id]?.click()}
+                      >
+                        {uploadingProofFor === obs.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
+                        Ajouter une preuve
+                      </Button>
+                    </div>
                   )}
                 </div>
-                <p className="text-sm text-foreground/90 whitespace-pre-wrap break-words">{obs.text}</p>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
