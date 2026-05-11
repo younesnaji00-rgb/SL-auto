@@ -26,6 +26,8 @@ import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
 import { useChiffreurWorkload } from '@/hooks/use-workload-counts';
 import { REFORME_TYPES, normalizeReformeType } from '@/components/chiffreurs/reforme-dialog';
+import { businessHoursBetween } from '@/lib/business-days';
+import { useHolidays } from '@/hooks/use-holidays';
 
 interface ChiffrageItem {
   id: string;
@@ -130,14 +132,21 @@ export default function AssignationsChiffragePage() {
     return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
   };
 
+  const holidays = useHolidays();
   const getDeadlineInfo = (ts: any, _nature: string) => {
     if (!ts) return { percent: 0, elapsed: 0, total: 0, overdue: false };
     const created = ts.toDate ? ts.toDate() : new Date(ts);
-    // All chiffrage deadlines are 24h regardless of dossier nature.
-    const totalMs = 24 * 60 * 60 * 1000;
-    const elapsed = Date.now() - created.getTime();
-    const percent = Math.min(Math.max((elapsed / totalMs) * 100, 0), 100);
-    return { percent, elapsed, total: totalMs, overdue: elapsed >= totalMs };
+    // Business-hours deadline: weekends + Moroccan holidays don't count.
+    const totalHours = 24;
+    const elapsedHours = businessHoursBetween(created, new Date(), holidays);
+    const percent = Math.min(Math.max((elapsedHours / totalHours) * 100, 0), 100);
+    const HOUR_MS = 3_600_000;
+    return {
+      percent,
+      elapsed: elapsedHours * HOUR_MS,
+      total: totalHours * HOUR_MS,
+      overdue: elapsedHours >= totalHours,
+    };
   };
 
   const filteredChiffrages = useMemo(() => {
