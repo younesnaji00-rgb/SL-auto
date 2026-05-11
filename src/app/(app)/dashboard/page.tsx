@@ -260,6 +260,10 @@ export default function DashboardPage() {
     const counts: Record<string, number> = {};
     filteredDossiers.forEach((d) => {
       const raw = d.statut || 'Nouveau';
+      // Round 8 — Création dossier is hidden from the dashboard at the user's
+      // request. The status still exists in the data; we just don't surface
+      // it in the dashboard's status panel, pie chart, or counts.
+      if (raw === 'Création dossier') return;
       const key = ACCORD_BUCKET_MEMBERS.has(raw) ? ACCORD_BUCKET_LABEL : raw;
       counts[key] = (counts[key] || 0) + 1;
     });
@@ -267,6 +271,7 @@ export default function DashboardPage() {
     // with the 8 accord/proposition/réforme members replaced by a single bucket.
     const allNames = new Set<string>();
     for (const name of ALL_STATUSES) {
+      if (name === 'Création dossier') continue;
       if (ACCORD_BUCKET_MEMBERS.has(name)) {
         allNames.add(ACCORD_BUCKET_LABEL);
       } else {
@@ -415,7 +420,6 @@ export default function DashboardPage() {
             <SelectContent>
               <SelectItem value="all">Tous les changements</SelectItem>
               <SelectItem value="statut">Changements de statut</SelectItem>
-              <SelectItem value="creation">Création dossier</SelectItem>
               <SelectItem value="planification">Planification</SelectItem>
               <SelectItem value="chiffrage">Chiffrage</SelectItem>
               <SelectItem value="document">Documents / Photos / Rapports</SelectItem>
