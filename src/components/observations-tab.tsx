@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { collection, addDoc, serverTimestamp, orderBy, query } from 'firebase/firestore';
 import { useFirestore, useAuth, useCollection } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -60,6 +61,7 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
   const canAdd = canWrite(section);
 
   const [selectedPreset, setSelectedPreset] = useState('');
+  const [customText, setCustomText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Collapsible variant defaults to CLOSED so observations don't dominate the
   // step's vertical space. Unread count below acts as the notification.
@@ -129,17 +131,26 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
     return n;
   }, [observations, lastSeenAt, isOpen]);
 
+  const presetFilled = selectedPreset.trim().length > 0;
+  const customFilled = customText.trim().length > 0;
+  // Exclusive OR — both filled means the gestionnaire must clear one before
+  // sending. Matches Q-7 answer C (reject when both filled).
+  const bothFilled = presetFilled && customFilled;
+  const submitDisabled = (!presetFilled && !customFilled) || bothFilled || isSubmitting;
+
   const handleSubmit = async () => {
-    if (!selectedPreset.trim() || !db) return;
+    if (!db || submitDisabled) return;
     setIsSubmitting(true);
 
     const userEmail = auth?.currentUser?.email || 'Admin';
     const userName = profile?.nom || userEmail;
     const userRole = profile?.role || 'Admin';
+    const text = (customFilled ? customText : selectedPreset).trim();
 
     try {
-      await addObservation(db, dossierId, selectedPreset.trim(), 'Général', userName, userEmail, userRole, section);
+      await addObservation(db, dossierId, text, 'Général', userName, userEmail, userRole, section);
       setSelectedPreset('');
+      setCustomText('');
       toast({ title: 'Observation ajoutée' });
     } catch (err: any) {
       console.error('Failed to add observation:', err);
@@ -158,7 +169,7 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
             <Select
               value={selectedPreset}
               onValueChange={setSelectedPreset}
-              disabled={presetsLoading || activePresets.length === 0}
+              disabled={presetsLoading || activePresets.length === 0 || customFilled}
             >
               <SelectTrigger className="flex-1 text-sm">
                 <SelectValue
@@ -183,11 +194,24 @@ export default function ObservationsTab({ dossierId, section, variant = 'tab' }:
               defaultValues={['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre']}
             />
           </div>
+          <Textarea
+            value={customText}
+            onChange={(e) => setCustomText(e.target.value)}
+            placeholder="Ou écrivez une observation personnalisée…"
+            rows={2}
+            disabled={presetFilled}
+            className="text-sm"
+          />
+          {bothFilled && (
+            <p className="text-[11px] text-destructive">
+              Choisissez une observation prédéfinie OU écrivez du texte personnalisé, pas les deux.
+            </p>
+          )}
           <div className="flex justify-end">
             <Button
               size="sm"
               onClick={handleSubmit}
-              disabled={!selectedPreset.trim() || isSubmitting}
+              disabled={submitDisabled}
               className="h-8 text-xs gap-1.5"
             >
               {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
