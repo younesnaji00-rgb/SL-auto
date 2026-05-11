@@ -200,6 +200,17 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   }, [userData]);
 
   const handleSave = async () => {
+    // Round 9 — `nom` is mandatory per the user policy. Block save with a
+    // toast rather than silently writing an empty name to Firestore (which
+    // would render as "Utilisateur inconnu" in audit surfaces going forward).
+    if (!formData.nom || !formData.nom.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Nom requis',
+        description: 'Le nom complet est obligatoire.',
+      });
+      return;
+    }
     setIsSaving(true);
     try {
       const previousRole = userData?.role;
