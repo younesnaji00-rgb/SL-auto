@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut as firebaseSignOut, type User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
-import type { Role } from '@/lib/dossiers-data';
+import { ROLES_THAT_CAN_DELETE, type Role } from '@/lib/dossiers-data';
 
 interface UserProfile {
   uid: string;
@@ -23,9 +23,13 @@ type Section = 'dossiers' | 'assignations-chiffrage' | 'assignations-atg' | 'uti
 function canRoleWrite(role: string | undefined, section: Section): boolean {
   if (!role) return false;
   if (role === 'Admin') return true;
-  // Directeur des opérations has no write permissions — only rapport validation
-  // (handled separately via canValidateRapport).
-  if (role === 'Directeur des opérations') return false;
+  // Directeur-family roles are read + validate, not write. They do get
+  // delete permission elsewhere (see canRoleDelete below).
+  if (
+    role === 'Directeur des opérations' ||
+    role === 'Directeur' ||
+    role === 'Directeur technique'
+  ) return false;
   switch (section) {
     case 'dossiers': return role === 'Gestionnaire' || role === "Responsable d'équipe";
     case 'assignations-chiffrage': return role === 'Chiffreur';
@@ -35,9 +39,18 @@ function canRoleWrite(role: string | undefined, section: Section): boolean {
   }
 }
 
+/** Returns true if the given role may delete records anywhere in the app. */
+function canRoleDelete(role: string | undefined): boolean {
+  if (!role) return false;
+  return ROLES_THAT_CAN_DELETE.has(role);
+}
+
 /** Returns true if the given role may validate a dossier's rapport. */
 export function canValidateRapport(role: Role | undefined | null): boolean {
-  return role === 'Admin' || role === 'Directeur des opérations';
+  return role === 'Admin'
+    || role === 'Directeur des opérations'
+    || role === 'Directeur'
+    || role === 'Directeur technique';
 }
 
 interface CurrentUserContextType {
@@ -47,6 +60,9 @@ interface CurrentUserContextType {
   loading: boolean;
   signOut: () => Promise<void>;
   canWrite: (section: Section) => boolean;
+  /** True iff the current user's role is admin or a directeur-family role.
+   *  Drives the visibility of every Delete/Trash UI element. See item 011. */
+  canDelete: boolean;
 }
 
 const CurrentUserContext = createContext<CurrentUserContextType>({
@@ -56,6 +72,7 @@ const CurrentUserContext = createContext<CurrentUserContextType>({
   loading: true,
   signOut: async () => {},
   canWrite: () => false,
+  canDelete: false,
 });
 
 export function CurrentUserProvider({ children }: { children: React.ReactNode }) {
@@ -114,9 +131,10 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
 
   const isAdmin = profile?.role === 'Admin';
   const canWrite = (section: Section) => canRoleWrite(profile?.role, section);
+  const canDelete = canRoleDelete(profile?.role);
 
   return (
-    <CurrentUserContext.Provider value={{ firebaseUser, profile, isAdmin, loading, signOut: handleSignOut, canWrite }}>
+    <CurrentUserContext.Provider value={{ firebaseUser, profile, isAdmin, loading, signOut: handleSignOut, canWrite, canDelete }}>
       {children}
     </CurrentUserContext.Provider>
   );

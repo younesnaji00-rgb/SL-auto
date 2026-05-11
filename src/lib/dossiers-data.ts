@@ -147,8 +147,36 @@ export const compagnies = [
     'Allianz', 'RMA', 'Sanlam', 'Wafa', 'ATLANTA', 'CP', 'Fès RMA', 'Fès ATLANTASANAD', 'Fès Sanlam', 'Wafa Assurance', 'RMA Assurance', 'Zurich Assurance', 'Saham Assurance', 'Atlanta Assurance', 'AXA Assurance'
 ];
 
-export const roles = ['Admin', 'Responsable d\'équipe', 'Gestionnaire', 'Chiffreur', 'Agent de Terrain', 'Directeur des opérations'] as const;
+export const roles = [
+  'Admin',
+  'Directeur',
+  'Directeur des opérations',
+  'Directeur technique',
+  'Responsable technique',
+  'Responsable d\'équipe',
+  'Gestionnaire',
+  'Chiffreur',
+  'Agent de Terrain',
+] as const;
 export type Role = typeof roles[number];
+
+/**
+ * Roles whose users can delete records (dossiers, comments, documents,
+ * photos, planifications, etc.) anywhere in the app. All other roles see
+ * UI without delete buttons.
+ *
+ * NOTE: the role enum above is also the seed list for the `options_roles`
+ * Firestore collection (see `seed-options.ts`). Adding a NEW role via the
+ * gear icon in Utilisateurs does NOT grant it delete permission — that
+ * permission is intentionally name-driven below. To grant delete to a new
+ * role, add its label here.
+ */
+export const ROLES_THAT_CAN_DELETE: ReadonlySet<string> = new Set<string>([
+  'Admin',
+  'Directeur',
+  'Directeur des opérations',
+  'Directeur technique',
+]);
 
 export type User = {
     id: string;
