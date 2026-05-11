@@ -1,22 +1,40 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, AlertTriangle, Clock, User } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Clock, User, Pencil } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useFirestore, useAuth } from '@/firebase';
-import { 
-  collection, 
-  doc, 
-  query, 
-  orderBy, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  serverTimestamp 
+import {
+  collection,
+  doc,
+  query,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  serverTimestamp,
+  Timestamp,
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrentUser } from '@/hooks/use-current-user';
+
+/**
+ * AI-sourced date fields visible in Dates clés. For these fields:
+ *   - The Gemini scan extracts only a date (YYYY-MM-DD), no time.
+ *   - Time is rendered as `--/--` until the gestionnaire manually fills it.
+ *   - The sibling boolean `<field>TimeKnown` flips to true when filled.
+ *
+ * Other fields visible in Dates clés (createdAt, datePhotosAvant, etc.) are
+ * `serverTimestamp()` from user actions — always time-known.
+ */
+const AI_SOURCED_DATE_FIELDS = new Set<string>([
+  'dateRequete',
+  'dateSinistre',
+]);
 
 type HistoriqueTabProps = {
   dossierId: string;
@@ -26,7 +44,8 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
-  
+  const { canWrite } = useCurrentUser();
+
   const [entries, setEntries] = useState<any[]>([]);
   const [dossier, setDossier] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -72,7 +91,129 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   };
 
+  /**
+   * Format for the Dates clés table: when `timeKnown` is false, the time
+   * portion renders as `--/--` (Q-2 / item 006). Date is still shown when
+   * the value is present.
+   */
+  const formatDateWithTimeFlag = (value: any, timeKnown: boolean): string => {
+    if (!value) return '—';
+    const d = value.toDate ? value.toDate() : new Date(value);
+    const datePart = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    if (!timeKnown) return `${datePart} --/--`;
+    const timePart = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return `${datePart} ${timePart}`;
+  };
+
   const currentUserEmail = auth?.currentUser?.email || 'Admin';
+
+  // Item 007 — inline edit of AI-sourced date/time when the gestionnaire wants
+  // to fill what the AI didn't pick up. State is per-row keyed by the
+  // dossier field name (e.g. "dateRequete"). Visible only when the user can
+  // write the dossier.
+  const canEditDates = canWrite('dossiers');
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
+
+  const openDateEditor = (field: string, currentValue: any) => {
+    if (currentValue) {
+      const d = currentValue.toDate ? currentValue.toDate() : new Date(currentValue);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      setEditDate(`${yyyy}-${mm}-${dd}`);
+      const timeKnown = !!dossier?.[`${field}TimeKnown`];
+      if (timeKnown) {
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mi = String(d.getMinutes()).padStart(2, '0');
+        setEditTime(`${hh}:${mi}`);
+      } else {
+        setEditTime('');
+      }
+    } else {
+      setEditDate('');
+      setEditTime('');
+    }
+    setEditingField(field);
+  };
+
+  const saveDateEdit = async () => {
+    if (!db || !editingField || !editDate) return;
+    // Build a Date from the user inputs. If time is provided, set hh:mm
+    // (timeKnown=true); otherwise persist at midnight with timeKnown=false.
+    const [yy, mm, dd] = editDate.split('-').map((n) => parseInt(n, 10));
+    if (!yy || !mm || !dd) return;
+    let when: Date;
+    let timeKnown = false;
+    if (editTime) {
+      const [hh, mi] = editTime.split(':').map((n) => parseInt(n, 10));
+      when = new Date(yy, mm - 1, dd, hh || 0, mi || 0, 0, 0);
+      timeKnown = true;
+    } else {
+      when = new Date(yy, mm - 1, dd, 0, 0, 0, 0);
+    }
+    try {
+      await updateDoc(doc(db, 'dossiers', dossierId), {
+        [editingField]: Timestamp.fromDate(when),
+        [`${editingField}TimeKnown`]: timeKnown,
+      });
+      toast({ title: 'Date mise à jour' });
+      setEditingField(null);
+    } catch (err: any) {
+      console.error('Date update error:', err);
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message || 'Impossible de mettre à jour la date.' });
+    }
+  };
+
+  const renderDateClesRow = (row: { label: string; field?: string; value: any }) => {
+    const aiSourced = !!row.field && AI_SOURCED_DATE_FIELDS.has(row.field);
+    const timeKnown = aiSourced ? !!dossier?.[`${row.field}TimeKnown`] : true;
+    const valueMissing = !row.value;
+    // Allow inline edit when the row is AI-sourced AND either the value is
+    // missing entirely OR the time is unknown — matches Q-4 (A + B).
+    const showEdit = canEditDates && aiSourced && (valueMissing || !timeKnown);
+    return (
+      <div className="flex justify-between items-center text-sm py-1.5 border-b border-border/30 last:border-0">
+        <span className="text-muted-foreground">{row.label}</span>
+        <span className="flex items-center gap-1.5">
+          <span className="font-medium tabular-nums">
+            {row.value ? formatDateWithTimeFlag(row.value, timeKnown) : '—'}
+          </span>
+          {showEdit && row.field && (
+            <Popover open={editingField === row.field} onOpenChange={(o) => !o && setEditingField(null)}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={() => openDateEditor(row.field!, row.value)}
+                  title="Modifier la date/heure"
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 space-y-3" align="end">
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Date</label>
+                  <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="h-8 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Heure</label>
+                  <Input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} className="h-8 text-sm" />
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button size="sm" variant="ghost" onClick={() => setEditingField(null)} className="h-7 text-xs">Annuler</Button>
+                  <Button size="sm" onClick={saveDateEdit} disabled={!editDate} className="h-7 text-xs">Enregistrer</Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        </span>
+      </div>
+    );
+  };
 
   const handleApprove = async () => {
     if (!db || !dossierId) return;
@@ -153,15 +294,12 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
           {/* Top block: single-column rows (no left/right pairing). */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             {[
-              { label: 'Date réception mission', value: dossier?.dateRequete },
-              { label: 'Date sinistre', value: dossier?.dateSinistre },
-              { label: 'Date création dossier', value: dossier?.createdAt },
-              { label: 'Date mission AT', value: dossier?.dateMissionAgentTerrain },
+              { label: 'Date réception mission', field: 'dateRequete',          value: dossier?.dateRequete },
+              { label: 'Date sinistre',          field: 'dateSinistre',         value: dossier?.dateSinistre },
+              { label: 'Date création dossier',  field: 'createdAt',            value: dossier?.createdAt },
+              { label: 'Date mission AT',        field: 'dateMissionAgentTerrain', value: dossier?.dateMissionAgentTerrain },
             ].map((row) => (
-              <div key={row.label} className="flex justify-between text-sm py-1.5 border-b border-border/30 last:border-0">
-                <span className="text-muted-foreground">{row.label}</span>
-                <span className="font-medium tabular-nums">{row.value ? formatDate(row.value) : '—'}</span>
-              </div>
+              <React.Fragment key={row.label}>{renderDateClesRow(row)}</React.Fragment>
             ))}
           </div>
           {/* Paired rows: demande on the left, expertise on the right, per phase. */}
@@ -171,14 +309,8 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
             { phase: 'après',    demande: dossier?.dateDemandeExpertiseApres,    expertise: dossier?.datePhotosApres },
           ] as const).map((row) => (
             <div key={row.phase} className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-              <div className="flex justify-between text-sm py-1.5 border-b border-border/30">
-                <span className="text-muted-foreground">{`Date demande expertise (${row.phase})`}</span>
-                <span className="font-medium tabular-nums">{row.demande ? formatDate(row.demande) : '—'}</span>
-              </div>
-              <div className="flex justify-between text-sm py-1.5 border-b border-border/30">
-                <span className="text-muted-foreground">{`Date expertise (${row.phase})`}</span>
-                <span className="font-medium tabular-nums">{row.expertise ? formatDate(row.expertise) : '—'}</span>
-              </div>
+              {renderDateClesRow({ label: `Date demande expertise (${row.phase})`, value: row.demande })}
+              {renderDateClesRow({ label: `Date expertise (${row.phase})`, value: row.expertise })}
             </div>
           ))}
           {/* Tail block: remaining single-column rows. */}
@@ -191,10 +323,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
               { label: 'Date dépôt rapport', value: dossier?.dateRapportDepose },
               { label: "Date dépôt note d'honoraire", value: (dossier as any)?.dateDepotNoteHonoraire },
             ].map((row) => (
-              <div key={row.label} className="flex justify-between text-sm py-1.5 border-b border-border/30 last:border-0">
-                <span className="text-muted-foreground">{row.label}</span>
-                <span className="font-medium tabular-nums">{row.value ? formatDate(row.value) : '—'}</span>
-              </div>
+              <React.Fragment key={row.label}>{renderDateClesRow(row)}</React.Fragment>
             ))}
           </div>
         </CardContent>
