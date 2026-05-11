@@ -101,6 +101,12 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const { options: dbZones } = useOptions('options_zones');
   const zoneOptions = useMemo(() => dbZones.filter(o => o.active !== false), [dbZones]);
 
+  const { options: dbSites } = useOptions('options_sites');
+  const siteOptions = useMemo(
+    () => dbSites.filter(o => o.active !== false).map(s => ({ value: s.label, label: s.label })),
+    [dbSites],
+  );
+
   // Zone typeahead combobox state
   const [zonePopoverOpen, setZonePopoverOpen] = useState(false);
   const [zoneQuery, setZoneQuery] = useState('');
@@ -124,6 +130,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     role: '' as Role | '',
     statut: '' as 'Actif' | 'Inactif' | '',
     compagnies: [] as string[],
+    sites: [] as string[],
     zone: '',
   });
 
@@ -186,6 +193,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         role: userData.role || '',
         statut: userData.statut || 'Actif',
         compagnies: userData.compagnies || [],
+        sites: userData.sites || [],
         zone: userData.zone || '',
       });
     }
@@ -515,6 +523,19 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 />
                 <p className="text-xs text-muted-foreground">
                   L&apos;utilisateur ne verra que les dossiers des compagnies sélectionnées. Si aucune n&apos;est sélectionnée, il verra tous les dossiers.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Sites</Label>
+                <MultiSelect
+                  options={siteOptions}
+                  selected={formData.sites}
+                  onChange={(vals) => setFormData(p => ({...p, sites: vals}))}
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Villes dans lesquelles l&apos;utilisateur intervient. Plusieurs choix possibles.
                 </p>
               </div>
 

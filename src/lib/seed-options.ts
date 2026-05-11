@@ -31,6 +31,7 @@ const ALL_DEFAULTS: Record<string, string[]> = {
   options_rapport_operations: ['Echange', 'Réparation', 'Peinture'],
   options_mdo_types: ['Tolerie', 'Peinture', 'Mécanique', 'Electrique'],
   options_observations: ['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre'],
+  options_sites: ['Casablanca', 'Fès'],
 };
 
 /**

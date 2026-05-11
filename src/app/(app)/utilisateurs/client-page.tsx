@@ -74,6 +74,9 @@ const userFormSchema = z.object({
   role: z.string().min(1, "Le rôle est requis."),
   compagnies: z.array(z.string()).min(1, "Veuillez sélectionner au moins une compagnie."),
   zone: z.string().optional(),
+  // Item 024 — cities the user covers. Multi-select (a user can be in
+  // charge of multiple cities at once). Optional: empty = no site restriction.
+  sites: z.array(z.string()).optional(),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Les mots de passe ne correspondent pas.",
   path: ["confirmPassword"],
@@ -111,10 +114,12 @@ export default function UtilisateursClientPage() {
   const { options: dbCompagnies } = useOptions('compagnies');
   const { options: dbAgentsRaw } = useOptions('options_agents');
   const { options: dbZones } = useOptions('options_zones');
+  const { options: dbSites } = useOptions('options_sites');
 
   const roles = useMemo(() => dbRoles.filter(o => o.active !== false), [dbRoles]);
   const compagniesOptions = useMemo(() => dbCompagnies.filter(o => o.active !== false), [dbCompagnies]);
   const zones = useMemo(() => dbZones.filter(o => o.active !== false), [dbZones]);
+  const sitesOptions = useMemo(() => dbSites.filter(o => o.active !== false).map(s => ({ value: s.label, label: s.label })), [dbSites]);
 
   // Zone typeahead combobox state
   const [zonePopoverOpen, setZonePopoverOpen] = useState(false);
@@ -142,6 +147,7 @@ export default function UtilisateursClientPage() {
       role: '',
       compagnies: [],
       zone: '',
+      sites: [],
     },
   });
 
@@ -198,6 +204,7 @@ export default function UtilisateursClientPage() {
         password: data.password, // stored so admin can see it
         role: data.role,
         compagnies: data.compagnies,
+        sites: data.sites ?? [],
         zone: savedZone,
         statut: 'Actif',
         createdAt: serverTimestamp(),
@@ -374,6 +381,25 @@ export default function UtilisateursClientPage() {
                       <MultiSelect
                         options={companyOptions}
                         selected={field.value}
+                        onChange={field.onChange}
+                        className="w-full"
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="sites"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center justify-between">
+                        <FormLabel>Sites</FormLabel>
+                        <OptionsManagerModal collectionName="options_sites" title="Sites" />
+                      </div>
+                      <MultiSelect
+                        options={sitesOptions}
+                        selected={field.value ?? []}
                         onChange={field.onChange}
                         className="w-full"
                       />
