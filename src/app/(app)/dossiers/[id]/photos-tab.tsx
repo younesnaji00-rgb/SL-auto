@@ -597,7 +597,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                   doubleClick={{ mode: 'toggle', step: 1.5 }}
                   panning={{ disabled: false }}
                 >
-                  {({ zoomIn, zoomOut, resetTransform }) => (
+                  {({ zoomIn, zoomOut, resetTransform, centerView }) => (
                     <>
                       <TransformComponent
                         wrapperStyle={{ width: '100%', height: '100%' }}
@@ -642,8 +642,17 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                         </button>
                         <button
                           type="button"
-                          onClick={() => resetTransform()}
-                          aria-label="Réinitialiser le zoom"
+                          onClick={() => {
+                            // Round 9 item 006 — fit-to-screen fix.
+                            // `resetTransform` alone preserved any pan
+                            // accumulated before zooming back to 1×;
+                            // `centerView(1, ...)` explicitly recenters
+                            // at the initial scale so the image refits
+                            // the viewport reliably.
+                            resetTransform(200, 'easeOut');
+                            centerView(1, 200, 'easeOut');
+                          }}
+                          aria-label="Ajuster à l'écran"
                           className="h-9 w-9 rounded-full text-white hover:bg-white/20 flex items-center justify-center"
                         >
                           <Maximize2 className="h-4 w-4" />
