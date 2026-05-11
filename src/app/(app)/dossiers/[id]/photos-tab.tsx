@@ -29,7 +29,7 @@ import {
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
-import { useFirestore, useAuth, useStorage } from '@/firebase';
+import { useFirestore, useAuth, useStorage, useDoc } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -64,6 +64,13 @@ const CATEGORIES: { id: PhotoCategory; label: string; fullLabel: string }[] = [
   { id: 'apres', label: 'Photos après', fullLabel: 'Photos après' },
 ];
 
+/** Default cap per photo section (avant / en cours / après). Lifted to
+ *  {@link MAX_PHOTOS_WITH_REFORME} when the dossier has `propositionReforme`
+ *  set (see item 021). */
+export const MAX_PHOTOS_PER_SECTION = 30;
+/** Cap when proposition réforme is active. */
+export const MAX_PHOTOS_WITH_REFORME = 60;
+
 export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: { dossierId: string; initialCategory?: PhotoCategory; onlyCategory?: PhotoCategory }) {
   const visibleCategories = onlyCategory ? CATEGORIES.filter((c) => c.id === onlyCategory) : CATEGORIES;
   const db = useFirestore();
@@ -72,6 +79,14 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
   const { toast } = useToast();
   const { canWrite } = useCurrentUser();
   const canEdit = canWrite('dossiers');
+  // Reads the propositionReforme flag (item 021). When true, the per-section
+  // cap is 60 instead of 30.
+  const dossierRef = React.useMemo(
+    () => (db ? doc(db, 'dossiers', dossierId) : null),
+    [db, dossierId],
+  );
+  const { data: dossier } = useDoc<any>(dossierRef as any);
+  const photoCap = dossier?.propositionReforme ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION;
 
   const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,9 +134,27 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
     if (!storage || !db) return;
     const userEmail = auth?.currentUser?.email || 'Admin';
     const userId = auth?.currentUser?.uid || 'unknown';
+    // Enforce per-section cap. Accept up to the cap, toast the overflow.
+    const existing = photosForCategory(cat).length;
+    const available = Math.max(0, photoCap - existing);
+    if (available === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Limite atteinte',
+        description: `Limite de ${photoCap} photos atteinte pour cette section.`,
+      });
+      return;
+    }
     setIsUploading(cat);
     try {
-      const fileList = Array.from(files);
+      const fileList = Array.from(files).slice(0, available);
+      if (files.length > available) {
+        toast({
+          variant: 'destructive',
+          title: 'Limite de photos',
+          description: `${files.length - available} photo(s) ignorée(s) — la limite de ${photoCap} par section a été atteinte.`,
+        });
+      }
       // Fire all uploads in parallel. Use allSettled so one failure doesn't abort the batch.
       const results = await Promise.allSettled(
         fileList.map((file, idx) => {
@@ -283,7 +316,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                 <Camera className="h-3.5 w-3.5" />
                 {cat.label}
                 <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5 min-w-[20px]">
-                  {count}
+                  {count}/{photoCap}
                 </Badge>
               </TabsTrigger>
             );
@@ -299,7 +332,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold">{cat.fullLabel}</h3>
                   <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5 min-w-[20px]">
-                    {catPhotos.length}
+                    {catPhotos.length}/{photoCap}
                   </Badge>
                 </div>
                 <input

@@ -36,6 +36,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import ObservationsTab from '@/components/observations-tab';
 import CameraCapture from '@/components/camera-capture';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
+import { MAX_PHOTOS_PER_SECTION, MAX_PHOTOS_WITH_REFORME } from '@/app/(app)/dossiers/[id]/photos-tab';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { deriveStatus, isPlanificationStatus } from '@/lib/status-machine';
@@ -152,7 +153,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
 
   // Dossier data
   const dossierRef = useMemo(() => (db ? doc(db, 'dossiers', dossierId) : null), [db, dossierId]);
-  const { data: dossier, loading: dossierLoading } = useDoc(dossierRef);
+  const { data: dossier, loading: dossierLoading } = useDoc<any>(dossierRef as any);
+  // Proposition réforme (item 021) lifts the per-section cap from 30 to 60.
+  const photoCap = (dossier as any)?.propositionReforme ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION;
 
   // Planifications
   const plansQuery = useMemo(
@@ -263,6 +266,26 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     // race-free with respect to additional snapshots arriving mid-batch.
     const statutBeforeUpload: string | undefined = dossier?.statut;
     const categoryAtUpload: PhotoCategory = currentCategory;
+    // Enforce per-section cap (item 020) — lifted to MAX_PHOTOS_WITH_REFORME
+    // when proposition réforme is active on this dossier (item 021).
+    const existing = filteredPhotos.length;
+    const available = Math.max(0, photoCap - existing);
+    if (available === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Limite atteinte',
+        description: `Limite de ${photoCap} photos atteinte pour cette section.`,
+      });
+      return;
+    }
+    if (files.length > available) {
+      toast({
+        variant: 'destructive',
+        title: 'Limite de photos',
+        description: `${files.length - available} photo(s) ignorée(s) — la limite de ${photoCap} par section a été atteinte.`,
+      });
+      files = files.slice(0, available);
+    }
     setIsUploading(true);
     try {
       for (const file of files) {
@@ -542,7 +565,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         <Button variant="outline" size="icon" asChild>
           <Link href="/assignations-atg"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold">{dossier?.refExpert || dossierId}</h1>
           <div className="text-sm text-muted-foreground flex items-center gap-1 flex-wrap">
             {assureNom && <span>{assureNom}</span>}
@@ -552,6 +575,35 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             )}
           </div>
         </div>
+        {/* Proposition réforme (item 021). AT-only toggle; lifts photo cap
+            from 30 to 60 per section. Does NOT change dossier statut. */}
+        {isATG && (
+          <Button
+            variant={(dossier as any)?.propositionReforme ? 'destructive' : 'outline'}
+            size="sm"
+            disabled={!dossierRef}
+            onClick={async () => {
+              if (!dossierRef || !db) return;
+              const next = !(dossier as any)?.propositionReforme;
+              try {
+                await updateDoc(dossierRef, { propositionReforme: next });
+                const userId = auth?.currentUser?.uid || 'unknown';
+                await logWorkflow(
+                  db, dossierId,
+                  next ? 'Proposition réforme activée' : 'Proposition réforme annulée',
+                  userEmail, userId, 'done',
+                  { details: `Limite photo par section : ${next ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION}` },
+                );
+                toast({ title: next ? 'Proposition réforme activée' : 'Proposition réforme annulée' });
+              } catch (e) {
+                console.error('propositionReforme toggle error:', e);
+                toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de modifier la proposition réforme.' });
+              }
+            }}
+          >
+            {(dossier as any)?.propositionReforme ? 'Réforme proposée — annuler' : 'Proposition réforme'}
+          </Button>
+        )}
       </div>
 
       {/* Mission type tabs */}
@@ -805,7 +857,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                 <h3 className="text-sm font-bold flex items-center gap-2">
                   <ImageIcon className="h-4 w-4 text-muted-foreground" />
                   Photos — {activeTab}
-                  <Badge variant="secondary" className="text-[10px] font-mono">{filteredPhotos.length}</Badge>
+                  <Badge variant="secondary" className="text-[10px] font-mono">{filteredPhotos.length}/{photoCap}</Badge>
                 </h3>
                 {canEdit && (
                   <Button
