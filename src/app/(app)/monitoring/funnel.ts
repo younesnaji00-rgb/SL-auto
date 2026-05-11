@@ -1,4 +1,5 @@
 import { ACCORD_BUCKET_MEMBERS } from '@/lib/dossiers-data';
+import { businessHoursBetween } from '@/lib/business-days';
 
 export type StepKey =
   | 'creation'
@@ -106,13 +107,15 @@ const inRange = (d: Date | null, range?: FunnelRange) => {
   return true;
 };
 
-const SLA_24H_MS = 24 * 60 * 60 * 1000;
+const SLA_BUSINESS_HOURS = 24;
 
 function photoHorsDelai(d: FunnelDossier, demandeKey: string, photoKey: string): Date | null {
   const demande = toDate((d as any)[demandeKey]);
   const photos = toDate((d as any)[photoKey]);
   if (!demande || !photos) return null;
-  return photos.getTime() - demande.getTime() > SLA_24H_MS ? photos : null;
+  // Business-hours model: weekends and Moroccan holidays don't count toward
+  // the 24-hour SLA. See `src/lib/business-days.ts`.
+  return businessHoursBetween(demande, photos) > SLA_BUSINESS_HOURS ? photos : null;
 }
 
 const photoAuthor = (
@@ -146,10 +149,12 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
       const created = toDate(d.createdAt);
       const requete = toDate(d.dateRequete);
       if (!created || !requete) return null;
-      // 24h sliding window (not calendar day) between dateRequete and createdAt.
-      // |delta| > 24h → hors délai. Math.abs guards against data-entry rows
-      // where the two dates land in the wrong order.
-      return Math.abs(created.getTime() - requete.getTime()) > SLA_24H_MS ? created : null;
+      // Business-hours window: weekends and holidays don't count toward
+      // the 24-hour SLA between dateRequete and createdAt. Ordering-tolerant.
+      const [earlier, later] = created.getTime() < requete.getTime()
+        ? [created, requete]
+        : [requete, created];
+      return businessHoursBetween(earlier, later) > SLA_BUSINESS_HOURS ? created : null;
     },
   },
   photosAvant: {
@@ -198,7 +203,7 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
       const accordAt = toDate(d.lastStatusChange?.at);
       const chiffrageAt = toDate(d.dateChiffrage);
       if (!accordAt || !chiffrageAt) return null;
-      return accordAt.getTime() - chiffrageAt.getTime() > SLA_24H_MS ? accordAt : null;
+      return businessHoursBetween(chiffrageAt, accordAt) > SLA_BUSINESS_HOURS ? accordAt : null;
     },
   },
   facture: {
