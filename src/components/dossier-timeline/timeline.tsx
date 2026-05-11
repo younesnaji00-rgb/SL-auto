@@ -226,7 +226,7 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
 
   return (
     <div ref={containerRef} className="w-full">
-      <TimelineBar steps={orderedSteps} activeId={activeStep} onStepClick={handleStepClick} />
+      <TimelineBar steps={orderedSteps} activeId={activeStep} onStepClick={handleStepClick} stamps={stampByStep} />
       <div className="px-3 sm:px-6 max-w-screen-xl mx-auto">
         {orderedSteps.map((step, idx) => (
           <TimelineSection
