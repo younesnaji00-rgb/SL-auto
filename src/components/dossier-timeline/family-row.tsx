@@ -49,6 +49,13 @@ interface FamilyRowProps {
    * (used by step 11 to show 2ème, 3ème, … cardinals exclusively).
    */
   cardinalFilter?: 'all' | '1-only' | '2-plus';
+  /**
+   * Round 9 item 004 — when set, each pending accord/proposition slot
+   * (empty `docs`) renders an "Éditer" button that calls this callback
+   * with the slot label. Used on assignations-chiffrage to route to the
+   * structured editor scoped to that specific slot.
+   */
+  onEditSlot?: (slot: string) => void;
 }
 
 /**
@@ -79,6 +86,7 @@ export function FamilyRow({
   hideCardinalPlus,
   hideExtraSlotPlus,
   cardinalFilter = 'all',
+  onEditSlot,
 }: FamilyRowProps) {
   const visibleSlots = cardinalFilter === 'all'
     ? group.slots
@@ -137,6 +145,7 @@ export function FamilyRow({
               onPreview={onPreview}
               hideCardinalPlus={hideCardinalPlus}
               hideExtraSlotPlus={hideExtraSlotPlus}
+              onEdit={onEditSlot ? () => onEditSlot(slot) : undefined}
             />
           </div>
         ))}

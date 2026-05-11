@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Download, Mail, Scale, PencilLine, X } from 'lucide-react';
+import { ArrowLeft, Download, Mail, Scale, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { isEditableDocType } from '@/lib/devis-schema';
 import { parseAccordDocType } from '@/lib/docType-accorde';
@@ -210,9 +210,17 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     }
   };
 
-  // Route a family's "Éditer web" button to the structured devis editor.
-  const handleEditerWeb = (parent: string) => {
-    router.push(`/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(parent)}`);
+  // Round 9 item 004 — per-slot Éditer button. Opens the structured devis
+  // editor scoped to the specific accord/proposition slot via `accordSlot`.
+  // Derives the family parent from the slot via parseAccordDocType so we
+  // route to the right doc type ("Devis Garage" / "Facture Garage" / etc.).
+  const handleEditSlot = (parent: string, slot: string) => {
+    const params = new URLSearchParams({
+      chiffrageId: id,
+      docType: parent,
+      accordSlot: slot,
+    });
+    router.push(`/devis-editor?${params.toString()}`);
   };
 
   // Slot-card click handler: open a preview lightbox. The chiffreur enters the
@@ -445,17 +453,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
               onCreateExtraSlot={chiffreurNoOpCreateExtraSlot}
               onRenameExtraSlot={chiffreurNoOpRename}
               onPreview={handleFamilyDocPreview}
-              topAction={
-                <Button
-                  type="button"
-                  size="sm"
-                  className="gap-1.5 shrink-0"
-                  onClick={() => handleEditerWeb(group.parent)}
-                >
-                  <PencilLine className="h-3.5 w-3.5" />
-                  Éditer web
-                </Button>
-              }
+              onEditSlot={(slot) => handleEditSlot(group.parent, slot)}
             />
           ))}
           {factureFamilies.map((group) => (
@@ -476,17 +474,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
               onCreateExtraSlot={chiffreurNoOpCreateExtraSlot}
               onRenameExtraSlot={chiffreurNoOpRename}
               onPreview={handleFamilyDocPreview}
-              topAction={
-                <Button
-                  type="button"
-                  size="sm"
-                  className="gap-1.5 shrink-0"
-                  onClick={() => handleEditerWeb(group.parent)}
-                >
-                  <PencilLine className="h-3.5 w-3.5" />
-                  Éditer web
-                </Button>
-              }
+              onEditSlot={(slot) => handleEditSlot(group.parent, slot)}
             />
           ))}
         </section>

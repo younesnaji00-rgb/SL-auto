@@ -65,6 +65,13 @@ export interface SlotCardProps {
    * cards are display-only — extras live in the Accord step.
    */
   hideExtraSlotPlus?: boolean;
+  /**
+   * Round 9 item 004 — when set AND the slot is a pending accord/proposition
+   * (no docs yet), render an "Éditer" button that calls this callback.
+   * Used on assignations-chiffrage to route to the structured editor scoped
+   * to this specific slot.
+   */
+  onEdit?: () => void;
 }
 
 export function SlotCard({
@@ -85,6 +92,7 @@ export function SlotCard({
   onPreview,
   hideCardinalPlus,
   hideExtraSlotPlus,
+  onEdit,
 }: SlotCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const extraSlotInputRef = useRef<HTMLInputElement>(null);
@@ -214,9 +222,26 @@ export function SlotCard({
       </CardHeader>
       <CardContent className="p-2 space-y-1.5 flex-1">
         {docs.length === 0 ? (
-          <p className="text-xs italic text-muted-foreground text-center py-3">
-            {(parsedAccord || isReformeSlot) ? 'En attente de chiffrage' : 'Aucun document'}
-          </p>
+          <div className="flex flex-col items-center gap-2 py-3">
+            <p className="text-xs italic text-muted-foreground text-center">
+              {(parsedAccord || isReformeSlot) ? 'En attente de chiffrage' : 'Aucun document'}
+            </p>
+            {/* Round 9 item 004 — per-slot Éditer button on pending
+                accord/proposition slots, vertically stacked under the
+                status text (Q-2 → B). */}
+            {onEdit && !!parsedAccord && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1.5"
+                onClick={onEdit}
+              >
+                <Pencil className="h-3 w-3" />
+                Éditer
+              </Button>
+            )}
+          </div>
         ) : (
           <ul className="space-y-1">
             {docs.map((d) => {
