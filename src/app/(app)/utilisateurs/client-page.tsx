@@ -54,6 +54,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { useFirestore, useCollection, useFirebaseApp } from '@/firebase';
 import { collection, setDoc, serverTimestamp, doc, deleteDoc, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -103,6 +104,7 @@ function generateEmail(nom: string): string {
 export default function UtilisateursClientPage() {
   const db = useFirestore();
   const app = useFirebaseApp();
+  const { canDelete } = useCurrentUser();
 
   // Single source of truth: Firestore. Filter inactive entries client-side.
   const { options: dbRoles } = useOptions('options_roles');
@@ -614,9 +616,11 @@ export default function UtilisateursClientPage() {
                                 <Pencil className="h-4 w-4 text-muted-foreground hover:text-foreground" />
                               </Link>
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ id: user.id, nom: `${user.prenom || ''} ${user.nom || ''}`.trim() || 'cet utilisateur' })} title="Supprimer">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {canDelete && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ id: user.id, nom: `${user.prenom || ''} ${user.nom || ''}`.trim() || 'cet utilisateur' })} title="Supprimer">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

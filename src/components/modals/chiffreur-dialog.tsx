@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Pencil, Trash2, Plus } from "lucide-react";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 const EMPTY_FORM = { nom: "", email: "", phone: "", active: true };
 
@@ -46,6 +47,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
   const { chiffreurs, loading, addChiffreur, updateChiffreur, deleteChiffreur } =
     useChiffreurs();
   const workload = useChiffreurWorkload();
+  const { canDelete } = useCurrentUser();
 
   const [open, setOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Chiffreur | null>(null);
@@ -193,16 +195,18 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                    onClick={() => setDeleteTarget(c)}
-                    loading={deletingId === c.id}
-                    title="Supprimer"
-                  >
-                    {deletingId === c.id ? null : <Trash2 className="h-3.5 w-3.5" />}
-                  </Button>
+                  {canDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                      onClick={() => setDeleteTarget(c)}
+                      loading={deletingId === c.id}
+                      title="Supprimer"
+                    >
+                      {deletingId === c.id ? null : <Trash2 className="h-3.5 w-3.5" />}
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}

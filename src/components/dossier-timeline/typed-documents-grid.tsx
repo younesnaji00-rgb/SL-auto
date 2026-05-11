@@ -85,22 +85,25 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   const auth = useAuth();
   const storage = useStorage();
   const { toast } = useToast();
-  const { canWrite, profile } = useCurrentUser();
+  const { canWrite, canDelete, profile } = useCurrentUser();
   // Gestionnaires / Admins edit via 'dossiers' section; ATG edits this same grid
   // through their own assignation section. Upload is allowed for either.
   const canEdit = canWrite('dossiers') || canWrite('assignations-atg');
   const isATG = profile?.role === 'Agent de Terrain';
   const currentEmail = auth?.currentUser?.email || profile?.email || '';
   const currentUid = auth?.currentUser?.uid || '';
-  // ATG may delete only documents they uploaded themselves. Everyone else with
-  // canEdit may delete anything.
+  // Admins and directeur-family roles (canDelete) may delete any document.
+  // ATG may delete only their own uploads. All other roles see no delete
+  // affordance.
   const canDeleteDoc = (d: TypedDoc): boolean => {
-    if (!canEdit) return false;
-    if (!isATG) return true;
-    return (
-      (!!currentUid && d.uploadedBy === currentUid) ||
-      (!!currentEmail && d.uploadePar === currentEmail)
-    );
+    if (canDelete) return true;
+    if (isATG && canEdit) {
+      return (
+        (!!currentUid && d.uploadedBy === currentUid) ||
+        (!!currentEmail && d.uploadePar === currentEmail)
+      );
+    }
+    return false;
   };
 
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);

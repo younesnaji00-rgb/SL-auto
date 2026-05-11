@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useFirestore, useAuth, useCollection } from '@/firebase';
 import { collection, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -32,6 +33,7 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
     const db = useFirestore();
     const auth = useAuth();
     const { toast } = useToast();
+    const { canDelete } = useCurrentUser();
     const reclamationsQuery = useMemo(() => query(collection(db, 'dossiers', dossierId, 'reclamations'), orderBy('createdAt', 'desc')), [db, dossierId]);
     const { data: list, loading } = useCollection(reclamationsQuery);
     const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -107,14 +109,16 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
                                             </span>
                                         )}
                                     </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7"
-                                        onClick={() => setDeleteId(r.id)}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    {canDelete && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7"
+                                            onClick={() => setDeleteId(r.id)}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    )}
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="space-y-1">

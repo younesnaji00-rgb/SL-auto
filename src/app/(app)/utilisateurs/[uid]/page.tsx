@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { useDoc, useFirestore } from '@/firebase';
 import {
   doc,
@@ -85,7 +86,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  
+  const { canDelete } = useCurrentUser();
+
   const userRef = useMemo(() => doc(db, 'users', uid), [db, uid]);
   const { data: userData, loading: userLoading } = useDoc(userRef);
 
@@ -628,23 +630,25 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Supprimer cet utilisateur</CardTitle>
-              <CardDescription>
-                L&apos;utilisateur sera retiré du système. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button
-                variant="outline"
-                className="w-full border-destructive text-destructive hover:bg-destructive hover:text-white"
-                onClick={() => setShowDeleteDialog(true)}
-              >
-                <Trash2 className="mr-2 h-4 w-4" /> Supprimer l&apos;utilisateur
-              </Button>
-            </CardContent>
-          </Card>
+          {canDelete && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Supprimer cet utilisateur</CardTitle>
+                <CardDescription>
+                  L&apos;utilisateur sera retiré du système. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  variant="outline"
+                  className="w-full border-destructive text-destructive hover:bg-destructive hover:text-white"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer l&apos;utilisateur
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 

@@ -108,17 +108,19 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const storage = useStorage();
   const auth = useAuth();
   const { toast } = useToast();
-  const { canWrite, profile } = useCurrentUser();
+  const { canWrite, canDelete, profile } = useCurrentUser();
   const canEdit = canWrite('assignations-atg');
   const isATG = profile?.role === 'Agent de Terrain';
-  // ATG may delete a photo only if they uploaded it themselves. Anyone else
-  // with edit rights (gestionnaire / admin) may delete any photo on the
-  // dossier — including the ATG's own — for moderation purposes.
+  // Admins and directeurs (canDelete) can always delete any photo. ATG may
+  // delete a photo only if they uploaded it themselves. Other write-allowed
+  // roles (gestionnaire) get no delete permission anymore (item 012).
   const canDeletePhoto = (photo: Photo): boolean => {
-    if (!canEdit) return false;
-    if (!isATG) return true;
-    const me = auth?.currentUser?.email || profile?.email || '';
-    return !!me && photo.uploadedBy === me;
+    if (canDelete) return true;
+    if (isATG && canEdit) {
+      const me = auth?.currentUser?.email || profile?.email || '';
+      return !!me && photo.uploadedBy === me;
+    }
+    return false;
   };
 
   const [activeTab, setActiveTab] = useState('Avant');
@@ -338,9 +340,11 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   // Delete document
   const handleDeleteDocument = async (docItem: any) => {
     if (!db || !storage) return;
-    // ATG can only delete documents they uploaded themselves.
-    if (docItem.uploadSource !== 'ATG' || docItem.uploadePar !== auth?.currentUser?.email) {
-      toast({ variant: 'destructive', title: 'Suppression refusée', description: 'Vous ne pouvez supprimer que les documents que vous avez vous-même téléversés.' });
+    // Admins / directeurs may delete any document. ATG may delete only their
+    // own uploads. Everyone else is blocked.
+    const isOwnATGUpload = docItem.uploadSource === 'ATG' && docItem.uploadePar === auth?.currentUser?.email;
+    if (!canDelete && !(isATG && isOwnATGUpload)) {
+      toast({ variant: 'destructive', title: 'Suppression refusée', description: 'Vous n\'avez pas la permission de supprimer ce document.' });
       return;
     }
     if (!window.confirm(`Supprimer le document "${docItem.nom || docItem.name || ''}" ?`)) return;
@@ -722,7 +726,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                                   <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/preuve:opacity-100 transition-opacity flex items-center justify-center">
                                     <Eye className="h-3 w-3 text-white" />
                                   </div>
-                                  {canEdit && (
+                                  {(canDelete || (isATG && canEdit)) && (
                                     <button
                                       type="button"
                                       onClick={(e) => { e.stopPropagation(); handleDeletePreuvePhoto(p.id, url, idx); }}

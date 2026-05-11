@@ -43,7 +43,7 @@ export function OptionsManagerModal({
   defaultValues = [],
   trigger
 }: OptionsManagerModalProps) {
-  const { isAdmin } = useCurrentUser();
+  const { isAdmin, canDelete } = useCurrentUser();
   const { options, addOption, updateOption, deleteOption, loading } = useOptions(collectionName, defaultValues);
   const { toast } = useToast();
   const db = useFirestore();
@@ -187,16 +187,18 @@ export function OptionsManagerModal({
                         >
                           <Settings className="h-3.5 w-3.5" />
                         </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                          loading={isDeleting === opt.id}
-                          onClick={() => setDeleteTarget({ id: opt.id, label: opt.label })}
-                        >
-                          {isDeleting === opt.id ? null : <Trash2 className="h-3.5 w-3.5" />}
-                        </Button>
+                        {canDelete && (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            loading={isDeleting === opt.id}
+                            onClick={() => setDeleteTarget({ id: opt.id, label: opt.label })}
+                          >
+                            {isDeleting === opt.id ? null : <Trash2 className="h-3.5 w-3.5" />}
+                          </Button>
+                        )}
                       </div>
                     </>
                   )}

@@ -36,6 +36,7 @@ import {
 } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { useFirestore, useAuth, useCollection, useStorage } from '@/firebase';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -72,6 +73,7 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
+  const { canDelete } = useCurrentUser();
   const { toast } = useToast();
   
   const attachmentInputRef = useRef<HTMLInputElement>(null);
@@ -388,7 +390,7 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
                         <Pencil className="h-4 w-4" />
                       </Button>
                     )}
-                    {(comment.auteur === currentUserEmail || comment.authorName === currentUserEmail || currentUserEmail === 'admin@dashflow.com') && (
+                    {(comment.auteur === currentUserEmail || comment.authorName === currentUserEmail || canDelete) && (
                       <Button 
                         variant="ghost" 
                         size="icon" 

@@ -130,7 +130,7 @@ export default function Step1Import({
   const db = useFirestore();
   const storage = useStorage();
   const auth = useAuth();
-  const { canWrite } = useCurrentUser();
+  const { canWrite, canDelete } = useCurrentUser();
   const { toast } = useToast();
 
   const canEdit = !readOnly && canWrite('dossiers');
@@ -636,7 +636,7 @@ export default function Step1Import({
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {canEdit && (
+                    {canDelete && (
                       <Button
                         type="button"
                         variant="ghost"

@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SkeletonRow } from '@/components/ui/skeleton';
@@ -27,6 +28,7 @@ import {
 export default function MissionsTab({ dossierId }: { dossierId: string }) {
     const db = useFirestore();
     const { toast } = useToast();
+    const { canDelete } = useCurrentUser();
     const missionsRef = useMemo(() => collection(db, 'dossiers', dossierId, 'missions'), [db, dossierId]);
     const { data: missions, loading } = useCollection(missionsRef);
 
@@ -115,7 +117,7 @@ export default function MissionsTab({ dossierId }: { dossierId: string }) {
                                             </SelectContent>
                                         </Select>
                                     </TableCell>
-                                    <TableCell><Button variant="ghost" size="icon" className="text-destructive" onClick={() => setDeleteId(m.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                                    <TableCell>{canDelete && <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setDeleteId(m.id)}><Trash2 className="h-4 w-4" /></Button>}</TableCell>
                                 </TableRow>
                             ))
                         )}

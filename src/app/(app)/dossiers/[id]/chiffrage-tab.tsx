@@ -54,7 +54,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
-  const { profile } = useCurrentUser();
+  const { profile, canDelete } = useCurrentUser();
   // Creator buttons (Devis / Facture) are only visible to Admin + Gestionnaire.
   // Task #5 fills in the full editor flow; Task #6 wires the save-to-pieces-jointes pipeline.
   const canCreateChiffrageDoc =
@@ -311,14 +311,16 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
                       </div>
 
                       <div className="flex gap-1.5 flex-wrap pt-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 ml-auto opacity-0 group-hover:opacity-100"
-                          onClick={() => setDeletingIndex(i)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        {canDelete && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 ml-auto opacity-0 group-hover:opacity-100"
+                            onClick={() => setDeletingIndex(i)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>

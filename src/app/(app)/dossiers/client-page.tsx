@@ -62,7 +62,7 @@ export default function DossiersClientPage() {
   const { toast } = useToast();
   const auth = useAuth();
   const db = useFirestore();
-  const { profile, canWrite } = useCurrentUser();
+  const { profile, canWrite, canDelete } = useCurrentUser();
   const canEditDossiers = canWrite('dossiers');
   const { openTab } = useDossierTabs();
 
@@ -602,7 +602,7 @@ export default function DossiersClientPage() {
                         >
                           <History className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
                         </Button>
-                        {canEditDossiers && (
+                        {canDelete && (
                           <Button
                             variant="ghost"
                             size="icon"

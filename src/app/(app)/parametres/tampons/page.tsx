@@ -40,7 +40,7 @@ function extensionFromFile(file: File): string {
 }
 
 export default function TamponsSettingsPage() {
-  const { profile, loading: userLoading } = useCurrentUser();
+  const { profile, loading: userLoading, canDelete } = useCurrentUser();
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
@@ -235,15 +235,17 @@ export default function TamponsSettingsPage() {
                             {stamp.active ? 'Actif' : 'Inactif'}
                           </span>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => setDeleteTarget(stamp)}
-                          title="Supprimer"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(stamp)}
+                            title="Supprimer"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </li>
                   ))}
