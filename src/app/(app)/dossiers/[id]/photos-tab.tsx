@@ -15,7 +15,11 @@ import {
   ImageIcon,
   ChevronLeft,
   ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
 } from 'lucide-react';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
 import {
   collection,
@@ -537,8 +541,11 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
         })}
       </Tabs>
 
-      {/* Preview Modal — fullscreen with ←/→ navigation within the same
-          category. Closes on Esc / outside-click (shadcn default). */}
+      {/* Preview Modal — fullscreen with zoom (wheel / pinch / buttons),
+          ←/→ navigation, and explicit X close. Round 8: integrates
+          react-zoom-pan-pinch. Per Q-9 A photo opens fit-to-screen; per
+          Q-10 A zoom buttons live in a bottom-center floating toolbar;
+          per Q-6 A the X close button sits top-right. */}
       {previewPhoto && (() => {
         const siblings = photosForCategory(previewPhoto.category);
         const currentIdx = siblings.findIndex((p) => p.id === previewPhoto.id);
@@ -559,7 +566,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               className="max-w-[100vw] w-screen h-screen p-0 rounded-none border-0 flex flex-col bg-black/95"
               onKeyDown={onKey}
             >
-              <DialogHeader className="px-4 py-3 border-b border-white/10 shrink-0">
+              <DialogHeader className="px-4 py-3 border-b border-white/10 shrink-0 pr-14">
                 <DialogTitle className="text-sm truncate text-white">
                   {previewPhoto.name}
                   {total > 1 && (
@@ -569,32 +576,90 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                   )}
                 </DialogTitle>
               </DialogHeader>
-              <div className="flex-1 relative flex items-center justify-center overflow-hidden">
-                <img
-                  src={previewPhoto.url}
-                  className="max-w-full max-h-full object-contain"
-                  alt={previewPhoto.name}
-                />
-                {hasPrev && (
-                  <button
-                    type="button"
-                    onClick={() => goto(-1)}
-                    aria-label="Photo précédente"
-                    className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
-                  >
-                    <ChevronLeft className="h-7 w-7" />
-                  </button>
-                )}
-                {hasNext && (
-                  <button
-                    type="button"
-                    onClick={() => goto(1)}
-                    aria-label="Photo suivante"
-                    className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
-                  >
-                    <ChevronRight className="h-7 w-7" />
-                  </button>
-                )}
+              {/* Explicit X close (top-right, Q-6 A). Sits above the
+                  zoom-pan-pinch layer so it always receives clicks. */}
+              <button
+                type="button"
+                onClick={() => setPreviewPhoto(null)}
+                aria-label="Fermer"
+                className="absolute right-3 top-2.5 z-50 h-9 w-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <div className="flex-1 relative overflow-hidden">
+                <TransformWrapper
+                  key={previewPhoto.id /* reset zoom on photo change */}
+                  initialScale={1}
+                  minScale={1}
+                  maxScale={8}
+                  centerOnInit
+                  wheel={{ step: 0.2 }}
+                  doubleClick={{ mode: 'toggle', step: 1.5 }}
+                  panning={{ disabled: false }}
+                >
+                  {({ zoomIn, zoomOut, resetTransform }) => (
+                    <>
+                      <TransformComponent
+                        wrapperStyle={{ width: '100%', height: '100%' }}
+                        contentStyle={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <img
+                          src={previewPhoto.url}
+                          className="max-w-full max-h-full object-contain select-none"
+                          alt={previewPhoto.name}
+                          draggable={false}
+                        />
+                      </TransformComponent>
+                      {hasPrev && (
+                        <button
+                          type="button"
+                          onClick={() => goto(-1)}
+                          aria-label="Photo précédente"
+                          className="absolute left-4 top-1/2 -translate-y-1/2 z-40 h-12 w-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+                        >
+                          <ChevronLeft className="h-7 w-7" />
+                        </button>
+                      )}
+                      {hasNext && (
+                        <button
+                          type="button"
+                          onClick={() => goto(1)}
+                          aria-label="Photo suivante"
+                          className="absolute right-4 top-1/2 -translate-y-1/2 z-40 h-12 w-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+                        >
+                          <ChevronRight className="h-7 w-7" />
+                        </button>
+                      )}
+                      {/* Bottom-center zoom toolbar (Q-10 A). */}
+                      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/15 backdrop-blur px-2 py-1.5">
+                        <button
+                          type="button"
+                          onClick={() => zoomOut()}
+                          aria-label="Dézoomer"
+                          className="h-9 w-9 rounded-full text-white hover:bg-white/20 flex items-center justify-center"
+                        >
+                          <ZoomOut className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => resetTransform()}
+                          aria-label="Réinitialiser le zoom"
+                          className="h-9 w-9 rounded-full text-white hover:bg-white/20 flex items-center justify-center"
+                        >
+                          <Maximize2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => zoomIn()}
+                          aria-label="Zoomer"
+                          className="h-9 w-9 rounded-full text-white hover:bg-white/20 flex items-center justify-center"
+                        >
+                          <ZoomIn className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </TransformWrapper>
               </div>
             </DialogContent>
           </Dialog>
