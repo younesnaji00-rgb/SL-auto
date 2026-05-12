@@ -11,7 +11,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Textarea } from '@/components/ui/textarea';
 import {
   collection, addDoc, serverTimestamp, orderBy, query,
-  updateDoc, doc, arrayUnion,
+  updateDoc, doc, arrayUnion, setDoc,
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useFirestore, useAuth, useCollection, useStorage } from '@/firebase';
@@ -113,6 +113,8 @@ export default function ObservationsTab({
 
   const [selectedPreset, setSelectedPreset] = useState('');
   const [customText, setCustomText] = useState('');
+  const [pendingProofs, setPendingProofs] = useState<File[]>([]);
+  const newProofInputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Collapsible variant defaults to CLOSED so observations don't dominate the
   // step's vertical space. Unread count below acts as the notification.
@@ -313,17 +315,58 @@ export default function ObservationsTab({
     const accordTag = contextAccord ?? (needsChiffrageAccordPick ? (chiffrageAccordChoice || null) : null);
 
     try {
-      await addObservation(
-        db, dossierId, text, 'Général', userName, userEmail, userRole, section,
-        phaseTag, accordTag,
-      );
+      if (pendingProofs.length === 0 || !storage) {
+        await addObservation(
+          db, dossierId, text, 'Général', userName, userEmail, userRole, section,
+          phaseTag, accordTag,
+        );
+      } else {
+        // Pre-allocate the observation doc ID so storage paths can use it.
+        const obsCollRef = collection(db, 'dossiers', dossierId, 'observations');
+        const newObsRef = doc(obsCollRef);
+        const obsId = newObsRef.id;
+
+        const uploaded: ProofFile[] = [];
+        for (const file of pendingProofs) {
+          const path = `dossiers/${dossierId}/observations/${obsId}/${Date.now()}_${file.name}`;
+          const sRef = storageRef(storage, path);
+          await uploadBytes(sRef, file);
+          const url = await getDownloadURL(sRef);
+          uploaded.push({
+            url,
+            name: file.name,
+            uploadedBy: userEmail,
+            uploadedByNom: userName,
+            uploadedByRole: userRole,
+            uploadedAt: new Date(),
+          });
+        }
+
+        const docPayload: Record<string, any> = {
+          text,
+          type: 'Général',
+          author: userName,
+          authorEmail: userEmail,
+          authorRole: userRole,
+          source: section,
+          createdAt: serverTimestamp(),
+          dossierId,
+        };
+        if (phaseTag) docPayload.phaseATG = phaseTag;
+        if (accordTag) docPayload.accordSlot = accordTag;
+        docPayload.traitementProofs = uploaded;
+
+        await setDoc(newObsRef, docPayload);
+      }
+
       setSelectedPreset('');
       setCustomText('');
       setChiffrageAccordChoice('');
+      setPendingProofs([]);
       toast({ title: 'Observation ajoutée' });
     } catch (err: any) {
       console.error('Failed to add observation:', err);
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message || 'Impossible d\'ajouter l\'observation.' });
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message || "Impossible d'ajouter l'observation." });
     } finally {
       setIsSubmitting(false);
     }
@@ -414,6 +457,48 @@ export default function ObservationsTab({
               Sélectionnez à propos de quel accord (1er ou 2ème ou +).
             </p>
           )}
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={newProofInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files) setPendingProofs((prev) => [...prev, ...Array.from(e.target.files!)]);
+                e.target.value = '';
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={() => newProofInputRef.current?.click()}
+              disabled={isSubmitting}
+            >
+              <Paperclip className="h-3.5 w-3.5" />
+              Attacher une preuve
+            </Button>
+            {pendingProofs.length > 0 && (
+              <span className="text-[11px] text-muted-foreground">
+                {pendingProofs.length} fichier{pendingProofs.length > 1 ? 's' : ''} à joindre
+              </span>
+            )}
+            {pendingProofs.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-[11px] gap-1 text-muted-foreground hover:text-destructive"
+                onClick={() => setPendingProofs([])}
+                disabled={isSubmitting}
+              >
+                <X className="h-3 w-3" />
+                Annuler
+              </Button>
+            )}
+          </div>
           <div className="flex justify-end">
             <Button
               size="sm"
