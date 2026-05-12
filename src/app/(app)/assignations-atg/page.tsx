@@ -529,6 +529,20 @@ export default function AssignationsATGPage() {
               : filteredPlanifications.length}
           </Badge>
         </header>
+        <div className="flex items-center justify-between h-10 px-4 border-b text-sm">
+          <span className="text-muted-foreground">
+            Bonjour <span className="font-semibold text-foreground">{profile?.prenom || profile?.nom || 'agent'}</span>
+            {' · '}
+            {format(new Date(), 'EEE d MMM', { locale: fr })}
+          </span>
+          <Badge variant="outline" className="text-xs">
+            {(effectiveViewMode === 'by-zone'
+              ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
+              : filteredPlanifications.length)} mission{(effectiveViewMode === 'by-zone'
+              ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
+              : filteredPlanifications.length) > 1 ? 's' : ''}
+          </Badge>
+        </div>
         <div className="p-4 text-center text-muted-foreground">
           Vue mobile en cours de construction…
         </div>
