@@ -579,7 +579,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
 
   if (isMobile) {
     return (
-      <div className="pb-24">
+      <div>
         <header className="sticky top-0 z-30 h-14 flex items-center gap-3 px-4 border-b bg-card">
           <Link
             href="/assignations-atg"
@@ -596,325 +596,42 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               <p className="text-xs text-muted-foreground truncate">{assureNom}</p>
             )}
           </div>
-          {isATG && canEdit && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 -mr-2" aria-label="Menu">
-                  <MoreVertical className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem
-                  onClick={async () => {
-                    if (!dossierRef || !db) return;
-                    const next = !(dossier as any)?.propositionReforme;
-                    try {
-                      await updateDoc(dossierRef, { propositionReforme: next });
-                      const userId = auth?.currentUser?.uid || 'unknown';
-                      await logWorkflow(
-                        db, dossierId,
-                        next ? 'Proposition réforme activée' : 'Proposition réforme annulée',
-                        userEmail, userId, 'done',
-                        { details: `Limite photo par section : ${next ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION}` },
-                        profile?.nom,
-                      );
-                      toast({ title: next ? 'Proposition réforme activée' : 'Proposition réforme annulée' });
-                    } catch (e) {
-                      console.error('propositionReforme toggle error:', e);
-                      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de modifier la proposition réforme.' });
-                    }
-                  }}
-                >
-                  {(dossier as any)?.propositionReforme ? 'Annuler la proposition réforme' : 'Proposition réforme'}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
         </header>
-        {(dossier?.compagnie || dossier?.expertRank) && (
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar px-4 py-3 border-b">
-            {dossier?.compagnie && (
-              <Badge variant="outline" className="whitespace-nowrap">
-                {dossier.compagnie}
-              </Badge>
-            )}
-            {dossier?.expertRank && (
-              <Badge variant="outline" className="whitespace-nowrap">
-                {dossier.expertRank}
-              </Badge>
-            )}
-          </div>
-        )}
-        {(dossier as any)?.propositionReforme && (
-          <div className="flex items-center justify-between gap-3 px-4 py-2 border-b bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-200">
-            <span className="text-xs font-medium">Réforme proposée · limite 60 photos</span>
-            {isATG && canEdit && (
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!dossierRef || !db) return;
-                  try {
-                    await updateDoc(dossierRef, { propositionReforme: false });
-                    const userId = auth?.currentUser?.uid || 'unknown';
-                    await logWorkflow(
-                      db, dossierId,
-                      'Proposition réforme annulée',
-                      userEmail, userId, 'done',
-                      { details: `Limite photo par section : ${MAX_PHOTOS_PER_SECTION}` },
-                      profile?.nom,
-                    );
-                    toast({ title: 'Proposition réforme annulée' });
-                  } catch (e) {
-                    console.error('propositionReforme toggle error:', e);
-                    toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de modifier la proposition réforme.' });
-                  }
-                }}
-                className="text-xs underline-offset-2 hover:underline font-semibold"
-              >
-                Annuler
-              </button>
-            )}
-          </div>
-        )}
-        {filteredPlans.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-            <Calendar className="h-8 w-8 mb-2 opacity-20" />
-            <p className="text-sm">Aucune planification {activeTab.toLowerCase()} pour ce dossier.</p>
-          </div>
-        ) : (
-          <div className="p-4 space-y-3">
-            {filteredPlans.map((p: any) => {
-              const itineraireHref = p.adresse
-                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                    [p.zone, p.adresse].filter(Boolean).join(' '),
-                  )}`
-                : null;
-              return (
-                <div key={p.id} className="bg-card border rounded-xl p-4 shadow-sm space-y-2">
-                  <div className="text-base font-semibold">
-                    {formatDate(p.dateRDV)}
-                  </div>
-                  {p.zone && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <MapPin className="h-3 w-3 shrink-0" />
-                      <span>{p.zone}</span>
-                    </div>
-                  )}
-                  {p.adresse && (
-                    <div className="text-sm flex items-start justify-between gap-3">
-                      <span className="flex-1 break-words">{p.adresse}</span>
-                      {itineraireHref && (
-                        <a
-                          href={itineraireHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary text-xs underline-offset-2 hover:underline whitespace-nowrap shrink-0"
-                        >
-                          Itinéraire
-                        </a>
-                      )}
-                    </div>
-                  )}
-                  <div className="pt-2 border-t border-dashed space-y-1">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Observation</p>
-                      {canEdit && editingPlanId !== p.id && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0"
-                          onClick={() => {
-                            setEditingPlanId(p.id);
-                            setEditObservation(p.observation || '');
-                          }}
-                          aria-label="Modifier l'observation"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </div>
-                    {editingPlanId === p.id ? (
-                      <div className="space-y-2 mt-1">
-                        <Select
-                          value={editObservation}
-                          onValueChange={(v) => setEditObservation(v)}
-                          disabled={observationPresetsLoading || activeObservationPresets.length === 0}
-                        >
-                          <SelectTrigger className="h-9 text-sm">
-                            <SelectValue
-                              placeholder={
-                                observationPresetsLoading
-                                  ? 'Chargement…'
-                                  : activeObservationPresets.length === 0
-                                    ? 'Aucune observation disponible'
-                                    : "Saisir l'observation..."
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {activeObservationPresets.map((opt) => (
-                              <SelectItem key={opt.id} value={opt.label}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            className="flex-1 h-9 gap-1"
-                            onClick={() => handleSaveObservation(p.id)}
-                          >
-                            <Check className="h-3.5 w-3.5" /> Enregistrer
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1 h-9 gap-1"
-                            onClick={() => setEditingPlanId(null)}
-                          >
-                            <X className="h-3.5 w-3.5" /> Annuler
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        {p.observation ? (
-                          <p className="text-sm">{p.observation}</p>
-                        ) : (
-                          <p className="text-sm italic text-muted-foreground">Aucune observation</p>
-                        )}
-                        {p.observationUpdatedAt && (
-                          <p className="text-[10px] text-amber-600">
-                            MAJ {p.observationSource === 'ATG' ? 'Agent de Terrain' : p.observationSource === 'Gestionnaire' ? 'Gestionnaire' : ''}
-                            {p.observationUpdatedBy ? ` (${p.observationUpdatedBy})` : ''} — {formatDate(p.observationUpdatedAt)}
-                          </p>
-                        )}
-                      </>
-                    )}
-                    <div className="pt-2 mt-1 border-t border-dashed">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                          <Paperclip className="h-3 w-3" /> Preuve
-                        </span>
-                        {canEdit && (
-                          <>
-                            <input
-                              ref={(el) => { preuveInputRefs.current[p.id] = el; }}
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              className="hidden"
-                              onChange={(e) => e.target.files && handleUploadPreuve(p.id, e.target.files)}
-                            />
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 text-[11px] gap-1 px-2"
-                              disabled={uploadingPreuveId === p.id}
-                              onClick={() => preuveInputRefs.current[p.id]?.click()}
-                            >
-                              {uploadingPreuveId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-                              Ajouter
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                      {p.preuvePhotos && p.preuvePhotos.length > 0 ? (
-                        <div className="flex gap-1.5 flex-wrap">
-                          {p.preuvePhotos.map((url: string, idx: number) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => setPreviewPreuvePhotos({ urls: p.preuvePhotos, index: idx })}
-                              className="relative w-12 h-12 rounded border overflow-hidden"
-                              aria-label={`Aperçu preuve ${idx + 1}`}
-                            >
-                              <img src={url} alt="" className="object-cover w-full h-full" />
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-[11px] italic text-muted-foreground">Aucune preuve jointe</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <Collapsible open={isPhotosOpen} onOpenChange={setIsPhotosOpen}>
-          <CollapsibleTrigger className="flex items-center justify-between w-full h-10 px-4 border-b bg-card hover:bg-muted/40 transition-colors">
-            <span className="text-sm font-semibold">
-              Photos · {filteredPhotos.length}/{photoCap}
-            </span>
-            <ChevronDown
-              className={cn(
-                'h-4 w-4 transition-transform',
-                isPhotosOpen ? 'rotate-0' : '-rotate-90',
-              )}
-            />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            {filteredPhotos.length === 0 ? (
-              <p className="p-4 text-center text-xs text-muted-foreground">
-                Aucune photo pour {activeTab.toLowerCase()}.
-              </p>
-            ) : (
-              <div className="p-4 grid grid-cols-3 gap-2">
-                {filteredPhotos.map((photo) => (
-                  <button
-                    key={photo.id}
-                    type="button"
-                    onClick={() => setPreviewPhoto(photo)}
-                    className="aspect-square rounded-lg overflow-hidden border bg-muted hover:opacity-80 transition-opacity"
-                  >
-                    <img
-                      src={photo.url}
-                      alt=""
-                      className="object-cover w-full h-full"
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-          </CollapsibleContent>
-        </Collapsible>
-        <Collapsible open={isDocsOpen} onOpenChange={setIsDocsOpen}>
-          <CollapsibleTrigger className="flex items-center justify-between w-full h-10 px-4 border-b bg-card hover:bg-muted/40 transition-colors">
-            <span className="text-sm font-semibold">Documents</span>
-            <ChevronDown
-              className={cn(
-                'h-4 w-4 transition-transform',
-                isDocsOpen ? 'rotate-0' : '-rotate-90',
-              )}
-            />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="p-4">
-              <TypedDocumentsGrid dossierId={dossierId} hideCardinalPlus hideExtraSlotPlus />
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-        <ObservationsTab
-          dossierId={dossierId}
-          section="assignations-atg"
-          variant="collapsible"
-          contextPhase={activeTab as 'Avant' | 'En cours' | 'Après'}
-        />
         {canEdit && (
-          <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+          <div className="p-4 space-y-3">
             <Button
               onClick={() => setIsCameraOpen(true)}
               disabled={isUploading}
-              className="w-full h-14 text-base gap-2"
+              className="w-full h-24 gap-3 text-base"
             >
               {isUploading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className="h-6 w-6 animate-spin" />
               ) : (
-                <Camera className="h-5 w-5" />
+                <Camera className="h-6 w-6" />
               )}
-              {isUploading ? 'Upload en cours...' : 'Prendre une photo'}
+              {isUploading ? 'Upload en cours...' : 'Importer des photos'}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => docFileInputRef.current?.click()}
+              disabled={isDocUploading}
+              className="w-full h-24 gap-3 text-base"
+            >
+              {isDocUploading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <FileText className="h-6 w-6" />
+              )}
+              {isDocUploading ? 'Upload en cours...' : 'Importer un document'}
+            </Button>
+            <input
+              ref={docFileInputRef}
+              type="file"
+              className="hidden"
+              multiple
+              onChange={(e) => e.target.files && handleDocFilesSelect(e.target.files)}
+            />
           </div>
         )}
       </div>
