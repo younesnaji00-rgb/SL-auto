@@ -288,3 +288,28 @@ export function parseGarageSlot(
 ): { sourceDocType: AccordeSourceDocType; ordinal: number } | null {
   return parseAccordeParent(label);
 }
+
+/**
+ * Map an `accordSlot` field value (specific docType label OR legacy coarse
+ * slot) to the coarse panel slot used by the dossier timeline + chiffrage
+ * filter. Used to route observations to the right scoped panel even after the
+ * chiffreur's picker switched from 2 hardcoded options to a dynamic list of
+ * the actual accord/proposition docTypes they've worked on.
+ *
+ *   - Legacy values ('1er accord', '2ème accord ou +') pass through unchanged.
+ *   - DocType labels are parsed via {@link parseAccordDocType}:
+ *       ordinal === 1 → '1er accord'
+ *       ordinal ≥ 2  → '2ème accord ou +'
+ *     This applies to both kinds (accord, proposition-accord) and both
+ *     parents (base, extra garage).
+ *   - Anything unparseable → null.
+ */
+export function accordSlotFromValue(
+  value: string | undefined | null,
+): '1er accord' | '2ème accord ou +' | null {
+  if (!value) return null;
+  if (value === '1er accord' || value === '2ème accord ou +') return value;
+  const parsed = parseAccordDocType(value);
+  if (!parsed) return null;
+  return parsed.ordinal === 1 ? '1er accord' : '2ème accord ou +';
+}

@@ -10,7 +10,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/component
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  collection, addDoc, serverTimestamp, orderBy, query,
+  collection, addDoc, serverTimestamp, orderBy, query, where,
   updateDoc, doc, arrayUnion, setDoc,
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -22,6 +22,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { addObservation } from '@/app/(app)/dossiers/[id]/log-observation';
+import { accordSlotFromValue } from '@/lib/docType-accorde';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 
 type ProofFile = {
@@ -161,6 +162,38 @@ export default function ObservationsTab({
 
   const { data: rawObservations, loading } = useCollection<Observation>(obsQuery as any);
 
+  // Dynamic "à propos de quel accord" options — populated from every chiffrage
+  // round assigned to this chiffreur on this dossier. Keys of
+  // `structuredEditables` are the exact accord/proposition docType labels
+  // ("Devis 2ème accord", "1ère proposition d'accord (devis)", …). Only
+  // queried when the chiffrage compose form actually needs to render the
+  // picker (chiffreur opens from the chiffrage list view).
+  const needsChiffrageAccordPick = section === 'assignations-chiffrage' && !contextAccord;
+  const chiffragesQuery = useMemo(() => {
+    if (!db || !needsChiffrageAccordPick || !profile?.uid) return null;
+    return query(
+      collection(db, 'chiffrages'),
+      where('dossierId', '==', dossierId),
+      where('assignedChiffreurId', '==', profile.uid),
+    );
+  }, [db, dossierId, profile?.uid, needsChiffrageAccordPick]);
+  const { data: myChiffrages } = useCollection<any>(chiffragesQuery as any);
+  const dynamicAccordOptions = useMemo(() => {
+    if (!myChiffrages) return [] as string[];
+    const seen = new Set<string>();
+    const ordered: string[] = [];
+    for (const c of myChiffrages) {
+      const struct = (c as any).structuredEditables || {};
+      for (const key of Object.keys(struct)) {
+        if (typeof key === 'string' && key.trim() && !seen.has(key)) {
+          seen.add(key);
+          ordered.push(key);
+        }
+      }
+    }
+    return ordered;
+  }, [myChiffrages]);
+
   // Round 8 — context-driven visibility (REPLACES the round-7 cross-role
   // filter). Each observation can carry a `phaseATG` tag (planification
   // context) or an `accordSlot` tag (accord context). The panel's
@@ -170,8 +203,13 @@ export default function ObservationsTab({
     if (!rawObservations) return [];
     const filtered = rawObservations.filter((o) => {
       const oPhase = (o as any).phaseATG as PhaseATG | undefined;
-      const oAccord = (o as any).accordSlot as AccordSlot | undefined;
-      const isLegacy = !oPhase && !oAccord;
+      const oAccordRaw = (o as any).accordSlot as string | undefined;
+      // accordSlot can be a coarse legacy slot ('1er accord' / '2ème accord
+      // ou +') or a specific docType ('Devis 2ème accord', "1ère proposition
+      // d'accord (devis)", …). Derive the coarse slot so the timeline panels
+      // route both shapes correctly.
+      const oAccordSlot = accordSlotFromValue(oAccordRaw);
+      const isLegacy = !oPhase && !oAccordRaw;
 
       if (contextPhase) {
         // Phase-scoped panel: show obs tagged with this exact phase plus
@@ -181,9 +219,10 @@ export default function ObservationsTab({
         return false;
       }
       if (contextAccord) {
-        // Accord-scoped panel: show obs tagged with this exact accord plus
-        // legacy chiffreur/dossiers obs (only for step 6 = '1er accord').
-        if (oAccord === contextAccord) return true;
+        // Accord-scoped panel: show obs whose derived slot matches this
+        // panel's contextAccord, plus legacy chiffreur/dossiers obs (only
+        // for step 6 = '1er accord').
+        if (oAccordSlot === contextAccord) return true;
         if (isLegacy && contextAccord === '1er accord' &&
             (o.source === 'assignations-chiffrage' || o.source === 'dossiers')) return true;
         return false;
@@ -193,7 +232,7 @@ export default function ObservationsTab({
       //   - assignations-atg list view: any phase-tagged obs + legacy AT/dossiers
       //   - dossiers (no context): show everything (gestionnaire's main view never lands here today)
       if (section === 'assignations-chiffrage') {
-        if (oAccord) return true;
+        if (oAccordRaw) return true;
         if (isLegacy && (o.source === 'assignations-chiffrage' || o.source === 'dossiers')) return true;
         return false;
       }
@@ -231,12 +270,16 @@ export default function ObservationsTab({
   // sending. Matches round 7 Q-7 answer C (reject when both filled).
   const bothFilled = presetFilled && customFilled;
 
-  // Round 8 Q-2 → A: when the chiffreur writes from the chiffrage list view
-  // (no contextAccord prop), they must pick an accord context from a Select
-  // before submission. The picked value becomes the `accordSlot` tag.
-  const [chiffrageAccordChoice, setChiffrageAccordChoice] = useState<AccordSlot | ''>('');
-  const needsChiffrageAccordPick = section === 'assignations-chiffrage' && !contextAccord;
-  const chiffrageAccordMissing = needsChiffrageAccordPick && !chiffrageAccordChoice;
+  // When the chiffreur writes from the chiffrage list view (no contextAccord
+  // prop), they pick an accord context from a Select before submission. The
+  // picked value — the specific docType label they were working on — becomes
+  // the `accordSlot` tag on the observation. The list of options is
+  // dynamicAccordOptions, computed above from their chiffrage rounds. If no
+  // options exist (chiffreur has nothing on this dossier yet), the picker
+  // hides and the observation is sent without a scope tag.
+  const [chiffrageAccordChoice, setChiffrageAccordChoice] = useState<string>('');
+  const chiffrageAccordMissing =
+    needsChiffrageAccordPick && dynamicAccordOptions.length > 0 && !chiffrageAccordChoice;
 
   const submitDisabled =
     (!presetFilled && !customFilled) ||
@@ -423,18 +466,23 @@ export default function ObservationsTab({
               defaultValues={['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre']}
             />
           </div>
-          {/* Chiffrage compose form needs an explicit accord context pick
-              (Q-2 → A). Only shown when the panel has no contextAccord
-              prop (i.e. the chiffrage list view, not the dossier step). */}
-          {needsChiffrageAccordPick && (
+          {/* Chiffrage compose form: pick which accord/proposition this
+              observation concerns. Options are the exact docType labels the
+              chiffreur has been assigned on this dossier (deduped across
+              their chiffrage rounds). Hidden when no rounds exist yet — the
+              chiffreur can still send an untagged observation. Only rendered
+              when the panel has no contextAccord prop (chiffrage list view,
+              not a scoped dossier step). */}
+          {needsChiffrageAccordPick && dynamicAccordOptions.length > 0 && (
             <div className="flex items-center gap-2">
-              <Select value={chiffrageAccordChoice} onValueChange={(v) => setChiffrageAccordChoice(v as AccordSlot)}>
+              <Select value={chiffrageAccordChoice} onValueChange={setChiffrageAccordChoice}>
                 <SelectTrigger className="flex-1 text-sm">
                   <SelectValue placeholder="À propos de quel accord ?" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1er accord">1er accord</SelectItem>
-                  <SelectItem value="2ème accord ou +">2ème accord ou +</SelectItem>
+                  {dynamicAccordOptions.map((opt) => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -454,7 +502,7 @@ export default function ObservationsTab({
           )}
           {chiffrageAccordMissing && (presetFilled || customFilled) && (
             <p className="text-[11px] text-destructive">
-              Sélectionnez à propos de quel accord (1er ou 2ème ou +).
+              Sélectionnez à propos de quel accord.
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
@@ -544,6 +592,15 @@ export default function ObservationsTab({
                     <Badge className={cn('text-[10px] px-1.5 py-0 border-0', TYPE_BADGE_STYLES[obs.type] || TYPE_BADGE_STYLES['Général'])}>
                       {obs.type}
                     </Badge>
+                    {(obs as any).accordSlot && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0 border-primary/40 text-primary"
+                        title="À propos de"
+                      >
+                        {(obs as any).accordSlot}
+                      </Badge>
+                    )}
                     {obs.createdAt?.toDate && (
                       <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
                         {format(obs.createdAt.toDate(), 'dd MMM yyyy à HH:mm', { locale: fr })}

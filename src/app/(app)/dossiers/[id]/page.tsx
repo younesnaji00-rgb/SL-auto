@@ -213,7 +213,12 @@ export default function DossierDetailPage({
               </>
             ),
             11: (
-              <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" />
+              <>
+                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" />
+                <div className="mt-4">
+                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="2ème accord ou +" />
+                </div>
+              </>
             ),
             10: (
               <>

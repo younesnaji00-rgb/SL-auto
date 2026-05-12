@@ -96,13 +96,8 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'ADMIN',
     items: [
       { href: '/utilisateurs', icon: Users, label: 'Utilisateurs', roles: ['Admin'] },
-    ],
-  },
-  {
-    label: 'PARAMÈTRES',
-    items: [
-      { href: '/parametres/tampons', icon: Stamp, label: 'Tampons', roles: ['Admin'] },
-      { href: '/parametres/jours-feries', icon: CalendarDays, label: 'Jours fériés', roles: ['Admin', 'Directeur', 'Directeur des opérations', 'Directeur technique'] },
+      { href: '/tampons', icon: Stamp, label: 'Tampons', roles: ['Admin'] },
+      { href: '/jours-feries', icon: CalendarDays, label: 'Jours fériés', roles: ['Admin', 'Directeur', 'Directeur des opérations', 'Directeur technique'] },
     ],
   },
   {

@@ -1,10 +1,8 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog,
@@ -17,7 +15,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Stamp as StampIcon, Trash2, Upload } from 'lucide-react';
+import { Loader2, Stamp as StampIcon, Trash2, Upload, X } from 'lucide-react';
 import { useFirestore, useStorage } from '@/firebase';
 import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
@@ -47,11 +45,17 @@ export default function TamponsSettingsPage() {
   const { stamps, loading: stampsLoading } = useStamps({ includeInactive: true });
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [name, setName] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
+  const [queued, setQueued] = useState<Array<{ id: string; file: File; derivedName: string }>>([]);
+  const [progress, setProgress] = useState<{ total: number; done: number; failed: number } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Stamp | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const isImporting = progress !== null;
+
+  const newId = () =>
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
   if (userLoading) {
     return (
@@ -72,58 +76,69 @@ export default function TamponsSettingsPage() {
     );
   }
 
-  const resetForm = () => {
-    setFile(null);
-    setName('');
+  const handleFilesPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    const next = files.map((f) => ({
+      id: newId(),
+      file: f,
+      derivedName: f.name.replace(/\.[^/.]+$/, '').trim() || f.name,
+    }));
+    setQueued((prev) => [...prev, ...next]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleUpload = async () => {
-    if (!db || !storage) return;
-    const trimmedName = name.trim();
-    if (!file) {
-      toast({ variant: 'destructive', title: 'Fichier manquant', description: 'Sélectionnez une image de tampon.' });
-      return;
-    }
-    if (!trimmedName) {
-      toast({ variant: 'destructive', title: 'Nom manquant', description: 'Saisissez un nom pour le tampon.' });
-      return;
-    }
+  const removeFromQueue = (id: string) => {
+    setQueued((prev) => prev.filter((q) => q.id !== id));
+  };
 
-    setIsUploading(true);
-    try {
-      const uuid =
-        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-      const ext = extensionFromFile(file);
-      const storagePath = `stamps/${uuid}.${ext}`;
-      const storageRef = ref(storage, storagePath);
-      await uploadBytes(storageRef, file, { contentType: file.type || undefined });
-      const url = await getDownloadURL(storageRef);
-
-      const createdByName =
-        [profile.prenom, profile.nom].filter(Boolean).join(' ').trim() ||
-        profile.email ||
-        '';
-      await addDoc(collection(db, 'stamps'), {
-        name: trimmedName,
-        storagePath,
-        url,
-        active: true,
-        createdAt: serverTimestamp(),
-        createdBy: profile.uid,
-        createdByName,
-      });
-
-      toast({ title: 'Tampon ajouté', description: trimmedName });
-      resetForm();
-    } catch (err: any) {
-      console.error(err);
-      toast({ variant: 'destructive', title: 'Erreur lors de l\'ajout', description: err?.message || 'Erreur inconnue.' });
-    } finally {
-      setIsUploading(false);
+  const handleBatchImport = async () => {
+    if (!db || !storage || queued.length === 0) return;
+    const createdByName =
+      [profile.prenom, profile.nom].filter(Boolean).join(' ').trim() ||
+      profile.email ||
+      '';
+    const total = queued.length;
+    setProgress({ total, done: 0, failed: 0 });
+    let done = 0;
+    let failed = 0;
+    for (const item of queued) {
+      try {
+        const uuid = newId();
+        const ext = extensionFromFile(item.file);
+        const storagePath = `stamps/${uuid}.${ext}`;
+        const storageRef = ref(storage, storagePath);
+        await uploadBytes(storageRef, item.file, { contentType: item.file.type || undefined });
+        const url = await getDownloadURL(storageRef);
+        await addDoc(collection(db, 'stamps'), {
+          name: item.derivedName || item.file.name,
+          storagePath,
+          url,
+          active: true,
+          createdAt: serverTimestamp(),
+          createdBy: profile.uid,
+          createdByName,
+        });
+        done += 1;
+      } catch (err) {
+        console.error('Stamp import failed for', item.file.name, err);
+        failed += 1;
+      } finally {
+        setProgress({ total, done, failed });
+      }
     }
+    const plural = (n: number) => (n > 1 ? 's' : '');
+    const summary =
+      failed > 0
+        ? `${done} tampon${plural(done)} importé${plural(done)}, ${failed} échec${plural(failed)}`
+        : `${done} tampon${plural(done)} importé${plural(done)}`;
+    toast({
+      variant: failed > 0 && done === 0 ? 'destructive' : 'default',
+      title: failed > 0 && done === 0 ? 'Import échoué' : 'Import terminé',
+      description: summary,
+    });
+    setQueued([]);
+    setProgress(null);
   };
 
   const handleToggleActive = async (stamp: Stamp, next: boolean) => {
@@ -168,12 +183,82 @@ export default function TamponsSettingsPage() {
         </p>
       </div>
 
+      <Card className="border shadow-sm rounded-lg">
+        <CardHeader>
+          <CardTitle>Importer des tampons</CardTitle>
+          <CardDescription>
+            Sélectionnez une ou plusieurs images. Le nom du tampon sera dérivé du nom de fichier (sans l&apos;extension).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleFilesPicked}
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isImporting}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Sélectionner des fichiers
+            </Button>
+            {queued.length > 0 && !isImporting && (
+              <Button type="button" onClick={handleBatchImport}>
+                Importer {queued.length} tampon{queued.length > 1 ? 's' : ''}
+              </Button>
+            )}
+            {isImporting && progress && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>
+                  {progress.done}/{progress.total} traités
+                  {progress.failed > 0 ? ` · ${progress.failed} échec${progress.failed > 1 ? 's' : ''}` : ''}
+                </span>
+              </div>
+            )}
+          </div>
+          {queued.length > 0 && (
+            <ul className="mt-4 divide-y border rounded-md">
+              {queued.map((q) => (
+                <li key={q.id} className="flex flex-wrap items-center gap-3 px-3 py-2">
+                  <span className="text-xs text-muted-foreground truncate min-w-0 flex-1 basis-40">
+                    {q.file.name}
+                  </span>
+                  <span className="text-sm font-medium truncate min-w-0 flex-1 basis-40">
+                    {q.derivedName}
+                  </span>
+                  {!isImporting && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => removeFromQueue(q.id)}
+                      title="Retirer de la file"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
       <div>
         <Card className="border shadow-sm rounded-lg">
           <CardHeader>
             <CardTitle>Tampons enregistrés</CardTitle>
             <CardDescription>
-              Activez, désactivez ou supprimez les tampons existants. L&apos;import d&apos;un nouveau tampon se fait directement depuis l&apos;aperçu PDF au moment d&apos;enregistrer un devis ou une facture.
+              Activez, désactivez ou supprimez les tampons existants.
             </CardDescription>
           </CardHeader>
             <CardContent>

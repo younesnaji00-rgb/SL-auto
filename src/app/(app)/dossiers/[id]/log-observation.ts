@@ -8,13 +8,17 @@ export type AccordSlot = '1er accord' | '2ème accord ou +';
  * Append an observation to the dossier's observations subcollection.
  * Fire-and-forget — errors are logged but never thrown.
  *
- * Context tags (round 8):
+ * Context tags:
  *  - `phaseATG`  → scopes the observation to a planification phase (Avant /
  *    En cours / Après). Visible only in that step's dossier panel + the
  *    AT's ATG view when that tab is active.
- *  - `accordSlot` → scopes to an accord context (1er accord / 2ème accord
- *    ou +). Visible only in that accord step's dossier panel + the
- *    chiffreur's chiffrage view.
+ *  - `accordSlot` → scopes to an accord context. Legacy values are the coarse
+ *    slot labels ('1er accord' / '2ème accord ou +'); since the round where
+ *    the chiffreur picker became dynamic, the field can also hold the
+ *    specific accord/proposition docType the chiffreur was working on
+ *    ('Devis 2ème accord', "1ère proposition d'accord (devis)", etc.). The
+ *    dossier timeline filter derives the coarse slot via
+ *    `accordSlotFromValue` so both shapes route to the right panel.
  *  An observation should have AT MOST ONE of the two tags set.
  */
 export async function addObservation(
@@ -27,7 +31,7 @@ export async function addObservation(
   authorRole: string,
   source: 'dossiers' | 'assignations-atg' | 'assignations-chiffrage',
   phaseATG?: PhaseATG | null,
-  accordSlot?: AccordSlot | null,
+  accordSlot?: AccordSlot | string | null,
 ): Promise<void> {
   if (!db || !dossierId || !text.trim()) return;
 
