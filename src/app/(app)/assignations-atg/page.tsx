@@ -761,11 +761,93 @@ export default function AssignationsATGPage() {
               ))}
             </div>
           )
-        ) : (
-          <div className="p-4 text-center text-sm text-muted-foreground">
-            Vue par zone — bientôt sur mobile
+        ) : zoneGroups.length === 0 ? (
+          <div className="p-4">
+            <EmptyState
+              icon={<Users />}
+              title={agentFilter !== 'Tous' ? `Aucun agent correspondant au filtre « ${agentFilter} »` : 'Aucun agent de terrain configuré'}
+              description={agentFilter !== 'Tous' ? "Ajustez le filtre Agent pour voir d'autres zones." : 'Ajoutez des agents depuis la modale de planification pour les voir apparaître ici.'}
+              dashed={false}
+              className="border-0 bg-transparent py-10"
+            />
           </div>
-        )}
+        ) : (
+            <div className="p-4 space-y-3">
+              {zoneGroups.map(({ zone, agents }) => {
+                const totalWorkload = agents.reduce((acc, a) => acc + (agentWorkload[(a.label || '').trim()] || 0), 0);
+                const isUnassigned = zone === UNASSIGNED_ZONE;
+                return (
+                  <Collapsible
+                    key={zone}
+                    open={zoneOpen(zone)}
+                    onOpenChange={(open) => setOpenZoneSections(prev => ({ ...prev, [zone]: open }))}
+                  >
+                    <div className="bg-card border rounded-xl overflow-hidden shadow-sm">
+                      <CollapsibleTrigger className={cn(
+                        'flex items-center justify-between w-full px-3 py-2.5 transition-colors hover:opacity-80',
+                        isUnassigned
+                          ? 'bg-muted text-muted-foreground'
+                          : 'bg-[hsl(var(--primary)/0.12)] text-primary'
+                      )}>
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <MapPin className="h-4 w-4 shrink-0" />
+                          <span className="text-sm font-bold truncate">{zone}</span>
+                          <Badge variant="secondary" className="text-[10px] font-mono h-5 min-w-[20px] justify-center shrink-0">
+                            {agents.length}
+                          </Badge>
+                          {totalWorkload > 0 && (
+                            <Badge variant="outline" className="text-[10px] h-5 gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200 shrink-0">
+                              <Clock className="h-3 w-3" /> {totalWorkload}
+                            </Badge>
+                          )}
+                        </div>
+                        <ChevronDown className={cn(
+                          'h-4 w-4 transition-transform shrink-0',
+                          zoneOpen(zone) ? 'rotate-0' : '-rotate-90'
+                        )} />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="divide-y">
+                          {agents.map((agent) => {
+                            const name = (agent.label || '').trim();
+                            const active = agentWorkload[name] || 0;
+                            return (
+                              <button
+                                key={agent.id}
+                                type="button"
+                                onClick={() => {
+                                  setFilters({ agentFilter: name });
+                                  setViewMode('list');
+                                }}
+                                className="flex items-center justify-between w-full h-14 px-3 hover:bg-muted/40 transition-colors text-left"
+                              >
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <span className="text-sm font-medium truncate">{name || '-'}</span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {active > 0 ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200"
+                                    >
+                                      <Clock className="h-3 w-3" /> {active}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground">0</span>
+                                  )}
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground -rotate-90" />
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+                );
+              })}
+            </div>
+          )}
       </div>
     );
   }
