@@ -860,6 +860,17 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         </CardContent>
       </Card>
 
+      {/* Observations section — scoped to the AT's current mission tab. The
+          panel auto-tags new obs with phaseATG=activeTab (round 8 Q-3 → A)
+          and only shows obs (or legacy un-tagged AT/dossiers obs) for that
+          phase. */}
+      <ObservationsTab
+        dossierId={dossierId}
+        section="assignations-atg"
+        variant="collapsible"
+        contextPhase={activeTab as 'Avant' | 'En cours' | 'Après'}
+      />
+
       {/* Photos & Documents toggle row */}
       <div className="grid grid-cols-2 gap-4">
         {/* Photos toggle */}
@@ -1004,17 +1015,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           </CardContent>
         </Card>
       )}
-
-      {/* Observations section — scoped to the AT's current mission tab. The
-          panel auto-tags new obs with phaseATG=activeTab (round 8 Q-3 → A)
-          and only shows obs (or legacy un-tagged AT/dossiers obs) for that
-          phase. */}
-      <ObservationsTab
-        dossierId={dossierId}
-        section="assignations-atg"
-        variant="collapsible"
-        contextPhase={activeTab as 'Avant' | 'En cours' | 'Après'}
-      />
 
       {/* Photo preview dialog */}
       {previewPhoto && (
