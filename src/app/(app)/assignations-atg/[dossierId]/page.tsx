@@ -662,9 +662,21 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                       )}
                     </div>
                   )}
-                  <p className="text-[11px] italic text-muted-foreground pt-1 border-t border-dashed">
-                    Observation et preuves — à venir
-                  </p>
+                  <div className="pt-2 border-t border-dashed space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Observation</p>
+                    {p.observation ? (
+                      <p className="text-sm">{p.observation}</p>
+                    ) : (
+                      <p className="text-sm italic text-muted-foreground">Aucune observation</p>
+                    )}
+                    {p.observationUpdatedAt && (
+                      <p className="text-[10px] text-amber-600">
+                        MAJ {p.observationSource === 'ATG' ? 'Agent de Terrain' : p.observationSource === 'Gestionnaire' ? 'Gestionnaire' : ''}
+                        {p.observationUpdatedBy ? ` (${p.observationUpdatedBy})` : ''} — {formatDate(p.observationUpdatedAt)}
+                      </p>
+                    )}
+                    <p className="text-[11px] italic text-muted-foreground pt-1">Preuves — à venir</p>
+                  </div>
                 </div>
               );
             })}
