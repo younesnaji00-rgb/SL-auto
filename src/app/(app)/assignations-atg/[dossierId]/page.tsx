@@ -660,6 +660,37 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             );
           })}
         </div>
+        {(dossier as any)?.propositionReforme && (
+          <div className="flex items-center justify-between gap-3 px-4 py-2 border-b bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-200">
+            <span className="text-xs font-medium">Réforme proposée · limite 60 photos</span>
+            {isATG && canEdit && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!dossierRef || !db) return;
+                  try {
+                    await updateDoc(dossierRef, { propositionReforme: false });
+                    const userId = auth?.currentUser?.uid || 'unknown';
+                    await logWorkflow(
+                      db, dossierId,
+                      'Proposition réforme annulée',
+                      userEmail, userId, 'done',
+                      { details: `Limite photo par section : ${MAX_PHOTOS_PER_SECTION}` },
+                      profile?.nom,
+                    );
+                    toast({ title: 'Proposition réforme annulée' });
+                  } catch (e) {
+                    console.error('propositionReforme toggle error:', e);
+                    toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de modifier la proposition réforme.' });
+                  }
+                }}
+                className="text-xs underline-offset-2 hover:underline font-semibold"
+              >
+                Annuler
+              </button>
+            )}
+          </div>
+        )}
         {filteredPlans.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <Calendar className="h-8 w-8 mb-2 opacity-20" />
