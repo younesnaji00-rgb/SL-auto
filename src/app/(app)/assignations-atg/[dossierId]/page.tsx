@@ -864,7 +864,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       <div className="grid grid-cols-2 gap-4">
         {/* Photos toggle */}
         <button
-          onClick={() => setIsPhotosOpen(!isPhotosOpen)}
+          onClick={() => { setIsPhotosOpen((v) => !v); setIsDocsOpen(false); }}
           className={cn(
             'flex items-center gap-3 px-5 py-4 rounded-xl border shadow-sm transition-all text-left',
             isPhotosOpen
@@ -882,7 +882,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
 
         {/* Documents toggle */}
         <button
-          onClick={() => setIsDocsOpen(!isDocsOpen)}
+          onClick={() => { setIsDocsOpen((v) => !v); setIsPhotosOpen(false); }}
           className={cn(
             'flex items-center gap-3 px-5 py-4 rounded-xl border shadow-sm transition-all text-left',
             isDocsOpen
