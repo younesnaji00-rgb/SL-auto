@@ -591,6 +591,21 @@ export default function AssignationsATGPage() {
                   />
                 </div>
               </div>
+              <div className="border-t p-3 flex gap-2">
+                <Button
+                  variant="ghost"
+                  className="flex-1 h-10"
+                  onClick={() => setFilters({ compagnieFilter: 'Toutes', agentFilter: 'Tous', dateFrom: '', dateTo: '' })}
+                >
+                  Réinitialiser
+                </Button>
+                <Button
+                  className="flex-1 h-10"
+                  onClick={() => setIsFilterSheetOpen(false)}
+                >
+                  Appliquer
+                </Button>
+              </div>
             </SheetContent>
           </Sheet>
         </header>
