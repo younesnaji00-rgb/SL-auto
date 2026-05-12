@@ -654,6 +654,25 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               <Badge variant="outline" className="ml-2 text-[10px]">{dossier.expertRank}</Badge>
             )}
           </div>
+          {filteredPlans.length > 0 && (
+            <div className="mt-1 space-y-0.5">
+              {filteredPlans.map((p: any) => (
+                <div key={p.id} className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar className="h-3 w-3 shrink-0" />
+                    {formatDate(p.dateRDV)}
+                  </span>
+                  {p.zone && (
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      {p.zone}
+                    </span>
+                  )}
+                  {p.adresse && <span className="truncate">· {p.adresse}</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         {/* Proposition réforme (item 021). AT-only toggle; lifts photo cap
             from 30 to 60 per section. Does NOT change dossier statut. */}
