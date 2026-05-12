@@ -22,8 +22,11 @@ import {
 } from '@/components/ui/select';
 import {
   ArrowLeft, Loader2, Calendar, MapPin, Upload, Eye, Check, X, Pencil, ImageIcon, Camera, Paperclip, FileText,
-  ChevronDown, ChevronRight, Trash2,
+  ChevronDown, ChevronRight, Trash2, MoreVertical,
 } from 'lucide-react';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -588,6 +591,40 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               <p className="text-xs text-muted-foreground truncate">{assureNom}</p>
             )}
           </div>
+          {isATG && canEdit && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 -mr-2" aria-label="Menu">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem
+                  onClick={async () => {
+                    if (!dossierRef || !db) return;
+                    const next = !(dossier as any)?.propositionReforme;
+                    try {
+                      await updateDoc(dossierRef, { propositionReforme: next });
+                      const userId = auth?.currentUser?.uid || 'unknown';
+                      await logWorkflow(
+                        db, dossierId,
+                        next ? 'Proposition réforme activée' : 'Proposition réforme annulée',
+                        userEmail, userId, 'done',
+                        { details: `Limite photo par section : ${next ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION}` },
+                        profile?.nom,
+                      );
+                      toast({ title: next ? 'Proposition réforme activée' : 'Proposition réforme annulée' });
+                    } catch (e) {
+                      console.error('propositionReforme toggle error:', e);
+                      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de modifier la proposition réforme.' });
+                    }
+                  }}
+                >
+                  {(dossier as any)?.propositionReforme ? 'Annuler la proposition réforme' : 'Proposition réforme'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </header>
         {(dossier?.compagnie || dossier?.expertRank) && (
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar px-4 py-3 border-b">
