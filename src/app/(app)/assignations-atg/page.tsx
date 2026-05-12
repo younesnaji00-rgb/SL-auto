@@ -9,7 +9,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { UserCheck, Calendar, MapPin, X, ChevronDown, Clock, CheckCircle2, Users, List } from 'lucide-react';
+import { UserCheck, Calendar, MapPin, X, ChevronDown, Clock, CheckCircle2, Users, List, SlidersHorizontal } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -500,6 +502,7 @@ export default function AssignationsATGPage() {
 
   const [openZoneSections, setOpenZoneSections] = useState<Record<string, boolean>>({});
   const zoneOpen = (key: string) => openZoneSections[key] ?? true;
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
   const formatDate = (ts: any) => {
     if (!ts) return '-';
@@ -528,6 +531,24 @@ export default function AssignationsATGPage() {
               ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
               : filteredPlanifications.length}
           </Badge>
+          <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9 -mr-2 relative" aria-label="Filtres">
+                <SlidersHorizontal className="h-4 w-4" />
+                {(compagnieFilter !== 'Toutes' || (canSeeNameFilter && agentFilter !== 'Tous') || dateFrom || dateTo) && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive" />
+                )}
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="h-[70vh] flex flex-col p-0">
+              <SheetHeader className="px-4 py-3 border-b">
+                <SheetTitle>Filtres</SheetTitle>
+              </SheetHeader>
+              <div className="flex-1 p-4 overflow-y-auto text-sm text-muted-foreground">
+                Contrôles à venir
+              </div>
+            </SheetContent>
+          </Sheet>
         </header>
         <div className="flex items-center justify-between h-10 px-4 border-b text-sm">
           <span className="text-muted-foreground">
