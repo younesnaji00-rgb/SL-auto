@@ -543,6 +543,39 @@ export default function AssignationsATGPage() {
               : filteredPlanifications.length) > 1 ? 's' : ''}
           </Badge>
         </div>
+        {effectiveViewMode === 'list' && (
+          <div className="sticky top-24 z-20 grid grid-cols-3 gap-1 p-1 border-b bg-card">
+            {MISSION_TABS.map((tab) => {
+              const isActive = activeTab === tab.id;
+              const count = countByType[tab.id] || 0;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setFilters({ activeTab: tab.id })}
+                  className={cn(
+                    'flex items-center justify-center gap-1.5 h-11 rounded-md text-xs font-semibold transition-colors',
+                    isActive
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:bg-accent'
+                  )}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={cn(
+                      'inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded text-[10px] font-mono',
+                      isActive
+                        ? 'bg-primary-foreground/20 text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="p-4 text-center text-muted-foreground">
           Vue mobile en cours de construction…
         </div>
