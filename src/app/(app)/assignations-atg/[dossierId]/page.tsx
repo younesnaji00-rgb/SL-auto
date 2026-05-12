@@ -43,6 +43,7 @@ import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { deriveStatus, isPlanificationStatus } from '@/lib/status-machine';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
 import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-grid';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -669,6 +670,43 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             })}
           </div>
         )}
+        <Collapsible open={isPhotosOpen} onOpenChange={setIsPhotosOpen}>
+          <CollapsibleTrigger className="flex items-center justify-between w-full h-10 px-4 border-b bg-card hover:bg-muted/40 transition-colors">
+            <span className="text-sm font-semibold">
+              Photos · {filteredPhotos.length}/{photoCap}
+            </span>
+            <ChevronDown
+              className={cn(
+                'h-4 w-4 transition-transform',
+                isPhotosOpen ? 'rotate-0' : '-rotate-90',
+              )}
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            {filteredPhotos.length === 0 ? (
+              <p className="p-4 text-center text-xs text-muted-foreground">
+                Aucune photo pour {activeTab.toLowerCase()}.
+              </p>
+            ) : (
+              <div className="p-4 grid grid-cols-3 gap-2">
+                {filteredPhotos.map((photo) => (
+                  <button
+                    key={photo.id}
+                    type="button"
+                    onClick={() => setPreviewPhoto(photo)}
+                    className="aspect-square rounded-lg overflow-hidden border bg-muted hover:opacity-80 transition-opacity"
+                  >
+                    <img
+                      src={photo.url}
+                      alt=""
+                      className="object-cover w-full h-full"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     );
   }
