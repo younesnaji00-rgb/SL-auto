@@ -622,9 +622,53 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             );
           })}
         </div>
-        <div className="p-4 text-center text-muted-foreground">
-          Vue mobile en cours de construction…
-        </div>
+        {filteredPlans.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <Calendar className="h-8 w-8 mb-2 opacity-20" />
+            <p className="text-sm">Aucune planification {activeTab.toLowerCase()} pour ce dossier.</p>
+          </div>
+        ) : (
+          <div className="p-4 space-y-3">
+            {filteredPlans.map((p: any) => {
+              const itineraireHref = p.adresse
+                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    [p.zone, p.adresse].filter(Boolean).join(' '),
+                  )}`
+                : null;
+              return (
+                <div key={p.id} className="bg-card border rounded-xl p-4 shadow-sm space-y-2">
+                  <div className="text-base font-semibold">
+                    {formatDate(p.dateRDV)}
+                  </div>
+                  {p.zone && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span>{p.zone}</span>
+                    </div>
+                  )}
+                  {p.adresse && (
+                    <div className="text-sm flex items-start justify-between gap-3">
+                      <span className="flex-1 break-words">{p.adresse}</span>
+                      {itineraireHref && (
+                        <a
+                          href={itineraireHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary text-xs underline-offset-2 hover:underline whitespace-nowrap shrink-0"
+                        >
+                          Itinéraire
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-[11px] italic text-muted-foreground pt-1 border-t border-dashed">
+                    Observation et preuves — à venir
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
