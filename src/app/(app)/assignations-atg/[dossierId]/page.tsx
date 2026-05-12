@@ -33,6 +33,7 @@ import { logHistorique, logWorkflow } from '../../dossiers/[id]/log-historique';
 import { addObservation } from '../../dossiers/[id]/log-observation';
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useIsMobile } from '@/hooks/use-mobile';
 import ObservationsTab from '@/components/observations-tab';
 import CameraCapture from '@/components/camera-capture';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
@@ -111,6 +112,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const auth = useAuth();
   const { toast } = useToast();
   const { canWrite, canDelete, profile } = useCurrentUser();
+  const isMobile = useIsMobile();
   const canEdit = canWrite('assignations-atg');
   const isATG = profile?.role === 'Agent de Terrain';
   // Admins and directeurs (canDelete) can always delete any photo. ATG may
@@ -562,6 +564,33 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         </div>
         <div className="h-12 w-full animate-pulse rounded bg-muted" />
         <div className="h-64 w-full animate-pulse rounded bg-muted" />
+      </div>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <div>
+        <header className="sticky top-0 z-30 h-14 flex items-center gap-3 px-4 border-b bg-card">
+          <Link
+            href="/assignations-atg"
+            className="inline-flex items-center justify-center h-9 w-9 -ml-2 rounded-md hover:bg-accent"
+            aria-label="Retour"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm font-bold truncate">
+              {dossier?.refExpert || dossierId}
+            </h1>
+            {assureNom && (
+              <p className="text-xs text-muted-foreground truncate">{assureNom}</p>
+            )}
+          </div>
+        </header>
+        <div className="p-4 text-center text-muted-foreground">
+          Vue mobile en cours de construction…
+        </div>
       </div>
     );
   }
