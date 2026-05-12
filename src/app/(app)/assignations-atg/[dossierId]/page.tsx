@@ -1,7 +1,7 @@
 'use client';
 
 import React, { use, useState, useEffect, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   doc, collection, query, orderBy, onSnapshot, updateDoc, serverTimestamp, deleteDoc,
 } from 'firebase/firestore';
@@ -131,7 +131,12 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     return false;
   };
 
-  const [activeTab, setActiveTab] = useState('Avant');
+  const searchParams = useSearchParams();
+  const missionParam = searchParams.get('mission');
+  const initialTab = (['Avant', 'En cours', 'Après'] as const).includes(missionParam as any)
+    ? (missionParam as 'Avant' | 'En cours' | 'Après')
+    : 'Avant';
+  const [activeTab] = useState<'Avant' | 'En cours' | 'Après'>(initialTab);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState<Photo | null>(null);
@@ -640,26 +645,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             )}
           </div>
         )}
-        <div className="sticky top-14 z-20 grid grid-cols-3 gap-1 p-1 border-b bg-card">
-          {MISSION_TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  'flex items-center justify-center h-11 rounded-md text-xs font-semibold transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-accent'
-                )}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
         {(dossier as any)?.propositionReforme && (
           <div className="flex items-center justify-between gap-3 px-4 py-2 border-b bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-200">
             <span className="text-xs font-medium">Réforme proposée · limite 60 photos</span>
@@ -983,35 +968,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             {(dossier as any)?.propositionReforme ? 'Réforme proposée — annuler' : 'Proposition réforme'}
           </Button>
         )}
-      </div>
-
-      {/* Mission type tabs */}
-      <div className="bg-card border rounded-xl shadow-sm sticky top-0 z-20">
-        <div className="flex overflow-x-auto no-scrollbar">
-          {MISSION_TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  'flex items-center gap-2 px-6 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap',
-                  isActive
-                    ? 'border-primary text-primary bg-primary/5'
-                    : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
-                )}
-              >
-                {tab.label}
-                <Badge
-                  variant={isActive ? 'default' : 'secondary'}
-                  className="text-[10px] font-mono ml-1 h-5 min-w-[20px] justify-center"
-                >
-                  {countByType[tab.id] || 0}
-                </Badge>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       {/* Planification table */}

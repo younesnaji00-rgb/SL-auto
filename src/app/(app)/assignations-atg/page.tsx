@@ -733,11 +733,11 @@ export default function AssignationsATGPage() {
                           key={`${p.dossierId}-${p.id}`}
                           role="button"
                           tabIndex={0}
-                          onClick={() => router.push(`/assignations-atg/${p.dossierId}`)}
+                          onClick={() => router.push(`/assignations-atg/${p.dossierId}?mission=${encodeURIComponent(activeTab)}`)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault();
-                              router.push(`/assignations-atg/${p.dossierId}`);
+                              router.push(`/assignations-atg/${p.dossierId}?mission=${encodeURIComponent(activeTab)}`);
                             }
                           }}
                           className="block w-full text-left bg-card border rounded-xl p-3 shadow-sm hover:bg-muted/40 transition-colors cursor-pointer"
@@ -1153,7 +1153,7 @@ export default function AssignationsATGPage() {
               <TableRow
                 key={`${p.dossierId}-${p.id}`}
                 className="hover:bg-muted/50 transition-colors cursor-pointer"
-                onClick={() => router.push(`/assignations-atg/${p.dossierId}`)}
+                onClick={() => router.push(`/assignations-atg/${p.dossierId}?mission=${encodeURIComponent(activeTab)}`)}
               >
                 <TableCell>
                   <span className="font-semibold text-sm text-primary">{p.dossierNom || p.dossierId}</span>
