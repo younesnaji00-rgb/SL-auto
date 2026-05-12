@@ -826,6 +826,28 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             )}
           </CollapsibleContent>
         </Collapsible>
+        <Collapsible open={isDocsOpen} onOpenChange={setIsDocsOpen}>
+          <CollapsibleTrigger className="flex items-center justify-between w-full h-10 px-4 border-b bg-card hover:bg-muted/40 transition-colors">
+            <span className="text-sm font-semibold">Documents</span>
+            <ChevronDown
+              className={cn(
+                'h-4 w-4 transition-transform',
+                isDocsOpen ? 'rotate-0' : '-rotate-90',
+              )}
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="p-4">
+              <TypedDocumentsGrid dossierId={dossierId} hideCardinalPlus hideExtraSlotPlus />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+        <ObservationsTab
+          dossierId={dossierId}
+          section="assignations-atg"
+          variant="collapsible"
+          contextPhase={activeTab as 'Avant' | 'En cours' | 'Après'}
+        />
         {canEdit && (
           <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
             <Button
