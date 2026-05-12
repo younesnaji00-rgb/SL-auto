@@ -95,11 +95,12 @@ export default function ObservationsTab({
   // Q-5 → B: gestionnaire + admin + directeur family can validate.
   const role = profile?.role;
   const canValidate =
-    role === 'Gestionnaire' ||
-    role === 'Admin' ||
-    role === 'Directeur' ||
-    role === 'Directeur des opérations' ||
-    role === 'Directeur technique';
+    section !== 'assignations-atg' &&
+    (role === 'Gestionnaire' ||
+      role === 'Admin' ||
+      role === 'Directeur' ||
+      role === 'Directeur des opérations' ||
+      role === 'Directeur technique');
   // Validation + proof are mutually exclusive concerns:
   //   - Only Gestionnaire flips the "Valider le traitement" flag.
   //   - Anyone whose canAdd is true on this section may upload proofs once
