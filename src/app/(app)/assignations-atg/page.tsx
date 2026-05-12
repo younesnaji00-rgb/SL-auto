@@ -28,6 +28,7 @@ import { useAgentTerrainWorkload } from '@/hooks/use-workload-counts';
 import { isAtgCompletedStatus } from '@/lib/status-machine';
 import { businessHoursBetween } from '@/lib/business-days';
 import { useHolidays } from '@/hooks/use-holidays';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -514,6 +515,26 @@ export default function AssignationsATGPage() {
   // ATG users only see their own assignments — the zone-grouping view (which
   // lists the whole team) is irrelevant for them. Force "list" for that role.
   const effectiveViewMode: 'by-zone' | 'list' = isATG ? 'list' : viewMode;
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return (
+      <div>
+        <header className="sticky top-0 z-30 h-14 flex items-center gap-3 px-4 border-b bg-card">
+          <UserCheck className="h-5 w-5 text-primary" />
+          <h1 className="text-base font-bold flex-1">Mes missions</h1>
+          <Badge variant="secondary">
+            {effectiveViewMode === 'by-zone'
+              ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
+              : filteredPlanifications.length}
+          </Badge>
+        </header>
+        <div className="p-4 text-center text-muted-foreground">
+          Vue mobile en cours de construction…
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
