@@ -679,9 +679,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           {/* Photo upload section */}
           <Card className="shadow-sm">
             <CardContent className="pt-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold flex items-center gap-2">
-                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h3 className="text-sm font-bold flex items-center gap-2 flex-wrap">
+                  <ImageIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                   Photos — {activeTab}
                   <Badge variant="secondary" className="text-[10px] font-mono">{filteredPhotos.length}/{photoCap}</Badge>
                 </h3>

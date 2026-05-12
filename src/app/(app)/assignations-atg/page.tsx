@@ -628,7 +628,7 @@ export default function AssignationsATGPage() {
           </Badge>
         </div>
         {effectiveViewMode === 'list' && (
-          <div className="sticky top-24 z-20 grid grid-cols-3 gap-1 p-1 border-b bg-card">
+          <div className="sticky top-14 z-20 grid grid-cols-3 gap-1 p-1 border-b bg-card">
             {MISSION_TABS.map((tab) => {
               const isActive = activeTab === tab.id;
               const count = countByType[tab.id] || 0;
