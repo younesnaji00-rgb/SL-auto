@@ -636,7 +636,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           {showBaseGarageSlots && (
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-muted-foreground">Devis et Facture</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {(['Devis Garage', 'Facture Garage'] as const).map((slot) => (
                   <SlotCard
                     key={slot}
@@ -717,7 +717,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           {!hideAccordSlots && cardinalFilter !== '2-plus' && reformeSlots.length > 0 && (
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-muted-foreground">Réforme</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {reformeSlots.map((slot) => renderSlotCard(slot))}
               </div>
             </section>
@@ -727,7 +727,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           {!hideOtherSlots && !showOnlyAccordSlots && otherSlots.length > 0 && (
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-muted-foreground">Autres documents</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
                 {otherSlots.map((slot) => renderSlotCard(slot))}
               </div>
             </section>
