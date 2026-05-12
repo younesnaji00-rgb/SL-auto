@@ -55,7 +55,32 @@ import { statuses as ALL_STATUSES } from '@/lib/dossiers-data';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { DatePicker } from '@/components/ui/date-picker';
 
+const DASHBOARD_ALLOWED_ROLES = ['Admin', "Responsable d'équipe"];
+
 export default function DashboardPage() {
+  const { profile, loading: userLoading } = useCurrentUser();
+
+  if (userLoading) {
+    return <div className="py-12 text-sm text-muted-foreground">Chargement...</div>;
+  }
+
+  if (profile?.role && !DASHBOARD_ALLOWED_ROLES.includes(profile.role)) {
+    return (
+      <Card className="border shadow-sm rounded-lg">
+        <CardHeader>
+          <CardTitle>Accès refusé</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          Cette page n&apos;est pas accessible à votre rôle.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return <DashboardPageInner />;
+}
+
+function DashboardPageInner() {
   const db = useFirestore();
   const { profile } = useCurrentUser();
   const [dossiers, setDossiers] = useState<any[]>([]);
