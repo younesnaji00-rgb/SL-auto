@@ -588,6 +588,20 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             )}
           </div>
         </header>
+        {(dossier?.compagnie || dossier?.expertRank) && (
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar px-4 py-3 border-b">
+            {dossier?.compagnie && (
+              <Badge variant="outline" className="whitespace-nowrap">
+                {dossier.compagnie}
+              </Badge>
+            )}
+            {dossier?.expertRank && (
+              <Badge variant="outline" className="whitespace-nowrap">
+                {dossier.expertRank}
+              </Badge>
+            )}
+          </div>
+        )}
         <div className="p-4 text-center text-muted-foreground">
           Vue mobile en cours de construction…
         </div>
