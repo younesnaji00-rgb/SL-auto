@@ -571,7 +571,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
 
   if (isMobile) {
     return (
-      <div>
+      <div className="pb-24">
         <header className="sticky top-0 z-30 h-14 flex items-center gap-3 px-4 border-b bg-card">
           <Link
             href="/assignations-atg"
@@ -707,6 +707,22 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             )}
           </CollapsibleContent>
         </Collapsible>
+        {canEdit && (
+          <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+            <Button
+              onClick={() => setIsCameraOpen(true)}
+              disabled={isUploading}
+              className="w-full h-14 text-base gap-2"
+            >
+              {isUploading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Camera className="h-5 w-5" />
+              )}
+              {isUploading ? 'Upload en cours...' : 'Prendre une photo'}
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
