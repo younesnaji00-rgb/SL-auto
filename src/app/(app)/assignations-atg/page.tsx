@@ -608,6 +608,36 @@ export default function AssignationsATGPage() {
               : filteredPlanifications.length) > 1 ? 's' : ''}
           </Badge>
         </div>
+        {!isATG && (
+          <div className="flex justify-center border-b bg-card px-4 py-2">
+            <div className="inline-flex rounded-md border bg-muted/30 p-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode('by-zone')}
+                className={cn(
+                  'flex items-center gap-1.5 h-8 px-3 text-xs font-semibold rounded transition-colors',
+                  viewMode === 'by-zone'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-accent'
+                )}
+              >
+                <Users className="h-3.5 w-3.5" /> Par zone
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className={cn(
+                  'flex items-center gap-1.5 h-8 px-3 text-xs font-semibold rounded transition-colors',
+                  viewMode === 'list'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-accent'
+                )}
+              >
+                <List className="h-3.5 w-3.5" /> Liste
+              </button>
+            </div>
+          </div>
+        )}
         {effectiveViewMode === 'list' && (
           <div className="sticky top-24 z-20 grid grid-cols-3 gap-1 p-1 border-b bg-card">
             {MISSION_TABS.map((tab) => {
