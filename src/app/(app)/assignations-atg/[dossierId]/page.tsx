@@ -994,7 +994,13 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               </h3>
             </div>
 
-            <TypedDocumentsGrid dossierId={dossierId} hideCardinalPlus hideExtraSlotPlus />
+            <TypedDocumentsGrid
+              dossierId={dossierId}
+              hideCardinalPlus
+              hideExtraSlotPlus
+              hideAccordSlots={isATG}
+              showBaseGarageSlots={isATG}
+            />
           </CardContent>
         </Card>
       )}
