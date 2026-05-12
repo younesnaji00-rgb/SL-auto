@@ -602,6 +602,26 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             )}
           </div>
         )}
+        <div className="sticky top-14 z-20 grid grid-cols-3 gap-1 p-1 border-b bg-card">
+          {MISSION_TABS.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'flex items-center justify-center h-11 rounded-md text-xs font-semibold transition-colors',
+                  isActive
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-accent'
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
         <div className="p-4 text-center text-muted-foreground">
           Vue mobile en cours de construction…
         </div>
