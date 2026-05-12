@@ -26,6 +26,18 @@ function generateEmail(nom: string): string {
   return `${sanitized}@sl-auto.app`;
 }
 
+// Single-session enforcement: every successful login writes a fresh session id
+// to the user doc + localStorage. CurrentUserProvider compares the two on every
+// snapshot \u2014 if they diverge (another device just logged in), it signs the
+// older device out. Keep the storage key stable across the codebase.
+const SESSION_STORAGE_KEY = 'sl-auto.session-id';
+function newSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 const PAGE_BACKGROUND =
   'bg-[radial-gradient(ellipse_at_top,hsl(var(--card))_0%,hsl(var(--background))_70%)]';
 
@@ -99,6 +111,8 @@ export default function LoginPage() {
       const email = generateEmail(setupName);
       const cred = await createUserWithEmailAndPassword(auth, email, setupPassword);
 
+      const sessionId = newSessionId();
+      window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
       await setDoc(doc(db, 'users', cred.user.uid), {
         nom: setupName.trim(),
         nomLowercase: setupName.trim().toLowerCase(),
@@ -110,6 +124,7 @@ export default function LoginPage() {
         statut: 'Actif',
         createdAt: serverTimestamp(),
         lastLogin: null,
+        currentSessionId: sessionId,
       });
 
       router.push('/dashboard');
@@ -167,13 +182,17 @@ export default function LoginPage() {
       }
 
       const cred = await signInWithEmailAndPassword(auth, email, password);
-      // Update lastLogin timestamp; backfill nomLowercase if it was missing.
-      await updateDoc(
-        doc(db, 'users', cred.user.uid),
-        backfillNeeded
-          ? { lastLogin: serverTimestamp(), nomLowercase: lower }
-          : { lastLogin: serverTimestamp() }
-      );
+      // Single-session: stamp a fresh session id on the user doc and store it
+      // locally. Any other device with a different local id will be signed
+      // out by the snapshot listener in CurrentUserProvider.
+      const sessionId = newSessionId();
+      window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+      const updates: Record<string, any> = {
+        lastLogin: serverTimestamp(),
+        currentSessionId: sessionId,
+      };
+      if (backfillNeeded) updates.nomLowercase = lower;
+      await updateDoc(doc(db, 'users', cred.user.uid), updates);
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Login error:', err);

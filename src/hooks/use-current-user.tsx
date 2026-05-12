@@ -2,9 +2,15 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut as firebaseSignOut, type User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { ROLES_THAT_CAN_DELETE, type Role } from '@/lib/dossiers-data';
+
+// Single-session enforcement: each login writes a fresh `currentSessionId` to
+// the user doc and to localStorage. The snapshot listener below evicts this
+// client (firebaseSignOut + redirect) whenever the remote id no longer matches
+// the local one. Keep the key in sync with src/app/login/page.tsx.
+const SESSION_STORAGE_KEY = 'sl-auto.session-id';
 
 interface UserProfile {
   uid: string;
@@ -84,16 +90,56 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!auth) return;
+    let unsubDoc: (() => void) | null = null;
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (unsubDoc) {
+        unsubDoc();
+        unsubDoc = null;
+      }
       setFirebaseUser(user);
 
       if (user && db) {
-        try {
-          // Look up the user's profile in Firestore by their auth UID
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            const data = userDoc.data();
+        // Live subscription so single-session evictions land in real time:
+        // another device's login writes a new currentSessionId; this listener
+        // sees the mismatch and signs the older device out.
+        unsubDoc = onSnapshot(
+          doc(db, 'users', user.uid),
+          async (snap) => {
+            if (!snap.exists()) {
+              setProfile(null);
+              setLoading(false);
+              return;
+            }
+            const data = snap.data();
+            const remoteSessionId: string | undefined = data.currentSessionId;
+            const localSessionId =
+              typeof window !== 'undefined'
+                ? window.localStorage.getItem(SESSION_STORAGE_KEY)
+                : null;
+            // Evict iff BOTH ids are set and they differ. If either side is
+            // missing (legacy users pre-feature-deploy, fresh devices, etc.)
+            // we leave the session alone — they'll get stamped on next login.
+            if (
+              remoteSessionId &&
+              localSessionId &&
+              remoteSessionId !== localSessionId
+            ) {
+              if (typeof window !== 'undefined') {
+                window.localStorage.removeItem(SESSION_STORAGE_KEY);
+              }
+              try {
+                await firebaseSignOut(auth);
+              } catch (err) {
+                console.error('Single-session eviction signOut failed:', err);
+              }
+              setProfile(null);
+              setLoading(false);
+              if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+                window.location.assign('/login');
+              }
+              return;
+            }
             setProfile({
               uid: user.uid,
               nom: data.nom || '',
@@ -104,26 +150,31 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
               statut: data.statut || 'Actif',
               password: data.password || '',
             });
-          } else {
-            // Auth user exists but no Firestore profile — could be a legacy user
+            setLoading(false);
+          },
+          (err) => {
+            console.error('User profile listener error:', err);
             setProfile(null);
-          }
-        } catch (error) {
-          console.error('Failed to fetch user profile:', error);
-          setProfile(null);
-        }
+            setLoading(false);
+          },
+        );
       } else {
         setProfile(null);
+        setLoading(false);
       }
-
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubAuth();
+      if (unsubDoc) unsubDoc();
+    };
   }, [auth, db]);
 
   const handleSignOut = async () => {
     if (auth) {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(SESSION_STORAGE_KEY);
+      }
       await firebaseSignOut(auth);
       setProfile(null);
     }
