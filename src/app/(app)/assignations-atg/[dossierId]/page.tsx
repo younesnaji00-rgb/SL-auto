@@ -737,7 +737,52 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                         )}
                       </>
                     )}
-                    <p className="text-[11px] italic text-muted-foreground pt-1">Preuves — à venir</p>
+                    <div className="pt-2 mt-1 border-t border-dashed">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                          <Paperclip className="h-3 w-3" /> Preuve
+                        </span>
+                        {canEdit && (
+                          <>
+                            <input
+                              ref={(el) => { preuveInputRefs.current[p.id] = el; }}
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={(e) => e.target.files && handleUploadPreuve(p.id, e.target.files)}
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-[11px] gap-1 px-2"
+                              disabled={uploadingPreuveId === p.id}
+                              onClick={() => preuveInputRefs.current[p.id]?.click()}
+                            >
+                              {uploadingPreuveId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                              Ajouter
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                      {p.preuvePhotos && p.preuvePhotos.length > 0 ? (
+                        <div className="flex gap-1.5 flex-wrap">
+                          {p.preuvePhotos.map((url: string, idx: number) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setPreviewPreuvePhotos({ urls: p.preuvePhotos, index: idx })}
+                              className="relative w-12 h-12 rounded border overflow-hidden"
+                              aria-label={`Aperçu preuve ${idx + 1}`}
+                            >
+                              <img src={url} alt="" className="object-cover w-full h-full" />
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] italic text-muted-foreground">Aucune preuve jointe</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
