@@ -576,9 +576,80 @@ export default function AssignationsATGPage() {
             })}
           </div>
         )}
-        <div className="p-4 text-center text-muted-foreground">
-          Vue mobile en cours de construction…
-        </div>
+        {effectiveViewMode === 'list' ? (
+          loading ? (
+            <div className="p-4 space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-[104px] rounded-xl bg-muted/40 animate-pulse" />
+              ))}
+            </div>
+          ) : filteredPlanifications.length === 0 ? (
+            <div className="p-4">
+              <EmptyState
+                icon={<Calendar />}
+                title={`Aucune mission ${activeTab.toLowerCase()}`}
+                description="Les nouvelles assignations apparaîtront ici."
+                dashed={false}
+                className="border-0 bg-transparent py-10"
+              />
+            </div>
+          ) : (
+            <div className="p-4 space-y-3">
+              {filteredPlanifications.map((p) => {
+                const live = dossierLive[p.dossierId];
+                const statut = live?.statut ?? p.statut ?? '';
+                const completed = !!statut && isAtgCompletedStatus(statut);
+                const rdv = p.dateRDV?.toDate ? p.dateRDV.toDate() : (p.dateRDV ? new Date(p.dateRDV) : null);
+                return (
+                  <div
+                    key={`${p.dossierId}-${p.id}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => router.push(`/assignations-atg/${p.dossierId}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        router.push(`/assignations-atg/${p.dossierId}`);
+                      }
+                    }}
+                    className="block w-full text-left bg-card border rounded-xl p-3 shadow-sm hover:bg-muted/40 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-sm text-primary truncate">{p.dossierNom || p.dossierId}</span>
+                      <span className="text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+                        {rdv ? format(rdv, 'HH:mm') : '-'}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium truncate">{p.assureNom || '-'}</span>
+                      {p.compagnie && (
+                        <Badge variant="outline" className="text-[10px] shrink-0">{p.compagnie}</Badge>
+                      )}
+                    </div>
+                    {(p.zone || p.adresse) && (
+                      <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground truncate">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{[p.zone, p.adresse].filter(Boolean).join(' · ')}</span>
+                      </div>
+                    )}
+                    <div className="mt-2">
+                      <DeadlineBar
+                        dateRDV={p.dateRDV}
+                        createdAt={p.createdAt}
+                        completed={completed}
+                        completedStatus={statut}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <div className="p-4 text-center text-sm text-muted-foreground">
+            Vue par zone — bientôt sur mobile
+          </div>
+        )}
       </div>
     );
   }
