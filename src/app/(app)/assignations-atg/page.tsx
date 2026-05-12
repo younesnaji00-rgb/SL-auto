@@ -517,7 +517,11 @@ export default function AssignationsATGPage() {
   const colCount = showAgentColumn ? 9 : 8;
   // ATG users only see their own assignments — the zone-grouping view (which
   // lists the whole team) is irrelevant for them. Force "list" for that role.
-  const effectiveViewMode: 'by-zone' | 'list' = isATG ? 'list' : viewMode;
+  // Par-zone toggle was removed for all roles — list view is the only path now.
+  // `viewMode` / `setViewMode` are kept since some legacy callers still set them.
+  // Cast keeps existing `=== 'by-zone'` branches type-checkable (they're dead code,
+  // a follow-up will delete them).
+  const effectiveViewMode = 'list' as 'by-zone' | 'list';
   const isMobile = useIsMobile();
 
   if (isMobile) {
@@ -623,36 +627,6 @@ export default function AssignationsATGPage() {
               : filteredPlanifications.length) > 1 ? 's' : ''}
           </Badge>
         </div>
-        {!isATG && (
-          <div className="flex justify-center border-b bg-card px-4 py-2">
-            <div className="inline-flex rounded-md border bg-muted/30 p-0.5">
-              <button
-                type="button"
-                onClick={() => setViewMode('by-zone')}
-                className={cn(
-                  'flex items-center gap-1.5 h-8 px-3 text-xs font-semibold rounded transition-colors',
-                  viewMode === 'by-zone'
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-accent'
-                )}
-              >
-                <Users className="h-3.5 w-3.5" /> Par zone
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                className={cn(
-                  'flex items-center gap-1.5 h-8 px-3 text-xs font-semibold rounded transition-colors',
-                  viewMode === 'list'
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-accent'
-                )}
-              >
-                <List className="h-3.5 w-3.5" /> Liste
-              </button>
-            </div>
-          </div>
-        )}
         {effectiveViewMode === 'list' && (
           <div className="sticky top-24 z-20 grid grid-cols-3 gap-1 p-1 border-b bg-card">
             {MISSION_TABS.map((tab) => {
@@ -754,10 +728,15 @@ export default function AssignationsATGPage() {
                               <Badge variant="outline" className="text-[10px] shrink-0">{p.compagnie}</Badge>
                             )}
                           </div>
-                          {(p.zone || p.adresse) && (
-                            <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground truncate">
-                              <MapPin className="h-3 w-3 shrink-0" />
-                              <span className="truncate">{[p.zone, p.adresse].filter(Boolean).join(' · ')}</span>
+                          {p.zone && (
+                            <div className="mt-1 flex items-center gap-1 text-xs font-medium text-foreground truncate">
+                              <MapPin className="h-3 w-3 shrink-0 text-primary" />
+                              <span className="truncate">{p.zone}</span>
+                            </div>
+                          )}
+                          {p.adresse && (
+                            <div className="mt-0.5 text-xs text-muted-foreground truncate pl-4">
+                              {p.adresse}
                             </div>
                           )}
                           <div className="mt-2">
@@ -880,41 +859,6 @@ export default function AssignationsATGPage() {
           </Badge>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* View mode toggle — "Par zone" groups the team by zone, "Liste"
-              shows the flat planifications table. ATG users don't need this
-              because they only see their own assignments. */}
-          {!isATG && (
-            <div className="inline-flex items-center rounded-md border bg-card p-0.5 shadow-sm" role="tablist" aria-label="Mode d'affichage">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={viewMode === 'by-zone'}
-                onClick={() => setViewMode('by-zone')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 h-8 text-xs font-semibold rounded transition-colors',
-                  viewMode === 'by-zone'
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                )}
-              >
-                <Users className="h-3.5 w-3.5" /> Par zone
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={viewMode === 'list'}
-                onClick={() => setViewMode('list')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 h-8 text-xs font-semibold rounded transition-colors',
-                  viewMode === 'list'
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                )}
-              >
-                <List className="h-3.5 w-3.5" /> Liste
-              </button>
-            </div>
-          )}
           <div className="relative">
             <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
               <SelectTrigger className="w-[180px] h-9 text-xs">
