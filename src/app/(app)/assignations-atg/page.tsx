@@ -594,55 +594,76 @@ export default function AssignationsATGPage() {
               />
             </div>
           ) : (
-            <div className="p-4 space-y-3">
-              {filteredPlanifications.map((p) => {
-                const live = dossierLive[p.dossierId];
-                const statut = live?.statut ?? p.statut ?? '';
-                const completed = !!statut && isAtgCompletedStatus(statut);
-                const rdv = p.dateRDV?.toDate ? p.dateRDV.toDate() : (p.dateRDV ? new Date(p.dateRDV) : null);
-                return (
-                  <div
-                    key={`${p.dossierId}-${p.id}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => router.push(`/assignations-atg/${p.dossierId}`)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        router.push(`/assignations-atg/${p.dossierId}`);
-                      }
-                    }}
-                    className="block w-full text-left bg-card border rounded-xl p-3 shadow-sm hover:bg-muted/40 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-sm text-primary truncate">{p.dossierNom || p.dossierId}</span>
-                      <span className="text-xs tabular-nums text-muted-foreground whitespace-nowrap">
-                        {rdv ? format(rdv, 'HH:mm') : '-'}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium truncate">{p.assureNom || '-'}</span>
-                      {p.compagnie && (
-                        <Badge variant="outline" className="text-[10px] shrink-0">{p.compagnie}</Badge>
+            <div className="p-4 space-y-4">
+              {groups.filter(g => g.items.length > 0).map((group) => (
+                <Collapsible
+                  key={group.key}
+                  open={openSections[group.key]}
+                  onOpenChange={(open) => setOpenSections(prev => ({ ...prev, [group.key]: open }))}
+                >
+                  <CollapsibleTrigger className="flex items-center justify-between w-full h-9 px-1 text-xs font-bold tracking-wider uppercase text-muted-foreground hover:text-foreground transition-colors">
+                    <span>
+                      {group.label} ({group.items.length})
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        'h-4 w-4 transition-transform',
+                        openSections[group.key] ? 'rotate-0' : '-rotate-90',
                       )}
-                    </div>
-                    {(p.zone || p.adresse) && (
-                      <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground truncate">
-                        <MapPin className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{[p.zone, p.adresse].filter(Boolean).join(' · ')}</span>
-                      </div>
-                    )}
-                    <div className="mt-2">
-                      <DeadlineBar
-                        dateRDV={p.dateRDV}
-                        createdAt={p.createdAt}
-                        completed={completed}
-                        completedStatus={statut}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+                    />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-3 pt-2">
+                    {group.items.map((p) => {
+                      const live = dossierLive[p.dossierId];
+                      const statut = live?.statut ?? p.statut ?? '';
+                      const completed = !!statut && isAtgCompletedStatus(statut);
+                      const rdv = p.dateRDV?.toDate ? p.dateRDV.toDate() : (p.dateRDV ? new Date(p.dateRDV) : null);
+                      return (
+                        <div
+                          key={`${p.dossierId}-${p.id}`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => router.push(`/assignations-atg/${p.dossierId}`)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              router.push(`/assignations-atg/${p.dossierId}`);
+                            }
+                          }}
+                          className="block w-full text-left bg-card border rounded-xl p-3 shadow-sm hover:bg-muted/40 transition-colors cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-sm text-primary truncate">{p.dossierNom || p.dossierId}</span>
+                            <span className="text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+                              {rdv ? format(rdv, 'HH:mm') : '-'}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium truncate">{p.assureNom || '-'}</span>
+                            {p.compagnie && (
+                              <Badge variant="outline" className="text-[10px] shrink-0">{p.compagnie}</Badge>
+                            )}
+                          </div>
+                          {(p.zone || p.adresse) && (
+                            <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground truncate">
+                              <MapPin className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{[p.zone, p.adresse].filter(Boolean).join(' · ')}</span>
+                            </div>
+                          )}
+                          <div className="mt-2">
+                            <DeadlineBar
+                              dateRDV={p.dateRDV}
+                              createdAt={p.createdAt}
+                              completed={completed}
+                              completedStatus={statut}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
             </div>
           )
         ) : (
