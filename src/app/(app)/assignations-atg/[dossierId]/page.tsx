@@ -663,17 +663,79 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                     </div>
                   )}
                   <div className="pt-2 border-t border-dashed space-y-1">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Observation</p>
-                    {p.observation ? (
-                      <p className="text-sm">{p.observation}</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Observation</p>
+                      {canEdit && editingPlanId !== p.id && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0"
+                          onClick={() => {
+                            setEditingPlanId(p.id);
+                            setEditObservation(p.observation || '');
+                          }}
+                          aria-label="Modifier l'observation"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                    {editingPlanId === p.id ? (
+                      <div className="space-y-2 mt-1">
+                        <Select
+                          value={editObservation}
+                          onValueChange={(v) => setEditObservation(v)}
+                          disabled={observationPresetsLoading || activeObservationPresets.length === 0}
+                        >
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue
+                              placeholder={
+                                observationPresetsLoading
+                                  ? 'Chargement…'
+                                  : activeObservationPresets.length === 0
+                                    ? 'Aucune observation disponible'
+                                    : "Saisir l'observation..."
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {activeObservationPresets.map((opt) => (
+                              <SelectItem key={opt.id} value={opt.label}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="flex-1 h-9 gap-1"
+                            onClick={() => handleSaveObservation(p.id)}
+                          >
+                            <Check className="h-3.5 w-3.5" /> Enregistrer
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 h-9 gap-1"
+                            onClick={() => setEditingPlanId(null)}
+                          >
+                            <X className="h-3.5 w-3.5" /> Annuler
+                          </Button>
+                        </div>
+                      </div>
                     ) : (
-                      <p className="text-sm italic text-muted-foreground">Aucune observation</p>
-                    )}
-                    {p.observationUpdatedAt && (
-                      <p className="text-[10px] text-amber-600">
-                        MAJ {p.observationSource === 'ATG' ? 'Agent de Terrain' : p.observationSource === 'Gestionnaire' ? 'Gestionnaire' : ''}
-                        {p.observationUpdatedBy ? ` (${p.observationUpdatedBy})` : ''} — {formatDate(p.observationUpdatedAt)}
-                      </p>
+                      <>
+                        {p.observation ? (
+                          <p className="text-sm">{p.observation}</p>
+                        ) : (
+                          <p className="text-sm italic text-muted-foreground">Aucune observation</p>
+                        )}
+                        {p.observationUpdatedAt && (
+                          <p className="text-[10px] text-amber-600">
+                            MAJ {p.observationSource === 'ATG' ? 'Agent de Terrain' : p.observationSource === 'Gestionnaire' ? 'Gestionnaire' : ''}
+                            {p.observationUpdatedBy ? ` (${p.observationUpdatedBy})` : ''} — {formatDate(p.observationUpdatedAt)}
+                          </p>
+                        )}
+                      </>
                     )}
                     <p className="text-[11px] italic text-muted-foreground pt-1">Preuves — à venir</p>
                   </div>
