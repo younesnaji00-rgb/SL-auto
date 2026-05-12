@@ -40,6 +40,8 @@ export interface Step4PiecesProps {
   cardinalFilter?: 'all' | '1-only' | '2-plus';
   /** Forwarded to TypedDocumentsGrid — render base devis/facture display-only slots. */
   showBaseGarageSlots?: boolean;
+  /** Forwarded to TypedDocumentsGrid — suppress "Autres documents" section (step 1). */
+  hideOtherSlots?: boolean;
   /**
    * When true, the "Assigner au chiffrage" button (in `onlyImportTab` mode) is
    * disabled until at least one filled 1er accord doc AND one filled 1er
@@ -64,7 +66,7 @@ function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolea
   return [open, setOpen];
 }
 
-export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, requireFirstAccordFilled }: Step4PiecesProps) {
+export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, hideOtherSlots, requireFirstAccordFilled }: Step4PiecesProps) {
   const [docsOpen, setDocsOpen] = useSectionOpen(dossierId, 'documents');
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
@@ -152,6 +154,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
           hideCardinalPlus={hideCardinalPlus}
           cardinalFilter={cardinalFilter}
           showBaseGarageSlots={showBaseGarageSlots}
+          hideOtherSlots={hideOtherSlots}
         />
       </div>
     );
@@ -205,7 +208,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
               <DocumentsTab dossierId={dossierId} />
             </TabsContent>
             <TabsContent value="import" className="mt-4">
-              <TypedDocumentsGrid dossierId={dossierId} hideAccordSlots={hideAccordSlots} showOnlyAccordSlots={showOnlyAccordSlots} hideCardinalPlus={hideCardinalPlus} cardinalFilter={cardinalFilter} showBaseGarageSlots={showBaseGarageSlots} />
+              <TypedDocumentsGrid dossierId={dossierId} hideAccordSlots={hideAccordSlots} showOnlyAccordSlots={showOnlyAccordSlots} hideCardinalPlus={hideCardinalPlus} cardinalFilter={cardinalFilter} showBaseGarageSlots={showBaseGarageSlots} hideOtherSlots={hideOtherSlots} />
             </TabsContent>
           </Tabs>
         </CollapsibleContent>

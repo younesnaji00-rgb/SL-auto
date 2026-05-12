@@ -97,9 +97,16 @@ interface TypedDocumentsGridProps {
    * extra ordinals from there.
    */
   showBaseGarageSlots?: boolean;
+  /**
+   * When true, the "Autres documents" section (PV-Constat / Carte grise /
+   * Attestation / Kilométrage / Numéro de chassis) is not rendered. Used in
+   * step 1 (Création de mission) where only base Devis/Facture Garage slots
+   * should appear.
+   */
+  hideOtherSlots?: boolean;
 }
 
-export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots }: TypedDocumentsGridProps) {
+export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots, hideOtherSlots }: TypedDocumentsGridProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -717,7 +724,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           )}
 
           {/* Autres documents — PV, Carte grise, Attestation, etc. */}
-          {!showOnlyAccordSlots && otherSlots.length > 0 && (
+          {!hideOtherSlots && !showOnlyAccordSlots && otherSlots.length > 0 && (
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-muted-foreground">Autres documents</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
