@@ -544,8 +544,52 @@ export default function AssignationsATGPage() {
               <SheetHeader className="px-4 py-3 border-b">
                 <SheetTitle>Filtres</SheetTitle>
               </SheetHeader>
-              <div className="flex-1 p-4 overflow-y-auto text-sm text-muted-foreground">
-                Contrôles à venir
+              <div className="flex-1 px-4 py-4 space-y-4 overflow-y-auto">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Compagnie
+                  </label>
+                  <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
+                    <SelectTrigger className="w-full h-10 text-sm">
+                      <SelectValue placeholder="Compagnie" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
+                      {compagnieOptions.map(([name, count]) => (
+                        <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {canSeeNameFilter && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Agent
+                    </label>
+                    <Select value={agentFilter} onValueChange={v => setFilters({ agentFilter: v })}>
+                      <SelectTrigger className="w-full h-10 text-sm">
+                        <SelectValue placeholder="Agent" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Tous">Tous les agents</SelectItem>
+                        {agentOptions.map(([name, count]) => (
+                          <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Période
+                  </label>
+                  <DateRangeFilter
+                    dateFrom={dateFrom}
+                    dateTo={dateTo}
+                    onDateFromChange={v => setFilters({ dateFrom: v })}
+                    onDateToChange={v => setFilters({ dateTo: v })}
+                  />
+                </div>
               </div>
             </SheetContent>
           </Sheet>
