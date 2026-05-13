@@ -2,7 +2,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight, Pencil, RotateCcw } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
@@ -158,7 +159,7 @@ export default function DossiersClientPage() {
     [dbObservationOptions]
   );
 
-  const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', dateFrom: '', dateTo: '', rowsPerPage: 25, sortByCreation: 'desc' as 'desc' | 'asc' };
+  const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', dateFrom: '', dateTo: '', rowsPerPage: 25, sortByCreation: 'desc' as 'desc' | 'asc', datePreset: null as 'jour' | 'semaine' | 'mois' | 'personnalise' | null };
   const [filters, setFilters, clearFilter] = usePersistedFilters('dossiers', filterDefaults);
   const rowsPerPage = filters.rowsPerPage;
   const [page, setPage] = useState(1);
@@ -379,11 +380,76 @@ export default function DossiersClientPage() {
           <OptionsManagerModal collectionName="options_observations" title="Observations" />
         </div>
 
+        {/* Date preset bar — matches the `Suivi d'équipe` page (monitoring) so
+            users get the same Jour / Semaine / Mois / Personnalisé shortcut on
+            both views. Presets write the SAME `dateFrom`/`dateTo` filter state
+            (yyyy-MM-dd strings) the pipeline already consumes; `datePreset`
+            tracks the active button purely for highlight, and is cleared by
+            the iter-18 reset together with the date strings. */}
+        <div className="flex items-center gap-1 rounded-md border p-0.5 h-9">
+          <Button
+            size="sm"
+            variant={filters.datePreset === 'jour' ? 'default' : 'ghost'}
+            className="h-7"
+            onClick={() => {
+              const now = new Date();
+              setFilters({
+                dateFrom: format(startOfDay(now), 'yyyy-MM-dd'),
+                dateTo: format(endOfDay(now), 'yyyy-MM-dd'),
+                datePreset: 'jour',
+              });
+              setPage(1);
+            }}
+          >
+            Jour
+          </Button>
+          <Button
+            size="sm"
+            variant={filters.datePreset === 'semaine' ? 'default' : 'ghost'}
+            className="h-7"
+            onClick={() => {
+              const now = new Date();
+              setFilters({
+                dateFrom: format(startOfWeek(now, { locale: fr }), 'yyyy-MM-dd'),
+                dateTo: format(endOfDay(now), 'yyyy-MM-dd'),
+                datePreset: 'semaine',
+              });
+              setPage(1);
+            }}
+          >
+            Semaine
+          </Button>
+          <Button
+            size="sm"
+            variant={filters.datePreset === 'mois' ? 'default' : 'ghost'}
+            className="h-7"
+            onClick={() => {
+              const now = new Date();
+              setFilters({
+                dateFrom: format(startOfMonth(now), 'yyyy-MM-dd'),
+                dateTo: format(endOfDay(now), 'yyyy-MM-dd'),
+                datePreset: 'mois',
+              });
+              setPage(1);
+            }}
+          >
+            Mois
+          </Button>
+          <Button
+            size="sm"
+            variant={filters.datePreset === 'personnalise' ? 'default' : 'ghost'}
+            className="h-7"
+            onClick={() => setFilters({ datePreset: 'personnalise' })}
+          >
+            Personnalisé
+          </Button>
+        </div>
+
         <DateRangeFilter
           dateFrom={filters.dateFrom}
           dateTo={filters.dateTo}
-          onDateFromChange={v => setFilters({ dateFrom: v })}
-          onDateToChange={v => setFilters({ dateTo: v })}
+          onDateFromChange={v => setFilters({ dateFrom: v, datePreset: v ? 'personnalise' : null })}
+          onDateToChange={v => setFilters({ dateTo: v, datePreset: v ? 'personnalise' : null })}
         />
 
         {/* Sort by creation date. Default `desc` matches the Firestore-side
