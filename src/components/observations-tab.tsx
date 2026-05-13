@@ -11,7 +11,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Textarea } from '@/components/ui/textarea';
 import {
   collection, addDoc, serverTimestamp, orderBy, query, where,
-  updateDoc, doc, arrayUnion, setDoc,
+  updateDoc, doc, arrayUnion, setDoc, Timestamp,
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useFirestore, useAuth, useCollection, useStorage } from '@/firebase';
@@ -88,6 +88,10 @@ type Observation = {
   traitementValidePar?: string;     // email
   traitementValideParNom?: string;
   traitementProofs?: ProofFile[];
+  // [observations] view-stamps — map of viewer emailKey -> view metadata.
+  // emailKey is the viewer's email with `.` replaced by `_` (Firestore
+  // dot-notation parses `.` in field paths as nesting).
+  viewedBy?: Record<string, { name: string; role?: string; viewedAt: any }>;
 };
 
 const TYPE_BADGE_STYLES: Record<string, string> = {
@@ -293,6 +297,39 @@ export default function ObservationsTab({
       return dateB - dateA;
     });
   }, [rawObservations, contextPhase, contextAccord, section, profile?.role, profile?.email]);
+
+  // [observations] view-stamps — fire-and-forget per-observation write that
+  // records the current viewer's email+name+timestamp on the observation
+  // doc's `viewedBy` map. Author self-views are skipped. We track in-flight
+  // ids in a ref so parent re-renders don't re-fire the write before the
+  // Firestore snapshot echoes the new `viewedBy` entry back.
+  const markedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!db) return;
+    const email = profile?.email;
+    if (!email) return;
+    const emailKey = email.replace(/\./g, '_');
+    const viewerName = profile?.nom || email;
+    const viewerRole = profile?.role;
+    for (const obs of observations) {
+      if (markedRef.current.has(obs.id)) continue;
+      if (obs.authorEmail === email) continue;
+      if (obs.viewedBy && obs.viewedBy[emailKey]) continue;
+      markedRef.current.add(obs.id);
+      const payload: Record<string, any> = { name: viewerName, viewedAt: Timestamp.now() };
+      if (viewerRole) payload.role = viewerRole;
+      setDoc(
+        doc(db, 'dossiers', dossierId, 'observations', obs.id),
+        { viewedBy: { [emailKey]: payload } },
+        { merge: true },
+      ).catch((err) => {
+        // Don't crash the UI; allow a future render to retry by clearing
+        // the in-flight marker.
+        console.error('view-stamp write failed', obs.id, err);
+        markedRef.current.delete(obs.id);
+      });
+    }
+  }, [db, dossierId, observations, profile?.email, profile?.nom, profile?.role]);
 
   // Count of observations newer than the last time the panel was opened by
   // this user on this device. While the panel is open we treat new docs as
@@ -647,6 +684,20 @@ export default function ObservationsTab({
           {observations.map((obs) => {
             const isValidated = !!obs.traitementValideAt;
             const proofs = obs.traitementProofs || [];
+            // [observations] view-stamps — sort viewers by viewedAt ascending
+            // (earliest first), keep the first 3 for the caption, and show
+            // "+N autres" for the rest. Skip the caption entirely when no one
+            // has viewed yet.
+            const viewerEntries = Object.entries(obs.viewedBy || {})
+              .map(([, v]) => v)
+              .filter((v): v is { name: string; role?: string; viewedAt: any } => !!v && !!v.name)
+              .sort((a, b) => {
+                const ta = a.viewedAt?.toDate ? a.viewedAt.toDate().getTime() : 0;
+                const tb = b.viewedAt?.toDate ? b.viewedAt.toDate().getTime() : 0;
+                return ta - tb;
+              });
+            const firstViewers = viewerEntries.slice(0, 3);
+            const extraViewers = Math.max(0, viewerEntries.length - 3);
             return (
               <div key={obs.id} className="flex gap-3 p-3 rounded-lg border bg-card">
                 <Avatar className="h-8 w-8 shrink-0 mt-0.5">
@@ -751,6 +802,27 @@ export default function ObservationsTab({
                         Ajouter une preuve
                       </Button>
                     </div>
+                  )}
+
+                  {/* [observations] view-stamps — subtle caption listing who
+                      viewed this observation and when. Hidden entirely when
+                      no one has viewed yet. */}
+                  {firstViewers.length > 0 && (
+                    <p className="mt-1.5 text-[10px] text-muted-foreground">
+                      Vu par{' '}
+                      {firstViewers.map((v, i) => {
+                        const d = v.viewedAt?.toDate ? v.viewedAt.toDate() : null;
+                        const when = d ? format(d, 'd MMM HH:mm', { locale: fr }) : '';
+                        return (
+                          <span key={i}>
+                            {i > 0 ? ', ' : ''}
+                            {v.name}
+                            {when ? ` (${when})` : ''}
+                          </span>
+                        );
+                      })}
+                      {extraViewers > 0 && `, +${extraViewers} autre${extraViewers > 1 ? 's' : ''}`}
+                    </p>
                   )}
                 </div>
               </div>
