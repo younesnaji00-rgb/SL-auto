@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight, Pencil, RotateCcw, Filter } from 'lucide-react';
+import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight, Pencil, RotateCcw, Filter, Check } from 'lucide-react';
 import { format, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
@@ -588,13 +588,34 @@ export default function DossiersClientPage() {
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent align="start" className="w-[240px] p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
-                          <Select value={filters.nature} onValueChange={v => setFilters({ nature: v })}>
-                            <SelectTrigger className="w-full"><SelectValue placeholder="Nature du dossier" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Toutes">Toutes les natures</SelectItem>
-                              {filterNatures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                          {/* Inline option list — one click selects, no nested Select. */}
+                          <div className="space-y-0.5 max-h-[280px] overflow-y-auto">
+                            <button
+                              type="button"
+                              onClick={() => setFilters({ nature: 'Toutes' })}
+                              className={cn(
+                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                filters.nature === 'Toutes' && "bg-muted font-medium",
+                              )}
+                            >
+                              <span>Toutes les natures</span>
+                              {filters.nature === 'Toutes' && <Check className="h-4 w-4 text-primary shrink-0" />}
+                            </button>
+                            {filterNatures.map(n => (
+                              <button
+                                key={n.id}
+                                type="button"
+                                onClick={() => setFilters({ nature: n.label })}
+                                className={cn(
+                                  "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                  filters.nature === n.label && "bg-muted font-medium",
+                                )}
+                              >
+                                <span>{n.label}</span>
+                                {filters.nature === n.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                              </button>
+                            ))}
+                          </div>
                           <div className="flex justify-end">
                             <OptionsManagerModal collectionName="options_natures" title="Natures" />
                           </div>
@@ -618,13 +639,36 @@ export default function DossiersClientPage() {
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent align="start" className="w-[260px] p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
-                          <Select value={filters.status} onValueChange={v => setFilters({ status: v })}>
-                            <SelectTrigger className="w-full"><SelectValue placeholder="Statut" /></SelectTrigger>
-                            <SelectContent className="max-h-[300px]">
-                              <SelectItem value="Tous">Tous les statuts</SelectItem>
-                              {filterStatuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                          <div className="space-y-0.5 max-h-[300px] overflow-y-auto">
+                            <button
+                              type="button"
+                              onClick={() => setFilters({ status: 'Tous' })}
+                              className={cn(
+                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                filters.status === 'Tous' && "bg-muted font-medium",
+                              )}
+                            >
+                              <span>Tous les statuts</span>
+                              {filters.status === 'Tous' && <Check className="h-4 w-4 text-primary shrink-0" />}
+                            </button>
+                            {filterStatuses.map(s => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => setFilters({ status: s.label })}
+                                className={cn(
+                                  "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                  filters.status === s.label && "bg-muted font-medium",
+                                )}
+                              >
+                                <span className="flex items-center gap-2">
+                                  <span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />
+                                  {s.label}
+                                </span>
+                                {filters.status === s.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                              </button>
+                            ))}
+                          </div>
                           <div className="flex justify-end">
                             <OptionsManagerModal collectionName="options_statuts" title="Statuts" />
                           </div>
@@ -648,13 +692,33 @@ export default function DossiersClientPage() {
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent align="start" className="w-[240px] p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
-                          <Select value={filters.compagnie} onValueChange={v => setFilters({ compagnie: v })}>
-                            <SelectTrigger className="w-full"><SelectValue placeholder="Compagnie" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
-                              {filterCompagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                          <div className="space-y-0.5 max-h-[280px] overflow-y-auto">
+                            <button
+                              type="button"
+                              onClick={() => setFilters({ compagnie: 'Toutes' })}
+                              className={cn(
+                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                filters.compagnie === 'Toutes' && "bg-muted font-medium",
+                              )}
+                            >
+                              <span>Toutes les compagnies</span>
+                              {filters.compagnie === 'Toutes' && <Check className="h-4 w-4 text-primary shrink-0" />}
+                            </button>
+                            {filterCompagnies.map(c => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => setFilters({ compagnie: c.label })}
+                                className={cn(
+                                  "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                  filters.compagnie === c.label && "bg-muted font-medium",
+                                )}
+                              >
+                                <span>{c.label}</span>
+                                {filters.compagnie === c.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                              </button>
+                            ))}
+                          </div>
                           <div className="flex justify-end">
                             <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
                           </div>
@@ -678,13 +742,33 @@ export default function DossiersClientPage() {
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent align="start" className="w-[260px] p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
-                          <Select value={filters.observation} onValueChange={v => setFilters({ observation: v })}>
-                            <SelectTrigger className="w-full"><SelectValue placeholder="Type d'observation" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Toutes">Toutes les observations</SelectItem>
-                              {filterObservations.map(o => <SelectItem key={o.id} value={o.label}>{o.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                          <div className="space-y-0.5 max-h-[280px] overflow-y-auto">
+                            <button
+                              type="button"
+                              onClick={() => setFilters({ observation: 'Toutes' })}
+                              className={cn(
+                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                filters.observation === 'Toutes' && "bg-muted font-medium",
+                              )}
+                            >
+                              <span>Toutes les observations</span>
+                              {filters.observation === 'Toutes' && <Check className="h-4 w-4 text-primary shrink-0" />}
+                            </button>
+                            {filterObservations.map(o => (
+                              <button
+                                key={o.id}
+                                type="button"
+                                onClick={() => setFilters({ observation: o.label })}
+                                className={cn(
+                                  "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                  filters.observation === o.label && "bg-muted font-medium",
+                                )}
+                              >
+                                <span>{o.label}</span>
+                                {filters.observation === o.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                              </button>
+                            ))}
+                          </div>
                           <div className="flex justify-end">
                             <OptionsManagerModal collectionName="options_observations" title="Observations" />
                           </div>
