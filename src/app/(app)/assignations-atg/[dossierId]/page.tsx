@@ -32,6 +32,7 @@ import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
+import { watermarkAtgPhoto } from '@/lib/photo-watermark';
 import { logHistorique, logWorkflow } from '../../dossiers/[id]/log-historique';
 import { addObservation } from '../../dossiers/[id]/log-observation';
 import Link from 'next/link';
@@ -307,25 +308,33 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     }
     setIsUploading(true);
     try {
+      // Build a friendly display name for the watermark — prefer the user's
+      // full name from their profile, fall back to email, then a generic label.
+      const watermarkName = [profile?.prenom, profile?.nom]
+        .filter(Boolean)
+        .join(' ')
+        .trim() || userEmail || 'Agent de Terrain';
       for (const file of files) {
         const timestamp = Date.now();
-        const storagePath = `dossiers/${dossierId}/photos/${categoryAtUpload}/${timestamp}_${file.name}`;
+        // Stamp BEFORE queuing so the watermark survives offline uploads too.
+        const stamped = await watermarkAtgPhoto(file, watermarkName);
+        const storagePath = `dossiers/${dossierId}/photos/${categoryAtUpload}/${timestamp}_${stamped.name}`;
         await uploadFileWithOfflineSupport({
           storage,
           db,
-          file,
-          fileName: file.name,
+          file: stamped,
+          fileName: stamped.name,
           storagePath,
           firestoreDocPath: `dossiers/${dossierId}/photos`,
           firestoreMetadata: {
-            name: file.name,
+            name: stamped.name,
             category: categoryAtUpload,
             uploadedAt: serverTimestamp(),
             uploadedBy: userEmail,
             storagePath,
           },
         });
-        await logHistorique(db, dossierId, 'Upload photo Agent de Terrain', userEmail, `Photo "${file.name}" uploadée (${categoryAtUpload}).`, 'photo', profile?.nom);
+        await logHistorique(db, dossierId, 'Upload photo Agent de Terrain', userEmail, `Photo "${stamped.name}" uploadée (${categoryAtUpload}).`, 'photo', profile?.nom);
       }
       const catLabel = categoryAtUpload === 'avant' ? 'Avant' : categoryAtUpload === 'en_cours' ? 'En cours' : 'Après';
       const userId = auth?.currentUser?.uid || 'unknown';
