@@ -29,7 +29,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
 import { toOrdinalFr } from '@/lib/devis-schema';
-import { useFirestore, useAuth, useCollection, useStorage } from '@/firebase';
+import { useFirestore, useAuth, useCollection, useStorage, useDoc } from '@/firebase';
 import {
   collection,
   deleteDoc,
@@ -100,7 +100,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [isBatchDownloading, setIsBatchDownloading] = useState(false);
+  const [isBatchDownloading, setIsBatchDownloading] = useState<false | 'docs' | 'docs+photos'>(false);
 
   const collQuery = useMemo(() => {
     if (!db) return null;
@@ -108,6 +108,17 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   }, [db, dossierId]);
 
   const { data: allDocuments, loading } = useCollection<any>(collQuery);
+
+  // Fetch parent dossier (for master-folder name: refCompagnie / assuré / compagnie)
+  const dossierRef = useMemo(() => (db ? doc(db, 'dossiers', dossierId) : null), [db, dossierId]);
+  const { data: dossier } = useDoc<any>(dossierRef as any);
+
+  // Photos subcollection — needed only for the "Inclure photos" variant.
+  const photosQuery = useMemo(() => {
+    if (!db) return null;
+    return collection(db, 'dossiers', dossierId, 'photos');
+  }, [db, dossierId]);
+  const { data: allPhotos } = useCollection<any>(photosQuery);
 
   const sortedDocs = useMemo(() => {
     if (!allDocuments) return [];
@@ -309,45 +320,119 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
     setSelectedIds(new Set());
   };
 
-  const handleDownloadSelected = async () => {
+  // Build the master-folder name from the parent dossier:
+  //   `${referenceCompagnie} - ${assuré} - ${compagnie}`.
+  // NFC-normalize so accented characters (é, è, à…) survive the round-trip
+  // through JSZip → unzip on any OS (item [historique-pj] folder rename + fix).
+  const buildMasterFolderName = (): string => {
+    const d = dossier as any;
+    const ref = (d?.referenceCompagnie || '').toString().trim();
+    const assureNom =
+      typeof d?.assure === 'string'
+        ? d.assure
+        : `${d?.assure?.nom || ''} ${d?.assure?.prenom || ''}`.trim();
+    const compagnie = (d?.compagnie || '').toString().trim();
+    const parts = [ref, assureNom, compagnie].filter(Boolean);
+    const raw = parts.length ? parts.join(' - ') : `documents-${dossierId}`;
+    // Strip filesystem-illegal chars but KEEP accents.
+    return raw.normalize('NFC').replace(/[\\/:*?"<>|]/g, '_').trim() || `documents-${dossierId}`;
+  };
+
+  // Sanitize an arbitrary path segment for the zip while preserving accents.
+  // Garbled output in older builds came from over-eager regexes that
+  // mangled UTF-8; here we only strip true filesystem-illegal characters.
+  const sanitizeSegment = (s: string, fallback = 'Autres'): string => {
+    const cleaned = (s || '').normalize('NFC').replace(/[\\/:*?"<>|]/g, '_').trim();
+    return cleaned || fallback;
+  };
+
+  // Map the photo category enum (`avant` / `en_cours` / `apres`) to the
+  // French sub-folder names the user asked for.
+  const PHOTO_CATEGORY_FOLDERS: Record<string, string> = {
+    avant: 'photos avant',
+    en_cours: 'photos en cours',
+    apres: 'photos après',
+  };
+
+  const handleDownloadSelected = async (includePhotos: boolean) => {
     if (!allDocuments || selectedIds.size === 0) return;
     const chosen = allDocuments.filter((d: any) => selectedIds.has(d.id) && d.url);
-    if (chosen.length === 0) return;
-    setIsBatchDownloading(true);
+    if (chosen.length === 0 && !includePhotos) return;
+    setIsBatchDownloading(includePhotos ? 'docs+photos' : 'docs');
     try {
       const zip = new JSZip();
-      const sanitizeFolder = (s: string) =>
-        (s || 'Autres').trim().replace(/[\\/:*?"<>|]/g, '_') || 'Autres';
+      const masterName = buildMasterFolderName();
+      const master = zip.folder(masterName)!;
 
-      // Fetch all blobs in parallel for speed; then add each to its type folder.
+      // ── Documents: nested under master/<type> ─────────────────────────────
       const fetched = await Promise.all(
         chosen.map(async (d: any) => {
-          const folderName = sanitizeFolder(d.type || d.typeDocument || 'Autres');
-          const fileName = d.nom || d.fileName || 'document';
-          const response = await fetch(d.url);
-          const blob = await response.blob();
-          return { folderName, fileName, blob };
+          const folderName = sanitizeSegment(d.type || d.typeDocument || 'Autres');
+          const fileName = sanitizeSegment(d.nom || d.fileName || 'document', 'document');
+          try {
+            const response = await fetch(d.url);
+            const blob = await response.blob();
+            return { folderName, fileName, blob, ok: true as const };
+          } catch (err) {
+            console.warn('Skipping document, fetch failed:', d.nom || d.id, err);
+            return { folderName, fileName, blob: null, ok: false as const };
+          }
         })
       );
 
       const folderSet = new Set<string>();
-      for (const { folderName, fileName, blob } of fetched) {
-        folderSet.add(folderName);
-        zip.folder(folderName)!.file(fileName, blob);
+      for (const item of fetched) {
+        if (!item.ok || !item.blob) continue;
+        folderSet.add(item.folderName);
+        master.folder(item.folderName)!.file(item.fileName, item.blob);
       }
 
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      // ── Photos: nested under master/photos {avant|en cours|après} ─────────
+      let photoCount = 0;
+      if (includePhotos && allPhotos && allPhotos.length > 0) {
+        const photoResults = await Promise.all(
+          allPhotos
+            .filter((p: any) => p.url && !p.pendingUpload)
+            .map(async (p: any) => {
+              const cat = (p.category || '').toString();
+              const folderName = PHOTO_CATEGORY_FOLDERS[cat] || 'photos';
+              const fileName = sanitizeSegment(p.name || 'photo', 'photo');
+              try {
+                const response = await fetch(p.url);
+                const blob = await response.blob();
+                return { folderName, fileName, blob, ok: true as const };
+              } catch (err) {
+                // Don't let one CORS-failing image kill the whole zip.
+                console.warn('Skipping photo, fetch failed:', p.name || p.id, err);
+                return { folderName, fileName, blob: null, ok: false as const };
+              }
+            })
+        );
+        for (const item of photoResults) {
+          if (!item.ok || !item.blob) continue;
+          master.folder(item.folderName)!.file(item.fileName, item.blob);
+          photoCount += 1;
+        }
+      }
+
+      // platform: 'UNIX' + JSZip's default UTF-8 path encoding produces
+      // archive entries that unzip with correct accents on Windows / macOS / Linux.
+      const zipBlob = await zip.generateAsync({ type: 'blob', platform: 'UNIX' });
       const blobUrl = window.URL.createObjectURL(zipBlob);
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = `documents-${dossierId}-${new Date().toISOString().slice(0, 10)}.zip`;
+      const dateSlug = new Date().toISOString().slice(0, 10);
+      link.download = `${masterName} - ${dateSlug}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
 
+      const docCount = fetched.filter((f) => f.ok).length;
       toast({
-        title: `Archive téléchargée (${chosen.length} document(s) dans ${folderSet.size} dossier(s))`,
+        title: includePhotos
+          ? `Archive téléchargée (${docCount} document(s), ${photoCount} photo(s))`
+          : `Archive téléchargée (${docCount} document(s) dans ${folderSet.size} dossier(s))`,
       });
     } catch (e) {
       console.error('Batch download error:', e);
@@ -411,17 +496,31 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
             </Button>
             <Button
               size="sm"
-              onClick={handleDownloadSelected}
-              disabled={selectedIds.size === 0 || isBatchDownloading}
+              onClick={() => handleDownloadSelected(false)}
+              disabled={selectedIds.size === 0 || !!isBatchDownloading}
             >
-              {isBatchDownloading ? (
+              {isBatchDownloading === 'docs' ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Download className="mr-2 h-4 w-4" />
               )}
               Télécharger ({selectedIds.size})
             </Button>
-            <Button variant="ghost" size="sm" onClick={exitSelectionMode} disabled={isBatchDownloading}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => handleDownloadSelected(true)}
+              disabled={selectedIds.size === 0 || !!isBatchDownloading}
+              title="Inclure les photos avant / en cours / après dans le zip"
+            >
+              {isBatchDownloading === 'docs+photos' ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              Inclure photos ({selectedIds.size})
+            </Button>
+            <Button variant="ghost" size="sm" onClick={exitSelectionMode} disabled={!!isBatchDownloading}>
               Annuler
             </Button>
           </div>
