@@ -607,7 +607,19 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                       {p.zone}
                     </span>
                   )}
-                  {p.adresse && <span className="truncate">· {p.adresse}</span>}
+                  {p.adresse && (
+                    <span className="truncate">
+                      ·{' '}
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.adresse)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline"
+                      >
+                        {p.adresse}
+                      </a>
+                    </span>
+                  )}
                 </div>
               ))}
             </div>

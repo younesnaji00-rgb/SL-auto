@@ -737,7 +737,15 @@ export default function AssignationsATGPage() {
                           )}
                           {p.adresse && (
                             <div className="mt-0.5 text-xs text-muted-foreground truncate pl-4">
-                              {p.adresse}
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.adresse)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="hover:underline"
+                              >
+                                {p.adresse}
+                              </a>
                             </div>
                           )}
                           <div className="mt-2">
