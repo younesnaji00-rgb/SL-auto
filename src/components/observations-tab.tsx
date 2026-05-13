@@ -21,9 +21,18 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { addObservation } from '@/app/(app)/dossiers/[id]/log-observation';
+import { addObservation, type VisibilityScope } from '@/app/(app)/dossiers/[id]/log-observation';
 import { accordSlotFromValue } from '@/lib/docType-accorde';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
+
+// Label/value pairs for the per-observation visibility dropdown. Default on
+// entry is 'all' ("À tous"). Filtering on read is deferred (F2).
+const VISIBILITY_SCOPE_OPTIONS: { value: VisibilityScope; label: string }[] = [
+  { value: 'all',           label: 'À tous' },
+  { value: 'gestionnaire',  label: 'Gestionnaire' },
+  { value: 'chiffreur',     label: 'Chiffreur' },
+  { value: 'agent_terrain', label: 'Agent de terrain' },
+];
 
 type ProofFile = {
   url: string;
@@ -281,6 +290,11 @@ export default function ObservationsTab({
   const chiffrageAccordMissing =
     needsChiffrageAccordPick && dynamicAccordOptions.length > 0 && !chiffrageAccordChoice;
 
+  // Per-observation visibility scope — UI on entry; persisted alongside other
+  // observation fields. Default 'all' is set here (not lazily) so no path can
+  // produce undefined for new entries.
+  const [visibilityScope, setVisibilityScope] = useState<VisibilityScope>('all');
+
   const submitDisabled =
     (!presetFilled && !customFilled) ||
     bothFilled ||
@@ -361,7 +375,7 @@ export default function ObservationsTab({
       if (pendingProofs.length === 0 || !storage) {
         await addObservation(
           db, dossierId, text, 'Général', userName, userEmail, userRole, section,
-          phaseTag, accordTag,
+          phaseTag, accordTag, visibilityScope,
         );
       } else {
         // Pre-allocate the observation doc ID so storage paths can use it.
@@ -394,6 +408,7 @@ export default function ObservationsTab({
           source: section,
           createdAt: serverTimestamp(),
           dossierId,
+          visibilityScope,
         };
         if (phaseTag) docPayload.phaseATG = phaseTag;
         if (accordTag) docPayload.accordSlot = accordTag;
@@ -406,6 +421,7 @@ export default function ObservationsTab({
       setCustomText('');
       setChiffrageAccordChoice('');
       setPendingProofs([]);
+      setVisibilityScope('all');
       toast({ title: 'Observation ajoutée' });
     } catch (err: any) {
       console.error('Failed to add observation:', err);
@@ -506,6 +522,26 @@ export default function ObservationsTab({
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Visibility scope — who sees this observation. Default 'all'.
+                Persistence only for now; filter on read is deferred (F2). */}
+            <Select
+              value={visibilityScope}
+              onValueChange={(v) => setVisibilityScope(v as VisibilityScope)}
+              disabled={isSubmitting}
+            >
+              <SelectTrigger
+                className="h-8 w-[160px] text-xs"
+                aria-label="Visibilité de l'observation"
+              >
+                <Eye className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {VISIBILITY_SCOPE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <input
               ref={newProofInputRef}
               type="file"

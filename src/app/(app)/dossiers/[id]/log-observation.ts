@@ -3,6 +3,12 @@ import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/fires
 export type ObservationType = 'Planification' | 'Décision de statut' | 'Expert' | 'Général';
 export type PhaseATG = 'Avant' | 'En cours' | 'Après';
 export type AccordSlot = '1er accord' | '2ème accord ou +';
+/**
+ * Who is allowed to see this observation. UI-set on entry; defaults to 'all'.
+ * Existing docs without the field are treated as 'all' by readers.
+ * Filtering on read is deferred — see follow-up F2.
+ */
+export type VisibilityScope = 'all' | 'gestionnaire' | 'chiffreur' | 'agent_terrain';
 
 /**
  * Append an observation to the dossier's observations subcollection.
@@ -32,10 +38,12 @@ export async function addObservation(
   source: 'dossiers' | 'assignations-atg' | 'assignations-chiffrage',
   phaseATG?: PhaseATG | null,
   accordSlot?: AccordSlot | string | null,
+  visibilityScope?: VisibilityScope | null,
 ): Promise<void> {
   if (!db || !dossierId || !text.trim()) return;
 
   try {
+    const scope: VisibilityScope = visibilityScope ?? 'all';
     const docPayload: Record<string, any> = {
       text: text.trim(),
       type,
@@ -45,6 +53,7 @@ export async function addObservation(
       source,
       createdAt: serverTimestamp(),
       dossierId,
+      visibilityScope: scope,
     };
     if (phaseATG) docPayload.phaseATG = phaseATG;
     if (accordSlot) docPayload.accordSlot = accordSlot;
@@ -57,6 +66,7 @@ export async function addObservation(
       author,
       authorRole,
       at: serverTimestamp(),
+      visibilityScope: scope,
     };
     if (phaseATG) lastObservation.phaseATG = phaseATG;
     if (accordSlot) lastObservation.accordSlot = accordSlot;
