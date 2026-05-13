@@ -1,13 +1,14 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight, Pencil, RotateCcw } from 'lucide-react';
+import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight, Pencil, RotateCcw, Filter } from 'lucide-react';
 import { format, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -336,49 +337,10 @@ export default function DossiersClientPage() {
           />
         </div>
         
-        <div className="flex items-center gap-1">
-          <Select value={filters.nature} onValueChange={v => setFilters({ nature: v })}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Nature du dossier" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Toutes">Toutes les natures</SelectItem>
-              {filterNatures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <OptionsManagerModal collectionName="options_natures" title="Natures" />
-        </div>
-
-        <div className="flex items-center gap-1">
-          <Select value={filters.status} onValueChange={v => setFilters({ status: v })}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Statut" /></SelectTrigger>
-            <SelectContent className="max-h-[300px]">
-              <SelectItem value="Tous">Tous les statuts</SelectItem>
-              {filterStatuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
-            </SelectContent>
-          </Select>
-          <OptionsManagerModal collectionName="options_statuts" title="Statuts" />
-        </div>
-
-        <div className="flex items-center gap-1">
-          <Select value={filters.compagnie} onValueChange={v => setFilters({ compagnie: v })}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Compagnie" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
-              {filterCompagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
-        </div>
-
-        <div className="flex items-center gap-1">
-          <Select value={filters.observation} onValueChange={v => setFilters({ observation: v })}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Type d'observation" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Toutes">Toutes les observations</SelectItem>
-              {filterObservations.map(o => <SelectItem key={o.id} value={o.label}>{o.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <OptionsManagerModal collectionName="options_observations" title="Observations" />
-        </div>
+        {/* Per-attribute filters (nature, statut, compagnie, observation) moved
+            into their respective column headers below. The top bar keeps only
+            the search box, date presets, custom-range pickers, sort-by-creation
+            and reset — every other filter lives next to the column it scopes. */}
 
         {/* Date preset bar — matches the `Suivi d'équipe` page (monitoring) so
             users get the same Jour / Semaine / Mois / Personnalisé shortcut on
@@ -602,19 +564,156 @@ export default function DossiersClientPage() {
                   />
                 </TableHead>
               )}
-              {EXPORT_COLUMNS.map(col => (
-                <TableHead key={col.key} className={col.key === 'statut' ? 'min-w-[200px]' : undefined}>
-                  {exportMode ? (
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        checked={selectedColumns.has(col.key)}
-                        onCheckedChange={() => handleToggleColumn(col.key)}
-                      />
-                      <span>{col.label}</span>
-                    </div>
-                  ) : col.label}
-                </TableHead>
-              ))}
+              {EXPORT_COLUMNS.map(col => {
+                // Per-column filter popovers (iter-21). Each entry pairs a
+                // column key with the filter UI that scopes it. Columns NOT in
+                // this map (refExpert, assure, referenceCompagnie, matricule,
+                // matriculeAnterieur, typeDossier, dateSinistre, dateRequete)
+                // render plain labels and are searched via the global search
+                // box only.
+                const renderColumnFilter = () => {
+                  if (col.key === 'nature') {
+                    const active = filters.nature !== 'Toutes';
+                    return (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn("h-6 w-6 -mr-1", active && "text-primary")}
+                            onClick={(e) => e.stopPropagation()}
+                            title="Filtrer par nature"
+                          >
+                            <Filter className={cn("h-3.5 w-3.5", active && "fill-current")} />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-[240px] p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+                          <Select value={filters.nature} onValueChange={v => setFilters({ nature: v })}>
+                            <SelectTrigger className="w-full"><SelectValue placeholder="Nature du dossier" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Toutes">Toutes les natures</SelectItem>
+                              {filterNatures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <div className="flex justify-end">
+                            <OptionsManagerModal collectionName="options_natures" title="Natures" />
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    );
+                  }
+                  if (col.key === 'statut') {
+                    const active = filters.status !== 'Tous';
+                    return (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn("h-6 w-6 -mr-1", active && "text-primary")}
+                            onClick={(e) => e.stopPropagation()}
+                            title="Filtrer par statut"
+                          >
+                            <Filter className={cn("h-3.5 w-3.5", active && "fill-current")} />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-[260px] p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+                          <Select value={filters.status} onValueChange={v => setFilters({ status: v })}>
+                            <SelectTrigger className="w-full"><SelectValue placeholder="Statut" /></SelectTrigger>
+                            <SelectContent className="max-h-[300px]">
+                              <SelectItem value="Tous">Tous les statuts</SelectItem>
+                              {filterStatuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <div className="flex justify-end">
+                            <OptionsManagerModal collectionName="options_statuts" title="Statuts" />
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    );
+                  }
+                  if (col.key === 'compagnie') {
+                    const active = filters.compagnie !== 'Toutes';
+                    return (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn("h-6 w-6 -mr-1", active && "text-primary")}
+                            onClick={(e) => e.stopPropagation()}
+                            title="Filtrer par compagnie"
+                          >
+                            <Filter className={cn("h-3.5 w-3.5", active && "fill-current")} />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-[240px] p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+                          <Select value={filters.compagnie} onValueChange={v => setFilters({ compagnie: v })}>
+                            <SelectTrigger className="w-full"><SelectValue placeholder="Compagnie" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
+                              {filterCompagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <div className="flex justify-end">
+                            <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    );
+                  }
+                  if (col.key === 'observation') {
+                    const active = filters.observation !== 'Toutes';
+                    return (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn("h-6 w-6 -mr-1", active && "text-primary")}
+                            onClick={(e) => e.stopPropagation()}
+                            title="Filtrer par observation"
+                          >
+                            <Filter className={cn("h-3.5 w-3.5", active && "fill-current")} />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-[260px] p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+                          <Select value={filters.observation} onValueChange={v => setFilters({ observation: v })}>
+                            <SelectTrigger className="w-full"><SelectValue placeholder="Type d'observation" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Toutes">Toutes les observations</SelectItem>
+                              {filterObservations.map(o => <SelectItem key={o.id} value={o.label}>{o.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <div className="flex justify-end">
+                            <OptionsManagerModal collectionName="options_observations" title="Observations" />
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    );
+                  }
+                  return null;
+                };
+                const filterBtn = exportMode ? null : renderColumnFilter();
+                return (
+                  <TableHead key={col.key} className={col.key === 'statut' ? 'min-w-[200px]' : undefined}>
+                    {exportMode ? (
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={selectedColumns.has(col.key)}
+                          onCheckedChange={() => handleToggleColumn(col.key)}
+                        />
+                        <span>{col.label}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span>{col.label}</span>
+                        {filterBtn}
+                      </div>
+                    )}
+                  </TableHead>
+                );
+              })}
               {!exportMode && (
                 <TableHead className="text-right sticky right-0 bg-muted/50 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                   Actions
