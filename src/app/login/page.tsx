@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageLoader } from '@/components/ui/page-loader';
 import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import Logo from '@/components/logo';
+import { useToast } from '@/hooks/use-toast';
 
 /** Generate a deterministic email from the user's full name */
 function generateEmail(nom: string): string {
@@ -31,6 +32,15 @@ function generateEmail(nom: string): string {
 // snapshot \u2014 if they diverge (another device just logged in), it signs the
 // older device out. Keep the storage key stable across the codebase.
 const SESSION_STORAGE_KEY = 'sl-auto.session-id';
+// In-flight flag: set before signIn, cleared after the user doc is updated.
+// CurrentUserProvider respects this flag so the snapshot listener that
+// attaches during signIn does not evict us in the brief window before our
+// own currentSessionId write commits.
+const LOGIN_IN_FLIGHT_KEY = 'sl-auto.login-in-flight';
+// One-shot flag the eviction listener (in use-current-user) sets right before
+// signing the older device out. We consume it once on /login mount to render
+// a friendly toast explaining why the user landed here.
+const EVICTED_FLAG_KEY = 'sl-auto.evicted-by-other-device';
 function newSessionId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -45,6 +55,22 @@ export default function LoginPage() {
   const auth = useAuth();
   const db = useFirestore();
   const router = useRouter();
+  const { toast } = useToast();
+
+  // Single-session eviction notice: if the previous tab was signed out
+  // because another device claimed the session, show one informational toast.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.localStorage.getItem(EVICTED_FLAG_KEY) === '1') {
+      window.localStorage.removeItem(EVICTED_FLAG_KEY);
+      toast({
+        title: 'Session terminée',
+        description:
+          "Vous avez été déconnecté car votre compte s'est connecté sur un autre appareil.",
+        variant: 'destructive',
+      });
+    }
+  }, [toast]);
 
   const [nom, setNom] = useState('');
   const [password, setPassword] = useState('');
@@ -107,12 +133,13 @@ export default function LoginPage() {
     }
 
     setSetupLoading(true);
+    const sessionId = newSessionId();
+    window.sessionStorage.setItem(LOGIN_IN_FLIGHT_KEY, '1');
+    window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
     try {
       const email = generateEmail(setupName);
       const cred = await createUserWithEmailAndPassword(auth, email, setupPassword);
 
-      const sessionId = newSessionId();
-      window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
       await setDoc(doc(db, 'users', cred.user.uid), {
         nom: setupName.trim(),
         nomLowercase: setupName.trim().toLowerCase(),
@@ -127,9 +154,12 @@ export default function LoginPage() {
         currentSessionId: sessionId,
       });
 
+      window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Setup error:', err);
+      window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
+      window.localStorage.removeItem(SESSION_STORAGE_KEY);
       setSetupError(err.message || 'Erreur lors de la création du compte.');
     } finally {
       setSetupLoading(false);
@@ -181,21 +211,27 @@ export default function LoginPage() {
         return;
       }
 
-      const cred = await signInWithEmailAndPassword(auth, email, password);
       // Single-session: stamp a fresh session id on the user doc and store it
       // locally. Any other device with a different local id will be signed
-      // out by the snapshot listener in CurrentUserProvider.
+      // out by the snapshot listener in CurrentUserProvider. Both the in-flight
+      // flag and localStorage are set BEFORE signIn so the snapshot listener
+      // that attaches via onAuthStateChanged sees a consistent state.
       const sessionId = newSessionId();
+      window.sessionStorage.setItem(LOGIN_IN_FLIGHT_KEY, '1');
       window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+      const cred = await signInWithEmailAndPassword(auth, email, password);
       const updates: Record<string, any> = {
         lastLogin: serverTimestamp(),
         currentSessionId: sessionId,
       };
       if (backfillNeeded) updates.nomLowercase = lower;
       await updateDoc(doc(db, 'users', cred.user.uid), updates);
+      window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Login error:', err);
+      window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
+      window.localStorage.removeItem(SESSION_STORAGE_KEY);
       if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('Mot de passe incorrect.');
       } else if (err.code === 'auth/user-not-found') {

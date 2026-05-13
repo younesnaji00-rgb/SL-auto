@@ -2,15 +2,26 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut as firebaseSignOut, type User } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { ROLES_THAT_CAN_DELETE, type Role } from '@/lib/dossiers-data';
 
 // Single-session enforcement: each login writes a fresh `currentSessionId` to
 // the user doc and to localStorage. The snapshot listener below evicts this
 // client (firebaseSignOut + redirect) whenever the remote id no longer matches
-// the local one. Keep the key in sync with src/app/login/page.tsx.
+// the local one. Keep the keys in sync with src/app/login/page.tsx.
 const SESSION_STORAGE_KEY = 'sl-auto.session-id';
+const LOGIN_IN_FLIGHT_KEY = 'sl-auto.login-in-flight';
+// One-shot flag picked up by the login page to render a toast explaining
+// why the user landed there (read once, then cleared).
+const EVICTED_FLAG_KEY = 'sl-auto.evicted-by-other-device';
+
+function newSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 interface UserProfile {
   uid: string;
@@ -117,28 +128,47 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
               typeof window !== 'undefined'
                 ? window.localStorage.getItem(SESSION_STORAGE_KEY)
                 : null;
-            // Evict iff BOTH ids are set and they differ. If either side is
-            // missing (legacy users pre-feature-deploy, fresh devices, etc.)
-            // we leave the session alone — they'll get stamped on next login.
-            if (
-              remoteSessionId &&
-              localSessionId &&
-              remoteSessionId !== localSessionId
-            ) {
-              if (typeof window !== 'undefined') {
-                window.localStorage.removeItem(SESSION_STORAGE_KEY);
+            const loginInFlight =
+              typeof window !== 'undefined' &&
+              window.sessionStorage.getItem(LOGIN_IN_FLIGHT_KEY) === '1';
+
+            if (!loginInFlight) {
+              // Eviction: another device claimed this session. We evict whenever
+              // remote is set and either we have no local id (e.g. legacy device
+              // logged in before this feature deployed) or our local id no
+              // longer matches.
+              if (
+                remoteSessionId &&
+                (!localSessionId || remoteSessionId !== localSessionId)
+              ) {
+                if (typeof window !== 'undefined') {
+                  window.localStorage.removeItem(SESSION_STORAGE_KEY);
+                  window.localStorage.setItem(EVICTED_FLAG_KEY, '1');
+                }
+                try {
+                  await firebaseSignOut(auth);
+                } catch (err) {
+                  console.error('Single-session eviction signOut failed:', err);
+                }
+                setProfile(null);
+                setLoading(false);
+                if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+                  window.location.assign('/login');
+                }
+                return;
               }
-              try {
-                await firebaseSignOut(auth);
-              } catch (err) {
-                console.error('Single-session eviction signOut failed:', err);
+              // Claim: pre-feature persisted-auth devices reach here with a
+              // null remote id. Stamp a fresh id on both sides so the next
+              // login on another device produces a detectable mismatch and
+              // evicts us. Fire-and-forget; the resulting snapshot will match.
+              if (!remoteSessionId) {
+                const claimId = localSessionId || newSessionId();
+                if (!localSessionId && typeof window !== 'undefined') {
+                  window.localStorage.setItem(SESSION_STORAGE_KEY, claimId);
+                }
+                updateDoc(doc(db, 'users', user.uid), { currentSessionId: claimId })
+                  .catch((e) => console.warn('Session claim failed:', e));
               }
-              setProfile(null);
-              setLoading(false);
-              if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-                window.location.assign('/login');
-              }
-              return;
             }
             setProfile({
               uid: user.uid,
