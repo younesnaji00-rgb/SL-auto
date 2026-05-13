@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Plus, Loader2, CalendarDays, Upload } from 'lucide-react';
+import { Trash2, Plus, Loader2, CalendarDays, Upload, ImageIcon, Sparkles } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { useOptions } from '@/hooks/use-options';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -30,6 +30,8 @@ export default function JoursFeriesSettingsPage() {
   const [importText, setImportText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const sorted = useMemo(
     () => [...options].sort((a, b) => a.label.localeCompare(b.label)),
@@ -129,6 +131,86 @@ export default function JoursFeriesSettingsPage() {
     }
   };
 
+  const fileToBase64 = (file: File): Promise<{ base64: string; contentType: string }> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // result format: "data:image/png;base64,XXXX"
+        const match = /^data:([^;]+);base64,(.+)$/.exec(result || '');
+        if (!match) {
+          reject(new Error('Lecture du fichier échouée.'));
+          return;
+        }
+        resolve({ contentType: match[1], base64: match[2] });
+      };
+      reader.onerror = () => reject(reader.error || new Error('Erreur de lecture.'));
+      reader.readAsDataURL(file);
+    });
+
+  const handleImageImport = async (file: File) => {
+    if (!db) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ variant: 'destructive', title: 'Fichier invalide', description: 'Veuillez choisir une image.' });
+      return;
+    }
+    setIsScanning(true);
+    try {
+      const { base64, contentType } = await fileToBase64(file);
+      const res = await fetch('/api/scan-holidays', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileBase64: base64, contentType }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = (json && json.error) || `Erreur HTTP ${res.status}`;
+        toast({ variant: 'destructive', title: "Échec de l'analyse IA", description: msg });
+        return;
+      }
+      const dates: string[] = Array.isArray(json.dates) ? json.dates : [];
+      if (dates.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Aucune date détectée',
+          description: "L'IA n'a trouvé aucune date dans l'image. Essayez une capture plus nette.",
+        });
+        return;
+      }
+      const existing = new Set(options.map((o) => o.label));
+      const fresh = dates.filter((d) => ISO_DATE.test(d) && !existing.has(d));
+      const skipped = dates.length - fresh.length;
+      if (fresh.length === 0) {
+        toast({
+          title: 'Rien à ajouter',
+          description: `${dates.length} date(s) détectée(s), toutes déjà présentes.`,
+        });
+        return;
+      }
+      const batch = writeBatch(db);
+      const baseOrder = options.length;
+      fresh.forEach((label, i) => {
+        const ref = doc(collection(db, 'options_holidays'));
+        batch.set(ref, { label, order: baseOrder + i, active: true, createdAt: serverTimestamp() });
+      });
+      await batch.commit();
+      toast({
+        title: `${fresh.length} date(s) ajoutée(s)`,
+        description:
+          skipped > 0 ? `${skipped} ignorée(s) (déjà présente(s)).` : undefined,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: err?.message || "Impossible d'analyser l'image.",
+      });
+    } finally {
+      setIsScanning(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleSeedDefaults = async () => {
     if (!db) return;
     setIsImporting(true);
@@ -184,6 +266,46 @@ export default function JoursFeriesSettingsPage() {
             {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             Ajouter
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            Importer depuis une image (IA)
+          </CardTitle>
+          <CardDescription>
+            Choisissez une capture d'écran listant les jours fériés de l'année.
+            L'IA extrait automatiquement les dates et les ajoute à la liste.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleImageImport(f);
+            }}
+          />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isScanning}
+            className="gap-1.5"
+          >
+            {isScanning ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ImageIcon className="h-4 w-4" />
+            )}
+            {isScanning ? 'Analyse en cours...' : 'Choisir une image'}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Formats: PNG, JPG, WEBP. Les doublons sont ignorés.
+          </p>
         </CardContent>
       </Card>
 
