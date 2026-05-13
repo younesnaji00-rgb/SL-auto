@@ -767,16 +767,27 @@ export default function AssignationsATGPage() {
                             </div>
                           )}
                           {p.adresse && (
-                            <div className="mt-0.5 text-xs text-muted-foreground truncate pl-4">
-                              <a
-                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.adresse)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="hover:underline"
+                            <div className="mt-0.5 text-xs truncate pl-4">
+                              {/* Anchor nested inside a role="button" card was being
+                                  swallowed on some mobile browsers. Use an explicit
+                                  click handler that stops bubbling, prevents default,
+                                  and opens the maps URL via window.open — guaranteed
+                                  user-initiated navigation. */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  window.open(
+                                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.adresse)}`,
+                                    '_blank',
+                                    'noopener,noreferrer',
+                                  );
+                                }}
+                                className="text-primary hover:underline truncate text-left w-full cursor-pointer"
                               >
                                 {p.adresse}
-                              </a>
+                              </button>
                             </div>
                           )}
                           <div className="mt-2 min-w-[140px]">

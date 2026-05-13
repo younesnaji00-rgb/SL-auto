@@ -639,14 +639,21 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                   {p.adresse && (
                     <span className="truncate">
                       ·{' '}
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.adresse)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:underline"
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          window.open(
+                            `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.adresse)}`,
+                            '_blank',
+                            'noopener,noreferrer',
+                          );
+                        }}
+                        className="text-primary hover:underline cursor-pointer"
                       >
                         {p.adresse}
-                      </a>
+                      </button>
                     </span>
                   )}
                 </div>
