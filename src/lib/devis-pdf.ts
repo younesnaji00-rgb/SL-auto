@@ -224,6 +224,12 @@ export function renderDevisPdf(
     'Prix TTC Accord',
   ]);
 
+  // Proposition-only: append an extra empty column at the right edge to let a
+  // 2nd expert hand-fill their agreement on the rendered PDF. Detected by the
+  // presence of any `proposition-accord` extra; pure `accord` documents are
+  // unchanged.
+  const isProposition = accordExtras.some((c) => c.kind === 'proposition-accord');
+
   // Final accord/proposition document: only the agreed-upon columns. Original
   // garage values (P.U H.T, Total H.T, Prix en TTC, Vetuste) and counter
   // columns are dropped — the saved doc reflects what the chiffreur committed,
@@ -236,6 +242,7 @@ export function renderDevisPdf(
       'T.V.A',
       'Qte',
       ...accordTripleHeaders,
+      ...(isProposition ? ['Accord 2eme expert'] : []),
     ],
   ];
 
@@ -255,6 +262,9 @@ export function renderDevisPdf(
       base.push(formatFr(accordRowTotalHT(r, pu)));
       base.push(formatFr(accordRowTTC(r, pu)));
     });
+    if (isProposition) {
+      base.push('');
+    }
     return base;
   });
 
@@ -273,6 +283,10 @@ export function renderDevisPdf(
     columnStyles[base + 1] = { halign: 'right', cellWidth: 30 };      // Total HT Accord
     columnStyles[base + 2] = { halign: 'right', cellWidth: 30 };      // Prix TTC Accord
   });
+  if (isProposition) {
+    const idx = accordStartIndex + accordExtras.length * 3;
+    columnStyles[idx] = { halign: 'center', cellWidth: 32 };          // Accord 2eme expert (empty)
+  }
 
   // With landscape kicking in for accord triples (line 45), there's enough width
   // to keep the readable 8.5pt body font in all cases.
