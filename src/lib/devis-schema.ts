@@ -39,6 +39,17 @@ export type RefOption = typeof REF_OPTIONS[number];
 export const TYPE_OPTIONS = ['Occasion', 'Originale', 'Adaptable'] as const;
 export type TypeOption = typeof TYPE_OPTIONS[number];
 
+/** Allowed values for the `observation` column of a devis row. */
+export const OBSERVATION_OPTIONS = ['sans_reserve', 'non_accorde', 'hors_sinistre'] as const;
+export type ObservationOption = typeof OBSERVATION_OPTIONS[number];
+
+/** Human-facing French labels for observation enum values. */
+export const OBSERVATION_LABELS: Record<ObservationOption, string> = {
+  sans_reserve: 'Sans réserve',
+  non_accorde: 'Non accordé',
+  hors_sinistre: 'Hors sinistre',
+};
+
 export interface DevisHeader {
   marque: string;
   matricule: string;
@@ -67,6 +78,11 @@ export interface DevisRow {
   /** null = blank (main d'oeuvre rows have no quantity). */
   qte: number | null;
   puHT: number;
+  /**
+   * Optional gestionnaire/chiffreur annotation on the row. undefined = no
+   * selection (default). Values map to {@link OBSERVATION_LABELS}.
+   */
+  observation?: ObservationOption;
 }
 
 export interface DevisExtraColumn {
