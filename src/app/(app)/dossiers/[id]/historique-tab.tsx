@@ -200,7 +200,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
             {row.value ? formatDateWithTimeFlag(row.value, timeKnown) : '—'}
           </span>
           {showEdit && row.field && (
-            <Popover open={editingField === row.field} onOpenChange={(o) => !o && setEditingField(null)}>
+            <Popover open={editingField === row.field} onOpenChange={(o) => !o && setEditingField(null)} modal>
               <PopoverTrigger asChild>
                 <Button
                   type="button"
@@ -213,7 +213,16 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
                   <Pencil className="h-3 w-3" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-64 space-y-3" align="end">
+              <PopoverContent
+                className="w-64 space-y-3"
+                align="end"
+                onInteractOutside={(e) => {
+                  const target = e.target as Node | null;
+                  if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.closest('input'))) {
+                    e.preventDefault();
+                  }
+                }}
+              >
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Date</label>
                   <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="h-8 text-sm" />
