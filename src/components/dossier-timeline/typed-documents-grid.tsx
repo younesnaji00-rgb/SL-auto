@@ -104,9 +104,19 @@ interface TypedDocumentsGridProps {
    * should appear.
    */
   hideOtherSlots?: boolean;
+  /**
+   * When true, surface every non-accord document type as its own slot card:
+   * Rapport final, Réforme technique/économique, and the "Autres documents"
+   * section (PV-Constat / Carte grise / Attestation / Kilométrage / Numéro de
+   * chassis / Autre). Overrides `hideAccordSlots` / `hideOtherSlots` for those
+   * sections only — the accord/proposition family rows remain governed by
+   * `hideAccordSlots`. Used in step 1 (Création de mission) so the
+   * gestionnaire can collect every supporting document before chiffrage.
+   */
+  showAllNonAccordSlots?: boolean;
 }
 
-export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots, hideOtherSlots }: TypedDocumentsGridProps) {
+export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots }: TypedDocumentsGridProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -713,8 +723,20 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
             />
           ))}
 
+          {/* Rapport final — own section. Surfaced when explicitly requested
+              (step 1 Création de mission). Hidden under the default flow to
+              preserve the legacy render order on other timeline steps. */}
+          {showAllNonAccordSlots && cardinalFilter !== '2-plus' && !showOnlyAccordSlots && rapportSlots.length > 0 && (
+            <section className="space-y-2">
+              <h4 className="text-sm font-semibold text-muted-foreground">Rapport</h4>
+              <div className="grid grid-cols-2 gap-3">
+                {rapportSlots.map((slot) => renderSlotCard(slot))}
+              </div>
+            </section>
+          )}
+
           {/* Réforme — technique + économique together */}
-          {!hideAccordSlots && cardinalFilter !== '2-plus' && reformeSlots.length > 0 && (
+          {(showAllNonAccordSlots || !hideAccordSlots) && cardinalFilter !== '2-plus' && !showOnlyAccordSlots && reformeSlots.length > 0 && (
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-muted-foreground">Réforme</h4>
               <div className="grid grid-cols-2 gap-3">
@@ -724,7 +746,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           )}
 
           {/* Autres documents — PV, Carte grise, Attestation, etc. */}
-          {!hideOtherSlots && !showOnlyAccordSlots && otherSlots.length > 0 && (
+          {(showAllNonAccordSlots || !hideOtherSlots) && !showOnlyAccordSlots && otherSlots.length > 0 && (
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-muted-foreground">Autres documents</h4>
               <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">

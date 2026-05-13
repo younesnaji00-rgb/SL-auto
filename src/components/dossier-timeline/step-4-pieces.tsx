@@ -43,6 +43,12 @@ export interface Step4PiecesProps {
   /** Forwarded to TypedDocumentsGrid — suppress "Autres documents" section (step 1). */
   hideOtherSlots?: boolean;
   /**
+   * Forwarded to TypedDocumentsGrid — surface Rapport / Réforme / "Autres
+   * documents" sections in addition to the gated default flow. Used in step 1
+   * (Création de mission) to expose every non-accord document type.
+   */
+  showAllNonAccordSlots?: boolean;
+  /**
    * When true, the "Assigner au chiffrage" button (in `onlyImportTab` mode) is
    * disabled until at least one filled 1er accord doc AND one filled 1er
    * proposition doc exist on the dossier (regardless of family). Used in
@@ -66,7 +72,7 @@ function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolea
   return [open, setOpen];
 }
 
-export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, hideOtherSlots, requireFirstAccordFilled }: Step4PiecesProps) {
+export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, requireFirstAccordFilled }: Step4PiecesProps) {
   const [docsOpen, setDocsOpen] = useSectionOpen(dossierId, 'documents');
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
@@ -155,6 +161,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
           cardinalFilter={cardinalFilter}
           showBaseGarageSlots={showBaseGarageSlots}
           hideOtherSlots={hideOtherSlots}
+          showAllNonAccordSlots={showAllNonAccordSlots}
         />
       </div>
     );
@@ -208,7 +215,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
               <DocumentsTab dossierId={dossierId} />
             </TabsContent>
             <TabsContent value="import" className="mt-4">
-              <TypedDocumentsGrid dossierId={dossierId} hideAccordSlots={hideAccordSlots} showOnlyAccordSlots={showOnlyAccordSlots} hideCardinalPlus={hideCardinalPlus} cardinalFilter={cardinalFilter} showBaseGarageSlots={showBaseGarageSlots} hideOtherSlots={hideOtherSlots} />
+              <TypedDocumentsGrid dossierId={dossierId} hideAccordSlots={hideAccordSlots} showOnlyAccordSlots={showOnlyAccordSlots} hideCardinalPlus={hideCardinalPlus} cardinalFilter={cardinalFilter} showBaseGarageSlots={showBaseGarageSlots} hideOtherSlots={hideOtherSlots} showAllNonAccordSlots={showAllNonAccordSlots} />
             </TabsContent>
           </Tabs>
         </CollapsibleContent>
