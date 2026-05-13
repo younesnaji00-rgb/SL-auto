@@ -43,6 +43,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { addDoc, collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'refExpert', label: 'Réf Expert' },
@@ -905,27 +906,50 @@ export default function DossiersClientPage() {
                         >
                           <Eye className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
                         </Button>
-                        {canEditWeb && (() => {
-                          const chiffrageId = (d as any).currentChiffrageId as string | undefined;
-                          const hasChiffrage = Boolean(chiffrageId);
-                          return (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              title={hasChiffrage ? 'Éditer web' : 'Éditer web (aucun chiffrage assigné)'}
-                              disabled={!hasChiffrage}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (chiffrageId) {
-                                  router.push(`/assignations-chiffrage/${chiffrageId}`);
-                                }
-                              }}
-                            >
-                              <Pencil className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
-                            </Button>
-                          );
-                        })()}
+                        {canEditWeb && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Éditer web"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const chiffrageId = (d as any).currentChiffrageId as string | undefined;
+                              if (chiffrageId) {
+                                router.push(`/assignations-chiffrage/${chiffrageId}`);
+                                return;
+                              }
+                              // No chiffrage yet — create a minimal one with this admin/directeur
+                              // as the assigned chiffreur so the editor opens straight away.
+                              if (!db || !profile) {
+                                toast({ variant: 'destructive', title: 'Erreur', description: 'Session incomplète.' });
+                                return;
+                              }
+                              try {
+                                const profileName = [profile.prenom, profile.nom].filter(Boolean).join(' ').trim() || profile.email || profile.uid;
+                                const newRef = await addDoc(collection(db, 'chiffrages'), {
+                                  dossierId: d.id,
+                                  dossierNom: (d as any).refExpert || (d as any).nom || d.id,
+                                  assignedChiffreurId: profile.uid,
+                                  assignedChiffreurNom: profileName,
+                                  files: [],
+                                  status: 'pending',
+                                  sentByUid: profile.uid,
+                                  sentByEmail: profile.email || '',
+                                  sentByNom: profileName,
+                                  createdAt: serverTimestamp(),
+                                  updatedAt: serverTimestamp(),
+                                });
+                                await updateDoc(doc(db, 'dossiers', d.id), { currentChiffrageId: newRef.id });
+                                router.push(`/assignations-chiffrage/${newRef.id}`);
+                              } catch (err: any) {
+                                toast({ variant: 'destructive', title: 'Erreur', description: err.message || 'Impossible de créer le chiffrage.' });
+                              }
+                            }}
+                          >
+                            <Pencil className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
