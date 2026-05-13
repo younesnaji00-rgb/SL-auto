@@ -26,13 +26,43 @@ import { accordSlotFromValue } from '@/lib/docType-accorde';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 
 // Label/value pairs for the per-observation visibility dropdown. Default on
-// entry is 'all' ("À tous"). Filtering on read is deferred (F2).
+// entry is 'all' ("À tous").
 const VISIBILITY_SCOPE_OPTIONS: { value: VisibilityScope; label: string }[] = [
   { value: 'all',           label: 'À tous' },
   { value: 'gestionnaire',  label: 'Gestionnaire' },
   { value: 'chiffreur',     label: 'Chiffreur' },
   { value: 'agent_terrain', label: 'Agent de terrain' },
 ];
+
+// F2 — Read-side filter for per-observation visibility scope.
+// Rules:
+//   - 'all' / undefined → visible to everyone.
+//   - Author always sees their own observations regardless of scope.
+//     (Observations carry `authorEmail`, not `authorUid`, so we match by email.)
+//   - Super-roles (Admin / Directeur family) see everything.
+//   - Otherwise, the user's role must map to the observation's scope.
+const SUPER_ROLES = new Set([
+  'Admin',
+  'Directeur',
+  'Directeur des opérations',
+  'Directeur technique',
+]);
+const ROLE_TO_SCOPE: Record<string, VisibilityScope> = {
+  'Gestionnaire':     'gestionnaire',
+  'Chiffreur':        'chiffreur',
+  // Codebase role string uses capital T (see src/lib/dossiers-data.ts).
+  'Agent de Terrain': 'agent_terrain',
+};
+function canSeeObservation(
+  obs: { visibilityScope?: string; authorEmail?: string },
+  currentRole: string | undefined,
+  currentEmail: string | undefined,
+): boolean {
+  if (!obs.visibilityScope || obs.visibilityScope === 'all') return true;
+  if (obs.authorEmail && currentEmail && obs.authorEmail === currentEmail) return true;
+  if (currentRole && SUPER_ROLES.has(currentRole)) return true;
+  return ROLE_TO_SCOPE[currentRole ?? ''] === obs.visibilityScope;
+}
 
 type ProofFile = {
   url: string;
@@ -210,7 +240,12 @@ export default function ObservationsTab({
   // Legacy obs (no tag) fall back per Q-4 → A.
   const observations = useMemo(() => {
     if (!rawObservations) return [];
-    const filtered = rawObservations.filter((o) => {
+    // F2 — Per-observation visibility scope filter. Applied BEFORE context
+    // filtering so legacy/context logic below is untouched.
+    const scoped = rawObservations.filter((o) =>
+      canSeeObservation(o as any, profile?.role, profile?.email)
+    );
+    const filtered = scoped.filter((o) => {
       const oPhase = (o as any).phaseATG as PhaseATG | undefined;
       const oAccordRaw = (o as any).accordSlot as string | undefined;
       // accordSlot can be a coarse legacy slot ('1er accord' / '2ème accord
@@ -257,7 +292,7 @@ export default function ObservationsTab({
       const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
       return dateB - dateA;
     });
-  }, [rawObservations, contextPhase, contextAccord, section]);
+  }, [rawObservations, contextPhase, contextAccord, section, profile?.role, profile?.email]);
 
   // Count of observations newer than the last time the panel was opened by
   // this user on this device. While the panel is open we treat new docs as
