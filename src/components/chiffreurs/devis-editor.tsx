@@ -1123,7 +1123,6 @@ export function DevisEditor({
                 <th style={{ width: '70px' }} className="text-center">T.V.A</th>
                 <th style={{ width: '80px' }} className="text-center">Vetuste</th>
                 <th style={{ width: '120px' }} className="text-right">Prix en TTC</th>
-                <th style={{ width: '130px' }}>Observation</th>
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
                   const isAccord = col.kind === 'accord' || col.kind === 'proposition-accord';
@@ -1220,6 +1219,7 @@ export function DevisEditor({
                     </th>
                   );
                 })}
+                <th style={{ width: '130px' }}>Observation</th>
                 <th style={{ width: '70px' }} />
               </tr>
             </thead>
@@ -1322,32 +1322,6 @@ export function DevisEditor({
                     <td className="text-right font-semibold pr-2">
                       {formatFr(total * (1 + (r.tva ?? 0) / 100))}
                     </td>
-                    {/* Observation: optional dropdown annotation. Empty value = no
-                        selection (cleared via the "(aucune)" item which maps to
-                        the sentinel "__none__" since shadcn Select disallows ""). */}
-                    <td>
-                      <Select
-                        value={r.observation ?? '__none__'}
-                        onValueChange={(v) => {
-                          if (v === '__none__') {
-                            updateRow(r.id, { observation: undefined });
-                          } else {
-                            updateRow(r.id, { observation: v as ObservationOption });
-                          }
-                        }}
-                        disabled={!isEditable}
-                      >
-                        <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
-                          <SelectValue placeholder="—" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__" className="text-xs text-muted-foreground">(aucune)</SelectItem>
-                          {OBSERVATION_OPTIONS.map((opt) => (
-                            <SelectItem key={opt} value={opt} className="text-xs">{OBSERVATION_LABELS[opt]}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </td>
                     {extraColumns.map((col) => {
                       const isAccord = col.kind === 'accord' || col.kind === 'proposition-accord';
                       if (isAccord) {
@@ -1406,6 +1380,32 @@ export function DevisEditor({
                         </td>
                       );
                     })}
+                    {/* Observation: optional dropdown annotation. Empty value = no
+                        selection (cleared via the "(aucune)" item which maps to
+                        the sentinel "__none__" since shadcn Select disallows ""). */}
+                    <td>
+                      <Select
+                        value={r.observation ?? '__none__'}
+                        onValueChange={(v) => {
+                          if (v === '__none__') {
+                            updateRow(r.id, { observation: undefined });
+                          } else {
+                            updateRow(r.id, { observation: v as ObservationOption });
+                          }
+                        }}
+                        disabled={!isEditable}
+                      >
+                        <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
+                          <SelectValue placeholder="—" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__" className="text-xs text-muted-foreground">(aucune)</SelectItem>
+                          {OBSERVATION_OPTIONS.map((opt) => (
+                            <SelectItem key={opt} value={opt} className="text-xs">{OBSERVATION_LABELS[opt]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
                     <td>
                       {canEdit && (
                         <div className="flex items-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
@@ -1441,7 +1441,6 @@ export function DevisEditor({
                 <td />
                 <td className="text-center text-muted-foreground">—</td>
                 <td className="text-right">{formatFr(totals.ttc)}</td>
-                <td />
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
                   const isAccord = col.kind === 'accord' || col.kind === 'proposition-accord';
@@ -1475,6 +1474,7 @@ export function DevisEditor({
                     </td>
                   );
                 })}
+                <td />
                 <td />
               </tr>
             </tbody>
