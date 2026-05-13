@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -14,10 +14,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Loader2, Stamp as StampIcon, Trash2, Upload, X } from 'lucide-react';
-import { useFirestore, useStorage } from '@/firebase';
-import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { useFirestore, useStorage, useCollection } from '@/firebase';
+import { addDoc, collection, deleteDoc, deleteField, doc, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
@@ -25,6 +32,21 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useStamps, type Stamp } from '@/hooks/use-stamps';
 import { SkeletonRow } from '@/components/ui/skeleton';
+
+// Sentinel value used by the per-stamp "assign to chiffreur" Select. Radix's
+// SelectItem rejects empty-string `value`, so we use a sentinel to represent
+// "no assignment" and translate it to `deleteField()` on write.
+const UNASSIGN_VALUE = '__unassign__';
+
+interface ChiffreurUser {
+  id: string;
+  uid?: string;
+  nom?: string;
+  prenom?: string;
+  email?: string;
+  role?: string;
+  assignedStampId?: string;
+}
 
 function extensionFromFile(file: File): string {
   const nameExt = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
@@ -50,7 +72,33 @@ export default function TamponsSettingsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Stamp | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Per-chiffreur stamp assignment. Read all users with role `Chiffreur`; each
+  // user doc carries an optional `assignedStampId` pointing at a stamp.id.
+  // We do NOT modify the read site here (PDF generator) — this just plumbs
+  // the write field so a future iteration can adopt it.
+  const chiffreursQuery = useMemo(
+    () => (db ? (query(collection(db, 'users'), where('role', '==', 'Chiffreur')) as any) : null),
+    [db]
+  );
+  const { data: chiffreurUsers, loading: chiffreursLoading } = useCollection<ChiffreurUser>(chiffreursQuery);
+
   const isImporting = progress !== null;
+
+  // Reverse index: stamp.id -> array of chiffreur display labels currently
+  // assigned to it. Used to annotate each stamp row with its assignees.
+  const assigneesByStampId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const u of chiffreurUsers ?? []) {
+      const sid = u.assignedStampId;
+      if (!sid) continue;
+      const label =
+        [u.prenom, u.nom].filter(Boolean).join(' ').trim() || u.email || u.id;
+      const arr = map.get(sid) ?? [];
+      arr.push(label);
+      map.set(sid, arr);
+    }
+    return map;
+  }, [chiffreurUsers]);
 
   const newId = () =>
     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -139,6 +187,29 @@ export default function TamponsSettingsPage() {
     });
     setQueued([]);
     setProgress(null);
+  };
+
+  // Assign (or unassign) a stamp to a given chiffreur user. Reassignment is
+  // a plain overwrite — Firestore replaces the field value. Unassign uses
+  // deleteField() so the field disappears from the doc, matching the "no
+  // assignment" state for chiffreurs who never had a stamp.
+  const handleAssignStamp = async (chiffreurUid: string, stampId: string | null) => {
+    if (!db || !chiffreurUid) return;
+    try {
+      await updateDoc(doc(db, 'users', chiffreurUid), {
+        assignedStampId: stampId === null ? deleteField() : stampId,
+      });
+      toast({
+        title: stampId === null ? 'Tampon retiré' : 'Tampon assigné',
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: err?.message || "Impossible d'assigner le tampon.",
+      });
+    }
   };
 
   const handleToggleActive = async (stamp: Stamp, next: boolean) => {
@@ -308,6 +379,15 @@ export default function TamponsSettingsPage() {
                             return `Importé par ${importedBy} · ${importedAt}`;
                           })()}
                         </p>
+                        {(() => {
+                          const assignees = assigneesByStampId.get(stamp.id) ?? [];
+                          if (assignees.length === 0) return null;
+                          return (
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">
+                              Assigné à : {assignees.join(', ')}
+                            </p>
+                          );
+                        })()}
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
@@ -339,6 +419,94 @@ export default function TamponsSettingsPage() {
             </CardContent>
           </Card>
       </div>
+
+      <Card className="border shadow-sm rounded-lg">
+        <CardHeader>
+          <CardTitle>Assignation par chiffreur</CardTitle>
+          <CardDescription>
+            Sélectionnez le tampon à utiliser pour chaque chiffreur. Chaque chiffreur peut avoir un tampon distinct.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {chiffreursLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <SkeletonRow key={`sk-chiff-${i}`} />
+              ))}
+            </div>
+          ) : !chiffreurUsers || chiffreurUsers.length === 0 ? (
+            <EmptyState
+              icon={<StampIcon />}
+              title="Aucun chiffreur"
+              description="Aucun utilisateur avec le rôle Chiffreur n'a été trouvé."
+              dashed={false}
+              className="border-0 bg-transparent py-10"
+            />
+          ) : (
+            <ul className="divide-y">
+              {chiffreurUsers.map((u) => {
+                const label =
+                  [u.prenom, u.nom].filter(Boolean).join(' ').trim() || u.email || u.id;
+                const currentStampId = u.assignedStampId || '';
+                const currentStamp = stamps.find((s) => s.id === currentStampId);
+                return (
+                  <li
+                    key={u.id}
+                    className="flex flex-wrap items-center gap-3 py-3"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0 basis-60">
+                      <div className="h-10 w-10 shrink-0 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden">
+                        {currentStamp?.url ? (
+                          <img
+                            src={currentStamp.url}
+                            alt={currentStamp.name}
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        ) : (
+                          <StampIcon className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{label}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {currentStamp ? currentStamp.name || 'Sans nom' : 'Aucun tampon assigné'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="w-full sm:w-72">
+                      <Select
+                        value={currentStampId || UNASSIGN_VALUE}
+                        onValueChange={(value) => {
+                          const next = value === UNASSIGN_VALUE ? null : value;
+                          if ((next ?? '') === currentStampId) return;
+                          handleAssignStamp(u.id, next);
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choisir un tampon" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={UNASSIGN_VALUE}>
+                            Aucun tampon
+                          </SelectItem>
+                          {stamps
+                            .filter((s) => s.active || s.id === currentStampId)
+                            .map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.name || 'Sans nom'}
+                                {!s.active ? ' (inactif)' : ''}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>
