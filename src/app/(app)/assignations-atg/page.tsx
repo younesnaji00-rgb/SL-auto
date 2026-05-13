@@ -276,7 +276,7 @@ export default function AssignationsATGPage() {
   const [loading, setLoading] = useState(true);
   // Realtime per-dossier state so status changes + photo uploads update the
   // "Délai" completion indicator even when no planification doc changes.
-  type DossierLive = { statut: string; photos: Record<PhotoCategory, boolean> };
+  type DossierLive = { statut: string; photos: Record<PhotoCategory, boolean>; assureTelephone: string };
   const [dossierLive, setDossierLive] = useState<Record<string, DossierLive>>({});
   const filterDefaults = { activeTab: 'Avant', dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', agentFilter: 'Tous' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-atg', filterDefaults);
@@ -400,11 +400,13 @@ export default function AssignationsATGPage() {
     ids.forEach(dId => {
       const u1 = onSnapshot(doc(db, 'dossiers', dId), (snap) => {
         const data: any = snap.exists() ? snap.data() : {};
+        const tel = (data.assure?.telephone || data.assure?.telephone2 || '').trim();
         setDossierLive(prev => ({
           ...prev,
           [dId]: {
             statut: data.statut || '',
             photos: prev[dId]?.photos || { avant: false, en_cours: false, apres: false },
+            assureTelephone: tel,
           },
         }));
       });
@@ -419,6 +421,7 @@ export default function AssignationsATGPage() {
           [dId]: {
             statut: prev[dId]?.statut || '',
             photos,
+            assureTelephone: prev[dId]?.assureTelephone || '',
           },
         }));
       });
@@ -838,7 +841,7 @@ export default function AssignationsATGPage() {
                             </div>
                           )}
                           <div className="mt-2 flex items-center gap-2 flex-wrap min-w-[140px]">
-                            <AssurePhoneLink telephone={p.assureTelephone} />
+                            <AssurePhoneLink telephone={dossierLive[p.dossierId]?.assureTelephone || p.assureTelephone} />
                             <DeadlineBadge dateRDV={p.dateRDV} createdAt={p.createdAt} />
                           </div>
                         </div>
@@ -1203,7 +1206,7 @@ export default function AssignationsATGPage() {
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-1">
-                    <AssurePhoneLink telephone={p.assureTelephone} />
+                    <AssurePhoneLink telephone={dossierLive[p.dossierId]?.assureTelephone || p.assureTelephone} />
                     <DeadlineBadge dateRDV={p.dateRDV} createdAt={p.createdAt} />
                   </div>
                 </TableCell>
