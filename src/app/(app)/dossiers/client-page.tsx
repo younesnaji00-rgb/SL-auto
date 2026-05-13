@@ -58,6 +58,7 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'matriculeAnterieur', label: 'Matricule antérieur' },
   { key: 'dateSinistre', label: 'Date sinistre' },
   { key: 'dateRequete', label: 'Date Requête' },
+  { key: 'createdAt', label: 'Date de création' },
 ];
 const ALL_COLUMN_KEYS = new Set(EXPORT_COLUMNS.map(c => c.key));
 
@@ -191,11 +192,14 @@ export default function DossiersClientPage() {
         d.matricule?.toLowerCase().includes(s)
       );
     }
+    // Date filter now keys off `createdAt` (per R2-8) — that's the dossier's
+    // own creation timestamp, not the gestionnaire-entered dateRequete.
     if (filters.dateFrom) {
       const from = new Date(filters.dateFrom);
       results = results.filter(d => {
-        if (!d.dateRequete) return false;
-        const date = d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete);
+        const raw = (d as any).createdAt;
+        if (!raw) return false;
+        const date = raw.toDate ? raw.toDate() : (raw.toMillis ? new Date(raw.toMillis()) : new Date(raw));
         return date >= from;
       });
     }
@@ -203,8 +207,9 @@ export default function DossiersClientPage() {
       const to = new Date(filters.dateTo);
       to.setHours(23, 59, 59, 999);
       results = results.filter(d => {
-        if (!d.dateRequete) return false;
-        const date = d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete);
+        const raw = (d as any).createdAt;
+        if (!raw) return false;
+        const date = raw.toDate ? raw.toDate() : (raw.toMillis ? new Date(raw.toMillis()) : new Date(raw));
         return date <= to;
       });
     }
@@ -887,6 +892,7 @@ export default function DossiersClientPage() {
                   <TableCell className="font-mono text-xs tabular-nums">{d.vehicule?.immatriculationAnterieur || '-'}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateSinistre)}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateRequete)}</TableCell>
+                  <TableCell className="tabular-nums">{formatDate((d as any).createdAt)}</TableCell>
 
                   {!exportMode && (
                     <TableCell
