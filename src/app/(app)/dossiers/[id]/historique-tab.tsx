@@ -141,21 +141,38 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
   };
 
   const saveDateEdit = async () => {
-    if (!db || !editingField || !editDate) return;
+    if (!db || !editingField) return;
+    if (!editDate) {
+      toast({ variant: 'destructive', title: 'Date requise', description: 'Veuillez saisir une date.' });
+      return;
+    }
     // Build a Date from the user inputs. If time is provided, set hh:mm
     // (timeKnown=true); otherwise persist at midnight with timeKnown=false.
     const [yy, mm, dd] = editDate.split('-').map((n) => parseInt(n, 10));
-    if (!yy || !mm || !dd) return;
+    if (!yy || !mm || !dd) {
+      toast({ variant: 'destructive', title: 'Date invalide', description: 'Format attendu : AAAA-MM-JJ.' });
+      return;
+    }
     let when: Date;
     let timeKnown = false;
     if (editTime) {
       const [hh, mi] = editTime.split(':').map((n) => parseInt(n, 10));
-      when = new Date(yy, mm - 1, dd, hh || 0, mi || 0, 0, 0);
+      when = new Date(yy, mm - 1, dd, isNaN(hh) ? 0 : hh, isNaN(mi) ? 0 : mi, 0, 0);
       timeKnown = true;
     } else {
       when = new Date(yy, mm - 1, dd, 0, 0, 0, 0);
     }
+    if (isNaN(when.getTime())) {
+      toast({ variant: 'destructive', title: 'Date invalide', description: 'Impossible d\'interpréter la date saisie.' });
+      return;
+    }
     try {
+      // Persist to the SAME dossier field the AI scan writes to in
+      // src/components/dossier-timeline/step-1-import.tsx (FIELD_MAP):
+      //   dateOfLoss    -> dossiers/{id}.dateSinistre  (Timestamp)
+      //   dateOfRequest -> dossiers/{id}.dateRequete   (Timestamp)
+      // Sibling `<field>TimeKnown` boolean reflects whether the gestionnaire
+      // also filled the hh:mm (the AI never extracts time).
       await updateDoc(doc(db, 'dossiers', dossierId), {
         [editingField]: Timestamp.fromDate(when),
         [`${editingField}TimeKnown`]: timeKnown,
