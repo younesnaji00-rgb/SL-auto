@@ -8,6 +8,8 @@ export interface DeadlineBarProps {
   percent: number;
   /** True when the deadline has passed */
   overdue: boolean;
+  /** Optional pre-formatted business-hour lateness (e.g. "02j/14h"). Appended after "En retard" when overdue. */
+  lateness?: string;
   className?: string;
 }
 
@@ -18,7 +20,7 @@ export interface DeadlineBarProps {
  *  80–100%→ red   (urgent)
  *  overdue → solid destructive
  */
-export function DeadlineBar({ percent, overdue, className }: DeadlineBarProps) {
+export function DeadlineBar({ percent, overdue, lateness, className }: DeadlineBarProps) {
   const label = '24h';
   const rounded = Math.max(0, Math.round(percent));
 
@@ -38,7 +40,7 @@ export function DeadlineBar({ percent, overdue, className }: DeadlineBarProps) {
     <div className={cn('flex flex-col gap-1 min-w-[120px]', className)}>
       <div className="flex items-center justify-between">
         <span className={cn('text-[10px] font-semibold tabular-nums', overdue ? 'text-destructive' : getTextColor(rounded))}>
-          {overdue ? 'En retard' : `${rounded}%`}
+          {overdue ? (lateness ? `En retard ${lateness}` : 'En retard') : `${rounded}%`}
         </span>
         <span className="text-[9px] text-muted-foreground font-medium tabular-nums">{label}</span>
       </div>

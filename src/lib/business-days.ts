@@ -76,6 +76,20 @@ export function businessHoursBetween(
 }
 
 /**
+ * Format business-hour lateness for display in deadline counters.
+ *
+ * Returns `dd j/hh h` form, e.g. `02j/14h` for 62 business hours past deadline.
+ * One "day" of lateness equals 24 business hours (matches the 24-business-hour SLA).
+ * Returns empty string when input < 24 (no full day late yet).
+ */
+export function formatBusinessLateness(elapsedBusinessHours: number): string {
+  if (!Number.isFinite(elapsedBusinessHours) || elapsedBusinessHours < 24) return '';
+  const days = Math.floor(elapsedBusinessHours / 24);
+  const hours = Math.floor(elapsedBusinessHours - days * 24);
+  return `${String(days).padStart(2, '0')}j/${String(hours).padStart(2, '0')}h`;
+}
+
+/**
  * `start` plus `hours` business-hours.
  *
  * Inverse of `businessHoursBetween`. Skips over Sat/Sun and holiday dates.

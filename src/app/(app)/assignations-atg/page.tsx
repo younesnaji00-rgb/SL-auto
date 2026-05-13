@@ -28,7 +28,7 @@ import { SortableHeader, type SortDirection } from '@/components/ui/sortable-hea
 import { useOptions } from '@/hooks/use-options';
 import { useAgentTerrainWorkload } from '@/hooks/use-workload-counts';
 import { isAtgCompletedStatus } from '@/lib/status-machine';
-import { businessHoursBetween } from '@/lib/business-days';
+import { businessHoursBetween, formatBusinessLateness } from '@/lib/business-days';
 import { useHolidays } from '@/hooks/use-holidays';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -83,10 +83,10 @@ function getDeadlineInfo(
   dateRDV: any,
   createdAt: any,
   holidays?: ReadonlySet<string>,
-): { percent: number; remaining: string; expired: boolean; pending: boolean } {
+): { percent: number; remaining: string; expired: boolean; pending: boolean; elapsedHours: number } {
   // Use dateRDV at 8am as start time; fall back to createdAt if no dateRDV
   const refDate = dateRDV || createdAt;
-  if (!refDate) return { percent: 0, remaining: '-', expired: false, pending: false };
+  if (!refDate) return { percent: 0, remaining: '-', expired: false, pending: false, elapsedHours: 0 };
 
   const rdvDate = refDate.toDate ? refDate.toDate() : new Date(refDate);
   const startTime = new Date(rdvDate);
@@ -95,21 +95,21 @@ function getDeadlineInfo(
   }
 
   const now = new Date();
-  if (now < startTime) return { percent: 0, remaining: 'En attente', expired: false, pending: true };
+  if (now < startTime) return { percent: 0, remaining: 'En attente', expired: false, pending: true, elapsedHours: 0 };
 
   // Business-hours model: weekends + Moroccan holidays don't tick.
   const elapsedHours = businessHoursBetween(startTime, now, holidays);
   const elapsed = Math.max(0, Math.min(elapsedHours / DEADLINE_HOURS, 1));
   const percent = Math.round(elapsed * 100);
 
-  if (elapsed >= 1) return { percent: 100, remaining: 'En retard', expired: true, pending: false };
+  if (elapsed >= 1) return { percent: 100, remaining: 'En retard', expired: true, pending: false, elapsedHours };
 
   const remainHours = DEADLINE_HOURS - elapsedHours;
   const remainH = Math.floor(remainHours);
   const remainM = Math.floor((remainHours - remainH) * 60);
   const remaining = remainH > 0 ? `${remainH}h ${remainM}m` : `${remainM}m`;
 
-  return { percent, remaining, expired: false, pending: false };
+  return { percent, remaining, expired: false, pending: false, elapsedHours };
 }
 
 function DeadlineBar({
@@ -131,7 +131,8 @@ function DeadlineBar({
   }, [completed]);
 
   const holidays = useHolidays();
-  const { percent, remaining, expired, pending } = getDeadlineInfo(dateRDV, createdAt, holidays);
+  const { percent, remaining, expired, pending, elapsedHours } = getDeadlineInfo(dateRDV, createdAt, holidays);
+  const lateness = expired ? formatBusinessLateness(elapsedHours - DEADLINE_HOURS) : '';
 
   // Completed: ATG uploaded photos + set a terrain status → hide progress bar,
   // show checkmark + the chosen status instead.
@@ -182,7 +183,7 @@ function DeadlineBar({
         />
       </div>
       <span className={cn('text-[10px] font-semibold tabular-nums whitespace-nowrap', expired ? 'text-destructive' : getTextColor(percent))}>
-        {expired ? 'En retard' : `${percent}%`}
+        {expired ? (lateness ? `En retard ${lateness}` : 'En retard') : `${percent}%`}
       </span>
     </div>
   );

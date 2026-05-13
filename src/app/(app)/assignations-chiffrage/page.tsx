@@ -26,7 +26,7 @@ import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
 import { useChiffreurWorkload } from '@/hooks/use-workload-counts';
 import { REFORME_TYPES, normalizeReformeType } from '@/components/chiffreurs/reforme-dialog';
-import { businessHoursBetween } from '@/lib/business-days';
+import { businessHoursBetween, formatBusinessLateness } from '@/lib/business-days';
 import { useHolidays } from '@/hooks/use-holidays';
 
 interface ChiffrageItem {
@@ -134,7 +134,7 @@ export default function AssignationsChiffragePage() {
 
   const holidays = useHolidays();
   const getDeadlineInfo = (ts: any, _nature: string) => {
-    if (!ts) return { percent: 0, elapsed: 0, total: 0, overdue: false };
+    if (!ts) return { percent: 0, elapsed: 0, total: 0, overdue: false, elapsedHours: 0 };
     const created = ts.toDate ? ts.toDate() : new Date(ts);
     // Business-hours deadline: weekends + Moroccan holidays don't count.
     const totalHours = 24;
@@ -146,6 +146,7 @@ export default function AssignationsChiffragePage() {
       elapsed: elapsedHours * HOUR_MS,
       total: totalHours * HOUR_MS,
       overdue: elapsedHours >= totalHours,
+      elapsedHours,
     };
   };
 
@@ -360,7 +361,11 @@ export default function AssignationsChiffragePage() {
                             </span>
                           </div>
                         ) : (
-                          <DeadlineBar percent={deadline.percent} overdue={deadline.overdue} />
+                          <DeadlineBar
+                            percent={deadline.percent}
+                            overdue={deadline.overdue}
+                            lateness={deadline.overdue ? formatBusinessLateness(deadline.elapsedHours - 24) : undefined}
+                          />
                         )}
                       </TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">
