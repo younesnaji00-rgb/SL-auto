@@ -158,7 +158,7 @@ export default function DossiersClientPage() {
     [dbObservationOptions]
   );
 
-  const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', dateFrom: '', dateTo: '', rowsPerPage: 25 };
+  const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', dateFrom: '', dateTo: '', rowsPerPage: 25, sortByCreation: 'desc' as 'desc' | 'asc' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('dossiers', filterDefaults);
   const rowsPerPage = filters.rowsPerPage;
   const [page, setPage] = useState(1);
@@ -205,6 +205,18 @@ export default function DossiersClientPage() {
         return date <= to;
       });
     }
+    // Sort by creation date. Firestore subscription already returns rows in
+    // `createdAt desc` order, but we re-sort here so the `asc` toggle works
+    // and so dossiers missing `createdAt` land deterministically at the end.
+    const toMillis = (val: any): number => {
+      if (!val) return 0;
+      if (typeof val.toMillis === 'function') return val.toMillis();
+      if (typeof val.toDate === 'function') return val.toDate().getTime();
+      const t = new Date(val).getTime();
+      return Number.isFinite(t) ? t : 0;
+    };
+    const dir = filters.sortByCreation === 'asc' ? 1 : -1;
+    results.sort((a, b) => (toMillis((a as any).createdAt) - toMillis((b as any).createdAt)) * dir);
     return results;
   }, [allDossiers, filters]);
 
@@ -373,6 +385,21 @@ export default function DossiersClientPage() {
           onDateFromChange={v => setFilters({ dateFrom: v })}
           onDateToChange={v => setFilters({ dateTo: v })}
         />
+
+        {/* Sort by creation date. Default `desc` matches the Firestore-side
+            ordering (newest-first) so the visible order is unchanged until
+            the user opts into `asc`. Reset handler clears via `clearFilter()`,
+            which restores `filterDefaults.sortByCreation = 'desc'`. */}
+        <Select
+          value={filters.sortByCreation}
+          onValueChange={v => setFilters({ sortByCreation: v as 'desc' | 'asc' })}
+        >
+          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Tri par date" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="desc">Plus récent d&apos;abord</SelectItem>
+            <SelectItem value="asc">Plus ancien d&apos;abord</SelectItem>
+          </SelectContent>
+        </Select>
 
         {/* One-click reset: clears search, nature, status, compagnie,
             observation and date range back to their defaults. Kept always
