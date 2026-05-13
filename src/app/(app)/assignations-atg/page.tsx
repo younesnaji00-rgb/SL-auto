@@ -87,6 +87,53 @@ function AssurePhoneLink({ telephone, className }: { telephone?: string | null; 
   );
 }
 
+/**
+ * Compact deadline status badge for ATG cards. No bar; just text:
+ *   • "En attente" while the RDV is in the future
+ *   • "En retard 02j/14h" past the 24-business-hour deadline (red)
+ *   • "Xh restants" while in progress
+ * Re-renders every 30s like the original DeadlineBar.
+ */
+function DeadlineBadge({
+  dateRDV,
+  createdAt,
+  completed = false,
+}: {
+  dateRDV: any;
+  createdAt: any;
+  completed?: boolean;
+}) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (completed) return;
+    const id = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, [completed]);
+  const holidays = useHolidays();
+  if (completed) return null;
+  const { remaining, expired, pending, elapsedHours } = getDeadlineInfo(dateRDV, createdAt, holidays);
+  const lateness = expired ? formatBusinessLateness(elapsedHours - DEADLINE_HOURS) : '';
+  if (pending) {
+    return (
+      <Badge variant="outline" className="text-[10px] font-medium whitespace-nowrap">
+        En attente
+      </Badge>
+    );
+  }
+  if (expired) {
+    return (
+      <Badge variant="destructive" className="text-[10px] font-semibold whitespace-nowrap">
+        {lateness ? `En retard ${lateness}` : 'En retard'}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-[10px] font-medium whitespace-nowrap text-muted-foreground">
+      {remaining}
+    </Badge>
+  );
+}
+
 function missionToCategory(typeMission: string): PhotoCategory {
   const n = typeMission === 'Apres' ? 'Après' : typeMission;
   if (n === 'En cours') return 'en_cours';
@@ -790,8 +837,9 @@ export default function AssignationsATGPage() {
                               </button>
                             </div>
                           )}
-                          <div className="mt-2 min-w-[140px]">
+                          <div className="mt-2 flex items-center gap-2 flex-wrap min-w-[140px]">
                             <AssurePhoneLink telephone={p.assureTelephone} />
+                            <DeadlineBadge dateRDV={p.dateRDV} createdAt={p.createdAt} />
                           </div>
                         </div>
                       );
@@ -1154,7 +1202,10 @@ export default function AssignationsATGPage() {
                   ) : '-'}
                 </TableCell>
                 <TableCell>
-                  <AssurePhoneLink telephone={p.assureTelephone} />
+                  <div className="flex flex-col gap-1">
+                    <AssurePhoneLink telephone={p.assureTelephone} />
+                    <DeadlineBadge dateRDV={p.dateRDV} createdAt={p.createdAt} />
+                  </div>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{formatDate(p.createdAt)}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">{p.modifiedByName || '-'}</TableCell>
