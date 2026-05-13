@@ -1114,14 +1114,14 @@ export function DevisEditor({
           <table className="min-w-[900px] w-full text-xs border-collapse">
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:font-bold [&>th]:text-[11px] [&>th]:border-b [&>th]:border-r [&>th:last-child]:border-r-0 [&>th]:bg-muted/50">
-                <th style={{ width: '90px' }}>Type</th>
                 <th style={{ width: '90px' }}>REF</th>
                 <th>Designation</th>
-                <th style={{ width: '70px' }} className="text-center">T.V.A</th>
+                <th style={{ width: '90px' }}>Type</th>
                 <th style={{ width: '70px' }} className="text-center">Quantite</th>
-                <th style={{ width: '80px' }} className="text-center">Vetuste</th>
                 <th style={{ width: '110px' }} className="text-right bg-muted/40">P.U.H.T</th>
                 <th style={{ width: '120px' }} className="text-right">Total H.T</th>
+                <th style={{ width: '70px' }} className="text-center">T.V.A</th>
+                <th style={{ width: '80px' }} className="text-center">Vetuste</th>
                 <th style={{ width: '120px' }} className="text-right">Prix en TTC</th>
                 <th style={{ width: '130px' }}>Observation</th>
                 {extraColumns.map((col) => {
@@ -1235,6 +1235,26 @@ export function DevisEditor({
                     <td>
                       {/* scanned values outside the enum render blank so the chiffreur picks */}
                       <Select
+                        value={(REF_OPTIONS as readonly string[]).includes(r.ref) ? r.ref : ''}
+                        onValueChange={(v) => updateRow(r.id, { ref: v })}
+                        disabled={!isEditable}
+                      >
+                        <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
+                          <SelectValue placeholder="" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {REF_OPTIONS.map((opt) => (
+                            <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td>
+                      <CellInput value={r.designation} onChange={(v) => updateRow(r.id, { designation: v })} disabled={!isEditable} />
+                    </td>
+                    <td>
+                      {/* scanned values outside the enum render blank so the chiffreur picks */}
+                      <Select
                         value={(TYPE_OPTIONS as readonly string[]).includes(r.type) ? r.type : ''}
                         onValueChange={(v) => {
                           // Set tva=20 only when transitioning INTO 'Originale' from a different type.
@@ -1261,29 +1281,6 @@ export function DevisEditor({
                       </Select>
                     </td>
                     <td>
-                      {/* scanned values outside the enum render blank so the chiffreur picks */}
-                      <Select
-                        value={(REF_OPTIONS as readonly string[]).includes(r.ref) ? r.ref : ''}
-                        onValueChange={(v) => updateRow(r.id, { ref: v })}
-                        disabled={!isEditable}
-                      >
-                        <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
-                          <SelectValue placeholder="" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {REF_OPTIONS.map((opt) => (
-                            <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td>
-                      <CellInput value={r.designation} onChange={(v) => updateRow(r.id, { designation: v })} disabled={!isEditable} />
-                    </td>
-                    <td>
-                      <CellNumberInput value={r.tva} onChange={(v) => updateRow(r.id, { tva: v })} disabled={!isEditable} suffix="%" decimals={0} align="center" allowNull />
-                    </td>
-                    <td>
                       <CellNumberInput value={r.qte} onChange={(v) => {
                         // Task #6: After scanReviewed flips true, qte is locked
                         // to decrease-only. Silent no-op on upward changes (no
@@ -1292,6 +1289,14 @@ export function DevisEditor({
                         if (scanReviewed && (v ?? 0) > (r.qte ?? 0)) return;
                         updateRow(r.id, { qte: v });
                       }} disabled={!isEditable} decimals={0} align="center" allowNull />
+                    </td>
+                    <td className="bg-muted/40">
+                      <CellNumberInput value={r.puHT} onChange={(v) => updateRow(r.id, { puHT: v ?? 0 })} disabled={!isEditable} align="right" />
+                    </td>
+                    {/* Total H.T is computed — read-only, auto-updating. */}
+                    <td className="text-right font-semibold pr-2">{formatFr(total)}</td>
+                    <td>
+                      <CellNumberInput value={r.tva} onChange={(v) => updateRow(r.id, { tva: v })} disabled={!isEditable} suffix="%" decimals={0} align="center" allowNull />
                     </td>
                     <td>
                       <div className={cn("relative rounded", vetusteMissing && "ring-1 ring-red-500")}>
@@ -1313,11 +1318,6 @@ export function DevisEditor({
                         )}
                       </div>
                     </td>
-                    <td className="bg-muted/40">
-                      <CellNumberInput value={r.puHT} onChange={(v) => updateRow(r.id, { puHT: v ?? 0 })} disabled={!isEditable} align="right" />
-                    </td>
-                    {/* Total H.T is computed — read-only, auto-updating. */}
-                    <td className="text-right font-semibold pr-2">{formatFr(total)}</td>
                     {/* Prix en TTC is computed — read-only: Total H.T * (1 + tva/100). */}
                     <td className="text-right font-semibold pr-2">
                       {formatFr(total * (1 + (r.tva ?? 0) / 100))}
@@ -1435,11 +1435,11 @@ export function DevisEditor({
                 <td className="text-muted-foreground">Total</td>
                 <td />
                 <td />
-                <td />
                 <td className="text-center">{formatFr(totalsRow.qteSum, 0)}</td>
-                <td className="text-center text-muted-foreground">—</td>
                 <td />
                 <td className="text-right">{formatFr(totalsRow.totalHt)}</td>
+                <td />
+                <td className="text-center text-muted-foreground">—</td>
                 <td className="text-right">{formatFr(totals.ttc)}</td>
                 <td />
                 {extraColumns.map((col) => {
