@@ -135,6 +135,9 @@ export default function LoginPage() {
     setSetupLoading(true);
     const sessionId = newSessionId();
     window.sessionStorage.setItem(LOGIN_IN_FLIGHT_KEY, '1');
+    // Write to BOTH sessionStorage (tab-local, primary source of truth for the
+    // listener) and localStorage (persists across refresh in the same tab).
+    window.sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
     window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
     try {
       const email = generateEmail(setupName);
@@ -159,6 +162,7 @@ export default function LoginPage() {
     } catch (err: any) {
       console.error('Setup error:', err);
       window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
       setSetupError(err.message || 'Erreur lors de la création du compte.');
     } finally {
@@ -218,6 +222,7 @@ export default function LoginPage() {
       // that attaches via onAuthStateChanged sees a consistent state.
       const sessionId = newSessionId();
       window.sessionStorage.setItem(LOGIN_IN_FLIGHT_KEY, '1');
+      window.sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
       window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const updates: Record<string, any> = {
@@ -231,6 +236,7 @@ export default function LoginPage() {
     } catch (err: any) {
       console.error('Login error:', err);
       window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
       if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('Mot de passe incorrect.');

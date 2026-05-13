@@ -7,14 +7,36 @@ import { useAuth, useFirestore } from '@/firebase';
 import { ROLES_THAT_CAN_DELETE, type Role } from '@/lib/dossiers-data';
 
 // Single-session enforcement: each login writes a fresh `currentSessionId` to
-// the user doc and to localStorage. The snapshot listener below evicts this
-// client (firebaseSignOut + redirect) whenever the remote id no longer matches
-// the local one. Keep the keys in sync with src/app/login/page.tsx.
+// the user doc, to sessionStorage (tab-local — the source of truth), AND to
+// localStorage (so a refresh in the same tab can resume). The snapshot listener
+// below evicts this client (firebaseSignOut + redirect) whenever the remote id
+// no longer matches the tab-local one. Using sessionStorage as primary lets us
+// distinguish tabs/windows within the SAME browser profile — critical for the
+// "single device" guarantee. Keep keys in sync with src/app/login/page.tsx.
 const SESSION_STORAGE_KEY = 'sl-auto.session-id';
 const LOGIN_IN_FLIGHT_KEY = 'sl-auto.login-in-flight';
 // One-shot flag picked up by the login page to render a toast explaining
 // why the user landed there (read once, then cleared).
 const EVICTED_FLAG_KEY = 'sl-auto.evicted-by-other-device';
+
+/**
+ * Read the effective session id for this tab. Prefer sessionStorage (tab-local).
+ * Fall back to localStorage (browser-wide) so a tab that opens fresh AFTER a
+ * successful login in another tab inherits the same id and doesn't self-evict.
+ * Promotes the localStorage value into sessionStorage so subsequent reads in
+ * this tab are stable.
+ */
+function readLocalSessionId(): string | null {
+  if (typeof window === 'undefined') return null;
+  const sid = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+  if (sid) return sid;
+  const fromLocal = window.localStorage.getItem(SESSION_STORAGE_KEY);
+  if (fromLocal) {
+    window.sessionStorage.setItem(SESSION_STORAGE_KEY, fromLocal);
+    return fromLocal;
+  }
+  return null;
+}
 
 function newSessionId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -124,24 +146,33 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
             }
             const data = snap.data();
             const remoteSessionId: string | undefined = data.currentSessionId;
-            const localSessionId =
-              typeof window !== 'undefined'
-                ? window.localStorage.getItem(SESSION_STORAGE_KEY)
-                : null;
+            const localSessionId = readLocalSessionId();
             const loginInFlight =
               typeof window !== 'undefined' &&
               window.sessionStorage.getItem(LOGIN_IN_FLIGHT_KEY) === '1';
 
+            // Diagnostic log — keeps a paper trail when investigating eviction
+            // issues. Cheap (fires per snapshot, once per user-doc change).
+            if (typeof window !== 'undefined') {
+              console.debug('[single-session]', {
+                remote: remoteSessionId,
+                local: localSessionId,
+                loginInFlight,
+                tabPath: window.location.pathname,
+              });
+            }
+
             if (!loginInFlight) {
-              // Eviction: another device claimed this session. We evict whenever
-              // remote is set and either we have no local id (e.g. legacy device
-              // logged in before this feature deployed) or our local id no
-              // longer matches.
+              // Eviction: another device/tab claimed this session. We evict
+              // whenever remote is set and either we have no local id (legacy
+              // pre-feature persisted-auth) or our local id no longer matches.
               if (
                 remoteSessionId &&
                 (!localSessionId || remoteSessionId !== localSessionId)
               ) {
+                console.warn('[single-session] EVICTING', { remote: remoteSessionId, local: localSessionId });
                 if (typeof window !== 'undefined') {
+                  window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
                   window.localStorage.removeItem(SESSION_STORAGE_KEY);
                   window.localStorage.setItem(EVICTED_FLAG_KEY, '1');
                 }
@@ -164,6 +195,7 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
               if (!remoteSessionId) {
                 const claimId = localSessionId || newSessionId();
                 if (!localSessionId && typeof window !== 'undefined') {
+                  window.sessionStorage.setItem(SESSION_STORAGE_KEY, claimId);
                   window.localStorage.setItem(SESSION_STORAGE_KEY, claimId);
                 }
                 updateDoc(doc(db, 'users', user.uid), { currentSessionId: claimId })
