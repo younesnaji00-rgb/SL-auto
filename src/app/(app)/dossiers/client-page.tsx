@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -64,6 +64,16 @@ export default function DossiersClientPage() {
   const db = useFirestore();
   const { profile, canWrite, canDelete } = useCurrentUser();
   const canEditDossiers = canWrite('dossiers');
+  // "Éditer web" is exposed on each dossier row for admin/directeur-family
+  // roles. Clicking routes to the same chiffrage editor entry-point that the
+  // assigner-au-chiffrage flow lands on (`/assignations-chiffrage/[id]`),
+  // which in turn hosts the per-slot Éditer buttons that open the structured
+  // devis editor. Reuses the exact role strings from the canonical role list.
+  const canEditWeb =
+    profile?.role === 'Admin'
+    || profile?.role === 'Directeur'
+    || profile?.role === 'Directeur des opérations'
+    || profile?.role === 'Directeur technique';
   const { openTab } = useDossierTabs();
 
   const openDossier = useCallback((d: { id: string; refExpert?: string; numero?: string; assure?: any }) => {
@@ -590,6 +600,27 @@ export default function DossiersClientPage() {
                         >
                           <Eye className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
                         </Button>
+                        {canEditWeb && (() => {
+                          const chiffrageId = (d as any).currentChiffrageId as string | undefined;
+                          const hasChiffrage = Boolean(chiffrageId);
+                          return (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              title={hasChiffrage ? 'Éditer web' : 'Éditer web (aucun chiffrage assigné)'}
+                              disabled={!hasChiffrage}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (chiffrageId) {
+                                  router.push(`/assignations-chiffrage/${chiffrageId}`);
+                                }
+                              }}
+                            >
+                              <Pencil className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
+                            </Button>
+                          );
+                        })()}
                         <Button
                           variant="ghost"
                           size="icon"
