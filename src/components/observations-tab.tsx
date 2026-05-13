@@ -609,7 +609,10 @@ export default function ObservationsTab({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {VISIBILITY_SCOPE_OPTIONS.map((opt) => (
+                {/* Hide the current user's own role from the list — sending an
+                    observation only to your own role is redundant. Admin/Directeur
+                    roles aren't in ROLE_TO_SCOPE, so they see every option. */}
+                {VISIBILITY_SCOPE_OPTIONS.filter((opt) => opt.value !== ROLE_TO_SCOPE[profile?.role ?? '']).map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                 ))}
               </SelectContent>
