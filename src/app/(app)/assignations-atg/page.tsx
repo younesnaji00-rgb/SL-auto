@@ -39,6 +39,7 @@ interface PlanificationItem {
   dossierId: string;
   dossierNom?: string;
   assureNom?: string;
+  assureTelephone?: string;
   compagnie?: string;
   expertRank?: string;
   nature?: string;
@@ -53,6 +54,37 @@ interface PlanificationItem {
   active?: boolean;
   statut?: string;
   hasPhotosForMission?: boolean;
+}
+
+// Normalize a Moroccan phone number for a `tel:` URI:
+// keep leading `+` (international prefix) and strip everything but digits.
+// Example: "+212 6 12 34 56 78" -> "+212612345678"; "(0612) 34-56-78" -> "0612345678".
+function normalizePhoneForTel(raw: string): string {
+  if (!raw) return '';
+  const trimmed = raw.trim();
+  const hasPlus = trimmed.startsWith('+');
+  const digits = trimmed.replace(/\D/g, '');
+  return hasPlus ? `+${digits}` : digits;
+}
+
+function AssurePhoneLink({ telephone, className }: { telephone?: string | null; className?: string }) {
+  const display = (telephone || '').trim();
+  if (!display) {
+    return <span className={cn('text-xs text-muted-foreground', className)}>—</span>;
+  }
+  const href = normalizePhoneForTel(display);
+  return (
+    <a
+      href={`tel:${href}`}
+      onClick={(e) => e.stopPropagation()}
+      className={cn(
+        'inline-flex items-center text-xs font-semibold text-primary hover:underline tabular-nums whitespace-nowrap',
+        className,
+      )}
+    >
+      {display}
+    </a>
+  );
 }
 
 function missionToCategory(typeMission: string): PhotoCategory {
@@ -250,7 +282,7 @@ export default function AssignationsATGPage() {
       // Enrich: always fetch statut + photos (for completion state); fill in
       // denormalized fallbacks if missing.
       type Enriched = {
-        refExpert: string; assureNom: string; compagnie: string; expertRank: string; nature: string;
+        refExpert: string; assureNom: string; assureTelephone: string; compagnie: string; expertRank: string; nature: string;
         statut: string; photos: Record<PhotoCategory, boolean>;
       };
       const dossierData: Record<string, Enriched> = {};
@@ -270,6 +302,7 @@ export default function AssignationsATGPage() {
             dossierData[dId] = {
               refExpert: d.refExpert || dId,
               assureNom: `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim(),
+              assureTelephone: (d.assure?.telephone || d.assure?.telephone2 || '').trim(),
               compagnie: d.compagnie || '',
               expertRank: d.expertRank || '',
               nature: d.nature || '',
@@ -284,6 +317,7 @@ export default function AssignationsATGPage() {
         if (!dd) return;
         if (!item.dossierNom) item.dossierNom = dd.refExpert;
         item.assureNom = item.assureNom || dd.assureNom;
+        item.assureTelephone = item.assureTelephone || dd.assureTelephone;
         item.compagnie = item.compagnie || dd.compagnie;
         item.expertRank = item.expertRank || dd.expertRank;
         item.nature = item.nature || dd.nature;
@@ -699,9 +733,6 @@ export default function AssignationsATGPage() {
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-3 pt-2">
                     {group.items.map((p) => {
-                      const live = dossierLive[p.dossierId];
-                      const statut = live?.statut ?? p.statut ?? '';
-                      const completed = !!statut && isAtgCompletedStatus(statut);
                       const rdv = p.dateRDV?.toDate ? p.dateRDV.toDate() : (p.dateRDV ? new Date(p.dateRDV) : null);
                       return (
                         <div
@@ -748,13 +779,8 @@ export default function AssignationsATGPage() {
                               </a>
                             </div>
                           )}
-                          <div className="mt-2">
-                            <DeadlineBar
-                              dateRDV={p.dateRDV}
-                              createdAt={p.createdAt}
-                              completed={completed}
-                              completedStatus={statut}
-                            />
+                          <div className="mt-2 min-w-[140px]">
+                            <AssurePhoneLink telephone={p.assureTelephone} />
                           </div>
                         </div>
                       );
@@ -1090,13 +1116,7 @@ export default function AssignationsATGPage() {
                   {showAgentColumn && <TableHead className="font-bold text-xs">Agent</TableHead>}
                   <TableHead className="font-bold text-xs">Date RDV</TableHead>
                   <TableHead className="font-bold text-xs">Zone</TableHead>
-                  <TableHead className="font-bold text-xs">
-                    <SortableHeader
-                      label="Délai"
-                      sort={deadlineSortByGroup[groupKey]}
-                      onChange={(next) => setDeadlineSortByGroup(prev => ({ ...prev, [groupKey]: next }))}
-                    />
-                  </TableHead>
+                  <TableHead className="font-bold text-xs">Téléphone</TableHead>
                   <TableHead className="font-bold text-xs">Créé le</TableHead>
                   <TableHead className="font-bold text-xs">Assigné par</TableHead>
                 </TableRow>
@@ -1123,22 +1143,7 @@ export default function AssignationsATGPage() {
                   ) : '-'}
                 </TableCell>
                 <TableCell>
-                  {(() => {
-                    const live = dossierLive[p.dossierId];
-                    const statut = live?.statut ?? p.statut ?? '';
-                    // Completion is driven by the dossier reaching the terminal
-                    // closed state (Accord envoyé). Works uniformly across all
-                    // deadline states (à venir, aujourd'hui, en retard).
-                    const completed = !!statut && isAtgCompletedStatus(statut);
-                    return (
-                      <DeadlineBar
-                        dateRDV={p.dateRDV}
-                        createdAt={p.createdAt}
-                        completed={completed}
-                        completedStatus={statut}
-                      />
-                    );
-                  })()}
+                  <AssurePhoneLink telephone={p.assureTelephone} />
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{formatDate(p.createdAt)}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">{p.modifiedByName || '-'}</TableCell>

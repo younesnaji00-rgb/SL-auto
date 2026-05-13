@@ -560,6 +560,14 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   };
 
   const assureNom = dossier ? `${dossier.assure?.nom || ''} ${dossier.assure?.prenom || ''}`.trim() : '';
+  const assureTelephoneRaw = (dossier?.assure?.telephone || dossier?.assure?.telephone2 || '').trim();
+  // Normalize for tel: URI — keep leading + (international prefix) and strip everything but digits.
+  const assureTelephoneHref = (() => {
+    if (!assureTelephoneRaw) return '';
+    const hasPlus = assureTelephoneRaw.startsWith('+');
+    const digits = assureTelephoneRaw.replace(/\D/g, '');
+    return hasPlus ? `+${digits}` : digits;
+  })();
 
   if (dossierLoading || plansLoading) {
     return (
@@ -591,6 +599,18 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             {dossier?.compagnie && <span> — {dossier.compagnie}</span>}
             {dossier?.expertRank && (
               <Badge variant="outline" className="ml-2 text-[10px]">{dossier.expertRank}</Badge>
+            )}
+          </div>
+          <div className="mt-1 text-sm flex items-center gap-1 flex-wrap">
+            {assureTelephoneRaw ? (
+              <a
+                href={`tel:${assureTelephoneHref}`}
+                className="font-semibold text-primary hover:underline tabular-nums"
+              >
+                {assureTelephoneRaw}
+              </a>
+            ) : (
+              <span className="text-muted-foreground">—</span>
             )}
           </div>
           {filteredPlans.length > 0 && (
