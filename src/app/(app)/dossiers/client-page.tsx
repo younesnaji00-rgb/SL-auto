@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
+import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight, Pencil, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/l
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { exportToExcel, type ExportColumn } from '@/lib/export-excel';
+import { CANONICAL_STATUTS } from '@/lib/dossiers-data';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
 import {
@@ -130,9 +131,19 @@ export default function DossiersClientPage() {
     }
     return extras.length === 0 ? seeded : [...seeded, ...extras];
   };
+  // Status filter shows the CANONICAL automatic-status set (the actual values
+  // the status machine emits as a dossier moves through its timeline steps).
+  // We intentionally bypass the seeded `options_statuts` collection here so
+  // that legacy / manually-added entries don't leak back into the filter.
+  // Live values from dossiers (e.g. uncapped `Nème accord` for N≥4) are still
+  // appended so rows carrying those statuses remain filterable.
+  const canonicalStatusOptions = useMemo(
+    () => CANONICAL_STATUTS.map((label, i) => ({ id: `canonical-${label}`, label, order: i, active: true })),
+    [],
+  );
   const filterStatuses = useMemo(
-    () => augmentWithLiveValues(statuses, allDossiers.map((d) => d.statut)),
-    [statuses, allDossiers],
+    () => augmentWithLiveValues(canonicalStatusOptions, allDossiers.map((d) => d.statut)),
+    [canonicalStatusOptions, allDossiers],
   );
   const filterNatures = useMemo(
     () => augmentWithLiveValues(natures, allDossiers.map((d) => d.nature)),
@@ -362,6 +373,24 @@ export default function DossiersClientPage() {
           onDateFromChange={v => setFilters({ dateFrom: v })}
           onDateToChange={v => setFilters({ dateTo: v })}
         />
+
+        {/* One-click reset: clears search, nature, status, compagnie,
+            observation and date range back to their defaults. Kept always
+            visible (per spec) so users learn it's there even before applying
+            any filter. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => {
+            clearFilter();
+            setPage(1);
+          }}
+          title="Réinitialiser tous les filtres"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Réinitialiser
+        </Button>
       </div>
 
       {/* Active filters strip */}
