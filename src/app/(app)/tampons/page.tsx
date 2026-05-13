@@ -21,8 +21,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Loader2, Stamp as StampIcon, Trash2, Upload, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Stamp as StampIcon, Trash2, Upload, X } from 'lucide-react';
 import { useFirestore, useStorage, useCollection } from '@/firebase';
 import { addDoc, collection, deleteDoc, deleteField, doc, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
@@ -45,7 +47,17 @@ interface ChiffreurUser {
   prenom?: string;
   email?: string;
   role?: string;
+  /** Multi-select: list of stamp IDs available to this chiffreur. */
+  assignedStampIds?: string[];
+  /** Legacy single-stamp field (round-1 L). Treated as [singleId] on read. */
   assignedStampId?: string;
+}
+
+/** Read assigned stamp IDs, tolerating the legacy singular field. */
+function readAssigned(u: ChiffreurUser): string[] {
+  if (Array.isArray(u.assignedStampIds)) return u.assignedStampIds;
+  if (u.assignedStampId) return [u.assignedStampId];
+  return [];
 }
 
 function extensionFromFile(file: File): string {
@@ -89,13 +101,15 @@ export default function TamponsSettingsPage() {
   const assigneesByStampId = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const u of chiffreurUsers ?? []) {
-      const sid = u.assignedStampId;
-      if (!sid) continue;
+      const ids = readAssigned(u);
+      if (ids.length === 0) continue;
       const label =
         [u.prenom, u.nom].filter(Boolean).join(' ').trim() || u.email || u.id;
-      const arr = map.get(sid) ?? [];
-      arr.push(label);
-      map.set(sid, arr);
+      for (const sid of ids) {
+        const arr = map.get(sid) ?? [];
+        arr.push(label);
+        map.set(sid, arr);
+      }
     }
     return map;
   }, [chiffreurUsers]);
@@ -189,25 +203,27 @@ export default function TamponsSettingsPage() {
     setProgress(null);
   };
 
-  // Assign (or unassign) a stamp to a given chiffreur user. Reassignment is
-  // a plain overwrite — Firestore replaces the field value. Unassign uses
-  // deleteField() so the field disappears from the doc, matching the "no
-  // assignment" state for chiffreurs who never had a stamp.
-  const handleAssignStamp = async (chiffreurUid: string, stampId: string | null) => {
+  // Set the full list of stamps assigned to a chiffreur. Multi-select: caller
+  // passes the desired final array. Empty array → field is removed. Also clears
+  // the legacy singular `assignedStampId` so the two never disagree.
+  const handleSetAssignedStamps = async (chiffreurUid: string, ids: string[]) => {
     if (!db || !chiffreurUid) return;
     try {
       await updateDoc(doc(db, 'users', chiffreurUid), {
-        assignedStampId: stampId === null ? deleteField() : stampId,
+        assignedStampIds: ids.length === 0 ? deleteField() : ids,
+        // Clear the legacy singular field on first write so read-helpers
+        // converge on the new array shape.
+        assignedStampId: deleteField(),
       });
       toast({
-        title: stampId === null ? 'Tampon retiré' : 'Tampon assigné',
+        title: ids.length === 0 ? 'Tampons retirés' : `${ids.length} tampon(s) assigné(s)`,
       });
     } catch (err: any) {
       console.error(err);
       toast({
         variant: 'destructive',
         title: 'Erreur',
-        description: err?.message || "Impossible d'assigner le tampon.",
+        description: err?.message || "Impossible d'assigner les tampons.",
       });
     }
   };
@@ -447,8 +463,20 @@ export default function TamponsSettingsPage() {
               {chiffreurUsers.map((u) => {
                 const label =
                   [u.prenom, u.nom].filter(Boolean).join(' ').trim() || u.email || u.id;
-                const currentStampId = u.assignedStampId || '';
-                const currentStamp = stamps.find((s) => s.id === currentStampId);
+                const assignedIds = readAssigned(u);
+                const assignedStamps = assignedIds
+                  .map((id) => stamps.find((s) => s.id === id))
+                  .filter((s): s is Stamp => Boolean(s));
+                const previewStamp = assignedStamps[0];
+                const visibleStamps = stamps.filter(
+                  (s) => s.active || assignedIds.includes(s.id),
+                );
+                const triggerLabel =
+                  assignedStamps.length === 0
+                    ? 'Aucun tampon'
+                    : assignedStamps.length === 1
+                      ? assignedStamps[0].name || 'Sans nom'
+                      : `${assignedStamps.length} tampons sélectionnés`;
                 return (
                   <li
                     key={u.id}
@@ -456,10 +484,10 @@ export default function TamponsSettingsPage() {
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0 basis-60">
                       <div className="h-10 w-10 shrink-0 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden">
-                        {currentStamp?.url ? (
+                        {previewStamp?.url ? (
                           <img
-                            src={currentStamp.url}
-                            alt={currentStamp.name}
+                            src={previewStamp.url}
+                            alt={previewStamp.name}
                             className="max-h-full max-w-full object-contain"
                           />
                         ) : (
@@ -469,36 +497,68 @@ export default function TamponsSettingsPage() {
                       <div className="min-w-0">
                         <p className="font-medium truncate">{label}</p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {currentStamp ? currentStamp.name || 'Sans nom' : 'Aucun tampon assigné'}
+                          {assignedStamps.length === 0
+                            ? 'Aucun tampon assigné'
+                            : assignedStamps.map((s) => s.name || 'Sans nom').join(', ')}
                         </p>
                       </div>
                     </div>
                     <div className="w-full sm:w-72">
-                      <Select
-                        value={currentStampId || UNASSIGN_VALUE}
-                        onValueChange={(value) => {
-                          const next = value === UNASSIGN_VALUE ? null : value;
-                          if ((next ?? '') === currentStampId) return;
-                          handleAssignStamp(u.id, next);
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choisir un tampon" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={UNASSIGN_VALUE}>
-                            Aucun tampon
-                          </SelectItem>
-                          {stamps
-                            .filter((s) => s.active || s.id === currentStampId)
-                            .map((s) => (
-                              <SelectItem key={s.id} value={s.id}>
-                                {s.name || 'Sans nom'}
-                                {!s.active ? ' (inactif)' : ''}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-between font-normal"
+                          >
+                            <span className="truncate text-left">{triggerLabel}</span>
+                            <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-72 p-2">
+                          {visibleStamps.length === 0 ? (
+                            <p className="text-xs text-muted-foreground p-2">Aucun tampon disponible.</p>
+                          ) : (
+                            <div className="space-y-0.5 max-h-[300px] overflow-y-auto">
+                              {visibleStamps.map((s) => {
+                                const selected = assignedIds.includes(s.id);
+                                return (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => {
+                                      const next = selected
+                                        ? assignedIds.filter((id) => id !== s.id)
+                                        : [...assignedIds, s.id];
+                                      handleSetAssignedStamps(u.id, next);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted text-left"
+                                  >
+                                    <Checkbox checked={selected} className="shrink-0" />
+                                    <span className="truncate flex-1">
+                                      {s.name || 'Sans nom'}
+                                      {!s.active && <span className="text-muted-foreground"> (inactif)</span>}
+                                    </span>
+                                    {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {assignedIds.length > 0 && (
+                            <div className="border-t pt-2 mt-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-center text-xs"
+                                onClick={() => handleSetAssignedStamps(u.id, [])}
+                              >
+                                Tout désélectionner
+                              </Button>
+                            </div>
+                          )}
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </li>
                 );
