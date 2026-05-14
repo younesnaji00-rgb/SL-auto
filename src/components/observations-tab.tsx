@@ -824,6 +824,7 @@ export default function ObservationsTab({
                           <span key={i}>
                             {i > 0 ? ', ' : ''}
                             {v.name}
+                            {v.role ? ` — ${v.role}` : ''}
                             {when ? ` (${when})` : ''}
                           </span>
                         );
