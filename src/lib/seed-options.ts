@@ -30,7 +30,7 @@ const ALL_DEFAULTS: Record<string, string[]> = {
   options_rapport_types_pieces: ['ORG', 'ADP', 'REC', 'ORGs', 'ADPs', 'RECs', 'P.P', 'P.Ps', 'R.P', 'R.Ps'],
   options_rapport_operations: ['Echange', 'Réparation', 'Peinture'],
   options_mdo_types: ['Tolerie', 'Peinture', 'Mécanique', 'Electrique'],
-  options_observations: ['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre'],
+  options_observations: ['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Assuré non disponible', 'Rendez-vous reporté', 'Numéro erroné', 'Assuré en retard', 'Sous réserve', 'Autre'],
   options_sites: ['Casablanca', 'Fès'],
 };
 
@@ -124,6 +124,44 @@ export async function reconcileCanonicalStatuts(db: Firestore): Promise<number> 
   const missing = (CANONICAL_STATUTS as readonly string[]).filter((l) => !existing.has(l));
   if (missing.length === 0) return 0;
 
+  const baseOrder = snap.size;
+  const batch = writeBatch(db);
+  missing.forEach((label, i) => {
+    const ref = doc(colRef);
+    batch.set(ref, {
+      label,
+      order: baseOrder + i,
+      active: true,
+      createdAt: serverTimestamp(),
+    });
+  });
+  await batch.commit();
+  return missing.length;
+}
+
+export function getDefaultsFor(collectionName: string): readonly string[] | undefined {
+  return ALL_DEFAULTS[collectionName];
+}
+
+/**
+ * Idempotently adds any default labels missing from the given collection.
+ * Returns the count of newly inserted docs (0 if the collection already
+ * contains every default, or if no defaults are registered for the
+ * collection). Modeled on reconcileCanonicalStatuts.
+ */
+export async function reconcileOptionDefaults(
+  db: Firestore,
+  collectionName: string,
+): Promise<number> {
+  const defaults = ALL_DEFAULTS[collectionName];
+  if (!defaults || defaults.length === 0) return 0;
+  const colRef = collection(db, collectionName);
+  const snap = await getDocs(colRef);
+  const existing = new Set(
+    snap.docs.map((d) => String(d.data().label || '').trim()),
+  );
+  const missing = defaults.filter((l) => !existing.has(l));
+  if (missing.length === 0) return 0;
   const baseOrder = snap.size;
   const batch = writeBatch(db);
   missing.forEach((label, i) => {

@@ -28,7 +28,7 @@ import { useOptions } from '@/hooks/use-options';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useFirestore } from '@/firebase';
-import { reconcileCanonicalStatuts } from '@/lib/seed-options';
+import { reconcileCanonicalStatuts, reconcileOptionDefaults, getDefaultsFor } from '@/lib/seed-options';
 
 interface OptionsManagerModalProps {
   collectionName: string;
@@ -57,6 +57,7 @@ export function OptionsManagerModal({
   const [isAdding, setIsAdding] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
 
   const handleAdd = async () => {
@@ -100,6 +101,24 @@ export function OptionsManagerModal({
       toast({ variant: 'destructive', title: 'Erreur de synchronisation', description: e?.message });
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleRestoreDefaults = async () => {
+    if (!db) return;
+    setIsRestoring(true);
+    try {
+      const added = await reconcileOptionDefaults(db, collectionName);
+      if (added > 0) {
+        toast({ title: `${added} option${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''}` });
+      } else {
+        toast({ title: 'Rien à restaurer', description: 'Tous les défauts sont déjà présents.' });
+      }
+    } catch (e: any) {
+      console.error('[restore defaults]', e);
+      toast({ variant: 'destructive', title: 'Erreur', description: e?.message });
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -210,6 +229,19 @@ export function OptionsManagerModal({
 
         <DialogFooter className="flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <p className="text-[10px] text-muted-foreground italic flex-1">Les modifications sont appliquées instantanément partout dans l&apos;application.</p>
+          {collectionName !== 'options_statuts' && !!getDefaultsFor(collectionName)?.length && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 gap-2"
+              onClick={handleRestoreDefaults}
+              loading={isRestoring}
+            >
+              {isRestoring ? null : <RefreshCw className="h-3.5 w-3.5" />}
+              Restaurer les défauts
+            </Button>
+          )}
           {collectionName === 'options_statuts' && (
             <Button
               type="button"
