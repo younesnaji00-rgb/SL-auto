@@ -82,7 +82,6 @@ const FIELD_MAP: Record<string, string> = {
   mileage: 'vehicule.km',
   vehicleNewValue: 'vehicule.valeurNeuf',
   vehicleUsage: 'vehicule.usage',
-  previousRegistration: 'vehicule.immatriculationAnterieur',
   // Partie adverse (nested)
   adversaireAssure: 'partieAdverse.assure',
   adversaireMatricule: 'partieAdverse.matricule',
