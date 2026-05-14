@@ -7,7 +7,7 @@ import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTime
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
   ArrowLeft, Check, ChevronDown, Columns2, FileText, Loader2,
-  Save, Sparkles, Trash2,
+  Save, Sparkles, Trash2, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1247,51 +1247,77 @@ export function DevisEditor({
                   <tr key={r.id} className="[&>td]:px-1.5 [&>td]:py-1 [&>td]:border-b [&>td]:border-r [&>td:last-child]:border-r-0 group hover:bg-muted/30">
                     <td>
                       {/* scanned values outside the enum render blank so the chiffreur picks */}
-                      <Select
-                        value={(REF_OPTIONS as readonly string[]).includes(r.ref) ? r.ref : ''}
-                        onValueChange={(v) => updateRow(r.id, { ref: v })}
-                        disabled={!isEditable}
-                      >
-                        <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
-                          <SelectValue placeholder="" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {REF_OPTIONS.map((opt) => (
-                            <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-0.5">
+                        <Select
+                          value={(REF_OPTIONS as readonly string[]).includes(r.ref) ? r.ref : ''}
+                          onValueChange={(v) => updateRow(r.id, { ref: v })}
+                          disabled={!isEditable}
+                        >
+                          <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
+                            <SelectValue placeholder="" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {REF_OPTIONS.map((opt) => (
+                              <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {r.ref && isEditable && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                            title="Effacer"
+                            onClick={(e) => { e.stopPropagation(); updateRow(r.id, { ref: '' }); }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <CellInput value={r.designation} onChange={(v) => updateRow(r.id, { designation: v })} disabled={!isEditable} />
                     </td>
                     <td>
                       {/* scanned values outside the enum render blank so the chiffreur picks */}
-                      <Select
-                        value={(TYPE_OPTIONS as readonly string[]).includes(r.type) ? r.type : ''}
-                        onValueChange={(v) => {
-                          // Set tva=20 only when transitioning INTO 'Originale' from a different type.
-                          // This preserves any manual tva edit when re-selecting 'Originale' (no-op transition).
-                          if (v === 'Originale' && r.type !== 'Originale') {
-                            updateRow(r.id, { type: 'Originale', tva: 20 });
-                          } else if (v === 'Occasion') {
-                            // Occasion clears vétusté (and the cell becomes disabled below).
-                            updateRow(r.id, { type: 'Occasion', vetuste: null });
-                          } else {
-                            updateRow(r.id, { type: v });
-                          }
-                        }}
-                        disabled={!isEditable}
-                      >
-                        <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
-                          <SelectValue placeholder="" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TYPE_OPTIONS.map((opt) => (
-                            <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-0.5">
+                        <Select
+                          value={(TYPE_OPTIONS as readonly string[]).includes(r.type) ? r.type : ''}
+                          onValueChange={(v) => {
+                            // Set tva=20 only when transitioning INTO 'Originale' from a different type.
+                            // This preserves any manual tva edit when re-selecting 'Originale' (no-op transition).
+                            if (v === 'Originale' && r.type !== 'Originale') {
+                              updateRow(r.id, { type: 'Originale', tva: 20 });
+                            } else if (v === 'Occasion') {
+                              // Occasion clears vétusté (and the cell becomes disabled below).
+                              updateRow(r.id, { type: 'Occasion', vetuste: null });
+                            } else {
+                              updateRow(r.id, { type: v });
+                            }
+                          }}
+                          disabled={!isEditable}
+                        >
+                          <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
+                            <SelectValue placeholder="" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TYPE_OPTIONS.map((opt) => (
+                              <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {r.type && isEditable && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                            title="Effacer"
+                            onClick={(e) => { e.stopPropagation(); updateRow(r.id, { type: '' }); }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <CellNumberInput value={r.qte} onChange={(v) => {
@@ -1397,27 +1423,40 @@ export function DevisEditor({
                         selection (cleared via the "(aucune)" item which maps to
                         the sentinel "__none__" since shadcn Select disallows ""). */}
                     <td>
-                      <Select
-                        value={r.observation ?? '__none__'}
-                        onValueChange={(v) => {
-                          if (v === '__none__') {
-                            updateRow(r.id, { observation: undefined });
-                          } else {
-                            updateRow(r.id, { observation: v as ObservationOption });
-                          }
-                        }}
-                        disabled={!isEditable}
-                      >
-                        <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
-                          <SelectValue placeholder="—" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__" className="text-xs text-muted-foreground">(aucune)</SelectItem>
-                          {OBSERVATION_OPTIONS.map((opt) => (
-                            <SelectItem key={opt} value={opt} className="text-xs">{OBSERVATION_LABELS[opt]}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-0.5">
+                        <Select
+                          value={r.observation ?? '__none__'}
+                          onValueChange={(v) => {
+                            if (v === '__none__') {
+                              updateRow(r.id, { observation: undefined });
+                            } else {
+                              updateRow(r.id, { observation: v as ObservationOption });
+                            }
+                          }}
+                          disabled={!isEditable}
+                        >
+                          <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
+                            <SelectValue placeholder="—" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__" className="text-xs text-muted-foreground">(aucune)</SelectItem>
+                            {OBSERVATION_OPTIONS.map((opt) => (
+                              <SelectItem key={opt} value={opt} className="text-xs">{OBSERVATION_LABELS[opt]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {r.observation && isEditable && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                            title="Effacer"
+                            onClick={(e) => { e.stopPropagation(); updateRow(r.id, { observation: undefined }); }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                     <td>
                       {canEdit && (
