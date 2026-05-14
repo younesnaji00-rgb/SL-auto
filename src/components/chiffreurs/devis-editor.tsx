@@ -488,6 +488,24 @@ export function DevisEditor({
     return { qteSum, totalHt };
   }, [rows, rowTotals]);
 
+  // Total TTC Expert is the chiffreur's accord/proposition column total, NOT
+  // the gestionnaire-entered row PUHT total. Returns null when no
+  // accord/proposition-accord column exists (callers render '—').
+  const totalTTCExpert = useMemo<number | null>(() => {
+    const accordCol = extraColumns.find(
+      (c) => c.kind === 'accord' || c.kind === 'proposition-accord',
+    );
+    if (!accordCol) return null;
+    return rows.reduce((sum, r) => {
+      const pu = parseFr(accordCol.values[r.id] || '');
+      const qte = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
+      const vetuste = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
+      const tva = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
+      const tHt = pu * qte * (1 - vetuste / 100);
+      return sum + tHt * (1 + tva / 100);
+    }, 0);
+  }, [extraColumns, rows]);
+
   // Save ─────────────────────────────────────────────────────────────────
   // Task #23: Phase 1 — compute the snapshot + accord metadata, then hand off
   // to the preview dialog. The actual upload / Firestore write runs in
@@ -1435,7 +1453,7 @@ export function DevisEditor({
                 <td className="text-right">{formatFr(totalsRow.totalHt)}</td>
                 <td />
                 <td className="text-center text-muted-foreground">—</td>
-                <td className="text-right">{formatFr(totals.ttc)}</td>
+                <td className="text-right">{totalTTCExpert == null ? '—' : formatFr(totalTTCExpert)}</td>
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
                   const isAccord = col.kind === 'accord' || col.kind === 'proposition-accord';
@@ -1486,7 +1504,7 @@ export function DevisEditor({
             <span className="font-bold">Total H.T</span>
             <span className="w-28 text-right font-bold">{formatFr(totals.ht)}</span>
             <span className="font-bold">Total TTC Expert</span>
-            <span className="w-28 text-right font-bold">{formatFr(totals.ttc)}</span>
+            <span className="w-28 text-right font-bold">{totalTTCExpert == null ? '—' : formatFr(totalTTCExpert)}</span>
           </div>
         </div>
       </div>
