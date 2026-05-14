@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
-  ArrowLeft, Check, ChevronDown, Columns2, Download, FileText, History, Loader2, Plus, RefreshCcw,
+  ArrowLeft, Check, ChevronDown, Columns2, FileText, Loader2, Plus,
   Save, Sparkles, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,9 +16,6 @@ import { CellNumberInput } from '@/components/ui/cell-number-input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
@@ -138,8 +135,6 @@ export function DevisEditor({
   const [rows, setRows] = useState<DevisRow[]>([emptyRow()]);
   const [extraColumns, setExtraColumns] = useState<DevisExtraColumn[]>([]);
   const [versions, setVersions] = useState<DevisVersion[]>([]);
-  const [versionPreviewUrl, setVersionPreviewUrl] = useState<string | null>(null);
-  const [versionLabel, setVersionLabel] = useState<string>('');
   const [comparisonOpen, setComparisonOpen] = useState(false);
 
   // Task #23: preview dialog state. The Save button now opens this dialog with
@@ -1503,80 +1498,9 @@ export function DevisEditor({
         )}
       </div>
 
-      {/* Version history */}
-      <div className="border rounded-xl bg-card shadow-sm">
-        <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/30">
-          <History className="h-4 w-4 text-muted-foreground" />
-          <span className="font-bold text-sm">Historique des versions</span>
-          <Badge variant="secondary" className="text-[10px] ml-auto">{versions.length}</Badge>
-        </div>
-        {versions.length === 0 ? (
-          <div className="px-3 py-4 text-xs text-muted-foreground italic">
-            Aucune version encore. Enregistrez pour creer la premiere.
-          </div>
-        ) : (
-          <ul className="divide-y">
-            {versions.slice(0, 50).map((v) => {
-              const d = toDate(v.createdAt);
-              const label = d ? d.toLocaleString('fr-FR') : '—';
-              return (
-                <li key={v.id} className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/30">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate">{label}</div>
-                    <div className="text-muted-foreground truncate">par {v.createdByNom || '—'}</div>
-                  </div>
-                  {v.pdfUrl ? (
-                    <>
-                      <Button
-                        variant="ghost" size="sm"
-                        onClick={() => { setVersionPreviewUrl(v.pdfUrl); setVersionLabel(label); }}
-                      >
-                        Voir
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                        <a href={v.pdfUrl} target="_blank" rel="noopener noreferrer" download><Download className="h-3.5 w-3.5" /></a>
-                      </Button>
-                    </>
-                  ) : (
-                    <span className="text-[10px] italic text-muted-foreground px-2">En cours d'upload…</span>
-                  )}
-                  {canEdit && (
-                    <Button
-                      variant="ghost" size="icon" className="h-7 w-7" title="Restaurer cette version"
-                      onClick={() => {
-                        setHeader(v.snapshot.header);
-                        setRows(v.snapshot.rows.map((r) => ({ ...r })));
-                        const restoredCols = normalizeExtraColumns(v.snapshot);
-                        setExtraColumns(restoredCols);
-                        toast({ title: 'Version chargee', description: 'Enregistrez pour creer une nouvelle version.' });
-                      }}
-                    >
-                      <RefreshCcw className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
 
         </div>
       </div>
-
-      {/* Version preview dialog */}
-      <Dialog open={!!versionPreviewUrl} onOpenChange={(o) => { if (!o) setVersionPreviewUrl(null); }}>
-        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
-          <DialogHeader className="p-3 border-b shrink-0">
-            <DialogTitle className="text-sm">Version du {versionLabel}</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 bg-slate-900 overflow-hidden">
-            {versionPreviewUrl && (
-              <iframe src={versionPreviewUrl} className="w-full h-full border-none" title="Version PDF" />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/*
         Task #23 — save-flow preview. Opened by the Enregistrer button (and
