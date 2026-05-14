@@ -93,6 +93,15 @@ export interface SendToChiffrageParams {
   sentByNom: string;
   /** Pre-extracted structured data from dossier.structuredEditables, seeded into the new chiffrage so the chiffreur sees it instantly. */
   seedStructuredEditables?: Record<string, unknown>;
+  /**
+   * When the dossier already has a chiffrage attached, pass its id so the
+   * helper reuses (updateDoc) that same chiffrage instead of creating a new
+   * one. This keeps a single chiffrage row per mission across cardinal rounds
+   * (e.g. when the gestionnaire spawns a "2ème accord ou +" slot and
+   * re-assigns). If the referenced doc no longer exists, the helper falls
+   * back to the legacy `addDoc` branch.
+   */
+  existingChiffrageId?: string | null;
 }
 
 /**
@@ -110,10 +119,52 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
     sentByEmail,
     sentByNom,
     seedStructuredEditables,
+    existingChiffrageId,
   } = params;
 
   if (!assignedChiffreurId) throw new Error("Aucun chiffreur sélectionné.");
   if (files.length === 0) throw new Error("Aucun fichier à envoyer (photos requises).");
+
+  // Reuse the existing chiffrage if the dossier already has one. This keeps a
+  // single chiffrage row per mission across cardinal rounds (e.g. when the
+  // gestionnaire spawns a "2ème accord ou +" slot and re-assigns). The
+  // chiffreur opens the same editor with their prior accord/proposition
+  // column intact, so cardinal-aware save logic targets the right slot.
+  if (existingChiffrageId) {
+    try {
+      const existingRef = doc(db, "chiffrages", existingChiffrageId);
+      const existingSnap = await getDoc(existingRef);
+      if (existingSnap.exists()) {
+        await updateDoc(existingRef, {
+          files: files.map((f) => ({
+            name: f.name,
+            storagePath: f.storagePath,
+            type: f.type,
+            ...(f.docType ? { docType: f.docType } : {}),
+            ...(f.category ? { category: f.category } : {}),
+            ...(f.devisVariant ? { devisVariant: f.devisVariant } : {}),
+            ...(f.counterRoundLabel ? { counterRoundLabel: f.counterRoundLabel } : {}),
+            ...(typeof f.counterRoundOrder === 'number' ? { counterRoundOrder: f.counterRoundOrder } : {}),
+            status: "pending",
+            recognizedText: null,
+            pdfUrl: null,
+          })),
+          assignedChiffreurId,
+          assignedChiffreurNom,
+          status: "pending",
+          completedAt: null,
+          sentByUid,
+          sentByEmail,
+          sentByNom,
+          updatedAt: serverTimestamp(),
+        });
+        await advanceStatutToChiffrageEnCours(db, dossierId, sentByEmail || sentByNom || sentByUid);
+        return existingChiffrageId;
+      }
+    } catch (err) {
+      console.warn("[send-to-chiffrage] reuse of existing chiffrage failed, falling back to new", err);
+    }
+  }
 
   // Guidelines: avoid using 'await' directly before calling mutation functions to leverage optimistic UI
   const docRef = addDoc(collection(db, "chiffrages"), {

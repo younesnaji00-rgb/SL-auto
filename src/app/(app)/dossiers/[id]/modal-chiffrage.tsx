@@ -148,6 +148,10 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
         // extraction has already produced, so the chiffreur opens to a
         // ready-to-edit view instead of waiting on background scans.
         seedStructuredEditables: (dossier as any)?.structuredEditables ?? undefined,
+        // Reuse the existing chiffrage when one is already attached so a
+        // re-assign (e.g. for a 2ème cardinal round) keeps the same mission
+        // row and the chiffreur opens straight into their prior editor.
+        existingChiffrageId: (dossier as any)?.currentChiffrageId ?? null,
       });
 
       if (dossierRef) {
