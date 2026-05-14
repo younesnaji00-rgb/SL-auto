@@ -371,7 +371,8 @@ export default function ObservationsTab({
     (!presetFilled && !customFilled) ||
     bothFilled ||
     isSubmitting ||
-    chiffrageAccordMissing;
+    chiffrageAccordMissing ||
+    pendingProofs.length === 0;
 
   const handleValidate = async (obsId: string) => {
     if (!db || !canValidate) return;
