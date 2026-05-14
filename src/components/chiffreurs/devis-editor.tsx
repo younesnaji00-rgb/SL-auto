@@ -22,15 +22,6 @@ import {
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { useFirestore, useStorage } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -129,6 +120,7 @@ export function DevisEditor({
   const [devisFileNames, setDevisFileNames] = useState<string[]>([]);
   const [counterFilePaths, setCounterFilePaths] = useState<string[]>([]);
   const [persisted, setPersisted] = useState<StructuredDevis | null>(null);
+  const [chiffrageEditables, setChiffrageEditables] = useState<Record<string, StructuredDevis>>({});
   const [extractionAttempted, setExtractionAttempted] = useState(false);
 
   const [header, setHeader] = useState<DevisHeader>(emptyHeader());
@@ -146,8 +138,6 @@ export function DevisEditor({
     'accord' | 'proposition-accord' | undefined
   >(undefined);
   const [previewOrdinal, setPreviewOrdinal] = useState<number | undefined>(undefined);
-
-  const [kindLightboxOpen, setKindLightboxOpen] = useState(false);
 
   // Task #33: post-scan warning / edit-lock state. `scanReviewed` defaults to
   // true so the existing persisted-reload flow is untouched. Only a fresh
@@ -197,6 +187,7 @@ export function DevisEditor({
       const editables = (data.structuredEditables || {}) as Record<string, StructuredDevis>;
       const attempts = (data.editableExtractionAttempted || {}) as Record<string, boolean>;
       setPersisted(editables[docType] || null);
+      setChiffrageEditables(editables);
       setExtractionAttempted(!!attempts[docType]);
       setLoading(false);
     }, () => setLoading(false));
@@ -210,13 +201,6 @@ export function DevisEditor({
     });
     return () => unsub();
   }, [db, dossierId]);
-
-  useEffect(() => {
-    if (isGestionnaire) return;
-    if (!dossier || !docType) return;
-    const choice = (dossier as any).chiffrageKind?.[docType];
-    if (!choice) setKindLightboxOpen(true);
-  }, [dossier, docType, isGestionnaire]);
 
   // task #17: scan header wins over dossier prefill — fall back to dossier only when scan is blank.
   // `existing` here is the scan-extracted header (from structuredEditables[docType].header) when
@@ -295,6 +279,32 @@ export function DevisEditor({
             return !x.pendingUpload && !!x.url;
           });
           if (!hasRealDoc) {
+            // Carry-forward: seed from the PREVIOUS round of the same kind so
+            // the chiffreur sees every number/mod they made before and can
+            // revise them in the new cardinal. Accord/proposition column is
+            // unlocked here; the save path re-locks on persist.
+            let prevRound: StructuredDevis | undefined;
+            if (parsedSlot && parsedSlot.ordinal >= 2) {
+              const prevLabel = mapToAccorde(docType, parsedSlot.kind, parsedSlot.ordinal - 1);
+              prevRound =
+                chiffrageEditables[prevLabel] ||
+                ((dossier.structuredEditables || {}) as Record<string, StructuredDevis>)[prevLabel];
+            }
+            if (prevRound) {
+              setHeader(dossierPrefill(prevRound.header));
+              setRows(prevRound.rows.length ? prevRound.rows : [emptyRow()]);
+              const carriedCols = normalizeExtraColumns(prevRound).map((c) =>
+                c.kind === 'accord' || c.kind === 'proposition-accord'
+                  ? { ...c, locked: false }
+                  : c,
+              );
+              setExtraColumns(carriedCols);
+              setVersions([]);
+              initializedRef.current = true;
+              return;
+            }
+            // Fallback (1ère proposition, or any cardinal whose previous round
+            // was never saved): strip accord/proposition columns from baseline.
             const baseline = (dossier.structuredEditables || {})[docType] as StructuredDevis | undefined;
             if (baseline) {
               setHeader(dossierPrefill(baseline.header));
@@ -341,7 +351,7 @@ export function DevisEditor({
       runExtraction(false);
     })();
 
-  }, [loading, persisted, extractionAttempted, devisFileNames.length, counterFilePaths, dossier, dossierPrefill, db, storage, accordSlot, dossierId, docType]);
+  }, [loading, persisted, extractionAttempted, devisFileNames.length, counterFilePaths, dossier, dossierPrefill, db, storage, accordSlot, dossierId, docType, chiffrageEditables]);
 
   const runExtraction = useCallback(async (isManualRetry: boolean) => {
     if (!db || !storage) return;
@@ -532,49 +542,6 @@ export function DevisEditor({
   // ordinal up-front by scanning `dossiers/{id}/documents` for matching
   // accord variants. The dialog title + the save pipeline both use this
   // ordinal, so the preview and the final doc stay aligned.
-  const handleChooseKind = async (kind: 'accord' | 'proposition') => {
-    if (!db || !dossierId) {
-      setKindLightboxOpen(false);
-      return;
-    }
-    try {
-      await updateDoc(doc(db, 'dossiers', dossierId), {
-        [`chiffrageKind.${docType}`]: kind,
-      });
-    } catch (e) {
-      console.warn('[devis-editor] persisting chiffrageKind failed (non-fatal):', e);
-    }
-    const targetKind: 'accord' | 'proposition-accord' = kind === 'accord' ? 'accord' : 'proposition-accord';
-    const targetLabel = kind === 'accord' ? 'PUHT accordé' : 'PUHT proposé';
-    // Seed values from each row's puHT in case we need to spawn a fresh column.
-    const seededValues: Record<string, string> = {};
-    for (const r of rows) {
-      seededValues[r.id] = String(r.puHT ?? '');
-    }
-    setExtraColumns((cols) => {
-      const hasAccord = cols.some((c) => c.kind === 'accord' || c.kind === 'proposition-accord');
-      if (hasAccord) {
-        return cols.map((c) =>
-          (c.kind === 'accord' || c.kind === 'proposition-accord')
-            ? { ...c, kind: targetKind, label: targetLabel }
-            : c,
-        );
-      }
-      const newId = typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : Math.random().toString(36).slice(2);
-      const newCol: DevisExtraColumn = {
-        id: newId,
-        label: targetLabel,
-        values: seededValues,
-        kind: targetKind,
-        locked: false,
-      };
-      return [...cols, newCol];
-    });
-    setKindLightboxOpen(false);
-  };
-
   const handleSave = async () => {
     if (!canEdit) {
       toast({ variant: 'destructive', title: 'Action non autorisee' });
@@ -1335,13 +1302,17 @@ export function DevisEditor({
                         </PopoverContent>
                       </Popover>
                     );
+                    // Suffix mirrors the PU header: 'accordé' for accord
+                    // columns, 'proposé' for proposition columns. Keeps the
+                    // triple coherent at a glance.
+                    const tripleSuffix = col.kind === 'accord' ? 'accordé' : 'proposé';
                     return (
                       <React.Fragment key={col.id}>
                         <th style={{ width: '120px' }} className="text-right bg-muted/40">
                           {puHeader}
                         </th>
-                        <th style={{ width: '130px' }} className="text-right bg-muted/40">Total H.T Accord</th>
-                        <th style={{ width: '130px' }} className="text-right bg-muted/40">Prix TTC Accord</th>
+                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Total H.T ${tripleSuffix}`}</th>
+                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Prix TTC ${tripleSuffix}`}</th>
                       </React.Fragment>
                     );
                   }
@@ -1601,7 +1572,10 @@ export function DevisEditor({
                     })}
                     {/* Observation: optional dropdown annotation. Empty value = no
                         selection (cleared via the "(aucune)" item which maps to
-                        the sentinel "__none__" since shadcn Select disallows ""). */}
+                        the sentinel "__none__" since shadcn Select disallows "").
+                        When no observation is set, the trigger renders empty —
+                        the inline X button on the right handles clearing once
+                        a value is picked. */}
                     <td>
                       <div className="flex items-center gap-0.5">
                         <Select
@@ -1616,7 +1590,9 @@ export function DevisEditor({
                           disabled={!isEditable}
                         >
                           <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
-                            <SelectValue placeholder="—" />
+                            <SelectValue placeholder="">
+                              {r.observation ? OBSERVATION_LABELS[r.observation] : ''}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="__none__" className="text-xs text-muted-foreground">(aucune)</SelectItem>
@@ -1770,28 +1746,6 @@ export function DevisEditor({
         onOpenChange={setScanWarningOpen}
         calculationErrors={scanCalculationErrors}
       />
-
-      <AlertDialog
-        open={kindLightboxOpen}
-        onOpenChange={(o) => { if (!o) setKindLightboxOpen(false); }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Type de document</AlertDialogTitle>
-            <AlertDialogDescription>
-              Quel type de document souhaitez-vous créer ? Vous pourrez changer ultérieurement via l'en-tête de la colonne.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 sm:space-x-0">
-            <AlertDialogAction onClick={() => handleChooseKind('proposition')}>
-              Proposition
-            </AlertDialogAction>
-            <AlertDialogAction onClick={() => handleChooseKind('accord')}>
-              Accord
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
     </div>
   );
