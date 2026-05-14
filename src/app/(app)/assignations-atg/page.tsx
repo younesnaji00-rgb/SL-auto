@@ -9,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { UserCheck, Calendar, MapPin, X, ChevronDown, Clock, CheckCircle2, Users, List, SlidersHorizontal } from 'lucide-react';
+import { UserCheck, Calendar, MapPin, X, ChevronDown, Clock, CheckCircle2, Users, List, SlidersHorizontal, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -31,6 +31,7 @@ import { isAtgCompletedStatus } from '@/lib/status-machine';
 import { businessHoursBetween, formatBusinessLateness } from '@/lib/business-days';
 import { useHolidays } from '@/hooks/use-holidays';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useToast } from '@/hooks/use-toast';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -65,6 +66,31 @@ function normalizePhoneForTel(raw: string): string {
   const hasPlus = trimmed.startsWith('+');
   const digits = trimmed.replace(/\D/g, '');
   return hasPlus ? `+${digits}` : digits;
+}
+
+// Numeric sort key for ordering missions chronologically when building a
+// multi-stop route: prefer the scheduled RDV time, fall back to createdAt,
+// push items with neither to the end (Number.POSITIVE_INFINITY).
+function routeSortKey(p: PlanificationItem): number {
+  const ref: any = p.dateRDV || p.createdAt;
+  if (!ref) return Number.POSITIVE_INFINITY;
+  const d = ref.toDate ? ref.toDate() : new Date(ref);
+  return d.getTime();
+}
+
+// Build a Google Maps Directions URL for one or more addresses.
+// - 1 address: origin=My+Location → destination.
+// - 2+ addresses: last is destination, earlier ones become pipe-separated waypoints.
+// Caller is responsible for capping the list at Google Maps' 10-stop limit
+// (1 destination + up to 9 waypoints).
+function buildMultiStopMapsUrl(addresses: string[]): string {
+  const enc = (s: string) => encodeURIComponent(s.trim());
+  if (addresses.length === 1) {
+    return `https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=${enc(addresses[0])}&travelmode=driving`;
+  }
+  const dest = enc(addresses[addresses.length - 1]);
+  const waypoints = addresses.slice(0, -1).map(enc).join('|');
+  return `https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=${dest}&waypoints=${waypoints}&travelmode=driving`;
 }
 
 function AssurePhoneLink({ telephone, className }: { telephone?: string | null; className?: string }) {
@@ -272,6 +298,7 @@ export default function AssignationsATGPage() {
   const db = useFirestore();
   const router = useRouter();
   const { profile } = useCurrentUser();
+  const { toast } = useToast();
   const [planifications, setPlanifications] = useState<PlanificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   // Realtime per-dossier state so status changes + photo uploads update the
@@ -558,6 +585,30 @@ export default function AssignationsATGPage() {
     });
   };
 
+  // Group "Start" handler: bundles every mission in the group that has an
+  // address into a single Google Maps multi-stop route, ordered by earliest
+  // RDV first so the agent's path follows time priority. Google Maps caps
+  // routes at 10 stops (1 destination + up to 9 waypoints); extras are
+  // dropped with a toast warning.
+  const openRouteForItems = (items: PlanificationItem[]) => {
+    const addrs = [...items]
+      .filter(p => p.adresse?.trim())
+      .sort((a, b) => routeSortKey(a) - routeSortKey(b))
+      .map(p => p.adresse!.trim());
+    if (addrs.length === 0) return;
+    const MAX_STOPS = 10; // Google Maps URL cap (1 destination + up to 9 waypoints)
+    let route = addrs;
+    if (addrs.length > MAX_STOPS) {
+      route = addrs.slice(0, MAX_STOPS);
+      toast({
+        title: `${addrs.length - MAX_STOPS} arrêt(s) ignoré(s)`,
+        description: `Google Maps accepte au maximum ${MAX_STOPS} étapes par itinéraire. Les premières (par ordre chronologique) ont été conservées.`,
+      });
+    }
+    const url = buildMultiStopMapsUrl(route);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   // Group agents by zone for the "Par zone" view. Agents without a zone go
   // into a "Zone non définie" bucket at the bottom. Respects the agentFilter
   // so zones without matching agents are hidden when a specific name filter is
@@ -764,23 +815,44 @@ export default function AssignationsATGPage() {
             </div>
           ) : (
             <div className="p-4 space-y-4">
-              {groups.filter(g => g.items.length > 0).map((group) => (
+              {groups.filter(g => g.items.length > 0).map((group) => {
+                const addressableCount = group.items.filter(p => p.adresse?.trim()).length;
+                return (
                 <Collapsible
                   key={group.key}
                   open={openSections[group.key]}
                   onOpenChange={(open) => setOpenSections(prev => ({ ...prev, [group.key]: open }))}
                 >
-                  <CollapsibleTrigger className="flex items-center justify-between w-full h-9 px-1 text-xs font-bold tracking-wider uppercase text-muted-foreground hover:text-foreground transition-colors">
-                    <span>
-                      {group.label} ({group.items.length})
-                    </span>
-                    <ChevronDown
-                      className={cn(
-                        'h-4 w-4 transition-transform',
-                        openSections[group.key] ? 'rotate-0' : '-rotate-90',
-                      )}
-                    />
-                  </CollapsibleTrigger>
+                  <div className="flex items-center gap-2 w-full">
+                    <CollapsibleTrigger className="flex-1 flex items-center justify-between h-9 px-1 text-xs font-bold tracking-wider uppercase text-muted-foreground hover:text-foreground transition-colors">
+                      <span>
+                        {group.label} ({group.items.length})
+                      </span>
+                      <ChevronDown
+                        className={cn(
+                          'h-4 w-4 transition-transform',
+                          openSections[group.key] ? 'rotate-0' : '-rotate-90',
+                        )}
+                      />
+                    </CollapsibleTrigger>
+                    {/* Start button — bundles every group item with an adresse into a
+                        Google Maps multi-stop URL, ordered by earliest RDV first. */}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 gap-1.5 text-xs shrink-0"
+                      disabled={addressableCount === 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openRouteForItems(group.items);
+                      }}
+                      title="Ouvrir l'itinéraire dans Google Maps"
+                    >
+                      <Navigation className="h-3.5 w-3.5" />
+                      Start
+                    </Button>
+                  </div>
                   <CollapsibleContent className="space-y-3 pt-2">
                     {group.items.map((p) => {
                       const rdv = p.dateRDV?.toDate ? p.dateRDV.toDate() : (p.dateRDV ? new Date(p.dateRDV) : null);
@@ -849,7 +921,8 @@ export default function AssignationsATGPage() {
                     })}
                   </CollapsibleContent>
                 </Collapsible>
-              ))}
+                );
+              })}
             </div>
           )
         ) : zoneGroups.length === 0 ? (
