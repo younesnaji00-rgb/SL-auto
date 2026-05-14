@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
-  ArrowLeft, Check, ChevronDown, Columns2, FileText, Loader2,
+  ArrowLeft, Check, ChevronDown, ChevronUp, Columns2, FileText, Loader2,
   Save, Sparkles, Trash2, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -160,6 +160,18 @@ export function DevisEditor({
   const [scanCalculationErrors, setScanCalculationErrors] = useState<string[]>([]);
 
   const initializedRef = useRef(false);
+
+  // Per-row cap for the qte column: snapshot the qte value the first time we
+  // see a given row id. The decrease-only lock compares against this snapshot,
+  // not against the live `r.qte`, so the chiffreur can revert back up to the
+  // initial value after lowering it.
+  const qteScanCapRef = useRef<Map<string, number | null>>(new Map());
+  useEffect(() => {
+    const cap = qteScanCapRef.current;
+    for (const r of rows) {
+      if (!cap.has(r.id)) cap.set(r.id, r.qte);
+    }
+  }, [rows]);
 
   // Load chiffrage (realtime). Skipped entirely for the gestionnaire flow —
   // the editor there is seeded by the dossier (not an assignation) and the
@@ -454,6 +466,10 @@ export function DevisEditor({
   // Task #21: local popover open state, keyed per accord column id.
   const [accordHeaderOpen, setAccordHeaderOpen] = useState<Record<string, boolean>>({});
   const [refHeaderOpen, setRefHeaderOpen] = useState(false);
+  const [typeHeaderOpen, setTypeHeaderOpen] = useState(false);
+  const [obsHeaderOpen, setObsHeaderOpen] = useState(false);
+  const [tvaHeaderOpen, setTvaHeaderOpen] = useState(false);
+  const [tvaHeaderValue, setTvaHeaderValue] = useState<number | null>(20);
 
   // Accord totals helpers. The cap (accord PU ≤ row PUHT) is signalled
   // inline (red border + message) on the cell — no clamping or revert.
@@ -1159,12 +1175,103 @@ export function DevisEditor({
                   </Popover>
                 </th>
                 <th>Designation</th>
-                <th style={{ width: '90px' }}>Type</th>
+                <th style={{ width: '90px' }}>
+                  <Popover open={typeHeaderOpen} onOpenChange={setTypeHeaderOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={!isEditable}
+                        className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Définir Type pour toutes les lignes"
+                      >
+                        <span>Type</span>
+                        <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-40 p-1">
+                      {TYPE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                          onClick={() => {
+                            setRows((rs) => rs.map((r) => {
+                              if (opt === 'Originale' && r.type !== 'Originale') return { ...r, type: 'Originale', tva: 20 };
+                              if (opt === 'Occasion') return { ...r, type: 'Occasion', vetuste: null };
+                              return { ...r, type: opt };
+                            }));
+                            setTypeHeaderOpen(false);
+                          }}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                </th>
                 <th style={{ width: '70px' }} className="text-center">Quantite</th>
                 <th style={{ width: '110px' }} className="text-right bg-muted/40">P.U.H.T</th>
                 <th style={{ width: '120px' }} className="text-right">Total H.T</th>
-                <th style={{ width: '70px' }} className="text-center">T.V.A</th>
-                <th style={{ width: '80px' }} className="text-center">Vetuste</th>
+                <th style={{ width: '70px' }} className="text-center">
+                  <Popover open={tvaHeaderOpen} onOpenChange={setTvaHeaderOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={!isEditable}
+                        className="w-full flex items-center justify-center gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Définir T.V.A pour toutes les lignes"
+                      >
+                        <span>T.V.A</span>
+                        <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-44 p-2">
+                      <CellNumberInput
+                        value={tvaHeaderValue}
+                        onChange={setTvaHeaderValue}
+                        suffix="%"
+                        decimals={0}
+                        align="center"
+                        allowNull
+                      />
+                      <Button
+                        size="sm"
+                        className="w-full h-7 text-xs mt-2"
+                        onClick={() => {
+                          setRows((rs) => rs.map((r) => ({ ...r, tva: tvaHeaderValue })));
+                          setTvaHeaderOpen(false);
+                        }}
+                      >
+                        Appliquer à toutes les lignes
+                      </Button>
+                    </PopoverContent>
+                  </Popover>
+                </th>
+                <th style={{ width: '80px' }} className="text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <span>Vetuste</span>
+                    <button type="button" disabled={!isEditable}
+                            className="h-4 w-4 flex items-center justify-center rounded hover:bg-muted focus:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="-5 sur toutes les lignes"
+                            onClick={() => setRows((rs) => rs.map((r) => {
+                              if (r.type === 'Occasion') return r;
+                              const cur = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
+                              return { ...r, vetuste: Math.min(100, Math.max(0, cur - 5)) };
+                            }))}>
+                      <ChevronDown className="h-3 w-3" />
+                    </button>
+                    <button type="button" disabled={!isEditable}
+                            className="h-4 w-4 flex items-center justify-center rounded hover:bg-muted focus:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="+5 sur toutes les lignes"
+                            onClick={() => setRows((rs) => rs.map((r) => {
+                              if (r.type === 'Occasion') return r;
+                              const cur = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
+                              return { ...r, vetuste: Math.min(100, Math.max(0, cur + 5)) };
+                            }))}>
+                      <ChevronUp className="h-3 w-3" />
+                    </button>
+                  </div>
+                </th>
                 <th style={{ width: '120px' }} className="text-right">Prix en TTC</th>
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
@@ -1262,7 +1369,46 @@ export function DevisEditor({
                     </th>
                   );
                 })}
-                <th style={{ width: '130px' }}>Observation</th>
+                <th style={{ width: '130px' }}>
+                  <Popover open={obsHeaderOpen} onOpenChange={setObsHeaderOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={!isEditable}
+                        className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Définir Observation pour toutes les lignes"
+                      >
+                        <span>Observation</span>
+                        <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-44 p-1">
+                      <button
+                        type="button"
+                        className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none text-muted-foreground"
+                        onClick={() => {
+                          setRows((rs) => rs.map((r) => ({ ...r, observation: undefined })));
+                          setObsHeaderOpen(false);
+                        }}
+                      >
+                        (aucune)
+                      </button>
+                      {OBSERVATION_OPTIONS.map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                          onClick={() => {
+                            setRows((rs) => rs.map((r) => ({ ...r, observation: opt as ObservationOption })));
+                            setObsHeaderOpen(false);
+                          }}
+                        >
+                          {OBSERVATION_LABELS[opt]}
+                        </button>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                </th>
                 <th style={{ width: '70px' }} />
               </tr>
             </thead>
@@ -1352,10 +1498,14 @@ export function DevisEditor({
                     <td>
                       <CellNumberInput value={r.qte} onChange={(v) => {
                         // Task #6: After scanReviewed flips true, qte is locked
-                        // to decrease-only. Silent no-op on upward changes (no
-                        // toast, no UI affordance). Decreasing and clearing to
-                        // null still work. Treat null as 0 for the comparison.
-                        if (scanReviewed && (v ?? 0) > (r.qte ?? 0)) return;
+                        // to decrease-only. The cap is the qte captured the
+                        // first time we saw this row (qteScanCapRef) — not the
+                        // live r.qte — so the chiffreur can lower the value
+                        // and then revert back up to the initial scan value.
+                        // Treat null as 0 for the comparison.
+                        const cap = qteScanCapRef.current.get(r.id);
+                        const ceiling = cap === undefined ? (r.qte ?? 0) : (cap ?? 0);
+                        if (scanReviewed && (v ?? 0) > ceiling) return;
                         updateRow(r.id, { qte: v });
                       }} disabled={!isEditable} decimals={0} align="center" allowNull />
                     </td>
