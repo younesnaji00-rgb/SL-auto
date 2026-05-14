@@ -746,36 +746,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                       {isUploading ? 'Upload en cours...' : 'Prendre des photos'}
                     </Button>
                   )}
-                  {/* Proposition réforme (item 021). AT-only toggle; lifts photo
-                      cap from 30 to 60 per section. Does NOT change dossier statut. */}
-                  {isATG && (
-                    <Button
-                      variant={(dossier as any)?.propositionReforme ? 'destructive' : 'outline'}
-                      size="sm"
-                      disabled={!dossierRef}
-                      onClick={async () => {
-                        if (!dossierRef || !db) return;
-                        const next = !(dossier as any)?.propositionReforme;
-                        try {
-                          await updateDoc(dossierRef, { propositionReforme: next });
-                          const userId = auth?.currentUser?.uid || 'unknown';
-                          await logWorkflow(
-                            db, dossierId,
-                            next ? 'Proposition réforme activée' : 'Proposition réforme annulée',
-                            userEmail, userId, 'done',
-                            { details: `Limite photo par section : ${next ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION}` },
-                            profile?.nom,
-                          );
-                          toast({ title: next ? 'Proposition réforme activée' : 'Proposition réforme annulée' });
-                        } catch (e) {
-                          console.error('propositionReforme toggle error:', e);
-                          toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de modifier la proposition réforme.' });
-                        }
-                      }}
-                    >
-                      {(dossier as any)?.propositionReforme ? 'Réforme proposée — annuler' : 'Proposition réforme'}
-                    </Button>
-                  )}
                 </div>
               </div>
 
