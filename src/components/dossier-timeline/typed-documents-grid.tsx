@@ -54,17 +54,24 @@ const BASE_DOC_SLOTS = [
  * Source documents the gestionnaire must import before the dossier can be
  * sent to chiffrage. The "Assigner au chiffrage" button on step 4 stays
  * disabled until ALL of these are populated. "Autre" is intentionally
- * NOT on this list — it's optional. See item 023.
+ * NOT on this list — it's optional. Devis Garage and Facture Garage are
+ * NOT here either — they're an either-or pair tracked by
+ * {@link GARAGE_DOC_SLOTS} so the gestionnaire can send with just one of
+ * the two filled. See item 023.
  */
 export const REQUIRED_SOURCE_SLOTS = [
-  'Devis Garage',
-  'Facture Garage',
   'PV-Constat / Récépissé de police',
   'Carte grise',
   'Attestation d\'assurance',
   'Kilométrage',
   'Numéro de chassis',
 ] as const;
+
+/**
+ * Either-or garage doc slots. At least one of these must be filled before
+ * the dossier can be sent to chiffrage.
+ */
+export const GARAGE_DOC_SLOTS = ['Devis Garage', 'Facture Garage'] as const;
 
 interface TypedDocumentsGridProps {
   dossierId: string;
@@ -114,9 +121,15 @@ interface TypedDocumentsGridProps {
    * gestionnaire can collect every supporting document before chiffrage.
    */
   showAllNonAccordSlots?: boolean;
+  /**
+   * When true, the standalone Réforme technique / Réforme économique slot
+   * section is not rendered, regardless of viewer role. Used in
+   * assignations-atg where reform reports don't belong on the AT view.
+   */
+  hideReformeSlots?: boolean;
 }
 
-export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots }: TypedDocumentsGridProps) {
+export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, hideReformeSlots }: TypedDocumentsGridProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -487,50 +500,63 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     const parsed = parseAccordDocType(slot);
     if (!parsed || (parsed.kind !== 'accord' && parsed.kind !== 'proposition-accord')) return;
     const nextOrdinal = parsed.ordinal + 1;
-    const nextLabel = mapToAccorde(parsed.parent, parsed.kind, nextOrdinal);
-    const existingForLabel = ((allDocs as TypedDoc[] | undefined) || []).some(
-      (d) => (d.type || d.typeDocument) === nextLabel,
+    const accordLabel = mapToAccorde(parsed.parent, 'accord', nextOrdinal);
+    const propLabel = mapToAccorde(parsed.parent, 'proposition-accord', nextOrdinal);
+    const existingTypes = new Set(
+      ((allDocs as TypedDoc[] | undefined) || []).map((d) => d.type || d.typeDocument).filter(Boolean) as string[],
     );
-    if (existingForLabel) {
-      toast({ title: `Le slot "${nextLabel}" existe déjà.` });
+    const accordExists = existingTypes.has(accordLabel);
+    const propExists = existingTypes.has(propLabel);
+    if (accordExists && propExists) {
+      toast({ title: `Les slots de cardinal ${nextOrdinal} existent déjà.` });
       return;
     }
     const userId = auth.currentUser?.uid || 'unknown';
+    const toCreate: { label: string }[] = [];
+    if (!accordExists) toCreate.push({ label: accordLabel });
+    if (!propExists) toCreate.push({ label: propLabel });
     try {
-      await addDoc(collection(db, 'dossiers', dossierId, 'documents'), {
-        type: nextLabel,
-        pendingUpload: true,
-        storagePath: null,
-        url: null,
-        createdAt: serverTimestamp(),
-        createdBy: userId,
-      });
-      // A new empty cardinal slot is awaiting the chiffreur — roll the dossier
-      // statut back to `Chiffrage en cours` so the gestion des dossiers list
-      // reflects the queue state. Force-update (not gated on current statut).
+      await Promise.all(
+        toCreate.map(({ label }) =>
+          addDoc(collection(db, 'dossiers', dossierId, 'documents'), {
+            type: label,
+            pendingUpload: true,
+            storagePath: null,
+            url: null,
+            createdAt: serverTimestamp(),
+            createdBy: userId,
+          }),
+        ),
+      );
+      // Status-bump: a fresh cardinal round is awaiting the chiffreur.
       try {
         const dossierRef = doc(db, 'dossiers', dossierId);
         await updateDoc(dossierRef, {
           statut: 'Chiffrage en cours',
           updatedAt: serverTimestamp(),
         });
+        const createdLabels = toCreate.map((c) => c.label).join(' + ');
         await logHistorique(
           db, dossierId,
           'Chiffrage en cours',
           currentEmail || profile?.nom || 'Utilisateur',
-          `Statut mis à jour automatiquement (création du slot ${nextLabel}).`,
+          `Statut mis à jour automatiquement (création des slots ${createdLabels}).`,
           'statut',
           profile?.nom,
         ).catch(() => {});
       } catch (statutErr) {
         console.warn('[typed-docs-grid] reset statut on cardinal create failed (non-fatal)', statutErr);
       }
-      toast({ title: `Nouveau slot créé : ${nextLabel}` });
+      if (toCreate.length === 2) {
+        toast({ title: `Nouveaux slots créés : ${accordLabel} + ${propLabel}` });
+      } else {
+        toast({ title: `Nouveau slot créé : ${toCreate[0].label}` });
+      }
     } catch (err: any) {
       console.error('[typed-docs-grid] create next cardinal failed', err);
       toast({
         variant: 'destructive',
-        title: 'Erreur lors de la création du slot',
+        title: 'Erreur lors de la création des slots',
         description: err?.message || 'Impossible de créer le cardinal suivant.',
       });
     }
@@ -736,7 +762,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           )}
 
           {/* Réforme — technique + économique together */}
-          {(showAllNonAccordSlots || !hideAccordSlots) && cardinalFilter !== '2-plus' && !showOnlyAccordSlots && reformeSlots.length > 0 && (
+          {!hideReformeSlots && (showAllNonAccordSlots || !hideAccordSlots) && cardinalFilter !== '2-plus' && !showOnlyAccordSlots && reformeSlots.length > 0 && (
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-muted-foreground">Réforme</h4>
               <div className="grid grid-cols-2 gap-3">
