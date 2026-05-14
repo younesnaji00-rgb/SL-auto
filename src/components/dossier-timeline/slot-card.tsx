@@ -130,6 +130,11 @@ export function SlotCard({
   // — not just a placeholder. Applies to all roles; the chiffreur produces the source doc via
   // the editor save flow, so other roles cannot bypass.
   const cardinalPimpleDisabled = !docs.some((d) => !d.pendingUpload && !!d.url);
+  // Hide placeholder docs (no url) from the slot card so the chiffreur sees a
+  // clean "En attente de chiffrage" + Éditer affordance instead of a
+  // non-clickable "document En attente…" entry. Placeholders are bookkeeping
+  // for the cardinal slot machinery — they shouldn't masquerade as files.
+  const visibleDocs = docs.filter((d) => !!d.url);
   // Base-slot pimple: next to `Devis Garage` / `Facture Garage`, lets the
   // gestionnaire spawn a new numbered slot (first = "… 2", then 3, etc.).
   const baseExtraKind: ExtraSlotKind | null =
@@ -215,13 +220,13 @@ export function SlotCard({
               </Button>
             )}
             <span className="text-[10px] font-normal text-muted-foreground">
-              {docs.length}
+              {visibleDocs.length}
             </span>
           </span>
         </CardTitle>
       </CardHeader>
       <CardContent className="p-2 space-y-1.5 flex-1">
-        {docs.length === 0 ? (
+        {visibleDocs.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-3">
             <p className="text-xs italic text-muted-foreground text-center">
               {(parsedAccord || isReformeSlot) ? 'En attente de chiffrage' : 'Aucun document'}
@@ -244,7 +249,7 @@ export function SlotCard({
           </div>
         ) : (
           <ul className="space-y-1">
-            {docs.map((d) => {
+            {visibleDocs.map((d) => {
               const name = d.nom || d.fileName || 'document';
               const img = d.url && isImage(name);
               const pdf = d.url && !img && isPdf(name);
