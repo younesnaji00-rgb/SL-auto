@@ -258,6 +258,7 @@ export default function ObservationsTab({
       // route both shapes correctly.
       const oAccordSlot = accordSlotFromValue(oAccordRaw);
       const isLegacy = !oPhase && !oAccordRaw;
+      const isAllScope = !((o as any).visibilityScope) || (o as any).visibilityScope === 'all';
 
       if (contextPhase) {
         // Phase-scoped panel: show obs tagged with this exact phase plus
@@ -280,11 +281,13 @@ export default function ObservationsTab({
       //   - assignations-atg list view: any phase-tagged obs + legacy AT/dossiers
       //   - dossiers (no context): show everything (gestionnaire's main view never lands here today)
       if (section === 'assignations-chiffrage') {
+        if (isAllScope) return true;
         if (oAccordRaw) return true;
         if (isLegacy && (o.source === 'assignations-chiffrage' || o.source === 'dossiers')) return true;
         return false;
       }
       if (section === 'assignations-atg') {
+        if (isAllScope) return true;
         if (oPhase) return true;
         if (isLegacy && (o.source === 'assignations-atg' || o.source === 'dossiers')) return true;
         return false;
