@@ -4,6 +4,7 @@ import {
   type DevisSnapshot,
   type EditableDocType,
   formatFr,
+  rowTotalHT,
   sumHT,
   sumTTC,
 } from './devis-schema';
@@ -230,10 +231,10 @@ export function renderDevisPdf(
   // unchanged.
   const isProposition = accordExtras.some((c) => c.kind === 'proposition-accord');
 
-  // Final accord/proposition document: only the agreed-upon columns. Original
-  // garage values (P.U H.T, Total H.T, Prix en TTC, Vetuste) and counter
-  // columns are dropped — the saved doc reflects what the chiffreur committed,
-  // not the source devis.
+  // Final accord/proposition document: garage values (P.U H.T, Total H.T,
+  // Prix en TTC) are kept alongside the accord triples so the saved doc shows
+  // both source and agreed values side by side. Vetuste and counter columns
+  // remain omitted.
   const head: string[][] = [
     [
       'REF',
@@ -241,6 +242,9 @@ export function renderDevisPdf(
       'TYPE',
       'T.V.A',
       'Qte',
+      'P.U H.T',
+      'Total H.T',
+      'Prix en TTC',
       ...accordTripleHeaders,
       ...(isProposition ? ['Accord 2eme expert'] : []),
     ],
@@ -249,12 +253,20 @@ export function renderDevisPdf(
   const body = devis.rows.map((r) => {
     const tvaCell = r.tva == null ? '' : `${formatFr(r.tva, 0)}%`;
     const qteCell = r.qte == null ? '' : formatFr(r.qte, 0);
+    const puHtCell = formatFr(r.puHT ?? 0);
+    const tvaPct = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
+    const totalHt = rowTotalHT(r);
+    const totalHtCell = formatFr(totalHt);
+    const prixTtcCell = formatFr(totalHt * (1 + tvaPct / 100));
     const base = [
       r.ref || '',
       r.designation || '',
       r.type || '',
       tvaCell,
       qteCell,
+      puHtCell,
+      totalHtCell,
+      prixTtcCell,
     ];
     accordExtras.forEach((c) => {
       const pu = c.values[r.id] || '';
@@ -268,7 +280,7 @@ export function renderDevisPdf(
     return base;
   });
 
-  const accordStartIndex = 5;
+  const accordStartIndex = 8;
   const columnStyles: Record<number, any> = {
     0: { cellWidth: 22, halign: 'center' },        // REF
     1: { cellWidth: 'auto', halign: 'left' },      // Designation — fills remaining width
@@ -276,6 +288,9 @@ export function renderDevisPdf(
     3: { halign: 'center', cellWidth: 14 },        // T.V.A
     4: { halign: 'center', cellWidth: 14 },        // Qte
   };
+  columnStyles[5] = { halign: 'right', cellWidth: 26 };          // P.U H.T
+  columnStyles[6] = { halign: 'right', cellWidth: 26 };          // Total H.T
+  columnStyles[7] = { halign: 'right', cellWidth: 26 };          // Prix en TTC
   // Accord triples: each is (PU / Total HT Accord / Prix TTC Accord).
   accordExtras.forEach((_c, i) => {
     const base = accordStartIndex + i * 3;
