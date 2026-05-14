@@ -40,7 +40,7 @@ export const TYPE_OPTIONS = ['Occasion', 'Originale', 'Adaptable'] as const;
 export type TypeOption = typeof TYPE_OPTIONS[number];
 
 /** Allowed values for the `observation` column of a devis row. */
-export const OBSERVATION_OPTIONS = ['sans_reserve', 'non_accorde', 'hors_sinistre'] as const;
+export const OBSERVATION_OPTIONS = ['sans_reserve', 'non_accorde', 'hors_sinistre', 'reparation'] as const;
 export type ObservationOption = typeof OBSERVATION_OPTIONS[number];
 
 /** Human-facing French labels for observation enum values. */
@@ -48,6 +48,7 @@ export const OBSERVATION_LABELS: Record<ObservationOption, string> = {
   sans_reserve: 'Sans réserve',
   non_accorde: 'Non accordé',
   hors_sinistre: 'Hors sinistre',
+  reparation: 'Réparation',
 };
 
 export interface DevisHeader {
