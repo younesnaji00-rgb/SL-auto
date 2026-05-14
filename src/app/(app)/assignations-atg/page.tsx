@@ -1288,28 +1288,48 @@ export default function AssignationsATGPage() {
               </TableRow>
             );
 
-            return groups.filter(g => g.items.length > 0).map((group) => (
+            return groups.filter(g => g.items.length > 0).map((group) => {
+              const addressableCount = group.items.filter(p => p.adresse?.trim()).length;
+              return (
               <Collapsible
                 key={group.key}
                 open={openSections[group.key]}
                 onOpenChange={(open) => setOpenSections(prev => ({ ...prev, [group.key]: open }))}
               >
                 <Card className="shadow-sm overflow-hidden">
-                  <CollapsibleTrigger className={cn(
-                    'flex items-center justify-between w-full px-4 py-3 transition-colors hover:opacity-80',
-                    group.color
-                  )}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold">{group.label}</span>
-                      <Badge variant="secondary" className="text-[10px] font-mono h-5 min-w-[20px] justify-center">
-                        {group.items.length}
-                      </Badge>
+                  <div className={cn('flex items-center w-full transition-colors hover:opacity-80', group.color)}>
+                    <CollapsibleTrigger className="flex-1 flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold">{group.label}</span>
+                        <Badge variant="secondary" className="text-[10px] font-mono h-5 min-w-[20px] justify-center">
+                          {group.items.length}
+                        </Badge>
+                      </div>
+                      <ChevronDown className={cn(
+                        'h-4 w-4 transition-transform',
+                        openSections[group.key] ? 'rotate-0' : '-rotate-90'
+                      )} />
+                    </CollapsibleTrigger>
+                    {/* Start button — bundles every group item with an adresse into a
+                        Google Maps multi-stop URL, ordered by earliest RDV first. */}
+                    <div className="px-3 shrink-0">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 gap-1.5 text-xs"
+                        disabled={addressableCount === 0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openRouteForItems(group.items);
+                        }}
+                        title="Ouvrir l'itinéraire dans Google Maps"
+                      >
+                        <Navigation className="h-3.5 w-3.5" />
+                        Start
+                      </Button>
                     </div>
-                    <ChevronDown className={cn(
-                      'h-4 w-4 transition-transform',
-                      openSections[group.key] ? 'rotate-0' : '-rotate-90'
-                    )} />
-                  </CollapsibleTrigger>
+                  </div>
                   <CollapsibleContent>
                     <CardContent className="p-0">
                       <Table>
@@ -1322,7 +1342,8 @@ export default function AssignationsATGPage() {
                   </CollapsibleContent>
                 </Card>
               </Collapsible>
-            ));
+              );
+            });
           })()}
         </div>
       )}
