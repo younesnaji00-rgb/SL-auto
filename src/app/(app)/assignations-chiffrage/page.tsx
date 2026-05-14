@@ -49,6 +49,7 @@ export default function AssignationsChiffragePage() {
   const chiffreurWorkload = useChiffreurWorkload();
   const [chiffrages, setChiffrages] = useState<ChiffrageItem[]>([]);
   const [dossierStatuts, setDossierStatuts] = useState<Record<string, string>>({});
+  const [dossierObs, setDossierObs] = useState<Record<string, { text: string; count: number }>>({});
   const [dossierReformeTypes, setDossierReformeTypes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [deadlineSort, setDeadlineSort] = useState<SortDirection>(null);
@@ -89,6 +90,21 @@ export default function AssignationsChiffragePage() {
           setDossierReformeTypes(prev => ({ ...prev, [did]: data.reforme?.typeReforme || '' }));
         }
       })
+    );
+    return () => unsubs.forEach(u => u());
+  }, [db, dossierIds.join(',')]);
+
+  // Listen to observations subcollection per dossier (latest text + count)
+  useEffect(() => {
+    if (!db || dossierIds.length === 0) return;
+    const unsubs = dossierIds.map(did =>
+      onSnapshot(
+        query(collection(db, 'dossiers', did, 'observations'), orderBy('createdAt', 'desc')),
+        (snap) => {
+          const text = (snap.docs[0]?.data().text as string) || '';
+          setDossierObs(prev => ({ ...prev, [did]: { text, count: snap.size } }));
+        }
+      )
     );
     return () => unsubs.forEach(u => u());
   }, [db, dossierIds.join(',')]);
@@ -213,7 +229,7 @@ export default function AssignationsChiffragePage() {
   const isATG = profile?.role === 'Agent de Terrain';
   const canSeeNameFilter = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
   const showChiffreurColumn = !isChiffreur;
-  const colCount = showChiffreurColumn ? 7 : 6;
+  const colCount = showChiffreurColumn ? 8 : 7;
 
   return (
     <div className="space-y-6">
@@ -294,6 +310,7 @@ export default function AssignationsChiffragePage() {
                 <TableHead className="font-bold text-xs">Nature du dossier</TableHead>
                 <TableHead className="font-bold text-xs">Statut</TableHead>
                 <TableHead className="font-bold text-xs">Assigné par</TableHead>
+                <TableHead className="font-bold text-xs">Observations</TableHead>
                 <TableHead className="font-bold text-xs w-[160px]">
                   <SortableHeader label="Délai" sort={deadlineSort} onChange={setDeadlineSort} />
                 </TableHead>
@@ -352,6 +369,23 @@ export default function AssignationsChiffragePage() {
                         <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut))}>{statut}</Badge>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{c.sentByNom || c.sentByEmail || '-'}</TableCell>
+                      <TableCell className="text-xs">
+                        {(() => {
+                          const obs = dossierObs[c.dossierId];
+                          const count = obs?.count ?? 0;
+                          if (count === 0) return '—';
+                          const raw = obs?.text || '';
+                          const truncated = raw.length > 40 ? raw.slice(0, 40) + '…' : raw;
+                          return (
+                            <>
+                              {truncated}
+                              {count > 1 && (
+                                <span className="ml-1 text-[10px] text-muted-foreground">({count})</span>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell>
                         {c.completedAt ? (
                           <div className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-400">
