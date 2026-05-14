@@ -320,7 +320,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             },
           ]} />
           <FieldRow fields={[
-            { label: 'Réf Expert', value: form.refExpert, edit: <Input className="h-9" value={form.refExpert} onChange={(e) => handleChange('refExpert', e.target.value)} /> },
+            { label: 'Réf Dossier', value: form.refExpert, edit: <Input className="h-9" value={form.refExpert} onChange={(e) => handleChange('refExpert', e.target.value)} /> },
             { label: 'Référence compagnie', value: form.referenceCompagnie, edit: <Input className="h-9" value={form.referenceCompagnie} onChange={(e) => handleChange('referenceCompagnie', e.target.value)} /> },
             { label: 'Matricule', value: form.matricule, edit: <Input className="h-9" value={form.matricule} onChange={(e) => handleChange('matricule', e.target.value)} /> },
             { label: 'N° de Police', value: form.policeNumber, edit: <Input className="h-9" value={form.policeNumber} onChange={(e) => handleChange('policeNumber', e.target.value)} /> },
