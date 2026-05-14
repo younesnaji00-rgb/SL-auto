@@ -453,6 +453,7 @@ export function DevisEditor({
 
   // Task #21: local popover open state, keyed per accord column id.
   const [accordHeaderOpen, setAccordHeaderOpen] = useState<Record<string, boolean>>({});
+  const [refHeaderOpen, setRefHeaderOpen] = useState(false);
 
   // Accord totals helpers. The cap (accord PU ≤ row PUHT) is signalled
   // inline (red border + message) on the cell — no clamping or revert.
@@ -1127,7 +1128,36 @@ export function DevisEditor({
           <table className="min-w-[900px] w-full text-xs border-collapse">
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:font-bold [&>th]:text-[11px] [&>th]:border-b [&>th]:border-r [&>th:last-child]:border-r-0 [&>th]:bg-muted/50">
-                <th style={{ width: '90px' }}>REF</th>
+                <th style={{ width: '90px' }}>
+                  <Popover open={refHeaderOpen} onOpenChange={setRefHeaderOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={!isEditable}
+                        className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Définir REF pour toutes les lignes"
+                      >
+                        <span>REF</span>
+                        <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-40 p-1">
+                      {REF_OPTIONS.map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                          onClick={() => {
+                            setRows((rs) => rs.map((r) => ({ ...r, ref: opt })));
+                            setRefHeaderOpen(false);
+                          }}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                </th>
                 <th>Designation</th>
                 <th style={{ width: '90px' }}>Type</th>
                 <th style={{ width: '70px' }} className="text-center">Quantite</th>
