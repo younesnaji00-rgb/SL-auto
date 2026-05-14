@@ -19,6 +19,12 @@ const LOGIN_IN_FLIGHT_KEY = 'sl-auto.login-in-flight';
 // why the user landed there (read once, then cleared).
 const EVICTED_FLAG_KEY = 'sl-auto.evicted-by-other-device';
 
+// Single-session is intentionally scoped: only the operational roles below
+// are restricted to one device at a time. Admin / Directeur* / Responsable
+// d'équipe stay free to be logged in on several devices in parallel (often
+// needed for oversight). Keep these strings in sync with src/lib/dossiers-data.ts.
+const SINGLE_SESSION_ROLES = new Set(['Chiffreur', 'Agent de Terrain', 'Gestionnaire']);
+
 /**
  * Read the effective session id for this tab. Prefer sessionStorage (tab-local).
  * Fall back to localStorage (browser-wide) so a tab that opens fresh AFTER a
@@ -162,7 +168,9 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
               });
             }
 
-            if (!loginInFlight) {
+            const roleEnforced = SINGLE_SESSION_ROLES.has(data.role);
+
+            if (!loginInFlight && roleEnforced) {
               // Eviction: another device/tab claimed this session. We evict
               // whenever remote is set and either we have no local id (legacy
               // pre-feature persisted-auth) or our local id no longer matches.
