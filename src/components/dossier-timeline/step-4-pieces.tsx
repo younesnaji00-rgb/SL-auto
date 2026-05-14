@@ -6,14 +6,15 @@ import { Camera, ChevronDown, FileText, FolderOpen, Send, Upload } from 'lucide-
 
 import DocumentsTab from '@/app/(app)/dossiers/[id]/documents-tab';
 import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
-import TypedDocumentsGrid, { REQUIRED_SOURCE_SLOTS } from './typed-documents-grid';
+import TypedDocumentsGrid, { REQUIRED_SOURCE_SLOTS, GARAGE_DOC_SLOTS } from './typed-documents-grid';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { useCollection, useFirestore } from '@/firebase';
+import { useAuth, useCollection, useFirestore } from '@/firebase';
 import { parseAccordDocType } from '@/lib/docType-accorde';
+import { materializeMissing2emeSlots } from '@/lib/cardinal-materialize';
 
 export interface Step4PiecesProps {
   dossierId: string;
@@ -80,6 +81,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
   // on (a) the 7 required source slots being filled (item 023) and (b) when
   // `requireFirstAccordFilled` is set, at least one 1er accord/proposition.
   const db = useFirestore();
+  const auth = useAuth();
   const docsQuery = useMemo(() => {
     if (!db || !dossierId) return null;
     return collection(db, 'dossiers', dossierId, 'documents');
@@ -99,28 +101,50 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
     }
     return false;
   }, [docs, requireFirstAccordFilled]);
-  // Item 023 — the 7 source-doc slots must each have a non-pending document
-  // before the gestionnaire can send the dossier to chiffrage. "Autre" is
-  // intentionally excluded (optional slot).
-  const missingRequired = useMemo<string[]>(() => {
-    if (!docs) return [...REQUIRED_SOURCE_SLOTS];
+  // Item 023 — source-doc slot gating. The 5 mandatory slots must each have
+  // a non-pending document, AND at least one of Devis Garage / Facture
+  // Garage must be filled (either-or). "Autre" is intentionally excluded
+  // (optional slot).
+  const filledTypes = useMemo<Set<string>>(() => {
     const filled = new Set<string>();
+    if (!docs) return filled;
     for (const d of docs) {
       if (!d?.url || d.pendingUpload) continue;
       const type = (d.type || d.typeDocument || '').trim();
       if (type) filled.add(type);
     }
-    return REQUIRED_SOURCE_SLOTS.filter((slot) => !filled.has(slot));
+    return filled;
   }, [docs]);
-  const allRequiredFilled = missingRequired.length === 0;
+  const missingRequired = useMemo<string[]>(() => {
+    if (!docs) return [...REQUIRED_SOURCE_SLOTS];
+    return REQUIRED_SOURCE_SLOTS.filter((slot) => !filledTypes.has(slot));
+  }, [docs, filledTypes]);
+  const garageFilled = useMemo<boolean>(() => {
+    if (!docs) return false;
+    return GARAGE_DOC_SLOTS.some((slot) => filledTypes.has(slot));
+  }, [docs, filledTypes]);
+  const allRequiredFilled = missingRequired.length === 0 && garageFilled;
   const assignerDisabled = (!!requireFirstAccordFilled && !firstRoundFilled) || !allRequiredFilled;
+
+  const handleSendToChiffrage = async () => {
+    if (!onSendToChiffrage) return;
+    if (cardinalFilter === '2-plus' && db && docs) {
+      try {
+        const uid = auth?.currentUser?.uid || 'unknown';
+        await materializeMissing2emeSlots(db, dossierId, docs as any, uid);
+      } catch (e) {
+        console.warn('[step-4] materialize 2eme slots failed (non-fatal)', e);
+      }
+    }
+    onSendToChiffrage();
+  };
 
   if (onlyImportTab) {
     const showAssigner = !readOnly && !!onSendToChiffrage;
     const buttonNode = (
       <Button
         size="sm"
-        onClick={onSendToChiffrage}
+        onClick={handleSendToChiffrage}
         disabled={assignerDisabled}
         className="gap-1.5"
       >
@@ -140,7 +164,13 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
                   <TooltipContent>
                     {!allRequiredFilled ? (
                       <>
-                        Documents requis manquants : {missingRequired.join(', ')}.
+                        {missingRequired.length > 0 && (
+                          <>Documents requis manquants&nbsp;: {missingRequired.join(', ')}.</>
+                        )}
+                        {missingRequired.length > 0 && !garageFilled && <br />}
+                        {!garageFilled && (
+                          <>Au moins un Devis Garage ou une Facture Garage est requis.</>
+                        )}
                       </>
                     ) : (
                       <>Au moins un 1er accord ou une 1ère proposition doit être rempli avant d'assigner.</>
@@ -205,7 +235,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
                     </Tooltip>
                   </TooltipProvider>
                 ) : (
-                  <Button size="sm" onClick={onSendToChiffrage} className="gap-1.5">
+                  <Button size="sm" onClick={handleSendToChiffrage} className="gap-1.5">
                     <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
                   </Button>
                 )
