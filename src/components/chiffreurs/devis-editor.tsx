@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
-  ArrowLeft, Check, ChevronDown, Columns2, FileText, Loader2, Plus,
+  ArrowLeft, Check, ChevronDown, Columns2, FileText, Loader2,
   Save, Sparkles, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -430,7 +430,6 @@ export function DevisEditor({
   const updateRow = (id: string, patch: Partial<DevisRow>) => {
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   };
-  const addRow = () => setRows((rs) => [...rs, emptyRow()]);
   const deleteRow = (id: string) => setRows((rs) => (rs.length <= 1 ? rs : rs.filter((r) => r.id !== id)));
 
   // Task #5: manual add/remove column affordances are gone. The fixed column
@@ -1101,9 +1100,10 @@ export function DevisEditor({
       </div>
 
       {/* Rows table — fixed columns. The accord/proposition column is created
-          automatically when the chiffreur picks via the first-open lightbox; the
-          "Ajouter une ligne" affordance lives at the bottom of the card. The
-          table grows to its natural height — only horizontal scroll on overflow. */}
+          automatically when the chiffreur picks via the first-open lightbox.
+          Rows are added only via AI scan, paste, or programmatic flows (no
+          manual "add row" button). The table grows to its natural height —
+          only horizontal scroll on overflow. */}
       <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
         <div className="overflow-x-auto relative">
           <table className="min-w-[900px] w-full text-xs border-collapse">
@@ -1489,13 +1489,6 @@ export function DevisEditor({
             <span className="w-28 text-right font-bold">{formatFr(totals.ttc)}</span>
           </div>
         </div>
-        {canEdit && (
-          <div className="flex p-2 border-t bg-muted/20">
-            <Button variant="outline" size="sm" onClick={addRow} disabled={!isEditable}>
-              <Plus className="h-3.5 w-3.5 mr-1.5" /> Ajouter une ligne
-            </Button>
-          </div>
-        )}
       </div>
 
 
