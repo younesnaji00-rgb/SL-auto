@@ -4,6 +4,8 @@ import React from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { landingPathFor } from '@/lib/role-landing';
 
 const ROUTE_LABELS: Record<string, string> = {
   dashboard: 'Tableau de bord',
@@ -30,14 +32,16 @@ const humanize = (segment: string): string => {
 
 const Breadcrumb = () => {
   const pathname = usePathname();
+  const { profile } = useCurrentUser();
   const rawSegments = pathname.split('/').filter(Boolean);
   const segments = rawSegments.filter((s) => !isIdSegment(s));
+  const rootHref = landingPathFor(profile?.role);
 
   return (
     <nav aria-label="breadcrumb" className="flex">
       <ol className="flex items-center gap-2 text-sm text-muted-foreground">
         <li>
-          <Link href="/dashboard" className="font-semibold text-foreground hover:text-primary transition-colors">
+          <Link href={rootHref} className="font-semibold text-foreground hover:text-primary transition-colors">
             SL-auto
           </Link>
         </li>

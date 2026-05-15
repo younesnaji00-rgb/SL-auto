@@ -30,6 +30,8 @@ import { addDoc, collection, deleteDoc, deleteField, doc, query, serverTimestamp
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
+import { getDefaultRouteForRole } from '@/lib/nav-groups';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useStamps, type Stamp } from '@/hooks/use-stamps';
@@ -119,24 +121,20 @@ export default function TamponsSettingsPage() {
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
+  const router = useRouter();
+  React.useEffect(() => {
+    if (!userLoading && profile?.role && profile.role !== 'Admin') {
+      router.replace(getDefaultRouteForRole(profile.role));
+    }
+  }, [userLoading, profile?.role, router]);
+
   if (userLoading) {
     return (
       <div className="py-12 text-sm text-muted-foreground">Chargement...</div>
     );
   }
 
-  if (profile?.role !== 'Admin') {
-    return (
-      <Card className="border shadow-sm rounded-lg">
-        <CardHeader>
-          <CardTitle>Accès refusé</CardTitle>
-          <CardDescription>
-            Cette page est réservée aux administrateurs.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
+  if (profile?.role !== 'Admin') return null;
 
   const handleFilesPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);

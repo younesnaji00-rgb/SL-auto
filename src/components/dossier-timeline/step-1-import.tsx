@@ -237,6 +237,11 @@ export default function Step1Import({
 
           const existing = readPath(dossier, target);
           updates[target] = finalValue;
+          // Mark provenance for the two date fields the Dates clés UI uses to
+          // gate read-only display (see historique-tab.tsx AI_SOURCED_DATE_FIELDS).
+          if (target === 'dateSinistre' || target === 'dateRequete') {
+            updates[`${target}Source`] = 'ai';
+          }
           if (isEmpty(existing)) {
             filledFields.push(target);
           } else {

@@ -1251,6 +1251,7 @@ export default function AssignationsATGPage() {
                   {showAgentColumn && <TableHead className="font-bold text-xs">Agent</TableHead>}
                   <TableHead className="font-bold text-xs">Date RDV</TableHead>
                   <TableHead className="font-bold text-xs">Zone</TableHead>
+                  <TableHead className="font-bold text-xs">Adresse</TableHead>
                   <TableHead className="font-bold text-xs">Téléphone</TableHead>
                   <TableHead className="font-bold text-xs">Créé le</TableHead>
                   <TableHead className="font-bold text-xs">Assigné par</TableHead>
@@ -1275,6 +1276,11 @@ export default function AssignationsATGPage() {
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <MapPin className="h-3 w-3 shrink-0" /> {p.zone}
                     </span>
+                  ) : '-'}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground max-w-[240px]">
+                  {p.adresse ? (
+                    <span className="truncate block" title={p.adresse}>{p.adresse}</span>
                   ) : '-'}
                 </TableCell>
                 <TableCell>

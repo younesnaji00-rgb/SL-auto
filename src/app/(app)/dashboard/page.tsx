@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   User as UserIcon,
   Activity,
@@ -54,27 +55,25 @@ import { Search } from 'lucide-react';
 import { statuses as ALL_STATUSES } from '@/lib/dossiers-data';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { DatePicker } from '@/components/ui/date-picker';
+import { landingPathFor } from '@/lib/role-landing';
 
 const DASHBOARD_ALLOWED_ROLES = ['Admin', "Responsable d'équipe"];
 
 export default function DashboardPage() {
   const { profile, loading: userLoading } = useCurrentUser();
+  const router = useRouter();
+  const role = profile?.role;
+  const isAllowed = !!role && DASHBOARD_ALLOWED_ROLES.includes(role);
 
-  if (userLoading) {
+  useEffect(() => {
+    if (userLoading) return;
+    if (!role) return;
+    if (isAllowed) return;
+    router.replace(landingPathFor(role));
+  }, [userLoading, role, isAllowed, router]);
+
+  if (userLoading || (role && !isAllowed)) {
     return <div className="py-12 text-sm text-muted-foreground">Chargement...</div>;
-  }
-
-  if (profile?.role && !DASHBOARD_ALLOWED_ROLES.includes(profile.role)) {
-    return (
-      <Card className="border shadow-sm rounded-lg">
-        <CardHeader>
-          <CardTitle>Accès refusé</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Cette page n&apos;est pas accessible à votre rôle.
-        </CardContent>
-      </Card>
-    );
   }
 
   return <DashboardPageInner />;

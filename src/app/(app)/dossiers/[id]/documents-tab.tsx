@@ -46,6 +46,7 @@ import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { cn } from '@/lib/utils';
+import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -667,41 +668,12 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Lightbox preview */}
-      {previewDoc && (
-        <Dialog open onOpenChange={() => setPreviewDoc(null)}>
-          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
-            <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2">
-              <DialogTitle className="text-sm truncate flex-1">{previewDoc.nom}</DialogTitle>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => handleDownload(previewDoc.url, previewDoc.nom)}
-                title="Telecharger"
-              >
-                <Download className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setPreviewDoc(null)}
-                title="Fermer"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </DialogHeader>
-            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
-              {isImage(previewDoc.nom) ? (
-                <img src={previewDoc.url} className="max-w-full max-h-full object-contain" alt={previewDoc.nom} />
-              ) : (
-                <iframe src={previewDoc.url} className="w-full h-full border-none" title={previewDoc.nom} />
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Lightbox preview — shared component */}
+      <DocumentPreviewLightbox
+        doc={previewDoc}
+        onClose={() => setPreviewDoc(null)}
+        onDownload={(d) => handleDownload(d.url, d.nom)}
+      />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>

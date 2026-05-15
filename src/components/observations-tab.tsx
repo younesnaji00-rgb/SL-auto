@@ -262,7 +262,10 @@ export default function ObservationsTab({
 
       if (contextPhase) {
         // Phase-scoped panel: show obs tagged with this exact phase plus
-        // legacy AT/dossiers obs (no tag, no accord).
+        // legacy AT/dossiers obs (no tag, no accord). "À tous"-scope obs
+        // cross every section boundary, so they appear here even when
+        // they were authored from chiffrage with an accordSlot tag.
+        if (isAllScope) return true;
         if (oPhase === contextPhase) return true;
         if (isLegacy && (o.source === 'assignations-atg' || o.source === 'dossiers')) return true;
         return false;
@@ -270,7 +273,10 @@ export default function ObservationsTab({
       if (contextAccord) {
         // Accord-scoped panel: show obs whose derived slot matches this
         // panel's contextAccord, plus legacy chiffreur/dossiers obs (only
-        // for step 6 = '1er accord').
+        // for step 6 = '1er accord'). "À tous"-scope obs cross sections,
+        // so an ATG-authored "À tous" obs (with phaseATG tag) is still
+        // visible here.
+        if (isAllScope) return true;
         if (oAccordSlot === contextAccord) return true;
         if (isLegacy && contextAccord === '1er accord' &&
             (o.source === 'assignations-chiffrage' || o.source === 'dossiers')) return true;

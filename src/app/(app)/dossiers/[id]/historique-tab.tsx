@@ -1,12 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, AlertTriangle, Clock, User, Pencil } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { CheckCircle, XCircle, AlertTriangle, User } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useFirestore, useAuth } from '@/firebase';
 import {
   collection,
@@ -117,6 +115,13 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editDate, setEditDate] = useState('');
   const [editTime, setEditTime] = useState('');
+  // True when the row entered edit mode for a date that was AI-extracted.
+  // Only the time is editable in that case; the date stays as-is and the
+  // source flag remains `'ai'` on save.
+  const [dateLockedAi, setDateLockedAi] = useState(false);
+  // Wraps the inline inputs so blur handlers can tell "focus left the edit
+  // group" from "tabbed to the other input within the same group".
+  const editRowRef = useRef<HTMLSpanElement>(null);
 
   const openDateEditor = (field: string, currentValue: any) => {
     if (currentValue) {
@@ -124,7 +129,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, '0');
       const dd = String(d.getDate()).padStart(2, '0');
-      setEditDate(`${yyyy}-${mm}-${dd}`);
+      setEditDate(`${dd}/${mm}/${yyyy}`);
       const timeKnown = !!dossier?.[`${field}TimeKnown`];
       if (timeKnown) {
         const hh = String(d.getHours()).padStart(2, '0');
@@ -133,9 +138,14 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       } else {
         setEditTime('');
       }
+      // Legacy rows without an explicit source are treated as AI-filled
+      // (the only pre-flag write path was the Gemini scan).
+      const src = dossier?.[`${field}Source`] ?? 'ai';
+      setDateLockedAi(src === 'ai');
     } else {
       setEditDate('');
       setEditTime('');
+      setDateLockedAi(false);
     }
     setEditingField(field);
   };
@@ -148,16 +158,28 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
     }
     // Build a Date from the user inputs. If time is provided, set hh:mm
     // (timeKnown=true); otherwise persist at midnight with timeKnown=false.
-    const [yy, mm, dd] = editDate.split('-').map((n) => parseInt(n, 10));
-    if (!yy || !mm || !dd) {
-      toast({ variant: 'destructive', title: 'Date invalide', description: 'Format attendu : AAAA-MM-JJ.' });
+    const [dd, mm, yy] = editDate.split('/').map((n) => parseInt(n, 10));
+    const dateValid =
+      Number.isFinite(dd) && dd >= 1 && dd <= 31 &&
+      Number.isFinite(mm) && mm >= 1 && mm <= 12 &&
+      Number.isFinite(yy) && yy >= 1900 && yy <= 2100;
+    if (!dateValid) {
+      toast({ variant: 'destructive', title: 'Date invalide', description: 'Format attendu : JJ/MM/AAAA.' });
       return;
     }
     let when: Date;
     let timeKnown = false;
     if (editTime) {
+      if (!/^\d{1,2}:\d{2}$/.test(editTime)) {
+        toast({ variant: 'destructive', title: 'Heure invalide', description: 'Format attendu : HH:MM.' });
+        return;
+      }
       const [hh, mi] = editTime.split(':').map((n) => parseInt(n, 10));
-      when = new Date(yy, mm - 1, dd, isNaN(hh) ? 0 : hh, isNaN(mi) ? 0 : mi, 0, 0);
+      if (!Number.isFinite(hh) || hh < 0 || hh > 23 || !Number.isFinite(mi) || mi < 0 || mi > 59) {
+        toast({ variant: 'destructive', title: 'Heure invalide', description: 'Heure hors plage (00:00 – 23:59).' });
+        return;
+      }
+      when = new Date(yy, mm - 1, dd, hh, mi, 0, 0);
       timeKnown = true;
     } else {
       when = new Date(yy, mm - 1, dd, 0, 0, 0, 0);
@@ -176,6 +198,9 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       await updateDoc(doc(db, 'dossiers', dossierId), {
         [editingField]: Timestamp.fromDate(when),
         [`${editingField}TimeKnown`]: timeKnown,
+        // Source tracks DATE provenance, not time. If the date was AI-extracted
+        // and the user only added the time, the row stays AI-sourced.
+        [`${editingField}Source`]: dateLockedAi ? 'ai' : 'manual',
       });
       toast({ title: 'Date mise à jour' });
       setEditingField(null);
@@ -185,58 +210,142 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
     }
   };
 
+  // Auto-format the Heure input so the user only types digits — the colon
+  // appears on its own after the hours. We skip the auto-insert during a
+  // deletion so backspacing past the colon doesn't immediately re-add it.
+  const handleEditTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const digits = raw.replace(/\D/g, '').slice(0, 4);
+    let formatted = digits;
+    if (digits.length >= 3) {
+      formatted = `${digits.slice(0, 2)}:${digits.slice(2)}`;
+    } else if (digits.length === 2 && raw.length > editTime.length) {
+      formatted = `${digits}:`;
+    }
+    setEditTime(formatted);
+  };
+
+  // Inline edit keyboard shortcuts: Enter commits, Escape cancels.
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveDateEdit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setEditingField(null);
+    }
+  };
+
+  // When focus leaves the entire edit group (not just one input), cancel
+  // without saving. Using setTimeout so we read activeElement *after* the
+  // browser has moved focus to the next element (or document.body).
+  const handleEditBlur = () => {
+    setTimeout(() => {
+      if (editRowRef.current && !editRowRef.current.contains(document.activeElement)) {
+        setEditingField(null);
+      }
+    }, 0);
+  };
+
   const renderDateClesRow = (row: { label: string; field?: string; value: any }) => {
     const aiSourced = !!row.field && AI_SOURCED_DATE_FIELDS.has(row.field);
     const timeKnown = aiSourced ? !!dossier?.[`${row.field}TimeKnown`] : true;
-    const valueMissing = !row.value;
-    // Allow inline edit when the row is AI-sourced AND either the value is
-    // missing entirely OR the time is unknown — matches Q-4 (A + B).
-    const showEdit = canEditDates && aiSourced && (valueMissing || !timeKnown);
+    // Source provenance for AI-sourced fields. Legacy rows (set before the
+    // source flag existed) are assumed AI-filled if a value is present.
+    const rawSource = aiSourced ? dossier?.[`${row.field}Source`] : undefined;
+    const source: 'ai' | 'manual' | undefined = aiSourced
+      ? (rawSource ?? (row.value ? 'ai' : undefined))
+      : undefined;
+    const isAiFilled = aiSourced && !!row.value && source === 'ai';
+    // Any AI-sourced row stays editable so the gestionnaire can correct a
+    // mistake. `dateLockedAi` (set in openDateEditor) still prevents an
+    // AI-extracted date from being retyped — only the time changes.
+    const canFill = canEditDates && aiSourced;
+    const inEdit = editingField === row.field;
+
+    // Pre-compute display parts so the date can show next to an inline time
+    // input when only the time is being edited.
+    let datePartDisplay = '';
+    let timePartDisplay = '';
+    if (row.value) {
+      const d = row.value.toDate ? row.value.toDate() : new Date(row.value);
+      datePartDisplay = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      if (timeKnown) {
+        timePartDisplay = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+
+    const aiTextStyle = isAiFilled ? 'text-muted-foreground/70 italic' : '';
+    const inlineInputClass =
+      'h-6 px-1.5 text-sm rounded border border-input bg-background ' +
+      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring tabular-nums';
+    // Subtle hover-only affordance — no underline so the `--/--` / `—`
+    // glyphs aren't visually doubled.
+    const dashedClickable =
+      'cursor-pointer rounded px-1 hover:bg-muted hover:text-foreground transition-colors';
+
     return (
       <div className="flex justify-between items-center text-sm py-1.5 border-b border-border/30 last:border-0">
         <span className="text-muted-foreground">{row.label}</span>
-        <span className="flex items-center gap-1.5">
-          <span className="font-medium tabular-nums">
-            {row.value ? formatDateWithTimeFlag(row.value, timeKnown) : '—'}
-          </span>
-          {showEdit && row.field && (
-            <Popover open={editingField === row.field} onOpenChange={(o) => !o && setEditingField(null)} modal>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                  onClick={() => openDateEditor(row.field!, row.value)}
-                  title="Modifier la date/heure"
-                >
-                  <Pencil className="h-3 w-3" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="w-64 space-y-3"
-                align="end"
-                onInteractOutside={(e) => {
-                  const target = e.target as Node | null;
-                  if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.closest('input'))) {
-                    e.preventDefault();
-                  }
-                }}
-              >
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Date</label>
-                  <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="h-8 text-sm" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Heure</label>
-                  <Input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} className="h-8 text-sm" />
-                </div>
-                <div className="flex justify-end gap-2 pt-1">
-                  <Button size="sm" variant="ghost" onClick={() => setEditingField(null)} className="h-7 text-xs">Annuler</Button>
-                  <Button size="sm" onClick={saveDateEdit} disabled={!editDate} className="h-7 text-xs">Enregistrer</Button>
-                </div>
-              </PopoverContent>
-            </Popover>
+        <span
+          ref={inEdit ? editRowRef : undefined}
+          className={`flex items-center gap-1.5 font-medium tabular-nums ${aiTextStyle}`}
+        >
+          {inEdit ? (
+            <>
+              {dateLockedAi ? (
+                <span>{datePartDisplay}</span>
+              ) : (
+                <input
+                  autoFocus
+                  type="text"
+                  inputMode="numeric"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  onKeyDown={handleEditKeyDown}
+                  onBlur={handleEditBlur}
+                  placeholder="JJ/MM/AAAA"
+                  maxLength={10}
+                  className={`${inlineInputClass} w-28`}
+                />
+              )}
+              <input
+                autoFocus={dateLockedAi}
+                type="text"
+                inputMode="numeric"
+                value={editTime}
+                onChange={handleEditTimeChange}
+                onKeyDown={handleEditKeyDown}
+                onBlur={handleEditBlur}
+                placeholder="HH:MM"
+                maxLength={5}
+                className={`${inlineInputClass} w-16`}
+              />
+            </>
+          ) : canFill && row.field ? (
+            <span
+              role="button"
+              tabIndex={0}
+              className={dashedClickable}
+              onClick={() => openDateEditor(row.field!, row.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  openDateEditor(row.field!, row.value);
+                }
+              }}
+              title="Cliquer pour modifier"
+            >
+              {row.value
+                ? `${datePartDisplay}${timeKnown ? ' ' + timePartDisplay : ' --/--'}`
+                : '—'}
+            </span>
+          ) : (
+            <span>
+              {row.value
+                ? `${datePartDisplay}${timeKnown ? ' ' + timePartDisplay : ' --/--'}`
+                : '—'}
+            </span>
           )}
         </span>
       </div>

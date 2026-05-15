@@ -45,7 +45,7 @@ export type ObservationOption = typeof OBSERVATION_OPTIONS[number];
 
 /** Human-facing French labels for observation enum values. */
 export const OBSERVATION_LABELS: Record<ObservationOption, string> = {
-  sans_reserve: 'Sans réserve',
+  sans_reserve: 'Sous réserve',
   non_accorde: 'Non accordé',
   hors_sinistre: 'Hors sinistre',
   reparation: 'Réparation',

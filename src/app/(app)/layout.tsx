@@ -6,6 +6,7 @@ import AppSidebar from '@/components/layout/sidebar';
 import { CompagnieLogosPreload } from '@/components/layout/compagnie-logos-preload';
 import Header from '@/components/layout/header';
 import { OfflineIndicator } from '@/components/offline-indicator';
+import { GpsPublisherHost } from '@/components/gps-publisher-host';
 import { CurrentUserProvider, useCurrentUser } from '@/hooks/use-current-user';
 import { DossierTabsProvider } from '@/hooks/use-dossier-tabs';
 import DossierTabsBar from '@/components/layout/dossier-tabs-bar';
@@ -53,6 +54,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
       <SidebarInset className="flex flex-col h-svh transition-all duration-300 ease-in-out overflow-hidden">
         <Header />
         <OfflineIndicator />
+        <GpsPublisherHost />
         {showDossierTabs && <DossierTabsBar />}
         <main className="flex-1 min-h-0 overflow-y-auto bg-background/50">
           <div className={cn(fullWidth ? 'w-full' : 'p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto')}>

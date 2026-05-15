@@ -1,8 +1,10 @@
 'use client';
 
+import React from 'react';
+import { useRouter } from 'next/navigation';
 import ConsultationClientPage from './client-page';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { getDefaultRouteForRole } from '@/lib/nav-groups';
 
 const CONSULTATION_ALLOWED_ROLES = [
   'Admin',
@@ -16,21 +18,22 @@ const CONSULTATION_ALLOWED_ROLES = [
 
 export default function ConsultationPage() {
   const { profile, loading: userLoading } = useCurrentUser();
+  const router = useRouter();
+
+  const denied =
+    !!profile?.role && !CONSULTATION_ALLOWED_ROLES.includes(profile.role);
+
+  React.useEffect(() => {
+    if (!userLoading && denied && profile?.role) {
+      router.replace(getDefaultRouteForRole(profile.role));
+    }
+  }, [userLoading, denied, profile?.role, router]);
 
   if (userLoading) {
     return <div className="py-12 text-sm text-muted-foreground">Chargement...</div>;
   }
 
-  if (profile?.role && !CONSULTATION_ALLOWED_ROLES.includes(profile.role)) {
-    return (
-      <Card className="border shadow-sm rounded-lg">
-        <CardHeader>
-          <CardTitle>Accès refusé</CardTitle>
-          <CardDescription>Cette page n&apos;est pas accessible à votre rôle.</CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
+  if (denied) return null;
 
   return (
     <div className="space-y-6">

@@ -218,12 +218,13 @@ export function renderDevisPdf(
     return ht * (1 + pct / 100);
   };
 
-  // Build accord triple headers: PU label + Total HT Accord + Prix TTC Accord.
-  const accordTripleHeaders: string[] = accordExtras.flatMap((c) => [
-    c.label,
-    'Total HT Accord',
-    'Prix TTC Accord',
-  ]);
+  // Build accord triple headers: PU label + Total HT + Prix TTC, with the
+  // suffix matching the PU kind ('accordé' for accord columns, 'proposé' for
+  // proposition columns) — mirrors the on-screen devis-editor headers.
+  const accordTripleHeaders: string[] = accordExtras.flatMap((c) => {
+    const suffix = c.kind === 'accord' ? 'accordé' : 'proposé';
+    return [c.label, `Total HT ${suffix}`, `Prix TTC ${suffix}`];
+  });
 
   // Proposition-only: append an extra empty column at the right edge to let a
   // 2nd expert hand-fill their agreement on the rendered PDF. Detected by the
@@ -281,26 +282,31 @@ export function renderDevisPdf(
   });
 
   const accordStartIndex = 8;
+  // Designation must NEVER be cramped — set a generous `minCellWidth` floor and
+  // shrink the other fixed columns first when horizontal space runs out (e.g.
+  // proposition d'accord with an accord triple + 2eme expert column). The
+  // numeric columns only ever show short values like "1 000,00", so a tighter
+  // width still keeps the body readable while their headers may wrap to 2 lines.
   const columnStyles: Record<number, any> = {
-    0: { cellWidth: 22, halign: 'center' },        // REF
-    1: { cellWidth: 'auto', halign: 'left' },      // Designation — fills remaining width
-    2: { halign: 'center', cellWidth: 16 },        // TYPE
-    3: { halign: 'center', cellWidth: 14 },        // T.V.A
-    4: { halign: 'center', cellWidth: 14 },        // Qte
+    0: { cellWidth: 18, halign: 'center' },                       // REF
+    1: { cellWidth: 'auto', minCellWidth: 50, halign: 'left' },   // Designation — never cramped
+    2: { halign: 'center', cellWidth: 14 },                       // TYPE
+    3: { halign: 'center', cellWidth: 12 },                       // T.V.A
+    4: { halign: 'center', cellWidth: 12 },                       // Qte
   };
-  columnStyles[5] = { halign: 'right', cellWidth: 26 };          // P.U H.T
-  columnStyles[6] = { halign: 'right', cellWidth: 26 };          // Total H.T
-  columnStyles[7] = { halign: 'right', cellWidth: 26 };          // Prix en TTC
+  columnStyles[5] = { halign: 'right', cellWidth: 22 };          // P.U H.T
+  columnStyles[6] = { halign: 'right', cellWidth: 22 };          // Total H.T
+  columnStyles[7] = { halign: 'right', cellWidth: 22 };          // Prix en TTC
   // Accord triples: each is (PU / Total HT Accord / Prix TTC Accord).
   accordExtras.forEach((_c, i) => {
     const base = accordStartIndex + i * 3;
-    columnStyles[base] = { halign: 'right', cellWidth: 28 };          // PU
-    columnStyles[base + 1] = { halign: 'right', cellWidth: 30 };      // Total HT Accord
-    columnStyles[base + 2] = { halign: 'right', cellWidth: 30 };      // Prix TTC Accord
+    columnStyles[base] = { halign: 'right', cellWidth: 22 };          // PU
+    columnStyles[base + 1] = { halign: 'right', cellWidth: 24 };      // Total HT Accord
+    columnStyles[base + 2] = { halign: 'right', cellWidth: 24 };      // Prix TTC Accord
   });
   if (isProposition) {
     const idx = accordStartIndex + accordExtras.length * 3;
-    columnStyles[idx] = { halign: 'center', cellWidth: 32 };          // Accord 2eme expert (empty)
+    columnStyles[idx] = { halign: 'center', cellWidth: 22 };          // Accord 2eme expert (empty)
   }
 
   // With landscape kicking in for accord triples (line 45), there's enough width

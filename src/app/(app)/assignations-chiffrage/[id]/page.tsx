@@ -5,17 +5,11 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { useCollection, useFirestore } from '@/firebase';
+import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { ArrowLeft, Download, Mail, Scale, X } from 'lucide-react';
+import { ArrowLeft, Mail, Scale } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { isEditableDocType } from '@/lib/devis-schema';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { buildDocFamilies } from '@/lib/doc-family';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -186,21 +180,12 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   // #29 introduced on the old per-docType group "Editer (web)" button. All other
   // types fall back to opening the raw file URL in a new tab (matches the old
   // `<a href>` behaviour on non-editable rows).
+  // Eye-icon in the pièces jointes panel: preview the file in the in-app
+  // lightbox instead of opening a new tab. The structured editor stays
+  // reachable from the per-slot Éditer buttons (handleEditSlot below).
   const handleOpenDocument = (docEntry: DocumentsFilterPanelDoc) => {
-    const label: string = (docEntry.type || docEntry.typeDocument || '') as string;
-    const parsed = parseAccordDocType(label);
-    if (isEditableDocType(label)) {
-      router.push(`/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(label)}`);
-      return;
-    }
-    if (parsed) {
-      router.push(
-        `/devis-editor?chiffrageId=${id}&docType=${encodeURIComponent(parsed.sourceDocType)}&accordSlot=${encodeURIComponent(label)}`,
-      );
-      return;
-    }
-    if (docEntry.url) {
-      window.open(docEntry.url, '_blank', 'noopener,noreferrer');
+    if (docEntry.url && !docEntry.pendingUpload) {
+      setPreviewDoc({ url: docEntry.url, nom: docEntry.nom || docEntry.fileName || 'document' });
     }
   };
 
@@ -521,51 +506,14 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         />
       )}
 
-      {/* Lightbox preview for slot-card document clicks */}
-      {previewDoc && (
-        <Dialog open onOpenChange={() => setPreviewDoc(null)}>
-          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
-            <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2">
-              <DialogTitle className="text-sm truncate flex-1">{previewDoc.nom}</DialogTitle>
-              <a
-                href={previewDoc.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex"
-                title="Ouvrir / télécharger"
-              >
-                <Button variant="ghost" size="icon" className="h-7 w-7" type="button">
-                  <Download className="h-4 w-4" />
-                </Button>
-              </a>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setPreviewDoc(null)}
-                title="Fermer"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </DialogHeader>
-            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
-              {/\.(jpe?g|png|gif|webp|bmp)$/i.test(previewDoc.nom) ? (
-                <img
-                  src={previewDoc.url}
-                  className="max-w-full max-h-full object-contain"
-                  alt={previewDoc.nom}
-                />
-              ) : (
-                <iframe
-                  src={previewDoc.url}
-                  className="w-full h-full border-none"
-                  title={previewDoc.nom}
-                />
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Lightbox preview — used by both the pièces-jointes eye icon and the
+          slot-card thumbnail clicks. Download falls back to opening the file
+          in a new tab since this page doesn't have a dedicated downloader. */}
+      <DocumentPreviewLightbox
+        doc={previewDoc}
+        onClose={() => setPreviewDoc(null)}
+        onDownload={(d) => window.open(d.url, '_blank', 'noopener,noreferrer')}
+      />
     </div>
   );
 }

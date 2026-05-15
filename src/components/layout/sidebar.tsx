@@ -44,69 +44,13 @@ import {
   X,
   LogOut,
   ChevronDown,
-  LayoutDashboard,
-  FolderOpen,
-  Users,
-  Building2,
-  Calculator,
-  UserCheck,
-  BookOpen,
-  Bug,
-  Gauge,
-  Stamp,
-  CalendarDays,
 } from 'lucide-react';
 import Logo from '@/components/logo';
 import { useCompagnies } from '@/hooks/use-compagnies';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import NextLink from 'next/link';
 import { cn } from '@/lib/utils';
-
-type NavItem = {
-  href: string;
-  icon: React.ElementType;
-  label: string;
-  roles: string[] | null;
-};
-
-type NavGroup = {
-  label: string;
-  items: NavItem[];
-};
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: 'ESPACE',
-    items: [
-      { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: ['Admin', "Responsable d'équipe"] },
-      { href: '/monitoring', icon: Gauge, label: "Suivi d'équipe", roles: ['Admin', "Responsable d'équipe"] },
-      { href: '/dossiers', icon: FolderOpen, label: 'Gestion des dossiers', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'] },
-      { href: '/consultation', icon: BookOpen, label: 'Consultation', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Chiffreur', 'Directeur', 'Directeur des opérations', 'Directeur technique'] },
-      { href: '/compagnies', icon: Building2, label: 'Compagnies', roles: ['Admin', "Responsable d'équipe"] },
-    ],
-  },
-  {
-    label: 'ASSIGNATIONS',
-    items: [
-      { href: '/assignations-chiffrage', icon: Calculator, label: 'Assignations Chiffrage', roles: ['Admin', "Responsable d'équipe", 'Chiffreur'] },
-      { href: '/assignations-atg', icon: UserCheck, label: 'Assignations Agent de Terrain', roles: ['Admin', "Responsable d'équipe", 'Agent de Terrain'] },
-    ],
-  },
-  {
-    label: 'ADMIN',
-    items: [
-      { href: '/utilisateurs', icon: Users, label: 'Utilisateurs', roles: ['Admin'] },
-      { href: '/tampons', icon: Stamp, label: 'Tampons', roles: ['Admin'] },
-      { href: '/jours-feries', icon: CalendarDays, label: 'Jours fériés', roles: ['Admin', 'Directeur', 'Directeur des opérations', 'Directeur technique'] },
-    ],
-  },
-  {
-    label: 'DIVERS',
-    items: [
-      { href: '/signaler-bug', icon: Bug, label: 'Signaler un bug', roles: null },
-    ],
-  },
-];
+import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
 
 const AppSidebar = () => {
   const pathname = usePathname();
@@ -137,7 +81,7 @@ const AppSidebar = () => {
 
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => !item.roles || (profile && item.roles.includes(profile.role))),
+    items: group.items.filter((item) => isItemVisibleToRole(item, profile?.role)),
   })).filter((group) => group.items.length > 0);
 
   const handleSignOut = async () => {

@@ -12,6 +12,8 @@ import { useFirestore } from '@/firebase';
 import { useOptions } from '@/hooks/use-options';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
+import { getDefaultRouteForRole } from '@/lib/nav-groups';
 import {
   addDoc, collection, deleteDoc, doc, serverTimestamp, writeBatch,
 } from 'firebase/firestore';
@@ -38,18 +40,25 @@ export default function JoursFeriesSettingsPage() {
     [options],
   );
 
+  const router = useRouter();
+  React.useEffect(() => {
+    if (
+      !userLoading &&
+      profile?.role &&
+      profile.role !== 'Admin' &&
+      profile.role !== 'Directeur' &&
+      profile.role !== 'Directeur des opérations' &&
+      profile.role !== 'Directeur technique'
+    ) {
+      router.replace(getDefaultRouteForRole(profile.role));
+    }
+  }, [userLoading, profile?.role, router]);
+
   if (userLoading) {
     return <div className="py-12 text-sm text-muted-foreground">Chargement...</div>;
   }
   if (profile?.role !== 'Admin' && profile?.role !== 'Directeur' && profile?.role !== 'Directeur des opérations' && profile?.role !== 'Directeur technique') {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Accès refusé</CardTitle>
-          <CardDescription>Cette page est réservée aux administrateurs et directeurs.</CardDescription>
-        </CardHeader>
-      </Card>
-    );
+    return null;
   }
 
   const addOne = async (label: string) => {

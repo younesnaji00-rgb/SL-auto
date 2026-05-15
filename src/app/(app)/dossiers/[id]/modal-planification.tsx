@@ -34,6 +34,11 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useAgentTerrainWorkload } from '@/hooks/use-workload-counts';
 import { deriveStatus } from '@/lib/status-machine';
+import { useAtgFeasibility } from '@/hooks/use-atg-feasibility';
+import { useAgentLiveLocation } from '@/hooks/use-agent-live-location';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { formatDurationFr } from '@/lib/atg-feasibility';
+import { MapPin } from 'lucide-react';
 
 /** Narrows a free-form typeMission string to the canonical tri-state, or null. */
 function normalizeTypeMission(
@@ -122,6 +127,21 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     }
   }, [initialData, open, defaultTypeMission]);
 
+  const agentLive = useAgentLiveLocation(formData.agentTerrain);
+
+  const {
+    conflicts: feasibilityConflicts,
+    unavailable: feasibilityUnavailable,
+    pastRdv: feasibilityPastRdv,
+  } = useAtgFeasibility({
+    agentName: formData.agentTerrain,
+    dateRDV: formData.dateRDV,
+    timeRDV: formData.timeRDV,
+    adresse: formData.adresse,
+    excludeId: initialData?.id ?? null,
+    agentLiveLocation: agentLive.location,
+  });
+
   const handleSave = async () => {
     if (!db) return;
     setLoading(true);
@@ -163,16 +183,36 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         payload.observationSource = 'Gestionnaire';
       }
 
+      console.debug('[modal-planification] saving', {
+        isEdit: !!initialData?.id,
+        planifId: initialData?.id,
+        dossierId,
+        payload,
+        agentsLoaded: agents.length,
+      });
+
       if (initialData?.id) {
+        // PRIMARY WRITE: update the planification doc itself. Any subsequent
+        // side-effect (logs, statut bump) is wrapped in its own try/catch so
+        // a downstream failure can't make the primary update look like it
+        // didn't happen.
         await updateDoc(doc(db, 'dossiers', dossierId, 'planifications', initialData.id), payload);
-        await logHistorique(db, dossierId, 'Planification modifiée', userEmail, `Mission ${formData.typeMission} mise à jour pour ${formData.agentTerrain}.`, 'planification', profile?.nom);
-        await logWorkflow(db, dossierId, 'Planification modifiée', userEmail, userId, 'done', { dossierRef: dossierData?.refExpert || dossierId, details: `Mission ${formData.typeMission} mise à jour pour ${formData.agentTerrain}` }, profile?.nom);
+        console.debug('[modal-planification] updateDoc OK', initialData.id);
+        try {
+          await logHistorique(db, dossierId, 'Planification modifiée', userEmail, `Mission ${formData.typeMission} mise à jour pour ${formData.agentTerrain}.`, 'planification', profile?.nom);
+          await logWorkflow(db, dossierId, 'Planification modifiée', userEmail, userId, 'done', { dossierRef: dossierData?.refExpert || dossierId, details: `Mission ${formData.typeMission} mise à jour pour ${formData.agentTerrain}` }, profile?.nom);
+        } catch (logErr) {
+          console.warn('[modal-planification] history/workflow logging failed (non-fatal):', logErr);
+        }
         toast({ title: "Planification mise à jour" });
       } else {
         await addDoc(collection(db, 'dossiers', dossierId, 'planifications'), { ...payload, dossierId, createdAt: serverTimestamp(), active: true });
+        console.debug('[modal-planification] addDoc OK');
         // Set dateMissionAgentTerrain only if not already set (first planification = mission date)
         if (!dossierData?.dateMissionAgentTerrain) {
-          await setDoc(doc(db, 'dossiers', dossierId), { dateMissionAgentTerrain: serverTimestamp() }, { merge: true });
+          try {
+            await setDoc(doc(db, 'dossiers', dossierId), { dateMissionAgentTerrain: serverTimestamp() }, { merge: true });
+          } catch (e) { console.warn('[modal-planification] dateMissionAgentTerrain set failed:', e); }
         }
         const typeFieldMap: Record<string, string> = {
           'Avant': 'dateDemandeExpertiseAvant',
@@ -181,26 +221,38 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         };
         const typeField = typeFieldMap[formData.typeMission];
         if (typeField && !(dossierData as Record<string, any> | undefined)?.[typeField]) {
-          await setDoc(doc(db, 'dossiers', dossierId), { [typeField]: serverTimestamp() }, { merge: true });
+          try {
+            await setDoc(doc(db, 'dossiers', dossierId), { [typeField]: serverTimestamp() }, { merge: true });
+          } catch (e) { console.warn('[modal-planification] type-date set failed:', e); }
         }
-        await logHistorique(db, dossierId, 'Planification ajoutée', userEmail, `Nouvelle mission ${formData.typeMission} créée pour ${formData.agentTerrain}.`, 'planification', profile?.nom);
-        await logWorkflow(db, dossierId, 'Création de planification', userEmail, userId, 'done', { dossierRef: dossierData?.refExpert || dossierId, details: `Mission ${formData.typeMission} pour ${formData.agentTerrain}` }, profile?.nom);
+        try {
+          await logHistorique(db, dossierId, 'Planification ajoutée', userEmail, `Nouvelle mission ${formData.typeMission} créée pour ${formData.agentTerrain}.`, 'planification', profile?.nom);
+          await logWorkflow(db, dossierId, 'Création de planification', userEmail, userId, 'done', { dossierRef: dossierData?.refExpert || dossierId, details: `Mission ${formData.typeMission} pour ${formData.agentTerrain}` }, profile?.nom);
+        } catch (logErr) {
+          console.warn('[modal-planification] history/workflow logging failed (non-fatal):', logErr);
+        }
         toast({ title: "Nouvelle planification créée" });
       }
 
-      const normalizedTypeMission = normalizeTypeMission(formData.typeMission);
-      if (normalizedTypeMission) {
-        const plannedStatus = deriveStatus({ kind: 'planification', typeMission: normalizedTypeMission });
-        await updateDoc(doc(db, 'dossiers', dossierId), { statut: plannedStatus });
-        await logHistorique(
-          db,
-          dossierId,
-          plannedStatus,
-          userEmail,
-          `Statut mis à jour automatiquement par la planification (${formData.typeMission}).`,
-          'statut',
-          profile?.nom,
-        );
+      // Dossier statut bump — best-effort, isolated from the primary save so
+      // a rules-block here doesn't make the planification update appear lost.
+      try {
+        const normalizedTypeMission = normalizeTypeMission(formData.typeMission);
+        if (normalizedTypeMission) {
+          const plannedStatus = deriveStatus({ kind: 'planification', typeMission: normalizedTypeMission });
+          await updateDoc(doc(db, 'dossiers', dossierId), { statut: plannedStatus });
+          await logHistorique(
+            db,
+            dossierId,
+            plannedStatus,
+            userEmail,
+            `Statut mis à jour automatiquement par la planification (${formData.typeMission}).`,
+            'statut',
+            profile?.nom,
+          );
+        }
+      } catch (statutErr) {
+        console.warn('[modal-planification] dossier statut bump failed (non-fatal):', statutErr);
       }
 
       // Persist observation to subcollection for history
@@ -381,6 +433,87 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
               />
             </div>
           </div>
+
+          {feasibilityPastRdv && (
+            <Alert variant="warning">
+              <AlertTitle>RDV déjà passé</AlertTitle>
+              <AlertDescription>
+                L'heure de RDV ({formData.timeRDV}) est déjà dépassée. L'agent ne pourra pas s'y rendre à temps.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {formData.agentTerrain && !agentLive.isFresh && agentLive.agentUid && (
+            <Alert variant="info">
+              <AlertTitle>Position de l'agent non disponible</AlertTitle>
+              <AlertDescription>
+                <p className="mb-2">
+                  Aucune position récente de {formData.agentTerrain}. La vérification d'itinéraire ne peut pas tenir compte de sa position actuelle.
+                </p>
+                {agentLive.requestState === 'idle' && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void agentLive.requestLocation()}
+                  >
+                    <MapPin className="h-4 w-4 mr-1" />
+                    Demander la localisation de l'AT
+                  </Button>
+                )}
+                {(agentLive.requestState === 'pending' || agentLive.requestState === 'sent') && (
+                  <span className="text-sm italic">
+                    <Loader2 className="inline h-3 w-3 animate-spin mr-1" />
+                    Demande envoyée — en attente de la position…
+                  </span>
+                )}
+                {agentLive.requestState === 'error' && (
+                  <span className="text-sm text-destructive">
+                    Échec de l'envoi de la demande. Réessayez.
+                  </span>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {feasibilityUnavailable && (
+            <Alert variant="warning">
+              <AlertTitle>Vérification d'itinéraire indisponible</AlertTitle>
+              <AlertDescription>
+                Impossible de vérifier la faisabilité du planning de l'agent pour cette journée. La sauvegarde reste possible.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {feasibilityConflicts.length > 0 && (
+            <Alert variant="warning">
+              <AlertTitle>Conflit de planning détecté</AlertTitle>
+              <AlertDescription>
+                <p className="mb-2">
+                  Le planning de {formData.agentTerrain || "l'agent"} pour cette journée est mathématiquement infaisable :
+                </p>
+                <ul className="list-disc pl-5 space-y-1">
+                  {feasibilityConflicts.map((c, i) => (
+                    <li key={i}>
+                      {c.fromIsOrigin ? (
+                        <>
+                          RDV {c.toLabel} : depuis la position actuelle de l'agent, arrivée prévue à <strong>{format(new Date(c.arrivalMs), 'HH:mm')}</strong>
+                          {' '}({formatDurationFr(c.travelSeconds)} de trajet).
+                          {' '}Retard de {formatDurationFr(c.shortfallSeconds)} sur le RDV.
+                        </>
+                      ) : (
+                        <>
+                          RDV {c.toLabel} : arrivée prévue à <strong>{format(new Date(c.arrivalMs), 'HH:mm')}</strong>
+                          {' '}— 30 min sur place à {c.fromAddress} + {formatDurationFr(c.travelSeconds)} de trajet.
+                          {' '}Retard de {formatDurationFr(c.shortfallSeconds)} sur le RDV.
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>

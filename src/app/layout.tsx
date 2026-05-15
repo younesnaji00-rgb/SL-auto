@@ -16,12 +16,22 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   title: 'SL-auto',
   description: 'SL-auto - Système de gestion',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'SL-auto',
+  },
+  icons: {
+    apple: '/images/auto-expertise.png',
+  },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
+  themeColor: '#0f766e',
 };
 
 export default function RootLayout({
