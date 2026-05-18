@@ -36,20 +36,12 @@ export const COMPANY_LINKS = [
 ];
 
 export const DOCUMENT_TYPES = [
-  'Rapport d\'expertise',
   'Devis',
   'Facture',
-  'Photos avant expertise',
-  'Photos après expertise',
-  'Photos au moment du sinistre',
-  'PV de constat',
+  'Photos avant',
+  'Photos en cours',
+  'Photos après',
   'Carte grise',
-  'Permis de conduire',
   'Attestation d\'assurance',
-  'Avis de dommage',
-  'Bon de commande',
-  'Ordre de mission',
-  'Procuration',
-  'CIN/Identité',
-  'Autre'
+  'Autre',
 ] as const;
