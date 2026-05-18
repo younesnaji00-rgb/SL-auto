@@ -50,6 +50,7 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'assure', label: 'Assuré' },
   { key: 'compagnie', label: 'Compagnie' },
   { key: 'referenceCompagnie', label: 'Référence de compagnie' },
+  { key: 'createdAt', label: 'Date de création' },
   { key: 'nature', label: 'Nature du dossier' },
   { key: 'typeDossier', label: 'Type Dossier' },
   { key: 'statut', label: 'Statut' },
@@ -58,7 +59,6 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'matriculeAnterieur', label: 'Matricule antérieur' },
   { key: 'dateSinistre', label: 'Date sinistre' },
   { key: 'dateRequete', label: 'Date Requête' },
-  { key: 'createdAt', label: 'Date de création' },
 ];
 const ALL_COLUMN_KEYS = new Set(EXPORT_COLUMNS.map(c => c.key));
 
@@ -855,6 +855,7 @@ export default function DossiersClientPage() {
                   <TableCell>{renderAssure(d.assure)}</TableCell>
                   <TableCell>{d.compagnie || '-'}</TableCell>
                   <TableCell>{d.referenceCompagnie || ''}</TableCell>
+                  <TableCell className="tabular-nums">{formatDate((d as any).createdAt)}</TableCell>
                   <TableCell>{d.nature || '-'}</TableCell>
                   <TableCell>{d.typeDossier || '-'}</TableCell>
                   <TableCell
@@ -882,7 +883,6 @@ export default function DossiersClientPage() {
                   <TableCell className="font-mono text-xs tabular-nums">{d.vehicule?.immatriculationAnterieur || '-'}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateSinistre)}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateRequete)}</TableCell>
-                  <TableCell className="tabular-nums">{formatDate((d as any).createdAt)}</TableCell>
 
                   {!exportMode && (
                     <TableCell
