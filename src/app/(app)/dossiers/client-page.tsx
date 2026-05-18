@@ -538,7 +538,7 @@ export default function DossiersClientPage() {
           {canEditDossiers && (
             <Button size="sm" onClick={handleOpenCreate}>
               <Plus className="mr-2 h-4 w-4" />
-              Créer un dossier
+              Création de mission
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={() => setExportMode(true)}>
@@ -823,7 +823,7 @@ export default function DossiersClientPage() {
                     }
                     action={canEditDossiers ? (
                       <Button onClick={handleOpenCreate}>
-                        <Plus className="mr-2 h-4 w-4" /> Nouveau dossier
+                        <Plus className="mr-2 h-4 w-4" /> Création de mission
                       </Button>
                     ) : null}
                     dashed={false}
