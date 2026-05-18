@@ -95,6 +95,22 @@ export interface DocumentsFilterPanelProps {
   className?: string;
 }
 
+// User-curated removal list: legacy types that must NOT appear as filter rows
+// even when observed on existing documents.
+const REMOVED_FILTER_DOC_TYPES: ReadonlySet<string> = new Set([
+  'Avis de dommage',
+  'Bon de commande',
+  'CIN/Identité',
+  'Ordre de mission',
+  'Permis de conduire',
+  'Photos après expertise',
+  'Photos au moment du sinistre',
+  'Photos avant expertise',
+  'Procuration',
+  'PV de constat',
+  "Rapport d'expertise",
+]);
+
 const formatSize = (bytes?: number) => {
   if (!bytes || bytes === 0) return '0 B';
   const k = 1024;
@@ -196,7 +212,9 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     Object.keys(typeCounts).forEach((t) => {
       if (t) allLabels.add(t);
     });
-    const rows = Array.from(allLabels).map((label) => ({ label, count: typeCounts[label] || 0 }));
+    const rows = Array.from(allLabels)
+      .filter((label) => !REMOVED_FILTER_DOC_TYPES.has(label))
+      .map((label) => ({ label, count: typeCounts[label] || 0 }));
     rows.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
     const search = typeSearch.toLowerCase().trim();
     return search ? rows.filter((r) => r.label.toLowerCase().includes(search)) : rows;
@@ -240,6 +258,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     };
 
     for (const label of allLabels) {
+      if (REMOVED_FILTER_DOC_TYPES.has(label)) continue;
       const count = typeCounts[label] || 0;
       const parsedParent = parseAccordeParent(label);
       if (parsedParent) {
