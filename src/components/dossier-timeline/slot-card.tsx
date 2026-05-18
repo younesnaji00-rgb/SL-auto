@@ -116,10 +116,12 @@ export function SlotCard({
   // Task #26 — accord/proposition slot detection.
   const parsedAccord = parseAccordDocType(slot);
   const isReformeSlot = slot === 'Réforme technique' || slot === 'Réforme économique';
+  const isRapportSlot = slot.startsWith('Rapport ') || slot === 'Rapport final';
   // Cardinal accord/proposition rows must never accept manual uploads — the
   // chiffreur produces them via the editor save flow. Same applies to réforme
-  // technique/économique slots.
-  const hideUploadForAccord = !!parsedAccord || isReformeSlot;
+  // technique/économique slots and to any rapport slot (populated by the
+  // "Générer le rapport" flow, never via direct upload).
+  const hideUploadForAccord = !!parsedAccord || isReformeSlot || isRapportSlot;
   // Pimple "+" button appears on accord OR proposition slots; uncapped — chain
   // enforcement is via `cardinalPimpleDisabled` (current slot must be
   // chiffreur-filled before the next cardinal can be created).
