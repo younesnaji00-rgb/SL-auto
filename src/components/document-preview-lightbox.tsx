@@ -15,7 +15,7 @@
 import * as React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, X } from 'lucide-react';
+import { Download, Trash2, X } from 'lucide-react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
 export interface DocumentPreviewLightboxDoc {
@@ -28,13 +28,14 @@ interface DocumentPreviewLightboxProps {
   onClose: () => void;
   /** Optional. When set, shows a download button in the header. */
   onDownload?: (doc: DocumentPreviewLightboxDoc) => void;
+  onDelete?: (doc: DocumentPreviewLightboxDoc) => void;
 }
 
 function isImageName(name: string): boolean {
   return /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(name || '');
 }
 
-export function DocumentPreviewLightbox({ doc, onClose, onDownload }: DocumentPreviewLightboxProps) {
+export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete }: DocumentPreviewLightboxProps) {
   if (!doc) return null;
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -50,6 +51,17 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload }: DocumentPr
               title="Telecharger"
             >
               <Download className="h-4 w-4" />
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive hover:bg-destructive/10"
+              onClick={() => onDelete(doc)}
+              title="Supprimer"
+            >
+              <Trash2 className="h-4 w-4" />
             </Button>
           )}
           <Button

@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useStorage, useAuth, useDoc } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -676,28 +677,14 @@ export default function Step1Import({
         </CardContent>
       </Card>
 
-      <Dialog open={!!previewDoc} onOpenChange={(o) => !o && setPreviewDoc(null)}>
-        <DialogContent className="max-w-4xl h-[85vh] p-0 flex flex-col">
-          <DialogHeader className="px-4 py-3 border-b">
-            <DialogTitle className="text-sm truncate">{previewDoc?.nom}</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-800">
-            {previewDoc && (/\.(jpe?g|png|gif|webp|bmp)$/i.test(previewDoc.nom) ? (
-              <img
-                src={previewDoc.url}
-                alt={previewDoc.nom}
-                className="w-full h-full object-contain"
-              />
-            ) : (
-              <iframe
-                src={previewDoc.url}
-                className="w-full h-full border-none"
-                title={previewDoc.nom}
-              />
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <DocumentPreviewLightbox
+        doc={previewDoc}
+        onClose={() => setPreviewDoc(null)}
+        onDelete={() => {
+          handleDeleteImportDoc();
+          setPreviewDoc(null);
+        }}
+      />
     </div>
   );
 }
