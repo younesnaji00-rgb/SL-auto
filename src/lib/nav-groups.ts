@@ -11,6 +11,7 @@ import {
   Gauge,
   Stamp,
   CalendarDays,
+  Bell,
 } from 'lucide-react';
 
 export type NavItem = {
@@ -32,6 +33,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: ['Admin', "Responsable d'équipe"] },
       { href: '/monitoring', icon: Gauge, label: "Suivi d'équipe", roles: ['Admin', "Responsable d'équipe"] },
       { href: '/dossiers', icon: FolderOpen, label: 'Gestion des dossiers', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'] },
+      { href: '/mes-rappels', icon: Bell, label: 'Mes rappels', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'] },
       { href: '/consultation', icon: BookOpen, label: 'Consultation', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Directeur', 'Directeur des opérations', 'Directeur technique'] },
       { href: '/compagnies', icon: Building2, label: 'Compagnies', roles: ['Admin', "Responsable d'équipe"] },
     ],
