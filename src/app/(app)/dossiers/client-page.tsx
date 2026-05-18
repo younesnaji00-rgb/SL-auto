@@ -23,6 +23,7 @@ import WorkflowStatusSheet from './workflow-status-sheet';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import AssignmentHistorySheet from './assignment-history-sheet';
 import StatusHistorySheet from './status-history-sheet';
+import ObservationHistorySheet from './observation-history-sheet';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useDossierTabs } from '@/hooks/use-dossier-tabs';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
@@ -162,6 +163,7 @@ export default function DossiersClientPage() {
   const [workflowDossier, setWorkflowDossier] = useState<any>(null);
   const [assignmentDossier, setAssignmentDossier] = useState<any>(null);
   const [statusHistoryDossier, setStatusHistoryDossier] = useState<any>(null);
+  const [observationHistoryDossier, setObservationHistoryDossier] = useState<any>(null);
 
   // Export mode state
   const [exportMode, setExportMode] = useState(false);
@@ -870,7 +872,14 @@ export default function DossiersClientPage() {
                       {d.statut || 'Nouveau'}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell
+                    onClick={exportMode ? undefined : (e) => {
+                      e.stopPropagation();
+                      setObservationHistoryDossier(d);
+                    }}
+                    className={cn(!exportMode && "cursor-pointer hover:bg-muted/60 transition-colors")}
+                    title={!exportMode ? "Voir l'historique des observations" : undefined}
+                  >
                     {d.lastObservation?.text ? (
                       <Badge className="bg-amber-50 text-amber-800 hover:bg-amber-50 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/50">
                         {d.lastObservation.text}
@@ -986,6 +995,11 @@ export default function DossiersClientPage() {
         open={!!statusHistoryDossier}
         onOpenChange={(open) => !open && setStatusHistoryDossier(null)}
         dossier={statusHistoryDossier}
+      />
+      <ObservationHistorySheet
+        open={!!observationHistoryDossier}
+        onOpenChange={(open) => !open && setObservationHistoryDossier(null)}
+        dossier={observationHistoryDossier}
       />
       <AssignmentHistorySheet
         open={!!assignmentDossier}
