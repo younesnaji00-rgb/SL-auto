@@ -762,8 +762,9 @@ export default function ObservationsTab({
                         size="sm"
                         variant="outline"
                         className="h-7 text-[11px] gap-1.5 mt-1"
+                        title={proofs.length === 0 ? 'Attachez une preuve pour valider le traitement' : undefined}
                         onClick={() => handleValidate(obs.id)}
-                        disabled={validatingId === obs.id}
+                        disabled={validatingId === obs.id || proofs.length === 0}
                       >
                         {validatingId === obs.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                         Valider le traitement
