@@ -76,6 +76,8 @@ export default function AssignationsChiffragePage() {
   // Listen to dossier statuts + compagnies + natures for all referenced dossierIds
   const [dossierCompagnies, setDossierCompagnies] = useState<Record<string, string>>({});
   const [dossierNatures, setDossierNatures] = useState<Record<string, string>>({});
+  const [dossierAssure, setDossierAssure] = useState<Record<string, any>>({});
+  const [dossierMatricule, setDossierMatricule] = useState<Record<string, string>>({});
   const dossierIds = useMemo(() => [...new Set(chiffrages.map(c => c.dossierId).filter(Boolean))], [chiffrages]);
 
   useEffect(() => {
@@ -88,6 +90,8 @@ export default function AssignationsChiffragePage() {
           setDossierCompagnies(prev => ({ ...prev, [did]: data.compagnie || '' }));
           setDossierNatures(prev => ({ ...prev, [did]: data.nature || '' }));
           setDossierReformeTypes(prev => ({ ...prev, [did]: data.reforme?.typeReforme || '' }));
+          setDossierAssure(prev => ({ ...prev, [did]: data.assure }));
+          setDossierMatricule(prev => ({ ...prev, [did]: data.matricule || '' }));
         }
       })
     );
@@ -225,11 +229,17 @@ export default function AssignationsChiffragePage() {
     catch { return '-'; }
   };
 
+  const renderAssure = (assure: any): string => {
+    if (!assure) return 'N/A';
+    if (typeof assure === 'string') return assure;
+    return `${assure.nom || ''} ${assure.prenom || ''}`.trim() || 'N/A';
+  };
+
   const isChiffreur = profile?.role === 'Chiffreur';
   const isATG = profile?.role === 'Agent de Terrain';
   const canSeeNameFilter = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
   const showChiffreurColumn = !isChiffreur;
-  const colCount = showChiffreurColumn ? 8 : 7;
+  const colCount = showChiffreurColumn ? 10 : 9;
 
   return (
     <div className="space-y-6">
@@ -306,6 +316,8 @@ export default function AssignationsChiffragePage() {
             <TableHeader>
               <TableRow className="bg-muted/30">
                 <TableHead className="font-bold text-xs">Dossier</TableHead>
+                <TableHead className="font-bold text-xs">Nom d&apos;assuré</TableHead>
+                <TableHead className="font-bold text-xs">Immatriculation</TableHead>
                 {showChiffreurColumn && <TableHead className="font-bold text-xs">Chiffreur</TableHead>}
                 <TableHead className="font-bold text-xs">Nature du dossier</TableHead>
                 <TableHead className="font-bold text-xs">Statut</TableHead>
@@ -363,6 +375,8 @@ export default function AssignationsChiffragePage() {
                           )}
                         </div>
                       </TableCell>
+                      <TableCell className="text-sm">{renderAssure(dossierAssure[c.dossierId])}</TableCell>
+                      <TableCell className="font-mono text-xs tabular-nums">{dossierMatricule[c.dossierId] || '-'}</TableCell>
                       {showChiffreurColumn && <TableCell className="text-sm">{c.assignedChiffreurNom || '-'}</TableCell>}
                       <TableCell className="text-xs">{nature || '-'}</TableCell>
                       <TableCell>
