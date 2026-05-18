@@ -16,6 +16,7 @@ import * as React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Download, X } from 'lucide-react';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
 export interface DocumentPreviewLightboxDoc {
   url: string;
@@ -63,8 +64,20 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload }: DocumentPr
         </DialogHeader>
         <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
           {isImageName(doc.nom) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={doc.url} className="max-w-full max-h-full object-contain" alt={doc.nom} />
+            <TransformWrapper
+              minScale={1}
+              maxScale={5}
+              doubleClick={{ mode: 'zoomIn', step: 0.7 }}
+              wheel={{ step: 0.2 }}
+            >
+              <TransformComponent
+                wrapperClass="!w-full !h-full"
+                contentClass="!w-full !h-full flex items-center justify-center"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={doc.url} className="max-w-full max-h-full object-contain select-none" alt={doc.nom} draggable={false} />
+              </TransformComponent>
+            </TransformWrapper>
           ) : (
             <iframe src={doc.url} className="w-full h-full border-none" title={doc.nom} />
           )}
