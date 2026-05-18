@@ -11,7 +11,7 @@ import {
 import { Loader2, Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCollection, useFirestore } from '@/firebase';
-import { collection, query, orderBy, where } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { getStatusHeaderStyles } from '@/lib/status-colors';
@@ -30,11 +30,23 @@ export default function StatusHistorySheet({ open, onOpenChange, dossier }: Stat
     return query(
       collection(db, 'dossiers', dossier.id, 'historique'),
       where('type', '==', 'statut'),
-      orderBy('date', 'asc'),
     );
   }, [db, dossier?.id]);
 
   const { data: entries, loading } = useCollection<any>(historyQuery);
+
+  const sortedEntries = useMemo(() => {
+    if (!entries) return entries;
+    const tsOf = (e: any) => {
+      const t = e.date;
+      if (!t) return 0;
+      if (t.toMillis) return t.toMillis();
+      if (t.toDate) return t.toDate().getTime();
+      const n = Number(t);
+      return Number.isFinite(n) ? n : 0;
+    };
+    return [...entries].sort((a, b) => tsOf(a) - tsOf(b));
+  }, [entries]);
 
   if (!dossier) return null;
 
@@ -63,7 +75,7 @@ export default function StatusHistorySheet({ open, onOpenChange, dossier }: Stat
             <div className="flex justify-center py-10">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
-          ) : !entries || entries.length === 0 ? (
+          ) : !sortedEntries || sortedEntries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
               <Inbox className="h-10 w-10 mb-3 opacity-20" />
               <p className="text-sm">Aucun changement de statut.</p>
@@ -74,7 +86,7 @@ export default function StatusHistorySheet({ open, onOpenChange, dossier }: Stat
               <div className="absolute left-3 top-2 bottom-2 w-px bg-indigo-200 dark:bg-indigo-900" />
 
               <div className="space-y-4">
-                {entries.map((e: any) => (
+                {sortedEntries.map((e: any) => (
                   <div key={e.id} className="relative">
                     {/* Dot on the rail */}
                     <div className="absolute -left-[22px] top-3 h-3 w-3 rounded-full bg-indigo-500 ring-4 ring-background" />
