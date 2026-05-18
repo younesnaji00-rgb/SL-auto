@@ -10,7 +10,6 @@ const CONSULTATION_ALLOWED_ROLES = [
   'Admin',
   "Responsable d'équipe",
   'Gestionnaire',
-  'Chiffreur',
   'Directeur',
   'Directeur des opérations',
   'Directeur technique',
