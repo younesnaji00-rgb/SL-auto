@@ -60,6 +60,7 @@ interface UserProfile {
   compagnies: string[];
   statut: string;
   password?: string;
+  assignedStampIds: string[];
 }
 
 type Section = 'dossiers' | 'assignations-chiffrage' | 'assignations-atg' | 'utilisateurs';
@@ -219,6 +220,11 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
               compagnies: data.compagnies || [],
               statut: data.statut || 'Actif',
               password: data.password || '',
+              assignedStampIds: Array.isArray(data.assignedStampIds)
+                ? data.assignedStampIds
+                : data.assignedStampId
+                  ? [data.assignedStampId]
+                  : [],
             });
             setLoading(false);
           },

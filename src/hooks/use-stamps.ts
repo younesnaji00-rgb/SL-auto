@@ -38,6 +38,7 @@ export function useStamps(
   const includeInactive = options?.includeInactive ?? false;
   const mineOnly = options?.mineOnly ?? false;
   const uid = profile?.uid || '';
+  const assignedStampIds = profile?.assignedStampIds || [];
 
   useEffect(() => {
     if (!db) return;
@@ -69,7 +70,7 @@ export function useStamps(
           } as Stamp;
         });
         let filtered = includeInactive ? all : all.filter((s) => s.active);
-        if (mineOnly) filtered = filtered.filter((s) => s.createdBy === uid);
+        if (mineOnly) filtered = filtered.filter((s) => assignedStampIds.includes(s.id));
         setStamps(filtered);
         setLoading(false);
       },
@@ -80,7 +81,7 @@ export function useStamps(
     );
 
     return unsub;
-  }, [db, includeInactive, mineOnly, uid]);
+  }, [db, includeInactive, mineOnly, uid, assignedStampIds.join(',')]);
 
   return { stamps, loading };
 }
