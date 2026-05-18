@@ -28,6 +28,7 @@ import { useChiffreurWorkload } from '@/hooks/use-workload-counts';
 import { REFORME_TYPES, normalizeReformeType } from '@/components/chiffreurs/reforme-dialog';
 import { businessHoursBetween, formatBusinessLateness } from '@/lib/business-days';
 import { useHolidays } from '@/hooks/use-holidays';
+import ObservationHistorySheet from '@/app/(app)/dossiers/observation-history-sheet';
 
 interface ChiffrageItem {
   id: string;
@@ -53,6 +54,7 @@ export default function AssignationsChiffragePage() {
   const [dossierReformeTypes, setDossierReformeTypes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [deadlineSort, setDeadlineSort] = useState<SortDirection>(null);
+  const [obsHistoryDossier, setObsHistoryDossier] = useState<{ id: string; refExpert?: string } | null>(null);
   const filterDefaults = { dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', chiffreurFilter: 'Tous', typeReformeFilter: 'Tous' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-chiffrage', filterDefaults);
   const { dateFrom, dateTo, compagnieFilter, chiffreurFilter, typeReformeFilter } = filters;
@@ -383,7 +385,14 @@ export default function AssignationsChiffragePage() {
                         <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut))}>{statut}</Badge>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{c.sentByNom || c.sentByEmail || '-'}</TableCell>
-                      <TableCell className="text-xs">
+                      <TableCell
+                        className="text-xs cursor-pointer hover:bg-muted/40 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setObsHistoryDossier({ id: c.dossierId, refExpert: c.dossierNom });
+                        }}
+                        title="Voir l'historique des observations"
+                      >
                         {(() => {
                           const obs = dossierObs[c.dossierId];
                           const count = obs?.count ?? 0;
@@ -427,6 +436,11 @@ export default function AssignationsChiffragePage() {
           </Table>
         </CardContent>
       </Card>
+      <ObservationHistorySheet
+        open={!!obsHistoryDossier}
+        onOpenChange={(open) => !open && setObsHistoryDossier(null)}
+        dossier={obsHistoryDossier}
+      />
     </div>
   );
 }
