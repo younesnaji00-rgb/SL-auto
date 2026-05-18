@@ -45,7 +45,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonCard, SkeletonChart } from '@/components/ui/skeleton';
 import { collection, onSnapshot, query, orderBy, collectionGroup } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
-import { format, startOfDay, endOfDay, isWithinInterval, startOfToday } from 'date-fns';
+import { format, startOfDay, endOfDay, isWithinInterval, startOfToday, startOfWeek, startOfMonth } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart } from 'recharts';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -102,9 +102,9 @@ function DashboardPageInner() {
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [statusFilterSearch, setStatusFilterSearch] = useState('');
 
-  // Flight-style date range filter for dossier list (defaults to today / today)
-  const [dateFromFilter, setDateFromFilter] = useState<Date | undefined>(() => startOfToday());
-  const [dateToFilter, setDateToFilter] = useState<Date | undefined>(() => startOfToday());
+  // Flight-style date range filter for dossier list (defaults to all time)
+  const [dateFromFilter, setDateFromFilter] = useState<Date | undefined>(undefined);
+  const [dateToFilter, setDateToFilter] = useState<Date | undefined>(undefined);
 
   // Track last visit for "new" entry indicators
   const lastVisitRef = useRef<Date | null>(null);
@@ -576,6 +576,42 @@ function DashboardPageInner() {
         </div>
       </CardHeader>
       <div className="px-4 pb-3 pt-0 bg-muted/10 border-b">
+        <div className="flex gap-2 mb-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const today = startOfToday();
+              setDateFromFilter(today);
+              setDateToFilter(today);
+            }}
+          >
+            Aujourd'hui
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setDateFromFilter(startOfWeek(new Date(), { locale: fr }));
+              setDateToFilter(startOfToday());
+            }}
+          >
+            Semaine
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setDateFromFilter(startOfMonth(new Date()));
+              setDateToFilter(startOfToday());
+            }}
+          >
+            Mois
+          </Button>
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Du</label>
@@ -597,10 +633,17 @@ function DashboardPageInner() {
           </div>
         </div>
         <p className="text-[11px] text-muted-foreground mt-2 tabular-nums">
-          <span className="font-semibold text-foreground">{filteredCount}</span> dossier{filteredCount === 1 ? '' : 's'} créé{filteredCount === 1 ? '' : 's'} entre{' '}
-          <span className="font-semibold text-foreground">{dateFromFilter ? format(dateFromFilter, 'dd/MM/yyyy', { locale: fr }) : '—'}</span>{' '}
-          et{' '}
-          <span className="font-semibold text-foreground">{dateToFilter ? format(dateToFilter, 'dd/MM/yyyy', { locale: fr }) : '—'}</span>
+          <span className="font-semibold text-foreground">{filteredCount}</span> dossier{filteredCount === 1 ? '' : 's'} créé{filteredCount === 1 ? '' : 's'}{' '}
+          {(!dateFromFilter && !dateToFilter) ? (
+            'au total'
+          ) : (
+            <>
+              entre{' '}
+              <span className="font-semibold text-foreground">{dateFromFilter ? format(dateFromFilter, 'dd/MM/yyyy', { locale: fr }) : '—'}</span>{' '}
+              et{' '}
+              <span className="font-semibold text-foreground">{dateToFilter ? format(dateToFilter, 'dd/MM/yyyy', { locale: fr }) : '—'}</span>
+            </>
+          )}
         </p>
       </div>
       <CardContent className="p-0 max-h-[520px] overflow-y-auto">
