@@ -48,6 +48,7 @@ import {
 import Logo from '@/components/logo';
 import { useCompagnies } from '@/hooks/use-compagnies';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useRappels } from '@/hooks/use-rappels';
 import NextLink from 'next/link';
 import { cn } from '@/lib/utils';
 import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
@@ -78,6 +79,9 @@ const AppSidebar = () => {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const { rappels } = useRappels();
+  const unreadRappelsCount = rappels.filter((r) => !r.read).length;
 
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
@@ -214,6 +218,11 @@ const AppSidebar = () => {
                         <NextLink href={item.href}>
                           <Icon />
                           <span>{item.label}</span>
+                          {item.href === '/mes-rappels' && unreadRappelsCount > 0 && (
+                            <span className="ml-auto text-[10px] font-bold border border-primary text-primary bg-background rounded-full px-1.5 min-w-[1.25rem] text-center leading-tight py-0.5">
+                              +{unreadRappelsCount}
+                            </span>
+                          )}
                         </NextLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
