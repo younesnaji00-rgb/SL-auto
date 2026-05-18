@@ -410,6 +410,9 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         </Badge>
       </div>
 
+      {/* Observations section */}
+      <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />
+
       {/* Devis & Factures — one horizontal row per parent garage (base or
           gestionnaire-created extra). Each row has a sticky "Éditer web"
           button pinned to the left that opens the structured devis editor
@@ -482,9 +485,6 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         onOpenDocument={handleOpenDocument}
         onDownloadDocument={handleDownloadDocument}
       />
-
-      {/* Observations section */}
-      <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />
 
       {/* Réforme Modal */}
       {chiffrage.dossierId && (
