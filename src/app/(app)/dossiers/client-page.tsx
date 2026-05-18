@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check } from 'lucide-react';
+import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check, Bell, Send, Loader2 } from 'lucide-react';
 import { format, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
@@ -44,7 +44,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { addDoc, collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, doc, updateDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'refExpert', label: 'Réf Expert' },
@@ -170,6 +171,13 @@ export default function DossiersClientPage() {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [selectedColumns, setSelectedColumns] = useState<Set<string>>(new Set(ALL_COLUMN_KEYS));
 
+  // Mes rappels — sender-side dialog state
+  const [isSendToOpen, setIsSendToOpen] = useState(false);
+  const [gestionnaires, setGestionnaires] = useState<Array<{ uid: string; nom: string; prenom: string }>>([]);
+  const [gestLoading, setGestLoading] = useState(false);
+  const [selectedGestUids, setSelectedGestUids] = useState<Set<string>>(new Set());
+  const [sending, setSending] = useState(false);
+
   const dossierList = useMemo(() => {
     let results = [...allDossiers];
     if (filters.nature !== 'Toutes') results = results.filter(d => d.nature === filters.nature);
@@ -276,6 +284,55 @@ export default function DossiersClientPage() {
     setSelectedRows(new Set());
     setSelectedColumns(new Set(ALL_COLUMN_KEYS));
   }, []);
+
+  useEffect(() => {
+    if (!isSendToOpen || !db) return;
+    setGestLoading(true);
+    getDocs(query(collection(db, 'users'), where('role', '==', 'Gestionnaire')))
+      .then((snap) => {
+        setGestionnaires(snap.docs.map((d) => ({
+          uid: d.id,
+          nom: (d.data() as any).nom || '',
+          prenom: (d.data() as any).prenom || '',
+        })));
+      })
+      .catch((err) => console.warn('[mes-rappels] fetch gestionnaires failed', err))
+      .finally(() => setGestLoading(false));
+  }, [isSendToOpen, db]);
+
+  const handleSendRappel = async () => {
+    if (!db || !profile || selectedRows.size === 0 || selectedGestUids.size === 0) return;
+    setSending(true);
+    try {
+      const senderName = `${profile.prenom || ''} ${profile.nom || ''}`.trim() || profile.email || profile.uid;
+      const selectedDossiers = dossierList.filter((d) => selectedRows.has(d.id));
+      const writes: Promise<any>[] = [];
+      for (const g of gestionnaires.filter((gg) => selectedGestUids.has(gg.uid))) {
+        for (const d of selectedDossiers) {
+          writes.push(addDoc(collection(db, 'rappels'), {
+            recipientUid: g.uid,
+            recipientNom: `${g.prenom || ''} ${g.nom || ''}`.trim(),
+            senderUid: profile.uid,
+            senderNom: senderName,
+            dossierId: d.id,
+            dossierRef: (d as any).refExpert || '',
+            createdAt: serverTimestamp(),
+            read: false,
+          }));
+        }
+      }
+      await Promise.all(writes);
+      toast({ title: 'Rappels envoyés', description: `${writes.length} rappel(s) envoyé(s).` });
+      setIsSendToOpen(false);
+      setSelectedGestUids(new Set());
+      setSelectedRows(new Set());
+      setExportMode(false);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message || "Impossible d'envoyer les rappels." });
+    } finally {
+      setSending(false);
+    }
+  };
 
   const allVisibleSelected = dossierList.length > 0 && dossierList.every(d => selectedRows.has(d.id));
 
@@ -526,9 +583,9 @@ export default function DossiersClientPage() {
             <Button variant="outline" size="sm" onClick={allVisibleSelected ? () => setSelectedRows(new Set()) : handleSelectAll}>
               {allVisibleSelected ? 'Tout désélectionner' : 'Sélectionner tout'}
             </Button>
-            <Button size="sm" onClick={handleExport} disabled={selectedRows.size === 0 || selectedColumns.size === 0}>
-              <Download className="mr-2 h-4 w-4" />
-              Télécharger
+            <Button size="sm" onClick={() => setIsSendToOpen(true)} disabled={selectedRows.size === 0}>
+              <Send className="mr-2 h-4 w-4" />
+              Envoyer à
             </Button>
             <Button variant="ghost" size="sm" onClick={handleCancelExport}>
               Annuler
@@ -544,8 +601,8 @@ export default function DossiersClientPage() {
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={() => setExportMode(true)}>
-            <Download className="mr-2 h-4 w-4" />
-            Exporter
+            <Bell className="mr-2 h-4 w-4" />
+            Rappeler
           </Button>
         </div>
       )}
@@ -1001,6 +1058,44 @@ export default function DossiersClientPage() {
         onOpenChange={(open) => !open && setObservationHistoryDossier(null)}
         dossier={observationHistoryDossier}
       />
+      <Dialog open={isSendToOpen} onOpenChange={setIsSendToOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Envoyer à</DialogTitle>
+            <DialogDescription>Sélectionnez un ou plusieurs gestionnaires destinataires.</DialogDescription>
+          </DialogHeader>
+          {gestLoading ? (
+            <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+          ) : gestionnaires.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">Aucun gestionnaire disponible.</p>
+          ) : (
+            <div className="space-y-1 max-h-[300px] overflow-y-auto py-2">
+              {gestionnaires.map((g) => (
+                <label key={g.uid} className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 rounded px-2 py-1.5">
+                  <Checkbox
+                    checked={selectedGestUids.has(g.uid)}
+                    onCheckedChange={(v) => {
+                      setSelectedGestUids((prev) => {
+                        const next = new Set(prev);
+                        if (v === true) next.add(g.uid); else next.delete(g.uid);
+                        return next;
+                      });
+                    }}
+                  />
+                  <span className="text-sm">{`${g.prenom} ${g.nom}`.trim() || '—'}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsSendToOpen(false)}>Annuler</Button>
+            <Button disabled={selectedGestUids.size === 0 || sending} onClick={handleSendRappel}>
+              {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+              Envoyer ({selectedGestUids.size})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <AssignmentHistorySheet
         open={!!assignmentDossier}
         onOpenChange={(open) => !open && setAssignmentDossier(null)}
