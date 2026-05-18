@@ -548,9 +548,9 @@ export default function DossiersClientPage() {
         </div>
       )}
 
-      <Card className="overflow-x-auto border rounded-lg">
+      <Card className="overflow-auto border rounded-lg max-h-[calc(100vh-280px)]">
         <Table>
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="bg-muted/50">
               {exportMode && (
                 <TableHead className="w-10">
