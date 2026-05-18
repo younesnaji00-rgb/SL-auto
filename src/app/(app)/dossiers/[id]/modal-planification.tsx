@@ -51,6 +51,26 @@ function normalizeTypeMission(
   return null;
 }
 
+/** If `input` is a Google Maps URL with embedded coordinates, returns "lat,lng" (6-decimal); else returns `input` unchanged. */
+function parseMapsLinkOrSelf(input: string): string {
+  if (!input || !input.startsWith('http')) return input;
+  const patterns: RegExp[] = [
+    /@(-?\d+\.\d+),(-?\d+\.\d+)/,
+    /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/,
+    /[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/,
+    /[?&]destination=(-?\d+\.\d+),(-?\d+\.\d+)/,
+  ];
+  for (const re of patterns) {
+    const m = input.match(re);
+    if (m) {
+      const lat = Number(m[1]).toFixed(6);
+      const lng = Number(m[2]).toFixed(6);
+      return `${lat},${lng}`;
+    }
+  }
+  return input;
+}
+
 type ModalPlanificationProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -411,11 +431,19 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
 
           <div className="space-y-2">
             <Label>Adresse complète</Label>
-            <Input 
-              placeholder="Adresse du rendez-vous..." 
+            <Input
+              placeholder="Adresse du rendez-vous..."
               className="h-10"
-              value={formData.adresse} 
-              onChange={(e) => setFormData({...formData, adresse: e.target.value})} 
+              value={formData.adresse}
+              onChange={(e) => setFormData({...formData, adresse: e.target.value})}
+              onPaste={(e) => {
+                const pasted = e.clipboardData.getData('text');
+                const parsed = parseMapsLinkOrSelf(pasted);
+                if (parsed !== pasted) {
+                  e.preventDefault();
+                  setFormData({ ...formData, adresse: parsed });
+                }
+              }}
             />
           </div>
 
