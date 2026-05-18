@@ -118,7 +118,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
           arbitre: hydrateExpert('arbitre'),
         },
         assure: {
-          nom: dataAssure.nom || '', prenom: dataAssure.prenom || '',
+          nom: `${dataAssure.nom || ''} ${dataAssure.prenom || ''}`.trim(),
+          prenom: '',
           telephone: dataAssure.telephone || '', whatsapp: dataAssure.whatsapp || '',
           telephone2: dataAssure.telephone2 || '', email: dataAssure.email || '',
           adresse: dataAssure.adresse || '', cin: dataAssure.cin || '',
@@ -380,8 +381,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
         </CardHeader>
         <CardContent className="p-0">
           <FieldRow fields={[
-            { label: 'Nom', value: form.assure.nom, edit: <Input className="h-9" value={form.assure.nom} onChange={(e) => handleNestedChange('assure', 'nom', e.target.value)} /> },
-            { label: 'Prénom', value: form.assure.prenom, edit: <Input className="h-9" value={form.assure.prenom} onChange={(e) => handleNestedChange('assure', 'prenom', e.target.value)} /> },
+            { label: 'Nom complet', value: form.assure.nom, edit: <Input className="h-9" value={form.assure.nom} onChange={(e) => handleNestedChange('assure', 'nom', e.target.value)} /> },
             { label: 'Téléphone', value: form.assure.telephone, edit: <Input className="h-9" value={form.assure.telephone} onChange={(e) => handleNestedChange('assure', 'telephone', e.target.value)} /> },
             { label: 'WhatsApp', value: form.assure.whatsapp, edit: <Input className="h-9" value={form.assure.whatsapp} onChange={(e) => handleNestedChange('assure', 'whatsapp', e.target.value)} /> },
           ]} />
