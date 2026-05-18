@@ -60,7 +60,10 @@ export async function scanAndPersistCarteGrise({
     };
 
     const updates: Record<string, any> = {};
-    if (parsed.registration) updates.matricule = parsed.registration;
+    if (parsed.registration) {
+      updates.matricule = parsed.registration;
+      updates['vehicule.immatriculation'] = parsed.registration;
+    }
     if (parsed.previousRegistration) {
       updates['vehicule.immatriculationAnterieur'] = parsed.previousRegistration;
     }
