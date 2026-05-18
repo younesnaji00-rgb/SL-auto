@@ -24,7 +24,7 @@ import { Loader2, Clock } from 'lucide-react';
 import { collection, addDoc, updateDoc, doc, setDoc, serverTimestamp, Timestamp, getDocs, query, where, limit } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfToday } from 'date-fns';
+import { format, startOfToday, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { logHistorique, logWorkflow } from './log-historique';
 import { addObservation } from './log-observation';
@@ -485,6 +485,29 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
               <AlertTitle>RDV déjà passé</AlertTitle>
               <AlertDescription>
                 L'heure de RDV ({formData.timeRDV}) est déjà dépassée. L'agent ne pourra pas s'y rendre à temps.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {formData.agentTerrain && agentLive.isFresh && agentLive.location && (
+            <Alert variant="info">
+              <AlertTitle>Position actuelle de l'agent</AlertTitle>
+              <AlertDescription>
+                <p className="font-mono text-sm">
+                  {agentLive.location.lat.toFixed(5)}, {agentLive.location.lng.toFixed(5)}
+                </p>
+                <p className="text-sm italic text-muted-foreground mt-1">
+                  Mise à jour {formatDistanceToNow(new Date(agentLive.location.updatedAtMs), { addSuffix: true, locale: fr })}
+                </p>
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${agentLive.location.lat},${agentLive.location.lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-primary underline mt-2"
+                >
+                  <MapPin className="h-3 w-3" />
+                  Voir sur Google Maps
+                </a>
               </AlertDescription>
             </Alert>
           )}
