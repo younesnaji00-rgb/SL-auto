@@ -174,6 +174,10 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     for (const d of documents) {
       const t = d.type || d.typeDocument || 'Autre';
       counts[t] = (counts[t] || 0) + 1;
+      // Roll "Devis Garage*" into "Devis", "Facture Garage*" into "Facture"
+      // so the curated parent rows in the filter list show non-zero counts.
+      if (t.startsWith('Devis ')) counts['Devis'] = (counts['Devis'] || 0) + 1;
+      if (t.startsWith('Facture ')) counts['Facture'] = (counts['Facture'] || 0) + 1;
     }
     return counts;
   }, [documents]);
@@ -287,7 +291,13 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
 
   const visibleDocs = useMemo(() => {
     if (selectedType === ALL_TYPES_KEY) return documents;
-    return documents.filter((d) => (d.type || d.typeDocument) === selectedType);
+    return documents.filter((d) => {
+      const t = d.type || d.typeDocument || '';
+      if (t === selectedType) return true;
+      if (selectedType === 'Devis' && t.startsWith('Devis ')) return true;
+      if (selectedType === 'Facture' && t.startsWith('Facture ')) return true;
+      return false;
+    });
   }, [documents, selectedType]);
 
   const importButton = onImportClick ? (
