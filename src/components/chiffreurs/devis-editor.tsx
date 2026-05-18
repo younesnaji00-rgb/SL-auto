@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { CellNumberInput } from '@/components/ui/cell-number-input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -480,6 +481,7 @@ export function DevisEditor({
   const [obsHeaderOpen, setObsHeaderOpen] = useState(false);
   const [tvaHeaderOpen, setTvaHeaderOpen] = useState(false);
   const [tvaHeaderValue, setTvaHeaderValue] = useState<number | null>(20);
+  const [sansTva, setSansTva] = useState(false);
 
   // Accord totals helpers. The cap (accord PU ≤ row PUHT) is signalled
   // inline (red border + message) on the cell — no clamping or revert.
@@ -1101,6 +1103,18 @@ export function DevisEditor({
         </div>
       </div>
 
+      <div className="flex items-center gap-2 px-1">
+        <Checkbox
+          id="sans-tva-toggle"
+          checked={sansTva}
+          onCheckedChange={(v) => setSansTva(v === true)}
+          disabled={!isEditable}
+        />
+        <label htmlFor="sans-tva-toggle" className="text-sm font-medium select-none cursor-pointer">
+          Sans TVA
+        </label>
+      </div>
+
       {/* Rows table — fixed columns. The accord/proposition column is created
           automatically when the chiffreur picks via the first-open lightbox.
           Rows are added only via AI scan, paste, or programmatic flows (no
@@ -1312,7 +1326,7 @@ export function DevisEditor({
                           {puHeader}
                         </th>
                         <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Total H.T ${tripleSuffix}`}</th>
-                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Prix TTC ${tripleSuffix}`}</th>
+                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Prix Total ${col.kind === 'accord' ? 'Accordé' : 'Proposé'}`}</th>
                       </React.Fragment>
                     );
                   }
@@ -1554,7 +1568,7 @@ export function DevisEditor({
                               {formatFr(totalHTAccord)}
                             </td>
                             <td className="text-right font-semibold pr-2 bg-muted/40">
-                              {formatFr(prixTTCAccord)}
+                              {formatFr(sansTva ? totalHTAccord : prixTTCAccord)}
                             </td>
                           </React.Fragment>
                         );
@@ -1670,7 +1684,7 @@ export function DevisEditor({
                       <React.Fragment key={col.id}>
                         <td />
                         <td className="text-right">{formatFr(totalHTAccordSum)}</td>
-                        <td className="text-right">{formatFr(prixTTCAccordSum)}</td>
+                        <td className="text-right">{formatFr(sansTva ? totalHTAccordSum : prixTTCAccordSum)}</td>
                       </React.Fragment>
                     );
                   }
