@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useRappels } from '@/hooks/use-rappels';
+import { doc, updateDoc } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
 
 function formatDate(ts: any): string {
   if (!ts) return '-';
@@ -19,6 +21,7 @@ function formatDate(ts: any): string {
 export default function MesRappelsPage() {
   const { rappels, loading } = useRappels();
   const router = useRouter();
+  const db = useFirestore();
 
   return (
     <div className="space-y-4">
@@ -53,7 +56,12 @@ export default function MesRappelsPage() {
                 <TableRow
                   key={r.id}
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => router.push(`/dossiers/${r.dossierId}`)}
+                  onClick={() => {
+                    if (!r.read && db) {
+                      updateDoc(doc(db, 'rappels', r.id), { read: true }).catch(() => {});
+                    }
+                    router.push(`/dossiers/${r.dossierId}`);
+                  }}
                 >
                   <TableCell className="font-mono text-sm font-semibold text-primary tabular-nums">
                     {r.dossierRef || r.dossierId}
