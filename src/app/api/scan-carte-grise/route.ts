@@ -3,6 +3,43 @@ import { ai } from '@/ai/genkit';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
 
+const ARABIC_TO_LATIN: Record<string, string> = {
+  'أ': 'A',
+  'ب': 'B',
+  'ت': 'T',
+  'ث': 'TH',
+  'ج': 'J',
+  'ح': 'H',
+  'خ': 'KH',
+  'د': 'D',
+  'ذ': 'Z',
+  'ر': 'R',
+  'ز': 'Z',
+  'س': 'S',
+  'ش': 'SH',
+  'ص': 'S',
+  'ض': 'D',
+  'ط': 'T',
+  'ظ': 'Z',
+  'ع': 'A',
+  'غ': 'GH',
+  'ف': 'F',
+  'ق': 'Q',
+  'ك': 'K',
+  'ل': 'L',
+  'م': 'M',
+  'ن': 'N',
+  'ه': 'H',
+  'و': 'W',
+  'ي': 'Y',
+};
+
+function transliterateArabic(s: string | null | undefined): string | null | undefined {
+  if (s === null || s === undefined || s === '') return s;
+  if (typeof s !== 'string') return s;
+  return Array.from(s).map(ch => ARABIC_TO_LATIN[ch] ?? ch).join('');
+}
+
 /**
  * Carte Grise scanner — narrow extractor that pulls only the two registration
  * numbers off a Moroccan carte grise:
@@ -74,8 +111,8 @@ RÈGLES STRICTES:
     }
 
     const data = parsed.data || {};
-    const reg = typeof data.registration === 'string' ? data.registration.trim() : null;
-    const prev = typeof data.previousRegistration === 'string' ? data.previousRegistration.trim() : null;
+    const reg = transliterateArabic(typeof data.registration === 'string' ? data.registration.trim() : null) as string | null;
+    const prev = transliterateArabic(typeof data.previousRegistration === 'string' ? data.previousRegistration.trim() : null) as string | null;
 
     return NextResponse.json({
       registration: reg || null,
