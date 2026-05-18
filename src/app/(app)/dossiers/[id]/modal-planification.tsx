@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2, Clock } from 'lucide-react';
-import { collection, addDoc, updateDoc, doc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, setDoc, serverTimestamp, Timestamp, getDocs, query, where, limit } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfToday } from 'date-fns';
@@ -160,8 +160,26 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
       const selectedAgent = agents.find((a) => a.label === formData.agentTerrain);
       const derivedZone = selectedAgent?.zone?.trim() || '';
 
+      // Resolve agent UID at write time so a future Cloud Function can address
+      // the agent directly via FCM without having to re-derive the name→uid
+      // mapping. Mirrors the lookup in use-agent-live-location.ts.
+      let agentTerrainUid: string | null = null;
+      const trimmedAgentName = formData.agentTerrain.trim();
+      if (trimmedAgentName) {
+        try {
+          const snap = await getDocs(
+            query(collection(db, 'users'), where('nom', '==', trimmedAgentName), limit(1)),
+          );
+          agentTerrainUid = snap.docs[0]?.id ?? null;
+        } catch (err) {
+          console.warn('[modal-planification] agentUid lookup failed:', err);
+          agentTerrainUid = null;
+        }
+      }
+
       const payload: Record<string, any> = {
         agentTerrain: formData.agentTerrain,
+        agentTerrainUid,
         typeMission: formData.typeMission,
         dateRDV: finalRDV,
         zone: derivedZone,
