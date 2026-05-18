@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight, Pencil, RotateCcw, Filter, Check } from 'lucide-react';
+import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check } from 'lucide-react';
 import { format, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
@@ -69,16 +69,6 @@ export default function DossiersClientPage() {
   const db = useFirestore();
   const { profile, canWrite, canDelete } = useCurrentUser();
   const canEditDossiers = canWrite('dossiers');
-  // "Éditer web" is exposed on each dossier row for admin/directeur-family
-  // roles. Clicking routes to the same chiffrage editor entry-point that the
-  // assigner-au-chiffrage flow lands on (`/assignations-chiffrage/[id]`),
-  // which in turn hosts the per-slot Éditer buttons that open the structured
-  // devis editor. Reuses the exact role strings from the canonical role list.
-  const canEditWeb =
-    profile?.role === 'Admin'
-    || profile?.role === 'Directeur'
-    || profile?.role === 'Directeur des opérations'
-    || profile?.role === 'Directeur technique';
   const { openTab } = useDossierTabs();
 
   const openDossier = useCallback((d: { id: string; refExpert?: string; numero?: string; assure?: any }) => {
@@ -912,50 +902,6 @@ export default function DossiersClientPage() {
                         >
                           <Eye className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
                         </Button>
-                        {canEditWeb && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            title="Éditer web"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const chiffrageId = (d as any).currentChiffrageId as string | undefined;
-                              if (chiffrageId) {
-                                router.push(`/assignations-chiffrage/${chiffrageId}`);
-                                return;
-                              }
-                              // No chiffrage yet — create a minimal one with this admin/directeur
-                              // as the assigned chiffreur so the editor opens straight away.
-                              if (!db || !profile) {
-                                toast({ variant: 'destructive', title: 'Erreur', description: 'Session incomplète.' });
-                                return;
-                              }
-                              try {
-                                const profileName = [profile.prenom, profile.nom].filter(Boolean).join(' ').trim() || profile.email || profile.uid;
-                                const newRef = await addDoc(collection(db, 'chiffrages'), {
-                                  dossierId: d.id,
-                                  dossierNom: (d as any).refExpert || (d as any).nom || d.id,
-                                  assignedChiffreurId: profile.uid,
-                                  assignedChiffreurNom: profileName,
-                                  files: [],
-                                  status: 'pending',
-                                  sentByUid: profile.uid,
-                                  sentByEmail: profile.email || '',
-                                  sentByNom: profileName,
-                                  createdAt: serverTimestamp(),
-                                  updatedAt: serverTimestamp(),
-                                });
-                                await updateDoc(doc(db, 'dossiers', d.id), { currentChiffrageId: newRef.id });
-                                router.push(`/assignations-chiffrage/${newRef.id}`);
-                              } catch (err: any) {
-                                toast({ variant: 'destructive', title: 'Erreur', description: err.message || 'Impossible de créer le chiffrage.' });
-                              }
-                            }}
-                          >
-                            <Pencil className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
-                          </Button>
-                        )}
                         <Button
                           variant="ghost"
                           size="icon"
