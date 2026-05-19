@@ -1712,8 +1712,12 @@ export function DevisEditor({
           <div className="flex items-center gap-6">
             <span className="font-bold">Total H.T</span>
             <span className="w-28 text-right font-bold">{formatFr(totals.ht)}</span>
-            <span className="font-bold">Total TTC Expert</span>
-            <span className="w-28 text-right font-bold">{totalTTCExpert == null ? '—' : formatFr(totalTTCExpert)}</span>
+            {!sansTva && (
+              <>
+                <span className="font-bold">Total TTC Expert</span>
+                <span className="w-28 text-right font-bold">{totalTTCExpert == null ? '—' : formatFr(totalTTCExpert)}</span>
+              </>
+            )}
           </div>
         </div>
       </div>

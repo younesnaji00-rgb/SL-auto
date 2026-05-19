@@ -362,17 +362,26 @@ export function renderDevisPdf(
 
   pdf.setFontSize(9);
   pdf.setFont('helvetica', 'bold');
-  pdf.rect(totalsX, totalsY, totalsW, 14);
-  pdf.line(totalsX, totalsY + 7, totalsX + totalsW, totalsY + 7);
-  pdf.line(totalsX + 38, totalsY, totalsX + 38, totalsY + 14);
+  if (sansTva) {
+    // Sans TVA: collapse to a single Total H.T row (7mm tall, no horizontal divider).
+    pdf.rect(totalsX, totalsY, totalsW, 7);
+    pdf.line(totalsX + 38, totalsY, totalsX + 38, totalsY + 7);
+    pdf.text('Total H.T', totalsX + 2, totalsY + 5);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(formatFr(sumHT(devis.rows)), totalsX + totalsW - 2, totalsY + 5, { align: 'right' });
+  } else {
+    pdf.rect(totalsX, totalsY, totalsW, 14);
+    pdf.line(totalsX, totalsY + 7, totalsX + totalsW, totalsY + 7);
+    pdf.line(totalsX + 38, totalsY, totalsX + 38, totalsY + 14);
 
-  pdf.text('Total H.T', totalsX + 2, totalsY + 5);
-  pdf.text('Total TTC Expert', totalsX + 2, totalsY + 12);
+    pdf.text('Total H.T', totalsX + 2, totalsY + 5);
+    pdf.text('Total TTC Expert', totalsX + 2, totalsY + 12);
 
-  pdf.setFont('helvetica', 'normal');
-  pdf.text(formatFr(sumHT(devis.rows)), totalsX + totalsW - 2, totalsY + 5, { align: 'right' });
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(formatFr(sumTTC(devis.rows)), totalsX + totalsW - 2, totalsY + 12, { align: 'right' });
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(formatFr(sumHT(devis.rows)), totalsX + totalsW - 2, totalsY + 5, { align: 'right' });
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(formatFr(sumTTC(devis.rows)), totalsX + totalsW - 2, totalsY + 12, { align: 'right' });
+  }
 
   // ── Version watermark in footer ─────────────────────────────────────────
   if (opts?.author || opts?.versionTimestamp) {
