@@ -4,6 +4,7 @@ import {
   type DevisSnapshot,
   type EditableDocType,
   formatFr,
+  OBSERVATION_LABELS,
   rowTotalHT,
   sumHT,
   sumTTC,
@@ -64,6 +65,7 @@ export function renderDevisPdf(
   const hasAccordTriple = (devis.extraColumns ?? []).some(
     (c) => c?.kind === 'accord' || c?.kind === 'proposition-accord',
   );
+  const hasObservations = devis.rows.some((r) => !!r.observation);
   const pdf = new jsPDF({
     orientation: hasAccordTriple ? 'landscape' : 'portrait',
     unit: 'mm',
@@ -262,6 +264,7 @@ export function renderDevisPdf(
       'P.U H.T',
       'Total H.T',
       'Prix en TTC',
+      ...(hasObservations ? ['Observation'] : []),
       ...accordTripleHeaders,
       ...(isProposition ? ['Accord 2eme expert'] : []),
     ],
@@ -284,6 +287,7 @@ export function renderDevisPdf(
       puHtCell,
       totalHtCell,
       prixTtcCell,
+      ...(hasObservations ? [r.observation ? OBSERVATION_LABELS[r.observation] : ''] : []),
     ];
     accordExtras.forEach((c) => {
       const pu = c.values[r.id] || '';
@@ -302,7 +306,7 @@ export function renderDevisPdf(
     return base;
   });
 
-  const accordStartIndex = 8;
+  const accordStartIndex = hasObservations ? 9 : 8;
   // Designation must NEVER be cramped — set a generous `minCellWidth` floor and
   // shrink the other fixed columns first when horizontal space runs out (e.g.
   // proposition d'accord with an accord triple + 2eme expert column). The
@@ -318,6 +322,9 @@ export function renderDevisPdf(
   columnStyles[5] = { halign: 'right', cellWidth: 22 };          // P.U H.T
   columnStyles[6] = { halign: 'right', cellWidth: 22 };          // Total H.T
   columnStyles[7] = { halign: 'right', cellWidth: 22 };          // Prix en TTC
+  if (hasObservations) {
+    columnStyles[8] = { halign: 'left', cellWidth: 22 };          // Observation
+  }
   // Accord columns: legacy mode = triple per extra (PU / Total HT / Prix TTC);
   // collapse mode = single "Prix Total Accordé/Proposé" per extra.
   const accordColsPerExtra = collapseAccord ? 1 : 3;
