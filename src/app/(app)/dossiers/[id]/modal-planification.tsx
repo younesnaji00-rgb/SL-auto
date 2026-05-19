@@ -51,9 +51,9 @@ function normalizeTypeMission(
   return null;
 }
 
-/** If `input` is a Google Maps URL with embedded coordinates, returns "lat,lng" (6-decimal); else returns `input` unchanged. */
-function parseMapsLinkOrSelf(input: string): string {
-  if (!input || !input.startsWith('http')) return input;
+/** If `input` is a Google Maps URL with embedded coordinates, returns {lat,lng}; else null. */
+function parseMapsCoords(input: string): { lat: number; lng: number } | null {
+  if (!input || !input.startsWith('http')) return null;
   const patterns: RegExp[] = [
     /@(-?\d+\.\d+),(-?\d+\.\d+)/,
     /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/,
@@ -62,13 +62,9 @@ function parseMapsLinkOrSelf(input: string): string {
   ];
   for (const re of patterns) {
     const m = input.match(re);
-    if (m) {
-      const lat = Number(m[1]).toFixed(6);
-      const lng = Number(m[2]).toFixed(6);
-      return `${lat},${lng}`;
-    }
+    if (m) return { lat: Number(m[1]), lng: Number(m[2]) };
   }
-  return input;
+  return null;
 }
 
 type ModalPlanificationProps = {
@@ -459,12 +455,21 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
               className="h-10"
               value={formData.adresse}
               onChange={(e) => setFormData({...formData, adresse: e.target.value})}
-              onPaste={(e) => {
+              onPaste={async (e) => {
                 const pasted = e.clipboardData.getData('text');
-                const parsed = parseMapsLinkOrSelf(pasted);
-                if (parsed !== pasted) {
-                  e.preventDefault();
-                  setFormData({ ...formData, adresse: parsed });
+                const coords = parseMapsCoords(pasted);
+                if (!coords) return; // not a Maps URL — let default paste happen
+                e.preventDefault();
+                const tempValue = `${coords.lat.toFixed(6)},${coords.lng.toFixed(6)}`;
+                setFormData((prev) => ({ ...prev, adresse: tempValue }));
+                try {
+                  const res = await fetch(`/api/reverse-geocode?lat=${coords.lat}&lng=${coords.lng}`);
+                  if (!res.ok) return;
+                  const data = await res.json();
+                  if (!data?.formatted) return;
+                  setFormData((prev) => prev.adresse === tempValue ? { ...prev, adresse: data.formatted } : prev);
+                } catch {
+                  /* silent — leaves the lat,lng value in place */
                 }
               }}
             />
