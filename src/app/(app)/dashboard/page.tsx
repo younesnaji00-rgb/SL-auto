@@ -283,7 +283,7 @@ function DashboardPageInner() {
   const statusBarData = useMemo(() => {
     const counts: Record<string, number> = {};
     filteredDossiers.forEach((d) => {
-      const raw = d.statut || 'Nouveau';
+      const raw = d.statut || 'Création de mission';
       // Round 8 — Création dossier is hidden from the dashboard at the user's
       // request. The status still exists in the data; we just don't surface
       // it in the dashboard's status panel, pie chart, or counts.
@@ -302,7 +302,7 @@ function DashboardPageInner() {
         allNames.add(name);
       }
     }
-    allNames.add('Nouveau');
+    allNames.add('Création de mission');
     // Intentionally do NOT add non-canonical dossier.statut values — legacy/migration artifacts should not appear as filter rows.
     return Array.from(allNames)
       .map((name) => ({ name, value: counts[name] || 0 }))
@@ -338,9 +338,9 @@ function DashboardPageInner() {
   const dossiersByStatus = useMemo(() => {
     if (!selectedStatus) return [];
     if (selectedStatus === ACCORD_BUCKET_LABEL) {
-      return filteredDossiers.filter((d) => ACCORD_BUCKET_MEMBERS.has(d.statut || 'Nouveau'));
+      return filteredDossiers.filter((d) => ACCORD_BUCKET_MEMBERS.has(d.statut || 'Création de mission'));
     }
-    return filteredDossiers.filter((d) => (d.statut || 'Nouveau') === selectedStatus);
+    return filteredDossiers.filter((d) => (d.statut || 'Création de mission') === selectedStatus);
   }, [filteredDossiers, selectedStatus, ACCORD_BUCKET_MEMBERS]);
 
   // Repartition par Compagnie
@@ -806,7 +806,7 @@ function DashboardPageInner() {
                     <TableCell className="font-mono text-[10px] text-muted-foreground tabular-nums">{dossier.matricule || '-'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn('text-[10px] py-0.5 px-2 rounded-full border font-semibold', getStatusBadgeStyles(dossier.statut))}>
-                        {dossier.statut || 'Nouveau'}
+                        {dossier.statut || 'Création de mission'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right text-[10px] text-muted-foreground font-medium tabular-nums">
