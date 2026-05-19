@@ -992,11 +992,9 @@ export default function AssignationsATGPage() {
                               </button>
                             </div>
                           )}
-                          {dossierLive[p.dossierId]?.matricule && (
-                            <div className="mt-1 text-[11px] font-mono tabular-nums tracking-wide text-muted-foreground">
-                              {dossierLive[p.dossierId].matricule}
-                            </div>
-                          )}
+                          <div className="mt-1 text-[11px] font-mono tabular-nums tracking-wide text-muted-foreground">
+                            {dossierLive[p.dossierId]?.matricule || '—'}
+                          </div>
                           <div className="mt-2 flex items-center gap-2 flex-wrap min-w-[140px]">
                             <AssurePhoneLink telephone={dossierLive[p.dossierId]?.assureTelephone || p.assureTelephone} />
                             <DeadlineBadge dateRDV={p.dateRDV} createdAt={p.createdAt} />
@@ -1346,6 +1344,7 @@ export default function AssignationsATGPage() {
                 <TableRow className="bg-muted/30">
                   <TableHead className="font-bold text-xs">Dossier</TableHead>
                   <TableHead className="font-bold text-xs">Assuré</TableHead>
+                  <TableHead className="font-bold text-xs">Immat.</TableHead>
                   <TableHead className="font-bold text-xs">Compagnie</TableHead>
                   {showAgentColumn && <TableHead className="font-bold text-xs">Agent</TableHead>}
                   <TableHead className="font-bold text-xs">Date RDV</TableHead>
@@ -1367,6 +1366,7 @@ export default function AssignationsATGPage() {
                   <span className="font-semibold text-sm text-primary">{p.dossierNom || p.dossierId}</span>
                 </TableCell>
                 <TableCell className="text-xs">{p.assureNom || '-'}</TableCell>
+                <TableCell className="font-mono text-xs tabular-nums">{dossierLive[p.dossierId]?.matricule || '—'}</TableCell>
                 <TableCell className="text-xs">{p.compagnie || '-'}</TableCell>
                 {showAgentColumn && <TableCell className="font-medium text-sm">{p.agentTerrain}</TableCell>}
                 <TableCell className="text-xs text-muted-foreground">{formatDate(p.dateRDV)}</TableCell>
