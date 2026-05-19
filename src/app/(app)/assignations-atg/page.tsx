@@ -11,6 +11,8 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { UserCheck, Calendar, MapPin, X, ChevronDown, Clock, CheckCircle2, Users, List, SlidersHorizontal, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Search } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
@@ -79,18 +81,57 @@ function routeSortKey(p: PlanificationItem): number {
 }
 
 // Build a Google Maps Directions URL for one or more addresses.
-// - 1 address: origin=My+Location → destination.
+// - 1 address: origin=<originParam> → destination.
 // - 2+ addresses: last is destination, earlier ones become pipe-separated waypoints.
+// `origin` defaults to "My+Location" (Maps' magic string) but Maps often
+// fails to pick up the agent's real position from that — supplying a literal
+// "<lat>,<lng>" from the browser's geolocation API is much more reliable.
 // Caller is responsible for capping the list at Google Maps' 10-stop limit
 // (1 destination + up to 9 waypoints).
-function buildMultiStopMapsUrl(addresses: string[]): string {
+function buildMultiStopMapsUrl(addresses: string[], origin?: string): string {
   const enc = (s: string) => encodeURIComponent(s.trim());
+  const originParam = origin && origin.trim() ? encodeURIComponent(origin.trim()) : 'My+Location';
   if (addresses.length === 1) {
-    return `https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=${enc(addresses[0])}&travelmode=driving`;
+    return `https://www.google.com/maps/dir/?api=1&origin=${originParam}&destination=${enc(addresses[0])}&travelmode=driving`;
   }
   const dest = enc(addresses[addresses.length - 1]);
   const waypoints = addresses.slice(0, -1).map(enc).join('|');
-  return `https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=${dest}&waypoints=${waypoints}&travelmode=driving`;
+  return `https://www.google.com/maps/dir/?api=1&origin=${originParam}&destination=${dest}&waypoints=${waypoints}&travelmode=driving`;
+}
+
+// Best-effort current-position read for the Start button. Resolves to a
+// "lat,lng" string when geolocation succeeds within 4s; null otherwise
+// (caller falls back to Maps' "My+Location" magic string).
+function readCurrentPositionString(): Promise<string | null> {
+  return new Promise((resolve) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        resolve(null);
+      }
+    }, 4000);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        const { latitude, longitude } = pos.coords;
+        resolve(`${latitude.toFixed(6)},${longitude.toFixed(6)}`);
+      },
+      () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(null);
+      },
+      { enableHighAccuracy: true, timeout: 4000, maximumAge: 30000 }
+    );
+  });
 }
 
 function AssurePhoneLink({ telephone, className }: { telephone?: string | null; className?: string }) {
@@ -303,11 +344,11 @@ export default function AssignationsATGPage() {
   const [loading, setLoading] = useState(true);
   // Realtime per-dossier state so status changes + photo uploads update the
   // "Délai" completion indicator even when no planification doc changes.
-  type DossierLive = { statut: string; photos: Record<PhotoCategory, boolean>; assureTelephone: string };
+  type DossierLive = { statut: string; photos: Record<PhotoCategory, boolean>; assureTelephone: string; matricule: string };
   const [dossierLive, setDossierLive] = useState<Record<string, DossierLive>>({});
-  const filterDefaults = { activeTab: 'Avant', dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', agentFilter: 'Tous' };
+  const filterDefaults = { activeTab: 'Avant', dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', agentFilter: 'Tous', keyword: '' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-atg', filterDefaults);
-  const { activeTab, dateFrom, dateTo, compagnieFilter, agentFilter } = filters;
+  const { activeTab, dateFrom, dateTo, compagnieFilter, agentFilter, keyword } = filters;
 
   const [viewMode, setViewMode] = useState<'by-zone' | 'list'>('list');
 
@@ -428,12 +469,14 @@ export default function AssignationsATGPage() {
       const u1 = onSnapshot(doc(db, 'dossiers', dId), (snap) => {
         const data: any = snap.exists() ? snap.data() : {};
         const tel = (data.assure?.telephone || data.assure?.telephone2 || '').trim();
+        const matricule = (data.vehicule?.immatriculation || data.matricule || '').toString().trim();
         setDossierLive(prev => ({
           ...prev,
           [dId]: {
             statut: data.statut || '',
             photos: prev[dId]?.photos || { avant: false, en_cours: false, apres: false },
             assureTelephone: tel,
+            matricule,
           },
         }));
       });
@@ -449,6 +492,7 @@ export default function AssignationsATGPage() {
             statut: prev[dId]?.statut || '',
             photos,
             assureTelephone: prev[dId]?.assureTelephone || '',
+            matricule: prev[dId]?.matricule || '',
           },
         }));
       });
@@ -520,8 +564,27 @@ export default function AssignationsATGPage() {
         return date <= to;
       });
     }
+    if (keyword && keyword.trim()) {
+      const needle = keyword.trim().toLowerCase();
+      results = results.filter(p => {
+        const matricule = dossierLive[p.dossierId]?.matricule || '';
+        return [
+          p.dossierNom,
+          p.assureNom,
+          p.assureTelephone,
+          p.adresse,
+          p.zone,
+          p.observation,
+          p.compagnie,
+          p.agentTerrain,
+          p.typeMission,
+          matricule,
+        ]
+          .some((f) => typeof f === 'string' && f.toLowerCase().includes(needle));
+      });
+    }
     return results;
-  }, [planifications, activeTab, compagnieFilter, agentFilter, dateFrom, dateTo]);
+  }, [planifications, activeTab, compagnieFilter, agentFilter, dateFrom, dateTo, keyword, dossierLive]);
 
   const groups = useMemo(() => {
     const today = startOfDay(new Date());
@@ -590,7 +653,7 @@ export default function AssignationsATGPage() {
   // RDV first so the agent's path follows time priority. Google Maps caps
   // routes at 10 stops (1 destination + up to 9 waypoints); extras are
   // dropped with a toast warning.
-  const openRouteForItems = (items: PlanificationItem[]) => {
+  const openRouteForItems = async (items: PlanificationItem[]) => {
     const addrs = [...items]
       .filter(p => p.adresse?.trim())
       .sort((a, b) => routeSortKey(a) - routeSortKey(b))
@@ -605,7 +668,10 @@ export default function AssignationsATGPage() {
         description: `Google Maps accepte au maximum ${MAX_STOPS} étapes par itinéraire. Les premières (par ordre chronologique) ont été conservées.`,
       });
     }
-    const url = buildMultiStopMapsUrl(route);
+    // Read the agent's live coords FIRST so we can pass them as the explicit
+    // `origin` — "My+Location" is unreliable; an explicit lat,lng always works.
+    const origin = await readCurrentPositionString();
+    const url = buildMultiStopMapsUrl(route, origin ?? undefined);
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -675,7 +741,7 @@ export default function AssignationsATGPage() {
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="h-9 w-9 -mr-2 relative" aria-label="Filtres">
                 <SlidersHorizontal className="h-4 w-4" />
-                {(compagnieFilter !== 'Toutes' || (canSeeNameFilter && agentFilter !== 'Tous') || dateFrom || dateTo) && (
+                {(compagnieFilter !== 'Toutes' || (canSeeNameFilter && agentFilter !== 'Tous') || dateFrom || dateTo || keyword) && (
                   <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive" />
                 )}
               </Button>
@@ -685,6 +751,20 @@ export default function AssignationsATGPage() {
                 <SheetTitle>Filtres</SheetTitle>
               </SheetHeader>
               <div className="flex-1 px-4 py-4 space-y-4 overflow-y-auto">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Recherche
+                  </label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      value={keyword}
+                      onChange={(e) => setFilters({ keyword: e.target.value })}
+                      placeholder="Réf, assuré, adresse, immat..."
+                      className="h-10 pl-8 text-sm"
+                    />
+                  </div>
+                </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Compagnie
@@ -735,7 +815,7 @@ export default function AssignationsATGPage() {
                 <Button
                   variant="ghost"
                   className="flex-1 h-10"
-                  onClick={() => setFilters({ compagnieFilter: 'Toutes', agentFilter: 'Tous', dateFrom: '', dateTo: '' })}
+                  onClick={() => setFilters({ compagnieFilter: 'Toutes', agentFilter: 'Tous', dateFrom: '', dateTo: '', keyword: '' })}
                 >
                   Réinitialiser
                 </Button>
@@ -912,6 +992,11 @@ export default function AssignationsATGPage() {
                               </button>
                             </div>
                           )}
+                          {dossierLive[p.dossierId]?.matricule && (
+                            <div className="mt-1 text-[11px] font-mono tabular-nums tracking-wide text-muted-foreground">
+                              {dossierLive[p.dossierId].matricule}
+                            </div>
+                          )}
                           <div className="mt-2 flex items-center gap-2 flex-wrap min-w-[140px]">
                             <AssurePhoneLink telephone={dossierLive[p.dossierId]?.assureTelephone || p.assureTelephone} />
                             <DeadlineBadge dateRDV={p.dateRDV} createdAt={p.createdAt} />
@@ -1029,6 +1114,20 @@ export default function AssignationsATGPage() {
           </Badge>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={keyword}
+              onChange={(e) => setFilters({ keyword: e.target.value })}
+              placeholder="Rechercher (réf, assuré, adresse, immat...)"
+              className="h-9 w-[260px] pl-8 text-xs"
+            />
+            {keyword && (
+              <button onClick={() => clearFilter('keyword')} className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-muted text-muted-foreground hover:bg-destructive hover:text-destructive-foreground flex items-center justify-center">
+                <X className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </div>
           <div className="relative">
             <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
               <SelectTrigger className="w-[180px] h-9 text-xs">
