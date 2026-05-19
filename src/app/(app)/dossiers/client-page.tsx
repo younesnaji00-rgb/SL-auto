@@ -607,7 +607,7 @@ export default function DossiersClientPage() {
         </div>
       )}
 
-      <Card className="overflow-auto border rounded-lg max-h-[calc(100vh-280px)]">
+      <Card className="overflow-x-scroll overflow-y-auto border rounded-lg max-h-[calc(100vh-280px)] [&>div]:overflow-visible">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="bg-muted/50">
