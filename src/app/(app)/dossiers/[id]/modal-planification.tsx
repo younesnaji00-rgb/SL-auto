@@ -86,6 +86,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   const { toast } = useToast();
   const { profile } = useCurrentUser();
   const [loading, setLoading] = useState(false);
+  const [agentAddress, setAgentAddress] = useState<string | null>(null);
 
   const { options: dbRDVTypes } = useOptions('options_types_rdv');
   const rdvTypes = useMemo(() => dbRDVTypes.filter(o => o.active !== false), [dbRDVTypes]);
@@ -148,6 +149,28 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   }, [initialData, open, defaultTypeMission]);
 
   const agentLive = useAgentLiveLocation(formData.agentTerrain);
+
+  // Resolve the agent's live coords to a human-readable address via the
+  // server-side Nominatim proxy. Reset on every coord change so the previous
+  // address doesn't flash while the new lookup is in flight.
+  useEffect(() => {
+    setAgentAddress(null);
+    if (!agentLive.isFresh || !agentLive.location) return;
+    const { lat, lng } = agentLive.location;
+    let cancelled = false;
+    fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        if (typeof data.formatted === 'string' && data.formatted) {
+          setAgentAddress(data.formatted);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [agentLive.isFresh, agentLive.location?.lat, agentLive.location?.lng]);
 
   const {
     conflicts: feasibilityConflicts,
@@ -493,9 +516,13 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             <Alert variant="info">
               <AlertTitle>Position actuelle de l'agent</AlertTitle>
               <AlertDescription>
-                <p className="font-mono text-sm">
-                  {agentLive.location.lat.toFixed(5)}, {agentLive.location.lng.toFixed(5)}
-                </p>
+                {agentAddress ? (
+                  <p className="text-sm">{agentAddress}</p>
+                ) : (
+                  <p className="font-mono text-sm">
+                    {agentLive.location.lat.toFixed(5)}, {agentLive.location.lng.toFixed(5)}
+                  </p>
+                )}
                 <p className="text-sm italic text-muted-foreground mt-1">
                   Mise à jour {formatDistanceToNow(new Date(agentLive.location.updatedAtMs), { addSuffix: true, locale: fr })}
                 </p>
