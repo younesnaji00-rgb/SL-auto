@@ -15,9 +15,17 @@ interface CameraCaptureProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (photos: File[]) => void;
+  /**
+   * Max photos accepted from this session. The shutter button hard-stops at
+   * this count (Infinity = unlimited). Set by the parent based on existing
+   * photos vs the per-section cap so the user cannot exceed the limit by
+   * taking shots inside the camera — the previous behavior silently dropped
+   * the excess on confirm, which surprised users.
+   */
+  maxCaptures?: number;
 }
 
-export default function CameraCapture({ open, onClose, onConfirm }: CameraCaptureProps) {
+export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = Infinity }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -85,7 +93,10 @@ export default function CameraCapture({ open, onClose, onConfirm }: CameraCaptur
     };
   }, [open, facingMode, startCamera]);
 
+  const atCap = captures.length >= maxCaptures;
+
   const handleCapture = useCallback(() => {
+    if (atCap) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
@@ -100,9 +111,14 @@ export default function CameraCapture({ open, onClose, onConfirm }: CameraCaptur
       if (!blob) return;
       const id = `capture_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const url = URL.createObjectURL(blob);
-      setCaptures(prev => [...prev, { id, blob, url }]);
+      setCaptures(prev => {
+        // Defensive guard — block writes if a race somehow gets us past the
+        // disabled-button gate (e.g. rapid taps before React re-renders).
+        if (prev.length >= maxCaptures) return prev;
+        return [...prev, { id, blob, url }];
+      });
     }, 'image/jpeg', 0.9);
-  }, []);
+  }, [atCap, maxCaptures]);
 
   const handleRemove = useCallback((id: string) => {
     setCaptures(prev => {
@@ -151,13 +167,21 @@ export default function CameraCapture({ open, onClose, onConfirm }: CameraCaptur
           </div>
         )}
 
+        {atCap && !error && (
+          <div className="absolute left-1/2 -translate-x-1/2 top-16 bg-red-600/90 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg pointer-events-none">
+            Limite de {maxCaptures} photos atteinte
+          </div>
+        )}
+
         {/* Top bar */}
         <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 bg-gradient-to-b from-black/60 to-transparent">
           <Button variant="ghost" size="icon" onClick={handleClose} className="text-white hover:bg-white/20">
             <X className="h-6 w-6" />
           </Button>
           <span className="text-white text-sm font-medium">
-            {captures.length > 0 ? `${captures.length} photo${captures.length > 1 ? 's' : ''}` : 'Prendre des photos'}
+            {Number.isFinite(maxCaptures)
+              ? `${captures.length} / ${maxCaptures} photo${maxCaptures > 1 ? 's' : ''}`
+              : (captures.length > 0 ? `${captures.length} photo${captures.length > 1 ? 's' : ''}` : 'Prendre des photos')}
           </span>
           <Button variant="ghost" size="icon" onClick={toggleFacing} className="text-white hover:bg-white/20">
             <RotateCcw className="h-5 w-5" />
@@ -192,10 +216,13 @@ export default function CameraCapture({ open, onClose, onConfirm }: CameraCaptur
           Annuler
         </Button>
 
-        {/* Shutter button */}
+        {/* Shutter button — disabled once the per-section cap is reached so
+            the user cannot tap their way past the limit (the parent uploader
+            used to silently drop the excess). */}
         <button
           onClick={handleCapture}
-          disabled={!cameraReady}
+          disabled={!cameraReady || atCap}
+          aria-label={atCap ? 'Limite de photos atteinte' : 'Prendre une photo'}
           className="w-18 h-18 rounded-full border-4 border-white flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
           style={{ width: 72, height: 72 }}
         >

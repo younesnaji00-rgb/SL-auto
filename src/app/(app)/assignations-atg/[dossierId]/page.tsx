@@ -902,11 +902,15 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         </Dialog>
       )}
 
-      {/* Camera capture */}
+      {/* Camera capture — `maxCaptures` is the remaining-slot count for the
+          currently active section, so the shutter button hard-stops at the
+          per-section cap instead of letting the uploader silently drop the
+          excess photos on confirm. */}
       <CameraCapture
         open={isCameraOpen}
         onClose={() => setIsCameraOpen(false)}
         onConfirm={handleCameraConfirm}
+        maxCaptures={Math.max(0, photoCap - filteredPhotos.length)}
       />
     </div>
   );
