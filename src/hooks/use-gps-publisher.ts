@@ -75,9 +75,18 @@ export function useGpsPublisher(): { permission: GpsPermission; retry: () => voi
   );
 
   // Listen for incoming location requests from gestionnaires. When a new
-  // request arrives (newer than the last seen), force a one-shot position
-  // push bypassing the movement/throttle gate.
-  const lastHandledRequestMsRef = useRef<number>(Date.now());
+  // request arrives, force a one-shot position push bypassing the movement/
+  // throttle gate.
+  //
+  // Bootstrap: the ref starts as `null`, NOT `Date.now()`. On the first
+  // snapshot after mount we either fire (if the latest request is recent —
+  // last 5 min) or seed the ref (if it's older — likely already answered
+  // from a previous session). This is what makes the "tap notification →
+  // app opens → position pushed" path work: under the old `Date.now()`
+  // bootstrap, the first snapshot's `requestedAtMs` was always ≤ mount time
+  // and the geolocation read was silently skipped.
+  const lastHandledRequestMsRef = useRef<number | null>(null);
+  const RECENT_REQUEST_WINDOW_MS = 5 * 60 * 1000;
   useEffect(() => {
     if (!db || !firebaseUser?.uid) return;
     const q = query(
@@ -91,7 +100,17 @@ export function useGpsPublisher(): { permission: GpsPermission; retry: () => voi
       const requestedAtMs: number | undefined =
         typeof top?.requestedAt?.toMillis === 'function' ? top.requestedAt.toMillis() : undefined;
       if (typeof requestedAtMs !== 'number') return;
-      if (requestedAtMs <= lastHandledRequestMsRef.current) return;
+
+      if (lastHandledRequestMsRef.current === null) {
+        // First snapshot after mount. Old requests are seeded silently;
+        // recent ones fall through and trigger the geolocation read.
+        if (Date.now() - requestedAtMs > RECENT_REQUEST_WINDOW_MS) {
+          lastHandledRequestMsRef.current = requestedAtMs;
+          return;
+        }
+      } else if (requestedAtMs <= lastHandledRequestMsRef.current) {
+        return;
+      }
       lastHandledRequestMsRef.current = requestedAtMs;
       if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
       navigator.geolocation.getCurrentPosition(
