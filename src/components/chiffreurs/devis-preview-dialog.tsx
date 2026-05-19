@@ -31,6 +31,13 @@ export interface DevisPreviewDialogProps {
   accordKind?: 'accord' | 'proposition-accord';
   /** Optional — info only, NOT used in the PDF title (title is normalized). */
   ordinal?: number;
+  /**
+   * Mirrors the editor's Sans-TVA checkbox. When the snapshot has accord/
+   * proposition extras, the save-time PDF collapses each 3-column triple to a
+   * single "Prix Total Accordé/Proposé" column whose value is HT (sansTva=true)
+   * or TTC (sansTva=false). Default false → TTC.
+   */
+  sansTva?: boolean;
   onConfirm: (payload: { blob: Blob; stampId: string | null }) => void | Promise<void>;
   onEdit: () => void;
 }
@@ -78,6 +85,7 @@ export function DevisPreviewDialog({
   snapshot,
   docType,
   accordKind,
+  sansTva,
   onConfirm,
   onEdit,
 }: DevisPreviewDialogProps) {
@@ -168,6 +176,8 @@ export function DevisPreviewDialog({
           stampImage: null,
           stampPlacement: null,
           titleOverride,
+          collapseAccordToTotal: true,
+          sansTva: !!sansTva,
         });
         if (cancelled) return;
         setCurrentBlob(blob);
@@ -185,7 +195,7 @@ export function DevisPreviewDialog({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [open, snapshot, docType, titleOverride, renderTick]);
+  }, [open, snapshot, docType, titleOverride, renderTick, sansTva]);
 
   // Parse the blob into pageMetas. Canvases mount AFTER pageMetas updates
   // (driven by the JSX map below), so the actual canvas paint happens in a
@@ -349,6 +359,8 @@ export function DevisPreviewDialog({
           stampImage,
           stampPlacement,
           titleOverride,
+          collapseAccordToTotal: true,
+          sansTva: !!sansTva,
         });
       }
       await onConfirm({

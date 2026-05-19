@@ -1736,6 +1736,7 @@ export function DevisEditor({
           docType={toBaseEditableDocType(docType)}
           accordKind={previewAccordKind}
           ordinal={previewOrdinal}
+          sansTva={sansTva}
           onConfirm={async ({ blob, stampId }) => {
             setPreviewOpen(false);
             await performPersist(blob, stampId);

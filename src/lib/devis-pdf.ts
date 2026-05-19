@@ -47,6 +47,15 @@ export function renderDevisPdf(
      * Omitted = keep existing default title.
      */
     titleOverride?: 'Devis' | 'Facture' | 'Accord' | "Proposition d'accord";
+    /**
+     * Save-time collapse: render each accord/proposition extra as a SINGLE
+     * "Prix Total Accordé/Proposé" column instead of the 3-column triple
+     * (PU / Total HT / Prix TTC). The value rendered is HT when `sansTva`,
+     * TTC otherwise. Matches the on-screen editor's last column.
+     */
+    collapseAccordToTotal?: boolean;
+    /** Used together with `collapseAccordToTotal`. When true, render HT; else TTC. */
+    sansTva?: boolean;
   }
 ): Blob {
   // Switch to landscape when an accord/proposition triple is present — A4 portrait
@@ -218,10 +227,17 @@ export function renderDevisPdf(
     return ht * (1 + pct / 100);
   };
 
-  // Build accord triple headers: PU label + Total HT + Prix TTC, with the
-  // suffix matching the PU kind ('accordé' for accord columns, 'proposé' for
-  // proposition columns) — mirrors the on-screen devis-editor headers.
+  const collapseAccord = opts?.collapseAccordToTotal === true;
+  const sansTva = opts?.sansTva === true;
+
+  // Build accord headers. Legacy mode renders a 3-column triple per extra
+  // (PU label + Total HT + Prix TTC). Collapse mode renders a single
+  // "Prix Total Accordé/Proposé" column per extra — matches the on-screen
+  // editor's last column when the user clicks Sauvegarder.
   const accordTripleHeaders: string[] = accordExtras.flatMap((c) => {
+    if (collapseAccord) {
+      return [c.kind === 'accord' ? 'Prix Total Accordé' : 'Prix Total Proposé'];
+    }
     const suffix = c.kind === 'accord' ? 'accordé' : 'proposé';
     return [c.label, `Total HT ${suffix}`, `Prix TTC ${suffix}`];
   });
@@ -271,9 +287,14 @@ export function renderDevisPdf(
     ];
     accordExtras.forEach((c) => {
       const pu = c.values[r.id] || '';
-      base.push(pu);
-      base.push(formatFr(accordRowTotalHT(r, pu)));
-      base.push(formatFr(accordRowTTC(r, pu)));
+      if (collapseAccord) {
+        const total = sansTva ? accordRowTotalHT(r, pu) : accordRowTTC(r, pu);
+        base.push(formatFr(total));
+      } else {
+        base.push(pu);
+        base.push(formatFr(accordRowTotalHT(r, pu)));
+        base.push(formatFr(accordRowTTC(r, pu)));
+      }
     });
     if (isProposition) {
       base.push('');
@@ -297,15 +318,21 @@ export function renderDevisPdf(
   columnStyles[5] = { halign: 'right', cellWidth: 22 };          // P.U H.T
   columnStyles[6] = { halign: 'right', cellWidth: 22 };          // Total H.T
   columnStyles[7] = { halign: 'right', cellWidth: 22 };          // Prix en TTC
-  // Accord triples: each is (PU / Total HT Accord / Prix TTC Accord).
+  // Accord columns: legacy mode = triple per extra (PU / Total HT / Prix TTC);
+  // collapse mode = single "Prix Total Accordé/Proposé" per extra.
+  const accordColsPerExtra = collapseAccord ? 1 : 3;
   accordExtras.forEach((_c, i) => {
-    const base = accordStartIndex + i * 3;
-    columnStyles[base] = { halign: 'right', cellWidth: 22 };          // PU
-    columnStyles[base + 1] = { halign: 'right', cellWidth: 24 };      // Total HT Accord
-    columnStyles[base + 2] = { halign: 'right', cellWidth: 24 };      // Prix TTC Accord
+    const base = accordStartIndex + i * accordColsPerExtra;
+    if (collapseAccord) {
+      columnStyles[base] = { halign: 'right', cellWidth: 28 };        // Prix Total Accordé/Proposé
+    } else {
+      columnStyles[base] = { halign: 'right', cellWidth: 22 };          // PU
+      columnStyles[base + 1] = { halign: 'right', cellWidth: 24 };      // Total HT Accord
+      columnStyles[base + 2] = { halign: 'right', cellWidth: 24 };      // Prix TTC Accord
+    }
   });
   if (isProposition) {
-    const idx = accordStartIndex + accordExtras.length * 3;
+    const idx = accordStartIndex + accordExtras.length * accordColsPerExtra;
     columnStyles[idx] = { halign: 'center', cellWidth: 22 };          // Accord 2eme expert (empty)
   }
 
