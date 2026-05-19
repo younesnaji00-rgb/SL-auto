@@ -1,5 +1,5 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAuth, setPersistence, browserSessionPersistence, connectAuthEmulator, type Auth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence, connectAuthEmulator, type Auth } from 'firebase/auth';
 import { getFirestore, initializeFirestore, memoryLocalCache, connectFirestoreEmulator, type Firestore } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator, type FirebaseStorage } from 'firebase/storage';
 
@@ -28,7 +28,11 @@ export function initializeFirebase() {
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  setPersistence(auth, browserSessionPersistence);
+  // Local (not session) persistence — token survives tab/browser close on
+  // mobile. Single-session enforcement still works via the `currentSessionId`
+  // listener in `use-current-user.tsx`: any new login elsewhere overwrites
+  // that field, the local subscription detects the mismatch and signs out.
+  setPersistence(auth, browserLocalPersistence);
   const db = initializeFirestore(app, {
     localCache: memoryLocalCache(),
     // Force long-polling unconditionally. AutoDetect was insufficient in
