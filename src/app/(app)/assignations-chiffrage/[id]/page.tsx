@@ -54,6 +54,12 @@ interface ChiffrageDoc {
   files: ChiffrageFileDoc[];
 }
 
+const CATEGORY_TO_TYPE: Record<string, string> = {
+  avant: 'Photos avant',
+  en_cours: 'Photos en cours',
+  apres: 'Photos après',
+};
+
 export default function AssignationChiffrageDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -121,6 +127,12 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   }, [db, chiffrage?.dossierId]);
   const { data: dossierDocs, loading: docsLoading } = useCollection<any>(dossierDocsQuery);
 
+  const dossierPhotosQuery = useMemo(() => {
+    if (!db || !chiffrage?.dossierId) return null;
+    return collection(db, 'dossiers', chiffrage.dossierId, 'photos');
+  }, [db, chiffrage?.dossierId]);
+  const { data: dossierPhotos } = useCollection<any>(dossierPhotosQuery);
+
   // Task #31 — Same docType options the dossier documents-tab uses, so the filter
   // panel surfaces canonical types + cardinal/proposition-accord variants created
   // upstream (tasks #24/#26) alongside admin-managed types.
@@ -143,6 +155,30 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       return dateB - dateA;
     });
   }, [dossierDocs]);
+
+  // ATG photos live in `dossiers/{id}/photos` (category-bucketed) — disjoint
+  // from `dossiers/{id}/documents`. Map each photo to a synthetic
+  // DocumentsFilterPanelDoc so the filter chips ("Photos avant / en cours /
+  // après") surface non-empty counts and listed rows alongside Devis/Facture.
+  // Photos are NOT family documents — they only feed the filter panel.
+  const photoDocs = useMemo<DocumentsFilterPanelDoc[]>(() => {
+    if (!dossierPhotos) return [];
+    return (dossierPhotos as any[]).map((p) => ({
+      id: `photo-${p.id}`,
+      type: CATEGORY_TO_TYPE[p.category as string] || 'Photo',
+      nom: p.name || 'photo',
+      fileName: p.name || 'photo',
+      storagePath: p.storagePath || '',
+      uploadedAt: p.uploadedAt,
+      uploadedBy: p.uploadedBy,
+      // url intentionally omitted — preview is a follow-up.
+    }));
+  }, [dossierPhotos]);
+
+  const combinedSortedDocs = useMemo<DocumentsFilterPanelDoc[]>(
+    () => [...sortedDocs, ...photoDocs],
+    [sortedDocs, photoDocs],
+  );
 
   // Group live docs into Devis / Facture families so we can render one
   // horizontal row per parent garage, matching the gestionnaire's step-4
@@ -479,7 +515,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           "second page" / import view). Import is disabled for chiffreurs; the
           disabled button + tooltip render per task #30's contract. */}
       <DocumentsFilterPanel
-        documents={sortedDocs}
+        documents={combinedSortedDocs}
         docTypes={docTypes}
         selectedType={selectedType}
         onSelectedTypeChange={setSelectedType}
