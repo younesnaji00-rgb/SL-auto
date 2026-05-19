@@ -37,6 +37,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   themeColor: '#0f766e',
+  // Let the app draw under the status bar / display cutout area when
+  // running in fullscreen PWA mode. Combine with safe-area CSS inset
+  // padding where needed.
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({

@@ -56,8 +56,12 @@ self.addEventListener('notificationclick', (event) => {
 
 // Bump this string whenever offline.html or the precache set changes — the
 // browser only re-runs `install` if the SW file content differs.
-const SW_VERSION = 'sl-auto-pwa-v1';
+const SW_VERSION = 'sl-auto-pwa-v2';
 const PRECACHE = `${SW_VERSION}-precache`;
+const RUNTIME = `${SW_VERSION}-runtime`;
+// Hard cap on how many runtime entries (Next.js JS/CSS chunks) we keep so a
+// long-lived install doesn't grow the cache unboundedly.
+const RUNTIME_MAX = 80;
 
 const PRECACHE_URLS = [
   '/offline.html',
@@ -89,17 +93,26 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
-      // Drop old precaches from previous SW_VERSIONs.
+      // Drop old precaches/runtime caches from previous SW_VERSIONs.
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((k) => k.startsWith('sl-auto-pwa-') && k !== PRECACHE)
+          .filter((k) => k.startsWith('sl-auto-pwa-') && k !== PRECACHE && k !== RUNTIME)
           .map((k) => caches.delete(k)),
       );
       await self.clients.claim();
     })(),
   );
 });
+
+// Trim runtime cache (FIFO) so it can't grow without bound across many builds.
+async function trimRuntimeCache() {
+  const cache = await caches.open(RUNTIME);
+  const reqs = await cache.keys();
+  if (reqs.length <= RUNTIME_MAX) return;
+  const excess = reqs.length - RUNTIME_MAX;
+  await Promise.all(reqs.slice(0, excess).map((r) => cache.delete(r)));
+}
 
 // Allow the page to ask the SW to activate immediately on update.
 self.addEventListener('message', (event) => {
@@ -150,8 +163,38 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Everything else: let the network handle it. Don't add opportunistic
-  // caching here — Next.js build output is hashed and already cached by the
-  // browser, and caching auth/Firestore responses would create staleness
-  // bugs that are hard to reason about.
+  // Next.js hashed bundles (`/_next/static/*`) are immutable — safe to serve
+  // from cache forever, and this is what lets the app shell open offline
+  // after a first online visit. Plus same-origin /icons/* and /images/*
+  // which are stable enough to treat the same way.
+  const isImmutable =
+    url.pathname.startsWith('/_next/static/') ||
+    url.pathname.startsWith('/icons/') ||
+    url.pathname.startsWith('/images/');
+
+  if (isImmutable) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(RUNTIME);
+        const cached = await cache.match(req);
+        if (cached) return cached;
+        try {
+          const fresh = await fetch(req);
+          if (fresh.ok) {
+            cache.put(req, fresh.clone()).then(trimRuntimeCache);
+          }
+          return fresh;
+        } catch (err) {
+          // Offline and not in cache — let the browser handle the error.
+          throw err;
+        }
+      })(),
+    );
+    return;
+  }
+
+  // Everything else (Next.js HTML for routes, /api/*, Firestore, Storage,
+  // Gemini, etc.): let the network handle it. Caching auth/Firestore
+  // responses here would create staleness bugs that are hard to reason
+  // about, and Firestore already has its own offline persistence.
 });

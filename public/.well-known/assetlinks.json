@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "ma.slaouiglobal.slauto",
+    "sha256_cert_fingerprints": ["B1:7A:C2:AE:16:4A:03:01:EE:A7:F4:BA:98:50:DE:3E:9A:F7:8D:43:C2:71:87:9D:63:7C:4A:13:95:87:42:D7"]
+  }
+}]
