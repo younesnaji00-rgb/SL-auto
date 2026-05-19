@@ -174,11 +174,15 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   );
 
   // Split non-family slots into three labelled sections:
-  //   - rapportSlots:  'Rapport final' alone (own section).
+  //   - rapportSlots:  every "Rapport *" type — base "Rapport final" plus any
+  //                    additional rapport variant observed on live docs
+  //                    (e.g. "Rapport préliminaire", "Rapport réforme") so the
+  //                    grid grows automatically as new rapport types are
+  //                    produced by the "Générer le rapport" flow.
   //   - reformeSlots:  'Réforme technique' + 'Réforme économique' together.
   //   - otherSlots:    PV / Carte grise / Attestation / etc.
   const FAMILY_BASE_SLOTS = new Set(['Devis Garage', 'Facture Garage']);
-  const RAPPORT_LABELS = new Set(['Rapport final']);
+  const isRapportLabel = (s: string) => s === 'Rapport final' || s.startsWith('Rapport ');
   const REFORME_LABELS = new Set(['Réforme technique', 'Réforme économique']);
   const { rapportSlots, reformeSlots, otherSlots } = useMemo(() => {
     const rapport: string[] = [];
@@ -186,12 +190,26 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     const other: string[] = [];
     for (const slot of BASE_DOC_SLOTS) {
       if (FAMILY_BASE_SLOTS.has(slot) || slot === 'Devis accordé' || slot === 'Facture accordé') continue;
-      if (RAPPORT_LABELS.has(slot)) rapport.push(slot);
+      if (isRapportLabel(slot)) rapport.push(slot);
       else if (REFORME_LABELS.has(slot)) reforme.push(slot);
       else other.push(slot);
     }
+    // Union in any extra rapport-prefixed types observed on live docs (future
+    // "Rapport X" variants added via the report generator). Excludes anything
+    // already present in `rapport` so the canonical "Rapport final" stays first.
+    if (allDocs) {
+      const seen = new Set(rapport);
+      for (const d of allDocs as TypedDoc[]) {
+        const t = (d.type || d.typeDocument || '').toString();
+        if (!t || seen.has(t)) continue;
+        if (isRapportLabel(t)) {
+          rapport.push(t);
+          seen.add(t);
+        }
+      }
+    }
     return { rapportSlots: rapport, reformeSlots: reforme, otherSlots: other };
-  }, []);
+  }, [allDocs]);
 
   // The full set of slot labels we need to populate `docsByType` for — all
   // family slots + non-family slots.
