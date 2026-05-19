@@ -344,7 +344,7 @@ export default function AssignationsATGPage() {
   const [loading, setLoading] = useState(true);
   // Realtime per-dossier state so status changes + photo uploads update the
   // "Délai" completion indicator even when no planification doc changes.
-  type DossierLive = { statut: string; photos: Record<PhotoCategory, boolean>; assureTelephone: string; matricule: string };
+  type DossierLive = { statut: string; photos: Record<PhotoCategory, boolean>; assureTelephone: string; matricule?: string };
   const [dossierLive, setDossierLive] = useState<Record<string, DossierLive>>({});
   const filterDefaults = { activeTab: 'Avant', dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', agentFilter: 'Tous', keyword: '' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-atg', filterDefaults);
