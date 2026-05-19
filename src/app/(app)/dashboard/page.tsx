@@ -283,11 +283,13 @@ function DashboardPageInner() {
   const statusBarData = useMemo(() => {
     const counts: Record<string, number> = {};
     filteredDossiers.forEach((d) => {
-      const raw = d.statut || 'Création de mission';
-      // Round 8 — Création dossier is hidden from the dashboard at the user's
-      // request. The status still exists in the data; we just don't surface
-      // it in the dashboard's status panel, pie chart, or counts.
-      if (raw === 'Création dossier') return;
+      // "Création de mission" is the dashboard's display label for the
+      // earliest dossier state. It buckets BOTH the canonical
+      // `Création dossier` status AND dossiers with empty/missing statut.
+      // (Earlier "Round 8" decision was to hide Création dossier outright;
+      // current ask is to surface those 3+ dossiers under the new label.)
+      const isCreation = !d.statut || d.statut === 'Création dossier';
+      const raw = isCreation ? 'Création de mission' : d.statut!;
       const key = ACCORD_BUCKET_MEMBERS.has(raw) ? ACCORD_BUCKET_LABEL : raw;
       counts[key] = (counts[key] || 0) + 1;
     });
@@ -338,9 +340,13 @@ function DashboardPageInner() {
   const dossiersByStatus = useMemo(() => {
     if (!selectedStatus) return [];
     if (selectedStatus === ACCORD_BUCKET_LABEL) {
-      return filteredDossiers.filter((d) => ACCORD_BUCKET_MEMBERS.has(d.statut || 'Création de mission'));
+      return filteredDossiers.filter((d) => ACCORD_BUCKET_MEMBERS.has(d.statut || ''));
     }
-    return filteredDossiers.filter((d) => (d.statut || 'Création de mission') === selectedStatus);
+    if (selectedStatus === 'Création de mission') {
+      // Mirror the bucket used in statusBarData: empty OR canonical Création dossier.
+      return filteredDossiers.filter((d) => !d.statut || d.statut === 'Création dossier');
+    }
+    return filteredDossiers.filter((d) => d.statut === selectedStatus);
   }, [filteredDossiers, selectedStatus, ACCORD_BUCKET_MEMBERS]);
 
   // Repartition par Compagnie
@@ -806,7 +812,7 @@ function DashboardPageInner() {
                     <TableCell className="font-mono text-[10px] text-muted-foreground tabular-nums">{dossier.matricule || '-'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn('text-[10px] py-0.5 px-2 rounded-full border font-semibold', getStatusBadgeStyles(dossier.statut))}>
-                        {dossier.statut || 'Création de mission'}
+                        {!dossier.statut || dossier.statut === 'Création dossier' ? 'Création de mission' : dossier.statut}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right text-[10px] text-muted-foreground font-medium tabular-nums">
