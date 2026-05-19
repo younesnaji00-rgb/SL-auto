@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles } from '@/lib/status-colors';
 import { deriveStatus } from '@/lib/status-machine';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
+import { useChiffrageTabs } from '@/hooks/use-chiffrage-tabs';
 import { addObservation } from '@/app/(app)/dossiers/[id]/log-observation';
 import ObservationsTab from '@/components/observations-tab';
 import { ReformeDialog } from '@/components/chiffreurs/reforme-dialog';
@@ -65,6 +66,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   // the gestionnaire). Not chiffreurs.
   const canSendMail = profile?.role === 'Gestionnaire';
 
+  const { openTab, refreshTabLabel } = useChiffrageTabs();
+
   const [chiffrage, setChiffrage] = useState<ChiffrageDoc | null>(null);
   const [dossier, setDossier] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -88,7 +91,11 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         router.push('/assignations-chiffrage');
         return;
       }
-      setChiffrage(snap.data() as ChiffrageDoc);
+      const data = snap.data() as ChiffrageDoc;
+      setChiffrage(data);
+      const label = data.dossierNom || `Chiffrage ${id.slice(0, 6)}`;
+      openTab(id, label);
+      refreshTabLabel(id, label);
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();

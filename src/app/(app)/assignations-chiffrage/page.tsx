@@ -29,6 +29,7 @@ import { REFORME_TYPES, normalizeReformeType } from '@/components/chiffreurs/ref
 import { businessHoursBetween, formatBusinessLateness } from '@/lib/business-days';
 import { useHolidays } from '@/hooks/use-holidays';
 import ObservationHistorySheet from '@/app/(app)/dossiers/observation-history-sheet';
+import { useChiffrageTabs } from '@/hooks/use-chiffrage-tabs';
 
 interface ChiffrageItem {
   id: string;
@@ -47,6 +48,7 @@ interface ChiffrageItem {
 export default function AssignationsChiffragePage() {
   const db = useFirestore();
   const { profile } = useCurrentUser();
+  const { openTab } = useChiffrageTabs();
   const chiffreurWorkload = useChiffreurWorkload();
   const [chiffrages, setChiffrages] = useState<ChiffrageItem[]>([]);
   const [dossierStatuts, setDossierStatuts] = useState<Record<string, string>>({});
@@ -365,6 +367,7 @@ export default function AssignationsChiffragePage() {
                         <div className="flex items-center gap-2">
                           <Link
                             href={`/assignations-chiffrage/${c.id}`}
+                            onClick={() => openTab(c.id, c.dossierNom || `Chiffrage ${c.id.slice(0, 6)}`)}
                             className="font-bold text-sm text-primary hover:underline"
                           >
                             {c.dossierNom || 'Sans ref.'}
