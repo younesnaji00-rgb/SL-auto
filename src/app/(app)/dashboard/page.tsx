@@ -246,25 +246,6 @@ function DashboardPageInner() {
     'hsl(var(--chart-5))',
   ];
 
-  // Render-time bucketing: collapse the 8 accord/proposition/réforme statuses
-  // into a single dashboard row. Detail pages, filters, and the chiffrage flow
-  // continue to use the canonical statuses individually.
-  const ACCORD_BUCKET_LABEL = "Accord / Proposition d'accord / Réforme";
-  const ACCORD_BUCKET_MEMBERS = useMemo(
-    () =>
-      new Set<string>([
-        'Accord',
-        "Proposition d'accord",
-        '2ème accord',
-        "2ème proposition d'accord",
-        '3ème accord',
-        "3ème proposition d'accord",
-        'Accord envoyé',
-        'Réforme',
-      ]),
-    []
-  );
-
   // Apply the flight-style date range to the dossier list BEFORE computing
   // any dashboard counts/widgets (status bar, pie, compagnie chart, table).
   // When either bound is undefined, that side of the comparison is skipped.
@@ -286,23 +267,18 @@ function DashboardPageInner() {
       // "Création de mission" is the dashboard's display label for the
       // earliest dossier state. It buckets BOTH the canonical
       // `Création dossier` status AND dossiers with empty/missing statut.
-      // (Earlier "Round 8" decision was to hide Création dossier outright;
-      // current ask is to surface those 3+ dossiers under the new label.)
       const isCreation = !d.statut || d.statut === 'Création dossier';
-      const raw = isCreation ? 'Création de mission' : d.statut!;
-      const key = ACCORD_BUCKET_MEMBERS.has(raw) ? ACCORD_BUCKET_LABEL : raw;
+      const key = isCreation ? 'Création de mission' : d.statut!;
       counts[key] = (counts[key] || 0) + 1;
     });
-    // Build a complete list: all known statuses + any extra from dossiers,
-    // with the 8 accord/proposition/réforme members replaced by a single bucket.
+    // Build a complete list of filter rows. Every canonical status surfaces
+    // as its own row (no more bucketing the 8 accord/proposition/réforme
+    // members under a single label — the dossiers list shows them
+    // individually and the dashboard now matches).
     const allNames = new Set<string>();
     for (const name of ALL_STATUSES) {
       if (name === 'Création dossier') continue;
-      if (ACCORD_BUCKET_MEMBERS.has(name)) {
-        allNames.add(ACCORD_BUCKET_LABEL);
-      } else {
-        allNames.add(name);
-      }
+      allNames.add(name);
     }
     allNames.add('Création de mission');
     // Intentionally do NOT add non-canonical dossier.statut values — legacy/migration artifacts should not appear as filter rows.
@@ -313,7 +289,7 @@ function DashboardPageInner() {
         ...item,
         fill: chartColors[i % chartColors.length],
       }));
-  }, [filteredDossiers, ACCORD_BUCKET_MEMBERS]);
+  }, [filteredDossiers]);
 
   // Only non-zero statuses for the pie chart
   const statusChartData = useMemo(() => {
@@ -339,15 +315,12 @@ function DashboardPageInner() {
   // bucket is selected, match any of its 8 member statuses.
   const dossiersByStatus = useMemo(() => {
     if (!selectedStatus) return [];
-    if (selectedStatus === ACCORD_BUCKET_LABEL) {
-      return filteredDossiers.filter((d) => ACCORD_BUCKET_MEMBERS.has(d.statut || ''));
-    }
     if (selectedStatus === 'Création de mission') {
       // Mirror the bucket used in statusBarData: empty OR canonical Création dossier.
       return filteredDossiers.filter((d) => !d.statut || d.statut === 'Création dossier');
     }
     return filteredDossiers.filter((d) => d.statut === selectedStatus);
-  }, [filteredDossiers, selectedStatus, ACCORD_BUCKET_MEMBERS]);
+  }, [filteredDossiers, selectedStatus]);
 
   // Repartition par Compagnie
   const compagnieData = useMemo(() => {
