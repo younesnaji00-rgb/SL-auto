@@ -53,12 +53,6 @@ export default function PlanificationTab({
         const unsub = onSnapshot(
             q,
             (snap) => {
-                // Skip stale empty-cache snapshots so the empty state doesn't flash
-                // before the server snapshot arrives. A non-cache or non-empty snapshot
-                // is authoritative and is allowed through.
-                if (snap.metadata.fromCache && snap.size === 0) {
-                    return;
-                }
                 setPlans(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
                 setLoading(false);
             },

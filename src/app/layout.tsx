@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { ThemeProvider } from '@/components/theme-provider';
+import { PwaRegister } from '@/components/pwa-register';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -23,7 +24,11 @@ export const metadata: Metadata = {
     title: 'SL-auto',
   },
   icons: {
-    apple: '/images/auto-expertise.png',
+    icon: [
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/icons/apple-touch-icon.png',
   },
 };
 
@@ -44,6 +49,7 @@ export default function RootLayout({
       <body className={cn('font-body antialiased')}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <FirebaseClientProvider>
+            <PwaRegister />
             {children}
             <Toaster />
           </FirebaseClientProvider>

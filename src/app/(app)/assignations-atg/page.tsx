@@ -440,6 +440,22 @@ export default function AssignationsATGPage() {
         item.hasPhotosForMission = dd.photos[missionToCategory(item.typeMission)];
       });
 
+      // Seed dossierLive with what we just fetched so the first render has
+      // the freshest phone immediately — the per-dossier onSnapshot below
+      // continues to provide realtime updates, but this avoids a brief
+      // window where the display would have to fall back to a stale value.
+      setDossierLive(prev => {
+        const next = { ...prev };
+        for (const [dId, dd] of Object.entries(dossierData)) {
+          next[dId] = {
+            statut: dd.statut,
+            photos: dd.photos,
+            assureTelephone: dd.assureTelephone,
+          };
+        }
+        return next;
+      });
+
       // ATG users only see their own assignments
       if (profile?.role === 'Agent de Terrain' && profile?.nom) {
         const myName = profile.nom.toLowerCase().trim();
@@ -996,7 +1012,7 @@ export default function AssignationsATGPage() {
                             {dossierLive[p.dossierId]?.matricule || '—'}
                           </div>
                           <div className="mt-2 flex items-center gap-2 flex-wrap min-w-[140px]">
-                            <AssurePhoneLink telephone={dossierLive[p.dossierId]?.assureTelephone || p.assureTelephone} />
+                            <AssurePhoneLink telephone={dossierLive[p.dossierId]?.assureTelephone ?? p.assureTelephone} />
                             <DeadlineBadge dateRDV={p.dateRDV} createdAt={p.createdAt} />
                           </div>
                         </div>
@@ -1384,7 +1400,7 @@ export default function AssignationsATGPage() {
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-1">
-                    <AssurePhoneLink telephone={dossierLive[p.dossierId]?.assureTelephone || p.assureTelephone} />
+                    <AssurePhoneLink telephone={dossierLive[p.dossierId]?.assureTelephone ?? p.assureTelephone} />
                     <DeadlineBadge dateRDV={p.dateRDV} createdAt={p.createdAt} />
                   </div>
                 </TableCell>

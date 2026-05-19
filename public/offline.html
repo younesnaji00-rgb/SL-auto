@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+  <title>SL-auto — Hors ligne</title>
+  <link rel="icon" href="/icons/icon-192.png" />
+  <meta name="theme-color" content="#0f766e" />
+  <style>
+    :root {
+      color-scheme: light;
+      --cream: #fbf9f4;
+      --teal: #0f766e;
+      --teal-dark: #115e59;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --card: #ffffff;
+      --border: rgba(15, 118, 110, 0.18);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: var(--cream);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 32px 28px;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 10px 30px -12px rgba(15, 118, 110, 0.18);
+    }
+    .icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 16px;
+      border-radius: 16px;
+      background: var(--cream);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+    }
+    .icon svg {
+      width: 32px;
+      height: 32px;
+      stroke: var(--teal);
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0 0 8px;
+      color: var(--teal-dark);
+    }
+    p {
+      font-size: 14.5px;
+      line-height: 1.55;
+      color: var(--muted);
+      margin: 0 0 20px;
+    }
+    button {
+      appearance: none;
+      border: none;
+      background: var(--teal);
+      color: #fff;
+      font-weight: 500;
+      font-size: 14.5px;
+      padding: 11px 22px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    button:hover { background: var(--teal-dark); }
+    button:active { transform: translateY(1px); }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      color: var(--muted);
+      margin-top: 16px;
+    }
+    .status .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #d97706;
+    }
+    .status.online .dot { background: #16a34a; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+    </div>
+    <h1>Connexion indisponible</h1>
+    <p>
+      L'application a besoin d'une connexion pour charger cette page.
+      Les dossiers et photos enregistrés récemment restent accessibles
+      depuis l'écran d'accueil de l'application.
+    </p>
+    <button id="retry" type="button">Réessayer</button>
+    <div class="status" id="status">
+      <span class="dot"></span>
+      <span id="status-label">Hors ligne</span>
+    </div>
+  </main>
+  <script>
+    var statusEl = document.getElementById('status');
+    var labelEl = document.getElementById('status-label');
+    function refreshStatus() {
+      var on = navigator.onLine;
+      statusEl.className = 'status' + (on ? ' online' : '');
+      labelEl.textContent = on ? 'Connexion rétablie' : 'Hors ligne';
+    }
+    refreshStatus();
+    window.addEventListener('online', refreshStatus);
+    window.addEventListener('offline', refreshStatus);
+    document.getElementById('retry').addEventListener('click', function () {
+      location.reload();
+    });
+  </script>
+</body>
+</html>

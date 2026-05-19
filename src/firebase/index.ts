@@ -1,6 +1,6 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence, connectAuthEmulator, type Auth } from 'firebase/auth';
-import { getFirestore, initializeFirestore, memoryLocalCache, connectFirestoreEmulator, type Firestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, connectFirestoreEmulator, type Firestore } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator, type FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -33,8 +33,15 @@ export function initializeFirebase() {
   // listener in `use-current-user.tsx`: any new login elsewhere overwrites
   // that field, the local subscription detects the mismatch and signs out.
   setPersistence(auth, browserLocalPersistence);
+  // Persistent IndexedDB cache so dossiers stay readable offline and writes
+  // queued while offline get flushed on reconnect. Falls back to in-memory
+  // cache on the server (no IndexedDB) and in browsers that refuse it
+  // (private mode, storage quota exceeded, unsupported).
+  const canPersist = typeof window !== 'undefined' && 'indexedDB' in window;
   const db = initializeFirestore(app, {
-    localCache: memoryLocalCache(),
+    localCache: canPersist
+      ? persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      : memoryLocalCache(),
     // Force long-polling unconditionally. AutoDetect was insufficient in
     // some Firefox + network combos and triggered the WebChannel ca9 cascade.
     experimentalForceLongPolling: true,
