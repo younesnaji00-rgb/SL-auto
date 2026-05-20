@@ -39,6 +39,7 @@ import { useAgentLiveLocation } from '@/hooks/use-agent-live-location';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { formatDurationFr } from '@/lib/atg-feasibility';
 import { MapPin } from 'lucide-react';
+import { apiFetch } from '@/lib/api-fetch';
 
 /** Narrows a free-form typeMission string to the canonical tri-state, or null. */
 function normalizeTypeMission(
@@ -154,7 +155,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     if (!agentLive.isFresh || !agentLive.location) return;
     const { lat, lng } = agentLive.location;
     let cancelled = false;
-    fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`)
+    apiFetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !data) return;
@@ -463,7 +464,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 const tempValue = `${coords.lat.toFixed(6)},${coords.lng.toFixed(6)}`;
                 setFormData((prev) => ({ ...prev, adresse: tempValue }));
                 try {
-                  const res = await fetch(`/api/reverse-geocode?lat=${coords.lat}&lng=${coords.lng}`);
+                  const res = await apiFetch(`/api/reverse-geocode?lat=${coords.lat}&lng=${coords.lng}`);
                   if (!res.ok) return;
                   const data = await res.json();
                   if (!data?.formatted) return;

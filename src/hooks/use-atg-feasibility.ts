@@ -15,6 +15,7 @@ import {
   type FeasibilityConflict,
 } from '@/lib/atg-feasibility';
 import type { AgentLiveLocation } from '@/hooks/use-agent-live-location';
+import { apiFetch } from '@/lib/api-fetch';
 import { format } from 'date-fns';
 
 interface Args {
@@ -144,7 +145,7 @@ export function useAtgFeasibility({
           return;
         }
 
-        const res = await fetch('/api/atg-feasibility', {
+        const res = await apiFetch('/api/atg-feasibility', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,

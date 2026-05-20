@@ -28,6 +28,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useStorage, useAuth, useDoc } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
+import { apiFetch } from '@/lib/api-fetch';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 import { cn } from '@/lib/utils';
 
@@ -175,7 +176,7 @@ export default function Step1Import({
           })
         );
 
-        const response = await fetch('/api/scan-document', {
+        const response = await apiFetch('/api/scan-document', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ files: payload }),

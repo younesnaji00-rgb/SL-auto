@@ -18,6 +18,7 @@ import {
   addDoc, collection, deleteDoc, doc, serverTimestamp, writeBatch,
 } from 'firebase/firestore';
 import { MOROCCAN_HOLIDAYS_DEFAULT } from '@/lib/business-days';
+import { apiFetch } from '@/lib/api-fetch';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -166,7 +167,7 @@ export default function JoursFeriesSettingsPage() {
     setIsScanning(true);
     try {
       const { base64, contentType } = await fileToBase64(file);
-      const res = await fetch('/api/scan-holidays', {
+      const res = await apiFetch('/api/scan-holidays', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileBase64: base64, contentType }),
