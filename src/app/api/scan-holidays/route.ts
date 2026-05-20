@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 /**
  * AI Holiday Calendar Scanner.
@@ -11,6 +12,7 @@ import { withAiRetry } from '@/lib/ai-retry';
  */
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth(req);
     const body = await req.json();
     const fileBase64: string | undefined = body.fileBase64;
     const contentType: string = body.contentType || 'image/jpeg';
@@ -71,6 +73,8 @@ RÈGLES STRICTES:
 
     return NextResponse.json({ dates, count: dates.length });
   } catch (error: any) {
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
     console.error('[/api/scan-holidays] Error:', error);
     return NextResponse.json({ error: error.message || 'Erreur interne.' }, { status: 500 });
   }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 interface Stop {
   address: string;
@@ -12,6 +13,7 @@ interface LegResult {
 
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth(req);
     const raw = await req.text();
     if (!raw) {
       // Aborted-mid-flight requests from the debounced client hook can land
@@ -89,6 +91,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ legs });
   } catch (error: any) {
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
     console.error('[atg-feasibility] error:', error);
     return NextResponse.json({ legs: [], error: 'unavailable' });
   }

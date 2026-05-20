@@ -3,6 +3,7 @@ import { ai } from '@/ai/genkit';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
 import { transliterateArabic } from '@/lib/transliterate-arabic';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 /**
  * AI Document Scanner API.
@@ -11,6 +12,7 @@ import { transliterateArabic } from '@/lib/transliterate-arabic';
  */
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth(req);
     const body = await req.json();
     // Accept both { fileBase64, contentType } (single) and { files: [{fileBase64, contentType}] } (multi)
     const rawFiles: { fileBase64: string; contentType?: string }[] = Array.isArray(body.files) && body.files.length > 0
@@ -182,6 +184,8 @@ RÈGLES STRICTES (ZÉRO TOLÉRANCE AUX ERREURS):
 
     return NextResponse.json({ data, regions, fieldsFound: Object.keys(data).length });
   } catch (error: any) {
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
     console.error('[/api/scan-document] Error:', error);
     return NextResponse.json({ error: error.message || 'Erreur interne.' }, { status: 500 });
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 /**
  * AI Rapport Scanner API.
@@ -10,6 +11,7 @@ import { withAiRetry } from '@/lib/ai-retry';
  */
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth(req);
     const { fileBase64, contentType } = await req.json();
 
     if (!fileBase64) {
@@ -117,6 +119,8 @@ RÈGLES STRICTES:
       piecesCount: (extracted.pieces || []).length,
     });
   } catch (error: any) {
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
     console.error('[/api/scan-rapport] Error:', error);
     return NextResponse.json({ error: error.message || 'Erreur interne.' }, { status: 500 });
   }

@@ -3,6 +3,7 @@ import { ai } from '@/ai/genkit';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
 import { transliterateArabic } from '@/lib/transliterate-arabic';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 /**
  * Carte Grise scanner — narrow extractor that pulls only the two registration
@@ -17,6 +18,7 @@ import { transliterateArabic } from '@/lib/transliterate-arabic';
  */
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth(req);
     const body = await req.json();
     const fileBase64: string | undefined = body?.fileBase64;
     const contentType: string | undefined = body?.contentType;
@@ -83,6 +85,8 @@ RÈGLES STRICTES:
       previousRegistration: prev && prev !== reg ? prev : null,
     });
   } catch (error: any) {
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
     console.error('[/api/scan-carte-grise] Error:', error);
     return NextResponse.json({ error: error.message || 'Erreur interne.' }, { status: 500 });
   }

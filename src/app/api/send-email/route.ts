@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 interface InboundAttachment {
   filename: string;
@@ -8,6 +9,7 @@ interface InboundAttachment {
 
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth(req);
     const body = await req.json();
     const { to, subject } = body as { to?: string; subject?: string };
     const htmlBody: string | undefined = body.html;
@@ -56,6 +58,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
     console.error('Email send error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to send email' },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
 import { withAiRetry } from '@/lib/ai-retry';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 /**
  * AI High-Fidelity Document Reconstruction API.
@@ -8,6 +9,7 @@ import { withAiRetry } from '@/lib/ai-retry';
  */
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth(req);
     const { imageUrl } = await req.json();
 
     if (!imageUrl) {
@@ -56,6 +58,8 @@ RÈGLES CRITIQUES DE RECONSTRUCTION :
       text: resultText 
     });
   } catch (error: any) {
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
     console.error('[/api/chiffrer] HTR Error:', error);
     return NextResponse.json({ error: error.message || 'Erreur interne lors de la reconstruction.' }, { status: 500 });
   }

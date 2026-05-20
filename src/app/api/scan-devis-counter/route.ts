@@ -4,6 +4,7 @@ import { matchRows } from '@/lib/row-match';
 import { GeminiRawOutput, type ScanDevisCounterOutput } from '@/lib/scan-devis-counter-schema';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 /**
  * AI Counter-Devis Scanner API.
@@ -21,6 +22,7 @@ import { withAiRetry } from '@/lib/ai-retry';
  */
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth(req);
     const body = await req.json();
     const fileBase64: string | undefined = body?.fileBase64;
     const contentType: string = body?.contentType || 'application/pdf';
@@ -135,6 +137,8 @@ Renvoie EXACTEMENT ${rows.length} entrée(s) dans "matches" (une par désignatio
 
     return NextResponse.json(output);
   } catch (error: any) {
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
     console.error('[/api/scan-devis-counter] Error:', error);
     return NextResponse.json({ error: error?.message || 'Erreur interne.' }, { status: 500 });
   }
