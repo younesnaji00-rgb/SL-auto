@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     const authResp = authErrorResponse(err);
     if (authResp) return authResp;
-    console.error('[/api/reverse-geocode] Error:', err);
+    console.error('[/api/reverse-geocode] Error:', (err as any)?.message ?? 'unknown', (err as any)?.code ?? '');
     return NextResponse.json({ error: 'reverse geocoding failed' }, { status: 502 });
   }
 }

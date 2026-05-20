@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     const authResp = authErrorResponse(error);
     if (authResp) return authResp;
-    console.error('Email send error:', error);
+    console.error('Email send error:', error?.message ?? 'unknown', error?.code ?? '');
     return NextResponse.json(
       { error: error.message || 'Failed to send email' },
       { status: 500 }

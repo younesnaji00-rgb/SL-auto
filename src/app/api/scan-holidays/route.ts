@@ -46,7 +46,7 @@ RÈGLES STRICTES:
 
     const parsed = parseAiJson<unknown>(text || '');
     if (!parsed.ok) {
-      console.error('[scan-holidays] Failed to parse AI response:', parsed.cleaned);
+      console.error('[scan-holidays] Failed to parse AI response');
       return NextResponse.json(
         { error: `Impossible de parser la réponse AI. Début: ${parsed.snippet}`, raw: parsed.cleaned },
         { status: 422 },
@@ -75,7 +75,7 @@ RÈGLES STRICTES:
   } catch (error: any) {
     const authResp = authErrorResponse(error);
     if (authResp) return authResp;
-    console.error('[/api/scan-holidays] Error:', error);
+    console.error('[/api/scan-holidays] Error:', error?.message ?? 'unknown', error?.code ?? '');
     return NextResponse.json({ error: error.message || 'Erreur interne.' }, { status: 500 });
   }
 }

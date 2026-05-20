@@ -96,7 +96,7 @@ Renvoie EXACTEMENT ${rows.length} entrée(s) dans "matches" (une par désignatio
 
     const parsedJson = parseAiJson<unknown>(text || '');
     if (!parsedJson.ok) {
-      console.error('[scan-devis-counter] Failed to parse AI response:', parsedJson.cleaned);
+      console.error('[scan-devis-counter] Failed to parse AI response');
       return NextResponse.json(
         { error: `Impossible de parser la réponse AI. Début: ${parsedJson.snippet}`, raw: parsedJson.cleaned },
         { status: 422 }
@@ -109,7 +109,7 @@ Renvoie EXACTEMENT ${rows.length} entrée(s) dans "matches" (une par désignatio
 
     const parsed = GeminiRawOutput.safeParse(raw);
     if (!parsed.success) {
-      console.error('[scan-devis-counter] Shape mismatch:', parsed.error.flatten());
+      console.error('[scan-devis-counter] Shape mismatch');
       return NextResponse.json(
         { error: 'Forme de réponse AI invalide.', issues: parsed.error.flatten() },
         { status: 422 }
@@ -139,7 +139,7 @@ Renvoie EXACTEMENT ${rows.length} entrée(s) dans "matches" (une par désignatio
   } catch (error: any) {
     const authResp = authErrorResponse(error);
     if (authResp) return authResp;
-    console.error('[/api/scan-devis-counter] Error:', error);
+    console.error('[/api/scan-devis-counter] Error:', error?.message ?? 'unknown', error?.code ?? '');
     return NextResponse.json({ error: error?.message || 'Erreur interne.' }, { status: 500 });
   }
 }

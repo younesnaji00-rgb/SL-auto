@@ -60,7 +60,7 @@ RÈGLES CRITIQUES DE RECONSTRUCTION :
   } catch (error: any) {
     const authResp = authErrorResponse(error);
     if (authResp) return authResp;
-    console.error('[/api/chiffrer] HTR Error:', error);
+    console.error('[/api/chiffrer] HTR Error:', error?.message ?? 'unknown', error?.code ?? '');
     return NextResponse.json({ error: error.message || 'Erreur interne lors de la reconstruction.' }, { status: 500 });
   }
 }

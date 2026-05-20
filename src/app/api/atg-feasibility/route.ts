@@ -21,10 +21,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ legs: [] });
     }
     const { stops } = JSON.parse(raw) as { stops?: Stop[] };
-    console.log('[atg-feasibility] received stops:', JSON.stringify(stops));
 
     if (!Array.isArray(stops) || stops.length < 2) {
-      console.log('[atg-feasibility] short-circuit: fewer than 2 stops');
       return NextResponse.json({ legs: [] });
     }
 
@@ -36,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     const cleaned = stops.map((s) => (s.address || '').trim());
     if (cleaned.some((a) => a.length === 0)) {
-      console.error('[atg-feasibility] empty address in chain:', cleaned);
+      console.error('[atg-feasibility] empty address in chain (count):', cleaned.length);
       return NextResponse.json({ legs: [], error: 'unavailable' });
     }
 
@@ -67,8 +65,7 @@ export async function POST(req: NextRequest) {
     const url = `https://maps.googleapis.com/maps/api/distancematrix/json?${params.toString()}`;
     const res = await fetch(url);
     if (!res.ok) {
-      const body = await res.text();
-      console.error('[atg-feasibility] Google HTTP error', res.status, body);
+      console.error('[atg-feasibility] Google HTTP error', res.status);
       return NextResponse.json({ legs: [], error: 'unavailable' });
     }
 
@@ -93,7 +90,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     const authResp = authErrorResponse(error);
     if (authResp) return authResp;
-    console.error('[atg-feasibility] error:', error);
+    console.error('[atg-feasibility] error:', error?.message ?? 'unknown', error?.code ?? '');
     return NextResponse.json({ legs: [], error: 'unavailable' });
   }
 }

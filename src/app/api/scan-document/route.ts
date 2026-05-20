@@ -132,7 +132,7 @@ RÈGLES STRICTES (ZÉRO TOLÉRANCE AUX ERREURS):
 
     const parsed = parseAiJson<any>(text || '');
     if (!parsed.ok) {
-      console.error('[scan-document] Failed to parse AI response:', parsed.cleaned);
+      console.error('[scan-document] Failed to parse AI response');
       return NextResponse.json(
         { error: `Impossible de parser la réponse AI. Début: ${parsed.snippet}`, raw: parsed.cleaned },
         { status: 422 },
@@ -186,7 +186,7 @@ RÈGLES STRICTES (ZÉRO TOLÉRANCE AUX ERREURS):
   } catch (error: any) {
     const authResp = authErrorResponse(error);
     if (authResp) return authResp;
-    console.error('[/api/scan-document] Error:', error);
+    console.error('[/api/scan-document] Error:', error?.message ?? 'unknown', error?.code ?? '');
     return NextResponse.json({ error: error.message || 'Erreur interne.' }, { status: 500 });
   }
 }
