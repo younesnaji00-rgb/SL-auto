@@ -86,7 +86,24 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
     match /users/{userId} {
-      allow read, write: if request.auth != null;
+      // Reads: any signed-in user (dropdowns + isAdmin() helper depend on it).
+      allow read: if request.auth != null;
+      // Create: self-signup only, and the new doc must NOT contain a role
+      // field (admins assign roles via update; self-signup cannot self-promote).
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && !('role' in request.resource.data.keys());
+      // Update: Admin can change anything; otherwise the user can update their
+      // own doc as long as the role field is not modified (allows updates that
+      // simply don't touch role: displayName, fcmTokens, currentSessionId, ...).
+      allow update: if isAdmin()
+        || (
+          request.auth != null
+          && request.auth.uid == userId
+          && !('role' in request.resource.data.diff(resource.data).affectedKeys())
+        );
+      // Delete: Admin only.
+      allow delete: if isAdmin();
     }
     // Stamps: per-account import + delete; admin oversight via the
     // /parametres/tampons page (admin can read+modify all). Reads stay open
