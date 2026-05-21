@@ -155,17 +155,52 @@ export default function DossiersClientPage() {
     [dbObservationOptions]
   );
 
-  // Creator filter options — distinct non-empty `createdByName` values present
-  // on the current dossier set. We list only creators who appear in the visible
-  // data (per spec) rather than enumerating every user in the system.
+  // One-shot load of all users → uid map. Used by the "Créé par" column so we
+  // can render the user's real name ("Prenom Nom") even when the legacy
+  // `createdByName` field on the dossier stored their email (older accounts
+  // had no displayName when create-empty-dossier captured the field).
+  const [userNameByUid, setUserNameByUid] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!db) return;
+    let cancelled = false;
+    getDocs(collection(db, 'users'))
+      .then((snap) => {
+        if (cancelled) return;
+        const map: Record<string, string> = {};
+        for (const d of snap.docs) {
+          const data = d.data() as any;
+          const full = `${data.prenom || ''} ${data.nom || ''}`.trim();
+          if (full) map[d.id] = full;
+        }
+        setUserNameByUid(map);
+      })
+      .catch((err) => console.warn('[dossiers] fetch users map failed', err));
+    return () => { cancelled = true; };
+  }, [db]);
+
+  /** Resolve the creator's display name for a dossier. Prefer the live users
+   *  collection ("Prenom Nom") looked up by `createdBy` uid; fall back to the
+   *  stored `createdByName` (which is sometimes an email for older accounts);
+   *  finally fall back to empty string (rendered as "—" by callers). */
+  const resolveCreatorName = (d: any): string => {
+    const uid = (d?.createdBy || '').trim();
+    if (uid && userNameByUid[uid]) return userNameByUid[uid];
+    return ((d?.createdByName || '') as string).trim();
+  };
+
+  // Creator filter options — distinct resolved creator names present on the
+  // current dossier set. We list only creators who appear in the visible data
+  // (per spec) rather than enumerating every user in the system. Resolution
+  // uses the live users map first, so renamed users / fixed displayName
+  // surface here too.
   const filterCreators = useMemo(() => {
     const seen = new Set<string>();
     for (const d of allDossiers) {
-      const name = ((d as any).createdByName || '').trim();
+      const name = resolveCreatorName(d);
       if (name) seen.add(name);
     }
     return Array.from(seen).sort((a, b) => a.localeCompare(b, 'fr'));
-  }, [allDossiers]);
+  }, [allDossiers, userNameByUid]);
 
   const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', creator: 'Tous', dateFrom: '', dateTo: '', rowsPerPage: 25, sortByCreation: 'desc' as 'desc' | 'asc', datePreset: null as 'jour' | 'semaine' | 'mois' | 'personnalise' | null };
   const [filters, setFilters, clearFilter] = usePersistedFilters('dossiers', filterDefaults);
@@ -197,7 +232,7 @@ export default function DossiersClientPage() {
     if (filters.status !== 'Tous') results = results.filter(d => d.statut === filters.status);
     if (filters.compagnie !== 'Toutes') results = results.filter(d => d.compagnie === filters.compagnie);
     if (filters.observation !== 'Toutes') results = results.filter(d => d.lastObservation?.text === filters.observation);
-    if (filters.creator !== 'Tous') results = results.filter(d => ((d as any).createdByName || '') === filters.creator);
+    if (filters.creator !== 'Tous') results = results.filter(d => resolveCreatorName(d) === filters.creator);
     if (filters.search) {
       const s = filters.search.toLowerCase();
       results = results.filter(d =>
@@ -1030,7 +1065,7 @@ export default function DossiersClientPage() {
                   <TableCell className="tabular-nums">{formatDate(d.dateSinistre)}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateRequete)}</TableCell>
                   <TableCell>
-                    {((d as any).createdByName || '').trim() || <span className="text-muted-foreground">—</span>}
+                    {resolveCreatorName(d) || <span className="text-muted-foreground">—</span>}
                   </TableCell>
 
                   {!exportMode && (
