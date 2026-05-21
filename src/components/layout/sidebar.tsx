@@ -83,16 +83,25 @@ const AppSidebar = () => {
   const { rappels } = useRappels();
   const unreadRappelsCount = rappels.filter((r) => !r.read).length;
 
-  // Per-user restrictive overrides: applied AFTER the role gate. The toggle
-  // UI on /utilisateurs/[uid] writes the hrefs to deny into `users/{uid}
-  // .deniedNavItems`. "Signaler un bug" is never filtered (universal access).
+  // Per-user overrides: applied AROUND the role gate. The toggle UI on
+  // /utilisateurs/[uid] writes hrefs to deny (revoke) into
+  // `users/{uid}.deniedNavItems` and hrefs to grant (extra privilege) into
+  // `grantedNavItems`. Precedence (top-down):
+  //   1. "Signaler un bug" — always visible.
+  //   2. grantedNavItems — explicit grant overrides everything else.
+  //   3. deniedNavItems — explicit deny hides even if the role allows.
+  //   4. Role gate — the baseline.
+  // The admin UI writes clean lists (an href is never in both), but if it
+  // ever happens, grant wins per the order above.
   const deniedNavItems = profile?.deniedNavItems ?? [];
+  const grantedNavItems = profile?.grantedNavItems ?? [];
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter((item) => {
-      if (!isItemVisibleToRole(item, profile?.role)) return false;
       if (item.href === '/signaler-bug') return true;
-      return !deniedNavItems.includes(item.href);
+      if (grantedNavItems.includes(item.href)) return true;
+      if (deniedNavItems.includes(item.href)) return false;
+      return isItemVisibleToRole(item, profile?.role);
     }),
   })).filter((group) => group.items.length > 0);
 
