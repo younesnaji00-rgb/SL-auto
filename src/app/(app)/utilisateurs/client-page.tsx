@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -108,6 +108,7 @@ function generateEmail(nom: string): string {
 export default function UtilisateursClientPage() {
   const db = useFirestore();
   const app = useFirebaseApp();
+  const router = useRouter();
   const { canDelete } = useCurrentUser();
 
   // Single source of truth: Firestore. Filter inactive entries client-side.
@@ -618,9 +619,13 @@ export default function UtilisateursClientPage() {
                     </TableRow>
                   ) : (
                     filteredUsers.map((user: any) => (
-                      <TableRow key={user.id}>
+                      <TableRow
+                        key={user.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => router.push(`/utilisateurs/${user.id}`)}
+                      >
                         <TableCell className="font-medium">{user.prenom} {user.nom}</TableCell>
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1">
                             <span className="text-sm font-mono">
                               {showPasswords[user.id] ? (user.password || '-') : '••••••'}
@@ -655,7 +660,7 @@ export default function UtilisateursClientPage() {
                         <TableCell>
                           <Badge variant={user.statut === 'Actif' ? 'success' : 'destructive'}>{user.statut || 'Actif'}</Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                               <Link href={`/utilisateurs/${user.id}`} title="Modifier">

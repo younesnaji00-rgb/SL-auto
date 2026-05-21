@@ -123,6 +123,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     adresse: '',
     observation: '',
     observationPersonnalisee: '',
+    agentLocationManuel: '',
   });
 
   useEffect(() => {
@@ -142,13 +143,21 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         adresse: initialData.adresse || '',
         observation: initialData.observation || '',
         observationPersonnalisee: initialData.observationPersonnalisee || '',
+        agentLocationManuel: initialData.agentLocationManuel || '',
       });
     } else if (open) {
-      setFormData({ agentTerrain: '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationPersonnalisee: '' });
+      setFormData({ agentTerrain: '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationPersonnalisee: '', agentLocationManuel: '' });
     }
   }, [initialData, open, defaultTypeMission]);
 
   const agentLive = useAgentLiveLocation(formData.agentTerrain);
+
+  // True when an agent is selected but their fresh GPS position is not
+  // available (denied / no last-known location / no UID match). Drives both
+  // the existing "Position non disponible" alert and the manual fallback
+  // <Input> row that lets the gestionnaire type a location by hand.
+  const isAgentLocationUnavailable =
+    !!formData.agentTerrain && !agentLive.isFresh && !!agentLive.agentUid;
 
   // Resolve the agent's live coords to a human-readable address via the
   // server-side Nominatim proxy. Reset on every coord change so the previous
@@ -220,6 +229,14 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         }
       }
 
+      // Only persist the manual agent location fallback when GPS is unavailable
+      // for the selected agent — i.e. when the manual <Input> row was actually
+      // rendered. When GPS subsequently succeeds the row is hidden and the
+      // stored value is cleared so downstream consumers aren't misled.
+      const agentLocationManuelToPersist = isAgentLocationUnavailable
+        ? formData.agentLocationManuel.trim()
+        : '';
+
       const payload: Record<string, any> = {
         agentTerrain: formData.agentTerrain,
         agentTerrainUid,
@@ -229,6 +246,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         adresse: formData.adresse,
         observation: formData.observation,
         observationPersonnalisee: formData.observationPersonnalisee,
+        agentLocationManuel: agentLocationManuelToPersist,
         modifiedAt: serverTimestamp(),
         modifiedBy: auth?.currentUser?.uid || 'Admin',
         modifiedByName: profile?.nom || userEmail,
@@ -558,7 +576,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             </Alert>
           )}
 
-          {formData.agentTerrain && !agentLive.isFresh && agentLive.agentUid && (
+          {isAgentLocationUnavailable && (
             <Alert variant="info">
               <AlertTitle>Position de l'agent non disponible</AlertTitle>
               <AlertDescription>
@@ -589,6 +607,23 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 )}
               </AlertDescription>
             </Alert>
+          )}
+
+          {isAgentLocationUnavailable && (
+            <div className="space-y-2">
+              <Label htmlFor="agent-location-manuel">
+                Localisation de l'agent (manuelle)
+              </Label>
+              <Input
+                id="agent-location-manuel"
+                placeholder="Saisir une localisation à la main (facultatif)…"
+                className="h-10"
+                value={formData.agentLocationManuel}
+                onChange={(e) =>
+                  setFormData({ ...formData, agentLocationManuel: e.target.value })
+                }
+              />
+            </div>
           )}
 
           {feasibilityUnavailable && (

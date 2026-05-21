@@ -7,6 +7,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 
 export interface Rappel {
   id: string;
+  batchId?: string;
   recipientUid: string;
   recipientNom?: string;
   senderUid: string;
@@ -44,6 +45,54 @@ export function useRappels(): { rappels: Rappel[]; loading: boolean } {
       },
       (err) => {
         console.warn('[useRappels] listener error', err);
+        setLoading(false);
+      },
+    );
+    return () => unsub();
+  }, [db, uid]);
+
+  // Client-side DESC sort on createdAt (avoids composite-index needs).
+  const sorted = useMemo(() => {
+    const tsOf = (e: Rappel) => {
+      const t = e.createdAt as any;
+      if (!t) return 0;
+      if (t.toMillis) return t.toMillis();
+      if (t.toDate) return t.toDate().getTime();
+      const n = Number(t);
+      return Number.isFinite(n) ? n : 0;
+    };
+    return [...rappels].sort((a, b) => tsOf(b) - tsOf(a));
+  }, [rappels]);
+
+  return { rappels: sorted, loading };
+}
+
+export function useRappelsSent(): { rappels: Rappel[]; loading: boolean } {
+  const db = useFirestore();
+  const { profile } = useCurrentUser();
+  const uid = profile?.uid || '';
+  const [rappels, setRappels] = useState<Rappel[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!db || !uid) {
+      setRappels([]);
+      setLoading(!!db && !uid);
+      return;
+    }
+    const q = query(collection(db, 'rappels'), where('senderUid', '==', uid));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        // Skip stale empty-cache snapshots so the empty state doesn't flash
+        // before the server snapshot arrives (mirrors useRappels behavior).
+        if (snap.metadata.fromCache && snap.size === 0) return;
+        const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Rappel[];
+        setRappels(items);
+        setLoading(false);
+      },
+      (err) => {
+        console.warn('[useRappelsSent] listener error', err);
         setLoading(false);
       },
     );

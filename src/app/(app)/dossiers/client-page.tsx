@@ -61,6 +61,7 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'matriculeAnterieur', label: 'Matricule antérieur' },
   { key: 'dateSinistre', label: 'Date sinistre' },
   { key: 'dateRequete', label: 'Date Requête' },
+  { key: 'createdByName', label: 'Créé par' },
 ];
 const ALL_COLUMN_KEYS = new Set(EXPORT_COLUMNS.map(c => c.key));
 
@@ -154,7 +155,19 @@ export default function DossiersClientPage() {
     [dbObservationOptions]
   );
 
-  const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', dateFrom: '', dateTo: '', rowsPerPage: 25, sortByCreation: 'desc' as 'desc' | 'asc', datePreset: null as 'jour' | 'semaine' | 'mois' | 'personnalise' | null };
+  // Creator filter options — distinct non-empty `createdByName` values present
+  // on the current dossier set. We list only creators who appear in the visible
+  // data (per spec) rather than enumerating every user in the system.
+  const filterCreators = useMemo(() => {
+    const seen = new Set<string>();
+    for (const d of allDossiers) {
+      const name = ((d as any).createdByName || '').trim();
+      if (name) seen.add(name);
+    }
+    return Array.from(seen).sort((a, b) => a.localeCompare(b, 'fr'));
+  }, [allDossiers]);
+
+  const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', creator: 'Tous', dateFrom: '', dateTo: '', rowsPerPage: 25, sortByCreation: 'desc' as 'desc' | 'asc', datePreset: null as 'jour' | 'semaine' | 'mois' | 'personnalise' | null };
   const [filters, setFilters, clearFilter] = usePersistedFilters('dossiers', filterDefaults);
   const rowsPerPage = filters.rowsPerPage;
   const [page, setPage] = useState(1);
@@ -184,6 +197,7 @@ export default function DossiersClientPage() {
     if (filters.status !== 'Tous') results = results.filter(d => d.statut === filters.status);
     if (filters.compagnie !== 'Toutes') results = results.filter(d => d.compagnie === filters.compagnie);
     if (filters.observation !== 'Toutes') results = results.filter(d => d.lastObservation?.text === filters.observation);
+    if (filters.creator !== 'Tous') results = results.filter(d => ((d as any).createdByName || '') === filters.creator);
     if (filters.search) {
       const s = filters.search.toLowerCase();
       results = results.filter(d =>
@@ -306,10 +320,16 @@ export default function DossiersClientPage() {
     try {
       const senderName = `${profile.prenom || ''} ${profile.nom || ''}`.trim() || profile.email || profile.uid;
       const selectedDossiers = dossierList.filter((d) => selectedRows.has(d.id));
+      // One batchId per send action, shared across every (recipient × dossier) write.
+      const batchId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `batch-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       const writes: Promise<any>[] = [];
       for (const g of gestionnaires.filter((gg) => selectedGestUids.has(gg.uid))) {
         for (const d of selectedDossiers) {
           writes.push(addDoc(collection(db, 'rappels'), {
+            batchId,
             recipientUid: g.uid,
             recipientNom: `${g.prenom || ''} ${g.nom || ''}`.trim(),
             senderUid: profile.uid,
@@ -504,7 +524,7 @@ export default function DossiersClientPage() {
       </div>
 
       {/* Active filters strip */}
-      {(filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.observation !== 'Toutes' || filters.dateFrom || filters.dateTo) && (
+      {(filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.observation !== 'Toutes' || filters.creator !== 'Tous' || filters.dateFrom || filters.dateTo) && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Filtres actifs</span>
           {filters.nature !== 'Toutes' && (
@@ -539,6 +559,14 @@ export default function DossiersClientPage() {
               </button>
             </Badge>
           )}
+          {filters.creator !== 'Tous' && (
+            <Badge variant="outline" className="gap-1 pr-1">
+              Créé par : {filters.creator}
+              <button onClick={() => clearFilter('creator')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre créé par">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
           {filters.dateFrom && (
             <Badge variant="outline" className="gap-1 pr-1">
               Du : {filters.dateFrom}
@@ -564,6 +592,7 @@ export default function DossiersClientPage() {
               clearFilter('status');
               clearFilter('compagnie');
               clearFilter('observation');
+              clearFilter('creator');
               clearFilter('dateFrom');
               clearFilter('dateTo');
             }}
@@ -831,6 +860,57 @@ export default function DossiersClientPage() {
                       </Popover>
                     );
                   }
+                  if (col.key === 'createdByName') {
+                    const active = filters.creator !== 'Tous';
+                    return (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn("h-6 w-6 -mr-1", active && "text-primary")}
+                            onClick={(e) => e.stopPropagation()}
+                            title="Filtrer par créateur"
+                          >
+                            <Filter className={cn("h-3.5 w-3.5", active && "fill-current")} />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-[240px] p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+                          <div className="space-y-0.5 max-h-[280px] overflow-y-auto">
+                            <button
+                              type="button"
+                              onClick={() => setFilters({ creator: 'Tous' })}
+                              className={cn(
+                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                filters.creator === 'Tous' && "bg-muted font-medium",
+                              )}
+                            >
+                              <span>Tous les créateurs</span>
+                              {filters.creator === 'Tous' && <Check className="h-4 w-4 text-primary shrink-0" />}
+                            </button>
+                            {filterCreators.length === 0 ? (
+                              <p className="px-2 py-1.5 text-xs text-muted-foreground">Aucun créateur</p>
+                            ) : (
+                              filterCreators.map(name => (
+                                <button
+                                  key={name}
+                                  type="button"
+                                  onClick={() => setFilters({ creator: name })}
+                                  className={cn(
+                                    "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                    filters.creator === name && "bg-muted font-medium",
+                                  )}
+                                >
+                                  <span>{name}</span>
+                                  {filters.creator === name && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    );
+                  }
                   return null;
                 };
                 const filterBtn = exportMode ? null : renderColumnFilter();
@@ -864,19 +944,19 @@ export default function DossiersClientPage() {
             {loading ? (
               Array.from({ length: 8 }).map((_, i) => (
                 <TableRow key={`sk-${i}`}>
-                  <TableCell colSpan={16} className="p-0">
+                  <TableCell colSpan={17} className="p-0">
                     <SkeletonRow />
                   </TableCell>
                 </TableRow>
               ))
             ) : dossierList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={16} className="p-0">
+                <TableCell colSpan={17} className="p-0">
                   <EmptyState
                     icon={<FolderOpen />}
                     title="Aucun dossier trouvé"
                     description={
-                      (filters.search || filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.dateFrom || filters.dateTo)
+                      (filters.search || filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.creator !== 'Tous' || filters.dateFrom || filters.dateTo)
                         ? "Essayez d'ajuster les filtres pour voir plus de résultats."
                         : 'Créez votre premier dossier pour commencer.'
                     }
@@ -949,6 +1029,9 @@ export default function DossiersClientPage() {
                   <TableCell className="font-mono text-xs tabular-nums">{d.vehicule?.immatriculationAnterieur || '-'}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateSinistre)}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateRequete)}</TableCell>
+                  <TableCell>
+                    {((d as any).createdByName || '').trim() || <span className="text-muted-foreground">—</span>}
+                  </TableCell>
 
                   {!exportMode && (
                     <TableCell

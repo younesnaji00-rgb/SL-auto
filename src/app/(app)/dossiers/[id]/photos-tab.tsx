@@ -15,12 +15,21 @@ import {
   ImageIcon,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ZoomIn,
   ZoomOut,
   Maximize2,
+  MapPin,
 } from 'lucide-react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   collection,
   addDoc,
@@ -60,6 +69,37 @@ interface Photo {
   uploadedBy: string;
   storagePath: string;
   pendingUpload?: boolean;
+  /**
+   * Optional location metadata. Photos uploaded by the Agent de Terrain
+   * may eventually carry a free-text location label and/or raw GPS
+   * coordinates. Today only a watermark is burned into the image, so
+   * these fields are usually undefined — when that happens the photo is
+   * grouped under "Sans localisation" in the location-partition view.
+   */
+  location?: string;
+  lat?: number;
+  lng?: number;
+}
+
+type PartitionMode = 'date' | 'location';
+
+/**
+ * Bucket key + display label used when grouping photos by location.
+ * - Prefers an explicit `location` text field if present (option a).
+ * - Falls back to a rounded lat/lng coordinate bucket (~100 m precision,
+ *   option c) — keeps groups cohesive without needing a network call.
+ * - Photos with neither land in the "Sans localisation" bucket (option d).
+ */
+function locationBucket(photo: Photo): { key: string; label: string } {
+  const txt = typeof photo.location === 'string' ? photo.location.trim() : '';
+  if (txt) return { key: `t:${txt.toLowerCase()}`, label: txt };
+  const { lat, lng } = photo;
+  if (typeof lat === 'number' && typeof lng === 'number' && isFinite(lat) && isFinite(lng)) {
+    const rLat = lat.toFixed(3);
+    const rLng = lng.toFixed(3);
+    return { key: `c:${rLat},${rLng}`, label: `${rLat}, ${rLng}` };
+  }
+  return { key: '__unknown__', label: 'Sans localisation' };
 }
 
 const CATEGORIES: { id: PhotoCategory; label: string; fullLabel: string }[] = [
@@ -99,6 +139,11 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState<Photo | null>(null);
+  // How photos are partitioned in the planification view. "date" (default)
+  // keeps the historical per-day grouping; "location" groups by an explicit
+  // `location` field if available, otherwise by a ~100 m lat/lng bucket, and
+  // photos without location fall under "Sans localisation".
+  const [partitionMode, setPartitionMode] = useState<PartitionMode>('date');
 
   const fileInputRefs = useRef<Record<PhotoCategory, HTMLInputElement | null>>({
     avant: null,
@@ -302,6 +347,136 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
     }
   };
 
+  /**
+   * Shared photo-card render — used by both the per-date grouping
+   * (CollapsedByDayList) and the per-location grouping (renderByLocation
+   * below). Extracted so the two partition modes guarantee an identical
+   * card UI.
+   */
+  const renderPhotoCard = (photo: Photo) => {
+    const isEditing = editingId === photo.id;
+    return (
+      <div
+        className="group relative bg-muted/30 rounded-md border border-border overflow-hidden transition-all hover:shadow-md"
+      >
+        <div className="aspect-square w-full relative overflow-hidden bg-black/5">
+          {photo.pendingUpload ? (
+            <div className="w-full h-full flex flex-col items-center justify-center text-amber-600 bg-amber-50 dark:bg-amber-950/30">
+              <Upload className="h-8 w-8 mb-2 opacity-60" />
+              <span className="text-xs font-medium">En attente</span>
+            </div>
+          ) : (
+            <img
+              src={photo.url}
+              alt={photo.name}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+          )}
+
+          {!photo.pendingUpload && (
+            <div
+              className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+              onClick={() => setPreviewPhoto(photo)}
+            >
+              <Eye className="h-6 w-6 text-white" />
+            </div>
+          )}
+
+          {!isEditing && (
+            <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+              <Button
+                size="icon"
+                variant="secondary"
+                className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
+                onClick={() => handleDownload(photo)}
+                title="Telecharger"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="icon"
+                variant="secondary"
+                className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
+                onClick={() => {
+                  setEditingId(photo.id);
+                  setEditName(photo.name);
+                }}
+                title="Renommer"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              {canEdit && (
+                <Button
+                  size="icon"
+                  variant="destructive"
+                  className="h-7 w-7 rounded-full shadow-lg"
+                  disabled={isDeleting === photo.id}
+                  onClick={() => handleDelete(photo)}
+                  title="Supprimer"
+                >
+                  {isDeleting === photo.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <X className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="p-2 bg-background border-t border-border">
+          {isEditing ? (
+            <div className="flex items-center gap-1">
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="h-7 text-[11px] px-1 focus-visible:ring-1"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleRename(photo);
+                  if (e.key === 'Escape') setEditingId(null);
+                }}
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-green-600 hover:bg-green-50"
+                onClick={() => handleRename(photo)}
+              >
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-muted-foreground"
+                onClick={() => setEditingId(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <>
+              <p
+                className="text-[10px] text-muted-foreground font-medium truncate"
+                title={photo.name}
+              >
+                {photo.name}
+              </p>
+              {photo.uploadedAt?.toDate && (
+                <p className="text-[9px] text-muted-foreground/70 mt-0.5">
+                  {dateFormat(photo.uploadedAt.toDate(), 'd MMM HH:mm', { locale: fr })}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-4">
@@ -334,39 +509,69 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
           return (
             <TabsContent key={cat.id} value={cat.id} className="mt-4">
               {/* Upload header */}
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold">{cat.fullLabel}</h3>
                   <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5 min-w-[20px]">
                     {catPhotos.length}/{photoCap}
                   </Badge>
                 </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  ref={(el) => {
-                    fileInputRefs.current[cat.id] = el;
-                  }}
-                  onChange={(e) => e.target.files && handleUpload(cat.id, e.target.files)}
-                />
-                {canEdit && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-8 text-xs gap-2"
-                    disabled={isUploading === cat.id}
-                    onClick={() => fileInputRefs.current[cat.id]?.click()}
+                <div className="flex items-center gap-2">
+                  {/* Partition-mode selector: choose between per-date grouping
+                      (existing) and per-location grouping. Same control on
+                      every category — the active mode is shared. */}
+                  <Select
+                    value={partitionMode}
+                    onValueChange={(v) => setPartitionMode(v as PartitionMode)}
                   >
-                    {isUploading === cat.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Upload className="h-3.5 w-3.5" />
-                    )}
-                    Ajouter
-                  </Button>
-                )}
+                    <SelectTrigger
+                      className="h-8 w-[170px] text-xs"
+                      aria-label="Mode de regroupement des photos"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">
+                        <span className="inline-flex items-center gap-2">
+                          <ChevronDown className="h-3.5 w-3.5" />
+                          Par date
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="location">
+                        <span className="inline-flex items-center gap-2">
+                          <MapPin className="h-3.5 w-3.5" />
+                          Par localisation
+                        </span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    ref={(el) => {
+                      fileInputRefs.current[cat.id] = el;
+                    }}
+                    onChange={(e) => e.target.files && handleUpload(cat.id, e.target.files)}
+                  />
+                  {canEdit && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-8 text-xs gap-2"
+                      disabled={isUploading === cat.id}
+                      onClick={() => fileInputRefs.current[cat.id]?.click()}
+                    >
+                      {isUploading === cat.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Upload className="h-3.5 w-3.5" />
+                      )}
+                      Ajouter
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Photo grid or empty state */}
@@ -401,6 +606,11 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                     </Button>
                   )}
                 </div>
+              ) : partitionMode === 'location' ? (
+                <PhotosByLocation
+                  photos={catPhotos}
+                  renderPhoto={renderPhotoCard}
+                />
               ) : (
                 <CollapsedByDayList
                   items={catPhotos}
@@ -411,129 +621,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                   groupLabel={(day, count) =>
                     `${dateFormat(day, 'd MMMM yyyy', { locale: fr })} — ${count} photo${count > 1 ? 's' : ''}`
                   }
-                  renderItem={(photo) => {
-                    const isEditing = editingId === photo.id;
-                    return (
-                      <div
-                        className="group relative bg-muted/30 rounded-md border border-border overflow-hidden transition-all hover:shadow-md"
-                      >
-                        <div className="aspect-square w-full relative overflow-hidden bg-black/5">
-                          {photo.pendingUpload ? (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-amber-600 bg-amber-50 dark:bg-amber-950/30">
-                              <Upload className="h-8 w-8 mb-2 opacity-60" />
-                              <span className="text-xs font-medium">En attente</span>
-                            </div>
-                          ) : (
-                            <img
-                              src={photo.url}
-                              alt={photo.name}
-                              loading="lazy"
-                              decoding="async"
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            />
-                          )}
-
-                          {!photo.pendingUpload && (
-                            <div
-                              className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-                              onClick={() => setPreviewPhoto(photo)}
-                            >
-                              <Eye className="h-6 w-6 text-white" />
-                            </div>
-                          )}
-
-                          {!isEditing && (
-                            <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                              <Button
-                                size="icon"
-                                variant="secondary"
-                                className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
-                                onClick={() => handleDownload(photo)}
-                                title="Telecharger"
-                              >
-                                <Download className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="secondary"
-                                className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
-                                onClick={() => {
-                                  setEditingId(photo.id);
-                                  setEditName(photo.name);
-                                }}
-                                title="Renommer"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              {canEdit && (
-                                <Button
-                                  size="icon"
-                                  variant="destructive"
-                                  className="h-7 w-7 rounded-full shadow-lg"
-                                  disabled={isDeleting === photo.id}
-                                  onClick={() => handleDelete(photo)}
-                                  title="Supprimer"
-                                >
-                                  {isDeleting === photo.id ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <X className="h-3.5 w-3.5" />
-                                  )}
-                                </Button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="p-2 bg-background border-t border-border">
-                          {isEditing ? (
-                            <div className="flex items-center gap-1">
-                              <Input
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                className="h-7 text-[11px] px-1 focus-visible:ring-1"
-                                autoFocus
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleRename(photo);
-                                  if (e.key === 'Escape') setEditingId(null);
-                                }}
-                              />
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-green-600 hover:bg-green-50"
-                                onClick={() => handleRename(photo)}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-muted-foreground"
-                                onClick={() => setEditingId(null)}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <>
-                              <p
-                                className="text-[10px] text-muted-foreground font-medium truncate"
-                                title={photo.name}
-                              >
-                                {photo.name}
-                              </p>
-                              {photo.uploadedAt?.toDate && (
-                                <p className="text-[9px] text-muted-foreground/70 mt-0.5">
-                                  {dateFormat(photo.uploadedAt.toDate(), 'd MMM HH:mm', { locale: fr })}
-                                </p>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  }}
+                  renderItem={(photo) => renderPhotoCard(photo)}
                 />
               )}
             </TabsContent>
@@ -674,6 +762,101 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
           </Dialog>
         );
       })()}
+    </div>
+  );
+}
+
+/**
+ * Per-location photo grouping. Mirrors {@link CollapsedByDayList} visually
+ * (collapsible day-style headers, same grid layout) but buckets by
+ * {@link locationBucket} instead of upload date. The "Sans localisation"
+ * bucket — for photos without a `location` field or lat/lng coords — sorts
+ * last so located groups stay on top.
+ */
+function PhotosByLocation({
+  photos,
+  renderPhoto,
+}: {
+  photos: Photo[];
+  renderPhoto: (photo: Photo) => React.ReactNode;
+}) {
+  const groups = React.useMemo(() => {
+    const map = new Map<string, { key: string; label: string; items: Photo[] }>();
+    photos.forEach((photo) => {
+      const { key, label } = locationBucket(photo);
+      let group = map.get(key);
+      if (!group) {
+        group = { key, label, items: [] };
+        map.set(key, group);
+      }
+      group.items.push(photo);
+    });
+    const arr = Array.from(map.values());
+    arr.sort((a, b) => {
+      // Push the "Sans localisation" bucket to the bottom; sort the rest
+      // alphabetically by label for stable ordering.
+      if (a.key === '__unknown__') return 1;
+      if (b.key === '__unknown__') return -1;
+      return a.label.localeCompare(b.label, 'fr');
+    });
+    return arr;
+  }, [photos]);
+
+  const [expanded, setExpanded] = useState<Map<string, boolean>>(new Map());
+  const isExpanded = (key: string) => expanded.get(key) ?? false;
+  const toggle = (key: string) => {
+    setExpanded((prev) => {
+      const next = new Map(prev);
+      next.set(key, !(prev.get(key) ?? false));
+      return next;
+    });
+  };
+
+  if (photos.length === 0) return null;
+
+  return (
+    <div>
+      {groups.map((group) => {
+        const count = group.items.length;
+        const open = isExpanded(group.key);
+        const isUnknown = group.key === '__unknown__';
+        return (
+          <div key={group.key}>
+            <button
+              type="button"
+              onClick={() => toggle(group.key)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-accent text-left"
+            >
+              {open ? (
+                <ChevronDown className="h-4 w-4 shrink-0" />
+              ) : (
+                <ChevronRight className="h-4 w-4 shrink-0" />
+              )}
+              <MapPin
+                className={cn(
+                  'h-4 w-4 shrink-0',
+                  isUnknown ? 'text-muted-foreground/50' : 'text-primary',
+                )}
+              />
+              <span
+                className={cn(
+                  'font-medium',
+                  isUnknown && 'italic text-muted-foreground',
+                )}
+              >
+                {group.label} — {count} photo{count > 1 ? 's' : ''}
+              </span>
+            </button>
+            {open && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 p-3">
+                {group.items.map((photo) => (
+                  <React.Fragment key={photo.id}>{renderPhoto(photo)}</React.Fragment>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

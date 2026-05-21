@@ -7,6 +7,7 @@ export type Dossier = {
   statut: string;
   createdAt: any;
   createdBy: string;
+  createdByName?: string;
   // Dossier info
   compagnie: string;
   typeDossier: string;

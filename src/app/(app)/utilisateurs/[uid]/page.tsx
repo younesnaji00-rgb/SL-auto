@@ -14,6 +14,7 @@ import {
   Clock,
   ExternalLink,
   AlertCircle,
+  ShieldCheck,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -56,8 +57,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
 import { useDoc, useFirestore } from '@/firebase';
 import {
   doc,
@@ -121,6 +124,12 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Per-user permission overrides. `deniedNavItems` mirrors the Firestore field
+  // (array of nav `href` values to hide). `permissionsSaving` is a transient
+  // marker per-item so the row can show a saved/saving cue. The toggle list is
+  // the role-allowed nav set MINUS `/signaler-bug` (universally accessible).
+  const [deniedNavItems, setDeniedNavItems] = useState<string[]>([]);
+  const [permissionsSaving, setPermissionsSaving] = useState<Record<string, boolean>>({});
   const [formData, setFormData] = useState({
     nom: '',
     prenom: '',
@@ -196,8 +205,49 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         sites: userData.sites || [],
         zone: userData.zone || '',
       });
+      setDeniedNavItems(Array.isArray(userData.deniedNavItems) ? userData.deniedNavItems : []);
     }
   }, [userData]);
+
+  // Items shown in the Permissions card: role-allowed items, excluding
+  // /signaler-bug (always universally accessible). Recomputes when the
+  // target user's role changes.
+  const permissionItems = useMemo(() => {
+    const role = formData.role || undefined;
+    const out: { href: string; label: string }[] = [];
+    for (const group of NAV_GROUPS) {
+      for (const item of group.items) {
+        if (item.href === '/signaler-bug') continue;
+        if (!isItemVisibleToRole(item, role)) continue;
+        out.push({ href: item.href, label: item.label });
+      }
+    }
+    return out;
+  }, [formData.role]);
+
+  const handleTogglePermission = async (href: string, allowed: boolean) => {
+    // `allowed=true` means the Switch flipped ON => REMOVE from denied list.
+    // `allowed=false` means OFF => ADD to denied list. Mirror to Firestore
+    // immediately so the sidebar (live snapshot) updates in real time.
+    const next = allowed
+      ? deniedNavItems.filter((h) => h !== href)
+      : Array.from(new Set([...deniedNavItems, href]));
+    setDeniedNavItems(next);
+    setPermissionsSaving((p) => ({ ...p, [href]: true }));
+    try {
+      await updateDoc(userRef, { deniedNavItems: next });
+    } catch (err) {
+      console.error('Failed to persist deniedNavItems', err);
+      // Roll back optimistic UI on failure.
+      setDeniedNavItems(deniedNavItems);
+      toast({ variant: 'destructive', title: 'Erreur', description: "Impossible de mettre à jour la permission." });
+    } finally {
+      setPermissionsSaving((p) => {
+        const { [href]: _omit, ...rest } = p;
+        return rest;
+      });
+    }
+  };
 
   const handleSave = async () => {
     // Round 9 — `nom` is mandatory per the user policy. Block save with a
@@ -566,6 +616,54 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 {isSaving ? 'Enregistrement...' : <><Save className="mr-2 h-4 w-4" /> Sauvegarder</>}
               </Button>
             </CardFooter>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-primary" />
+                Permissions
+              </CardTitle>
+              <CardDescription>
+                Restreignez l&apos;accès à certains menus pour cet utilisateur. Les éléments désactivés ne s&apos;afficheront plus dans sa barre latérale. «&nbsp;Signaler un bug&nbsp;» reste toujours accessible.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {permissionItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">
+                  Ce rôle n&apos;a accès à aucun menu configurable.
+                </p>
+              ) : (
+                <ul className="divide-y rounded-md border">
+                  {permissionItems.map((item) => {
+                    const denied = deniedNavItems.includes(item.href);
+                    const allowed = !denied;
+                    const saving = !!permissionsSaving[item.href];
+                    return (
+                      <li key={item.href} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium leading-tight">{item.label}</p>
+                          <p className="text-[11px] text-muted-foreground font-mono">{item.href}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {saving && (
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
+                              Enregistrement…
+                            </span>
+                          )}
+                          <Switch
+                            checked={allowed}
+                            disabled={saving}
+                            onCheckedChange={(v) => handleTogglePermission(item.href, v)}
+                            aria-label={`Autoriser l'accès à ${item.label}`}
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CardContent>
           </Card>
 
           <Card>
