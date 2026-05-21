@@ -61,11 +61,17 @@ interface UserProfile {
   statut: string;
   password?: string;
   assignedStampIds: string[];
-  /** Per-user restrictive overrides on top of the role gate. List of nav
-   *  `href` values (e.g. `/dashboard`) that should be hidden from the sidebar
-   *  for THIS user even though the role would otherwise allow them.
-   *  `/signaler-bug` is never enforced — see `src/components/layout/sidebar.tsx`. */
+  /** Per-user override: nav `href` values that are EXPLICITLY HIDDEN for this
+   *  user even though their role would otherwise allow them. Used for
+   *  temporary revocation. `/signaler-bug` is never enforced — see
+   *  `src/components/layout/sidebar.tsx`. */
   deniedNavItems: string[];
+  /** Per-user override: nav `href` values that are EXPLICITLY VISIBLE for this
+   *  user even though their role would not otherwise allow them. Used for
+   *  temporary privilege grants. Granted entries take precedence over the
+   *  role gate AND over `deniedNavItems` — clean writes from the admin UI
+   *  guarantee no href appears in both lists. */
+  grantedNavItems: string[];
 }
 
 type Section = 'dossiers' | 'assignations-chiffrage' | 'assignations-atg' | 'utilisateurs';
@@ -232,6 +238,9 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
                   : [],
               deniedNavItems: Array.isArray(data.deniedNavItems)
                 ? data.deniedNavItems.filter((v: unknown): v is string => typeof v === 'string')
+                : [],
+              grantedNavItems: Array.isArray(data.grantedNavItems)
+                ? data.grantedNavItems.filter((v: unknown): v is string => typeof v === 'string')
                 : [],
             });
             setLoading(false);

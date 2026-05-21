@@ -124,11 +124,15 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  // Per-user permission overrides. `deniedNavItems` mirrors the Firestore field
-  // (array of nav `href` values to hide). `permissionsSaving` is a transient
-  // marker per-item so the row can show a saved/saving cue. The toggle list is
-  // the role-allowed nav set MINUS `/signaler-bug` (universally accessible).
+  // Per-user permission overrides. `deniedNavItems` = hrefs hidden despite the
+  // role allowing them (revoke). `grantedNavItems` = hrefs visible despite the
+  // role denying them (grant). Both mirror Firestore fields. The toggle UI
+  // shows ALL sidebar items except `/signaler-bug` (universally accessible),
+  // letting the admin grant OR revoke any page temporarily.
+  // `permissionsSaving` is a transient marker per-item so the row can show a
+  // saved/saving cue.
   const [deniedNavItems, setDeniedNavItems] = useState<string[]>([]);
+  const [grantedNavItems, setGrantedNavItems] = useState<string[]>([]);
   const [permissionsSaving, setPermissionsSaving] = useState<Record<string, boolean>>({});
   const [formData, setFormData] = useState({
     nom: '',
@@ -206,40 +210,66 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         zone: userData.zone || '',
       });
       setDeniedNavItems(Array.isArray(userData.deniedNavItems) ? userData.deniedNavItems : []);
+      setGrantedNavItems(Array.isArray(userData.grantedNavItems) ? userData.grantedNavItems : []);
     }
   }, [userData]);
 
-  // Items shown in the Permissions card: role-allowed items, excluding
-  // /signaler-bug (always universally accessible). Recomputes when the
-  // target user's role changes.
+  // Items shown in the Permissions card: ALL sidebar items except
+  // `/signaler-bug` (universally accessible). The toggle UI lets the admin
+  // grant OR revoke any page temporarily — regardless of the user's role
+  // baseline. The `roleDefault` flag is the role-baseline answer used to
+  // both (a) compute the initial effective state when no override exists,
+  // and (b) decide which list (denied vs granted) an override write goes
+  // into. Recomputes when the target user's role changes.
   const permissionItems = useMemo(() => {
     const role = formData.role || undefined;
-    const out: { href: string; label: string }[] = [];
+    const out: { href: string; label: string; roleDefault: boolean }[] = [];
     for (const group of NAV_GROUPS) {
       for (const item of group.items) {
         if (item.href === '/signaler-bug') continue;
-        if (!isItemVisibleToRole(item, role)) continue;
-        out.push({ href: item.href, label: item.label });
+        out.push({
+          href: item.href,
+          label: item.label,
+          roleDefault: isItemVisibleToRole(item, role),
+        });
       }
     }
     return out;
   }, [formData.role]);
 
-  const handleTogglePermission = async (href: string, allowed: boolean) => {
-    // `allowed=true` means the Switch flipped ON => REMOVE from denied list.
-    // `allowed=false` means OFF => ADD to denied list. Mirror to Firestore
-    // immediately so the sidebar (live snapshot) updates in real time.
-    const next = allowed
-      ? deniedNavItems.filter((h) => h !== href)
-      : Array.from(new Set([...deniedNavItems, href]));
-    setDeniedNavItems(next);
+  const handleTogglePermission = async (
+    href: string,
+    nextAllowed: boolean,
+    roleDefault: boolean,
+  ) => {
+    // Compute the next state of both lists so an href ends up in at most ONE
+    // list (sidebar precedence guarantees correctness even on conflict, but
+    // clean writes are nicer). The rule:
+    //   nextAllowed === roleDefault  → no override needed, clear from both
+    //   nextAllowed && !roleDefault  → grant (add to granted, remove from denied)
+    //   !nextAllowed && roleDefault  → revoke (add to denied, remove from granted)
+    let nextDenied = deniedNavItems.filter((h) => h !== href);
+    let nextGranted = grantedNavItems.filter((h) => h !== href);
+    if (nextAllowed && !roleDefault) {
+      nextGranted = Array.from(new Set([...nextGranted, href]));
+    } else if (!nextAllowed && roleDefault) {
+      nextDenied = Array.from(new Set([...nextDenied, href]));
+    }
+    const prevDenied = deniedNavItems;
+    const prevGranted = grantedNavItems;
+    setDeniedNavItems(nextDenied);
+    setGrantedNavItems(nextGranted);
     setPermissionsSaving((p) => ({ ...p, [href]: true }));
     try {
-      await updateDoc(userRef, { deniedNavItems: next });
+      await updateDoc(userRef, {
+        deniedNavItems: nextDenied,
+        grantedNavItems: nextGranted,
+      });
     } catch (err) {
-      console.error('Failed to persist deniedNavItems', err);
+      console.error('Failed to persist permission overrides', err);
       // Roll back optimistic UI on failure.
-      setDeniedNavItems(deniedNavItems);
+      setDeniedNavItems(prevDenied);
+      setGrantedNavItems(prevGranted);
       toast({ variant: 'destructive', title: 'Erreur', description: "Impossible de mettre à jour la permission." });
     } finally {
       setPermissionsSaving((p) => {
@@ -625,24 +655,52 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 Permissions
               </CardTitle>
               <CardDescription>
-                Restreignez l&apos;accès à certains menus pour cet utilisateur. Les éléments désactivés ne s&apos;afficheront plus dans sa barre latérale. «&nbsp;Signaler un bug&nbsp;» reste toujours accessible.
+                Accordez ou retirez l&apos;accès à n&apos;importe quelle page pour cet utilisateur, indépendamment de son rôle. Utile pour des privilèges temporaires. «&nbsp;Signaler un bug&nbsp;» reste toujours accessible.
               </CardDescription>
             </CardHeader>
             <CardContent>
               {permissionItems.length === 0 ? (
                 <p className="text-sm text-muted-foreground italic">
-                  Ce rôle n&apos;a accès à aucun menu configurable.
+                  Aucun menu configurable.
                 </p>
               ) : (
                 <ul className="divide-y rounded-md border">
                   {permissionItems.map((item) => {
+                    const granted = grantedNavItems.includes(item.href);
                     const denied = deniedNavItems.includes(item.href);
-                    const allowed = !denied;
+                    // Effective state matches the sidebar's precedence:
+                    // grant > deny > role default.
+                    const allowed = granted || (!denied && item.roleDefault);
+                    const isOverride =
+                      (allowed && !item.roleDefault) || (!allowed && item.roleDefault);
                     const saving = !!permissionsSaving[item.href];
                     return (
                       <li key={item.href} className="flex items-center justify-between gap-3 px-3 py-2.5">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium leading-tight">{item.label}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium leading-tight">{item.label}</p>
+                            {isOverride && (
+                              <span
+                                className={cn(
+                                  'text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
+                                  allowed
+                                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                                )}
+                                title={allowed ? 'Accordé en plus du rôle' : 'Retiré du rôle'}
+                              >
+                                {allowed ? 'Accordé' : 'Retiré'}
+                              </span>
+                            )}
+                            {!item.roleDefault && !isOverride && (
+                              <span
+                                className="text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px bg-muted text-muted-foreground"
+                                title="Non inclus dans le rôle par défaut"
+                              >
+                                Hors rôle
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-muted-foreground font-mono">{item.href}</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -654,7 +712,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                           <Switch
                             checked={allowed}
                             disabled={saving}
-                            onCheckedChange={(v) => handleTogglePermission(item.href, v)}
+                            onCheckedChange={(v) => handleTogglePermission(item.href, v, item.roleDefault)}
                             aria-label={`Autoriser l'accès à ${item.label}`}
                           />
                         </div>
