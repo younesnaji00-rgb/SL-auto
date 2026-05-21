@@ -83,9 +83,17 @@ const AppSidebar = () => {
   const { rappels } = useRappels();
   const unreadRappelsCount = rappels.filter((r) => !r.read).length;
 
+  // Per-user restrictive overrides: applied AFTER the role gate. The toggle
+  // UI on /utilisateurs/[uid] writes the hrefs to deny into `users/{uid}
+  // .deniedNavItems`. "Signaler un bug" is never filtered (universal access).
+  const deniedNavItems = profile?.deniedNavItems ?? [];
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => isItemVisibleToRole(item, profile?.role)),
+    items: group.items.filter((item) => {
+      if (!isItemVisibleToRole(item, profile?.role)) return false;
+      if (item.href === '/signaler-bug') return true;
+      return !deniedNavItems.includes(item.href);
+    }),
   })).filter((group) => group.items.length > 0);
 
   const handleSignOut = async () => {

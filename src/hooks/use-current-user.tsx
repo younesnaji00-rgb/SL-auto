@@ -61,6 +61,11 @@ interface UserProfile {
   statut: string;
   password?: string;
   assignedStampIds: string[];
+  /** Per-user restrictive overrides on top of the role gate. List of nav
+   *  `href` values (e.g. `/dashboard`) that should be hidden from the sidebar
+   *  for THIS user even though the role would otherwise allow them.
+   *  `/signaler-bug` is never enforced — see `src/components/layout/sidebar.tsx`. */
+  deniedNavItems: string[];
 }
 
 type Section = 'dossiers' | 'assignations-chiffrage' | 'assignations-atg' | 'utilisateurs';
@@ -225,6 +230,9 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
                 : data.assignedStampId
                   ? [data.assignedStampId]
                   : [],
+              deniedNavItems: Array.isArray(data.deniedNavItems)
+                ? data.deniedNavItems.filter((v: unknown): v is string => typeof v === 'string')
+                : [],
             });
             setLoading(false);
           },
