@@ -12,6 +12,8 @@ import {
   Plus,
 } from 'lucide-react';
 import { useCompagnies } from '@/hooks/use-compagnies';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { hasPermission } from '@/lib/permissions';
 import { useDossiers } from '@/hooks/use-dossiers';
 import { useStorage, useFirestore } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -46,7 +48,15 @@ export default function CompagniesClientPage() {
   const router = useRouter();
   const selectedId = searchParams.get('selected');
 
-  const { compagnies, loading: loadingCompagnies } = useCompagnies();
+  const { compagnies: allCompagnies, loading: loadingCompagnies } = useCompagnies();
+  const { profile } = useCurrentUser();
+  // Filter out compagnies the current user has been denied access to via
+  // the per-user permissions. Applied across the entire page (cards grid,
+  // detail view, etc.) — `compagnies` below is the post-filter list.
+  const compagnies = useMemo(
+    () => allCompagnies.filter((c) => hasPermission(profile, `/compagnies#${c.id}`, true)),
+    [allCompagnies, profile],
+  );
   const storage = useStorage();
   const db = useFirestore();
   const { toast } = useToast();

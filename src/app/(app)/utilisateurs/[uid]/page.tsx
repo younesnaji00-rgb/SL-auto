@@ -15,7 +15,10 @@ import {
   ExternalLink,
   AlertCircle,
   ShieldCheck,
+  ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
+import { useCompagnies } from '@/hooks/use-compagnies';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -214,52 +217,97 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     }
   }, [userData]);
 
-  // Items shown in the Permissions card: ALL sidebar items except
-  // `/signaler-bug` (universally accessible). The toggle UI lets the admin
-  // grant OR revoke any page temporarily — regardless of the user's role
-  // baseline. The `roleDefault` flag is the role-baseline answer used to
-  // both (a) compute the initial effective state when no override exists,
-  // and (b) decide which list (denied vs granted) an override write goes
-  // into. Recomputes when the target user's role changes.
-  const permissionItems = useMemo(() => {
+  // Permission tree shown in the card. Top-level entries are sidebar items
+  // (except `/signaler-bug` which is universally accessible). Some entries
+  // expand into sub-permissions:
+  //   - Mes rappels → Reçus / Envoyés (tab visibility on /mes-rappels)
+  //   - Compagnies → each individual compagnie (sidebar + /compagnies list)
+  //   - Gestion des dossiers → Validation de dossier (valider-dossier button)
+  // Each node carries a `roleDefault` (the role-baseline answer). The toggle
+  // handler decides which list (denied vs granted) to write to based on it.
+  const { compagnies: allCompagnies } = useCompagnies();
+  const permissionTree = useMemo(() => {
     const role = formData.role || undefined;
-    const out: { href: string; label: string; roleDefault: boolean }[] = [];
+    type Node = { id: string; label: string; roleDefault: boolean; children?: Node[] };
+    const out: Node[] = [];
     for (const group of NAV_GROUPS) {
       for (const item of group.items) {
         if (item.href === '/signaler-bug') continue;
-        out.push({
-          href: item.href,
-          label: item.label,
-          roleDefault: isItemVisibleToRole(item, role),
-        });
+        const parentDefault = isItemVisibleToRole(item, role);
+        const node: Node = { id: item.href, label: item.label, roleDefault: parentDefault };
+        if (item.href === '/mes-rappels') {
+          node.children = [
+            { id: '/mes-rappels#recus', label: 'Reçus', roleDefault: parentDefault },
+            { id: '/mes-rappels#envoyes', label: 'Envoyés', roleDefault: parentDefault },
+          ];
+        } else if (item.href === '/dossiers') {
+          // Validation has its own role gate (canValidateRapport): Admin +
+          // Directeur-family roles. Other roles cannot validate by default;
+          // an admin can still GRANT the override.
+          const canValidate =
+            role === 'Admin' ||
+            role === 'Directeur des opérations' ||
+            role === 'Directeur' ||
+            role === 'Directeur technique';
+          node.children = [
+            { id: '/dossiers#validation', label: 'Validation de dossier', roleDefault: canValidate },
+          ];
+        } else if (item.href === '/compagnies') {
+          node.children = allCompagnies.map((c) => ({
+            id: `/compagnies#${c.id}`,
+            label: c.nom,
+            roleDefault: parentDefault,
+          }));
+        }
+        out.push(node);
       }
     }
     return out;
-  }, [formData.role]);
+  }, [formData.role, allCompagnies]);
 
-  const handleTogglePermission = async (
-    href: string,
-    nextAllowed: boolean,
-    roleDefault: boolean,
+  // Tracks which dropdown rows are expanded.
+  const [expandedPerms, setExpandedPerms] = useState<Set<string>>(new Set());
+  const toggleExpand = (id: string) => {
+    setExpandedPerms((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  /**
+   * Persist a permission update to Firestore with optimistic UI + rollback.
+   * Handles BOTH single-row toggles AND parent-row cascades: pass `updates`
+   * as an array of `{ id, nextAllowed, roleDefault }` and the function
+   * computes the consolidated `deniedNavItems` + `grantedNavItems` writes.
+   */
+  const applyPermissionUpdates = async (
+    updates: { id: string; nextAllowed: boolean; roleDefault: boolean }[],
   ) => {
-    // Compute the next state of both lists so an href ends up in at most ONE
-    // list (sidebar precedence guarantees correctness even on conflict, but
-    // clean writes are nicer). The rule:
-    //   nextAllowed === roleDefault  → no override needed, clear from both
-    //   nextAllowed && !roleDefault  → grant (add to granted, remove from denied)
-    //   !nextAllowed && roleDefault  → revoke (add to denied, remove from granted)
-    let nextDenied = deniedNavItems.filter((h) => h !== href);
-    let nextGranted = grantedNavItems.filter((h) => h !== href);
-    if (nextAllowed && !roleDefault) {
-      nextGranted = Array.from(new Set([...nextGranted, href]));
-    } else if (!nextAllowed && roleDefault) {
-      nextDenied = Array.from(new Set([...nextDenied, href]));
+    if (updates.length === 0) return;
+    // For each (id, nextAllowed, roleDefault):
+    //   nextAllowed === roleDefault  → clear from both (no override needed)
+    //   nextAllowed && !roleDefault  → grant
+    //   !nextAllowed && roleDefault  → deny
+    const idsTouched = new Set(updates.map((u) => u.id));
+    let nextDenied = deniedNavItems.filter((h) => !idsTouched.has(h));
+    let nextGranted = grantedNavItems.filter((h) => !idsTouched.has(h));
+    for (const { id, nextAllowed, roleDefault } of updates) {
+      if (nextAllowed && !roleDefault) nextGranted.push(id);
+      else if (!nextAllowed && roleDefault) nextDenied.push(id);
     }
+    nextDenied = Array.from(new Set(nextDenied));
+    nextGranted = Array.from(new Set(nextGranted));
     const prevDenied = deniedNavItems;
     const prevGranted = grantedNavItems;
     setDeniedNavItems(nextDenied);
     setGrantedNavItems(nextGranted);
-    setPermissionsSaving((p) => ({ ...p, [href]: true }));
+    setPermissionsSaving((p) => {
+      const next = { ...p };
+      for (const u of updates) next[u.id] = true;
+      return next;
+    });
     try {
       await updateDoc(userRef, {
         deniedNavItems: nextDenied,
@@ -267,16 +315,42 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       });
     } catch (err) {
       console.error('Failed to persist permission overrides', err);
-      // Roll back optimistic UI on failure.
       setDeniedNavItems(prevDenied);
       setGrantedNavItems(prevGranted);
       toast({ variant: 'destructive', title: 'Erreur', description: "Impossible de mettre à jour la permission." });
     } finally {
       setPermissionsSaving((p) => {
-        const { [href]: _omit, ...rest } = p;
-        return rest;
+        const next = { ...p };
+        for (const u of updates) delete next[u.id];
+        return next;
       });
     }
+  };
+
+  /** Effective state of a single permission (matches sidebar precedence). */
+  const effectiveAllowed = (id: string, roleDefault: boolean): boolean => {
+    if (grantedNavItems.includes(id)) return true;
+    if (deniedNavItems.includes(id)) return false;
+    return roleDefault;
+  };
+
+  /** Toggle a single permission. */
+  const handleTogglePermission = (id: string, nextAllowed: boolean, roleDefault: boolean) => {
+    return applyPermissionUpdates([{ id, nextAllowed, roleDefault }]);
+  };
+
+  /** Cascade a parent toggle to ALL its children. Parent + children all
+   *  written in one Firestore round-trip. */
+  const handleToggleParent = (
+    parent: { id: string; roleDefault: boolean },
+    children: { id: string; roleDefault: boolean }[],
+    nextAllowed: boolean,
+  ) => {
+    const updates = [
+      { id: parent.id, nextAllowed, roleDefault: parent.roleDefault },
+      ...children.map((c) => ({ id: c.id, nextAllowed, roleDefault: c.roleDefault })),
+    ];
+    return applyPermissionUpdates(updates);
   };
 
   const handleSave = async () => {
@@ -659,63 +733,140 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {permissionItems.length === 0 ? (
+              {permissionTree.length === 0 ? (
                 <p className="text-sm text-muted-foreground italic">
                   Aucun menu configurable.
                 </p>
               ) : (
                 <ul className="divide-y rounded-md border">
-                  {permissionItems.map((item) => {
-                    const granted = grantedNavItems.includes(item.href);
-                    const denied = deniedNavItems.includes(item.href);
-                    // Effective state matches the sidebar's precedence:
-                    // grant > deny > role default.
-                    const allowed = granted || (!denied && item.roleDefault);
+                  {permissionTree.map((item) => {
+                    const allowed = effectiveAllowed(item.id, item.roleDefault);
                     const isOverride =
                       (allowed && !item.roleDefault) || (!allowed && item.roleDefault);
-                    const saving = !!permissionsSaving[item.href];
+                    const saving = !!permissionsSaving[item.id];
+                    const hasChildren = !!item.children && item.children.length > 0;
+                    const isExpanded = expandedPerms.has(item.id);
                     return (
-                      <li key={item.href} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-medium leading-tight">{item.label}</p>
-                            {isOverride && (
-                              <span
-                                className={cn(
-                                  'text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
-                                  allowed
-                                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                      <li key={item.id}>
+                        <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                          <button
+                            type="button"
+                            disabled={!hasChildren}
+                            onClick={() => hasChildren && toggleExpand(item.id)}
+                            className={cn(
+                              'flex items-center gap-2 min-w-0 flex-1 text-left',
+                              hasChildren && 'hover:opacity-80 transition-opacity',
+                            )}
+                          >
+                            {hasChildren ? (
+                              isExpanded ? (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                              )
+                            ) : (
+                              <span className="w-4 shrink-0" aria-hidden />
+                            )}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-medium leading-tight">{item.label}</p>
+                                {isOverride && (
+                                  <span
+                                    className={cn(
+                                      'text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
+                                      allowed
+                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                        : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                                    )}
+                                    title={allowed ? 'Accordé en plus du rôle' : 'Retiré du rôle'}
+                                  >
+                                    {allowed ? 'Accordé' : 'Retiré'}
+                                  </span>
                                 )}
-                                title={allowed ? 'Accordé en plus du rôle' : 'Retiré du rôle'}
-                              >
-                                {allowed ? 'Accordé' : 'Retiré'}
+                                {!item.roleDefault && !isOverride && (
+                                  <span
+                                    className="text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px bg-muted text-muted-foreground"
+                                    title="Non inclus dans le rôle par défaut"
+                                  >
+                                    Hors rôle
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground font-mono">{item.id}</p>
+                            </div>
+                          </button>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {saving && (
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
+                                Enregistrement…
                               </span>
                             )}
-                            {!item.roleDefault && !isOverride && (
-                              <span
-                                className="text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px bg-muted text-muted-foreground"
-                                title="Non inclus dans le rôle par défaut"
-                              >
-                                Hors rôle
-                              </span>
-                            )}
+                            <Switch
+                              checked={allowed}
+                              disabled={saving}
+                              onCheckedChange={(v) =>
+                                hasChildren
+                                  ? handleToggleParent(
+                                      { id: item.id, roleDefault: item.roleDefault },
+                                      item.children!.map((c) => ({ id: c.id, roleDefault: c.roleDefault })),
+                                      v,
+                                    )
+                                  : handleTogglePermission(item.id, v, item.roleDefault)
+                              }
+                              aria-label={`Autoriser l'accès à ${item.label}`}
+                            />
                           </div>
-                          <p className="text-[11px] text-muted-foreground font-mono">{item.href}</p>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {saving && (
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
-                              Enregistrement…
-                            </span>
-                          )}
-                          <Switch
-                            checked={allowed}
-                            disabled={saving}
-                            onCheckedChange={(v) => handleTogglePermission(item.href, v, item.roleDefault)}
-                            aria-label={`Autoriser l'accès à ${item.label}`}
-                          />
-                        </div>
+                        {hasChildren && isExpanded && (
+                          <ul className="bg-muted/20 border-t">
+                            {item.children!.map((child) => {
+                              const cAllowed = effectiveAllowed(child.id, child.roleDefault);
+                              const cIsOverride =
+                                (cAllowed && !child.roleDefault) || (!cAllowed && child.roleDefault);
+                              const cSaving = !!permissionsSaving[child.id];
+                              return (
+                                <li
+                                  key={child.id}
+                                  className="flex items-center justify-between gap-3 pl-10 pr-3 py-2 border-b last:border-b-0"
+                                >
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <p className="text-sm leading-tight">{child.label}</p>
+                                      {cIsOverride && (
+                                        <span
+                                          className={cn(
+                                            'text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
+                                            cAllowed
+                                              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                              : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                                          )}
+                                        >
+                                          {cAllowed ? 'Accordé' : 'Retiré'}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground font-mono">{child.id}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {cSaving && (
+                                      <span className="text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
+                                        Enregistrement…
+                                      </span>
+                                    )}
+                                    <Switch
+                                      checked={cAllowed}
+                                      disabled={cSaving}
+                                      onCheckedChange={(v) =>
+                                        handleTogglePermission(child.id, v, child.roleDefault)
+                                      }
+                                      aria-label={`Autoriser ${child.label}`}
+                                    />
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
                       </li>
                     );
                   })}

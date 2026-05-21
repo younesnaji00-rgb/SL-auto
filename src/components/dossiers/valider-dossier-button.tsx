@@ -7,6 +7,7 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { useFirestore, useAuth } from '@/firebase';
 import { useCurrentUser, canValidateRapport } from '@/hooks/use-current-user';
+import { hasPermission, SUB_PERMISSIONS } from '@/lib/permissions';
 import { useToast } from '@/hooks/use-toast';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
 
@@ -27,7 +28,15 @@ export function ValiderDossierButton({
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
 
-  if (!profile || !canValidateRapport(profile.role)) return null;
+  if (!profile) return null;
+  // Effective validation right = role gate, overridable by the per-user
+  // `/dossiers#validation` permission (grant or deny on /utilisateurs/[uid]).
+  const canValidate = hasPermission(
+    profile,
+    SUB_PERMISSIONS.DOSSIERS_VALIDATION,
+    canValidateRapport(profile.role),
+  );
+  if (!canValidate) return null;
 
   const handleClick = async () => {
     if (alreadyValidated) {
