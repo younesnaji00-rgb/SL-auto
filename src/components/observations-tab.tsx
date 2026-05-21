@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -153,6 +154,10 @@ export default function ObservationsTab({
   const [validatingId, setValidatingId] = useState<string | null>(null);
   const [uploadingProofFor, setUploadingProofFor] = useState<string | null>(null);
   const proofInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // In-page lightbox preview for an attached proof — replaces opening the
+  // file in a new tab. Holds the preview target so the dialog can render
+  // either an <img> (image proofs) or an <iframe> (PDF proofs).
+  const [lightboxProof, setLightboxProof] = useState<{ url: string; name: string } | null>(null);
   const canAdd = canWrite(section);
 
   const [selectedPreset, setSelectedPreset] = useState('');
@@ -772,22 +777,22 @@ export default function ObservationsTab({
                     )
                   )}
 
-                  {/* Proofs list */}
+                  {/* Proofs list — clicking a proof opens it in an in-page
+                      lightbox (Dialog) instead of navigating to a new tab. */}
                   {proofs.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {proofs.map((p, i) => (
-                        <a
+                        <button
                           key={i}
-                          href={p.url}
-                          target="_blank"
-                          rel="noreferrer"
+                          type="button"
+                          onClick={() => setLightboxProof({ url: p.url, name: p.name })}
                           className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-background hover:bg-accent transition-colors"
                           title={`${p.name} — ${p.uploadedByNom || p.uploadedBy}${p.uploadedAt?.toDate ? ` (${format(p.uploadedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: fr })})` : ''}`}
                         >
                           <Paperclip className="h-3 w-3" />
                           <span className="truncate max-w-[140px]">{p.name}</span>
                           <ExternalLink className="h-3 w-3 opacity-50" />
-                        </a>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -845,6 +850,36 @@ export default function ObservationsTab({
           })}
         </div>
       )}
+
+      {/* In-page lightbox for an attached preuve. shadcn Dialog handles
+          ESC, overlay click, and the X close button by default. PDFs are
+          rendered via <iframe>; images via <img>. */}
+      <Dialog
+        open={!!lightboxProof}
+        onOpenChange={(o) => { if (!o) setLightboxProof(null); }}
+      >
+        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-background">
+          <DialogTitle className="sr-only">
+            {lightboxProof?.name || 'Aperçu de la preuve'}
+          </DialogTitle>
+          {lightboxProof && (
+            /\.pdf($|\?)/i.test(lightboxProof.url) || /\.pdf$/i.test(lightboxProof.name) ? (
+              <iframe
+                src={lightboxProof.url}
+                title={lightboxProof.name}
+                className="w-full h-[80vh] border-0"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={lightboxProof.url}
+                alt={lightboxProof.name}
+                className="w-full h-auto max-h-[85vh] object-contain"
+              />
+            )
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 
