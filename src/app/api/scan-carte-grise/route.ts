@@ -3,6 +3,7 @@ import { ai } from '@/ai/genkit';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
 import { transliterateArabic } from '@/lib/transliterate-arabic';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 /**
  * Carte Grise scanner — narrow extractor that pulls only the two registration
@@ -17,6 +18,7 @@ import { transliterateArabic } from '@/lib/transliterate-arabic';
  */
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth(req);
     const body = await req.json();
     const fileBase64: string | undefined = body?.fileBase64;
     const contentType: string | undefined = body?.contentType;
@@ -67,7 +69,7 @@ RÈGLES STRICTES:
 
     const parsed = parseAiJson<any>(text || '');
     if (!parsed.ok) {
-      console.error('[scan-carte-grise] Failed to parse AI response:', parsed.cleaned);
+      console.error('[scan-carte-grise] Failed to parse AI response');
       return NextResponse.json(
         { error: `Impossible de parser la réponse AI. Début: ${parsed.snippet}`, raw: parsed.cleaned },
         { status: 422 },
@@ -83,7 +85,9 @@ RÈGLES STRICTES:
       previousRegistration: prev && prev !== reg ? prev : null,
     });
   } catch (error: any) {
-    console.error('[/api/scan-carte-grise] Error:', error);
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
+    console.error('[/api/scan-carte-grise] Error:', error?.message ?? 'unknown', error?.code ?? '');
     return NextResponse.json({ error: error.message || 'Erreur interne.' }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 import { doc, serverTimestamp, updateDoc, type Firestore } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, type FirebaseStorage } from 'firebase/storage';
+import { apiFetch } from '@/lib/api-fetch';
 
 /**
  * Carte Grise scanner — fired from the typed-documents grid right after a file
@@ -38,7 +39,7 @@ export async function scanAndPersistCarteGrise({
       blob.type ||
       (storagePath.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
 
-    const r = await fetch('/api/scan-carte-grise', {
+    const r = await apiFetch('/api/scan-carte-grise', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileBase64: base64, contentType: ct }),

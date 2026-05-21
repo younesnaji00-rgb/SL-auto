@@ -40,35 +40,43 @@ service cloud.firestore {
       return request.auth != null
         && (userRole() == 'Admin' || userRole() == 'Directeur des opérations');
     }
+    function canAssign() {
+      return request.auth != null && (
+        userRole() == 'Admin'
+        || userRole() == 'Gestionnaire'
+        || userRole() == 'Directeur'
+        || userRole() == 'Directeur des opérations'
+        || userRole() == 'Directeur technique'
+      );
+    }
 
-    // Dropdown and Configuration Collections (Publicly Readable, Authenticated Write)
-    match /options_natures/{docId} { allow read: if true; allow write: if request.auth != null; }
-    match /options_statuts/{docId} { allow read: if true; allow write: if request.auth != null; }
-    match /options_types_mission/{docId} { allow read: if true; allow write: if request.auth != null; }
-    match /options_types_documents/{docId} { allow read: if true; allow write: if request.auth != null; }
-    match /options_roles/{docId} { allow read: if true; allow write: if request.auth != null; }
-    match /options_agents/{docId} { allow read: if true; allow write: if request.auth != null; }
-    match /options_types_dossier/{docId} { allow read: if true; allow write: if request.auth != null; }
-    match /options_rapport_operations/{docId} { allow read: if true; allow write: if request.auth != null; }
-    match /options_rapport_types_pieces/{docId} { allow read: if true; allow write: if request.auth != null; }
-    match /options_reparateur_types/{docId} { allow read: if true; allow write: if request.auth != null; }
-    match /options_mdo_types/{docId} { allow read: if true; allow write: if request.auth != null; }
-    match /compagnies/{docId} { allow read: if true; allow write: if request.auth != null; }
+    // Dropdown and Configuration Collections (signed-in users only)
+    match /options_natures/{docId} { allow read, write: if request.auth != null; }
+    match /options_statuts/{docId} { allow read, write: if request.auth != null; }
+    match /options_types_mission/{docId} { allow read, write: if request.auth != null; }
+    match /options_types_documents/{docId} { allow read, write: if request.auth != null; }
+    match /options_roles/{docId} { allow read, write: if request.auth != null; }
+    match /options_agents/{docId} { allow read, write: if request.auth != null; }
+    match /options_types_dossier/{docId} { allow read, write: if request.auth != null; }
+    match /options_rapport_operations/{docId} { allow read, write: if request.auth != null; }
+    match /options_rapport_types_pieces/{docId} { allow read, write: if request.auth != null; }
+    match /options_reparateur_types/{docId} { allow read, write: if request.auth != null; }
+    match /options_mdo_types/{docId} { allow read, write: if request.auth != null; }
+    match /compagnies/{docId} { allow read, write: if request.auth != null; }
 
     // Seed lock collection
     match /_seeds/{docId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+      allow read, write: if request.auth != null;
     }
 
     match /dossiers/{dossierId} {
-      allow read: if true;
-      allow create: if true;
-      allow delete: if true;
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow delete: if request.auth != null;
       // task #42: statut must be in canonical list
       // task #42: directorValidated writes restricted to Admin / Directeur des opérations
-      allow update: if
-        (
+      allow update: if request.auth != null
+        && (
           !('statut' in request.resource.data.diff(resource.data).affectedKeys())
           || isValidStatut(request.resource.data.statut)
         )
@@ -76,18 +84,51 @@ service cloud.firestore {
           !('directorValidated' in request.resource.data.diff(resource.data).affectedKeys())
           || canValidateDossier()
         );
-      match /{allSubcollections=**} {
-        allow read, write, delete: if true;
+      // Planifications: assigning a mission requires Gestionnaire/Admin/Directeur
+      match /planifications/{pid} {
+        allow read: if request.auth != null;
+        allow create: if canAssign();
+        allow update, delete: if request.auth != null;
+      }
+      // All other subcollections (and nested docs under planifications):
+      // auth-only, preserving existing behavior.
+      match /{subColl}/{doc=**} {
+        allow read: if request.auth != null;
+        allow write, delete: if request.auth != null && subColl != 'planifications';
       }
     }
+    match /location_requests/{requestId} {
+      allow read: if request.auth != null
+        && (resource.data.agentUid == request.auth.uid || canAssign());
+      allow create: if canAssign()
+        && request.resource.data.agentUid is string;
+      allow update, delete: if isAdmin();
+    }
     match /chiffreurs/{id} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
     match /chiffrages/{id} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
     match /users/{userId} {
-      allow read, write: if true;
+      // Reads: any signed-in user (dropdowns + isAdmin() helper depend on it).
+      allow read: if request.auth != null;
+      // Create: self-signup only, and the new doc must NOT contain a role
+      // field (admins assign roles via update; self-signup cannot self-promote).
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && !('role' in request.resource.data.keys());
+      // Update: Admin can change anything; otherwise the user can update their
+      // own doc as long as the role field is not modified (allows updates that
+      // simply don't touch role: displayName, fcmTokens, currentSessionId, ...).
+      allow update: if isAdmin()
+        || (
+          request.auth != null
+          && request.auth.uid == userId
+          && !('role' in request.resource.data.diff(resource.data).affectedKeys())
+        );
+      // Delete: Admin only.
+      allow delete: if isAdmin();
     }
     // Stamps: per-account import + delete; admin oversight via the
     // /parametres/tampons page (admin can read+modify all). Reads stay open
@@ -101,7 +142,7 @@ service cloud.firestore {
         && (resource.data.createdBy == request.auth.uid || isAdmin());
     }
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
   }
 }

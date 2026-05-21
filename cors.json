@@ -1,8 +1,13 @@
 [
   {
-    "origin": ["*"],
-    "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+    "origin": [
+      "https://studio-9568416614-6523a.web.app",
+      "https://studio-9568416614-6523a.firebaseapp.com",
+      "http://localhost:9002",
+      "https://localhost:9002"
+    ],
+    "method": ["GET", "HEAD"],
     "maxAgeSeconds": 3600,
-    "responseHeader": ["Content-Type", "Authorization", "Content-Length", "User-Agent", "x-goog-resumable"]
+    "responseHeader": ["Content-Type"]
   }
 ]

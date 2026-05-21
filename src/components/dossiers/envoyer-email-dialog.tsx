@@ -35,6 +35,7 @@ import {
   findLatestChiffrageDocs,
   type LatestChiffrageDoc,
 } from '@/lib/find-latest-chiffrage-docs';
+import { apiFetch } from '@/lib/api-fetch';
 
 interface EnvoyerEmailDialogProps {
   open: boolean;
@@ -149,7 +150,7 @@ export function EnvoyerEmailDialog({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/send-email', {
+      const res = await apiFetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

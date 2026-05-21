@@ -46,6 +46,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { ValiderDossierButton } from '@/components/dossiers/valider-dossier-button';
 import CarSvgTop from '@/components/car-svg-top';
 import CarSvgBottom from '@/components/car-svg-bottom';
+import { apiFetch } from '@/lib/api-fetch';
 
 export default function RapportTab({ dossierId }: { dossierId: string }) {
   const db = useFirestore();
@@ -150,7 +151,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
         reader.readAsDataURL(file);
       });
 
-      const res = await fetch('/api/scan-rapport', {
+      const res = await apiFetch('/api/scan-rapport', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileBase64: base64, contentType: file.type }),

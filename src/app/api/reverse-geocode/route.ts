@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 /**
  * Reverse-geocode a `(lat, lng)` pair into a human-readable address via the
@@ -9,16 +10,17 @@ import { NextResponse } from 'next/server';
  * throttling on the client side — we set `Cache-Control` (browser + CDN) and
  * `accept-language=fr` so results match the rest of the app.
  */
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const lat = Number(searchParams.get('lat'));
-  const lng = Number(searchParams.get('lng'));
-
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    return NextResponse.json({ error: 'invalid coords' }, { status: 400 });
-  }
-
+export async function GET(request: NextRequest) {
   try {
+    await requireAuth(request);
+    const { searchParams } = new URL(request.url);
+    const lat = Number(searchParams.get('lat'));
+    const lng = Number(searchParams.get('lng'));
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return NextResponse.json({ error: 'invalid coords' }, { status: 400 });
+    }
+
     const upstream = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=fr`,
       {
@@ -58,7 +60,9 @@ export async function GET(request: Request) {
       },
     );
   } catch (err) {
-    console.error('[/api/reverse-geocode] Error:', err);
+    const authResp = authErrorResponse(err);
+    if (authResp) return authResp;
+    console.error('[/api/reverse-geocode] Error:', (err as any)?.message ?? 'unknown', (err as any)?.code ?? '');
     return NextResponse.json({ error: 'reverse geocoding failed' }, { status: 502 });
   }
 }

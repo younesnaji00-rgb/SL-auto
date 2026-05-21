@@ -34,6 +34,7 @@ import {
 } from '@/components/chiffreurs/documents-filter-panel';
 import { FamilyRow } from '@/components/dossier-timeline/family-row';
 import type { ExtraSlotKind, TypedDoc } from '@/components/dossier-timeline/slot-card';
+import { apiFetch } from '@/lib/api-fetch';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -323,7 +324,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
 
     try {
       // 1) POST to the nodemailer endpoint (task #12 + task #36 attachments).
-      const res = await fetch('/api/send-email', {
+      const res = await apiFetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 interface Stop {
   address: string;
@@ -12,6 +13,7 @@ interface LegResult {
 
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth(req);
     const raw = await req.text();
     if (!raw) {
       // Aborted-mid-flight requests from the debounced client hook can land
@@ -19,10 +21,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ legs: [] });
     }
     const { stops } = JSON.parse(raw) as { stops?: Stop[] };
-    console.log('[atg-feasibility] received stops:', JSON.stringify(stops));
 
     if (!Array.isArray(stops) || stops.length < 2) {
-      console.log('[atg-feasibility] short-circuit: fewer than 2 stops');
       return NextResponse.json({ legs: [] });
     }
 
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     const cleaned = stops.map((s) => (s.address || '').trim());
     if (cleaned.some((a) => a.length === 0)) {
-      console.error('[atg-feasibility] empty address in chain:', cleaned);
+      console.error('[atg-feasibility] empty address in chain (count):', cleaned.length);
       return NextResponse.json({ legs: [], error: 'unavailable' });
     }
 
@@ -65,8 +65,7 @@ export async function POST(req: NextRequest) {
     const url = `https://maps.googleapis.com/maps/api/distancematrix/json?${params.toString()}`;
     const res = await fetch(url);
     if (!res.ok) {
-      const body = await res.text();
-      console.error('[atg-feasibility] Google HTTP error', res.status, body);
+      console.error('[atg-feasibility] Google HTTP error', res.status);
       return NextResponse.json({ legs: [], error: 'unavailable' });
     }
 
@@ -89,7 +88,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ legs });
   } catch (error: any) {
-    console.error('[atg-feasibility] error:', error);
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
+    console.error('[atg-feasibility] error:', error?.message ?? 'unknown', error?.code ?? '');
     return NextResponse.json({ legs: [], error: 'unavailable' });
   }
 }

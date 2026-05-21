@@ -2,6 +2,7 @@ import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence, connectAuthEmulator, type Auth } from 'firebase/auth';
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, connectFirestoreEmulator, type Firestore } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator, type FirebaseStorage } from 'firebase/storage';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCVP_zYN5n2MI-tXjbcknQS1DGqOHCYZ2U",
@@ -15,6 +16,25 @@ const firebaseConfig = {
 const useEmulator =
   process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true';
 
+function bootstrapAppCheck(app: FirebaseApp): void {
+  // Client only — App Check is browser-side.
+  if (typeof window === 'undefined') return;
+  // Skip in emulator mode — App Check tokens don't validate against emulators.
+  if (useEmulator) return;
+  // Inert until the user provisions reCAPTCHA in Firebase Console and sets this env var.
+  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+  if (!siteKey) return;
+  try {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(siteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (err) {
+    // HMR re-init or already-initialized — non-fatal.
+    console.warn('[app-check] init failed:', err);
+  }
+}
+
 export function initializeFirebase() {
   if (getApps().length > 0) {
     const app = getApps()[0];
@@ -27,6 +47,7 @@ export function initializeFirebase() {
   }
 
   const app = initializeApp(firebaseConfig);
+  bootstrapAppCheck(app);
   const auth = getAuth(app);
   // Local (not session) persistence — token survives tab/browser close on
   // mobile. Single-session enforcement still works via the `currentSessionId`

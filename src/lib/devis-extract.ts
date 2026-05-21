@@ -1,5 +1,6 @@
 import { doc, getDoc, serverTimestamp, updateDoc, type Firestore } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, type FirebaseStorage } from 'firebase/storage';
+import { apiFetch } from '@/lib/api-fetch';
 import {
   emptyHeader, formatFr, numOrNull, qteFromScan, toBaseEditableDocType,
   type DevisExtraColumn, type DevisHeader, type DevisRow, type EditableDocType, type StructuredDevis,
@@ -195,7 +196,7 @@ export async function extractAndPersistChiffrageDevis(
             const contentType = blob.type || (file.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
             const base64 = await blobToBase64(blob);
 
-            const r = await fetch('/api/scan-devis-counter', {
+            const r = await apiFetch('/api/scan-devis-counter', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -369,7 +370,7 @@ async function scanOriginal(
     const contentType = blob.type || (file.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
     const base64 = await blobToBase64(blob);
 
-    const r = await fetch('/api/scan-devis', {
+    const r = await apiFetch('/api/scan-devis', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileBase64: base64, contentType }),

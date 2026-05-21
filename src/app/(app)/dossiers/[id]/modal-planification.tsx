@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -39,6 +40,7 @@ import { useAgentLiveLocation } from '@/hooks/use-agent-live-location';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { formatDurationFr } from '@/lib/atg-feasibility';
 import { MapPin } from 'lucide-react';
+import { apiFetch } from '@/lib/api-fetch';
 
 /** Narrows a free-form typeMission string to the canonical tri-state, or null. */
 function normalizeTypeMission(
@@ -120,6 +122,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     timeRDV: '09:00',
     adresse: '',
     observation: '',
+    observationPersonnalisee: '',
   });
 
   useEffect(() => {
@@ -138,9 +141,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         timeRDV,
         adresse: initialData.adresse || '',
         observation: initialData.observation || '',
+        observationPersonnalisee: initialData.observationPersonnalisee || '',
       });
     } else if (open) {
-      setFormData({ agentTerrain: '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '' });
+      setFormData({ agentTerrain: '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationPersonnalisee: '' });
     }
   }, [initialData, open, defaultTypeMission]);
 
@@ -154,7 +158,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     if (!agentLive.isFresh || !agentLive.location) return;
     const { lat, lng } = agentLive.location;
     let cancelled = false;
-    fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`)
+    apiFetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !data) return;
@@ -224,6 +228,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         zone: derivedZone,
         adresse: formData.adresse,
         observation: formData.observation,
+        observationPersonnalisee: formData.observationPersonnalisee,
         modifiedAt: serverTimestamp(),
         modifiedBy: auth?.currentUser?.uid || 'Admin',
         modifiedByName: profile?.nom || userEmail,
@@ -463,7 +468,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 const tempValue = `${coords.lat.toFixed(6)},${coords.lng.toFixed(6)}`;
                 setFormData((prev) => ({ ...prev, adresse: tempValue }));
                 try {
-                  const res = await fetch(`/api/reverse-geocode?lat=${coords.lat}&lng=${coords.lng}`);
+                  const res = await apiFetch(`/api/reverse-geocode?lat=${coords.lat}&lng=${coords.lng}`);
                   if (!res.ok) return;
                   const data = await res.json();
                   if (!data?.formatted) return;
@@ -506,6 +511,15 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 defaultValues={['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre']}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Observation personnalisée</Label>
+            <Textarea
+              placeholder="Ajouter une observation personnalisée (facultatif)…"
+              value={formData.observationPersonnalisee}
+              onChange={(e) => setFormData({ ...formData, observationPersonnalisee: e.target.value })}
+            />
           </div>
 
           {feasibilityPastRdv && (

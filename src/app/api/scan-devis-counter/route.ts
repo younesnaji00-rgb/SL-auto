@@ -4,6 +4,7 @@ import { matchRows } from '@/lib/row-match';
 import { GeminiRawOutput, type ScanDevisCounterOutput } from '@/lib/scan-devis-counter-schema';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 /**
  * AI Counter-Devis Scanner API.
@@ -21,6 +22,7 @@ import { withAiRetry } from '@/lib/ai-retry';
  */
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth(req);
     const body = await req.json();
     const fileBase64: string | undefined = body?.fileBase64;
     const contentType: string = body?.contentType || 'application/pdf';
@@ -94,7 +96,7 @@ Renvoie EXACTEMENT ${rows.length} entrée(s) dans "matches" (une par désignatio
 
     const parsedJson = parseAiJson<unknown>(text || '');
     if (!parsedJson.ok) {
-      console.error('[scan-devis-counter] Failed to parse AI response:', parsedJson.cleaned);
+      console.error('[scan-devis-counter] Failed to parse AI response');
       return NextResponse.json(
         { error: `Impossible de parser la réponse AI. Début: ${parsedJson.snippet}`, raw: parsedJson.cleaned },
         { status: 422 }
@@ -107,7 +109,7 @@ Renvoie EXACTEMENT ${rows.length} entrée(s) dans "matches" (une par désignatio
 
     const parsed = GeminiRawOutput.safeParse(raw);
     if (!parsed.success) {
-      console.error('[scan-devis-counter] Shape mismatch:', parsed.error.flatten());
+      console.error('[scan-devis-counter] Shape mismatch');
       return NextResponse.json(
         { error: 'Forme de réponse AI invalide.', issues: parsed.error.flatten() },
         { status: 422 }
@@ -135,7 +137,9 @@ Renvoie EXACTEMENT ${rows.length} entrée(s) dans "matches" (une par désignatio
 
     return NextResponse.json(output);
   } catch (error: any) {
-    console.error('[/api/scan-devis-counter] Error:', error);
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
+    console.error('[/api/scan-devis-counter] Error:', error?.message ?? 'unknown', error?.code ?? '');
     return NextResponse.json({ error: error?.message || 'Erreur interne.' }, { status: 500 });
   }
 }

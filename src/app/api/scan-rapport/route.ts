@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 /**
  * AI Rapport Scanner API.
@@ -10,6 +11,7 @@ import { withAiRetry } from '@/lib/ai-retry';
  */
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth(req);
     const { fileBase64, contentType } = await req.json();
 
     if (!fileBase64) {
@@ -95,7 +97,7 @@ RÈGLES STRICTES:
 
     const parsed = parseAiJson<any>(text || '');
     if (!parsed.ok) {
-      console.error('[scan-rapport] Failed to parse AI response:', parsed.cleaned);
+      console.error('[scan-rapport] Failed to parse AI response');
       return NextResponse.json(
         { error: `Impossible de parser la réponse AI. Début: ${parsed.snippet}`, raw: parsed.cleaned },
         { status: 422 },
@@ -117,7 +119,9 @@ RÈGLES STRICTES:
       piecesCount: (extracted.pieces || []).length,
     });
   } catch (error: any) {
-    console.error('[/api/scan-rapport] Error:', error);
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
+    console.error('[/api/scan-rapport] Error:', error?.message ?? 'unknown', error?.code ?? '');
     return NextResponse.json({ error: error.message || 'Erreur interne.' }, { status: 500 });
   }
 }

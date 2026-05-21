@@ -1,13 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 interface InboundAttachment {
   filename: string;
   url: string;
 }
 
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const RATE_LIMIT_MAX = 50;
+// Per-process map. Multi-instance deployments may allow up to N×limit total.
+const emailSendTimestamps = new Map<string, number[]>();
+
+function checkAndRecordSend(uid: string): { ok: true } | { ok: false; retryAfterSeconds: number } {
+  const now = Date.now();
+  const cutoff = now - RATE_LIMIT_WINDOW_MS;
+  const existing = emailSendTimestamps.get(uid) ?? [];
+  const recent = existing.filter((t) => t > cutoff);
+  if (recent.length >= RATE_LIMIT_MAX) {
+    const oldest = recent[0];
+    const retryAfterSeconds = Math.max(1, Math.ceil((oldest + RATE_LIMIT_WINDOW_MS - now) / 1000));
+    emailSendTimestamps.set(uid, recent);
+    return { ok: false, retryAfterSeconds };
+  }
+  recent.push(now);
+  emailSendTimestamps.set(uid, recent);
+  return { ok: true };
+}
+
 export async function POST(req: NextRequest) {
   try {
+    const { uid } = await requireAuth(req);
+    const rl = checkAndRecordSend(uid);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Try again later.', retryAfterSeconds: rl.retryAfterSeconds },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } }
+      );
+    }
     const body = await req.json();
     const { to, subject } = body as { to?: string; subject?: string };
     const htmlBody: string | undefined = body.html;
@@ -56,7 +86,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('Email send error:', error);
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
+    console.error('Email send error:', error?.message ?? 'unknown', error?.code ?? '');
     return NextResponse.json(
       { error: error.message || 'Failed to send email' },
       { status: 500 }

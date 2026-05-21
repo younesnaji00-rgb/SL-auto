@@ -1237,7 +1237,7 @@ export function DevisEditor({
                             onClick={() => setRows((rs) => rs.map((r) => {
                               if (r.type === 'Occasion') return r;
                               const cur = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
-                              return { ...r, vetuste: Math.min(100, Math.max(0, cur - 5)) };
+                              return { ...r, vetuste: Math.min(50, Math.max(0, cur - 5)) };
                             }))}>
                       <ChevronDown className="h-3 w-3" />
                     </button>
@@ -1247,7 +1247,7 @@ export function DevisEditor({
                             onClick={() => setRows((rs) => rs.map((r) => {
                               if (r.type === 'Occasion') return r;
                               const cur = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
-                              return { ...r, vetuste: Math.min(100, Math.max(0, cur + 5)) };
+                              return { ...r, vetuste: Math.min(50, Math.max(0, cur + 5)) };
                             }))}>
                       <ChevronUp className="h-3 w-3" />
                     </button>

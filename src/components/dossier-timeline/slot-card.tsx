@@ -256,6 +256,15 @@ export function SlotCard({
               const img = d.url && isImage(name);
               const pdf = d.url && !img && isPdf(name);
               const clickable = !!d.url && !d.pendingUpload;
+              // Chiffreur attribution: only on accord/proposition-accord slots
+              // (i.e. true chiffrage outputs). Non-chiffrage docs (carte grise,
+              // attestation, etc.) skip this footer line. When the chiffreur's
+              // name is missing on an older doc, render nothing rather than a
+              // placeholder.
+              const chiffreurName =
+                parsedAccord && typeof d.uploadedByName === 'string'
+                  ? d.uploadedByName.trim()
+                  : '';
               return (
                 <li
                   key={d.id}
@@ -285,6 +294,14 @@ export function SlotCard({
                     </p>
                     {d.pendingUpload && (
                       <p className="text-[10px] text-amber-700">En attente…</p>
+                    )}
+                    {chiffreurName && (
+                      <p
+                        className="text-[10px] text-muted-foreground truncate"
+                        title={`Chiffré par ${chiffreurName}`}
+                      >
+                        Chiffré par {chiffreurName}
+                      </p>
                     )}
                   </div>
                   {canDeleteDoc(d) && (

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
+import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 /**
  * AI Holiday Calendar Scanner.
@@ -11,6 +12,7 @@ import { withAiRetry } from '@/lib/ai-retry';
  */
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth(req);
     const body = await req.json();
     const fileBase64: string | undefined = body.fileBase64;
     const contentType: string = body.contentType || 'image/jpeg';
@@ -44,7 +46,7 @@ RÈGLES STRICTES:
 
     const parsed = parseAiJson<unknown>(text || '');
     if (!parsed.ok) {
-      console.error('[scan-holidays] Failed to parse AI response:', parsed.cleaned);
+      console.error('[scan-holidays] Failed to parse AI response');
       return NextResponse.json(
         { error: `Impossible de parser la réponse AI. Début: ${parsed.snippet}`, raw: parsed.cleaned },
         { status: 422 },
@@ -71,7 +73,9 @@ RÈGLES STRICTES:
 
     return NextResponse.json({ dates, count: dates.length });
   } catch (error: any) {
-    console.error('[/api/scan-holidays] Error:', error);
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
+    console.error('[/api/scan-holidays] Error:', error?.message ?? 'unknown', error?.code ?? '');
     return NextResponse.json({ error: error.message || 'Erreur interne.' }, { status: 500 });
   }
 }
