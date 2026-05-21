@@ -589,7 +589,18 @@ export function DevisEditor({
     if (accordKind) {
       const activeDossierId = dossierIdProp || dossierId;
       const parsedAccordSlot = accordSlot ? parseAccordDocType(accordSlot) : null;
-      if (parsedAccordSlot && parsedAccordSlot.sourceDocType === docType) {
+      // The URL `accordSlot` carries the exact slot label the gestionnaire/
+      // chiffreur clicked (e.g. "Devis 2ème accord", "Devis Garage 2 2ème
+      // accord", "2ème proposition d'accord (devis)"). The `parent` field
+      // parsed from that label matches the editor's `docType` (the family
+      // parent) for both base and extra garages — comparing `sourceDocType`
+      // instead drops extras through to the fallback because their parsed
+      // sourceDocType is always the canonical base ("Devis Garage"), never the
+      // extra label ("Devis Garage 2"). That bug routed 2ème accord/proposition
+      // saves into the family's ordinal-1 slot, hiding them from the
+      // "accord 2 et +" section. Compare against `parent` so the URL slot is
+      // honoured for every family (base + extras) and every kind.
+      if (parsedAccordSlot && parsedAccordSlot.parent === docType) {
         ordinal = parsedAccordSlot.ordinal;
       } else if (activeDossierId && (docType === 'Devis Garage' || docType === 'Facture Garage')) {
         try {
