@@ -111,8 +111,16 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
     match /users/{userId} {
-      // Reads: any signed-in user (dropdowns + isAdmin() helper depend on it).
-      allow read: if request.auth != null;
+      // Reads: public. The login page queries `users` by nomLowercase BEFORE
+      // the caller authenticates, to look up the email for name-based login.
+      // Requiring auth here breaks that pre-auth lookup and locks every user
+      // out. Public read is the historical behavior; the genuinely sensitive
+      // change in this rule block is the write restrictions below (no
+      // self-promote to Admin, owner-only updates, Admin-only delete).
+      // FOLLOW-UP: migrate the login lookup to a callable Cloud Function so
+      // we can tighten reads back to `request.auth != null` without breaking
+      // the login UX.
+      allow read: if true;
       // Create: self-signup only, and the new doc must NOT contain a role
       // field (admins assign roles via update; self-signup cannot self-promote).
       allow create: if request.auth != null
