@@ -32,38 +32,57 @@ function tsMillis(ts: any): number {
 interface SentGroup {
   key: string;
   batchId?: string;
-  recipientUid: string;
-  recipientNom: string;
   rappels: Rappel[];
+  recipientNames: string[];   // distinct, in insertion order
+  dossierCount: number;       // distinct dossier ids
   latest: any;
   readCount: number;
 }
 
 function groupSent(rappels: Rappel[]): SentGroup[] {
   const map = new Map<string, SentGroup>();
+  const seenRecipients = new Map<string, Set<string>>(); // group key → recipientUid set
+  const seenDossiers = new Map<string, Set<string>>();   // group key → dossierId set
   for (const r of rappels) {
-    // Legacy data (no batchId) → each rappel is its own batch of 1.
-    const groupId = r.batchId || `solo:${r.id}`;
-    const key = `${groupId}::${r.recipientUid}`;
+    // Legacy data (no batchId) → each rappel is its own bundle of 1.
+    const key = r.batchId || `solo:${r.id}`;
     let g = map.get(key);
     if (!g) {
       g = {
         key,
         batchId: r.batchId,
-        recipientUid: r.recipientUid,
-        recipientNom: r.recipientNom || '—',
         rappels: [],
+        recipientNames: [],
+        dossierCount: 0,
         latest: r.createdAt,
         readCount: 0,
       };
       map.set(key, g);
+      seenRecipients.set(key, new Set());
+      seenDossiers.set(key, new Set());
     }
     g.rappels.push(r);
     if (r.read) g.readCount++;
     if (tsMillis(r.createdAt) > tsMillis(g.latest)) g.latest = r.createdAt;
-    if (!g.recipientNom || g.recipientNom === '—') g.recipientNom = r.recipientNom || '—';
+    const recipientSet = seenRecipients.get(key)!;
+    if (r.recipientUid && !recipientSet.has(r.recipientUid)) {
+      recipientSet.add(r.recipientUid);
+      g.recipientNames.push(r.recipientNom || '—');
+    }
+    const dossierSet = seenDossiers.get(key)!;
+    if (r.dossierId && !dossierSet.has(r.dossierId)) {
+      dossierSet.add(r.dossierId);
+      g.dossierCount++;
+    }
   }
   return Array.from(map.values()).sort((a, b) => tsMillis(b.latest) - tsMillis(a.latest));
+}
+
+function formatRecipients(names: string[]): string {
+  if (names.length === 0) return '—';
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return names.join(', ');
+  return `${names.length} destinataires`;
 }
 
 export default function MesRappelsPage() {
@@ -171,7 +190,7 @@ export default function MesRappelsPage() {
                 <TableHeader>
                   <TableRow className="bg-muted/30">
                     <TableHead className="font-bold text-xs w-8" />
-                    <TableHead className="font-bold text-xs">Destinataire</TableHead>
+                    <TableHead className="font-bold text-xs">Destinataire(s)</TableHead>
                     <TableHead className="font-bold text-xs">Dossiers</TableHead>
                     <TableHead className="font-bold text-xs">Date</TableHead>
                     <TableHead className="font-bold text-xs text-right">Lus</TableHead>
@@ -194,8 +213,13 @@ export default function MesRappelsPage() {
                               <ChevronRight className="h-4 w-4 text-muted-foreground" />
                             )}
                           </TableCell>
-                          <TableCell className="text-sm font-medium">{g.recipientNom}</TableCell>
-                          <TableCell className="text-sm tabular-nums">{total}</TableCell>
+                          <TableCell
+                            className="text-sm font-medium"
+                            title={g.recipientNames.join(', ')}
+                          >
+                            {formatRecipients(g.recipientNames)}
+                          </TableCell>
+                          <TableCell className="text-sm tabular-nums">{g.dossierCount}</TableCell>
                           <TableCell className="text-sm tabular-nums">{formatDate(g.latest)}</TableCell>
                           <TableCell className="text-right text-sm tabular-nums">
                             <span className={cn(g.readCount === total ? 'text-emerald-600' : 'text-muted-foreground')}>
@@ -208,6 +232,14 @@ export default function MesRappelsPage() {
                             <TableCell colSpan={5} className="p-0">
                               <div className="px-4 py-2">
                                 <Table>
+                                  <TableHeader>
+                                    <TableRow className="bg-transparent">
+                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Dossier</TableHead>
+                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Destinataire</TableHead>
+                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Date</TableHead>
+                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground text-right py-1">Statut</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
                                   <TableBody>
                                     {g.rappels.map((r) => (
                                       <TableRow key={r.id} className="border-b last:border-b-0">
@@ -219,6 +251,7 @@ export default function MesRappelsPage() {
                                             {r.dossierRef || r.dossierId}
                                           </Link>
                                         </TableCell>
+                                        <TableCell className="text-sm py-2">{r.recipientNom || '—'}</TableCell>
                                         <TableCell className="text-sm tabular-nums py-2">{formatDate(r.createdAt)}</TableCell>
                                         <TableCell className="text-right py-2">
                                           {r.read ? (
