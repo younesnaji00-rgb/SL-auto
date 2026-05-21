@@ -13,6 +13,8 @@ import { fr } from 'date-fns/locale';
 import { useRappels, useRappelsSent, type Rappel } from '@/hooks/use-rappels';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { hasPermission, SUB_PERMISSIONS } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 
 function formatDate(ts: any): string {
@@ -88,11 +90,21 @@ function formatRecipients(names: string[]): string {
 export default function MesRappelsPage() {
   const { rappels, loading } = useRappels();
   const { rappels: sentRappels, loading: sentLoading } = useRappelsSent();
+  const { profile } = useCurrentUser();
   const router = useRouter();
   const db = useFirestore();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const sentGroups = useMemo(() => groupSent(sentRappels), [sentRappels]);
+
+  // Per-user sub-permission gates for the two tabs. Default is "visible"
+  // (true) — the admin can revoke either tab independently via the
+  // permissions UI on /utilisateurs/[uid].
+  const recusVisible = hasPermission(profile, SUB_PERMISSIONS.RAPPELS_RECUS, true);
+  const envoyesVisible = hasPermission(profile, SUB_PERMISSIONS.RAPPELS_ENVOYES, true);
+  // Pick a default tab the user can actually see; fall back to "recus" if
+  // both are denied (rare; the empty state is still informative).
+  const defaultTab = recusVisible ? 'recus' : envoyesVisible ? 'envoyes' : 'recus';
 
   const toggleExpand = (key: string) => {
     setExpanded((prev) => {
@@ -110,12 +122,13 @@ export default function MesRappelsPage() {
         <h1 className="text-xl font-bold">Mes rappels</h1>
       </header>
 
-      <Tabs defaultValue="recus" className="w-full">
+      <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList>
-          <TabsTrigger value="recus">Reçus</TabsTrigger>
-          <TabsTrigger value="envoyes">Envoyés</TabsTrigger>
+          {recusVisible && <TabsTrigger value="recus">Reçus</TabsTrigger>}
+          {envoyesVisible && <TabsTrigger value="envoyes">Envoyés</TabsTrigger>}
         </TabsList>
 
+        {recusVisible && (
         <TabsContent value="recus" className="mt-4">
           {loading ? (
             <div className="flex justify-center py-20">
@@ -172,7 +185,9 @@ export default function MesRappelsPage() {
             </Card>
           )}
         </TabsContent>
+        )}
 
+        {envoyesVisible && (
         <TabsContent value="envoyes" className="mt-4">
           {sentLoading ? (
             <div className="flex justify-center py-20">
@@ -276,6 +291,7 @@ export default function MesRappelsPage() {
             </Card>
           )}
         </TabsContent>
+        )}
       </Tabs>
     </div>
   );

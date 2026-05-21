@@ -52,6 +52,7 @@ import { useRappels } from '@/hooks/use-rappels';
 import NextLink from 'next/link';
 import { cn } from '@/lib/utils';
 import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
+import { hasPermission } from '@/lib/permissions';
 
 const AppSidebar = () => {
   const pathname = usePathname();
@@ -161,7 +162,9 @@ const AppSidebar = () => {
                           </CollapsibleTrigger>
                           <CollapsibleContent>
                             <SidebarMenuSub className="ml-4 mr-2">
-                              {compagnies.map((c) => (
+                              {compagnies
+                                .filter((c) => hasPermission(profile, `/compagnies#${c.id}`, true))
+                                .map((c) => (
                                 <SidebarMenuSubItem key={c.id}>
                                   <SidebarMenuSubButton asChild isActive={pathname.includes(`selected=${c.id}`)}>
                                     <NextLink href={`/compagnies?selected=${c.id}`} className="group flex items-center gap-2">
