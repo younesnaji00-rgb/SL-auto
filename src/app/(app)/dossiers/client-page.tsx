@@ -320,10 +320,16 @@ export default function DossiersClientPage() {
     try {
       const senderName = `${profile.prenom || ''} ${profile.nom || ''}`.trim() || profile.email || profile.uid;
       const selectedDossiers = dossierList.filter((d) => selectedRows.has(d.id));
+      // One batchId per send action, shared across every (recipient × dossier) write.
+      const batchId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `batch-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       const writes: Promise<any>[] = [];
       for (const g of gestionnaires.filter((gg) => selectedGestUids.has(gg.uid))) {
         for (const d of selectedDossiers) {
           writes.push(addDoc(collection(db, 'rappels'), {
+            batchId,
             recipientUid: g.uid,
             recipientNom: `${g.prenom || ''} ${g.nom || ''}`.trim(),
             senderUid: profile.uid,

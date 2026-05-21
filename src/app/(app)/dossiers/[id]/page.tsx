@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDoc, useFirestore } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/firestore';
 import { PageLoader } from '@/components/ui/page-loader';
 import { ErrorState } from '@/components/ui/error-state';
 import { Badge } from '@/components/ui/badge';
@@ -47,9 +47,35 @@ export default function DossierDetailPage({
   const db = useFirestore();
   const dossierRef = useMemo(() => doc(db, 'dossiers', id), [db, id]);
   const { data: dossier, loading } = useDoc(dossierRef);
-  const { canWrite } = useCurrentUser();
+  const { canWrite, profile } = useCurrentUser();
   const readOnly = !canWrite('dossiers');
   const { openTab, refreshTabLabel } = useDossierTabs();
+
+  // Recipient-side read receipt: on dossier mount, mark any unread rappels
+  // for the current user × this dossier as read. Idempotent — no-op when
+  // there are no unread rappels.
+  useEffect(() => {
+    if (!db || !id || !profile?.uid) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const q = query(
+          collection(db, 'rappels'),
+          where('recipientUid', '==', profile.uid),
+          where('dossierId', '==', id),
+          where('read', '==', false),
+        );
+        const snap = await getDocs(q);
+        if (cancelled || snap.empty) return;
+        const batch = writeBatch(db);
+        snap.docs.forEach((d) => batch.update(d.ref, { read: true }));
+        await batch.commit();
+      } catch (err) {
+        console.warn('[dossier-page] read-receipt update failed', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [db, id, profile?.uid]);
 
   // Register this dossier as an open tab (handles deep links) and keep the label in sync.
   useEffect(() => {
