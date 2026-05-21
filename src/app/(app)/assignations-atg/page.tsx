@@ -230,32 +230,40 @@ function getDeadlineInfo(
   createdAt: any,
   holidays?: ReadonlySet<string>,
 ): { percent: number; remaining: string; expired: boolean; pending: boolean; elapsedHours: number } {
-  // Use dateRDV at 8am as start time; fall back to createdAt if no dateRDV
+  // Two anchors:
+  //   • `rdvMoment` — the actual RDV instant (date+time). Drives the
+  //     "En attente"/"En retard" transition: as soon as now > rdvMoment the
+  //     badge must surface lateness, even if the 24-business-hour SLA window
+  //     is still open. Previously this used 8am of the RDV day, which left
+  //     newly-created planifications whose RDV time had already passed stuck
+  //     on "Xh restants" until 24h after 8am.
+  //   • `slaStart` — 8am of the RDV day, preserved as the anchor for the
+  //     business-hours elapsed count so `formatBusinessLateness(elapsed-24)`
+  //     keeps producing the same dd/hh value for already-overdue planifs.
   const refDate = dateRDV || createdAt;
   if (!refDate) return { percent: 0, remaining: '-', expired: false, pending: false, elapsedHours: 0 };
 
-  const rdvDate = refDate.toDate ? refDate.toDate() : new Date(refDate);
-  const startTime = new Date(rdvDate);
+  const rdvMoment = refDate.toDate ? refDate.toDate() : new Date(refDate);
+  const slaStart = new Date(rdvMoment);
   if (dateRDV) {
-    startTime.setHours(8, 0, 0, 0);
+    slaStart.setHours(8, 0, 0, 0);
   }
 
   const now = new Date();
-  if (now < startTime) return { percent: 0, remaining: 'En attente', expired: false, pending: true, elapsedHours: 0 };
+  if (now < rdvMoment) return { percent: 0, remaining: 'En attente', expired: false, pending: true, elapsedHours: 0 };
 
   // Business-hours model: weekends + Moroccan holidays don't tick.
-  const elapsedHours = businessHoursBetween(startTime, now, holidays);
+  const elapsedHours = businessHoursBetween(slaStart, now, holidays);
   const elapsed = Math.max(0, Math.min(elapsedHours / DEADLINE_HOURS, 1));
   const percent = Math.round(elapsed * 100);
 
+  // 24h SLA exceeded — show formatted dd/hh lateness via formatBusinessLateness.
   if (elapsed >= 1) return { percent: 100, remaining: 'En retard', expired: true, pending: false, elapsedHours };
 
-  const remainHours = DEADLINE_HOURS - elapsedHours;
-  const remainH = Math.floor(remainHours);
-  const remainM = Math.floor((remainHours - remainH) * 60);
-  const remaining = remainH > 0 ? `${remainH}h ${remainM}m` : `${remainM}m`;
-
-  return { percent, remaining, expired: false, pending: false, elapsedHours };
+  // RDV moment has passed but the 24h SLA window is still open: surface
+  // lateness immediately. The badge falls back to a bare "En retard" because
+  // formatBusinessLateness only emits dd/hh once elapsed >= 24 business hours.
+  return { percent, remaining: 'En retard', expired: true, pending: false, elapsedHours };
 }
 
 function DeadlineBar({
