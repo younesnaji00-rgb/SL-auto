@@ -153,6 +153,15 @@ export default function DossiersClientPage() {
     () => dbObservationOptions.filter(o => o.active !== false),
     [dbObservationOptions]
   );
+  const customObservationTexts = useMemo(() => {
+    const predefined = new Set(filterObservations.map(o => o.label));
+    const seen = new Set<string>();
+    for (const d of allDossiers) {
+      const t = (d as any).lastObservation?.text?.trim();
+      if (t && !predefined.has(t)) seen.add(t);
+    }
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
+  }, [filterObservations, allDossiers]);
 
   const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', dateFrom: '', dateTo: '', rowsPerPage: 25, sortByCreation: 'desc' as 'desc' | 'asc', datePreset: null as 'jour' | 'semaine' | 'mois' | 'personnalise' | null };
   const [filters, setFilters, clearFilter] = usePersistedFilters('dossiers', filterDefaults);
@@ -183,7 +192,15 @@ export default function DossiersClientPage() {
     if (filters.nature !== 'Toutes') results = results.filter(d => d.nature === filters.nature);
     if (filters.status !== 'Tous') results = results.filter(d => d.statut === filters.status);
     if (filters.compagnie !== 'Toutes') results = results.filter(d => d.compagnie === filters.compagnie);
-    if (filters.observation !== 'Toutes') results = results.filter(d => d.lastObservation?.text === filters.observation);
+    if (filters.observation === 'Autre') {
+      const predefined = new Set(filterObservations.map(o => o.label));
+      results = results.filter(d => {
+        const t = (d as any).lastObservation?.text?.trim();
+        return t && t !== 'Autre' && !predefined.has(t);
+      });
+    } else if (filters.observation !== 'Toutes') {
+      results = results.filter(d => d.lastObservation?.text === filters.observation);
+    }
     if (filters.search) {
       const s = filters.search.toLowerCase();
       results = results.filter(d =>
@@ -226,7 +243,7 @@ export default function DossiersClientPage() {
     const dir = filters.sortByCreation === 'asc' ? 1 : -1;
     results.sort((a, b) => (toMillis((a as any).createdAt) - toMillis((b as any).createdAt)) * dir);
     return results;
-  }, [allDossiers, filters]);
+  }, [allDossiers, filters, filterObservations]);
 
   // Pagination — total pages, and clamp current page when filtered list shrinks
   // (e.g. user searches and the previously-viewed page no longer exists).
@@ -810,19 +827,53 @@ export default function DossiersClientPage() {
                               {filters.observation === 'Toutes' && <Check className="h-4 w-4 text-primary shrink-0" />}
                             </button>
                             {filterObservations.map(o => (
-                              <button
-                                key={o.id}
-                                type="button"
-                                onClick={() => setFilters({ observation: o.label })}
-                                className={cn(
-                                  "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
-                                  filters.observation === o.label && "bg-muted font-medium",
-                                )}
-                              >
-                                <span>{o.label}</span>
-                                {filters.observation === o.label && <Check className="h-4 w-4 text-primary shrink-0" />}
-                              </button>
+                              <React.Fragment key={o.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => setFilters({ observation: o.label })}
+                                  className={cn(
+                                    "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                    filters.observation === o.label && "bg-muted font-medium",
+                                  )}
+                                >
+                                  <span>{o.label}</span>
+                                  {filters.observation === o.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                </button>
+                                {o.label === 'Autre' && customObservationTexts.map(t => (
+                                  <button
+                                    key={`autre-sub-${t}`}
+                                    type="button"
+                                    onClick={() => setFilters({ observation: t })}
+                                    className={cn(
+                                      "w-full text-left flex items-center justify-between gap-2 pl-6 pr-2 py-1.5 text-sm rounded hover:bg-muted",
+                                      filters.observation === t && "bg-muted font-medium",
+                                    )}
+                                  >
+                                    <span className="truncate">{t}</span>
+                                    {filters.observation === t && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                  </button>
+                                ))}
+                              </React.Fragment>
                             ))}
+                            {!filterObservations.some(o => o.label === 'Autre') && customObservationTexts.length > 0 && (
+                              <>
+                                <div className="px-2 pt-2 pb-1 text-xs text-muted-foreground">— Personnalisées —</div>
+                                {customObservationTexts.map(t => (
+                                  <button
+                                    key={`custom-${t}`}
+                                    type="button"
+                                    onClick={() => setFilters({ observation: t })}
+                                    className={cn(
+                                      "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                      filters.observation === t && "bg-muted font-medium",
+                                    )}
+                                  >
+                                    <span className="truncate">{t}</span>
+                                    {filters.observation === t && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                  </button>
+                                ))}
+                              </>
+                            )}
                           </div>
                           <div className="flex justify-end">
                             <OptionsManagerModal collectionName="options_observations" title="Observations" />
