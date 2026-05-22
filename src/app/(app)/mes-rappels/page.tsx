@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Bell, Inbox, Loader2, CheckCircle2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useRappels } from '@/hooks/use-rappels';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, updateDoc, where, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,6 +25,142 @@ function formatDate(ts: any): string {
   if (!ts) return '-';
   const date = ts.toDate ? ts.toDate() : new Date(ts);
   try { return format(date, 'dd/MM/yyyy HH:mm', { locale: fr }); } catch { return '-'; }
+}
+
+function formatHm(ts: any): string {
+  if (!ts) return '--:--';
+  const date = ts.toDate ? ts.toDate() : new Date(ts);
+  try { return format(date, 'HH:mm', { locale: fr }); } catch { return '--:--'; }
+}
+
+function tsMillis(ts: any): number {
+  if (!ts) return 0;
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (typeof ts.toDate === 'function') return ts.toDate().getTime();
+  const n = Number(ts);
+  return Number.isFinite(n) ? n : 0;
+}
+
+interface SessionTaggedProps {
+  dossierId: string;
+  sessionId?: string;
+}
+
+/**
+ * F9.B: lists every observation on this dossier whose `rappelSessionId`
+ * matches the active rappel's session. Renders as `HH:mm [author] text`.
+ */
+function SessionObservations({ dossierId, sessionId }: SessionTaggedProps) {
+  const db = useFirestore();
+  const [items, setItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!db || !dossierId || !sessionId) {
+      setItems([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'dossiers', dossierId, 'observations'),
+      where('rappelSessionId', '==', sessionId),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        if (snap.metadata.fromCache && snap.size === 0) return;
+        const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        rows.sort((a, b) => tsMillis(a.createdAt) - tsMillis(b.createdAt));
+        setItems(rows);
+      },
+      () => {},
+    );
+    return () => unsub();
+  }, [db, dossierId, sessionId]);
+
+  if (!sessionId) return <span className="text-muted-foreground">—</span>;
+  if (items.length === 0) return <span className="text-muted-foreground">—</span>;
+
+  return (
+    <div className="flex flex-col gap-1 max-w-[280px]">
+      {items.map((it) => {
+        const author = it.author || it.authorEmail || 'Utilisateur inconnu';
+        return (
+          <div key={it.id} className="text-xs leading-snug break-words">
+            <span className="tabular-nums text-muted-foreground">{formatHm(it.createdAt)}</span>
+            {' '}
+            <span className="font-medium">[{author}]</span>
+            {' '}
+            <span>{it.text || ''}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * F9.B: lists every historique entry on this dossier whose
+ * `rappelSessionId` matches the rappel's session, grouped by historique
+ * `type`. Each entry shows `HH:mm [user] action`.
+ */
+function SessionModifications({ dossierId, sessionId }: SessionTaggedProps) {
+  const db = useFirestore();
+  const [items, setItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!db || !dossierId || !sessionId) {
+      setItems([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'dossiers', dossierId, 'historique'),
+      where('rappelSessionId', '==', sessionId),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        if (snap.metadata.fromCache && snap.size === 0) return;
+        const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        rows.sort((a, b) => tsMillis(a.date) - tsMillis(b.date));
+        setItems(rows);
+      },
+      () => {},
+    );
+    return () => unsub();
+  }, [db, dossierId, sessionId]);
+
+  if (!sessionId) return <span className="text-muted-foreground">—</span>;
+  if (items.length === 0) return <span className="text-muted-foreground">—</span>;
+
+  const groups = new Map<string, any[]>();
+  for (const it of items) {
+    const type = it.type || 'autre';
+    if (!groups.has(type)) groups.set(type, []);
+    groups.get(type)!.push(it);
+  }
+
+  return (
+    <div className="flex flex-col gap-2 max-w-[300px]">
+      {Array.from(groups.entries()).map(([type, rows]) => (
+        <div key={type} className="flex flex-col gap-0.5">
+          <div className="text-xs font-semibold text-muted-foreground">
+            {type} ({rows.length})
+          </div>
+          {rows.map((it) => {
+            const who = it.userNom || it.user || 'Utilisateur inconnu';
+            return (
+              <div key={it.id} className="text-xs leading-snug break-words pl-1">
+                <span className="tabular-nums text-muted-foreground">{formatHm(it.date)}</span>
+                {' '}
+                <span className="font-medium">[{who}]</span>
+                {' '}
+                <span>{it.action || ''}</span>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function MesRappelsPage() {
@@ -59,6 +195,8 @@ export default function MesRappelsPage() {
                 <TableHead className="font-bold text-xs">Envoyé par</TableHead>
                 <TableHead className="font-bold text-xs">Observation</TableHead>
                 <TableHead className="font-bold text-xs">Date</TableHead>
+                <TableHead className="font-bold text-xs">Observations</TableHead>
+                <TableHead className="font-bold text-xs">Modifications</TableHead>
                 <TableHead className="font-bold text-xs text-right">Statut</TableHead>
                 <TableHead className="font-bold text-xs text-right">Action</TableHead>
               </TableRow>
@@ -95,6 +233,12 @@ export default function MesRappelsPage() {
                   <TableCell className="text-sm">{r.senderNom || '—'}</TableCell>
                   <TableCell className="text-sm">{r.observation || '—'}</TableCell>
                   <TableCell className="text-sm tabular-nums">{formatDate(r.createdAt)}</TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()} className="cursor-default">
+                    <SessionObservations dossierId={r.dossierId} sessionId={r.sessionId} />
+                  </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()} className="cursor-default">
+                    <SessionModifications dossierId={r.dossierId} sessionId={r.sessionId} />
+                  </TableCell>
                   <TableCell className="text-right">
                     {r.resolvedAt ? (
                       <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-300">Traité</Badge>

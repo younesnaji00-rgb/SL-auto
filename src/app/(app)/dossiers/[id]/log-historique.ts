@@ -29,6 +29,18 @@ export async function logHistorique(
       type: type || 'autre',
     };
     if (userNom && userNom.trim()) payload.userNom = userNom.trim();
+
+    // F9.B: auto-tag historique entries made during an active "Mes rappels"
+    // session so the Mes rappels list can surface the modifications back to
+    // the sender. Mirrors `log-observation.ts`. Intentionally NOT propagated
+    // to the lastStatusChange denormalization below.
+    if (typeof window !== 'undefined' && dossierId) {
+      try {
+        const sid = window.localStorage.getItem(`rappel-active-session-${dossierId}`);
+        if (sid) payload.rappelSessionId = sid;
+      } catch {}
+    }
+
     await addDoc(collection(db, 'dossiers', dossierId, 'historique'), payload);
 
     if (type === 'statut') {
@@ -79,6 +91,15 @@ export async function logWorkflow(
       ...(extra?.details && { details: extra.details }),
     };
     if (userNom && userNom.trim()) payload.userNom = userNom.trim();
+
+    // F9.B: same Mes rappels session tagging as logHistorique above.
+    if (typeof window !== 'undefined' && dossierId) {
+      try {
+        const sid = window.localStorage.getItem(`rappel-active-session-${dossierId}`);
+        if (sid) payload.rappelSessionId = sid;
+      } catch {}
+    }
+
     await addDoc(collection(db, 'dossiers', dossierId, 'workflow'), payload);
   } catch (err) {
     console.error('Failed to log workflow step:', err);
