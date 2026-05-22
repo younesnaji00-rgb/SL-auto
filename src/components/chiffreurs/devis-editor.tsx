@@ -1326,7 +1326,7 @@ export function DevisEditor({
                           {puHeader}
                         </th>
                         <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Total H.T ${tripleSuffix}`}</th>
-                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Prix Total ${col.kind === 'accord' ? 'Accordé' : 'Proposé'}`}</th>
+                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Prix Total ${col.kind === 'accord' ? 'Accordé' : 'Proposé'} SL Auto Expertise`}</th>
                       </React.Fragment>
                     );
                   }
