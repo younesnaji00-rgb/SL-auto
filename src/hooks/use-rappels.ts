@@ -16,6 +16,7 @@ export interface Rappel {
   dossierData?: any;
   createdAt?: any;
   read?: boolean;
+  observation?: string;
 }
 
 export function useRappels(): { rappels: Rappel[]; loading: boolean } {

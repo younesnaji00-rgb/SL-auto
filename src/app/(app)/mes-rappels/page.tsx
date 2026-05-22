@@ -47,6 +47,7 @@ export default function MesRappelsPage() {
               <TableRow className="bg-muted/30">
                 <TableHead className="font-bold text-xs">Référence dossier</TableHead>
                 <TableHead className="font-bold text-xs">Envoyé par</TableHead>
+                <TableHead className="font-bold text-xs">Observation</TableHead>
                 <TableHead className="font-bold text-xs">Date</TableHead>
                 <TableHead className="font-bold text-xs text-right">Statut</TableHead>
               </TableRow>
@@ -67,6 +68,7 @@ export default function MesRappelsPage() {
                     {r.dossierRef || r.dossierId}
                   </TableCell>
                   <TableCell className="text-sm">{r.senderNom || '—'}</TableCell>
+                  <TableCell className="text-sm">{r.observation || '—'}</TableCell>
                   <TableCell className="text-sm tabular-nums">{formatDate(r.createdAt)}</TableCell>
                   <TableCell className="text-right">
                     {r.read ? (

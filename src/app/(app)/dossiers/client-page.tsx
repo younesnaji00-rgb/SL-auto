@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { addDoc, collection, doc, updateDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'refExpert', label: 'Réf Expert' },
@@ -186,6 +187,7 @@ export default function DossiersClientPage() {
   const [gestLoading, setGestLoading] = useState(false);
   const [selectedGestUids, setSelectedGestUids] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
+  const [rappelObservation, setRappelObservation] = useState('');
 
   const dossierList = useMemo(() => {
     let results = [...allDossiers];
@@ -333,6 +335,7 @@ export default function DossiersClientPage() {
             senderNom: senderName,
             dossierId: d.id,
             dossierRef: (d as any).refExpert || '',
+            observation: rappelObservation.trim() || null,
             createdAt: serverTimestamp(),
             read: false,
           }));
@@ -343,6 +346,7 @@ export default function DossiersClientPage() {
       setIsSendToOpen(false);
       setSelectedGestUids(new Set());
       setSelectedRows(new Set());
+      setRappelObservation('');
       setExportMode(false);
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: err.message || "Impossible d'envoyer les rappels." });
@@ -1115,6 +1119,13 @@ export default function DossiersClientPage() {
             <DialogTitle>Envoyer à</DialogTitle>
             <DialogDescription>Sélectionnez un ou plusieurs gestionnaires destinataires.</DialogDescription>
           </DialogHeader>
+          <Textarea
+            value={rappelObservation}
+            onChange={(e) => setRappelObservation(e.target.value)}
+            placeholder="Observation (optionnel)"
+            rows={3}
+            className="resize-none"
+          />
           {gestLoading ? (
             <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
           ) : gestionnaires.length === 0 ? (
