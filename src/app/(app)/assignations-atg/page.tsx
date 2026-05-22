@@ -54,6 +54,8 @@ interface PlanificationItem {
   observation: string;
   createdAt: any;
   modifiedByName?: string;
+  createdByName?: string;
+  createdByRole?: string;
   active?: boolean;
   statut?: string;
   hasPhotosForMission?: boolean;
@@ -381,6 +383,8 @@ export default function AssignationsATGPage() {
           observation: data.observation || '',
           createdAt: data.createdAt,
           modifiedByName: data.modifiedByName || '',
+          createdByName: data.createdByName || '',
+          createdByRole: data.createdByRole || '',
           active: data.active,
           dossierNom: data.dossierNom || '',
           assureNom: data.assureNom || '',
@@ -1366,6 +1370,7 @@ export default function AssignationsATGPage() {
                   <TableHead className="font-bold text-xs">Adresse</TableHead>
                   <TableHead className="font-bold text-xs">Téléphone</TableHead>
                   <TableHead className="font-bold text-xs">Créé le</TableHead>
+                  <TableHead className="font-bold text-xs">Créé par</TableHead>
                   <TableHead className="font-bold text-xs">Assigné par</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1403,6 +1408,16 @@ export default function AssignationsATGPage() {
                   </div>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{formatDate(p.createdAt)}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {p.createdByName ? (
+                    <>
+                      <span>{p.createdByName}</span>
+                      {p.createdByRole && (
+                        <span className="ml-1 text-[10px] opacity-70">({p.createdByRole})</span>
+                      )}
+                    </>
+                  ) : '—'}
+                </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{p.modifiedByName || '-'}</TableCell>
               </TableRow>
             );

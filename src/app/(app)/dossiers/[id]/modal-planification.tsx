@@ -263,7 +263,15 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         }
         toast({ title: "Planification mise à jour" });
       } else {
-        await addDoc(collection(db, 'dossiers', dossierId, 'planifications'), { ...payload, dossierId, createdAt: serverTimestamp(), active: true });
+        await addDoc(collection(db, 'dossiers', dossierId, 'planifications'), {
+          ...payload,
+          dossierId,
+          createdAt: serverTimestamp(),
+          active: true,
+          createdBy: profile?.uid || userId,
+          createdByName: profile?.nom || userEmail,
+          createdByRole: profile?.role || 'Gestionnaire',
+        });
         console.debug('[modal-planification] addDoc OK');
         // Set dateMissionAgentTerrain only if not already set (first planification = mission date)
         if (!dossierData?.dateMissionAgentTerrain) {
