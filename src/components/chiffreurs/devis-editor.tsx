@@ -535,6 +535,18 @@ export function DevisEditor({
     }, 0);
   }, [extraColumns, rows]);
 
+  // Proposition-accord columns show the 2ème expert's name beside the label
+  // (e.g. `PUHT proposé — Jean Dupont`) so the chiffreur sees whose proposal
+  // they're filling. Falls back to empty string when no 2ème expert is set;
+  // accord-kind columns (final accord) are intentionally untouched.
+  const propositionExpertSuffix = useMemo<string>(() => {
+    const second = (dossier as any)?.experts?.['2eme'];
+    const prenom = typeof second?.prenom === 'string' ? second.prenom.trim() : '';
+    const nom = typeof second?.nom === 'string' ? second.nom.trim() : '';
+    const fullName = [prenom, nom].filter(Boolean).join(' ').trim();
+    return fullName ? ` — ${fullName}` : '';
+  }, [dossier]);
+
   // Save ─────────────────────────────────────────────────────────────────
   // Task #23: Phase 1 — compute the snapshot + accord metadata, then hand off
   // to the preview dialog. The actual upload / Firestore write runs in
@@ -1266,7 +1278,7 @@ export function DevisEditor({
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span className="truncate font-bold text-[11px] cursor-help">
-                              {col.label || (col.kind === 'accord' ? 'PUHT accordé' : 'PUHT proposé')}
+                              {`${col.label || (col.kind === 'accord' ? 'PUHT accordé' : 'PUHT proposé')}${col.kind === 'proposition-accord' ? propositionExpertSuffix : ''}`}
                             </span>
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-xs text-xs">
@@ -1285,7 +1297,7 @@ export function DevisEditor({
                             className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary"
                             title="Choisir un type d'accord"
                           >
-                            <span className="truncate">{col.label || 'Choisir un accord'}</span>
+                            <span className="truncate">{`${col.label || 'Choisir un accord'}${col.kind === 'proposition-accord' ? propositionExpertSuffix : ''}`}</span>
                             <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                           </button>
                         </PopoverTrigger>
