@@ -49,10 +49,16 @@ export function initializeFirebase() {
   const app = initializeApp(firebaseConfig);
   bootstrapAppCheck(app);
   const auth = getAuth(app);
-  // Local (not session) persistence — token survives tab/browser close on
-  // mobile. Single-session enforcement still works via the `currentSessionId`
-  // listener in `use-current-user.tsx`: any new login elsewhere overwrites
-  // that field, the local subscription detects the mismatch and signs out.
+  // Local (not session) persistence — token survives tab/browser close so
+  // users don't have to re-authenticate on every reopen (matters on mobile).
+  // The token lives in IndexedDB shared across ALL tabs of this browser, so
+  // two tabs cannot host different accounts independently — a sign-in in
+  // one tab silently flips the other tab's onAuthStateChanged user too.
+  // `use-current-user.tsx` defends against that by stamping a per-tab
+  // EXPECTED_UID_KEY in sessionStorage and soft-evicting (no global
+  // firebaseSignOut) any tab whose live auth UID drifts from what it
+  // originally signed in as. Cross-device single-session is enforced
+  // separately via the `currentSessionId` snapshot listener.
   setPersistence(auth, browserLocalPersistence);
   // Persistent IndexedDB cache so dossiers stay readable offline and writes
   // queued while offline get flushed on reconnect. Falls back to in-memory
