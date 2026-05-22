@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, getDocs, setDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
+import { landingPathFor } from '@/lib/role-landing';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -232,7 +233,7 @@ export default function LoginPage() {
       if (backfillNeeded) updates.nomLowercase = lower;
       await updateDoc(doc(db, 'users', cred.user.uid), updates);
       window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
-      router.push('/dashboard');
+      router.push(landingPathFor(userData.role));
     } catch (err: any) {
       console.error('Login error:', err);
       window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
