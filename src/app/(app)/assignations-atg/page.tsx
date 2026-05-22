@@ -230,15 +230,13 @@ function getDeadlineInfo(
   createdAt: any,
   holidays?: ReadonlySet<string>,
 ): { percent: number; remaining: string; expired: boolean; pending: boolean; elapsedHours: number } {
-  // Use dateRDV at 8am as start time; fall back to createdAt if no dateRDV
-  const refDate = dateRDV || createdAt;
+  // Start the 24-business-hour countdown from when the planification was created.
+  // Fall back to dateRDV only for legacy planifications missing createdAt.
+  const refDate = createdAt || dateRDV;
   if (!refDate) return { percent: 0, remaining: '-', expired: false, pending: false, elapsedHours: 0 };
 
   const rdvDate = refDate.toDate ? refDate.toDate() : new Date(refDate);
   const startTime = new Date(rdvDate);
-  if (dateRDV) {
-    startTime.setHours(8, 0, 0, 0);
-  }
 
   const now = new Date();
   if (now < startTime) return { percent: 0, remaining: 'En attente', expired: false, pending: true, elapsedHours: 0 };
