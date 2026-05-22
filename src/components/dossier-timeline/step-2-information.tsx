@@ -23,11 +23,20 @@
  * warning banner; it does not add per-field asterisks.
  */
 
-import React, { useMemo } from 'react';
-import { AlertCircle } from 'lucide-react';
-import type { DocumentReference } from 'firebase/firestore';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, Columns2, X } from 'lucide-react';
+import { collection, type DocumentReference } from 'firebase/firestore';
 
 import InformationTab from '@/app/(app)/dossiers/[id]/information-tab';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useCollection, useFirestore } from '@/firebase';
 
 export interface Step2InformationProps {
   dossierId: string;
@@ -100,28 +109,155 @@ export default function Step2Information({
 }: Step2InformationProps) {
   const missing = useMemo(() => getMissingRequiredFields(dossier), [dossier]);
 
+  const [showCompare, setShowCompare] = useState(false);
+  const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
+  const db = useFirestore();
+  const docsQuery = useMemo(
+    () => (db ? collection(db, 'dossiers', dossierId, 'documents') : null),
+    [db, dossierId],
+  );
+  const { data: allDocs } = useCollection<any>(docsQuery);
+  const scanDocs = useMemo(
+    () =>
+      (allDocs ?? [])
+        .filter((d: any) => {
+          const name = (d.nom || d.fileName || '').toString().toLowerCase();
+          return /\.(jpe?g|png|gif|webp|bmp|pdf)$/i.test(name);
+        })
+        .sort((a: any, b: any) =>
+          ((a.nom || a.fileName || '') as string).localeCompare(
+            (b.nom || b.fileName || '') as string,
+          ),
+        ),
+    [allDocs],
+  );
+
+  useEffect(() => {
+    if (
+      showCompare &&
+      scanDocs.length > 0 &&
+      !scanDocs.find((d: any) => d.id === selectedScanId)
+    ) {
+      setSelectedScanId(scanDocs[0].id);
+    }
+  }, [showCompare, scanDocs, selectedScanId]);
+
+  const banner = missing.length > 0 && (
+    <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm">
+      <div className="flex items-center gap-2 text-red-800 font-medium">
+        <AlertCircle className="h-4 w-4" /> Champs requis manquants
+      </div>
+      <ul className="mt-2 list-disc pl-5 text-red-700 text-xs">
+        {missing.map((label) => (
+          <li key={label}>{label}</li>
+        ))}
+      </ul>
+    </div>
+  );
+
+  const informationContent = (
+    <InformationTab
+      dossier={dossier}
+      dossierRef={dossierRef}
+      dossierId={dossierId}
+      onEditPlanification={onEditPlanification}
+      onNewPlanification={onNewPlanification}
+    />
+  );
+
+  const toggleButton = (
+    <div className="flex justify-end">
+      <Button
+        variant={showCompare ? 'default' : 'outline'}
+        size="sm"
+        onClick={() => setShowCompare((v) => !v)}
+        className="gap-1.5"
+      >
+        {showCompare ? (
+          <X className="h-3.5 w-3.5" />
+        ) : (
+          <Columns2 className="h-3.5 w-3.5" />
+        )}
+        {showCompare ? 'Fermer la comparaison' : 'Comparer'}
+      </Button>
+    </div>
+  );
+
+  if (!showCompare) {
+    return (
+      <div className="space-y-6">
+        {toggleButton}
+        {banner}
+        {informationContent}
+      </div>
+    );
+  }
+
+  const selectedScan = scanDocs.find((d: any) => d.id === selectedScanId);
+  const selectedName = (selectedScan?.nom || selectedScan?.fileName || '')
+    .toString()
+    .toLowerCase();
+  const isImage = /\.(jpe?g|png|gif|webp|bmp)$/i.test(selectedName);
+
   return (
     <div className="space-y-6">
-      {missing.length > 0 && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm">
-          <div className="flex items-center gap-2 text-red-800 font-medium">
-            <AlertCircle className="h-4 w-4" /> Champs requis manquants
-          </div>
-          <ul className="mt-2 list-disc pl-5 text-red-700 text-xs">
-            {missing.map((label) => (
-              <li key={label}>{label}</li>
-            ))}
-          </ul>
+      {toggleButton}
+      <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
+        <div className="space-y-6 min-w-0">
+          {banner}
+          {informationContent}
         </div>
-      )}
-
-      <InformationTab
-        dossier={dossier}
-        dossierRef={dossierRef}
-        dossierId={dossierId}
-        onEditPlanification={onEditPlanification}
-        onNewPlanification={onNewPlanification}
-      />
+        <aside className="hidden lg:block">
+          <div className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-hidden flex flex-col gap-3 rounded-md border bg-card p-3">
+            <Select
+              value={selectedScanId ?? undefined}
+              onValueChange={(v) => setSelectedScanId(v)}
+              disabled={scanDocs.length === 0}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue
+                  placeholder={
+                    scanDocs.length === 0
+                      ? 'Aucun scan disponible'
+                      : 'Sélectionner un scan'
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {scanDocs.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {(d.nom || d.fileName || d.id) as string}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex-1 min-h-0 rounded-md border bg-muted/30 overflow-hidden">
+              {selectedScan && selectedScan.url ? (
+                isImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selectedScan.url}
+                    alt={(selectedScan.nom || selectedScan.fileName || 'scan') as string}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <iframe
+                    src={selectedScan.url}
+                    title={(selectedScan.nom || selectedScan.fileName || 'scan') as string}
+                    className="w-full h-full border-0"
+                  />
+                )
+              ) : (
+                <div className="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground">
+                  {scanDocs.length === 0
+                    ? 'Aucun scan dans ce dossier.'
+                    : 'Sélectionnez un scan pour le visualiser.'}
+                </div>
+              )}
+            </div>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
