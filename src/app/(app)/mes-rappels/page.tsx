@@ -1,16 +1,25 @@
 'use client';
 
 import React from 'react';
-import { Bell, Inbox, Loader2 } from 'lucide-react';
+import { Bell, Inbox, Loader2, CheckCircle2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useRappels } from '@/hooks/use-rappels';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
+import { useToast } from '@/hooks/use-toast';
+
+const SESSION_KEY = (dossierId: string) => `rappel-active-session-${dossierId}`;
+
+function newSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
 
 function formatDate(ts: any): string {
   if (!ts) return '-';
@@ -22,6 +31,7 @@ export default function MesRappelsPage() {
   const { rappels, loading } = useRappels();
   const router = useRouter();
   const db = useFirestore();
+  const { toast } = useToast();
 
   return (
     <div className="space-y-4">
@@ -50,6 +60,7 @@ export default function MesRappelsPage() {
                 <TableHead className="font-bold text-xs">Observation</TableHead>
                 <TableHead className="font-bold text-xs">Date</TableHead>
                 <TableHead className="font-bold text-xs text-right">Statut</TableHead>
+                <TableHead className="font-bold text-xs text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -58,8 +69,22 @@ export default function MesRappelsPage() {
                   key={r.id}
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => {
-                    if (!r.read && db) {
-                      updateDoc(doc(db, 'rappels', r.id), { read: true }).catch(() => {});
+                    const existingSid = r.sessionId;
+                    let sid = existingSid;
+                    if (db) {
+                      if (!existingSid) {
+                        sid = newSessionId();
+                        updateDoc(doc(db, 'rappels', r.id), {
+                          read: true,
+                          sessionId: sid,
+                          sessionStartedAt: serverTimestamp(),
+                        }).catch(() => {});
+                      } else if (!r.read) {
+                        updateDoc(doc(db, 'rappels', r.id), { read: true }).catch(() => {});
+                      }
+                    }
+                    if (typeof window !== 'undefined' && sid) {
+                      try { window.localStorage.setItem(SESSION_KEY(r.dossierId), sid); } catch {}
                     }
                     router.push(`/dossiers/${r.dossierId}`);
                   }}
@@ -71,11 +96,37 @@ export default function MesRappelsPage() {
                   <TableCell className="text-sm">{r.observation || '—'}</TableCell>
                   <TableCell className="text-sm tabular-nums">{formatDate(r.createdAt)}</TableCell>
                   <TableCell className="text-right">
-                    {r.read ? (
+                    {r.resolvedAt ? (
+                      <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-300">Traité</Badge>
+                    ) : r.read ? (
                       <Badge variant="outline" className="text-muted-foreground border-muted-foreground/30">Lu</Badge>
                     ) : (
                       <Badge className="bg-primary/10 text-primary border border-primary/30">Nouveau</Badge>
                     )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!!r.resolvedAt}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!db || r.resolvedAt) return;
+                        updateDoc(doc(db, 'rappels', r.id), { resolvedAt: serverTimestamp() })
+                          .then(() => {
+                            if (typeof window !== 'undefined') {
+                              try { window.localStorage.removeItem(SESSION_KEY(r.dossierId)); } catch {}
+                            }
+                            toast({ title: 'Rappel marqué comme traité' });
+                          })
+                          .catch(() => {
+                            toast({ title: 'Erreur', description: 'Impossible de marquer comme traité', variant: 'destructive' });
+                          });
+                      }}
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-1" />
+                      Marquer traité
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

@@ -17,6 +17,8 @@ export interface Rappel {
   createdAt?: any;
   read?: boolean;
   observation?: string;
+  sessionId?: string;
+  resolvedAt?: any;
 }
 
 export function useRappels(): { rappels: Rappel[]; loading: boolean } {
