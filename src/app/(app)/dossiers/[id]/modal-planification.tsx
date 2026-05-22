@@ -74,9 +74,10 @@ type ModalPlanificationProps = {
   dossierId: string;
   dossierData?: { refExpert?: string; assure?: any; compagnie?: string; expertRank?: string; dateMissionAgentTerrain?: any };
   defaultTypeMission?: 'Avant' | 'En cours' | 'Après';
+  defaultAgentTerrain?: string;
 };
 
-export default function ModalPlanification({ open, onOpenChange, initialData, dossierId, dossierData, defaultTypeMission }: ModalPlanificationProps) {
+export default function ModalPlanification({ open, onOpenChange, initialData, dossierId, dossierData, defaultTypeMission, defaultAgentTerrain }: ModalPlanificationProps) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -140,9 +141,9 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         observation: initialData.observation || '',
       });
     } else if (open) {
-      setFormData({ agentTerrain: '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '' });
+      setFormData({ agentTerrain: defaultAgentTerrain ?? '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '' });
     }
-  }, [initialData, open, defaultTypeMission]);
+  }, [initialData, open, defaultTypeMission, defaultAgentTerrain]);
 
   const agentLive = useAgentLiveLocation(formData.agentTerrain);
 
