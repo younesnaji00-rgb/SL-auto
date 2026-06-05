@@ -37,6 +37,44 @@ interface InformationTabProps {
   onNewPlanification: () => void;
 }
 
+// ── Table-like row layout helpers ──
+// Hoisted to module scope so they retain a stable component identity across
+// parent re-renders. Previously `FieldRow` was declared inside the component
+// body, which meant each keystroke produced a new component → React unmounted
+// the focused `<Input>` and remounted a fresh one, losing focus after a
+// single letter.
+type FieldDef = {
+  label: string;
+  value: string;
+  edit?: React.ReactNode;
+  modal?: React.ReactNode;
+};
+
+const FieldRow = ({ fields, editing }: { fields: FieldDef[]; editing: boolean }) => {
+  const colClass = fields.length <= 2
+    ? 'grid-cols-1 md:grid-cols-2'
+    : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4';
+  return (
+    <>
+      <div className={cn('grid', colClass)}>
+        {fields.map((f, i) => (
+          <div key={i} className={cn("px-6 py-2 flex items-center justify-between bg-card", i < fields.length - 1 && "border-r border-border/10")}>
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{f.label}</span>
+            {editing && f.modal}
+          </div>
+        ))}
+      </div>
+      <div className={cn('grid border-b border-border/10', colClass)}>
+        {fields.map((f, i) => (
+          <div key={i} className={cn("px-6 py-3 min-h-[44px] flex items-center bg-card", i < fields.length - 1 && "border-r border-border/10")}>
+            {editing && f.edit ? <div className="w-full">{f.edit}</div> : <span className="text-sm font-medium">{f.value || '-'}</span>}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+};
+
 export default function InformationTab({ dossier, dossierRef, dossierId }: InformationTabProps) {
   const db = useFirestore();
   const auth = useAuth();
@@ -214,39 +252,6 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
     try { return format(d, 'dd/MM/yyyy', { locale: fr }); } catch { return '-'; }
   };
 
-  // ── Table-like row layout helpers ──
-  type FieldDef = {
-    label: string;
-    value: string;
-    edit?: React.ReactNode;
-    modal?: React.ReactNode;
-  };
-
-  const FieldRow = ({ fields }: { fields: FieldDef[] }) => {
-    const colClass = fields.length <= 2
-      ? 'grid-cols-1 md:grid-cols-2'
-      : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4';
-    return (
-      <>
-        <div className={cn('grid', colClass)}>
-          {fields.map((f, i) => (
-            <div key={i} className={cn("px-6 py-2 flex items-center justify-between bg-card", i < fields.length - 1 && "border-r border-border/10")}>
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{f.label}</span>
-              {editing && f.modal}
-            </div>
-          ))}
-        </div>
-        <div className={cn('grid border-b border-border/10', colClass)}>
-          {fields.map((f, i) => (
-            <div key={i} className={cn("px-6 py-3 min-h-[44px] flex items-center bg-card", i < fields.length - 1 && "border-r border-border/10")}>
-              {editing && f.edit ? <div className="w-full">{f.edit}</div> : <span className="text-sm font-medium">{f.value || '-'}</span>}
-            </div>
-          ))}
-        </div>
-      </>
-    );
-  };
-
   return (
     <div className="space-y-6">
       {/* Edit/Save bar */}
@@ -319,17 +324,17 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
                 </Select>
               ),
             },
-          ]} />
+          ]} editing={editing} />
           <FieldRow fields={[
             { label: 'Réf Dossier', value: form.refExpert, edit: <Input className="h-9" value={form.refExpert} onChange={(e) => handleChange('refExpert', e.target.value)} /> },
             { label: 'Référence compagnie', value: form.referenceCompagnie, edit: <Input className="h-9" value={form.referenceCompagnie} onChange={(e) => handleChange('referenceCompagnie', e.target.value)} /> },
             { label: 'Matricule', value: form.matricule, edit: <Input className="h-9" value={form.matricule} onChange={(e) => handleChange('matricule', e.target.value)} /> },
             { label: 'N° de Police', value: form.policeNumber, edit: <Input className="h-9" value={form.policeNumber} onChange={(e) => handleChange('policeNumber', e.target.value)} /> },
-          ]} />
+          ]} editing={editing} />
           <FieldRow fields={[
             { label: 'Date Sinistre', value: formatDateDisplay(form.dateSinistre), edit: <DatePicker value={form.dateSinistre} onChange={(d) => handleChange('dateSinistre', d)} /> },
             { label: 'Date Requête', value: formatDateDisplay(form.dateRequete), edit: <DatePicker value={form.dateRequete} onChange={(d) => handleChange('dateRequete', d)} /> },
-          ]} />
+          ]} editing={editing} />
         </CardContent>
       </Card>
 
@@ -355,7 +360,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
                 </Select>
               ),
             },
-          ]} />
+          ]} editing={editing} />
           {visibleExpertRoles((form.expertRank as ExpertRole) || '1er').map((role) => (
             <div key={role} className="border-t border-border/10">
               <div className="px-6 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/30">
@@ -366,7 +371,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
                 { label: 'Téléphone', value: form.experts?.[role]?.telephone, edit: <Input className="h-9" value={form.experts?.[role]?.telephone ?? ''} onChange={(e) => handleExpertChange(role, 'telephone', e.target.value)} /> },
                 { label: 'Email', value: form.experts?.[role]?.email, edit: <Input type="email" className="h-9" value={form.experts?.[role]?.email ?? ''} onChange={(e) => handleExpertChange(role, 'email', e.target.value)} /> },
                 { label: 'Compagnie', value: form.experts?.[role]?.compagnie, edit: <Input className="h-9" value={form.experts?.[role]?.compagnie ?? ''} onChange={(e) => handleExpertChange(role, 'compagnie', e.target.value)} /> },
-              ]} />
+              ]} editing={editing} />
             </div>
           ))}
         </CardContent>
@@ -384,13 +389,13 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             { label: 'Nom complet', value: form.assure.nom, edit: <Input className="h-9" value={form.assure.nom} onChange={(e) => handleNestedChange('assure', 'nom', e.target.value)} /> },
             { label: 'Téléphone', value: form.assure.telephone, edit: <Input className="h-9" value={form.assure.telephone} onChange={(e) => handleNestedChange('assure', 'telephone', e.target.value)} /> },
             { label: 'WhatsApp', value: form.assure.whatsapp, edit: <Input className="h-9" value={form.assure.whatsapp} onChange={(e) => handleNestedChange('assure', 'whatsapp', e.target.value)} /> },
-          ]} />
+          ]} editing={editing} />
           <FieldRow fields={[
             { label: 'Téléphone 2', value: form.assure.telephone2, edit: <Input className="h-9" value={form.assure.telephone2} onChange={(e) => handleNestedChange('assure', 'telephone2', e.target.value)} /> },
             { label: 'Email', value: form.assure.email, edit: <Input type="email" className="h-9" value={form.assure.email} onChange={(e) => handleNestedChange('assure', 'email', e.target.value)} /> },
             { label: 'Adresse', value: form.assure.adresse, edit: <Input className="h-9" value={form.assure.adresse} onChange={(e) => handleNestedChange('assure', 'adresse', e.target.value)} /> },
             { label: 'CIN', value: form.assure.cin, edit: <Input className="h-9" value={form.assure.cin} onChange={(e) => handleNestedChange('assure', 'cin', e.target.value)} /> },
-          ]} />
+          ]} editing={editing} />
         </CardContent>
       </Card>
 
@@ -407,16 +412,16 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             { label: 'Modèle', value: form.vehicule.modele, edit: <Input className="h-9" value={form.vehicule.modele} onChange={(e) => handleNestedChange('vehicule', 'modele', e.target.value)} /> },
             { label: 'Immatriculation', value: form.vehicule.immatriculation, edit: <Input className="h-9" value={form.vehicule.immatriculation} onChange={(e) => handleNestedChange('vehicule', 'immatriculation', e.target.value)} /> },
             { label: 'Numéro de série', value: form.vehicule.serie, edit: <Input className="h-9" value={form.vehicule.serie} onChange={(e) => handleNestedChange('vehicule', 'serie', e.target.value)} /> },
-          ]} />
+          ]} editing={editing} />
           <FieldRow fields={[
             { label: 'Énergie', value: form.vehicule.energie, edit: <Input className="h-9" value={form.vehicule.energie} onChange={(e) => handleNestedChange('vehicule', 'energie', e.target.value)} /> },
             { label: 'Puissance fiscale', value: form.vehicule.puissance, edit: <Input className="h-9" value={form.vehicule.puissance} onChange={(e) => handleNestedChange('vehicule', 'puissance', e.target.value)} /> },
             { label: 'Mise en circ. (Date)', value: formatDateDisplay(form.vehicule.mec), edit: <DatePicker value={form.vehicule.mec} onChange={(d) => handleNestedChange('vehicule', 'mec', d)} /> },
             { label: 'Kilométrage', value: form.vehicule.km, edit: <Input type="number" className="h-9" value={form.vehicule.km} onChange={(e) => handleNestedChange('vehicule', 'km', e.target.value)} /> },
-          ]} />
+          ]} editing={editing} />
           <FieldRow fields={[
             { label: 'Immatriculation antérieure', value: form.vehicule.immatriculationAnterieur, edit: <Input className="h-9" value={form.vehicule.immatriculationAnterieur} onChange={(e) => handleNestedChange('vehicule', 'immatriculationAnterieur', e.target.value)} /> },
-          ]} />
+          ]} editing={editing} />
         </CardContent>
       </Card>
 
@@ -433,7 +438,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             { label: 'Prénom', value: form.intermediairePrenom, edit: <Input className="h-9" value={form.intermediairePrenom} onChange={(e) => handleChange('intermediairePrenom', e.target.value)} /> },
             { label: 'Type', value: form.intermediaireType, edit: <Input className="h-9" value={form.intermediaireType} onChange={(e) => handleChange('intermediaireType', e.target.value)} /> },
             { label: 'Code Intermédiaire', value: form.intermediaireCode, edit: <Input className="h-9" value={form.intermediaireCode} onChange={(e) => handleChange('intermediaireCode', e.target.value)} /> },
-          ]} />
+          ]} editing={editing} />
           <FieldRow fields={[
             { label: 'Compagnie', value: form.intermediaireCompagnie, edit: (
               <Select value={form.intermediaireCompagnie} onValueChange={(v) => handleChange('intermediaireCompagnie', v)}>
@@ -444,7 +449,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             { label: 'Téléphone', value: form.intermediaireTelephone, edit: <Input className="h-9" value={form.intermediaireTelephone} onChange={(e) => handleChange('intermediaireTelephone', e.target.value)} /> },
             { label: 'Email', value: form.intermediaireEmail, edit: <Input className="h-9" value={form.intermediaireEmail} onChange={(e) => handleChange('intermediaireEmail', e.target.value)} /> },
             { label: 'Adresse', value: form.intermediaireAdresse, edit: <Input className="h-9" value={form.intermediaireAdresse} onChange={(e) => handleChange('intermediaireAdresse', e.target.value)} /> },
-          ]} />
+          ]} editing={editing} />
         </CardContent>
       </Card>
 
@@ -461,7 +466,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             { label: 'Prénom', value: form.adversePrenom, edit: <Input className="h-9" value={form.adversePrenom} onChange={(e) => handleChange('adversePrenom', e.target.value)} /> },
             { label: 'Téléphone', value: form.adverseTelephone, edit: <Input className="h-9" value={form.adverseTelephone} onChange={(e) => handleChange('adverseTelephone', e.target.value)} /> },
             { label: 'Email', value: form.adverseEmail, edit: <Input className="h-9" value={form.adverseEmail} onChange={(e) => handleChange('adverseEmail', e.target.value)} /> },
-          ]} />
+          ]} editing={editing} />
           <FieldRow fields={[
             { label: 'Adresse', value: form.adverseAdresse, edit: <Input className="h-9" value={form.adverseAdresse} onChange={(e) => handleChange('adverseAdresse', e.target.value)} /> },
             { label: 'Compagnie', value: form.adverseCompagnie, edit: (
@@ -472,7 +477,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             ) },
             { label: 'Matricule', value: form.adverseMatricule, edit: <Input className="h-9" value={form.adverseMatricule} onChange={(e) => handleChange('adverseMatricule', e.target.value)} /> },
             { label: 'N° Permis', value: form.adversePermis, edit: <Input className="h-9" value={form.adversePermis} onChange={(e) => handleChange('adversePermis', e.target.value)} /> },
-          ]} />
+          ]} editing={editing} />
         </CardContent>
       </Card>
 
