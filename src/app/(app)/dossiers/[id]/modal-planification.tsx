@@ -83,8 +83,25 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   const auth = useAuth();
   const { toast } = useToast();
   const { profile } = useCurrentUser();
+  const isCurrentUserAT = profile?.role === 'Agent de Terrain';
   const [loading, setLoading] = useState(false);
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
+  const [selfLocation, setSelfLocation] = useState<{ lat: number; lng: number; updatedAtMs: number } | null>(null);
+
+  useEffect(() => {
+    if (!open || !isCurrentUserAT) return;
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    let cancelled = false;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (cancelled) return;
+        setSelfLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, updatedAtMs: Date.now() });
+      },
+      () => { /* permission denied — silently leave null */ },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
+    );
+    return () => { cancelled = true; };
+  }, [open, isCurrentUserAT]);
 
   const { options: dbRDVTypes } = useOptions('options_types_rdv');
   const rdvTypes = useMemo(() => dbRDVTypes.filter(o => o.active !== false), [dbRDVTypes]);
@@ -149,6 +166,8 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   }, [initialData, open, defaultTypeMission, defaultAgentTerrain]);
 
   const agentLive = useAgentLiveLocation(formData.agentTerrain);
+  const effectiveLocation = isCurrentUserAT ? selfLocation : agentLive.location;
+  const effectiveIsFresh = isCurrentUserAT ? !!selfLocation : agentLive.isFresh;
 
   // Resolve the agent's live coords to a human-readable address via the
   // server-side Nominatim proxy. Reset on every coord change so the previous
@@ -182,7 +201,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     timeRDV: formData.timeRDV,
     adresse: formData.adresse,
     excludeId: initialData?.id ?? null,
-    agentLiveLocation: agentLive.location,
+    agentLiveLocation: effectiveLocation,
   });
 
   const handleSave = async () => {
@@ -350,7 +369,8 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           <DialogDescription>Remplissez les informations pour programmer la mission de terrain.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-6 py-4">
-          <div className={defaultTypeMission ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4"}>
+          <div className={(defaultTypeMission || isCurrentUserAT) ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4"}>
+            {!isCurrentUserAT && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Agent de Terrain</Label>
@@ -423,6 +443,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 </SelectContent>
               </Select>
             </div>
+            )}
             {!defaultTypeMission && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -542,22 +563,24 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             </Alert>
           )}
 
-          {formData.agentTerrain && agentLive.isFresh && agentLive.location && (
+          {(isCurrentUserAT || formData.agentTerrain) && effectiveIsFresh && effectiveLocation && (
             <Alert variant="info">
-              <AlertTitle>Position actuelle de l'agent</AlertTitle>
+              <AlertTitle>{isCurrentUserAT ? 'Votre position actuelle' : "Position actuelle de l'agent"}</AlertTitle>
               <AlertDescription>
-                {agentAddress ? (
+                {!isCurrentUserAT && agentAddress ? (
                   <p className="text-sm">{agentAddress}</p>
                 ) : (
                   <p className="font-mono text-sm">
-                    {agentLive.location.lat.toFixed(5)}, {agentLive.location.lng.toFixed(5)}
+                    {effectiveLocation.lat.toFixed(5)}, {effectiveLocation.lng.toFixed(5)}
                   </p>
                 )}
-                <p className="text-sm italic text-muted-foreground mt-1">
-                  Mise à jour {formatDistanceToNow(new Date(agentLive.location.updatedAtMs), { addSuffix: true, locale: fr })}
-                </p>
+                {!isCurrentUserAT && agentLive.location && (
+                  <p className="text-sm italic text-muted-foreground mt-1">
+                    Mise à jour {formatDistanceToNow(new Date(agentLive.location.updatedAtMs), { addSuffix: true, locale: fr })}
+                  </p>
+                )}
                 <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${agentLive.location.lat},${agentLive.location.lng}`}
+                  href={`https://www.google.com/maps/search/?api=1&query=${effectiveLocation.lat},${effectiveLocation.lng}`}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-sm text-primary underline mt-2"
@@ -569,7 +592,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             </Alert>
           )}
 
-          {formData.agentTerrain && !agentLive.isFresh && agentLive.agentUid && (
+          {!isCurrentUserAT && formData.agentTerrain && !agentLive.isFresh && agentLive.agentUid && (
             <Alert variant="info">
               <AlertTitle>Position de l'agent non disponible</AlertTitle>
               <AlertDescription>
