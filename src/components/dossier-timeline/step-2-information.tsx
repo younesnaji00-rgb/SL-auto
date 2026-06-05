@@ -26,6 +26,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Columns2, X } from 'lucide-react';
 import { collection, type DocumentReference } from 'firebase/firestore';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
 import InformationTab from '@/app/(app)/dossiers/[id]/information-tab';
 import { Button } from '@/components/ui/button';
@@ -234,12 +235,25 @@ export default function Step2Information({
             <div className="flex-1 min-h-0 rounded-md border bg-muted/30 overflow-hidden">
               {selectedScan && selectedScan.url ? (
                 isImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={selectedScan.url}
-                    alt={(selectedScan.nom || selectedScan.fileName || 'scan') as string}
-                    className="w-full h-full object-contain"
-                  />
+                  <TransformWrapper
+                    minScale={1}
+                    maxScale={5}
+                    doubleClick={{ mode: 'zoomIn', step: 0.7 }}
+                    wheel={{ step: 0.2 }}
+                  >
+                    <TransformComponent
+                      wrapperClass="!w-full !h-full"
+                      contentClass="!w-full !h-full flex items-center justify-center"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={selectedScan.url}
+                        alt={(selectedScan.nom || selectedScan.fileName || 'scan') as string}
+                        className="max-w-full max-h-full object-contain select-none"
+                        draggable={false}
+                      />
+                    </TransformComponent>
+                  </TransformWrapper>
                 ) : (
                   <iframe
                     src={selectedScan.url}
