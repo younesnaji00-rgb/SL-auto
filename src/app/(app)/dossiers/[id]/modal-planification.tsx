@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -121,6 +122,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     timeRDV: '09:00',
     adresse: '',
     observation: '',
+    observationCustomText: '',
   });
 
   useEffect(() => {
@@ -139,9 +141,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         timeRDV,
         adresse: initialData.adresse || '',
         observation: initialData.observation || '',
+        observationCustomText: initialData?.observationCustomText || '',
       });
     } else if (open) {
-      setFormData({ agentTerrain: defaultAgentTerrain ?? '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '' });
+      setFormData({ agentTerrain: defaultAgentTerrain ?? '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationCustomText: initialData?.observationCustomText || '' });
     }
   }, [initialData, open, defaultTypeMission, defaultAgentTerrain]);
 
@@ -187,6 +190,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     setLoading(true);
     const userEmail = auth?.currentUser?.email || 'Admin';
     const userId = auth?.currentUser?.uid || 'Admin';
+    const resolvedObservation =
+      formData.observation === 'Autre' && formData.observationCustomText.trim()
+        ? formData.observationCustomText.trim()
+        : formData.observation;
 
     try {
       let finalRDV = null;
@@ -224,7 +231,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         dateRDV: finalRDV,
         zone: derivedZone,
         adresse: formData.adresse,
-        observation: formData.observation,
+        observation: resolvedObservation,
         modifiedAt: serverTimestamp(),
         modifiedBy: auth?.currentUser?.uid || 'Admin',
         modifiedByName: profile?.nom || userEmail,
@@ -322,8 +329,8 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
       }
 
       // Persist observation to subcollection for history
-      if (formData.observation) {
-        await addObservation(db, dossierId, formData.observation, 'Planification', profile?.nom || userEmail, userEmail, profile?.role || 'Gestionnaire', 'dossiers');
+      if (resolvedObservation) {
+        await addObservation(db, dossierId, resolvedObservation, 'Planification', profile?.nom || userEmail, userEmail, profile?.role || 'Gestionnaire', 'dossiers');
       }
 
       onOpenChange(false);
@@ -515,6 +522,15 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 defaultValues={['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre']}
               />
             </div>
+            {formData.observation === 'Autre' && (
+              <Textarea
+                value={formData.observationCustomText}
+                onChange={(e) => setFormData({ ...formData, observationCustomText: e.target.value })}
+                placeholder="Écrivez une observation personnalisée…"
+                rows={2}
+                className="text-sm"
+              />
+            )}
           </div>
 
           {feasibilityPastRdv && (
