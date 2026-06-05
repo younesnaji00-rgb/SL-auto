@@ -24,7 +24,7 @@ export default function AtDirectPhotosFlow() {
   const db = useFirestore();
   const { profile } = useCurrentUser();
   const router = useRouter();
-  const isAT = profile?.role === 'Agent de Terrain';
+  const canUse = profile?.role === 'Agent de Terrain' || profile?.role === 'Admin';
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -77,7 +77,7 @@ export default function AtDirectPhotosFlow() {
     return matched.slice(0, MAX_RESULTS);
   }, [q, eligible]);
 
-  if (!isAT) return null;
+  if (!canUse) return null;
 
   const handlePick = (d: any) => {
     setSearchOpen(false);

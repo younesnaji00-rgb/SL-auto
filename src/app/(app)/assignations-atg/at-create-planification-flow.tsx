@@ -23,7 +23,7 @@ const MAX_RESULTS = 20;
 export default function AtCreatePlanificationFlow() {
   const db = useFirestore();
   const { profile } = useCurrentUser();
-  const isAT = profile?.role === 'Agent de Terrain';
+  const canUse = profile?.role === 'Agent de Terrain' || profile?.role === 'Admin';
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -72,7 +72,7 @@ export default function AtCreatePlanificationFlow() {
     return matched.slice(0, MAX_RESULTS);
   }, [q, allDossiers]);
 
-  if (!isAT) return null;
+  if (!canUse) return null;
 
   const handlePick = (d: any) => {
     setSelectedDossier(d);

@@ -734,6 +734,7 @@ export default function AssignationsATGPage() {
   };
 
   const isATG = profile?.role === 'Agent de Terrain';
+  const canUseAtFlows = isATG || profile?.role === 'Admin';
   const canSeeNameFilter = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
   const showAgentColumn = !isATG;
   const colCount = showAgentColumn ? 9 : 8;
@@ -1132,8 +1133,8 @@ export default function AssignationsATGPage() {
           </Badge>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {isATG && <AtCreatePlanificationFlow />}
-          {isATG && <AtDirectPhotosFlow />}
+          {canUseAtFlows && <AtCreatePlanificationFlow />}
+          {canUseAtFlows && <AtDirectPhotosFlow />}
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
