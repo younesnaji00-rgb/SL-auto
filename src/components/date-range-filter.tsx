@@ -20,44 +20,56 @@ function DatePickerButton({ value, onChange, placeholder }: { value: string; onC
   const [open, setOpen] = React.useState(false);
   const selected = value ? new Date(value) : undefined;
 
+  // The clear-X cannot live inside the trigger Button: nested interactive
+  // elements are invalid HTML and Radix opens the Popover on pointerDown,
+  // so a click handler on a nested element races the trigger and loses.
+  // We render the X as an adjacent sibling — fully separate from the
+  // trigger in the DOM, no overlay/stacking trickery required.
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn(
-            'w-[150px] h-9 justify-start text-left font-normal',
-            !value && 'text-muted-foreground'
-          )}
+    <div className="inline-flex items-center">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              'h-9 justify-start text-left font-normal',
+              value ? 'w-[130px] rounded-r-none border-r-0' : 'w-[150px]',
+              !value && 'text-muted-foreground'
+            )}
+          >
+            <CalendarIcon className="mr-2 h-3.5 w-3.5 shrink-0" />
+            {value ? format(new Date(value), 'dd MMM yyyy', { locale: fr }) : <span>{placeholder}</span>}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={selected}
+            onSelect={(date) => {
+              if (date) {
+                const yyyy = date.getFullYear();
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const dd = String(date.getDate()).padStart(2, '0');
+                onChange(`${yyyy}-${mm}-${dd}`);
+              } else {
+                onChange('');
+              }
+              setOpen(false);
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+      {value && (
+        <button
+          type="button"
+          aria-label="Effacer la date"
+          onClick={() => onChange('')}
+          className="flex h-9 w-7 shrink-0 items-center justify-center rounded-r-md border border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
         >
-          <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-          {value ? format(new Date(value), 'dd MMM yyyy', { locale: fr }) : <span>{placeholder}</span>}
-          {value && (
-            <X
-              className="ml-auto h-3.5 w-3.5 opacity-50 hover:opacity-100"
-              onClick={(e) => { e.stopPropagation(); onChange(''); }}
-            />
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          selected={selected}
-          onSelect={(date) => {
-            if (date) {
-              const yyyy = date.getFullYear();
-              const mm = String(date.getMonth() + 1).padStart(2, '0');
-              const dd = String(date.getDate()).padStart(2, '0');
-              onChange(`${yyyy}-${mm}-${dd}`);
-            } else {
-              onChange('');
-            }
-            setOpen(false);
-          }}
-        />
-      </PopoverContent>
-    </Popover>
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
   );
 }
 

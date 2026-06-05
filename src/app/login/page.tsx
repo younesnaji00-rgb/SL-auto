@@ -42,6 +42,11 @@ const LOGIN_IN_FLIGHT_KEY = 'sl-auto.login-in-flight';
 // signing the older device out. We consume it once on /login mount to render
 // a friendly toast explaining why the user landed here.
 const EVICTED_FLAG_KEY = 'sl-auto.evicted-by-other-device';
+// Per-tab UID guard mirror of the key defined in src/hooks/use-current-user.tsx.
+// Written here BEFORE signIn so the CurrentUserProvider that mounts on the
+// post-login redirect sees a matching identity instead of treating its own
+// freshly-acquired auth state as a cross-tab hijack. Keep these in sync.
+const EXPECTED_UID_KEY = 'sl-auto.expected-uid';
 function newSessionId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -79,16 +84,32 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Redirect already-authenticated users to dashboard
+  // Redirect already-authenticated users to dashboard, BUT only when the
+  // live Firebase Auth user matches this tab's expected identity. If another
+  // tab in the same browser just signed in as a different account, the
+  // shared IndexedDB flips our auth state too — silently following that
+  // redirect would land this user on the other account's dashboard, which
+  // is exactly the leak we are guarding against. Show the form instead.
   const [checkingAuth, setCheckingAuth] = useState(true);
   useEffect(() => {
     if (!auth) return;
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        router.replace('/dashboard');
-      } else {
+      if (!user) {
         setCheckingAuth(false);
+        return;
       }
+      const expectedUid =
+        typeof window !== 'undefined'
+          ? window.sessionStorage.getItem(EXPECTED_UID_KEY)
+          : null;
+      if (expectedUid && user.uid !== expectedUid) {
+        setCheckingAuth(false);
+        return;
+      }
+      if (!expectedUid && typeof window !== 'undefined') {
+        window.sessionStorage.setItem(EXPECTED_UID_KEY, user.uid);
+      }
+      router.replace('/dashboard');
     });
     return () => unsub();
   }, [auth, router]);
@@ -143,6 +164,12 @@ export default function LoginPage() {
     try {
       const email = generateEmail(setupName);
       const cred = await createUserWithEmailAndPassword(auth, email, setupPassword);
+      // Stamp the per-tab UID guard now that we know the auth uid. Setup runs
+      // exactly once on a fresh database so concurrent-tab hijack is unlikely
+      // here, but keeping the marker consistent across login paths makes the
+      // CurrentUserProvider guard symmetric and avoids a spurious soft-evict
+      // on the post-setup redirect.
+      window.sessionStorage.setItem(EXPECTED_UID_KEY, cred.user.uid);
 
       await setDoc(doc(db, 'users', cred.user.uid), {
         nom: setupName.trim(),
@@ -163,6 +190,7 @@ export default function LoginPage() {
     } catch (err: any) {
       console.error('Setup error:', err);
       window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
+      window.sessionStorage.removeItem(EXPECTED_UID_KEY);
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
       setSetupError(err.message || 'Erreur lors de la création du compte.');
@@ -220,9 +248,13 @@ export default function LoginPage() {
       // locally. Any other device with a different local id will be signed
       // out by the snapshot listener in CurrentUserProvider. Both the in-flight
       // flag and localStorage are set BEFORE signIn so the snapshot listener
-      // that attaches via onAuthStateChanged sees a consistent state.
+      // that attaches via onAuthStateChanged sees a consistent state. The
+      // expected-UID guard is also stamped here (userDoc.id is the auth UID)
+      // so CurrentUserProvider recognises this tab as the legitimate signer
+      // and not a victim of cross-tab IndexedDB hijack.
       const sessionId = newSessionId();
       window.sessionStorage.setItem(LOGIN_IN_FLIGHT_KEY, '1');
+      window.sessionStorage.setItem(EXPECTED_UID_KEY, userDoc.id);
       window.sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
       window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
       const cred = await signInWithEmailAndPassword(auth, email, password);
@@ -237,6 +269,7 @@ export default function LoginPage() {
     } catch (err: any) {
       console.error('Login error:', err);
       window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
+      window.sessionStorage.removeItem(EXPECTED_UID_KEY);
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
       if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {

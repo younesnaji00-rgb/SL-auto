@@ -47,55 +47,54 @@ export function useDossiers(allowedCompagnies?: string[]) {
   const deleteDossier = async (dossierId: string): Promise<void> => {
     if (!db) throw new Error('DB not initialized');
 
-    const subcollections = [
-      'documents', 'photos', 'commentaires', 'chiffrage',
-      'missions', 'reclamations', 'planifications',
-      'planificationHistory', 'historique', 'rapport_pieces', 'workflow',
-    ];
-
-    console.log(`[deleteDossier] starting cleanup: ${dossierId}`);
-
-    // 1. Subcollections — per-batch try/catch + allSettled so partial
-    //    failures don't abort the operation.
-    for (const sub of subcollections) {
-      try {
-        const subSnap = await getDocs(collection(db, 'dossiers', dossierId, sub));
-        const results = await Promise.allSettled(subSnap.docs.map(d => deleteDoc(d.ref)));
-        const failed = results.filter(r => r.status === 'rejected').length;
-        if (failed > 0) console.warn(`[deleteDossier] ${sub}: ${failed} doc(s) failed to delete`);
-      } catch (err) {
-        console.warn(`[deleteDossier] ${sub} listing failed:`, err);
-      }
-    }
-
-    // 2. Related chiffrages from root.
-    try {
-      const chiffragesSnap = await getDocs(query(collection(db, 'chiffrages'), where('dossierId', '==', dossierId)));
-      await Promise.allSettled(chiffragesSnap.docs.map(d => deleteDoc(d.ref)));
-    } catch (err) {
-      console.warn('[deleteDossier] chiffrages cleanup failed:', err);
-    }
-
-    // 3. Storage folder (recursive, best-effort).
-    if (storage) {
-      try {
-        const deleteStorageFolder = async (folderRef: any) => {
-          const list = await listAll(folderRef);
-          await Promise.allSettled([
-            ...list.items.map(item => deleteObject(item)),
-            ...list.prefixes.map((sub: any) => deleteStorageFolder(sub)),
-          ]);
-        };
-        await deleteStorageFolder(ref(storage, `dossiers/${dossierId}`));
-      } catch (err) {
-        console.warn('[deleteDossier] storage cleanup failed:', err);
-      }
-    }
-
-    // 4. Main doc — outside the cleanup try blocks, so cleanup failures don't
-    //    block this. Errors here DO propagate to the caller.
+    // Delete the main doc FIRST so the snapshot listener removes the row from
+    // the dossiers list immediately. Subcollection + storage cleanup runs in
+    // the background; orphans aren't visible anywhere because the parent doc
+    // is gone. Errors on the main delete propagate; cleanup failures don't.
     await deleteDoc(doc(db, 'dossiers', dossierId));
-    console.log(`[deleteDossier] complete: ${dossierId}`);
+
+    void (async () => {
+      const subcollections = [
+        'documents', 'photos', 'commentaires', 'chiffrage',
+        'missions', 'reclamations', 'planifications',
+        'planificationHistory', 'historique', 'rapport_pieces', 'workflow',
+      ];
+
+      for (const sub of subcollections) {
+        try {
+          const subSnap = await getDocs(collection(db, 'dossiers', dossierId, sub));
+          const results = await Promise.allSettled(subSnap.docs.map(d => deleteDoc(d.ref)));
+          const failed = results.filter(r => r.status === 'rejected').length;
+          if (failed > 0) console.warn(`[deleteDossier] ${sub}: ${failed} doc(s) failed to delete`);
+        } catch (err) {
+          console.warn(`[deleteDossier] ${sub} listing failed:`, err);
+        }
+      }
+
+      try {
+        const chiffragesSnap = await getDocs(query(collection(db, 'chiffrages'), where('dossierId', '==', dossierId)));
+        await Promise.allSettled(chiffragesSnap.docs.map(d => deleteDoc(d.ref)));
+      } catch (err) {
+        console.warn('[deleteDossier] chiffrages cleanup failed:', err);
+      }
+
+      if (storage) {
+        try {
+          const deleteStorageFolder = async (folderRef: any) => {
+            const list = await listAll(folderRef);
+            await Promise.allSettled([
+              ...list.items.map(item => deleteObject(item)),
+              ...list.prefixes.map((sub: any) => deleteStorageFolder(sub)),
+            ]);
+          };
+          await deleteStorageFolder(ref(storage, `dossiers/${dossierId}`));
+        } catch (err) {
+          console.warn('[deleteDossier] storage cleanup failed:', err);
+        }
+      }
+
+      console.log(`[deleteDossier] background cleanup complete: ${dossierId}`);
+    })();
   };
 
     return { dossiers, loading, error, deleteDossier };

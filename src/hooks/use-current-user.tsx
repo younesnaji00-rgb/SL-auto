@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut as firebaseSignOut, type User } from 'firebase/auth';
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { ROLES_THAT_CAN_DELETE, type Role } from '@/lib/dossiers-data';
 
@@ -18,6 +18,15 @@ const LOGIN_IN_FLIGHT_KEY = 'sl-auto.login-in-flight';
 // One-shot flag picked up by the login page to render a toast explaining
 // why the user landed there (read once, then cleared).
 const EVICTED_FLAG_KEY = 'sl-auto.evicted-by-other-device';
+// Per-tab UID guard: records which user UID this tab believes itself to be
+// signed in as. Firebase Auth's browserLocalPersistence stores the token in
+// IndexedDB shared across ALL tabs, so a sign-in in another tab silently
+// flips this tab's onAuthStateChanged user too. Comparing the live UID
+// against this per-tab marker lets us refuse the hijack without calling
+// firebaseSignOut (which would clear the shared IndexedDB and log out the
+// legitimate tab as well). Distinct from SESSION_STORAGE_KEY, which is the
+// cross-device single-session marker. Keep in sync with src/app/login/page.tsx.
+const EXPECTED_UID_KEY = 'sl-auto.expected-uid';
 
 // Single-session is intentionally scoped: only the operational roles below
 // are restricted to one device at a time. Admin / Directeur* / Responsable
@@ -128,6 +137,13 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Tracks which uid we've already stamped lastLogin for during this provider
+  // mount. Firebase Auth persists sessions, so most logins are silent resumes —
+  // stamping here (rather than only in /login's handleLogin) keeps the field
+  // honest. One write per tab mount / refresh; SPA navigation doesn't re-fire
+  // onAuthStateChanged, so no extra writes there.
+  const stampedUidRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!auth) return;
     let unsubDoc: (() => void) | null = null;
@@ -137,9 +153,49 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
         unsubDoc();
         unsubDoc = null;
       }
+
+      const expectedUid =
+        typeof window !== 'undefined'
+          ? window.sessionStorage.getItem(EXPECTED_UID_KEY)
+          : null;
+
+      // Cross-tab hijack: another tab in this browser signed in as a
+      // different user, flipping the shared Firebase Auth state. Refuse to
+      // adopt that identity in this tab. Do NOT firebaseSignOut — that
+      // clears the shared IndexedDB and would log out the legitimate tab.
+      if (user && expectedUid && user.uid !== expectedUid) {
+        console.warn('[single-session] CROSS-TAB MISMATCH', {
+          live: user.uid,
+          expected: expectedUid,
+        });
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(EVICTED_FLAG_KEY, '1');
+        }
+        setFirebaseUser(null);
+        setProfile(null);
+        setLoading(false);
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.assign('/login');
+        }
+        return;
+      }
+
+      // First-time inherit: fresh tab opening into an existing browser-wide
+      // session (e.g. user reopens the app after closing the previous tab).
+      // Adopt the current auth UID as this tab's expected identity.
+      if (user && !expectedUid && typeof window !== 'undefined') {
+        window.sessionStorage.setItem(EXPECTED_UID_KEY, user.uid);
+      }
+
       setFirebaseUser(user);
 
       if (user && db) {
+        if (stampedUidRef.current !== user.uid) {
+          stampedUidRef.current = user.uid;
+          updateDoc(doc(db, 'users', user.uid), { lastLogin: serverTimestamp() })
+            .catch((e) => console.warn('lastLogin stamp failed:', e));
+        }
+
         // Live subscription so single-session evictions land in real time:
         // another device's login writes a new currentSessionId; this listener
         // sees the mismatch and signs the older device out.
@@ -182,6 +238,7 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
                 console.warn('[single-session] EVICTING', { remote: remoteSessionId, local: localSessionId });
                 if (typeof window !== 'undefined') {
                   window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+                  window.sessionStorage.removeItem(EXPECTED_UID_KEY);
                   window.localStorage.removeItem(SESSION_STORAGE_KEY);
                   window.localStorage.setItem(EVICTED_FLAG_KEY, '1');
                 }
@@ -235,6 +292,7 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
           },
         );
       } else {
+        stampedUidRef.current = null;
         setProfile(null);
         setLoading(false);
       }
@@ -249,6 +307,8 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
   const handleSignOut = async () => {
     if (auth) {
       if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(EXPECTED_UID_KEY);
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
         window.localStorage.removeItem(SESSION_STORAGE_KEY);
       }
       await firebaseSignOut(auth);
