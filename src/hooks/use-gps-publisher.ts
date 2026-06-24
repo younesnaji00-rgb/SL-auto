@@ -12,6 +12,7 @@ import {
   setDoc,
   where,
 } from 'firebase/firestore';
+import { Capacitor } from '@capacitor/core';
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 
@@ -128,6 +129,13 @@ export function useGpsPublisher(): { permission: GpsPermission; retry: () => voi
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    // Inside the native Android shell, `useNativeBgGeolocation` owns location
+    // publishing via a background-capable foreground service. Skip the web
+    // `watchPosition` path there to avoid double-tracking / double-writes.
+    if (Capacitor.isNativePlatform()) {
+      setPermission('granted');
+      return;
+    }
     if (!('geolocation' in navigator)) {
       setPermission('unavailable');
       return;

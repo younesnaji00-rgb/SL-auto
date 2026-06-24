@@ -108,7 +108,6 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
 
   const { options: dbAgents } = useOptions('options_agents');
   const agents = useMemo<Option[]>(() => dbAgents.filter(o => o.active !== false), [dbAgents]);
-  const agentWorkload = useAgentTerrainWorkload();
 
   const { options: dbObservationPresets, loading: observationPresetsLoading } = useOptions('options_observations');
   const activeObservationPresets = useMemo(
@@ -141,6 +140,31 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     observation: '',
     observationCustomText: '',
   });
+
+  // Agent workload scoped to the RDV date currently selected, so each agent's
+  // count reflects only that day's active planifications. Falls back to the
+  // all-days total when no date has been picked yet.
+  const agentWorkload = useAgentTerrainWorkload(formData.dateRDV);
+
+  // Start-of-day millis of the selected RDV date (null when none selected).
+  const selectedDayStartMs = useMemo(() => {
+    if (!formData.dateRDV) return null;
+    const s = new Date(formData.dateRDV);
+    s.setHours(0, 0, 0, 0);
+    return s.getTime();
+  }, [formData.dateRDV]);
+
+  // In day-scoped mode the planification being edited is only part of the
+  // count when its saved RDV falls on the selected day.
+  const editedPlanifOnSelectedDay = useMemo(() => {
+    if (!initialData?.id || selectedDayStartMs == null) return false;
+    const raw = initialData.dateRDV;
+    if (!raw) return false;
+    const d = typeof raw.toDate === 'function' ? raw.toDate() : new Date(raw);
+    if (Number.isNaN(d.getTime())) return false;
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() === selectedDayStartMs;
+  }, [initialData, selectedDayStartMs]);
 
   useEffect(() => {
     if (initialData && open) {
@@ -418,10 +442,13 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                     const rawCount = agentWorkload[agent.label] || 0;
                     // When editing, the current planification is itself counted
                     // in `rawCount` for its currently-assigned agent. Exclude
-                    // it so agents don't appear artificially over-loaded.
+                    // it so agents don't appear artificially over-loaded. In
+                    // day-scoped mode it only counts when its saved RDV is on
+                    // the selected day.
                     const isEditingThisAgent =
                       !!initialData?.id &&
-                      (initialData.agentTerrain || '').trim() === agent.label;
+                      (initialData.agentTerrain || '').trim() === agent.label &&
+                      (selectedDayStartMs == null || editedPlanifOnSelectedDay);
                     const count = isEditingThisAgent && rawCount > 0 ? rawCount - 1 : rawCount;
                     const zone = agent.zone?.trim();
                     return (
@@ -434,7 +461,12 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                               ? zone
                               : <span className="italic">Zone non définie</span>}
                             {' · '}
-                            <span className="tabular-nums">{count} planifs actives</span>
+                            <span className="tabular-nums">
+                              {count}{' '}
+                              {selectedDayStartMs != null
+                                ? `planif${count > 1 ? 's' : ''} le ${format(formData.dateRDV!, 'dd/MM')}`
+                                : 'planifs actives'}
+                            </span>
                           </span>
                         </span>
                       </SelectItem>

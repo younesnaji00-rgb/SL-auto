@@ -32,7 +32,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { generateRapportReformePDF } from '@/lib/generate-rapport-reforme-pdf';
-import { generateRapportPreliminairePDF } from '@/lib/generate-rapport-preliminaire-pdf';
+import { generateRapportFinalPDF } from '@/lib/generate-rapport-final-pdf';
+import { generateRapportEstimatifPDF } from '@/lib/generate-rapport-estimatif-pdf';
 import type { RapportType } from '@/lib/generate-rapport-shared';
 import { RapportTypeDialog } from '@/components/modals/rapport-type-dialog';
 import {
@@ -239,10 +240,12 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           await updateDoc(doc(db, 'dossiers', dossierId), { pointsChoc, pointsChocDessous });
         } catch { /* silent */ }
       }
-      if (type === 'preliminaire') {
-        await generateRapportPreliminairePDF(db, dossierId);
-      } else {
+      if (type === 'estimatif') {
+        await generateRapportEstimatifPDF(db, dossierId);
+      } else if (type === 'reforme') {
         await generateRapportReformePDF(db, dossierId);
+      } else {
+        await generateRapportFinalPDF(db, dossierId);
       }
       if (db && !rapportAlreadyDepose) {
         const userEmail = auth?.currentUser?.email || 'Admin';

@@ -2,17 +2,21 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut as firebaseSignOut, type User } from 'firebase/auth';
-import { doc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
-import { ROLES_THAT_CAN_DELETE, type Role } from '@/lib/dossiers-data';
+import { ROLES_THAT_CAN_DELETE, SINGLE_SESSION_ROLES, type Role } from '@/lib/dossiers-data';
 
-// Single-session enforcement: each login writes a fresh `currentSessionId` to
-// the user doc, to sessionStorage (tab-local — the source of truth), AND to
-// localStorage (so a refresh in the same tab can resume). The snapshot listener
-// below evicts this client (firebaseSignOut + redirect) whenever the remote id
-// no longer matches the tab-local one. Using sessionStorage as primary lets us
-// distinguish tabs/windows within the SAME browser profile — critical for the
-// "single device" guarantee. Keep keys in sync with src/app/login/page.tsx.
+// Single-session enforcement (BLOCK model): the FIRST device to log in claims
+// `currentSessionId` on the user doc and holds it. A SECOND device is blocked
+// at the login page (see src/app/login/page.tsx) and never overwrites that id,
+// so a normal second login no longer evicts the first device. The claim is
+// released only by an explicit sign-out on the holding device (which clears
+// `currentSessionId`) or by an admin force-disconnect (which clears it
+// remotely). The snapshot listener below signs THIS device out whenever the
+// remote id stops matching our local id — i.e. when we have been
+// force-disconnected or displaced. The session id is written to sessionStorage
+// (tab-local, primary) AND localStorage (survives same-tab refresh). Keep keys
+// in sync with src/app/login/page.tsx.
 const SESSION_STORAGE_KEY = 'sl-auto.session-id';
 const LOGIN_IN_FLIGHT_KEY = 'sl-auto.login-in-flight';
 // One-shot flag picked up by the login page to render a toast explaining
@@ -28,11 +32,11 @@ const EVICTED_FLAG_KEY = 'sl-auto.evicted-by-other-device';
 // cross-device single-session marker. Keep in sync with src/app/login/page.tsx.
 const EXPECTED_UID_KEY = 'sl-auto.expected-uid';
 
-// Single-session is intentionally scoped: only the operational roles below
-// are restricted to one device at a time. Admin / Directeur* / Responsable
+// Single-session is intentionally scoped: only the operational roles in
+// SINGLE_SESSION_ROLES (Chiffreur / Agent de Terrain / Gestionnaire) are
+// restricted to one device at a time. Admin / Directeur* / Responsable
 // d'équipe stay free to be logged in on several devices in parallel (often
-// needed for oversight). Keep these strings in sync with src/lib/dossiers-data.ts.
-const SINGLE_SESSION_ROLES = new Set(['Chiffreur', 'Agent de Terrain', 'Gestionnaire']);
+// needed for oversight). The list lives in src/lib/dossiers-data.ts.
 
 /**
  * Read the effective session id for this tab. Prefer sessionStorage (tab-local).
@@ -196,9 +200,15 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
             .catch((e) => console.warn('lastLogin stamp failed:', e));
         }
 
-        // Live subscription so single-session evictions land in real time:
-        // another device's login writes a new currentSessionId; this listener
-        // sees the mismatch and signs the older device out.
+        // Live subscription enforcing the BLOCK model in real time. The first
+        // device claims `currentSessionId`; a second basic-role device is
+        // blocked at /login and never overwrites it. This listener signs THIS
+        // device out only when it discovers it no longer holds the session
+        // (admin force-disconnect cleared the id, or it was displaced) — never
+        // because a second device logged in. `isFirstSnapshot` gates the
+        // one-time legacy claim so a remote id that goes null on a LATER
+        // snapshot is treated as a force-disconnect, not a reason to re-claim.
+        let isFirstSnapshot = true;
         unsubDoc = onSnapshot(
           doc(db, 'users', user.uid),
           async (snap) => {
@@ -210,6 +220,10 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
             const data = snap.data();
             const remoteSessionId: string | undefined = data.currentSessionId;
             const localSessionId = readLocalSessionId();
+            // Consume the first-snapshot flag exactly once (set false now so the
+            // early returns below can't skip it).
+            const firstSnapshot = isFirstSnapshot;
+            isFirstSnapshot = false;
             const loginInFlight =
               typeof window !== 'undefined' &&
               window.sessionStorage.getItem(LOGIN_IN_FLIGHT_KEY) === '1';
@@ -227,45 +241,65 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
 
             const roleEnforced = SINGLE_SESSION_ROLES.has(data.role);
 
-            if (!loginInFlight && roleEnforced) {
-              // Eviction: another device/tab claimed this session. We evict
-              // whenever remote is set and either we have no local id (legacy
-              // pre-feature persisted-auth) or our local id no longer matches.
-              if (
-                remoteSessionId &&
-                (!localSessionId || remoteSessionId !== localSessionId)
-              ) {
-                console.warn('[single-session] EVICTING', { remote: remoteSessionId, local: localSessionId });
-                if (typeof window !== 'undefined') {
-                  window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
-                  window.sessionStorage.removeItem(EXPECTED_UID_KEY);
-                  window.localStorage.removeItem(SESSION_STORAGE_KEY);
-                  window.localStorage.setItem(EVICTED_FLAG_KEY, '1');
-                }
-                try {
-                  await firebaseSignOut(auth);
-                } catch (err) {
-                  console.error('Single-session eviction signOut failed:', err);
-                }
-                setProfile(null);
-                setLoading(false);
-                if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-                  window.location.assign('/login');
-                }
-                return;
+            // Sign THIS device out and bounce to /login. Used when we discover
+            // we no longer hold the session (force-disconnect / displacement).
+            const evictThisDevice = async () => {
+              if (typeof window !== 'undefined') {
+                window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+                window.sessionStorage.removeItem(EXPECTED_UID_KEY);
+                window.localStorage.removeItem(SESSION_STORAGE_KEY);
+                window.localStorage.setItem(EVICTED_FLAG_KEY, '1');
               }
-              // Claim: pre-feature persisted-auth devices reach here with a
-              // null remote id. Stamp a fresh id on both sides so the next
-              // login on another device produces a detectable mismatch and
-              // evicts us. Fire-and-forget; the resulting snapshot will match.
-              if (!remoteSessionId) {
-                const claimId = localSessionId || newSessionId();
-                if (!localSessionId && typeof window !== 'undefined') {
+              try {
+                await firebaseSignOut(auth);
+              } catch (err) {
+                console.error('Single-session eviction signOut failed:', err);
+              }
+              setProfile(null);
+              setLoading(false);
+              if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+                window.location.assign('/login');
+              }
+            };
+
+            if (!loginInFlight && roleEnforced) {
+              if (remoteSessionId) {
+                // Someone holds the session. If it's not us (force-disconnect
+                // re-claimed elsewhere, or a displaced legacy session) → sign
+                // out. A normal second-device login NEVER reaches here because
+                // that device is blocked at /login and never writes the id.
+                if (!localSessionId || remoteSessionId !== localSessionId) {
+                  console.warn('[single-session] EVICTING (displaced)', { remote: remoteSessionId, local: localSessionId });
+                  await evictThisDevice();
+                  return;
+                }
+                // remote === local → we still hold it. Nothing to do.
+              } else if (localSessionId) {
+                // We thought we held the session but the remote id was cleared
+                // → admin force-disconnect (or explicit sign-out elsewhere).
+                console.warn('[single-session] EVICTING (session cleared remotely)', { local: localSessionId });
+                await evictThisDevice();
+                return;
+              } else if (firstSnapshot) {
+                // Legacy persisted-auth with no session id anywhere, observed on
+                // the FIRST snapshot. Claim one so a future force-disconnect is
+                // detectable. Only ever runs once per listener — a remote id
+                // that goes null on a later snapshot is a force-disconnect
+                // (handled below), NOT a reason to silently re-claim.
+                const claimId = newSessionId();
+                if (typeof window !== 'undefined') {
                   window.sessionStorage.setItem(SESSION_STORAGE_KEY, claimId);
                   window.localStorage.setItem(SESSION_STORAGE_KEY, claimId);
                 }
                 updateDoc(doc(db, 'users', user.uid), { currentSessionId: claimId })
                   .catch((e) => console.warn('Session claim failed:', e));
+              } else {
+                // remote AND local both null on a LATER snapshot → the id was
+                // cleared remotely (admin force-disconnect) after we lost our
+                // local marker. Do NOT re-claim — sign out so the rescue sticks.
+                console.warn('[single-session] EVICTING (session cleared remotely, no local marker)');
+                await evictThisDevice();
+                return;
               }
             }
             setProfile({
@@ -305,15 +339,33 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
   }, [auth, db]);
 
   const handleSignOut = async () => {
-    if (auth) {
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.removeItem(EXPECTED_UID_KEY);
-        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
-        window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    if (!auth) return;
+    // Strict single-session: release our claim so another device can log in.
+    // Guarded transaction — only clear `currentSessionId` when it's still ours,
+    // so we never clobber a session that has already moved to another device.
+    // Runs while we are still authenticated (rules require owner auth to write).
+    const uid = auth.currentUser?.uid;
+    const localId = readLocalSessionId();
+    if (uid && db && localId) {
+      try {
+        await runTransaction(db, async (tx) => {
+          const ref = doc(db, 'users', uid);
+          const snap = await tx.get(ref);
+          if (snap.exists() && (snap.data() as any).currentSessionId === localId) {
+            tx.update(ref, { currentSessionId: null });
+          }
+        });
+      } catch (e) {
+        console.warn('Session release on sign-out failed (non-fatal):', e);
       }
-      await firebaseSignOut(auth);
-      setProfile(null);
     }
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(EXPECTED_UID_KEY);
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+    await firebaseSignOut(auth);
+    setProfile(null);
   };
 
   const isAdmin = profile?.role === 'Admin';

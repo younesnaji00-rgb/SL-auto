@@ -178,6 +178,28 @@ export const ROLES_THAT_CAN_DELETE: ReadonlySet<string> = new Set<string>([
   'Directeur technique',
 ]);
 
+/**
+ * Roles restricted to a single active device at a time. When one of these
+ * users is already logged in on a device, a login attempt from a SECOND device
+ * is BLOCKED — they must explicitly sign out of the first device (or an admin
+ * must force-disconnect it) before the second device can connect. Every other
+ * role may be logged in on multiple devices simultaneously.
+ *
+ * Single source of truth — keep the enforcement in `src/app/login/page.tsx`,
+ * `src/hooks/use-current-user.tsx`, and the admin force-disconnect UI in
+ * `src/app/(app)/utilisateurs/[uid]/page.tsx` importing from here.
+ */
+export const SINGLE_SESSION_ROLES: ReadonlySet<string> = new Set<string>([
+  'Gestionnaire',
+  'Chiffreur',
+  'Agent de Terrain',
+]);
+
+/** True iff the given role is restricted to one active device at a time. */
+export function isSingleSessionRole(role: string | undefined | null): boolean {
+  return !!role && SINGLE_SESSION_ROLES.has(role);
+}
+
 export type User = {
     id: string;
     nom: string;

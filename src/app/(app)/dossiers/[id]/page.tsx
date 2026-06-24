@@ -26,6 +26,7 @@ import Step2Information from '@/components/dossier-timeline/step-2-information';
 import Step3Planification from '@/components/dossier-timeline/step-3-planification';
 import Step4Pieces from '@/components/dossier-timeline/step-4-pieces';
 import Step6Rapport from '@/components/dossier-timeline/step-6-rapport';
+import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-grid';
 import ObservationsTab from '@/components/observations-tab';
 import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
 
@@ -195,7 +196,7 @@ export default function DossierDetailPage({
             ),
             6: (
               <>
-                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab />
+                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots />
                 <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="1er accord" />
                 </div>
@@ -233,10 +234,7 @@ export default function DossierDetailPage({
             ),
             7: <Step6Rapport dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
             8: (
-              <div className="rounded-lg border border-dashed border-border/40 bg-muted/20 p-8 text-center">
-                <p className="text-sm font-semibold">Note d'honoraire</p>
-                <p className="mt-1 text-xs text-muted-foreground">Cette section sera disponible ultérieurement.</p>
-              </div>
+              <TypedDocumentsGrid dossierId={id} showOnlyNoteHonoraire />
             ),
           }}
           activeStep={activeStep}
