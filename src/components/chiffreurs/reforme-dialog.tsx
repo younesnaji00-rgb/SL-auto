@@ -9,7 +9,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirestore, useStorage } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -20,7 +19,7 @@ import {
   computeTotalIndemnisation,
   emptyReforme,
 } from '@/lib/reforme-schema';
-import { generateRapportReformePDF } from '@/lib/generate-rapport-reforme-pdf';
+import { generateReformeSummaryPDF } from '@/lib/generate-reforme-summary-pdf';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 
@@ -151,7 +150,7 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
       // load-bearing write. We log + toast a soft warning instead.
       if (storage) {
         try {
-          const blob = await generateRapportReformePDF(db, dossierId, typeReforme, { returnBlob: true });
+          const blob = await generateReformeSummaryPDF(db, dossierId, finalData, { returnBlob: true });
           if (blob && blob instanceof Blob) {
             const docLabel = typeReforme === 'Économique' ? 'Réforme économique' : 'Réforme technique';
             const ts = Date.now();
@@ -206,7 +205,7 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent hideCloseButton className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Réforme</DialogTitle>
           <DialogDescription>
@@ -237,7 +236,7 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
                 </Select>
               </div>
 
-              <NumberField id="valeurVenale" label="Valeur vénale" value={state.valeurVenale} onChange={(v) => set('valeurVenale', v)} parse={num} />
+              <NumberField id="valeurVenale" label="Valeur vénale (avec TVA)" value={state.valeurVenale} onChange={(v) => set('valeurVenale', v)} parse={num} />
               <NumberField id="valeurEpave" label="Valeur épave" value={state.valeurEpave} onChange={(v) => set('valeurEpave', v)} parse={num} />
               <NumberField id="valeurAchat" label="Valeur D'achat" value={state.valeurAchat} onChange={(v) => set('valeurAchat', v)} parse={num} />
               <NumberField id="valeurCommerciale" label="Valeur commerciale" value={state.valeurCommerciale} onChange={(v) => set('valeurCommerciale', v)} parse={num} />
@@ -255,14 +254,7 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
 
             {/* Right column */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between border rounded-md px-3 py-2 bg-muted/30">
-                <Label htmlFor="avecTva" className="cursor-pointer">Avec TVA</Label>
-                <Switch id="avecTva" checked={state.avecTva} onCheckedChange={(v) => set('avecTva', v)} />
-              </div>
-
-              <NumberField id="valeurVenaleRight" label="Valeur Vénale" value={state.valeurVenale} onChange={(v) => set('valeurVenale', v)} parse={num} />
               <NumberField id="montantAccord" label="Montant Accord" value={state.montantAccord} onChange={(v) => set('montantAccord', v)} parse={num} />
-              <NumberField id="vetuste" label="Vétusté" value={state.vetuste} onChange={(v) => set('vetuste', v)} parse={num} />
               <NumberField id="franchise" label="Franchise" value={state.franchise} onChange={(v) => set('franchise', v)} parse={num} />
               <NumberField id="montantDeplacement" label="Montant Déplacement" value={state.montantDeplacement} onChange={(v) => set('montantDeplacement', v)} parse={num} />
               <NumberField id="montantHonoraires" label="Montant Honoraires" value={state.montantHonoraires} onChange={(v) => set('montantHonoraires', v)} parse={num} />

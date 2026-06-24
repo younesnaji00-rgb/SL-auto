@@ -45,6 +45,10 @@ const BASE_DOC_SLOTS = [
   'Attestation d\'assurance',
   'Kilométrage',
   'Numéro de chassis',
+  // Final-step invoice slot — the gestionnaire's fee note ("note d'honoraire").
+  // Surfaced only in the Note d'honoraire timeline step (id 8) via
+  // `showOnlyNoteHonoraire`; never appears in the other document sections.
+  'Note d\'honoraire',
   // Optional catch-all for unrelated documents. Does NOT count toward the
   // assigner-au-chiffrage required-slot gate (see step-4-pieces.tsx).
   'Autre',
@@ -127,9 +131,23 @@ interface TypedDocumentsGridProps {
    * assignations-atg where reform reports don't belong on the AT view.
    */
   hideReformeSlots?: boolean;
+  /**
+   * When true, render the Réforme (technique + économique) slot section even in
+   * `showOnlyAccordSlots` mode, where it would otherwise be suppressed. Used by
+   * the Accord step (id 6) so the deposited réforme report surfaces as its own
+   * row alongside the accord documents.
+   */
+  showReformeSlots?: boolean;
+  /**
+   * When true, render ONLY the "Note d'honoraire" invoice slot and nothing
+   * else (no families, rapport, réforme or other-doc sections). Used by the
+   * final Note d'honoraire timeline step (id 8) where the gestionnaire drops
+   * the fee note / invoice.
+   */
+  showOnlyNoteHonoraire?: boolean;
 }
 
-export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, hideReformeSlots }: TypedDocumentsGridProps) {
+export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, hideReformeSlots, showReformeSlots, showOnlyNoteHonoraire }: TypedDocumentsGridProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -184,14 +202,17 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   const FAMILY_BASE_SLOTS = new Set(['Devis Garage', 'Facture Garage']);
   const isRapportLabel = (s: string) => s === 'Rapport final' || s.startsWith('Rapport ');
   const REFORME_LABELS = new Set(['Réforme technique', 'Réforme économique']);
-  const { rapportSlots, reformeSlots, otherSlots } = useMemo(() => {
+  const NOTE_HONORAIRE_LABEL = "Note d'honoraire";
+  const { rapportSlots, reformeSlots, noteHonoraireSlots, otherSlots } = useMemo(() => {
     const rapport: string[] = [];
     const reforme: string[] = [];
+    const noteHonoraire: string[] = [];
     const other: string[] = [];
     for (const slot of BASE_DOC_SLOTS) {
       if (FAMILY_BASE_SLOTS.has(slot) || slot === 'Devis accordé' || slot === 'Facture accordé') continue;
       if (isRapportLabel(slot)) rapport.push(slot);
       else if (REFORME_LABELS.has(slot)) reforme.push(slot);
+      else if (slot === NOTE_HONORAIRE_LABEL) noteHonoraire.push(slot);
       else other.push(slot);
     }
     // Union in any extra rapport-prefixed types observed on live docs (future
@@ -208,16 +229,16 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
         }
       }
     }
-    return { rapportSlots: rapport, reformeSlots: reforme, otherSlots: other };
+    return { rapportSlots: rapport, reformeSlots: reforme, noteHonoraireSlots: noteHonoraire, otherSlots: other };
   }, [allDocs]);
 
   // The full set of slot labels we need to populate `docsByType` for — all
   // family slots + non-family slots.
   const allSlotLabels = useMemo(() => {
-    const set = new Set<string>([...rapportSlots, ...reformeSlots, ...otherSlots]);
+    const set = new Set<string>([...rapportSlots, ...reformeSlots, ...noteHonoraireSlots, ...otherSlots]);
     for (const fam of families) for (const s of fam.slots) set.add(s);
     return set;
-  }, [families, rapportSlots, reformeSlots, otherSlots]);
+  }, [families, rapportSlots, reformeSlots, noteHonoraireSlots, otherSlots]);
 
   // Quick lookup: is this slot label a gestionnaire-managed extra? Detected
   // by its parent ordinal (extras are always ordinal ≥ 2 on Devis/Facture
@@ -253,9 +274,10 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     for (const fam of families) for (const s of fam.slots) slots.push(s);
     for (const s of rapportSlots) slots.push(s);
     for (const s of reformeSlots) slots.push(s);
+    for (const s of noteHonoraireSlots) slots.push(s);
     for (const s of otherSlots) slots.push(s);
     return slots;
-  }, [rapportSlots, reformeSlots, otherSlots, families]);
+  }, [rapportSlots, reformeSlots, noteHonoraireSlots, otherSlots, families]);
 
   const docsByType = useMemo(() => {
     const map: Record<string, TypedDoc[]> = {};
@@ -682,6 +704,15 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
         <div className="flex items-center justify-center h-32">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
+      ) : showOnlyNoteHonoraire ? (
+        <div className="space-y-6">
+          {/* Note d'honoraire — final-step invoice slot, listed like accord docs. */}
+          <section className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {noteHonoraireSlots.map((slot) => renderSlotCard(slot))}
+            </div>
+          </section>
+        </div>
       ) : (
         <div className="space-y-6">
           {/* Base Devis Garage / Facture Garage — display-only, no pimples.
@@ -779,8 +810,11 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
             </section>
           )}
 
-          {/* Réforme — technique + économique together */}
-          {!hideReformeSlots && (showAllNonAccordSlots || !hideAccordSlots) && cardinalFilter !== '2-plus' && !showOnlyAccordSlots && reformeSlots.length > 0 && (
+          {/* Réforme — technique + économique together. Normally hidden in
+              showOnlyAccordSlots mode; `showReformeSlots` opts it back in so the
+              Accord step can surface the deposited réforme as its own row. */}
+          {!hideReformeSlots && cardinalFilter !== '2-plus' && reformeSlots.length > 0 &&
+            (showReformeSlots || ((showAllNonAccordSlots || !hideAccordSlots) && !showOnlyAccordSlots)) && (
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-muted-foreground">Réforme</h4>
               <div className="grid grid-cols-2 gap-3">

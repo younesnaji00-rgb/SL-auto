@@ -78,8 +78,8 @@ import {
   collectionGroup,
   serverTimestamp
 } from 'firebase/firestore';
-import { roles, type Role } from '@/lib/dossiers-data';
-import { Eye, EyeOff, Check, ChevronsUpDown, Plus, Search } from 'lucide-react';
+import { roles, isSingleSessionRole, type Role } from '@/lib/dossiers-data';
+import { Eye, EyeOff, Check, ChevronsUpDown, Plus, Search, LogOut, Smartphone } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useOptions } from '@/hooks/use-options';
 import { cn } from '@/lib/utils';
@@ -92,7 +92,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { canDelete } = useCurrentUser();
+  const { canDelete, isAdmin } = useCurrentUser();
 
   const userRef = useMemo(() => doc(db, 'users', uid), [db, uid]);
   const { data: userData, loading: userLoading } = useDoc(userRef);
@@ -125,6 +125,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
 
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   // Per-user permission overrides. `deniedNavItems` = hrefs hidden despite the
@@ -386,7 +387,18 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         }
       }
 
-      await updateDoc(userRef, { ...formData, zone: nextZone, nomLowercase: (formData.nom || '').trim().toLowerCase() });
+      // Single-session hygiene: clear `currentSessionId` when the role changes
+      // (the previous session's scoping no longer applies) OR when the new role
+      // is not single-session. This prevents a dangling claim from becoming an
+      // un-releasable login lock if the user is (later) a basic role.
+      const clearSession =
+        previousRole !== formData.role || !isSingleSessionRole(formData.role);
+      await updateDoc(userRef, {
+        ...formData,
+        zone: nextZone,
+        nomLowercase: (formData.nom || '').trim().toLowerCase(),
+        ...(clearSession ? { currentSessionId: null } : {}),
+      });
 
       // Mirror zone into options_agents when user is currently an Agent de Terrain.
       if (formData.role === 'Agent de Terrain' && formData.nom) {
@@ -447,6 +459,25 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
+    }
+  };
+
+  // Admin force-disconnect: clear the user's single-session claim so they can
+  // log in on a new device. The holding device's CurrentUserProvider sees the
+  // cleared id and signs itself out. Admin-only (Firestore rules enforce it).
+  const handleForceDisconnect = async () => {
+    setIsDisconnecting(true);
+    try {
+      await updateDoc(userRef, { currentSessionId: null });
+      toast({
+        title: 'Session déconnectée',
+        description: "L'utilisateur a été déconnecté de son appareil et peut se reconnecter ailleurs.",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de déconnecter la session.' });
+    } finally {
+      setIsDisconnecting(false);
     }
   };
 
@@ -968,6 +999,46 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
               )}
             </CardContent>
           </Card>
+
+          {isAdmin && isSingleSessionRole(userData.role) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Smartphone className="h-4 w-4 text-muted-foreground" />
+                  Session / Appareil
+                </CardTitle>
+                <CardDescription>
+                  Ce rôle est limité à un seul appareil à la fois. Déconnectez sa session
+                  pour lui permettre de se connecter depuis un autre appareil.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <span
+                    className={cn(
+                      'w-2 h-2 rounded-full',
+                      userData.currentSessionId ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/40',
+                    )}
+                  />
+                  <span className={cn(!userData.currentSessionId && 'text-muted-foreground')}>
+                    {userData.currentSessionId
+                      ? 'Connecté sur un appareil'
+                      : 'Aucune session active'}
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={!userData.currentSessionId || isDisconnecting}
+                  loading={isDisconnecting}
+                  onClick={handleForceDisconnect}
+                >
+                  {!isDisconnecting && <LogOut className="mr-2 h-4 w-4" />}
+                  Déconnecter la session
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           {canDelete && (
             <Card>

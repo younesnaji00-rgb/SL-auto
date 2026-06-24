@@ -1,51 +1,45 @@
-# Suivi d'équipe — round 3 (cumulative counts, non-réalisé, redirect-to-step)
+# Loop task ledger — auto-2026-05-22 (second batch)
 
 ## Work request
 
-> if i click on rapport valide card for example and show me the list of the dossiers in that step, instead of taking me to the top of the page of the dossier in gestion des dossiers, it should actually take me into the step where the validation rapport is, basically i should be redirected to the step of what each card represents
+> in the first screenshot when i click comparer, i should be able to zoom in and drag with my mouse, just like how i can do so when i click an image on whatsapp
 >
-> when a mission is created, its a +1 in the mission creees card, when the agent de terrain adds photos avant, then its a +1 towards the photos avant card, but for example when the same dossier that had photos avant went to chiffrage and the chiffreur gave either his accord or proposition, the +1 that was in the expertise avant card shouldnt dissapear, the end goal is that when a dossier is fully treated, for example theres 100 missions creees, then all the other cards should reach 100 too, meaning that work is finished
+> on the second screenshot, when i click autre in observation in creation de planification, a new field shall pop to enable me to write a custom observation
 >
-> add back the "non realisé" part in each card, so for example if currently theres 15 missions creees, and 10 of them didnt have the accord it should show 10 non realise in the accord card, and when the user clicks on that part it should show them all the dossiers that dont have the accord
+> but in the other observation fields, when i click on autre, the custom obvservation greys out, while it should let me write in the custom observation field since its specified for just that, and when i write in the custom observation field it should be included in the "autre"
 >
-> lets say there are 15 missions creees, 15 of them had 1er accord, but all of them had to have the + button clicked and making room for a 2eme accord, meaning the chiffreur still has to work and give the accord, but the card would give the impression that the work is complete, so whenever the + button is clicked in piece jointes from gestion des dossiers, the count should reset in accord, not to 0, but depending on how many dossiers had a + sign clicked on, so for example theres only one dossier cree, it went to chiffrage and the chiffreur gave 1er accord, the accord card had a +1, when the gestionnarie clicked on the + sign from gestion des dossiers, meaning the chiffreur has more work to do, the +1 from the accrd card should reset and wait for the chiffreur to give 2eme accord, same thing for proposition by the way, its just that they all fall under one card in suivi d'equipe
+> whenever i click on modifier in gestion des dossiers inside a dossier and actually start writing, it only allows me to write one letter, and then i have to click on the field to start writing one letter at a time
 >
-> in suivi d'equipe, in par utilisateur, show me all the users and not only the ones that had done something, even the others did nothing, show zero on each cell, add a filter to search per username
+> when a dossier is still stuck at creation step and no planification avant was programmed by the gestionnaire for the agent de terrain, the agent de terrain may still work on it simply by looking up the immatriculation in his search bar and add the pictures without the need of a gestionnaire and make the status update automatically
 
 ## Global context
 
-- Stack: Next.js 14 (app router) + Firestore + React + TypeScript + Tailwind. Firebase Hosting.
-- Branch: `auto-2026-04-24` (continuing the existing loop branch; prior loop completed at `be0643a`).
-- Verify command: `npx tsc --noEmit` from inside `SL-auto-main/`.
-- Files in scope:
-  - `src/app/(app)/monitoring/funnel.ts` (drop date filter for non-creation steps; accord uses current statut)
-  - `src/app/(app)/monitoring/page.tsx` (KpiCard split into réalisé+non-réalisé buttons; show all users; username search)
-  - `src/app/(app)/monitoring/dossier-drawer.tsx` (router push with `#step-N` hash)
-  - The dossier timeline at `src/components/dossier-timeline/timeline.tsx` already has `<section id="step-N">` anchors and `scroll-mt-24` so a hash navigation will scroll naturally.
-- Out of scope: changing the dossier timeline itself; introducing a new "Facture" step in the timeline (no separate facture step today — funnel "Facture validée" card maps to step 7 Rapport).
+- **Stack**: Next.js 15.5.9 + React 19.2 + Firebase 11.9 + TypeScript 5 + Tailwind.
+- **Branch**: continuing on `auto-2026-05-22` (the previous loop's 12 commits are already on it, unpushed).
+- **Verify command**: `npm run typecheck`. Outer repo has no `node_modules`; verify via the nested `SL-auto-main/node_modules/.bin/tsc` (same convention every prior task used).
+- **Target tree**: outer git repo at `c:\Users\pc\Downloads\SL-auto-main\`.
+- **Pre-existing uncommitted modifications** (carried through every prior task untouched): `src/app/(app)/dossiers/client-page.tsx`, `src/app/login/page.tsx`, `src/components/date-range-filter.tsx`, `src/firebase/index.ts`, `src/hooks/use-current-user.tsx`, `src/hooks/use-dossiers.ts`.
 
 ## Locked assumptions
 
-- **Funnel step → dossier timeline step** for the redirect:
-  - `creation` → step 3 (Information)
-  - `photosAvant`, `photosEnCours`, `photosApres` → step 5 (Pièces jointes)
-  - `accord` → step 6 (Chiffrage)
-  - `facture` → step 7 (Rapport — facturation lives here, no separate step)
-  - `rapportValide`, `rapport` → step 7 (Rapport)
-- **Cumulative semantics**: for steps `creation`, `photosAvant`, `photosEnCours`, `photosApres`, `facture`, `rapportValide`, `rapport` — once a dossier crosses the step, it stays counted regardless of date range. Drop `inRange` filter for these.
-- **Accord uses CURRENT state**: `accord` card counts dossiers whose current `statut` is in `ACCORD_BUCKET_MEMBERS`. The + button (in pièces jointes / typed-documents-grid) sets `statut = 'Chiffrage en cours'`, which naturally drops the count until the chiffreur saves the next cardinal accord. No separate "+ counter" needed; the existing logic already handles this once the date filter is removed.
-- **Date range filter on the page**: keep applied to the per-utilisateur "did what when" computation only. Steps and per-compagnie become cumulative.
-- **Non réalisé per card** = `totalDossiersInScope - réalisé`. Click on the non-réalisé portion → drawer with the dossiers that have NOT done that step. (Step 1 Création has no non-réalisé since it's the total.)
-- **Show all users**: the per-utilisateur table includes every user from the `users` collection (not just authors that touched dossiers). Users with no activity show all zeros.
-- **Username search**: add a text input above the per-user table that filters rows by display name (case-insensitive contains).
+- **F1 (zoom/pan)**: reuse `TransformWrapper` + `TransformComponent` from `react-zoom-pan-pinch` (already a dep, see `src/components/document-preview-lightbox.tsx:78-92`). `minScale=1, maxScale=5`, double-click zoom-in, wheel-step 0.2. Images wrap; PDFs continue as `<iframe>`.
+- **F2 (Autre custom field)**: when "Autre" preset is picked, expose an enabled textarea adjacent; typed text is saved into the same observation `text` field. For pickers that already disable the textarea on preset selection (`observations-tab.tsx:526,593`), invert the disable rule so it's enabled ONLY when the chosen preset is `'Autre'`.
+- **F3 (one-letter typing)**: root cause is `FieldRow` declared inside `InformationTab` function body (`information-tab.tsx:225`) — React recreates the component identity on every keystroke and unmounts the input. Fix: hoist `FieldRow` to module scope, pass `editing` as a prop.
+- **F4 (AT direct photo upload)**: add a separate AT-only CTA next to "Nouvelle planification" on `/assignations-atg`; on dossier pick (search dialog mirrors `at-create-planification-flow.tsx`), navigate to `/assignations-atg/{dossierId}?mission=Avant` — the per-dossier ATG view already auto-bumps statut via `maybeAdvanceToExpertise` on first-photo upload.
 
 ## Completed
 
-- [x] **cumulative-step-counts** — Drop date-range filter from step counts + drill-down drawer — `16342f6`
-- [x] **drawer-redirect-to-step** — Drawer row click lands on the matching step inside the dossier — `4a1d619`
-- [x] **non-realise-per-card** — Add non-réalisé sub-section to each KPI card with click-through — `a33f755`
-- [x] **all-users-and-username-search** — Show every user in Par utilisateur + username search — `ddfa952`
+- [x] Information tab — fix one-letter typing bug in Modifier mode (hoist FieldRow) — `60bbadc` (reviewed ✓)
+- [x] Comparer panel — zoom + pan for image scans (TransformWrapper) — `1b71e6f` (reviewed ✓)
+- [x] "Autre" preset — enable a custom-text textarea adjacent to the picker — `931f395` (reviewed ✓)
+- [x] AT direct photo upload — search Création-stuck dossiers + navigate to ATG view — `8db5c9f` (reviewed ✓)
+- [x] Admin sees the two AT CTAs on /assignations-atg — `1ab41c3` (reviewed ✓)
+- [x] ModalPlanification — hide agent picker and auto-acquire browser location when current user is AT — `0548423` (reviewed ✓)
 
 ## Current
 
+_(all 3 follow-up items complete: admin access, hide AT picker, auto-location.)_
+
 ## Follow-ups
+
+_(empty)_

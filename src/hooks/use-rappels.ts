@@ -17,6 +17,9 @@ export interface Rappel {
   dossierData?: any;
   createdAt?: any;
   read?: boolean;
+  observation?: string;
+  sessionId?: string;
+  resolvedAt?: any;
 }
 
 export function useRappels(): { rappels: Rappel[]; loading: boolean } {

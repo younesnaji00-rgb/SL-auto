@@ -363,7 +363,7 @@ export default function ObservationsTab({
   const customFilled = customText.trim().length > 0;
   // Exclusive OR — both filled means the gestionnaire must clear one before
   // sending. Matches round 7 Q-7 answer C (reject when both filled).
-  const bothFilled = presetFilled && customFilled;
+  const bothFilled = presetFilled && customFilled && selectedPreset !== 'Autre';
 
   // When the chiffreur writes from the chiffrage list view (no contextAccord
   // prop), they pick an accord context from a Select before submission. The
@@ -386,7 +386,8 @@ export default function ObservationsTab({
     bothFilled ||
     isSubmitting ||
     chiffrageAccordMissing ||
-    pendingProofs.length === 0;
+    pendingProofs.length === 0 ||
+    (selectedPreset === 'Autre' && !customFilled);
 
   const handleValidate = async (obsId: string) => {
     if (!db || !canValidate) return;
@@ -595,7 +596,7 @@ export default function ObservationsTab({
             onChange={(e) => setCustomText(e.target.value)}
             placeholder="Ou écrivez une observation personnalisée…"
             rows={2}
-            disabled={presetFilled}
+            disabled={presetFilled && selectedPreset !== 'Autre'}
             className="text-sm"
           />
           {bothFilled && (

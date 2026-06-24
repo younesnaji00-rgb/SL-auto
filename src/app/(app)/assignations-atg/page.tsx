@@ -34,6 +34,8 @@ import { businessHoursBetween, formatBusinessLateness } from '@/lib/business-day
 import { useHolidays } from '@/hooks/use-holidays';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
+import AtCreatePlanificationFlow from './at-create-planification-flow';
+import AtDirectPhotosFlow from './at-direct-photos-flow';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -54,6 +56,8 @@ interface PlanificationItem {
   observation: string;
   createdAt: any;
   modifiedByName?: string;
+  createdByName?: string;
+  createdByRole?: string;
   active?: boolean;
   statut?: string;
   hasPhotosForMission?: boolean;
@@ -391,6 +395,8 @@ export default function AssignationsATGPage() {
           observation: data.observation || '',
           createdAt: data.createdAt,
           modifiedByName: data.modifiedByName || '',
+          createdByName: data.createdByName || '',
+          createdByRole: data.createdByRole || '',
           active: data.active,
           dossierNom: data.dossierNom || '',
           assureNom: data.assureNom || '',
@@ -738,6 +744,7 @@ export default function AssignationsATGPage() {
   };
 
   const isATG = profile?.role === 'Agent de Terrain';
+  const canUseAtFlows = isATG || profile?.role === 'Admin';
   const canSeeNameFilter = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
   const showAgentColumn = !isATG;
   const colCount = showAgentColumn ? 9 : 8;
@@ -1136,6 +1143,8 @@ export default function AssignationsATGPage() {
           </Badge>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {canUseAtFlows && <AtCreatePlanificationFlow />}
+          {canUseAtFlows && <AtDirectPhotosFlow />}
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -1376,6 +1385,7 @@ export default function AssignationsATGPage() {
                   <TableHead className="font-bold text-xs">Adresse</TableHead>
                   <TableHead className="font-bold text-xs">Téléphone</TableHead>
                   <TableHead className="font-bold text-xs">Créé le</TableHead>
+                  <TableHead className="font-bold text-xs">Créé par</TableHead>
                   <TableHead className="font-bold text-xs">Assigné par</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1413,6 +1423,16 @@ export default function AssignationsATGPage() {
                   </div>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{formatDate(p.createdAt)}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {p.createdByName ? (
+                    <>
+                      <span>{p.createdByName}</span>
+                      {p.createdByRole && (
+                        <span className="ml-1 text-[10px] opacity-70">({p.createdByRole})</span>
+                      )}
+                    </>
+                  ) : '—'}
+                </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{p.modifiedByName || '-'}</TableCell>
               </TableRow>
             );

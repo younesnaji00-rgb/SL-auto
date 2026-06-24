@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { addDoc, collection, doc, updateDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'refExpert', label: 'Réf Expert' },
@@ -154,6 +155,15 @@ export default function DossiersClientPage() {
     () => dbObservationOptions.filter(o => o.active !== false),
     [dbObservationOptions]
   );
+  const customObservationTexts = useMemo(() => {
+    const predefined = new Set(filterObservations.map(o => o.label));
+    const seen = new Set<string>();
+    for (const d of allDossiers) {
+      const t = (d as any).lastObservation?.text?.trim();
+      if (t && !predefined.has(t)) seen.add(t);
+    }
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
+  }, [filterObservations, allDossiers]);
 
   // One-shot load of all users → uid map. Used by the "Créé par" column so we
   // can render the user's real name ("Prenom Nom") even when the legacy
@@ -225,13 +235,22 @@ export default function DossiersClientPage() {
   const [gestLoading, setGestLoading] = useState(false);
   const [selectedGestUids, setSelectedGestUids] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
+  const [rappelObservation, setRappelObservation] = useState('');
 
   const dossierList = useMemo(() => {
     let results = [...allDossiers];
     if (filters.nature !== 'Toutes') results = results.filter(d => d.nature === filters.nature);
     if (filters.status !== 'Tous') results = results.filter(d => d.statut === filters.status);
     if (filters.compagnie !== 'Toutes') results = results.filter(d => d.compagnie === filters.compagnie);
-    if (filters.observation !== 'Toutes') results = results.filter(d => d.lastObservation?.text === filters.observation);
+    if (filters.observation === 'Autre') {
+      const predefined = new Set(filterObservations.map(o => o.label));
+      results = results.filter(d => {
+        const t = (d as any).lastObservation?.text?.trim();
+        return t && t !== 'Autre' && !predefined.has(t);
+      });
+    } else if (filters.observation !== 'Toutes') {
+      results = results.filter(d => d.lastObservation?.text === filters.observation);
+    }
     if (filters.creator !== 'Tous') results = results.filter(d => resolveCreatorName(d) === filters.creator);
     if (filters.search) {
       const s = filters.search.toLowerCase();
@@ -275,7 +294,7 @@ export default function DossiersClientPage() {
     const dir = filters.sortByCreation === 'asc' ? 1 : -1;
     results.sort((a, b) => (toMillis((a as any).createdAt) - toMillis((b as any).createdAt)) * dir);
     return results;
-  }, [allDossiers, filters]);
+  }, [allDossiers, filters, filterObservations]);
 
   // Pagination — total pages, and clamp current page when filtered list shrinks
   // (e.g. user searches and the previously-viewed page no longer exists).
@@ -371,6 +390,7 @@ export default function DossiersClientPage() {
             senderNom: senderName,
             dossierId: d.id,
             dossierRef: (d as any).refExpert || '',
+            observation: rappelObservation.trim() || null,
             createdAt: serverTimestamp(),
             read: false,
           }));
@@ -381,6 +401,7 @@ export default function DossiersClientPage() {
       setIsSendToOpen(false);
       setSelectedGestUids(new Set());
       setSelectedRows(new Set());
+      setRappelObservation('');
       setExportMode(false);
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: err.message || "Impossible d'envoyer les rappels." });
@@ -395,23 +416,27 @@ export default function DossiersClientPage() {
     setIsCreateOpen(true);
   };
 
-  const handleDeleteDossier = async (dossierId: string) => {
-    setDeletingId(dossierId);
-    try {
-      const dossier = allDossiers.find(d => d.id === dossierId);
-      const userEmail = auth?.currentUser?.email || 'Admin';
-      const userId = auth?.currentUser?.uid || 'unknown';
-      const dossierRef = (dossier as any)?.refExpert || dossierId;
-      await logWorkflow(db, dossierId, 'Suppression de dossier', userEmail, userId, 'done', { dossierRef, details: `Dossier "${dossierRef}" supprimé définitivement` }, profile?.nom);
-      await deleteDossier(dossierId);
-      toast({ title: 'Dossier supprimé', description: 'Le dossier et ses données ont été purgés.' });
-    } catch (err: any) {
+  const handleDeleteDossier = (dossierId: string) => {
+    // Optimistic UI: close the dialog and clear the spinner immediately. The
+    // forced long-polling transport (mandatory for Firefox, see
+    // src/firebase/index.ts) can take several seconds to acknowledge a single
+    // write, so awaiting here used to freeze the dialog for ~10s. Firestore's
+    // local cache fires the snapshot listener as soon as the local write
+    // commits, so the row disappears from the table near-instantly even
+    // while the network round-trip is still in flight.
+    const dossier = allDossiers.find(d => d.id === dossierId);
+    const userEmail = auth?.currentUser?.email || 'Admin';
+    const userId = auth?.currentUser?.uid || 'unknown';
+    const dossierRef = (dossier as any)?.refExpert || dossierId;
+
+    setDeleteTarget(null);
+    toast({ title: 'Dossier supprimé', description: 'Le dossier et ses données ont été purgés.' });
+
+    void logWorkflow(db, dossierId, 'Suppression de dossier', userEmail, userId, 'done', { dossierRef, details: `Dossier "${dossierRef}" supprimé définitivement` }, profile?.nom);
+    deleteDossier(dossierId).catch((err: any) => {
       console.error('Delete error:', err);
       toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Suppression impossible' });
-    } finally {
-      setDeletingId(null);
-      setDeleteTarget(null);
-    }
+    });
   };
 
   const formatDate = (val: any) => {
@@ -874,19 +899,53 @@ export default function DossiersClientPage() {
                               {filters.observation === 'Toutes' && <Check className="h-4 w-4 text-primary shrink-0" />}
                             </button>
                             {filterObservations.map(o => (
-                              <button
-                                key={o.id}
-                                type="button"
-                                onClick={() => setFilters({ observation: o.label })}
-                                className={cn(
-                                  "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
-                                  filters.observation === o.label && "bg-muted font-medium",
-                                )}
-                              >
-                                <span>{o.label}</span>
-                                {filters.observation === o.label && <Check className="h-4 w-4 text-primary shrink-0" />}
-                              </button>
+                              <React.Fragment key={o.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => setFilters({ observation: o.label })}
+                                  className={cn(
+                                    "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                    filters.observation === o.label && "bg-muted font-medium",
+                                  )}
+                                >
+                                  <span>{o.label}</span>
+                                  {filters.observation === o.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                </button>
+                                {o.label === 'Autre' && customObservationTexts.map(t => (
+                                  <button
+                                    key={`autre-sub-${t}`}
+                                    type="button"
+                                    onClick={() => setFilters({ observation: t })}
+                                    className={cn(
+                                      "w-full text-left flex items-center justify-between gap-2 pl-6 pr-2 py-1.5 text-sm rounded hover:bg-muted",
+                                      filters.observation === t && "bg-muted font-medium",
+                                    )}
+                                  >
+                                    <span className="truncate">{t}</span>
+                                    {filters.observation === t && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                  </button>
+                                ))}
+                              </React.Fragment>
                             ))}
+                            {!filterObservations.some(o => o.label === 'Autre') && customObservationTexts.length > 0 && (
+                              <>
+                                <div className="px-2 pt-2 pb-1 text-xs text-muted-foreground">— Personnalisées —</div>
+                                {customObservationTexts.map(t => (
+                                  <button
+                                    key={`custom-${t}`}
+                                    type="button"
+                                    onClick={() => setFilters({ observation: t })}
+                                    className={cn(
+                                      "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
+                                      filters.observation === t && "bg-muted font-medium",
+                                    )}
+                                  >
+                                    <span className="truncate">{t}</span>
+                                    {filters.observation === t && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                  </button>
+                                ))}
+                              </>
+                            )}
                           </div>
                           <div className="flex justify-end">
                             <OptionsManagerModal collectionName="options_observations" title="Observations" />
@@ -1182,6 +1241,13 @@ export default function DossiersClientPage() {
             <DialogTitle>Envoyer à</DialogTitle>
             <DialogDescription>Sélectionnez un ou plusieurs gestionnaires destinataires.</DialogDescription>
           </DialogHeader>
+          <Textarea
+            value={rappelObservation}
+            onChange={(e) => setRappelObservation(e.target.value)}
+            placeholder="Observation (optionnel)"
+            rows={3}
+            className="resize-none"
+          />
           {gestLoading ? (
             <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
           ) : gestionnaires.length === 0 ? (

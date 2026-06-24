@@ -58,6 +58,18 @@ export async function addObservation(
     if (phaseATG) docPayload.phaseATG = phaseATG;
     if (accordSlot) docPayload.accordSlot = accordSlot;
 
+    // F9.A: auto-tag observations made during an active "Mes rappels" session.
+    // The recipient opens a session by clicking a rappel row (which stamps the
+    // SESSION_KEY localStorage entry) and closes it via "Marquer comme traité"
+    // (which removes the entry). While the entry is present, observations
+    // logged against this dossier carry the session id so a follow-up task
+    // can render them as a Mes rappels column.
+    let rappelSid: string | null = null;
+    if (typeof window !== 'undefined' && dossierId) {
+      try { rappelSid = window.localStorage.getItem(`rappel-active-session-${dossierId}`); } catch {}
+      if (rappelSid) docPayload.rappelSessionId = rappelSid;
+    }
+
     await addDoc(collection(db, 'dossiers', dossierId, 'observations'), docPayload);
 
     const lastObservation: Record<string, any> = {
@@ -70,6 +82,7 @@ export async function addObservation(
     };
     if (phaseATG) lastObservation.phaseATG = phaseATG;
     if (accordSlot) lastObservation.accordSlot = accordSlot;
+    if (rappelSid) lastObservation.rappelSessionId = rappelSid;
 
     await setDoc(
       doc(db, 'dossiers', dossierId),
