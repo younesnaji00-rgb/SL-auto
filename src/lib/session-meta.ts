@@ -81,3 +81,71 @@ export async function collectSessionMeta(): Promise<SessionMeta> {
   const ip = await fetchClientIp();
   return { device, ip };
 }
+
+// ---------------------------------------------------------------------------
+// Single-session liveness (self-healing BLOCK model)
+// ---------------------------------------------------------------------------
+// The original BLOCK model held `currentSessionId` on the user doc forever and
+// only released it on a clean sign-out or an admin force-disconnect. A field
+// agent who closes/kills the app, drops network mid-session, or clears storage
+// never runs a clean release, so the id is STRANDED — and because a fresh
+// login never matches an orphaned id, the user is locked out permanently even
+// though nobody is actually connected. Admin force-disconnect was an unreliable
+// escape hatch: under the force-long-polling connection the clearing write can
+// sit in the local queue and never reach the server the next login reads.
+//
+// Fix: the device that holds the session refreshes `currentSessionSeenAt` on a
+// cadence (SESSION_HEARTBEAT_MS, in src/hooks/use-current-user.tsx) while the
+// app is open. A login may take over any session whose heartbeat is older than
+// STALE_SESSION_MS (holder is gone) or absent entirely (a legacy/orphaned claim
+// with no heartbeat). A genuinely active second device keeps a fresh heartbeat
+// and is still blocked, so the single-session intent is preserved — but a dead
+// session can never lock a user out for more than STALE_SESSION_MS, with or
+// without admin intervention.
+
+/**
+ * A session whose last heartbeat is older than this is treated as abandoned and
+ * may be claimed by a new login. Must comfortably exceed the heartbeat cadence
+ * (SESSION_HEARTBEAT_MS) so a live foreground device — which also beats on
+ * focus/visibility — is never mistaken for dead. 2.5 min ≈ two missed 60 s beats.
+ */
+export const STALE_SESSION_MS = 150_000;
+
+/**
+ * Coerce a Firestore `currentSessionSeenAt` field (Timestamp | Date | {seconds})
+ * into epoch millis, or null when absent/unparseable.
+ */
+export function timestampToMillis(ts: unknown): number | null {
+  if (!ts) return null;
+  const anyTs = ts as { toMillis?: () => number; seconds?: number };
+  if (typeof anyTs.toMillis === 'function') return anyTs.toMillis();
+  if (typeof anyTs.seconds === 'number') return anyTs.seconds * 1000;
+  if (ts instanceof Date) return ts.getTime();
+  return null;
+}
+
+/**
+ * Decide whether a fresh login may CLAIM the single-session slot.
+ *
+ * @param remoteSessionId currentSessionId on the user doc (server truth)
+ * @param lastSeenMs      currentSessionSeenAt as epoch millis, or null if absent
+ * @param priorLocalId    this tab's existing session id (same-device re-login)
+ * @param nowMs           client clock (Date.now())
+ */
+export function isSessionClaimable(
+  remoteSessionId: string | null | undefined,
+  lastSeenMs: number | null,
+  priorLocalId: string | null,
+  nowMs: number,
+): boolean {
+  if (!remoteSessionId) return true; // slot free
+  if (priorLocalId && remoteSessionId === priorLocalId) return true; // same device re-claims
+  if (lastSeenMs == null) return true; // legacy/orphaned claim, no heartbeat → abandoned
+  return nowMs - lastSeenMs > STALE_SESSION_MS; // holder went silent → abandoned
+}
+
+/** True when a held session's heartbeat is stale (holder presumed gone). */
+export function isSessionStale(lastSeenMs: number | null, nowMs: number): boolean {
+  if (lastSeenMs == null) return true;
+  return nowMs - lastSeenMs > STALE_SESSION_MS;
+}

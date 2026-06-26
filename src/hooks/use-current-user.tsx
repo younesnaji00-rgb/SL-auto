@@ -32,6 +32,12 @@ const EVICTED_FLAG_KEY = 'sl-auto.evicted-by-other-device';
 // legitimate tab as well). Distinct from SESSION_STORAGE_KEY, which is the
 // cross-device single-session marker. Keep in sync with src/app/login/page.tsx.
 const EXPECTED_UID_KEY = 'sl-auto.expected-uid';
+// While a basic-role device holds the session it refreshes `currentSessionSeenAt`
+// on this cadence. Login (src/app/login/page.tsx) treats a claim whose timestamp
+// is older than STALE_SESSION_MS — or missing entirely — as dead and
+// reclaimable, so a device that closed WITHOUT signing out (the common case on
+// the Capacitor Android app) can never strand the slot and lock the user out.
+const SESSION_HEARTBEAT_MS = 60_000;
 
 // Single-session is intentionally scoped: only the operational roles in
 // SINGLE_SESSION_ROLES (Chiffreur / Agent de Terrain / Gestionnaire) are
@@ -164,11 +170,57 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
     if (!auth) return;
     let unsubDoc: (() => void) | null = null;
 
+    // Single-session heartbeat: while THIS device holds the session, refresh
+    // `currentSessionSeenAt` on a cadence (and immediately when the app returns
+    // to the foreground — mobile suspends timers in the background) so a login
+    // elsewhere can tell a live holder from an abandoned one. Stranded sessions
+    // (app killed, crashed, storage cleared) stop beating and become claimable
+    // after STALE_SESSION_MS. Best-effort: a failed beat never disrupts the UI.
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+    let heartbeatActivityHandler: (() => void) | null = null;
+
+    const stopHeartbeat = () => {
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+      if (heartbeatActivityHandler && typeof window !== 'undefined') {
+        document.removeEventListener('visibilitychange', heartbeatActivityHandler);
+        window.removeEventListener('focus', heartbeatActivityHandler);
+        heartbeatActivityHandler = null;
+      }
+    };
+
+    const beat = (uid: string) => {
+      // Only refresh while we still believe we hold the session locally; once
+      // evicted (local marker cleared) we must not resurrect a session that has
+      // moved on. Updating only `currentSessionSeenAt` keeps the owner-update
+      // rule happy (it never touches `role`).
+      if (!db || !readLocalSessionId()) return;
+      updateDoc(doc(db, 'users', uid), { currentSessionSeenAt: serverTimestamp() }).catch((e) =>
+        console.debug('[single-session] heartbeat failed (non-fatal):', e),
+      );
+    };
+
+    const startHeartbeat = (uid: string) => {
+      if (heartbeatTimer) return; // already running for this holder
+      beat(uid); // immediate, so a just-confirmed hold is fresh right away
+      heartbeatTimer = setInterval(() => beat(uid), SESSION_HEARTBEAT_MS);
+      heartbeatActivityHandler = () => {
+        if (typeof document === 'undefined' || document.visibilityState === 'visible') beat(uid);
+      };
+      if (typeof window !== 'undefined') {
+        document.addEventListener('visibilitychange', heartbeatActivityHandler);
+        window.addEventListener('focus', heartbeatActivityHandler);
+      }
+    };
+
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       if (unsubDoc) {
         unsubDoc();
         unsubDoc = null;
       }
+      stopHeartbeat();
 
       const expectedUid =
         typeof window !== 'undefined'
@@ -263,6 +315,7 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
             // Sign THIS device out and bounce to /login. Used when we discover
             // we no longer hold the session (force-disconnect / displacement).
             const evictThisDevice = async () => {
+              stopHeartbeat();
               if (typeof window !== 'undefined') {
                 window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
                 window.sessionStorage.removeItem(EXPECTED_UID_KEY);
@@ -297,7 +350,9 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
                   await evictThisDevice();
                   return;
                 }
-                // remote === local → we still hold it. Nothing to do.
+                // remote === local → we still hold it. Keep the heartbeat alive
+                // so a login elsewhere sees this device as live, not abandoned.
+                startHeartbeat(user.uid);
               } else if (localSessionId) {
                 // We thought we held the session but the remote id was cleared
                 // → admin force-disconnect (or explicit sign-out elsewhere).
@@ -332,7 +387,9 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
                       // rather than resurrect a session that has moved on. The
                       // next snapshot evicts this device (remote !== local).
                       if (remote && remote !== claimId) return;
-                      tx.update(ref, { currentSessionId: claimId });
+                      // First heartbeat alongside the claim — the next server
+                      // snapshot confirms remote === local and starts the timer.
+                      tx.update(ref, { currentSessionId: claimId, currentSessionSeenAt: serverTimestamp() });
                       // Device + IP in the admin-only subcollection (off the
                       // world-readable user doc).
                       tx.set(doc(db, 'users', user.uid, 'session_meta', 'current'), {
@@ -382,6 +439,7 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
           },
         );
       } else {
+        stopHeartbeat();
         stampedUidRef.current = null;
         setProfile(null);
         setLoading(false);
@@ -391,6 +449,7 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
     return () => {
       unsubAuth();
       if (unsubDoc) unsubDoc();
+      stopHeartbeat();
     };
   }, [auth, db]);
 
@@ -408,7 +467,7 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
           const ref = doc(db, 'users', uid);
           const snap = await tx.get(ref);
           if (snap.exists() && (snap.data() as any).currentSessionId === localId) {
-            tx.update(ref, { currentSessionId: null });
+            tx.update(ref, { currentSessionId: null, currentSessionSeenAt: null });
             tx.delete(doc(db, 'users', uid, 'session_meta', 'current'));
           }
         });
