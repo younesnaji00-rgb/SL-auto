@@ -1,21 +1,30 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Bell, Inbox, Loader2, ChevronDown, ChevronRight, Send } from 'lucide-react';
+import { Bell, Inbox, Loader2, ChevronDown, ChevronRight, Send, ScrollText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useRappels, useRappelsSent, type Rappel } from '@/hooks/use-rappels';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { hasPermission, SUB_PERMISSIONS } from '@/lib/permissions';
+import { hasPermission, SUB_PERMISSIONS, rappelsEnvoyesRoleDefault } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
+import SessionReplayDialog from './session-replay-dialog';
+
+const SESSION_KEY = (dossierId: string) => `rappel-active-session-${dossierId}`;
+
+function newSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
 
 function formatDate(ts: any): string {
   if (!ts) return '-';
@@ -38,7 +47,9 @@ interface SentGroup {
   recipientNames: string[];   // distinct, in insertion order
   dossierCount: number;       // distinct dossier ids
   latest: any;
-  readCount: number;
+  newCount: number;           // !read
+  readCount: number;          // read && !resolvedAt
+  treatedCount: number;       // !!resolvedAt
 }
 
 function groupSent(rappels: Rappel[]): SentGroup[] {
@@ -57,14 +68,18 @@ function groupSent(rappels: Rappel[]): SentGroup[] {
         recipientNames: [],
         dossierCount: 0,
         latest: r.createdAt,
+        newCount: 0,
         readCount: 0,
+        treatedCount: 0,
       };
       map.set(key, g);
       seenRecipients.set(key, new Set());
       seenDossiers.set(key, new Set());
     }
     g.rappels.push(r);
-    if (r.read) g.readCount++;
+    if (r.resolvedAt) g.treatedCount++;
+    else if (r.read) g.readCount++;
+    else g.newCount++;
     if (tsMillis(r.createdAt) > tsMillis(g.latest)) g.latest = r.createdAt;
     const recipientSet = seenRecipients.get(key)!;
     if (r.recipientUid && !recipientSet.has(r.recipientUid)) {
@@ -94,14 +109,24 @@ export default function MesRappelsPage() {
   const router = useRouter();
   const db = useFirestore();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // The rappel whose treatment session is being inspected in the read-only
+  // replay lightbox (null = closed). Works for both the recipient (own work)
+  // and the sender/manager (inspecting an assignee's work).
+  const [replayRappel, setReplayRappel] = useState<Rappel | null>(null);
 
   const sentGroups = useMemo(() => groupSent(sentRappels), [sentRappels]);
 
-  // Per-user sub-permission gates for the two tabs. Default is "visible"
-  // (true) — the admin can revoke either tab independently via the
-  // permissions UI on /utilisateurs/[uid].
+  // Per-user sub-permission gates for the two tabs. "Reçus" defaults to visible
+  // for everyone; "Envoyés" defaults to hidden for Gestionnaires (they only
+  // receive rappels, never send them) and visible for senders. The admin can
+  // override either tab independently via the permissions UI on
+  // /utilisateurs/[uid].
   const recusVisible = hasPermission(profile, SUB_PERMISSIONS.RAPPELS_RECUS, true);
-  const envoyesVisible = hasPermission(profile, SUB_PERMISSIONS.RAPPELS_ENVOYES, true);
+  const envoyesVisible = hasPermission(
+    profile,
+    SUB_PERMISSIONS.RAPPELS_ENVOYES,
+    rappelsEnvoyesRoleDefault(profile?.role),
+  );
   // Pick a default tab the user can actually see; fall back to "recus" if
   // both are denied (rare; the empty state is still informative).
   const defaultTab = recusVisible ? 'recus' : envoyesVisible ? 'envoyes' : 'recus';
@@ -149,6 +174,7 @@ export default function MesRappelsPage() {
                     <TableHead className="font-bold text-xs">Envoyé par</TableHead>
                     <TableHead className="font-bold text-xs">Date</TableHead>
                     <TableHead className="font-bold text-xs text-right">Statut</TableHead>
+                    <TableHead className="font-bold text-xs text-right">Travail effectué</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -156,12 +182,37 @@ export default function MesRappelsPage() {
                     <TableRow
                       key={r.id}
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => {
-                        // Keep existing click-to-mark-read for UX redundancy; the dossier
-                        // page mount effect is the canonical trigger but this ensures
-                        // immediate feedback if Firestore propagation lags.
-                        if (!r.read && db) {
-                          updateDoc(doc(db, 'rappels', r.id), { read: true }).catch(() => {});
+                      onClick={async () => {
+                        // F9.A: open a rappel "session" — generate sessionId on first
+                        // click (and persist it on the doc), or re-stamp the existing
+                        // one. The localStorage key is what addObservation reads to
+                        // auto-tag observations during this session, and what the
+                        // dossier page reads to show the sticky "Sauvegarder" button.
+                        const existingSid = r.sessionId;
+                        let sid = existingSid || null;
+                        if (db && !existingSid) {
+                          // AWAIT the first write so the dossier page's session
+                          // lookup (queried on mount) reliably finds the sessionId.
+                          sid = newSessionId();
+                          try {
+                            await updateDoc(doc(db, 'rappels', r.id), {
+                              read: true,
+                              sessionId: sid,
+                              sessionStartedAt: serverTimestamp(),
+                              seenAt: serverTimestamp(),
+                            });
+                          } catch {}
+                          // The session-start snapshot (baseline for the manager's
+                          // diff) is captured on the dossier page once it loads —
+                          // see ensureSnapshotBefore there.
+                        } else if (db && !r.read) {
+                          updateDoc(doc(db, 'rappels', r.id), {
+                            read: true,
+                            ...(r.seenAt ? {} : { seenAt: serverTimestamp() }),
+                          }).catch(() => {});
+                        }
+                        if (typeof window !== 'undefined' && sid) {
+                          try { window.localStorage.setItem(SESSION_KEY(r.dossierId), sid); } catch {}
                         }
                         router.push(`/dossiers/${r.dossierId}`);
                       }}
@@ -172,10 +223,30 @@ export default function MesRappelsPage() {
                       <TableCell className="text-sm">{r.senderNom || '—'}</TableCell>
                       <TableCell className="text-sm tabular-nums">{formatDate(r.createdAt)}</TableCell>
                       <TableCell className="text-right">
-                        {r.read ? (
+                        {r.resolvedAt ? (
+                          <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-300">Traité</Badge>
+                        ) : r.read ? (
                           <Badge variant="outline" className="text-muted-foreground border-muted-foreground/30">Lu</Badge>
                         ) : (
                           <Badge className="bg-primary/10 text-primary border border-primary/30">Nouveau</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {r.sessionId ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-xs gap-1.5"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReplayRappel(r);
+                            }}
+                          >
+                            <ScrollText className="h-3.5 w-3.5" />
+                            Voir le détail
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -208,7 +279,7 @@ export default function MesRappelsPage() {
                     <TableHead className="font-bold text-xs">Destinataire(s)</TableHead>
                     <TableHead className="font-bold text-xs">Dossiers</TableHead>
                     <TableHead className="font-bold text-xs">Date</TableHead>
-                    <TableHead className="font-bold text-xs text-right">Lus</TableHead>
+                    <TableHead className="font-bold text-xs text-right">Statut</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -237,9 +308,36 @@ export default function MesRappelsPage() {
                           <TableCell className="text-sm tabular-nums">{g.dossierCount}</TableCell>
                           <TableCell className="text-sm tabular-nums">{formatDate(g.latest)}</TableCell>
                           <TableCell className="text-right text-sm tabular-nums">
-                            <span className={cn(g.readCount === total ? 'text-emerald-600' : 'text-muted-foreground')}>
-                              {g.readCount} / {total} lus
-                            </span>
+                            <div className="flex flex-wrap justify-end gap-x-3 gap-y-0.5 text-xs">
+                              <span
+                                className={cn(
+                                  'font-medium',
+                                  g.newCount > 0 ? 'text-primary' : 'text-muted-foreground/50',
+                                )}
+                              >
+                                Nouveau {g.newCount}
+                              </span>
+                              <span
+                                className={cn(
+                                  'font-medium',
+                                  g.readCount > 0 ? 'text-muted-foreground' : 'text-muted-foreground/50',
+                                )}
+                              >
+                                Lu {g.readCount}
+                              </span>
+                              <span
+                                className={cn(
+                                  'font-medium',
+                                  g.treatedCount === total
+                                    ? 'text-emerald-600'
+                                    : g.treatedCount > 0
+                                      ? 'text-emerald-600/80'
+                                      : 'text-muted-foreground/50',
+                                )}
+                              >
+                                Traité {g.treatedCount}
+                              </span>
+                            </div>
                           </TableCell>
                         </TableRow>
                         {isOpen && (
@@ -252,7 +350,9 @@ export default function MesRappelsPage() {
                                       <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Dossier</TableHead>
                                       <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Destinataire</TableHead>
                                       <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Date</TableHead>
+                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Suivi</TableHead>
                                       <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground text-right py-1">Statut</TableHead>
+                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground text-right py-1">Travail effectué</TableHead>
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
@@ -268,11 +368,37 @@ export default function MesRappelsPage() {
                                         </TableCell>
                                         <TableCell className="text-sm py-2">{r.recipientNom || '—'}</TableCell>
                                         <TableCell className="text-sm tabular-nums py-2">{formatDate(r.createdAt)}</TableCell>
+                                        <TableCell className="text-xs text-muted-foreground tabular-nums py-2">
+                                          {r.resolvedAt ? (
+                                            <span className="text-emerald-700 dark:text-emerald-400">Sauvegardé le {formatDate(r.resolvedAt)}</span>
+                                          ) : (r.seenAt || r.read) ? (
+                                            <span>Consulté{r.seenAt ? ` le ${formatDate(r.seenAt)}` : ''}</span>
+                                          ) : (
+                                            <span className="opacity-60">Non consulté</span>
+                                          )}
+                                        </TableCell>
                                         <TableCell className="text-right py-2">
-                                          {r.read ? (
+                                          {r.resolvedAt ? (
+                                            <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-300">Traité</Badge>
+                                          ) : r.read ? (
                                             <Badge variant="outline" className="text-muted-foreground border-muted-foreground/30">Lu</Badge>
                                           ) : (
                                             <Badge className="bg-primary/10 text-primary border border-primary/30">Nouveau</Badge>
+                                          )}
+                                        </TableCell>
+                                        <TableCell className="text-right py-2">
+                                          {r.sessionId ? (
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-8 text-xs gap-1.5"
+                                              onClick={() => setReplayRappel(r)}
+                                            >
+                                              <ScrollText className="h-3.5 w-3.5" />
+                                              Voir le détail
+                                            </Button>
+                                          ) : (
+                                            <span className="text-muted-foreground text-xs">—</span>
                                           )}
                                         </TableCell>
                                       </TableRow>
@@ -293,6 +419,12 @@ export default function MesRappelsPage() {
         </TabsContent>
         )}
       </Tabs>
+
+      <SessionReplayDialog
+        rappel={replayRappel}
+        open={!!replayRappel}
+        onOpenChange={(open) => { if (!open) setReplayRappel(null); }}
+      />
     </div>
   );
 }

@@ -29,6 +29,17 @@ export const COMPANY_ADDRESS =
 export const COMPANY_TEL = '05 22 64 60 01';
 export const COMPANY_EMAIL = 'slautoexpertise@gmail.com';
 
+// Template-accurate footer/identity strings (match the supplied PDF templates
+// to the letter — the Bd Al Massire address is the one printed on the reports).
+export const COMPANY_ADDRESS_FOOTER =
+  '182,Bd Al Massire,Résidence Farah IV,5éme Etage,Bureau N°10,Maarif Casablanca-Maroc';
+export const COMPANY_CONTACT_FOOTER =
+  'Tel : 05 22 47 46 76  / 05 22 47 20 10  Fax : 05 22 25 76 97  Email : slautoexpertise@gmail.com';
+/** SL Auto's signing expert, as printed in the report headers/footers. */
+export const EXPERT_NAME = 'AISSAOUI SLAOUI OUADIE';
+export const CABINET_NAME = 'SL AUTO EXPERTISE';
+export const COMPANY_CITY = 'CASABLANCA';
+
 export const NAVY = [17, 24, 57] as const;
 export const BORDER = [180, 180, 180] as const;
 export const HEADER_BG = [230, 235, 245] as const;
@@ -40,6 +51,58 @@ export const fC = (val: number) =>
     maximumFractionDigits: 2,
   });
 
+/** Minimal jsPDF surface used by the shared drawing helpers. */
+type PdfLike = {
+  addImage: (
+    data: string,
+    fmt: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+  ) => void;
+  setDrawColor: (r: number, g: number, b: number) => void;
+  setLineWidth: (w: number) => void;
+  rect: (x: number, y: number, w: number, h: number, style?: string) => void;
+  line: (x1: number, y1: number, x2: number, y2: number) => void;
+};
+
+/** addImage that never throws (corrupt/missing payloads are skipped). */
+export function addImageSafe(
+  pdf: PdfLike,
+  img: LoadedImage | null | undefined,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): void {
+  if (!img) return;
+  try {
+    pdf.addImage(img.data, img.format, x, y, w, h);
+  } catch {
+    /* skip unrenderable image */
+  }
+}
+
+/** Small ☐ / ☑ checkbox used by the réforme block. */
+export function drawCheckbox(
+  pdf: PdfLike,
+  x: number,
+  y: number,
+  checked: boolean,
+  size = 3.2,
+): void {
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(0.3);
+  pdf.rect(x, y, size, size);
+  if (checked) {
+    pdf.setLineWidth(0.6);
+    pdf.line(x + 0.5, y + size / 2, x + size / 2, y + size - 0.5);
+    pdf.line(x + size / 2, y + size - 0.5, x + size - 0.3, y + 0.4);
+    pdf.setLineWidth(0.3);
+  }
+}
+
 export const tsToStr = (ts: unknown): string => {
   if (!ts) return '';
   try {
@@ -50,6 +113,9 @@ export const tsToStr = (ts: unknown): string => {
     return String(ts);
   }
 };
+
+/** A base64 image payload ready for jsPDF.addImage. */
+export type LoadedImage = { data: string; format: string };
 
 export async function fetchImageAsBase64(
   url: string
@@ -113,7 +179,7 @@ export async function fetchCompagnieLogo(
 }
 
 /** Type of rapport the user selects in the picker dialog. */
-export type RapportType = 'preliminaire' | 'reforme';
+export type RapportType = 'final' | 'reforme' | 'estimatif' | 'preliminaire';
 
 /**
  * Accord-marker fields that may ride along on a piece doc (mirrored from the

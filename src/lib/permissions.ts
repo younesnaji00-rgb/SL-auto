@@ -43,3 +43,16 @@ export const SUB_PERMISSIONS = {
   RAPPELS_ENVOYES: '/mes-rappels#envoyes',
   DOSSIERS_VALIDATION: '/dossiers#validation',
 } as const;
+
+/**
+ * Role baseline for the "Envoyés" tab on /mes-rappels. Gestionnaires only ever
+ * receive rappels — they never send them — so the sent tab is hidden for them
+ * by default. Senders (Admin, Responsable d'équipe) keep it. An explicit
+ * per-user grant via /utilisateurs/[uid] still re-enables it if ever needed.
+ *
+ * Single source of truth shared by the /mes-rappels tab gate and the admin
+ * permissions tree so the two can't drift.
+ */
+export function rappelsEnvoyesRoleDefault(role: string | undefined | null): boolean {
+  return role !== 'Gestionnaire';
+}

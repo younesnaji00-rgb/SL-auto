@@ -7,7 +7,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -17,6 +16,7 @@ import {
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useFirestore, useAuth, useCollection, useStorage } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 import { useOptions } from '@/hooks/use-options';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -136,6 +136,7 @@ export default function ObservationsTab({
   const auth = useAuth();
   const storage = useStorage();
   const { canWrite, profile } = useCurrentUser();
+  const hl = useReplayHighlight();
   const { toast } = useToast();
   // Q-5 → B: gestionnaire + admin + directeur family can validate.
   const role = profile?.role;
@@ -154,10 +155,6 @@ export default function ObservationsTab({
   const [validatingId, setValidatingId] = useState<string | null>(null);
   const [uploadingProofFor, setUploadingProofFor] = useState<string | null>(null);
   const proofInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  // In-page lightbox preview for an attached proof — replaces opening the
-  // file in a new tab. Holds the preview target so the dialog can render
-  // either an <img> (image proofs) or an <iframe> (PDF proofs).
-  const [lightboxProof, setLightboxProof] = useState<{ url: string; name: string } | null>(null);
   const canAdd = canWrite(section);
 
   const [selectedPreset, setSelectedPreset] = useState('');
@@ -363,7 +360,7 @@ export default function ObservationsTab({
   const customFilled = customText.trim().length > 0;
   // Exclusive OR — both filled means the gestionnaire must clear one before
   // sending. Matches round 7 Q-7 answer C (reject when both filled).
-  const bothFilled = presetFilled && customFilled;
+  const bothFilled = presetFilled && customFilled && selectedPreset !== 'Autre';
 
   // When the chiffreur writes from the chiffrage list view (no contextAccord
   // prop), they pick an accord context from a Select before submission. The
@@ -386,7 +383,8 @@ export default function ObservationsTab({
     bothFilled ||
     isSubmitting ||
     chiffrageAccordMissing ||
-    pendingProofs.length === 0;
+    pendingProofs.length === 0 ||
+    (selectedPreset === 'Autre' && !customFilled);
 
   const handleValidate = async (obsId: string) => {
     if (!db || !canValidate) return;
@@ -595,7 +593,7 @@ export default function ObservationsTab({
             onChange={(e) => setCustomText(e.target.value)}
             placeholder="Ou écrivez une observation personnalisée…"
             rows={2}
-            disabled={presetFilled}
+            disabled={presetFilled && selectedPreset !== 'Autre'}
             className="text-sm"
           />
           {bothFilled && (
@@ -716,8 +714,9 @@ export default function ObservationsTab({
               });
             const firstViewers = viewerEntries.slice(0, 3);
             const extraViewers = Math.max(0, viewerEntries.length - 3);
+            const replayStatus = hl.statusForEntry('observations', obs.id);
             return (
-              <div key={obs.id} className="flex gap-3 p-3 rounded-lg border bg-card">
+              <div key={obs.id} className={cn('flex gap-3 p-3 rounded-lg border bg-card', highlightClass(replayStatus))}>
                 <Avatar className="h-8 w-8 shrink-0 mt-0.5">
                   <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
                     {(obs.author || '?')[0].toUpperCase()}
@@ -732,6 +731,7 @@ export default function ObservationsTab({
                     <Badge className={cn('text-[10px] px-1.5 py-0 border-0', TYPE_BADGE_STYLES[obs.type] || TYPE_BADGE_STYLES['Général'])}>
                       {obs.type}
                     </Badge>
+                    {replayStatus && <ChangeBadge status={replayStatus} />}
                     {(obs as any).accordSlot && (
                       <Badge
                         variant="outline"
@@ -777,22 +777,22 @@ export default function ObservationsTab({
                     )
                   )}
 
-                  {/* Proofs list — clicking a proof opens it in an in-page
-                      lightbox (Dialog) instead of navigating to a new tab. */}
+                  {/* Proofs list */}
                   {proofs.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {proofs.map((p, i) => (
-                        <button
+                        <a
                           key={i}
-                          type="button"
-                          onClick={() => setLightboxProof({ url: p.url, name: p.name })}
+                          href={p.url}
+                          target="_blank"
+                          rel="noreferrer"
                           className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-background hover:bg-accent transition-colors"
                           title={`${p.name} — ${p.uploadedByNom || p.uploadedBy}${p.uploadedAt?.toDate ? ` (${format(p.uploadedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: fr })})` : ''}`}
                         >
                           <Paperclip className="h-3 w-3" />
                           <span className="truncate max-w-[140px]">{p.name}</span>
                           <ExternalLink className="h-3 w-3 opacity-50" />
-                        </button>
+                        </a>
                       ))}
                     </div>
                   )}
@@ -850,36 +850,6 @@ export default function ObservationsTab({
           })}
         </div>
       )}
-
-      {/* In-page lightbox for an attached preuve. shadcn Dialog handles
-          ESC, overlay click, and the X close button by default. PDFs are
-          rendered via <iframe>; images via <img>. */}
-      <Dialog
-        open={!!lightboxProof}
-        onOpenChange={(o) => { if (!o) setLightboxProof(null); }}
-      >
-        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-background">
-          <DialogTitle className="sr-only">
-            {lightboxProof?.name || 'Aperçu de la preuve'}
-          </DialogTitle>
-          {lightboxProof && (
-            /\.pdf($|\?)/i.test(lightboxProof.url) || /\.pdf$/i.test(lightboxProof.name) ? (
-              <iframe
-                src={lightboxProof.url}
-                title={lightboxProof.name}
-                className="w-full h-[80vh] border-0"
-              />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={lightboxProof.url}
-                alt={lightboxProof.name}
-                className="w-full h-auto max-h-[85vh] object-contain"
-              />
-            )
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 

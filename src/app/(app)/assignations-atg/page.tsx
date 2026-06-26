@@ -34,6 +34,8 @@ import { businessHoursBetween, formatBusinessLateness } from '@/lib/business-day
 import { useHolidays } from '@/hooks/use-holidays';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
+import AtCreatePlanificationFlow from './at-create-planification-flow';
+import AtDirectPhotosFlow from './at-direct-photos-flow';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -54,6 +56,8 @@ interface PlanificationItem {
   observation: string;
   createdAt: any;
   modifiedByName?: string;
+  createdByName?: string;
+  createdByRole?: string;
   active?: boolean;
   statut?: string;
   hasPhotosForMission?: boolean;
@@ -230,40 +234,30 @@ function getDeadlineInfo(
   createdAt: any,
   holidays?: ReadonlySet<string>,
 ): { percent: number; remaining: string; expired: boolean; pending: boolean; elapsedHours: number } {
-  // Two anchors:
-  //   • `rdvMoment` — the actual RDV instant (date+time). Drives the
-  //     "En attente"/"En retard" transition: as soon as now > rdvMoment the
-  //     badge must surface lateness, even if the 24-business-hour SLA window
-  //     is still open. Previously this used 8am of the RDV day, which left
-  //     newly-created planifications whose RDV time had already passed stuck
-  //     on "Xh restants" until 24h after 8am.
-  //   • `slaStart` — 8am of the RDV day, preserved as the anchor for the
-  //     business-hours elapsed count so `formatBusinessLateness(elapsed-24)`
-  //     keeps producing the same dd/hh value for already-overdue planifs.
-  const refDate = dateRDV || createdAt;
+  // Start the 24-business-hour countdown from when the planification was created.
+  // Fall back to dateRDV only for legacy planifications missing createdAt.
+  const refDate = createdAt || dateRDV;
   if (!refDate) return { percent: 0, remaining: '-', expired: false, pending: false, elapsedHours: 0 };
 
-  const rdvMoment = refDate.toDate ? refDate.toDate() : new Date(refDate);
-  const slaStart = new Date(rdvMoment);
-  if (dateRDV) {
-    slaStart.setHours(8, 0, 0, 0);
-  }
+  const rdvDate = refDate.toDate ? refDate.toDate() : new Date(refDate);
+  const startTime = new Date(rdvDate);
 
   const now = new Date();
-  if (now < rdvMoment) return { percent: 0, remaining: 'En attente', expired: false, pending: true, elapsedHours: 0 };
+  if (now < startTime) return { percent: 0, remaining: 'En attente', expired: false, pending: true, elapsedHours: 0 };
 
   // Business-hours model: weekends + Moroccan holidays don't tick.
-  const elapsedHours = businessHoursBetween(slaStart, now, holidays);
+  const elapsedHours = businessHoursBetween(startTime, now, holidays);
   const elapsed = Math.max(0, Math.min(elapsedHours / DEADLINE_HOURS, 1));
   const percent = Math.round(elapsed * 100);
 
-  // 24h SLA exceeded — show formatted dd/hh lateness via formatBusinessLateness.
   if (elapsed >= 1) return { percent: 100, remaining: 'En retard', expired: true, pending: false, elapsedHours };
 
-  // RDV moment has passed but the 24h SLA window is still open: surface
-  // lateness immediately. The badge falls back to a bare "En retard" because
-  // formatBusinessLateness only emits dd/hh once elapsed >= 24 business hours.
-  return { percent, remaining: 'En retard', expired: true, pending: false, elapsedHours };
+  const remainHours = DEADLINE_HOURS - elapsedHours;
+  const remainH = Math.floor(remainHours);
+  const remainM = Math.floor((remainHours - remainH) * 60);
+  const remaining = remainH > 0 ? `${remainH}h ${remainM}m` : `${remainM}m`;
+
+  return { percent, remaining, expired: false, pending: false, elapsedHours };
 }
 
 function DeadlineBar({
@@ -391,6 +385,8 @@ export default function AssignationsATGPage() {
           observation: data.observation || '',
           createdAt: data.createdAt,
           modifiedByName: data.modifiedByName || '',
+          createdByName: data.createdByName || '',
+          createdByRole: data.createdByRole || '',
           active: data.active,
           dossierNom: data.dossierNom || '',
           assureNom: data.assureNom || '',
@@ -738,6 +734,7 @@ export default function AssignationsATGPage() {
   };
 
   const isATG = profile?.role === 'Agent de Terrain';
+  const canUseAtFlows = isATG || profile?.role === 'Admin';
   const canSeeNameFilter = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
   const showAgentColumn = !isATG;
   const colCount = showAgentColumn ? 9 : 8;
@@ -1136,6 +1133,8 @@ export default function AssignationsATGPage() {
           </Badge>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {canUseAtFlows && <AtCreatePlanificationFlow />}
+          {canUseAtFlows && <AtDirectPhotosFlow />}
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -1376,6 +1375,7 @@ export default function AssignationsATGPage() {
                   <TableHead className="font-bold text-xs">Adresse</TableHead>
                   <TableHead className="font-bold text-xs">Téléphone</TableHead>
                   <TableHead className="font-bold text-xs">Créé le</TableHead>
+                  <TableHead className="font-bold text-xs">Créé par</TableHead>
                   <TableHead className="font-bold text-xs">Assigné par</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1413,6 +1413,16 @@ export default function AssignationsATGPage() {
                   </div>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{formatDate(p.createdAt)}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {p.createdByName ? (
+                    <>
+                      <span>{p.createdByName}</span>
+                      {p.createdByRole && (
+                        <span className="ml-1 text-[10px] opacity-70">({p.createdByRole})</span>
+                      )}
+                    </>
+                  ) : '—'}
+                </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{p.modifiedByName || '-'}</TableCell>
               </TableRow>
             );

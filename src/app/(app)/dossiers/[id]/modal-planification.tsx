@@ -12,8 +12,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -76,22 +76,39 @@ type ModalPlanificationProps = {
   dossierId: string;
   dossierData?: { refExpert?: string; assure?: any; compagnie?: string; expertRank?: string; dateMissionAgentTerrain?: any };
   defaultTypeMission?: 'Avant' | 'En cours' | 'Après';
+  defaultAgentTerrain?: string;
 };
 
-export default function ModalPlanification({ open, onOpenChange, initialData, dossierId, dossierData, defaultTypeMission }: ModalPlanificationProps) {
+export default function ModalPlanification({ open, onOpenChange, initialData, dossierId, dossierData, defaultTypeMission, defaultAgentTerrain }: ModalPlanificationProps) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
   const { profile } = useCurrentUser();
+  const isCurrentUserAT = profile?.role === 'Agent de Terrain';
   const [loading, setLoading] = useState(false);
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
+  const [selfLocation, setSelfLocation] = useState<{ lat: number; lng: number; updatedAtMs: number } | null>(null);
+
+  useEffect(() => {
+    if (!open || !isCurrentUserAT) return;
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    let cancelled = false;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (cancelled) return;
+        setSelfLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, updatedAtMs: Date.now() });
+      },
+      () => { /* permission denied — silently leave null */ },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
+    );
+    return () => { cancelled = true; };
+  }, [open, isCurrentUserAT]);
 
   const { options: dbRDVTypes } = useOptions('options_types_rdv');
   const rdvTypes = useMemo(() => dbRDVTypes.filter(o => o.active !== false), [dbRDVTypes]);
 
   const { options: dbAgents } = useOptions('options_agents');
   const agents = useMemo<Option[]>(() => dbAgents.filter(o => o.active !== false), [dbAgents]);
-  const agentWorkload = useAgentTerrainWorkload();
 
   const { options: dbObservationPresets, loading: observationPresetsLoading } = useOptions('options_observations');
   const activeObservationPresets = useMemo(
@@ -122,9 +139,33 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     timeRDV: '09:00',
     adresse: '',
     observation: '',
-    observationPersonnalisee: '',
-    agentLocationManuel: '',
+    observationCustomText: '',
   });
+
+  // Agent workload scoped to the RDV date currently selected, so each agent's
+  // count reflects only that day's active planifications. Falls back to the
+  // all-days total when no date has been picked yet.
+  const agentWorkload = useAgentTerrainWorkload(formData.dateRDV);
+
+  // Start-of-day millis of the selected RDV date (null when none selected).
+  const selectedDayStartMs = useMemo(() => {
+    if (!formData.dateRDV) return null;
+    const s = new Date(formData.dateRDV);
+    s.setHours(0, 0, 0, 0);
+    return s.getTime();
+  }, [formData.dateRDV]);
+
+  // In day-scoped mode the planification being edited is only part of the
+  // count when its saved RDV falls on the selected day.
+  const editedPlanifOnSelectedDay = useMemo(() => {
+    if (!initialData?.id || selectedDayStartMs == null) return false;
+    const raw = initialData.dateRDV;
+    if (!raw) return false;
+    const d = typeof raw.toDate === 'function' ? raw.toDate() : new Date(raw);
+    if (Number.isNaN(d.getTime())) return false;
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() === selectedDayStartMs;
+  }, [initialData, selectedDayStartMs]);
 
   useEffect(() => {
     if (initialData && open) {
@@ -142,30 +183,27 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         timeRDV,
         adresse: initialData.adresse || '',
         observation: initialData.observation || '',
-        observationPersonnalisee: initialData.observationPersonnalisee || '',
-        agentLocationManuel: initialData.agentLocationManuel || '',
+        observationCustomText: initialData?.observationCustomText || '',
       });
     } else if (open) {
-      setFormData({ agentTerrain: '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationPersonnalisee: '', agentLocationManuel: '' });
+      setFormData({ agentTerrain: defaultAgentTerrain ?? '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationCustomText: initialData?.observationCustomText || '' });
     }
-  }, [initialData, open, defaultTypeMission]);
+  }, [initialData, open, defaultTypeMission, defaultAgentTerrain]);
 
   const agentLive = useAgentLiveLocation(formData.agentTerrain);
+  const effectiveLocation = isCurrentUserAT ? selfLocation : agentLive.location;
+  const effectiveIsFresh = isCurrentUserAT ? !!selfLocation : agentLive.isFresh;
 
-  // True when an agent is selected but their fresh GPS position is not
-  // available (denied / no last-known location / no UID match). Drives both
-  // the existing "Position non disponible" alert and the manual fallback
-  // <Input> row that lets the gestionnaire type a location by hand.
-  const isAgentLocationUnavailable =
-    !!formData.agentTerrain && !agentLive.isFresh && !!agentLive.agentUid;
-
-  // Resolve the agent's live coords to a human-readable address via the
-  // server-side Nominatim proxy. Reset on every coord change so the previous
-  // address doesn't flash while the new lookup is in flight.
+  // Resolve the displayed coords (the agent's live position, or — when the
+  // current user is the AT — their own browser position) to a human-readable
+  // address via the server-side Nominatim proxy. `apiFetch` attaches the
+  // Firebase ID token the route's `requireAuth` requires; a plain `fetch`
+  // would 401 and silently fall back to raw coordinates. Reset on every coord
+  // change so the previous address doesn't flash while the new lookup runs.
   useEffect(() => {
     setAgentAddress(null);
-    if (!agentLive.isFresh || !agentLive.location) return;
-    const { lat, lng } = agentLive.location;
+    if (!effectiveIsFresh || !effectiveLocation) return;
+    const { lat, lng } = effectiveLocation;
     let cancelled = false;
     apiFetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -179,7 +217,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     return () => {
       cancelled = true;
     };
-  }, [agentLive.isFresh, agentLive.location?.lat, agentLive.location?.lng]);
+  }, [effectiveIsFresh, effectiveLocation?.lat, effectiveLocation?.lng]);
 
   const {
     conflicts: feasibilityConflicts,
@@ -191,7 +229,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     timeRDV: formData.timeRDV,
     adresse: formData.adresse,
     excludeId: initialData?.id ?? null,
-    agentLiveLocation: agentLive.location,
+    agentLiveLocation: effectiveLocation,
   });
 
   const handleSave = async () => {
@@ -199,6 +237,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     setLoading(true);
     const userEmail = auth?.currentUser?.email || 'Admin';
     const userId = auth?.currentUser?.uid || 'Admin';
+    const resolvedObservation =
+      formData.observation === 'Autre' && formData.observationCustomText.trim()
+        ? formData.observationCustomText.trim()
+        : formData.observation;
 
     try {
       let finalRDV = null;
@@ -229,14 +271,6 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         }
       }
 
-      // Only persist the manual agent location fallback when GPS is unavailable
-      // for the selected agent — i.e. when the manual <Input> row was actually
-      // rendered. When GPS subsequently succeeds the row is hidden and the
-      // stored value is cleared so downstream consumers aren't misled.
-      const agentLocationManuelToPersist = isAgentLocationUnavailable
-        ? formData.agentLocationManuel.trim()
-        : '';
-
       const payload: Record<string, any> = {
         agentTerrain: formData.agentTerrain,
         agentTerrainUid,
@@ -244,9 +278,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         dateRDV: finalRDV,
         zone: derivedZone,
         adresse: formData.adresse,
-        observation: formData.observation,
-        observationPersonnalisee: formData.observationPersonnalisee,
-        agentLocationManuel: agentLocationManuelToPersist,
+        observation: resolvedObservation,
         modifiedAt: serverTimestamp(),
         modifiedBy: auth?.currentUser?.uid || 'Admin',
         modifiedByName: profile?.nom || userEmail,
@@ -286,7 +318,15 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         }
         toast({ title: "Planification mise à jour" });
       } else {
-        await addDoc(collection(db, 'dossiers', dossierId, 'planifications'), { ...payload, dossierId, createdAt: serverTimestamp(), active: true });
+        await addDoc(collection(db, 'dossiers', dossierId, 'planifications'), {
+          ...payload,
+          dossierId,
+          createdAt: serverTimestamp(),
+          active: true,
+          createdBy: profile?.uid || userId,
+          createdByName: profile?.nom || userEmail,
+          createdByRole: profile?.role || 'Gestionnaire',
+        });
         console.debug('[modal-planification] addDoc OK');
         // Set dateMissionAgentTerrain only if not already set (first planification = mission date)
         if (!dossierData?.dateMissionAgentTerrain) {
@@ -336,8 +376,8 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
       }
 
       // Persist observation to subcollection for history
-      if (formData.observation) {
-        await addObservation(db, dossierId, formData.observation, 'Planification', profile?.nom || userEmail, userEmail, profile?.role || 'Gestionnaire', 'dossiers');
+      if (resolvedObservation) {
+        await addObservation(db, dossierId, resolvedObservation, 'Planification', profile?.nom || userEmail, userEmail, profile?.role || 'Gestionnaire', 'dossiers');
       }
 
       onOpenChange(false);
@@ -357,7 +397,8 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           <DialogDescription>Remplissez les informations pour programmer la mission de terrain.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-6 py-4">
-          <div className={defaultTypeMission ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4"}>
+          <div className={(defaultTypeMission || isCurrentUserAT) ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4"}>
+            {!isCurrentUserAT && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Agent de Terrain</Label>
@@ -405,10 +446,13 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                     const rawCount = agentWorkload[agent.label] || 0;
                     // When editing, the current planification is itself counted
                     // in `rawCount` for its currently-assigned agent. Exclude
-                    // it so agents don't appear artificially over-loaded.
+                    // it so agents don't appear artificially over-loaded. In
+                    // day-scoped mode it only counts when its saved RDV is on
+                    // the selected day.
                     const isEditingThisAgent =
                       !!initialData?.id &&
-                      (initialData.agentTerrain || '').trim() === agent.label;
+                      (initialData.agentTerrain || '').trim() === agent.label &&
+                      (selectedDayStartMs == null || editedPlanifOnSelectedDay);
                     const count = isEditingThisAgent && rawCount > 0 ? rawCount - 1 : rawCount;
                     const zone = agent.zone?.trim();
                     return (
@@ -421,7 +465,13 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                               ? zone
                               : <span className="italic">Zone non définie</span>}
                             {' · '}
-                            <span className="tabular-nums">{count} planifs actives</span>
+                            {selectedDayStartMs != null ? (
+                              <span className="tabular-nums">
+                                {count} planif{count > 1 ? 's' : ''} le {format(formData.dateRDV!, 'dd/MM')}
+                              </span>
+                            ) : (
+                              <span className="italic">sélectionnez une date</span>
+                            )}
                           </span>
                         </span>
                       </SelectItem>
@@ -430,6 +480,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 </SelectContent>
               </Select>
             </div>
+            )}
             {!defaultTypeMission && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -529,15 +580,15 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 defaultValues={['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre']}
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Observation personnalisée</Label>
-            <Textarea
-              placeholder="Ajouter une observation personnalisée (facultatif)…"
-              value={formData.observationPersonnalisee}
-              onChange={(e) => setFormData({ ...formData, observationPersonnalisee: e.target.value })}
-            />
+            {formData.observation === 'Autre' && (
+              <Textarea
+                value={formData.observationCustomText}
+                onChange={(e) => setFormData({ ...formData, observationCustomText: e.target.value })}
+                placeholder="Écrivez une observation personnalisée…"
+                rows={2}
+                className="text-sm"
+              />
+            )}
           </div>
 
           {feasibilityPastRdv && (
@@ -549,22 +600,24 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             </Alert>
           )}
 
-          {formData.agentTerrain && agentLive.isFresh && agentLive.location && (
+          {(isCurrentUserAT || formData.agentTerrain) && effectiveIsFresh && effectiveLocation && (
             <Alert variant="info">
-              <AlertTitle>Position actuelle de l'agent</AlertTitle>
+              <AlertTitle>{isCurrentUserAT ? 'Votre position actuelle' : "Position actuelle de l'agent"}</AlertTitle>
               <AlertDescription>
                 {agentAddress ? (
                   <p className="text-sm">{agentAddress}</p>
                 ) : (
                   <p className="font-mono text-sm">
-                    {agentLive.location.lat.toFixed(5)}, {agentLive.location.lng.toFixed(5)}
+                    {effectiveLocation.lat.toFixed(5)}, {effectiveLocation.lng.toFixed(5)}
                   </p>
                 )}
-                <p className="text-sm italic text-muted-foreground mt-1">
-                  Mise à jour {formatDistanceToNow(new Date(agentLive.location.updatedAtMs), { addSuffix: true, locale: fr })}
-                </p>
+                {!isCurrentUserAT && agentLive.location && (
+                  <p className="text-sm italic text-muted-foreground mt-1">
+                    Mise à jour {formatDistanceToNow(new Date(agentLive.location.updatedAtMs), { addSuffix: true, locale: fr })}
+                  </p>
+                )}
                 <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${agentLive.location.lat},${agentLive.location.lng}`}
+                  href={`https://www.google.com/maps/search/?api=1&query=${effectiveLocation.lat},${effectiveLocation.lng}`}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-sm text-primary underline mt-2"
@@ -576,7 +629,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             </Alert>
           )}
 
-          {isAgentLocationUnavailable && (
+          {!isCurrentUserAT && formData.agentTerrain && !agentLive.isFresh && agentLive.agentUid && (
             <Alert variant="info">
               <AlertTitle>Position de l'agent non disponible</AlertTitle>
               <AlertDescription>
@@ -607,23 +660,6 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 )}
               </AlertDescription>
             </Alert>
-          )}
-
-          {isAgentLocationUnavailable && (
-            <div className="space-y-2">
-              <Label htmlFor="agent-location-manuel">
-                Localisation de l'agent (manuelle)
-              </Label>
-              <Input
-                id="agent-location-manuel"
-                placeholder="Saisir une localisation à la main (facultatif)…"
-                className="h-10"
-                value={formData.agentLocationManuel}
-                onChange={(e) =>
-                  setFormData({ ...formData, agentLocationManuel: e.target.value })
-                }
-              />
-            </div>
           )}
 
           {feasibilityUnavailable && (

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { cn } from '@/lib/utils';
 import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
+import { useReplayHighlight, highlightClass, ChangeBadge } from './replay-highlight';
 
 export type ExtraSlotKind = 'devis' | 'facture';
 
@@ -98,6 +99,9 @@ export function SlotCard({
   const extraSlotInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = React.useState(false);
   const dragDepth = useRef(0);
+  // Inert on the live editing page; in the rappel replica it tints documents
+  // the gestionnaire added / changed during their treatment session.
+  const hl = useReplayHighlight();
 
   const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
@@ -265,12 +269,14 @@ export function SlotCard({
                 parsedAccord && typeof d.uploadedByName === 'string'
                   ? d.uploadedByName.trim()
                   : '';
+              const replayStatus = hl.statusForEntry('documents', d.id);
               return (
                 <li
                   key={d.id}
                   className={cn(
                     'flex items-center gap-2 rounded-md border bg-card px-2 py-1.5 hover:bg-accent/40 transition-colors',
                     clickable && 'cursor-pointer',
+                    highlightClass(replayStatus),
                   )}
                   onClick={() => clickable && onPreview(d)}
                 >
@@ -289,8 +295,9 @@ export function SlotCard({
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate" title={name}>
-                      {name}
+                    <p className="text-xs font-medium truncate flex items-center gap-1.5" title={name}>
+                      <span className="truncate">{name}</span>
+                      <ChangeBadge status={replayStatus} className="shrink-0" />
                     </p>
                     {d.pendingUpload && (
                       <p className="text-[10px] text-amber-700">En attente…</p>

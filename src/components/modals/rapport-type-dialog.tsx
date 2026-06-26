@@ -22,13 +22,37 @@ interface RapportTypeDialogProps {
   isGenerating?: boolean;
 }
 
+/** The rapport templates the user can generate. */
+const RAPPORT_OPTIONS: Array<{ value: RapportType; title: string; description: string }> = [
+  {
+    value: 'preliminaire',
+    title: 'Rapport préliminaire',
+    description: "Rapport d'expertise préliminaire contradictoire — minute des deux experts (1er / 2ème).",
+  },
+  {
+    value: 'final',
+    title: 'Rapport final',
+    description: "Rapport d'expertise contradictoire — conclusions, détail fournitures et main d'oeuvre.",
+  },
+  {
+    value: 'estimatif',
+    title: 'Rapport estimatif',
+    description: "Rapport d'expertise estimatif (forfait) — détail fournitures et main d'oeuvre par choc.",
+  },
+  {
+    value: 'reforme',
+    title: 'Rapport de réforme',
+    description: 'Rapport de réforme — évaluation des dommages, valeur vénale / épave et indemnisation.',
+  },
+];
+
 export function RapportTypeDialog({
   open,
   onOpenChange,
   onConfirm,
   isGenerating = false,
 }: RapportTypeDialogProps) {
-  const [selected, setSelected] = useState<RapportType>('preliminaire');
+  const [selected, setSelected] = useState<RapportType>('final');
 
   const handleConfirm = async () => {
     await onConfirm(selected);
@@ -49,49 +73,28 @@ export function RapportTypeDialog({
           onValueChange={(v) => setSelected(v as RapportType)}
           className="space-y-2 py-2"
         >
-          <label
-            htmlFor="rapport-type-preliminaire"
-            className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 hover:bg-muted/40"
-          >
-            <RadioGroupItem
-              value="preliminaire"
-              id="rapport-type-preliminaire"
-              className="mt-0.5"
-            />
-            <div className="space-y-0.5">
-              <Label
-                htmlFor="rapport-type-preliminaire"
-                className="cursor-pointer text-sm font-semibold"
-              >
-                Rapport préliminaire
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Annexe 4 contradictoire — position 1er / 2ème expert.
-              </p>
-            </div>
-          </label>
-
-          <label
-            htmlFor="rapport-type-reforme"
-            className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 hover:bg-muted/40"
-          >
-            <RadioGroupItem
-              value="reforme"
-              id="rapport-type-reforme"
-              className="mt-0.5"
-            />
-            <div className="space-y-0.5">
-              <Label
-                htmlFor="rapport-type-reforme"
-                className="cursor-pointer text-sm font-semibold"
-              >
-                Rapport de réforme
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Rapport complet avec conclusions, fournitures et main d&apos;oeuvre.
-              </p>
-            </div>
-          </label>
+          {RAPPORT_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              htmlFor={`rapport-type-${opt.value}`}
+              className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 hover:bg-muted/40"
+            >
+              <RadioGroupItem
+                value={opt.value}
+                id={`rapport-type-${opt.value}`}
+                className="mt-0.5"
+              />
+              <div className="space-y-0.5">
+                <Label
+                  htmlFor={`rapport-type-${opt.value}`}
+                  className="cursor-pointer text-sm font-semibold"
+                >
+                  {opt.title}
+                </Label>
+                <p className="text-xs text-muted-foreground">{opt.description}</p>
+              </div>
+            </label>
+          ))}
         </RadioGroup>
 
         <DialogFooter>

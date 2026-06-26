@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useGpsPublisher } from '@/hooks/use-gps-publisher';
+import { useNativeBgGeolocation } from '@/hooks/use-native-bg-geolocation';
 import { useFcmRegistration } from '@/hooks/use-fcm-registration';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { MapPin, Smartphone, X } from 'lucide-react';
@@ -17,31 +18,48 @@ export function GpsPublisherHost() {
 
 function GpsPublisherHostInner() {
   const { permission, retry } = useGpsPublisher();
+  // Inside the native Android shell this drives a background-capable foreground
+  // service (every-minute tracking even when backgrounded / screen locked); on
+  // the web it is an inert no-op and `useGpsPublisher` owns the foreground path.
+  const native = useNativeBgGeolocation();
   useFcmRegistration();
   const showIosHint = useIosInstallHint();
 
   return (
     <>
-      {showIosHint && <IosInstallHint />}
-      {permission !== 'granted' && permission !== 'unavailable' && (
-        <div className="border-b border-amber-200/70 bg-amber-50/80 px-4 py-2 text-sm text-amber-800 flex items-center gap-3">
-          <MapPin className="h-4 w-4 shrink-0" />
-          {permission === 'denied' ? (
-            <span className="flex-1">
-              Le partage de position est désactivé. La planification ne pourra pas tenir compte de votre position actuelle. Réactivez-le dans les paramètres du navigateur si nécessaire.
-            </span>
-          ) : (
-            <>
+      {!native.isNative && showIosHint && <IosInstallHint />}
+
+      {/* Native shell: location is handled by the OS foreground service. Only
+          surface a banner if the agent declined background permission. */}
+      {native.isNative
+        ? native.status === 'denied' && (
+            <div className="border-b border-amber-200/70 bg-amber-50/80 px-4 py-2 text-sm text-amber-800 flex items-center gap-3">
+              <MapPin className="h-4 w-4 shrink-0" />
               <span className="flex-1">
-                Activez le partage de position pour aider la planification de vos missions.
+                Le partage de position est désactivé. Autorisez la localisation « Toujours » dans les paramètres de l'application pour que la planification tienne compte de votre position.
               </span>
-              <Button size="sm" variant="outline" className="h-7" onClick={retry}>
-                Activer
-              </Button>
-            </>
+            </div>
+          )
+        : permission !== 'granted' &&
+          permission !== 'unavailable' && (
+            <div className="border-b border-amber-200/70 bg-amber-50/80 px-4 py-2 text-sm text-amber-800 flex items-center gap-3">
+              <MapPin className="h-4 w-4 shrink-0" />
+              {permission === 'denied' ? (
+                <span className="flex-1">
+                  Le partage de position est désactivé. La planification ne pourra pas tenir compte de votre position actuelle. Réactivez-le dans les paramètres du navigateur si nécessaire.
+                </span>
+              ) : (
+                <>
+                  <span className="flex-1">
+                    Activez le partage de position pour aider la planification de vos missions.
+                  </span>
+                  <Button size="sm" variant="outline" className="h-7" onClick={retry}>
+                    Activer
+                  </Button>
+                </>
+              )}
+            </div>
           )}
-        </div>
-      )}
     </>
   );
 }

@@ -57,6 +57,12 @@ export interface Step4PiecesProps {
    * first round is in.
    */
   requireFirstAccordFilled?: boolean;
+  /**
+   * Forwarded to TypedDocumentsGrid — surface the Réforme (technique +
+   * économique) row even in `showOnlyAccordSlots` mode. Used in the Accord
+   * step (id 6) so the deposited réforme report shows alongside the accord docs.
+   */
+  showReformeSlots?: boolean;
 }
 
 function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolean, (v: boolean) => void] {
@@ -73,7 +79,7 @@ function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolea
   return [open, setOpen];
 }
 
-export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, requireFirstAccordFilled }: Step4PiecesProps) {
+export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, requireFirstAccordFilled, showReformeSlots }: Step4PiecesProps) {
   const [docsOpen, setDocsOpen] = useSectionOpen(dossierId, 'documents');
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
@@ -192,6 +198,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
           showBaseGarageSlots={showBaseGarageSlots}
           hideOtherSlots={hideOtherSlots}
           showAllNonAccordSlots={showAllNonAccordSlots}
+          showReformeSlots={showReformeSlots}
         />
       </div>
     );
@@ -245,7 +252,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
               <DocumentsTab dossierId={dossierId} />
             </TabsContent>
             <TabsContent value="import" className="mt-4">
-              <TypedDocumentsGrid dossierId={dossierId} hideAccordSlots={hideAccordSlots} showOnlyAccordSlots={showOnlyAccordSlots} hideCardinalPlus={hideCardinalPlus} cardinalFilter={cardinalFilter} showBaseGarageSlots={showBaseGarageSlots} hideOtherSlots={hideOtherSlots} showAllNonAccordSlots={showAllNonAccordSlots} />
+              <TypedDocumentsGrid dossierId={dossierId} hideAccordSlots={hideAccordSlots} showOnlyAccordSlots={showOnlyAccordSlots} hideCardinalPlus={hideCardinalPlus} cardinalFilter={cardinalFilter} showBaseGarageSlots={showBaseGarageSlots} hideOtherSlots={hideOtherSlots} showAllNonAccordSlots={showAllNonAccordSlots} showReformeSlots={showReformeSlots} />
             </TabsContent>
           </Tabs>
         </CollapsibleContent>

@@ -395,23 +395,27 @@ export default function DossiersClientPage() {
     setIsCreateOpen(true);
   };
 
-  const handleDeleteDossier = async (dossierId: string) => {
-    setDeletingId(dossierId);
-    try {
-      const dossier = allDossiers.find(d => d.id === dossierId);
-      const userEmail = auth?.currentUser?.email || 'Admin';
-      const userId = auth?.currentUser?.uid || 'unknown';
-      const dossierRef = (dossier as any)?.refExpert || dossierId;
-      await logWorkflow(db, dossierId, 'Suppression de dossier', userEmail, userId, 'done', { dossierRef, details: `Dossier "${dossierRef}" supprimé définitivement` }, profile?.nom);
-      await deleteDossier(dossierId);
-      toast({ title: 'Dossier supprimé', description: 'Le dossier et ses données ont été purgés.' });
-    } catch (err: any) {
+  const handleDeleteDossier = (dossierId: string) => {
+    // Optimistic UI: close the dialog and clear the spinner immediately. The
+    // forced long-polling transport (mandatory for Firefox, see
+    // src/firebase/index.ts) can take several seconds to acknowledge a single
+    // write, so awaiting here used to freeze the dialog for ~10s. Firestore's
+    // local cache fires the snapshot listener as soon as the local write
+    // commits, so the row disappears from the table near-instantly even
+    // while the network round-trip is still in flight.
+    const dossier = allDossiers.find(d => d.id === dossierId);
+    const userEmail = auth?.currentUser?.email || 'Admin';
+    const userId = auth?.currentUser?.uid || 'unknown';
+    const dossierRef = (dossier as any)?.refExpert || dossierId;
+
+    setDeleteTarget(null);
+    toast({ title: 'Dossier supprimé', description: 'Le dossier et ses données ont été purgés.' });
+
+    void logWorkflow(db, dossierId, 'Suppression de dossier', userEmail, userId, 'done', { dossierRef, details: `Dossier "${dossierRef}" supprimé définitivement` }, profile?.nom);
+    deleteDossier(dossierId).catch((err: any) => {
       console.error('Delete error:', err);
       toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Suppression impossible' });
-    } finally {
-      setDeletingId(null);
-      setDeleteTarget(null);
-    }
+    });
   };
 
   const formatDate = (val: any) => {

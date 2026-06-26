@@ -137,6 +137,22 @@ service cloud.firestore {
         );
       // Delete: Admin only.
       allow delete: if isAdmin();
+
+      // Session metadata (device + IP for the admin "Session / Appareil" card).
+      // Deliberately kept OUT of the world-readable parent user doc so the
+      // client IP (PII) is NOT exposed to the anonymous pre-auth login lookup
+      // (the parent's `allow read: if true`). The session owner writes their own
+      // meta on claim; an Admin clears it on force-disconnect.
+      // CAVEAT: the recursive catch-all at the bottom of this file
+      // (`match /{document=**}`) still grants read to ANY authenticated user, so
+      // this isAdmin() gate is not yet fully effective — it only restricts reads
+      // to admins once that catch-all is scoped. Intent is admin-only; the gate
+      // is kept so it takes effect the moment the catch-all is tightened.
+      match /session_meta/{docId} {
+        allow read: if isAdmin();
+        allow write: if isAdmin()
+          || (request.auth != null && request.auth.uid == userId);
+      }
     }
     // Stamps: per-account import + delete; admin oversight via the
     // /parametres/tampons page (admin can read+modify all). Reads stay open
@@ -149,6 +165,26 @@ service cloud.firestore {
       allow update, delete: if request.auth != null
         && (resource.data.createdBy == request.auth.uid || isAdmin());
     }
+    // Collection-group rules. Subcollection rules above grant access for
+    // direct-path reads (dossiers/X/planifications/Y), but a `collectionGroup`
+    // query is evaluated against a separate "collection group" rule at the
+    // collection-id level — without these, queries like
+    // `collectionGroup(db, 'planifications')` come back permission-denied even
+    // for the same auth user that can read the docs via their parent path.
+    // Read-only is enough: writes still flow through the subcollection rules.
+    match /{path=**}/planifications/{pid} {
+      allow read: if request.auth != null;
+    }
+    match /{path=**}/workflow/{wid} {
+      allow read: if request.auth != null;
+    }
+    match /{path=**}/history/{hid} {
+      allow read: if request.auth != null;
+    }
+    match /{path=**}/historique/{hid} {
+      allow read: if request.auth != null;
+    }
+
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

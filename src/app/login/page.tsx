@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, getDocs, setDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import { collection, query, where, getDocs, setDoc, doc, serverTimestamp, updateDoc, deleteDoc, runTransaction } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
+import { SINGLE_SESSION_ROLES } from '@/lib/dossiers-data';
+import { collectSessionMeta } from '@/lib/session-meta';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -27,10 +29,12 @@ function generateEmail(nom: string): string {
   return `${sanitized}@sl-auto.app`;
 }
 
-// Single-session enforcement: every successful login writes a fresh session id
-// to the user doc + localStorage. CurrentUserProvider compares the two on every
-// snapshot \u2014 if they diverge (another device just logged in), it signs the
-// older device out. Keep the storage key stable across the codebase.
+// Single-session enforcement (BLOCK model): for the basic roles in
+// SINGLE_SESSION_ROLES, the first device claims `currentSessionId` and a SECOND
+// device is BLOCKED here at login (it never overwrites the id, so the first
+// device keeps its session). The claim is released only by an explicit
+// sign-out or an admin force-disconnect. Other roles are unrestricted. Keep the
+// storage keys in sync with src/hooks/use-current-user.tsx.
 const SESSION_STORAGE_KEY = 'sl-auto.session-id';
 // In-flight flag: set before signIn, cleared after the user doc is updated.
 // CurrentUserProvider respects this flag so the snapshot listener that
@@ -53,6 +57,18 @@ function newSessionId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+// Read THIS TAB's existing session id for the claim-or-block decision. Read
+// from sessionStorage ONLY (per-tab) — NOT localStorage. localStorage is shared
+// across all tabs of the browser; using it would let a second tab read the
+// first tab's id, skip the block, mint a new id and displace the first tab
+// (the "latest login wins" behaviour we removed). A genuine same-tab re-login
+// (e.g. token expiry) keeps its sessionStorage id and is still recognised; a
+// fresh tab/device has none and is correctly blocked.
+function readTabSessionId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+}
+
 const PAGE_BACKGROUND =
   'bg-[radial-gradient(ellipse_at_top,hsl(var(--card))_0%,hsl(var(--background))_70%)]';
 
@@ -68,10 +84,12 @@ export default function LoginPage() {
     if (typeof window === 'undefined') return;
     if (window.localStorage.getItem(EVICTED_FLAG_KEY) === '1') {
       window.localStorage.removeItem(EVICTED_FLAG_KEY);
+      // Neutral wording: this flag is raised for several causes (admin
+      // force-disconnect, displacement, sign-out in another tab, cross-tab
+      // identity guard), so don't assert a specific one.
       toast({
-        title: 'Session terminée',
-        description:
-          "Vous avez été déconnecté car votre compte s'est connecté sur un autre appareil.",
+        title: 'Session fermée',
+        description: 'Votre session a été fermée. Veuillez vous reconnecter.',
         variant: 'destructive',
       });
     }
@@ -94,6 +112,16 @@ export default function LoginPage() {
     if (!auth) return;
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) {
+        setCheckingAuth(false);
+        return;
+      }
+      // A login attempt is mid-flight: handleLogin set the in-flight flag and
+      // still owns the post-claim navigation (and may need to block + sign out
+      // first for a single-session role). Don't auto-redirect underneath it.
+      if (
+        typeof window !== 'undefined' &&
+        window.sessionStorage.getItem(LOGIN_IN_FLIGHT_KEY) === '1'
+      ) {
         setCheckingAuth(false);
         return;
       }
@@ -154,12 +182,11 @@ export default function LoginPage() {
     }
 
     setSetupLoading(true);
-    const sessionId = newSessionId();
     window.sessionStorage.setItem(LOGIN_IN_FLIGHT_KEY, '1');
-    // Write to BOTH sessionStorage (tab-local, primary source of truth for the
-    // listener) and localStorage (persists across refresh in the same tab).
-    window.sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
-    window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+    // The setup account is an Admin — a NON single-session role — so we never
+    // seed a `currentSessionId` or local session markers. A dangling id on an
+    // unrestricted account would become an un-releasable lock if the account
+    // were ever demoted to a basic role.
     try {
       const email = generateEmail(setupName);
       const cred = await createUserWithEmailAndPassword(auth, email, setupPassword);
@@ -181,7 +208,6 @@ export default function LoginPage() {
         statut: 'Actif',
         createdAt: serverTimestamp(),
         lastLogin: null,
-        currentSessionId: sessionId,
       });
 
       window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
@@ -243,26 +269,101 @@ export default function LoginPage() {
         return;
       }
 
-      // Single-session: stamp a fresh session id on the user doc and store it
-      // locally. Any other device with a different local id will be signed
-      // out by the snapshot listener in CurrentUserProvider. Both the in-flight
-      // flag and localStorage are set BEFORE signIn so the snapshot listener
-      // that attaches via onAuthStateChanged sees a consistent state. The
-      // expected-UID guard is also stamped here (userDoc.id is the auth UID)
-      // so CurrentUserProvider recognises this tab as the legitimate signer
-      // and not a victim of cross-tab IndexedDB hijack.
+      // Single-session enforcement (BLOCK model) — only for the operational
+      // roles in SINGLE_SESSION_ROLES. Every other role may be logged in on
+      // several devices at once, so they skip the claim/block entirely.
+      const isBasicRole = SINGLE_SESSION_ROLES.has(userData.role);
+      // Capture THIS TAB's prior session id (sessionStorage only) before minting
+      // a new one: a same-tab re-login (token expiry) re-claims its own session;
+      // a fresh tab/device has none, so the remote id (held by device 1) won't
+      // match → blocked. Reading per-tab (not shared localStorage) prevents a
+      // second tab from inheriting the first tab's id and displacing it.
+      const priorLocalId = readTabSessionId();
       const sessionId = newSessionId();
+
+      // The in-flight flag + expected-UID guard are stamped BEFORE signIn so
+      // CurrentUserProvider (and this page's redirect effect) see a consistent
+      // state and don't act on the half-finished login. expected-UID also
+      // marks this tab as the legitimate signer (cross-tab hijack guard).
       window.sessionStorage.setItem(LOGIN_IN_FLIGHT_KEY, '1');
       window.sessionStorage.setItem(EXPECTED_UID_KEY, userDoc.id);
-      window.sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
-      window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+      if (isBasicRole) {
+        window.sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+        window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+      } else {
+        // Unrestricted role — never enforce a single session. Clear any stale
+        // local marker so the provider doesn't try to.
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        window.localStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+
       const cred = await signInWithEmailAndPassword(auth, email, password);
-      const updates: Record<string, any> = {
-        lastLogin: serverTimestamp(),
-        currentSessionId: sessionId,
-      };
-      if (backfillNeeded) updates.nomLowercase = lower;
-      await updateDoc(doc(db, 'users', cred.user.uid), updates);
+
+      if (isBasicRole) {
+        // Capture the device + public IP for the admin session card. Collected
+        // BEFORE the transaction (its callback can retry on contention, and we
+        // must not fetch inside it). Best-effort — never blocks the login.
+        const sessionMeta = await collectSessionMeta();
+        // Atomic claim-or-block: succeed only if no OTHER device currently
+        // holds the session. The transaction guarantees two simultaneous
+        // logins can't both win. `remote === priorLocalId` means this same
+        // device is re-claiming, which is allowed.
+        try {
+          await runTransaction(db, async (tx) => {
+            const ref = doc(db, 'users', cred.user.uid);
+            const fresh = await tx.get(ref);
+            const remote = fresh.exists() ? (fresh.data() as any).currentSessionId : null;
+            if (remote && remote !== priorLocalId) {
+              throw new Error('SESSION_OCCUPIED');
+            }
+            const updates: Record<string, any> = {
+              lastLogin: serverTimestamp(),
+              currentSessionId: sessionId,
+            };
+            if (backfillNeeded) updates.nomLowercase = lower;
+            tx.update(ref, updates);
+            // Device + IP go in an admin-only subcollection (kept off the
+            // world-readable user doc). Same transaction → the admin card never
+            // sees a claim without its metadata.
+            tx.set(doc(db, 'users', cred.user.uid, 'session_meta', 'current'), {
+              device: sessionMeta.device,
+              ip: sessionMeta.ip,
+              at: serverTimestamp(),
+            });
+          });
+        } catch (txErr: any) {
+          if (txErr?.message === 'SESSION_OCCUPIED') {
+            // Blocked: undo the half-finished login and explain why.
+            await firebaseSignOut(auth).catch(() => {});
+            window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
+            window.sessionStorage.removeItem(EXPECTED_UID_KEY);
+            window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+            window.localStorage.removeItem(SESSION_STORAGE_KEY);
+            setError(
+              "Ce compte est déjà connecté sur un autre appareil. Déconnectez-vous d'abord de cet appareil pour pouvoir vous connecter ici. " +
+                "Si vous n'avez plus accès à cet appareil, demandez à un administrateur de déconnecter votre session.",
+            );
+            setLoading(false);
+            return;
+          }
+          throw txErr;
+        }
+      } else {
+        // Unrestricted role — stamp lastLogin and proactively clear any
+        // `currentSessionId` so the doc never carries a dangling claim while
+        // unenforced (which would lock the user out if later demoted to a basic
+        // role). Safe: this role is not single-session.
+        const updates: Record<string, any> = {
+          lastLogin: serverTimestamp(),
+          currentSessionId: null,
+        };
+        if (backfillNeeded) updates.nomLowercase = lower;
+        await updateDoc(doc(db, 'users', cred.user.uid), updates);
+        // Drop any stale session metadata left from a prior basic-role session
+        // on this account. Best-effort.
+        deleteDoc(doc(db, 'users', cred.user.uid, 'session_meta', 'current')).catch(() => {});
+      }
+
       window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
       router.push('/dashboard');
     } catch (err: any) {

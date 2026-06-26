@@ -1,15 +1,19 @@
 'use client';
 
-import React, { useState, useMemo, use, useEffect } from 'react';
+import React, { useState, useMemo, use, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
+  Bell,
+  Save,
   History,
   Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDoc, useFirestore } from '@/firebase';
 import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/firestore';
+import { ensureSnapshotBefore, captureSnapshotAfter, markTreatmentResolved } from '@/lib/rappel-session';
+import { useToast } from '@/hooks/use-toast';
 import { PageLoader } from '@/components/ui/page-loader';
 import { ErrorState } from '@/components/ui/error-state';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +30,7 @@ import Step2Information from '@/components/dossier-timeline/step-2-information';
 import Step3Planification from '@/components/dossier-timeline/step-3-planification';
 import Step4Pieces from '@/components/dossier-timeline/step-4-pieces';
 import Step6Rapport from '@/components/dossier-timeline/step-6-rapport';
+import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-grid';
 import ObservationsTab from '@/components/observations-tab';
 import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
 
@@ -37,6 +42,9 @@ import ModalPlanification from './modal-planification';
 import ModalChiffrage from './modal-chiffrage';
 import { EnvoyerEmailDialog } from '@/components/dossiers/envoyer-email-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+
+// Mirrors mes-rappels/page.tsx — must stay in sync.
+const RAPPEL_SESSION_KEY = (dossierId: string) => `rappel-active-session-${dossierId}`;
 
 export default function DossierDetailPage({
   params,
@@ -50,6 +58,13 @@ export default function DossierDetailPage({
   const { canWrite, profile } = useCurrentUser();
   const readOnly = !canWrite('dossiers');
   const { openTab, refreshTabLabel } = useDossierTabs();
+  const { toast } = useToast();
+
+  // Active rappel-treatment session for this dossier (recipient-only).
+  // Drives the sticky "Valider le traitement" banner. Looked up via the
+  // localStorage handshake set by mes-rappels/page.tsx on row click.
+  const [activeRappel, setActiveRappel] = useState<{ id: string; sessionId: string } | null>(null);
+  const [validating, setValidating] = useState(false);
 
   // Recipient-side read receipt: on dossier mount, mark any unread rappels
   // for the current user × this dossier as read. Idempotent — no-op when
@@ -76,6 +91,96 @@ export default function DossierDetailPage({
     })();
     return () => { cancelled = true; };
   }, [db, id, profile?.uid]);
+
+  // Resolve the active rappel session (if any) tied to this dossier × user.
+  // Reads the localStorage handshake set by mes-rappels/page.tsx, then looks
+  // up the unresolved rappel doc. If the handshake is stale (no matching
+  // unresolved rappel), clear it.
+  useEffect(() => {
+    if (!db || !id || !profile?.uid) {
+      setActiveRappel(null);
+      return;
+    }
+    let cancelled = false;
+    let sid: string | null = null;
+    try {
+      if (typeof window !== 'undefined') {
+        sid = window.localStorage.getItem(RAPPEL_SESSION_KEY(id));
+      }
+    } catch {
+      sid = null;
+    }
+    if (!sid) {
+      setActiveRappel(null);
+      return;
+    }
+    (async () => {
+      try {
+        const q = query(
+          collection(db, 'rappels'),
+          where('recipientUid', '==', profile.uid),
+          where('dossierId', '==', id),
+          where('sessionId', '==', sid),
+        );
+        const snap = await getDocs(q);
+        if (cancelled) return;
+        // Show the "Sauvegarder" button whenever this dossier was opened from a
+        // rappel (localStorage handshake) and a matching rappel exists — even if
+        // it was already saved once (resolvedAt set), so the gestionnaire can
+        // re-save after further edits. The key is set ONLY by the mes-rappels
+        // row click, so a plain "Gestion des dossiers" visit never shows it.
+        const match = snap.docs[0];
+        if (match) {
+          setActiveRappel({ id: match.id, sessionId: sid! });
+        } else {
+          setActiveRappel(null);
+          try {
+            if (typeof window !== 'undefined') {
+              window.localStorage.removeItem(RAPPEL_SESSION_KEY(id));
+            }
+          } catch {}
+        }
+      } catch (err) {
+        console.warn('[dossier-page] active rappel lookup failed', err);
+        setActiveRappel(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [db, id, profile?.uid]);
+
+  // Freeze the dossier + subcollections at session start (once), so the
+  // manager's read-only replica can diff exactly what the gestionnaire
+  // added / modified / removed. Idempotent — only the first call writes.
+  const baselineCapturedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!db || !activeRappel || !dossier) return;
+    if (baselineCapturedRef.current === activeRappel.id) return;
+    baselineCapturedRef.current = activeRappel.id;
+    ensureSnapshotBefore(db, activeRappel.id, id, dossier);
+  }, [db, activeRappel, dossier, id]);
+
+  const handleValiderTraitement = async () => {
+    if (!db || !activeRappel || validating) return;
+    setValidating(true);
+    try {
+      // Freeze the dossier as the gestionnaire leaves it, diff it against the
+      // session-start snapshot, and record the add/modify/remove sets. The
+      // localStorage key is cleared LAST so in-flight tagged writes still land.
+      await captureSnapshotAfter(db, activeRappel.id, id, dossier);
+      await markTreatmentResolved(db, activeRappel.id);
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem(RAPPEL_SESSION_KEY(id));
+        }
+      } catch {}
+      setActiveRappel(null);
+      toast({ title: 'Traitement sauvegardé', description: 'Vos modifications ont été enregistrées pour le responsable.' });
+    } catch {
+      toast({ title: 'Erreur', description: 'Impossible de sauvegarder le traitement.', variant: 'destructive' });
+    } finally {
+      setValidating(false);
+    }
+  };
 
   // Register this dossier as an open tab (handles deep links) and keep the label in sync.
   useEffect(() => {
@@ -178,9 +283,33 @@ export default function DossierDetailPage({
         </div>
       </div>
 
+      {/* RAPPEL SESSION BANNER — sticky, only when treating a rappel */}
+      {activeRappel && (
+        <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 flex flex-wrap gap-3 items-center sticky top-0 z-50 dark:bg-amber-900/25 dark:border-amber-800/50">
+          <Bell className="h-4 w-4 text-amber-700 dark:text-amber-200" />
+          <p className="text-sm font-medium text-amber-900 dark:text-amber-100 flex-1">
+            Vous traitez un rappel pour ce dossier.
+          </p>
+          <Button
+            size="sm"
+            onClick={handleValiderTraitement}
+            disabled={validating}
+            className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {validating ? 'Enregistrement…' : 'Sauvegarder'}
+          </Button>
+        </div>
+      )}
+
       {/* ACTION BUTTONS ROW */}
       {!readOnly && (
-      <div className="bg-card border-b px-6 py-2 flex flex-wrap gap-2 items-center sticky top-0 z-40">
+      <div
+        className={cn(
+          'bg-card border-b px-6 py-2 flex flex-wrap gap-2 items-center sticky z-40',
+          activeRappel ? 'top-[44px]' : 'top-0',
+        )}
+      >
         <div className="flex-1" />
         <Button variant="outline" size="sm" onClick={() => setEmailDialogOpen(true)} className="h-8 text-xs gap-1.5">
           <Mail className="h-3.5 w-3.5" /> Envoyer un email
@@ -221,7 +350,7 @@ export default function DossierDetailPage({
             ),
             6: (
               <>
-                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab />
+                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots />
                 <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="1er accord" />
                 </div>
@@ -259,10 +388,7 @@ export default function DossierDetailPage({
             ),
             7: <Step6Rapport dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
             8: (
-              <div className="rounded-lg border border-dashed border-border/40 bg-muted/20 p-8 text-center">
-                <p className="text-sm font-semibold">Note d'honoraire</p>
-                <p className="mt-1 text-xs text-muted-foreground">Cette section sera disponible ultérieurement.</p>
-              </div>
+              <TypedDocumentsGrid dossierId={id} showOnlyNoteHonoraire />
             ),
           }}
           activeStep={activeStep}

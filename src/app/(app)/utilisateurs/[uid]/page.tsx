@@ -64,6 +64,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
+import { rappelsEnvoyesRoleDefault } from '@/lib/permissions';
 import { useDoc, useFirestore } from '@/firebase';
 import {
   doc,
@@ -78,8 +79,8 @@ import {
   collectionGroup,
   serverTimestamp
 } from 'firebase/firestore';
-import { roles, type Role } from '@/lib/dossiers-data';
-import { Eye, EyeOff, Check, ChevronsUpDown, Plus, Search } from 'lucide-react';
+import { roles, isSingleSessionRole, type Role } from '@/lib/dossiers-data';
+import { Eye, EyeOff, Check, ChevronsUpDown, Plus, Search, LogOut, Smartphone, Globe } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useOptions } from '@/hooks/use-options';
 import { cn } from '@/lib/utils';
@@ -92,10 +93,15 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { canDelete } = useCurrentUser();
+  const { canDelete, isAdmin } = useCurrentUser();
 
   const userRef = useMemo(() => doc(db, 'users', uid), [db, uid]);
   const { data: userData, loading: userLoading } = useDoc(userRef);
+  // Device + IP of the active session live in an admin-only subcollection (kept
+  // off the world-readable user doc). Only admins reach this page, so the read
+  // is always authorised.
+  const sessionMetaRef = useMemo(() => doc(db, 'users', uid, 'session_meta', 'current'), [db, uid]);
+  const { data: sessionMeta } = useDoc(sessionMetaRef);
 
   // Single source of truth: Firestore. Filter inactive entries client-side.
   const { options: dbCompagnies } = useOptions('compagnies');
@@ -125,6 +131,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
 
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   // Per-user permission overrides. `deniedNavItems` = hrefs hidden despite the
@@ -238,7 +245,9 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         if (item.href === '/mes-rappels') {
           node.children = [
             { id: '/mes-rappels#recus', label: 'Reçus', roleDefault: parentDefault },
-            { id: '/mes-rappels#envoyes', label: 'Envoyés', roleDefault: parentDefault },
+            // Gestionnaires only receive rappels, never send → "Envoyés" tab is
+            // off by default for them (kept in sync with the /mes-rappels gate).
+            { id: '/mes-rappels#envoyes', label: 'Envoyés', roleDefault: parentDefault && rappelsEnvoyesRoleDefault(role) },
           ];
         } else if (item.href === '/dossiers') {
           // Validation has its own role gate (canValidateRapport): Admin +
@@ -386,7 +395,22 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         }
       }
 
-      await updateDoc(userRef, { ...formData, zone: nextZone, nomLowercase: (formData.nom || '').trim().toLowerCase() });
+      // Single-session hygiene: clear `currentSessionId` when the role changes
+      // (the previous session's scoping no longer applies) OR when the new role
+      // is not single-session. This prevents a dangling claim from becoming an
+      // un-releasable login lock if the user is (later) a basic role.
+      const clearSession =
+        previousRole !== formData.role || !isSingleSessionRole(formData.role);
+      await updateDoc(userRef, {
+        ...formData,
+        zone: nextZone,
+        nomLowercase: (formData.nom || '').trim().toLowerCase(),
+        ...(clearSession ? { currentSessionId: null } : {}),
+      });
+      // Drop the admin-only session metadata alongside the cleared claim.
+      if (clearSession) {
+        await deleteDoc(doc(db, 'users', uid, 'session_meta', 'current')).catch(() => {});
+      }
 
       // Mirror zone into options_agents when user is currently an Agent de Terrain.
       if (formData.role === 'Agent de Terrain' && formData.nom) {
@@ -438,6 +462,9 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         for (const d of snap.docs) await deleteDoc(d.ref);
       }
 
+      // Firestore doesn't cascade-delete subcollections, so drop the session
+      // metadata explicitly or it would orphan (PII) after the parent is gone.
+      await deleteDoc(doc(db, 'users', uid, 'session_meta', 'current')).catch(() => {});
       await deleteDoc(userRef);
       toast({ title: "Utilisateur supprimé" });
       router.push('/utilisateurs');
@@ -447,6 +474,26 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
+    }
+  };
+
+  // Admin force-disconnect: clear the user's single-session claim so they can
+  // log in on a new device. The holding device's CurrentUserProvider sees the
+  // cleared id and signs itself out. Admin-only (Firestore rules enforce it).
+  const handleForceDisconnect = async () => {
+    setIsDisconnecting(true);
+    try {
+      await updateDoc(userRef, { currentSessionId: null });
+      await deleteDoc(doc(db, 'users', uid, 'session_meta', 'current')).catch(() => {});
+      toast({
+        title: 'Session déconnectée',
+        description: "L'utilisateur a été déconnecté de son appareil et peut se reconnecter ailleurs.",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de déconnecter la session.' });
+    } finally {
+      setIsDisconnecting(false);
     }
   };
 
@@ -968,6 +1015,79 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
               )}
             </CardContent>
           </Card>
+
+          {isAdmin && isSingleSessionRole(userData.role) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Smartphone className="h-4 w-4 text-muted-foreground" />
+                  Session / Appareil
+                </CardTitle>
+                <CardDescription>
+                  Ce rôle est limité à un seul appareil à la fois. Déconnectez sa session
+                  pour lui permettre de se connecter depuis un autre appareil.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <span
+                    className={cn(
+                      'w-2 h-2 rounded-full',
+                      userData.currentSessionId ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/40',
+                    )}
+                  />
+                  <span className={cn(!userData.currentSessionId && 'text-muted-foreground')}>
+                    {userData.currentSessionId
+                      ? 'Connecté sur un appareil'
+                      : 'Aucune session active'}
+                  </span>
+                </div>
+                {userData.currentSessionId && (
+                  <div className="rounded-md border bg-muted/20 px-3 py-2 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <Smartphone className="h-3.5 w-3.5" />
+                        Appareil
+                      </span>
+                      <span className="font-medium text-right">
+                        {sessionMeta?.device || 'Inconnu'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <Globe className="h-3.5 w-3.5" />
+                        Adresse IP
+                      </span>
+                      <span className="font-mono tabular-nums text-right">
+                        {sessionMeta?.ip || 'Inconnue'}
+                      </span>
+                    </div>
+                    {sessionMeta?.at && (
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Clock className="h-3.5 w-3.5" />
+                          Connecté depuis
+                        </span>
+                        <span className="tabular-nums text-right">
+                          {formatTimestamp(sessionMeta.at)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={!userData.currentSessionId || isDisconnecting}
+                  loading={isDisconnecting}
+                  onClick={handleForceDisconnect}
+                >
+                  {!isDisconnecting && <LogOut className="mr-2 h-4 w-4" />}
+                  Déconnecter la session
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           {canDelete && (
             <Card>
