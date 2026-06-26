@@ -22,8 +22,13 @@ interface RapportTypeDialogProps {
   isGenerating?: boolean;
 }
 
-/** The three rapport templates the user can generate. */
+/** The rapport templates the user can generate. */
 const RAPPORT_OPTIONS: Array<{ value: RapportType; title: string; description: string }> = [
+  {
+    value: 'preliminaire',
+    title: 'Rapport préliminaire',
+    description: "Rapport d'expertise préliminaire contradictoire — minute des deux experts (1er / 2ème).",
+  },
   {
     value: 'final',
     title: 'Rapport final',

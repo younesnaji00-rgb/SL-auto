@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useGpsPublisher } from '@/hooks/use-gps-publisher';
 import { useNativeBgGeolocation } from '@/hooks/use-native-bg-geolocation';
 import { useFcmRegistration } from '@/hooks/use-fcm-registration';
+import { useNativePushRegistration } from '@/hooks/use-native-push-registration';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { MapPin, Smartphone, X } from 'lucide-react';
 
@@ -22,7 +23,12 @@ function GpsPublisherHostInner() {
   // service (every-minute tracking even when backgrounded / screen locked); on
   // the web it is an inert no-op and `useGpsPublisher` owns the foreground path.
   const native = useNativeBgGeolocation();
+  // Web push token (browser / PWA). No-op inside the native WebView.
   useFcmRegistration();
+  // Native FCM token (Capacitor APK). No-op on the web. This is what makes the
+  // "Demande de position" notification reach the agent when the app has been
+  // cleared from the background.
+  useNativePushRegistration();
   const showIosHint = useIosInstallHint();
 
   return (

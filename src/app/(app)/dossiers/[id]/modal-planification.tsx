@@ -205,13 +205,14 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   const isAgentLocationUnavailable =
     !!formData.agentTerrain && !agentLive.isFresh && !!agentLive.agentUid;
 
-  // Resolve the agent's live coords to a human-readable address via the
-  // server-side Nominatim proxy. Reset on every coord change so the previous
-  // address doesn't flash while the new lookup is in flight.
+  // Resolve the displayed coords (the agent's live position, or — when the
+  // current user is the AT — their own browser position) to a human-readable
+  // address via the server-side Nominatim proxy. Reset on every coord change
+  // so the previous address doesn't flash while the new lookup is in flight.
   useEffect(() => {
     setAgentAddress(null);
-    if (!agentLive.isFresh || !agentLive.location) return;
-    const { lat, lng } = agentLive.location;
+    if (!effectiveIsFresh || !effectiveLocation) return;
+    const { lat, lng } = effectiveLocation;
     let cancelled = false;
     apiFetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -225,7 +226,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     return () => {
       cancelled = true;
     };
-  }, [agentLive.isFresh, agentLive.location?.lat, agentLive.location?.lng]);
+  }, [effectiveIsFresh, effectiveLocation?.lat, effectiveLocation?.lng]);
 
   const {
     conflicts: feasibilityConflicts,
@@ -483,12 +484,13 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                               ? zone
                               : <span className="italic">Zone non définie</span>}
                             {' · '}
-                            <span className="tabular-nums">
-                              {count}{' '}
-                              {selectedDayStartMs != null
-                                ? `planif${count > 1 ? 's' : ''} le ${format(formData.dateRDV!, 'dd/MM')}`
-                                : 'planifs actives'}
-                            </span>
+                            {selectedDayStartMs != null ? (
+                              <span className="tabular-nums">
+                                {count} planif{count > 1 ? 's' : ''} le {format(formData.dateRDV!, 'dd/MM')}
+                              </span>
+                            ) : (
+                              <span className="italic">sélectionnez une date</span>
+                            )}
                           </span>
                         </span>
                       </SelectItem>
@@ -630,7 +632,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             <Alert variant="info">
               <AlertTitle>{isCurrentUserAT ? 'Votre position actuelle' : "Position actuelle de l'agent"}</AlertTitle>
               <AlertDescription>
-                {!isCurrentUserAT && agentAddress ? (
+                {agentAddress ? (
                   <p className="text-sm">{agentAddress}</p>
                 ) : (
                   <p className="font-mono text-sm">

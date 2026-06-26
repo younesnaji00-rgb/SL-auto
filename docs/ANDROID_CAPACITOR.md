@@ -126,6 +126,68 @@ Re-run `npx cap sync android` after editing.
 
 ---
 
+## Step 2b — enable push notifications (FCM)
+
+This is what makes **"Demander la localisation de l'AT"** reach an agent whose app
+has been **cleared from the background**. The flow already exists end-to-end:
+
+1. The gestionnaire clicks the button → a doc is written to `location_requests`
+   ([`use-agent-live-location.ts`](../src/hooks/use-agent-live-location.ts)).
+2. The Cloud Function `sendLocationRequestNotification`
+   ([`functions/src/index.ts`](../functions/src/index.ts)) sends an FCM
+   notification to the agent's `users/{uid}.fcmTokens`.
+3. The agent taps the notification → the app foregrounds →
+   [`use-gps-publisher.ts`](../src/hooks/use-gps-publisher.ts) publishes a fresh
+   position and [`use-native-bg-geolocation.ts`](../src/hooks/use-native-bg-geolocation.ts)
+   re-arms the foreground tracking service.
+
+The **only** piece that doesn't work in a pure web/TWA build is step 2's
+delivery: the Android System WebView has no Web Push, so the web FCM token never
+registers. The native app fixes this with
+[`@capacitor/push-notifications`](https://capacitorjs.com/docs/apis/push-notifications)
+— [`use-native-push-registration.ts`](../src/hooks/use-native-push-registration.ts)
+registers the device's **native** FCM token into the same `fcmTokens` array, so
+the existing Cloud Function works unchanged.
+
+### Already done in this repo
+
+- **Firebase Android app registered** — `ma.slaouiglobal.slauto`, App ID
+  `1:588304904574:android:1a2e4d156cff69617c832f` (project
+  `studio-9568416614-6523a`). No new server key is needed; the Cloud Functions
+  send via the Admin SDK on the same project.
+- **`android/app/google-services.json`** fetched and committed. To re-pull it:
+  ```bash
+  firebase apps:sdkconfig ANDROID 1:588304904574:android:1a2e4d156cff69617c832f \
+    --out android/app/google-services.json --project studio-9568416614-6523a
+  ```
+- **Gradle wiring** is already in the committed `android/` project:
+  `android/build.gradle` carries `classpath 'com.google.gms:google-services'`,
+  and `android/app/build.gradle` conditionally applies the
+  `com.google.gms.google-services` plugin when `google-services.json` is present.
+- **`POST_NOTIFICATIONS`** is in `AndroidManifest.xml`. The hook calls
+  `PushNotifications.requestPermissions()`, so the runtime prompt (Android 13+)
+  appears the first time the AT opens the app.
+- **Plugin installed & synced** — `@capacitor/push-notifications` is in
+  `package.json` and wired into the native project (`npx cap sync android`).
+
+### What still has to happen for it to go live
+
+1. **Deploy the web app** (normal push-to-GitHub → App Hosting). The APK loads
+   the *remote* hosted URL, so the registration hook only runs once the deployed
+   web app contains it.
+2. **Rebuild and redistribute the APK** (Steps 3–5 below). The push plugin is
+   native code, so the agents must install the new APK — the hook bridges to
+   native code that does not exist in the current build.
+
+> **Verify:** install the APK, log in as an Agent de Terrain, accept the
+> notification prompt. On a second device (gestionnaire), open a dossier →
+> **Créer une planification**, pick that agent, and click **Demander la
+> localisation de l'AT** — even with the agent's app swiped away, a "Demande de
+> position" notification should arrive; tapping it opens the app and the
+> gestionnaire view fills in within a few seconds.
+
+---
+
 ## Step 3 — create a signing key
 
 You no longer have the original TWA keystore, so create a **new** one. Keep it

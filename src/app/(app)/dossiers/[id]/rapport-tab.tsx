@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils';
 import { generateRapportReformePDF } from '@/lib/generate-rapport-reforme-pdf';
 import { generateRapportFinalPDF } from '@/lib/generate-rapport-final-pdf';
 import { generateRapportEstimatifPDF } from '@/lib/generate-rapport-estimatif-pdf';
+import { generateRapportPreliminairePDF } from '@/lib/generate-rapport-preliminaire-pdf';
 import type { RapportType } from '@/lib/generate-rapport-shared';
 import { RapportTypeDialog } from '@/components/modals/rapport-type-dialog';
 import {
@@ -241,7 +242,9 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           await updateDoc(doc(db, 'dossiers', dossierId), { pointsChoc, pointsChocDessous });
         } catch { /* silent */ }
       }
-      if (type === 'estimatif') {
+      if (type === 'preliminaire') {
+        await generateRapportPreliminairePDF(db, dossierId);
+      } else if (type === 'estimatif') {
         await generateRapportEstimatifPDF(db, dossierId);
       } else if (type === 'reforme') {
         await generateRapportReformePDF(db, dossierId);

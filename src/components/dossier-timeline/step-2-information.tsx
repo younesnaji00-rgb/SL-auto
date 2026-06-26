@@ -118,19 +118,17 @@ export default function Step2Information({
     [db, dossierId],
   );
   const { data: allDocs } = useCollection<any>(docsQuery);
+  // The comparer only mirrors the document that was dropped in for AI scanning
+  // / data extraction — i.e. Step 1's "Document source du pré-remplissage"
+  // (dossier.importDocId). Other attachments (propositions d'accord, devis,
+  // pièces jointes) must not appear here.
+  const importDocId: string | undefined = dossier?.importDocId || undefined;
   const scanDocs = useMemo(
     () =>
-      (allDocs ?? [])
-        .filter((d: any) => {
-          const name = (d.nom || d.fileName || '').toString().toLowerCase();
-          return /\.(jpe?g|png|gif|webp|bmp|pdf)$/i.test(name);
-        })
-        .sort((a: any, b: any) =>
-          ((a.nom || a.fileName || '') as string).localeCompare(
-            (b.nom || b.fileName || '') as string,
-          ),
-        ),
-    [allDocs],
+      importDocId
+        ? (allDocs ?? []).filter((d: any) => d.id === importDocId)
+        : [],
+    [allDocs, importDocId],
   );
 
   useEffect(() => {

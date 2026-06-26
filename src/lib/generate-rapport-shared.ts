@@ -179,7 +179,7 @@ export async function fetchCompagnieLogo(
 }
 
 /** Type of rapport the user selects in the picker dialog. */
-export type RapportType = 'final' | 'reforme' | 'estimatif';
+export type RapportType = 'final' | 'reforme' | 'estimatif' | 'preliminaire';
 
 /**
  * Accord-marker fields that may ride along on a piece doc (mirrored from the
