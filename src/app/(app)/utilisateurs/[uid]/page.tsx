@@ -64,6 +64,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
+import { rappelsEnvoyesRoleDefault } from '@/lib/permissions';
 import { useDoc, useFirestore } from '@/firebase';
 import {
   doc,
@@ -79,7 +80,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { roles, isSingleSessionRole, type Role } from '@/lib/dossiers-data';
-import { Eye, EyeOff, Check, ChevronsUpDown, Plus, Search, LogOut, Smartphone } from 'lucide-react';
+import { Eye, EyeOff, Check, ChevronsUpDown, Plus, Search, LogOut, Smartphone, Globe } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useOptions } from '@/hooks/use-options';
 import { cn } from '@/lib/utils';
@@ -96,6 +97,11 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
 
   const userRef = useMemo(() => doc(db, 'users', uid), [db, uid]);
   const { data: userData, loading: userLoading } = useDoc(userRef);
+  // Device + IP of the active session live in an admin-only subcollection (kept
+  // off the world-readable user doc). Only admins reach this page, so the read
+  // is always authorised.
+  const sessionMetaRef = useMemo(() => doc(db, 'users', uid, 'session_meta', 'current'), [db, uid]);
+  const { data: sessionMeta } = useDoc(sessionMetaRef);
 
   // Single source of truth: Firestore. Filter inactive entries client-side.
   const { options: dbCompagnies } = useOptions('compagnies');
@@ -239,7 +245,9 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         if (item.href === '/mes-rappels') {
           node.children = [
             { id: '/mes-rappels#recus', label: 'Reçus', roleDefault: parentDefault },
-            { id: '/mes-rappels#envoyes', label: 'Envoyés', roleDefault: parentDefault },
+            // Gestionnaires only receive rappels, never send → "Envoyés" tab is
+            // off by default for them (kept in sync with the /mes-rappels gate).
+            { id: '/mes-rappels#envoyes', label: 'Envoyés', roleDefault: parentDefault && rappelsEnvoyesRoleDefault(role) },
           ];
         } else if (item.href === '/dossiers') {
           // Validation has its own role gate (canValidateRapport): Admin +
@@ -399,6 +407,10 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         nomLowercase: (formData.nom || '').trim().toLowerCase(),
         ...(clearSession ? { currentSessionId: null } : {}),
       });
+      // Drop the admin-only session metadata alongside the cleared claim.
+      if (clearSession) {
+        await deleteDoc(doc(db, 'users', uid, 'session_meta', 'current')).catch(() => {});
+      }
 
       // Mirror zone into options_agents when user is currently an Agent de Terrain.
       if (formData.role === 'Agent de Terrain' && formData.nom) {
@@ -450,6 +462,9 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         for (const d of snap.docs) await deleteDoc(d.ref);
       }
 
+      // Firestore doesn't cascade-delete subcollections, so drop the session
+      // metadata explicitly or it would orphan (PII) after the parent is gone.
+      await deleteDoc(doc(db, 'users', uid, 'session_meta', 'current')).catch(() => {});
       await deleteDoc(userRef);
       toast({ title: "Utilisateur supprimé" });
       router.push('/utilisateurs');
@@ -469,6 +484,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     setIsDisconnecting(true);
     try {
       await updateDoc(userRef, { currentSessionId: null });
+      await deleteDoc(doc(db, 'users', uid, 'session_meta', 'current')).catch(() => {});
       toast({
         title: 'Session déconnectée',
         description: "L'utilisateur a été déconnecté de son appareil et peut se reconnecter ailleurs.",
@@ -1026,6 +1042,39 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                       : 'Aucune session active'}
                   </span>
                 </div>
+                {userData.currentSessionId && (
+                  <div className="rounded-md border bg-muted/20 px-3 py-2 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <Smartphone className="h-3.5 w-3.5" />
+                        Appareil
+                      </span>
+                      <span className="font-medium text-right">
+                        {sessionMeta?.device || 'Inconnu'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <Globe className="h-3.5 w-3.5" />
+                        Adresse IP
+                      </span>
+                      <span className="font-mono tabular-nums text-right">
+                        {sessionMeta?.ip || 'Inconnue'}
+                      </span>
+                    </div>
+                    {sessionMeta?.at && (
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Clock className="h-3.5 w-3.5" />
+                          Connecté depuis
+                        </span>
+                        <span className="tabular-nums text-right">
+                          {formatTimestamp(sessionMeta.at)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <Button
                   variant="outline"
                   className="w-full"

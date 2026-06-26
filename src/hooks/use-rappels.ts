@@ -18,8 +18,20 @@ export interface Rappel {
   createdAt?: any;
   read?: boolean;
   observation?: string;
+  /** When the recipient first opened the dossier from this rappel. */
+  seenAt?: any;
   sessionId?: string;
+  /** Start of the treatment window (set with sessionId on first open). */
+  sessionStartedAt?: any;
+  /** End of the treatment window (set on "Valider le traitement"). */
   resolvedAt?: any;
+  /**
+   * Dot-paths of the dossier doc that changed between session start and
+   * "Valider le traitement". Small, kept on the rappel doc so the list can
+   * show a change count without loading the heavy snapshots (which live in the
+   * `rappels/{id}/snapshots` subcollection: docs `before` and `after`).
+   */
+  changedPaths?: string[];
 }
 
 export function useRappels(): { rappels: Rappel[]; loading: boolean } {

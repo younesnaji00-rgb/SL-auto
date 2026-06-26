@@ -31,6 +31,7 @@ import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { apiFetch } from '@/lib/api-fetch';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 import { cn } from '@/lib/utils';
+import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 
 export interface Step1ImportProps {
   dossierId: string;
@@ -135,6 +136,8 @@ export default function Step1Import({
   const { toast } = useToast();
 
   const canEdit = !readOnly && canWrite('dossiers');
+  // Inert on the live page; tints the import source doc in the rappel replica.
+  const hl = useReplayHighlight();
 
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -611,15 +614,17 @@ export default function Step1Import({
                 const when = formatDate(d.dateUpload || d.uploadedAt);
                 const url: string | undefined = d.url || undefined;
                 const canPreview = Boolean(url) && !d.pendingUpload;
+                const replayStatus = hl.statusForEntry('documents', d.id || importDocId || '');
                 return (
                   <li
                     key={d.id || importDocId}
-                    className="flex items-center gap-3 px-3 py-2 text-sm"
+                    className={cn("flex items-center gap-3 px-3 py-2 text-sm", highlightClass(replayStatus))}
                   >
                     <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium" title={name}>
-                        {name}
+                      <p className="truncate font-medium flex items-center gap-1.5" title={name}>
+                        <span className="truncate">{name}</span>
+                        <ChangeBadge status={replayStatus} className="shrink-0" />
                       </p>
                       <p className="truncate text-[11px] text-muted-foreground">
                         {by}

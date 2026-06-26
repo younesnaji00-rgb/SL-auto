@@ -1,10 +1,11 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { onAuthStateChanged, signOut as firebaseSignOut, type User } from 'firebase/auth';
 import { doc, onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { ROLES_THAT_CAN_DELETE, SINGLE_SESSION_ROLES, type Role } from '@/lib/dossiers-data';
+import { collectSessionMeta } from '@/lib/session-meta';
 
 // Single-session enforcement (BLOCK model): the FIRST device to log in claims
 // `currentSessionId` on the user doc and holds it. A SECOND device is blocked
@@ -231,10 +232,16 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
             const data = snap.data();
             const remoteSessionId: string | undefined = data.currentSessionId;
             const localSessionId = readLocalSessionId();
-            // Consume the first-snapshot flag exactly once (set false now so the
-            // early returns below can't skip it).
-            const firstSnapshot = isFirstSnapshot;
-            isFirstSnapshot = false;
+            // Only SERVER-confirmed snapshots drive claim/eviction decisions. A
+            // cached snapshot (offline, reconnecting, or a wedged long-poll —
+            // see experimentalForceLongPolling) can momentarily show a stale or
+            // missing currentSessionId; acting on it would sign an idle sole
+            // device out and strand `currentSessionId` on the doc, which then
+            // blocked that SAME device from logging back in ("session already
+            // active"). A genuine force-disconnect/displacement is a real
+            // content change delivered from the server, so it is still caught —
+            // directly on the confirmed snapshot, with no extra read to fail.
+            const fromServer = !snap.metadata.fromCache;
             const loginInFlight =
               typeof window !== 'undefined' &&
               window.sessionStorage.getItem(LOGIN_IN_FLIGHT_KEY) === '1';
@@ -246,6 +253,7 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
                 remote: remoteSessionId,
                 local: localSessionId,
                 loginInFlight,
+                fromServer,
                 tabPath: window.location.pathname,
               });
             }
@@ -273,7 +281,12 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
               }
             };
 
-            if (!loginInFlight && roleEnforced) {
+            if (fromServer && !loginInFlight && roleEnforced) {
+              // Consume the first-snapshot flag on the first SERVER-confirmed
+              // evaluation (a cached first snapshot must not burn the flag or
+              // arm the legacy claim).
+              const firstServerSnapshot = isFirstSnapshot;
+              isFirstSnapshot = false;
               if (remoteSessionId) {
                 // Someone holds the session. If it's not us (force-disconnect
                 // re-claimed elsewhere, or a displaced legacy session) → sign
@@ -291,7 +304,7 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
                 console.warn('[single-session] EVICTING (session cleared remotely)', { local: localSessionId });
                 await evictThisDevice();
                 return;
-              } else if (firstSnapshot) {
+              } else if (firstServerSnapshot) {
                 // Legacy persisted-auth with no session id anywhere, observed on
                 // the FIRST snapshot. Claim one so a future force-disconnect is
                 // detectable. Only ever runs once per listener — a remote id
@@ -302,7 +315,33 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
                   window.sessionStorage.setItem(SESSION_STORAGE_KEY, claimId);
                   window.localStorage.setItem(SESSION_STORAGE_KEY, claimId);
                 }
-                updateDoc(doc(db, 'users', user.uid), { currentSessionId: claimId })
+                // Stamp the claim + device/IP for the admin session card. The
+                // /api/client-ip round-trip widens the gap between observing the
+                // empty slot and writing, so mirror the login page's claim-or-
+                // block: collect meta first, then a transaction that only writes
+                // if the slot is STILL free — otherwise a device that legitimately
+                // claimed during the fetch would be clobbered. collectSessionMeta
+                // never rejects (IP failure → null).
+                collectSessionMeta()
+                  .then((meta) =>
+                    runTransaction(db, async (tx) => {
+                      const ref = doc(db, 'users', user.uid);
+                      const fresh = await tx.get(ref);
+                      const remote = fresh.exists() ? (fresh.data() as any).currentSessionId : null;
+                      // Someone else took the slot during the meta fetch → abort
+                      // rather than resurrect a session that has moved on. The
+                      // next snapshot evicts this device (remote !== local).
+                      if (remote && remote !== claimId) return;
+                      tx.update(ref, { currentSessionId: claimId });
+                      // Device + IP in the admin-only subcollection (off the
+                      // world-readable user doc).
+                      tx.set(doc(db, 'users', user.uid, 'session_meta', 'current'), {
+                        device: meta.device,
+                        ip: meta.ip,
+                        at: serverTimestamp(),
+                      });
+                    }),
+                  )
                   .catch((e) => console.warn('Session claim failed:', e));
               } else {
                 // remote AND local both null on a LATER snapshot → the id was
@@ -370,6 +409,7 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
           const snap = await tx.get(ref);
           if (snap.exists() && (snap.data() as any).currentSessionId === localId) {
             tx.update(ref, { currentSessionId: null });
+            tx.delete(doc(db, 'users', uid, 'session_meta', 'current'));
           }
         });
       } catch (e) {
@@ -398,4 +438,21 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
 
 export function useCurrentUser() {
   return useContext(CurrentUserContext);
+}
+
+/**
+ * Wrap a subtree to force a read-only view: `canWrite` returns false for every
+ * section, `canDelete`/`isAdmin` are false. The real `profile` is preserved (so
+ * names/roles still resolve). Used by the rappel treatment replica so the live
+ * dossier-timeline components render in their read-only display mode for a
+ * manager who would otherwise have write access. No edits to the (frozen) tab
+ * components are needed — they already gate on `canWrite('dossiers')`.
+ */
+export function ReadOnlyUserScope({ children }: { children: React.ReactNode }) {
+  const ctx = useContext(CurrentUserContext);
+  const value = useMemo<CurrentUserContextType>(
+    () => ({ ...ctx, canWrite: () => false, canDelete: false, isAdmin: false }),
+    [ctx],
+  );
+  return <CurrentUserContext.Provider value={value}>{children}</CurrentUserContext.Provider>;
 }

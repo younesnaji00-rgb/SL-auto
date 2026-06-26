@@ -12,8 +12,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -190,7 +190,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         agentLocationManuel: initialData.agentLocationManuel || '',
       });
     } else if (open) {
-      setFormData({ agentTerrain: defaultAgentTerrain ?? '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationCustomText: '', observationPersonnalisee: '', agentLocationManuel: '' });
+      setFormData({ agentTerrain: defaultAgentTerrain ?? '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationCustomText: initialData?.observationCustomText || '', observationPersonnalisee: '', agentLocationManuel: '' });
     }
   }, [initialData, open, defaultTypeMission, defaultAgentTerrain]);
 
@@ -207,8 +207,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
 
   // Resolve the displayed coords (the agent's live position, or — when the
   // current user is the AT — their own browser position) to a human-readable
-  // address via the server-side Nominatim proxy. Reset on every coord change
-  // so the previous address doesn't flash while the new lookup is in flight.
+  // address via the server-side Nominatim proxy. `apiFetch` attaches the
+  // Firebase ID token the route's `requireAuth` requires; a plain `fetch`
+  // would 401 and silently fall back to raw coordinates. Reset on every coord
+  // change so the previous address doesn't flash while the new lookup runs.
   useEffect(() => {
     setAgentAddress(null);
     if (!effectiveIsFresh || !effectiveLocation) return;
@@ -280,14 +282,6 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         }
       }
 
-      // Only persist the manual agent location fallback when GPS is unavailable
-      // for the selected agent — i.e. when the manual <Input> row was actually
-      // rendered. When GPS subsequently succeeds the row is hidden and the
-      // stored value is cleared so downstream consumers aren't misled.
-      const agentLocationManuelToPersist = isAgentLocationUnavailable
-        ? formData.agentLocationManuel.trim()
-        : '';
-
       const payload: Record<string, any> = {
         agentTerrain: formData.agentTerrain,
         agentTerrainUid,
@@ -297,7 +291,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         adresse: formData.adresse,
         observation: resolvedObservation,
         observationPersonnalisee: formData.observationPersonnalisee,
-        agentLocationManuel: agentLocationManuelToPersist,
+        agentLocationManuel: formData.agentLocationManuel,
         modifiedAt: serverTimestamp(),
         modifiedBy: auth?.currentUser?.uid || 'Admin',
         modifiedByName: profile?.nom || userEmail,

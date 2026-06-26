@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/tooltip';
 import { logWorkflow } from './log-historique';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 import { ValiderDossierButton } from '@/components/dossiers/valider-dossier-button';
 import CarSvgTop from '@/components/car-svg-top';
 import CarSvgBottom from '@/components/car-svg-bottom';
@@ -56,6 +57,11 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   const { toast } = useToast();
   const { canWrite, profile } = useCurrentUser();
   const canEditDossiers = canWrite('dossiers');
+  // Inert on the live page; in the rappel replica it flags whether the
+  // gestionnaire changed the points-de-choc diagram during their session.
+  const hl = useReplayHighlight();
+  const pointsChocStatus = hl.statusForPath('pointsChoc');
+  const pointsChocDessousStatus = hl.statusForPath('pointsChocDessous');
 
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -332,8 +338,10 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
       <Card className="border-primary/10 shadow-sm">
         <CardHeader className="border-b bg-heading-bg"><CardTitle className="text-xl font-bold">Points de choc</CardTitle></CardHeader>
         <CardContent className="p-6 space-y-12">
-          <div className="space-y-6">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-l-4 border-blue-500 pl-3">Vue de dessus</h3>
+          <div className={cn("space-y-6 rounded-md", highlightClass(pointsChocStatus) && `${highlightClass(pointsChocStatus)} p-3`)}>
+            <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-l-4 border-blue-500 pl-3 flex items-center gap-2">
+              Vue de dessus <ChangeBadge status={pointsChocStatus} />
+            </h3>
             <div className={cn("grid gap-12 items-center", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1 max-w-md mx-auto")}>
               <div className={cn("mx-auto", !canEditDossiers && "pointer-events-none")}>
                 <CarSvgTop zones={pointsChoc} onToggleZone={canEditDossiers ? (zone) => handleToggleZone(zone) : () => {}} />
@@ -350,8 +358,10 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
               )}
             </div>
           </div>
-          <div className="space-y-6 pt-12 border-t border-dashed">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-l-4 border-blue-500 pl-3">Vue de dessous</h3>
+          <div className={cn("space-y-6 pt-12 border-t border-dashed rounded-md", highlightClass(pointsChocDessousStatus) && `${highlightClass(pointsChocDessousStatus)} p-3`)}>
+            <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-l-4 border-blue-500 pl-3 flex items-center gap-2">
+              Vue de dessous <ChangeBadge status={pointsChocDessousStatus} />
+            </h3>
             <div className={cn("grid gap-12 items-center", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1 max-w-md mx-auto")}>
               <div className={cn("mx-auto", !canEditDossiers && "pointer-events-none")}>
                 <CarSvgBottom zones={pointsChocDessous} onToggleZone={canEditDossiers ? (zone) => handleToggleZone(zone, true) : () => {}} />

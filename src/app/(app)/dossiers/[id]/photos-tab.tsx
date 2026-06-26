@@ -57,6 +57,7 @@ import {
 } from '@/components/ui/dialog';
 import { logHistorique, logWorkflow } from './log-historique';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -122,6 +123,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
   const storage = useStorage();
   const { toast } = useToast();
   const { canWrite, profile } = useCurrentUser();
+  const hl = useReplayHighlight();
   const canEdit = canWrite('dossiers');
   // Reads the propositionReforme flag (item 021). When true, the per-section
   // cap is 60 instead of 30.
@@ -355,10 +357,16 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
    */
   const renderPhotoCard = (photo: Photo) => {
     const isEditing = editingId === photo.id;
+    const replayStatus = hl.statusForEntry('photos', photo.id);
     return (
       <div
-        className="group relative bg-muted/30 rounded-md border border-border overflow-hidden transition-all hover:shadow-md"
+        className={cn("group relative bg-muted/30 rounded-md border border-border overflow-hidden transition-all hover:shadow-md", highlightClass(replayStatus))}
       >
+        {replayStatus && (
+          <div className="absolute top-1 left-1 z-10 rounded bg-background/90 px-1">
+            <ChangeBadge status={replayStatus} />
+          </div>
+        )}
         <div className="aspect-square w-full relative overflow-hidden bg-black/5">
           {photo.pendingUpload ? (
             <div className="w-full h-full flex flex-col items-center justify-center text-amber-600 bg-amber-50 dark:bg-amber-950/30">

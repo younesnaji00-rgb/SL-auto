@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { collection, query, where, getDocs, setDoc, doc, serverTimestamp, updateDoc, runTransaction } from 'firebase/firestore';
+import { collection, query, where, getDocs, setDoc, doc, serverTimestamp, updateDoc, deleteDoc, runTransaction } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { SINGLE_SESSION_ROLES } from '@/lib/dossiers-data';
 import { landingPathFor } from '@/lib/role-landing';
+import { collectSessionMeta } from '@/lib/session-meta';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -300,6 +301,10 @@ export default function LoginPage() {
       const cred = await signInWithEmailAndPassword(auth, email, password);
 
       if (isBasicRole) {
+        // Capture the device + public IP for the admin session card. Collected
+        // BEFORE the transaction (its callback can retry on contention, and we
+        // must not fetch inside it). Best-effort — never blocks the login.
+        const sessionMeta = await collectSessionMeta();
         // Atomic claim-or-block: succeed only if no OTHER device currently
         // holds the session. The transaction guarantees two simultaneous
         // logins can't both win. `remote === priorLocalId` means this same
@@ -318,6 +323,14 @@ export default function LoginPage() {
             };
             if (backfillNeeded) updates.nomLowercase = lower;
             tx.update(ref, updates);
+            // Device + IP go in an admin-only subcollection (kept off the
+            // world-readable user doc). Same transaction → the admin card never
+            // sees a claim without its metadata.
+            tx.set(doc(db, 'users', cred.user.uid, 'session_meta', 'current'), {
+              device: sessionMeta.device,
+              ip: sessionMeta.ip,
+              at: serverTimestamp(),
+            });
           });
         } catch (txErr: any) {
           if (txErr?.message === 'SESSION_OCCUPIED') {
@@ -347,6 +360,9 @@ export default function LoginPage() {
         };
         if (backfillNeeded) updates.nomLowercase = lower;
         await updateDoc(doc(db, 'users', cred.user.uid), updates);
+        // Drop any stale session metadata left from a prior basic-role session
+        // on this account. Best-effort.
+        deleteDoc(doc(db, 'users', cred.user.uid, 'session_meta', 'current')).catch(() => {});
       }
 
       window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);

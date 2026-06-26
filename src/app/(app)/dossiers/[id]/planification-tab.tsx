@@ -24,6 +24,8 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 
 type PlanificationTabProps = {
   dossierId: string;
@@ -44,6 +46,9 @@ export default function PlanificationTab({
     const [plans, setPlans] = useState<any[] | null>(null);
     const [loading, setLoading] = useState(true);
     const [expandedPlan, setExpandedPlan] = useState<any>(null);
+    // Inert on the live page; tints planifications added/modified by the
+    // gestionnaire in the rappel treatment replica.
+    const hl = useReplayHighlight();
 
     useEffect(() => {
         const q = query(
@@ -113,10 +118,12 @@ export default function PlanificationTab({
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {visiblePlans.map((plan: any, index: number) => (
+                                {visiblePlans.map((plan: any, index: number) => {
+                                  const replayStatus = hl.statusForEntry('planifications', plan.id);
+                                  return (
                                     <TableRow
                                         key={plan.id}
-                                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                        className={cn("cursor-pointer hover:bg-muted/50 transition-colors", highlightClass(replayStatus))}
                                         onClick={() => setExpandedPlan(plan)}
                                     >
                                         <TableCell className="font-mono text-xs font-bold text-primary">
@@ -124,6 +131,7 @@ export default function PlanificationTab({
                                             {index === 0 && (
                                                 <Badge variant="default" className="ml-2 text-[9px] px-1 h-4">Dernière</Badge>
                                             )}
+                                            <ChangeBadge status={replayStatus} className="ml-1 align-middle" />
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="secondary" className="capitalize text-xs">
@@ -148,7 +156,8 @@ export default function PlanificationTab({
                                             </Button>
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                  );
+                                })}
                             </TableBody>
                         </Table>
                     </CardContent>

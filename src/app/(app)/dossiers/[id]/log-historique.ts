@@ -1,6 +1,22 @@
 import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
+ * Read the active "Mes rappels" treatment session id for this dossier from
+ * localStorage. Set by mes-rappels/page.tsx on row click, cleared on "Valider
+ * le traitement". Mirrors the tagging in log-observation.ts so EVERY action a
+ * gestionnaire takes during a rappel session (status changes, workflow steps,
+ * uploads…) carries the session id and surfaces in the manager's replay.
+ */
+function activeRappelSessionId(dossierId: string): string | null {
+  if (typeof window === 'undefined' || !dossierId) return null;
+  try {
+    return window.localStorage.getItem(`rappel-active-session-${dossierId}`);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Utility function to log actions to the dossier's audit trail (historique subcollection).
  * When type === 'statut', also denormalize `lastStatusChange` onto the dossier doc so
  * the dossiers list can render the last status + time without an extra subquery per row.
@@ -29,18 +45,11 @@ export async function logHistorique(
       type: type || 'autre',
     };
     if (userNom && userNom.trim()) payload.userNom = userNom.trim();
-
     // F9.B: auto-tag historique entries made during an active "Mes rappels"
     // session so the Mes rappels list can surface the modifications back to
-    // the sender. Mirrors `log-observation.ts`. Intentionally NOT propagated
-    // to the lastStatusChange denormalization below.
-    if (typeof window !== 'undefined' && dossierId) {
-      try {
-        const sid = window.localStorage.getItem(`rappel-active-session-${dossierId}`);
-        if (sid) payload.rappelSessionId = sid;
-      } catch {}
-    }
-
+    // the sender. Mirrors `log-observation.ts`.
+    const histSid = activeRappelSessionId(dossierId);
+    if (histSid) payload.rappelSessionId = histSid;
     await addDoc(collection(db, 'dossiers', dossierId, 'historique'), payload);
 
     if (type === 'statut') {
@@ -91,15 +100,9 @@ export async function logWorkflow(
       ...(extra?.details && { details: extra.details }),
     };
     if (userNom && userNom.trim()) payload.userNom = userNom.trim();
-
     // F9.B: same Mes rappels session tagging as logHistorique above.
-    if (typeof window !== 'undefined' && dossierId) {
-      try {
-        const sid = window.localStorage.getItem(`rappel-active-session-${dossierId}`);
-        if (sid) payload.rappelSessionId = sid;
-      } catch {}
-    }
-
+    const wfSid = activeRappelSessionId(dossierId);
+    if (wfSid) payload.rappelSessionId = wfSid;
     await addDoc(collection(db, 'dossiers', dossierId, 'workflow'), payload);
   } catch (err) {
     console.error('Failed to log workflow step:', err);
