@@ -34,11 +34,18 @@ const nextConfig: NextConfig = {
     // in Firebase Storage at /public/sl-auto.apk — replacing it there is
     // enough to ship a new APK (no redeploy needed). 307 keeps it
     // re-resolvable in case we move the storage location later.
+    //
+    // Storage rules require auth for reads, so the download relies on the
+    // object's Firebase download token rather than public-read rules. The token
+    // below is STABLE — when you upload a new APK, preserve it with:
+    //   gsutil setmeta -h "x-goog-meta-firebaseStorageDownloadTokens:<token>" \
+    //     gs://studio-9568416614-6523a.firebasestorage.app/public/sl-auto.apk
+    // (the Firebase Console keeps the token when you "replace" a file).
     return [
       {
         source: '/downloads/sl-auto.apk',
         destination:
-          'https://firebasestorage.googleapis.com/v0/b/studio-9568416614-6523a.firebasestorage.app/o/public%2Fsl-auto.apk?alt=media',
+          'https://firebasestorage.googleapis.com/v0/b/studio-9568416614-6523a.firebasestorage.app/o/public%2Fsl-auto.apk?alt=media&token=857cc76f-ee7e-4fdf-8a19-cb4195dd44ae',
         permanent: false,
       },
     ];
