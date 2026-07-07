@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { CheckCircle, XCircle, AlertTriangle, User } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,12 +13,12 @@ import {
   orderBy,
   onSnapshot,
   addDoc,
-  updateDoc,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useDossierDocWrite, applyPendingToDossier } from './rappel-draft';
 import { displayUserName } from '@/lib/display-user';
 import { UserNameLink } from '@/components/user-name-link';
 
@@ -47,8 +47,17 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
   const { canWrite } = useCurrentUser();
 
   const [entries, setEntries] = useState<any[]>([]);
-  const [dossier, setDossier] = useState<any>(null);
+  const [rawDossier, setRawDossier] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Rappel session: date edits & sinistre-douteux decisions buffer until
+  // « Sauvegarder »; the displayed dossier gets the buffer overlaid so the
+  // Dates clés reflect the session's local edits.
+  const { write: writeDossierDoc, buffered, draft } = useDossierDocWrite(dossierId);
+  const dossier = useMemo(
+    () => (draft.active ? applyPendingToDossier(rawDossier, draft.pending) : rawDossier),
+    [rawDossier, draft.active, draft.pending],
+  );
 
   // Listen to historique subcollection
   useEffect(() => {
@@ -77,7 +86,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
 
     const unsubscribeDossier = onSnapshot(doc(db, 'dossiers', dossierId), (snapshot) => {
       if (snapshot.exists()) {
-        setDossier({ id: snapshot.id, ...snapshot.data() });
+        setRawDossier({ id: snapshot.id, ...snapshot.data() });
       }
     });
     
@@ -195,14 +204,18 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       //   dateOfRequest -> dossiers/{id}.dateRequete   (Timestamp)
       // Sibling `<field>TimeKnown` boolean reflects whether the gestionnaire
       // also filled the hh:mm (the AI never extracts time).
-      await updateDoc(doc(db, 'dossiers', dossierId), {
+      await writeDossierDoc({
         [editingField]: Timestamp.fromDate(when),
         [`${editingField}TimeKnown`]: timeKnown,
         // Source tracks DATE provenance, not time. If the date was AI-extracted
         // and the user only added the time, the row stays AI-sourced.
         [`${editingField}Source`]: dateLockedAi ? 'ai' : 'manual',
       });
-      toast({ title: 'Date mise à jour' });
+      toast(
+        buffered
+          ? { title: 'Date modifiée (en attente)', description: 'Publiée après « Sauvegarder » dans la bannière rappel.' }
+          : { title: 'Date mise à jour' },
+      );
       setEditingField(null);
     } catch (err: any) {
       console.error('Date update error:', err);
@@ -352,51 +365,42 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
     );
   };
 
-  const handleApprove = async () => {
+  // Approve/reject share one path: the dossier write goes through the rappel
+  // buffer (when a session is active) and the audit entry is deferred with it
+  // so the historique never gets ahead of the visible dossier state.
+  const handleDouteuxDecision = async (decision: 'Sinistre Douteux Approuvé' | 'Sinistre Douteux Rejeté') => {
     if (!db || !dossierId) return;
+    const details =
+      decision === 'Sinistre Douteux Approuvé'
+        ? "La demande a été approuvée par l'administration."
+        : "La demande a été rejetée par l'administration.";
     try {
-      await updateDoc(doc(db, 'dossiers', dossierId), {
+      await writeDossierDoc({
         'sinistreDouteux.active': false,
-        statut: 'Sinistre Douteux Approuvé'
+        statut: decision,
       });
-      
-      await addDoc(collection(db, 'dossiers', dossierId, 'historique'), {
-        action: 'Sinistre Douteux Approuvé',
-        date: serverTimestamp(),
-        user: currentUserEmail,
-        details: 'La demande a été approuvée par l\'administration.',
-        type: 'sinistre_douteux'
-      });
-      
-      toast({ title: 'Succès', description: 'Sinistre douteux approuvé.' });
+
+      if (buffered) {
+        draft.bufferLog({ kind: 'historique', args: [decision, currentUserEmail, details, 'sinistre_douteux'] });
+        toast({ title: 'Décision en attente', description: 'Publiée après « Sauvegarder » dans la bannière rappel.' });
+      } else {
+        await addDoc(collection(db, 'dossiers', dossierId, 'historique'), {
+          action: decision,
+          date: serverTimestamp(),
+          user: currentUserEmail,
+          details,
+          type: 'sinistre_douteux'
+        });
+        toast({ title: 'Succès', description: decision === 'Sinistre Douteux Approuvé' ? 'Sinistre douteux approuvé.' : 'Sinistre douteux rejeté.' });
+      }
     } catch (err: any) {
       console.error(err);
       toast({ variant: 'destructive', title: 'Erreur', description: err.message });
     }
   };
 
-  const handleReject = async () => {
-    if (!db || !dossierId) return;
-    try {
-      await updateDoc(doc(db, 'dossiers', dossierId), {
-        'sinistreDouteux.active': false,
-        statut: 'Sinistre Douteux Rejeté'
-      });
-      
-      await addDoc(collection(db, 'dossiers', dossierId, 'historique'), {
-        action: 'Sinistre Douteux Rejeté',
-        date: serverTimestamp(),
-        user: currentUserEmail,
-        details: 'La demande a été rejetée par l\'administration.',
-        type: 'sinistre_douteux'
-      });
-      
-      toast({ title: 'Succès', description: 'Sinistre douteux rejeté.' });
-    } catch (err: any) {
-      console.error(err);
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
-    }
-  };
+  const handleApprove = () => handleDouteuxDecision('Sinistre Douteux Approuvé');
+  const handleReject = () => handleDouteuxDecision('Sinistre Douteux Rejeté');
 
   if (loading) {
     return (

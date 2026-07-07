@@ -8,10 +8,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { updateDoc, type DocumentReference, Timestamp } from 'firebase/firestore';
+import { type DocumentReference, Timestamp } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
+import { useFormDraft } from '@/hooks/use-form-draft';
 import { logHistorique, logWorkflow } from './log-historique';
+import { useDossierDocWrite } from './rappel-draft';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -104,6 +106,9 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Rappel session: writes are buffered until the page-level « Sauvegarder ».
+  const { write: writeDossierDoc, buffered, draft } = useDossierDocWrite(dossierId);
+
   // ── Unified form state ──
   const [form, setForm] = useState<any>({
     compagnie: '', statut: '', refExpert: '', matricule: '',
@@ -127,6 +132,27 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
     if (!val) return null;
     if (val.toDate) return val.toDate();
     try { return new Date(val); } catch { return null; }
+  };
+
+  // Crash-proof draft: while editing, the whole form is mirrored to
+  // localStorage (debounced + every 60s + on tab close). A leftover draft —
+  // power cut, crash, navigation without saving — is offered for restore.
+  const draftKey = profile?.uid ? `form-draft:dossier-info:${dossierId}:${profile.uid}` : null;
+  const { recovered, clearDraft } = useFormDraft({ storageKey: draftKey, value: form, active: editing });
+
+  const handleRestoreDraft = () => {
+    const d = recovered?.data;
+    if (!d) return;
+    // Dates round-tripped through JSON as ISO strings — re-parse the three
+    // date paths so the pickers get real Date objects back.
+    setForm({
+      ...d,
+      dateSinistre: parseDate(d.dateSinistre),
+      dateRequete: parseDate(d.dateRequete),
+      vehicule: { ...(d.vehicule || {}), mec: parseDate(d.vehicule?.mec) },
+    });
+    setEditing(true);
+    clearDraft();
   };
 
   useEffect(() => {
@@ -228,16 +254,35 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
     };
 
     try {
-      await updateDoc(dossierRef, payload);
+      await writeDossierDoc(payload);
       const ref = dossier.refExpert || dossierId;
-      if (form.statut !== dossier.statut) {
-        await logHistorique(db, dossierId, form.statut, userEmail, `Statut changé en "${form.statut}".`, 'statut', profile?.nom);
-        await logWorkflow(db, dossierId, `Changement de statut : ${form.statut}`, userEmail, userId, 'done', { dossierRef: ref, details: `Statut changé en "${form.statut}"` }, profile?.nom);
+      const statutChanged = form.statut !== dossier.statut;
+      if (buffered) {
+        // Rappel session: the audit entries are deferred with the field
+        // changes so the historique never references a state the dossier
+        // doesn't have yet. Everything lands on « Sauvegarder ».
+        if (statutChanged) {
+          draft.bufferLog({ kind: 'historique', args: [form.statut, userEmail, `Statut changé en "${form.statut}".`, 'statut', profile?.nom] });
+          draft.bufferLog({ kind: 'workflow', args: [`Changement de statut : ${form.statut}`, userEmail, userId, 'done', { dossierRef: ref, details: `Statut changé en "${form.statut}"` }, profile?.nom] });
+        } else {
+          draft.bufferLog({ kind: 'historique', args: ['Mise à jour', userEmail, 'Informations du dossier mises à jour.', 'autre', profile?.nom] });
+          draft.bufferLog({ kind: 'workflow', args: ['Modification de dossier', userEmail, userId, 'done', { dossierRef: ref, details: 'Informations du dossier mises à jour' }, profile?.nom] });
+        }
+        toast({
+          title: 'Modifications en attente',
+          description: 'Elles ne seront visibles sur le dossier qu’après « Sauvegarder » dans la bannière rappel.',
+        });
       } else {
-        await logHistorique(db, dossierId, 'Mise à jour', userEmail, 'Informations du dossier mises à jour.', 'autre', profile?.nom);
-        await logWorkflow(db, dossierId, 'Modification de dossier', userEmail, userId, 'done', { dossierRef: ref, details: 'Informations du dossier mises à jour' }, profile?.nom);
+        if (statutChanged) {
+          await logHistorique(db, dossierId, form.statut, userEmail, `Statut changé en "${form.statut}".`, 'statut', profile?.nom);
+          await logWorkflow(db, dossierId, `Changement de statut : ${form.statut}`, userEmail, userId, 'done', { dossierRef: ref, details: `Statut changé en "${form.statut}"` }, profile?.nom);
+        } else {
+          await logHistorique(db, dossierId, 'Mise à jour', userEmail, 'Informations du dossier mises à jour.', 'autre', profile?.nom);
+          await logWorkflow(db, dossierId, 'Modification de dossier', userEmail, userId, 'done', { dossierRef: ref, details: 'Informations du dossier mises à jour' }, profile?.nom);
+        }
+        toast({ title: 'Informations mises à jour' });
       }
-      toast({ title: 'Informations mises à jour' });
+      clearDraft();
       setEditing(false);
     } catch (error: any) {
       console.error(error);
@@ -248,9 +293,10 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
   };
 
   const handleCancel = () => {
-    // Exiting edit mode flips the `editing` dep of the hydrate effect, which
-    // re-syncs the form from the latest dossier snapshot — discarding unsaved
-    // changes exactly like before.
+    // Explicit user discard — drop the crash-recovery draft too, then exit
+    // edit mode, which flips the `editing` dep of the hydrate effect and
+    // re-syncs the form from the latest dossier snapshot.
+    clearDraft();
     setEditing(false);
   };
 
@@ -262,6 +308,32 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
 
   return (
     <div className="space-y-6">
+      {/* Crash-recovery banner: a draft only survives here if a previous edit
+          session ended without Enregistrer/Annuler (power cut, crash, tab
+          closed mid-edit). */}
+      {canEdit && !editing && recovered && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-800/50 dark:bg-amber-900/25">
+          <div className="flex items-center gap-2 text-sm text-amber-900 dark:text-amber-100">
+            <Clock className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-200" />
+            <span>
+              Brouillon non enregistré récupéré
+              {recovered.savedAt.getTime() > 0 && (
+                <> du <strong>{format(recovered.savedAt, 'dd/MM/yyyy à HH:mm', { locale: fr })}</strong></>
+              )}
+              .
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" className="h-8 text-xs" onClick={handleRestoreDraft}>
+              Restaurer
+            </Button>
+            <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={clearDraft}>
+              Ignorer
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Edit/Save bar */}
       {canEdit && (
         <div className="flex justify-end gap-2">

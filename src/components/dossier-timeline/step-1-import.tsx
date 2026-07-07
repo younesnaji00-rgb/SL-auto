@@ -3,7 +3,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   doc as firestoreDoc,
-  updateDoc,
   deleteDoc,
   deleteField,
   serverTimestamp,
@@ -30,6 +29,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { apiFetch } from '@/lib/api-fetch';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
+import { useDossierDocWrite } from '@/app/(app)/dossiers/[id]/rappel-draft';
 import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 
@@ -138,6 +138,9 @@ export default function Step1Import({
   const canEdit = !readOnly && canWrite('dossiers');
   // Inert on the live page; tints the import source doc in the rappel replica.
   const hl = useReplayHighlight();
+  // Rappel session: the AI pre-fill writes onto the dossier are buffered
+  // until « Sauvegarder » (the uploaded file itself is stored immediately).
+  const { write: writeDossierDoc, buffered, draft } = useDossierDocWrite(dossierId);
 
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -199,7 +202,7 @@ export default function Step1Import({
           // was inspected by the AI (even if nothing could be extracted).
           if (sourceDocId) {
             try {
-              await updateDoc(dossierRef, {
+              await writeDossierDoc({
                 importDocId: sourceDocId,
                 importDocScannedAt: serverTimestamp(),
               });
@@ -274,7 +277,7 @@ export default function Step1Import({
 
         if (written > 0 || sourceDocId) {
           updates.updatedAt = serverTimestamp();
-          await updateDoc(dossierRef, updates);
+          await writeDossierDoc(updates);
           if (db && written > 0) {
             const parts = [
               filledFields.length > 0
@@ -286,15 +289,18 @@ export default function Step1Import({
                     .join(', ')})`
                 : null,
             ].filter(Boolean);
-            await logHistorique(
-              db,
-              dossierId,
+            const logArgs = [
               'Import document IA',
               userEmail,
               `${parts.join(' ; ')} par l'IA depuis les documents importés.`,
               'document',
               profile?.nom,
-            );
+            ];
+            if (buffered) {
+              draft.bufferLog({ kind: 'historique', args: logArgs });
+            } else {
+              await logHistorique(db, dossierId, ...(logArgs as [string, string, string, string, string | undefined]));
+            }
           }
         }
         setLastFilledCount(written);
@@ -310,7 +316,7 @@ export default function Step1Import({
           title: 'Scan terminé',
           description:
             written > 0
-              ? `${toastParts.join(', ')}. Vérifiez à l'étape Information.`
+              ? `${toastParts.join(', ')}. Vérifiez à l'étape Information.${buffered ? ' (Publié après « Sauvegarder » — rappel en cours.)' : ''}`
               : "Aucune valeur extraite par l'IA.",
         });
       } catch (err: any) {
@@ -324,7 +330,7 @@ export default function Step1Import({
         setIsScanning(false);
       }
     },
-    [db, dossier, dossierId, dossierRef, toast]
+    [db, dossier, dossierId, dossierRef, toast, writeDossierDoc, buffered, draft, profile?.nom]
   );
 
   const handleDeleteImportDoc = useCallback(async () => {
@@ -339,20 +345,27 @@ export default function Step1Import({
     setIsDeletingImport(true);
     try {
       await deleteDoc(importDocRef);
-      await updateDoc(dossierRef, {
+      await writeDossierDoc({
         importDocId: deleteField(),
         importDocScannedAt: deleteField(),
       });
       setLastFilledCount(null);
-      await logHistorique(
-        db,
-        dossierId,
-        'Suppression document source IA',
-        userEmail,
-        'Document source supprimé pour nouveau scan',
-        'document',
-        profile?.nom,
-      );
+      if (buffered) {
+        draft.bufferLog({
+          kind: 'historique',
+          args: ['Suppression document source IA', userEmail, 'Document source supprimé pour nouveau scan', 'document', profile?.nom],
+        });
+      } else {
+        await logHistorique(
+          db,
+          dossierId,
+          'Suppression document source IA',
+          userEmail,
+          'Document source supprimé pour nouveau scan',
+          'document',
+          profile?.nom,
+        );
+      }
       toast({ title: 'Document source supprimé' });
     } catch (err: any) {
       console.error('[Step1Import] delete import doc error:', err);
@@ -364,7 +377,7 @@ export default function Step1Import({
     } finally {
       setIsDeletingImport(false);
     }
-  }, [db, dossierId, dossierRef, importDocRef, toast, auth]);
+  }, [db, dossierId, dossierRef, importDocRef, toast, auth, writeDossierDoc, buffered, draft, profile?.nom]);
 
   const handleFiles = useCallback(
     async (files: File[]) => {
