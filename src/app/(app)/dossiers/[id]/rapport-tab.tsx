@@ -44,6 +44,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { logWorkflow } from './log-historique';
+import { useDossierDocWrite, applyPendingToDossier } from './rappel-draft';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 import { ValiderDossierButton } from '@/components/dossiers/valider-dossier-button';
@@ -57,6 +58,9 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   const { toast } = useToast();
   const { canWrite, profile } = useCurrentUser();
   const canEditDossiers = canWrite('dossiers');
+  // Rappel session: the type/sous-type select autosaves are buffered until
+  // « Sauvegarder »; PDF generation force-flushes first (see handleGenerate).
+  const { write: writeDossierDoc, draft: rappelDraft } = useDossierDocWrite(dossierId);
   // Inert on the live page; in the rappel replica it flags whether the
   // gestionnaire changed the points-de-choc diagram during their session.
   const hl = useReplayHighlight();
@@ -99,7 +103,9 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
     const unsubscribeDossier = onSnapshot(doc(db, 'dossiers', dossierId), (snap) => {
       if (snap.exists()) {
-        const data = snap.data();
+        // Overlay the rappel buffer so a session's not-yet-published select /
+        // points-de-choc edits survive a remount within the same session.
+        const data = applyPendingToDossier(snap.data(), rappelDraft.getPending());
 
         if (!pointsChocInitialLoaded.current) {
           if (data.pointsChoc) setPointsChoc(data.pointsChoc);
@@ -131,7 +137,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
     setSousTypeChiffrage('');
     if (db) {
       try {
-        await updateDoc(doc(db, 'dossiers', dossierId), { typeChiffrage: value, sousTypeChiffrage: '' });
+        await writeDossierDoc({ typeChiffrage: value, sousTypeChiffrage: '' });
       } catch { /* silent */ }
     }
   };
@@ -140,7 +146,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
     setSousTypeChiffrage(value);
     if (db) {
       try {
-        await updateDoc(doc(db, 'dossiers', dossierId), { sousTypeChiffrage: value });
+        await writeDossierDoc({ sousTypeChiffrage: value });
       } catch { /* silent */ }
     }
   };
@@ -242,6 +248,10 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   const handleGenerate = async (type: RapportType) => {
     setIsGenerating(true);
     try {
+      // Generating a rapport is a publication act: the PDF generators read
+      // the dossier from Firestore, so any rappel-session buffer must be
+      // committed first or the document would be built on stale data.
+      await rappelDraft.flush();
       // Persist current points de choc before generating
       if (db) {
         try {

@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useDoc, useFirestore } from '@/firebase';
 import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/firestore';
 import { ensureSnapshotBefore, captureSnapshotAfter, markTreatmentResolved } from '@/lib/rappel-session';
+import { RappelDraftContext, useRappelDraftStore, applyPendingToDossier } from './rappel-draft';
 import { useToast } from '@/hooks/use-toast';
 import { PageLoader } from '@/components/ui/page-loader';
 import { ErrorState } from '@/components/ui/error-state';
@@ -65,6 +66,24 @@ export default function DossierDetailPage({
   // localStorage handshake set by mes-rappels/page.tsx on row click.
   const [activeRappel, setActiveRappel] = useState<{ id: string; sessionId: string } | null>(null);
   const [validating, setValidating] = useState(false);
+
+  // Rappel draft buffer — while a rappel session is active, dossier-field
+  // writes from the editing surfaces are held here (mirrored to localStorage)
+  // and only reach Firestore when « Sauvegarder » flushes them. Keyed by
+  // sessionId so a later, different rappel never inherits stale edits.
+  const draftStore = useRappelDraftStore({
+    dossierId: id,
+    storageKey: activeRappel ? `rappel-draft-${id}-${activeRappel.sessionId}` : null,
+    active: !!activeRappel && !readOnly,
+  });
+
+  // What the page (and every child editing surface) displays: the live
+  // snapshot with the pending buffer applied on top. Identical to `dossier`
+  // outside a rappel session.
+  const effectiveDossier = useMemo(
+    () => (draftStore.active ? applyPendingToDossier(dossier, draftStore.pending) : dossier),
+    [dossier, draftStore.active, draftStore.pending],
+  );
 
   // Recipient-side read receipt: on dossier mount, mark any unread rappels
   // for the current user × this dossier as read. Idempotent — no-op when
@@ -163,10 +182,15 @@ export default function DossierDetailPage({
     if (!db || !activeRappel || validating) return;
     setValidating(true);
     try {
-      // Freeze the dossier as the gestionnaire leaves it, diff it against the
-      // session-start snapshot, and record the add/modify/remove sets. The
-      // localStorage key is cleared LAST so in-flight tagged writes still land.
-      await captureSnapshotAfter(db, activeRappel.id, id, dossier);
+      // 1. Publish the session's buffered edits — this is the ONLY moment the
+      //    dossier document receives what was done from Mes Rappels.
+      await draftStore.flush();
+      // 2. Freeze the dossier as the gestionnaire leaves it, diff it against
+      //    the session-start snapshot, and record the add/modify/remove sets.
+      //    `effectiveDossier` (live snapshot + buffer) equals the post-flush
+      //    state without waiting for the listener to catch up. The
+      //    localStorage key is cleared LAST so in-flight tagged writes still land.
+      await captureSnapshotAfter(db, activeRappel.id, id, effectiveDossier);
       await markTreatmentResolved(db, activeRappel.id);
       try {
         if (typeof window !== 'undefined') {
@@ -250,7 +274,12 @@ export default function DossierDetailPage({
     );
   }
 
+  // Non-null view of the dossier for the render tree (`dossier` is non-null
+  // past the guard above; the overlay of a non-null doc is non-null).
+  const viewDossier = effectiveDossier ?? dossier;
+
   return (
+    <RappelDraftContext.Provider value={draftStore}>
     <div className="flex flex-col min-h-screen bg-background">
       {/* TOP HEADER */}
       <div className="bg-card px-6 py-4 border-b">
@@ -263,21 +292,21 @@ export default function DossierDetailPage({
             </Link>
             <div>
               <h1 className="text-lg font-bold leading-tight">
-                Dossier : <span className="text-primary">{dossier.refExpert || 'Sans Ref.'}</span>
+                Dossier : <span className="text-primary">{viewDossier.refExpert || 'Sans Ref.'}</span>
               </h1>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {renderAssure(dossier.assure)} &bull; {dossier.compagnie || 'N/A'} &bull; {dossier.matricule || 'N/A'}
+                {renderAssure(viewDossier.assure)} &bull; {viewDossier.compagnie || 'N/A'} &bull; {viewDossier.matricule || 'N/A'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {dossier.lastObservation?.text && (
+            {viewDossier.lastObservation?.text && (
               <Badge className="bg-amber-50 text-amber-800 hover:bg-amber-50 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/50">
-                {dossier.lastObservation.text}
+                {viewDossier.lastObservation.text}
               </Badge>
             )}
-            <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(dossier.statut || 'Nouveau'))}>
-              {dossier.statut || 'Nouveau'}
+            <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(viewDossier.statut || 'Nouveau'))}>
+              {viewDossier.statut || 'Nouveau'}
             </Badge>
           </div>
         </div>
@@ -288,8 +317,27 @@ export default function DossierDetailPage({
         <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 flex flex-wrap gap-3 items-center sticky top-0 z-50 dark:bg-amber-900/25 dark:border-amber-800/50">
           <Bell className="h-4 w-4 text-amber-700 dark:text-amber-200" />
           <p className="text-sm font-medium text-amber-900 dark:text-amber-100 flex-1">
-            Vous traitez un rappel pour ce dossier.
+            Vous traitez un rappel pour ce dossier — vos modifications restent locales jusqu&apos;à « Sauvegarder ».
+            {draftStore.pendingCount > 0 && (
+              <span className="ml-2 inline-flex items-center rounded-full bg-amber-200/80 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-800/60 dark:text-amber-100">
+                {draftStore.pendingCount} modification{draftStore.pendingCount > 1 ? 's' : ''} en attente
+              </span>
+            )}
           </p>
+          {draftStore.pendingCount > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                if (window.confirm('Abandonner les modifications non sauvegardées de cette session de rappel ?')) {
+                  draftStore.discard();
+                }
+              }}
+              className="h-8 text-xs text-amber-800 hover:text-amber-900 dark:text-amber-200"
+            >
+              Annuler les modifs
+            </Button>
+          )}
           <Button
             size="sm"
             onClick={handleValiderTraitement}
@@ -328,18 +376,18 @@ export default function DossierDetailPage({
           sections={{
             1: (
               <>
-                <Step1Import dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />
+                <Step1Import dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} />
                 <div className="mt-4">
-                  <Step2Information dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />
+                  <Step2Information dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />
                 </div>
                 <div className="mt-4">
-                  <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos hideAccordSlots showBaseGarageSlots hideOtherSlots showAllNonAccordSlots />
+                  <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos hideAccordSlots showBaseGarageSlots hideOtherSlots showAllNonAccordSlots />
                 </div>
               </>
             ),
             4: (
               <>
-                <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" />
+                <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" />
                 <div className="mt-4">
                   <PhotosTab dossierId={id} onlyCategory="avant" />
                 </div>
@@ -350,7 +398,7 @@ export default function DossierDetailPage({
             ),
             6: (
               <>
-                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots />
+                <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots />
                 <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="1er accord" />
                 </div>
@@ -358,7 +406,7 @@ export default function DossierDetailPage({
             ),
             9: (
               <>
-                <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="En cours" />
+                <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="En cours" />
                 <div className="mt-4">
                   <PhotosTab dossierId={id} onlyCategory="en_cours" />
                 </div>
@@ -369,7 +417,7 @@ export default function DossierDetailPage({
             ),
             11: (
               <>
-                <Step4Pieces dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" />
+                <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" />
                 <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="2ème accord ou +" />
                 </div>
@@ -377,7 +425,7 @@ export default function DossierDetailPage({
             ),
             10: (
               <>
-                <Step3Planification dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" />
+                <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" />
                 <div className="mt-4">
                   <PhotosTab dossierId={id} onlyCategory="apres" />
                 </div>
@@ -386,7 +434,7 @@ export default function DossierDetailPage({
                 </div>
               </>
             ),
-            7: <Step6Rapport dossierId={id} dossier={dossier} dossierRef={dossierRef} readOnly={readOnly} />,
+            7: <Step6Rapport dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} />,
             8: (
               <TypedDocumentsGrid dossierId={id} showOnlyNoteHonoraire />
             ),
@@ -397,13 +445,13 @@ export default function DossierDetailPage({
       </div>
 
       {/* MODALS */}
-      <ModalPlanification open={isPlanificationModalOpen} onOpenChange={setPlanificationModalOpen} dossierId={id} initialData={planificationInitialData} dossierData={dossier} defaultTypeMission={planificationDefaultType ?? undefined} />
+      <ModalPlanification open={isPlanificationModalOpen} onOpenChange={setPlanificationModalOpen} dossierId={id} initialData={planificationInitialData} dossierData={viewDossier} defaultTypeMission={planificationDefaultType ?? undefined} />
       <ModalChiffrage open={isChiffrageModalOpen} onOpenChange={setChiffrageModalOpen} dossierId={id} />
       <EnvoyerEmailDialog
         open={isEmailDialogOpen}
         onOpenChange={setEmailDialogOpen}
         dossierId={id}
-        refExpert={dossier.refExpert as string | undefined}
+        refExpert={viewDossier.refExpert as string | undefined}
       />
       <Sheet open={isHistoriqueOpen} onOpenChange={setHistoriqueOpen}>
         <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
@@ -416,5 +464,6 @@ export default function DossierDetailPage({
         </SheetContent>
       </Sheet>
     </div>
+    </RappelDraftContext.Provider>
   );
 }
