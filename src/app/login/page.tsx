@@ -6,7 +6,7 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthState
 import { collection, query, where, getDocs, setDoc, doc, serverTimestamp, updateDoc, deleteDoc, runTransaction } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { SINGLE_SESSION_ROLES } from '@/lib/dossiers-data';
-import { collectSessionMeta } from '@/lib/session-meta';
+import { collectSessionMeta, isSessionClaimable, timestampToMillis } from '@/lib/session-meta';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -305,20 +305,27 @@ export default function LoginPage() {
         // must not fetch inside it). Best-effort — never blocks the login.
         const sessionMeta = await collectSessionMeta();
         // Atomic claim-or-block: succeed only if no OTHER device currently
-        // holds the session. The transaction guarantees two simultaneous
-        // logins can't both win. `remote === priorLocalId` means this same
-        // device is re-claiming, which is allowed.
+        // holds an ACTIVE session. The transaction guarantees two simultaneous
+        // logins can't both win. We may claim when the slot is free, when this
+        // same device is re-claiming (`remote === priorLocalId`), or when the
+        // current holder's heartbeat is stale/absent — i.e. it was stranded by
+        // an app close, crash, network drop or storage clear and is no longer
+        // live. See isSessionClaimable in @/lib/session-meta.
         try {
           await runTransaction(db, async (tx) => {
             const ref = doc(db, 'users', cred.user.uid);
             const fresh = await tx.get(ref);
-            const remote = fresh.exists() ? (fresh.data() as any).currentSessionId : null;
-            if (remote && remote !== priorLocalId) {
+            const data = fresh.exists() ? (fresh.data() as any) : null;
+            const remote = data?.currentSessionId ?? null;
+            const lastSeenMs = timestampToMillis(data?.currentSessionSeenAt);
+            if (!isSessionClaimable(remote, lastSeenMs, priorLocalId, Date.now())) {
               throw new Error('SESSION_OCCUPIED');
             }
             const updates: Record<string, any> = {
               lastLogin: serverTimestamp(),
               currentSessionId: sessionId,
+              // First heartbeat — CurrentUserProvider keeps it fresh from here.
+              currentSessionSeenAt: serverTimestamp(),
             };
             if (backfillNeeded) updates.nomLowercase = lower;
             tx.update(ref, updates);
@@ -341,7 +348,7 @@ export default function LoginPage() {
             window.localStorage.removeItem(SESSION_STORAGE_KEY);
             setError(
               "Ce compte est déjà connecté sur un autre appareil. Déconnectez-vous d'abord de cet appareil pour pouvoir vous connecter ici. " +
-                "Si vous n'avez plus accès à cet appareil, demandez à un administrateur de déconnecter votre session.",
+                "Si l'autre appareil n'est plus utilisé, réessayez dans une à deux minutes, ou demandez à un administrateur de déconnecter votre session.",
             );
             setLoading(false);
             return;
@@ -356,6 +363,7 @@ export default function LoginPage() {
         const updates: Record<string, any> = {
           lastLogin: serverTimestamp(),
           currentSessionId: null,
+          currentSessionSeenAt: null,
         };
         if (backfillNeeded) updates.nomLowercase = lower;
         await updateDoc(doc(db, 'users', cred.user.uid), updates);

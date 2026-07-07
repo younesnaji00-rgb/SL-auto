@@ -80,6 +80,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { roles, isSingleSessionRole, type Role } from '@/lib/dossiers-data';
+import { isSessionStale, timestampToMillis } from '@/lib/session-meta';
 import { Eye, EyeOff, Check, ChevronsUpDown, Plus, Search, LogOut, Smartphone, Globe } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useOptions } from '@/hooks/use-options';
@@ -405,7 +406,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         ...formData,
         zone: nextZone,
         nomLowercase: (formData.nom || '').trim().toLowerCase(),
-        ...(clearSession ? { currentSessionId: null } : {}),
+        ...(clearSession ? { currentSessionId: null, currentSessionSeenAt: null } : {}),
       });
       // Drop the admin-only session metadata alongside the cleared claim.
       if (clearSession) {
@@ -483,7 +484,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const handleForceDisconnect = async () => {
     setIsDisconnecting(true);
     try {
-      await updateDoc(userRef, { currentSessionId: null });
+      await updateDoc(userRef, { currentSessionId: null, currentSessionSeenAt: null });
       await deleteDoc(doc(db, 'users', uid, 'session_meta', 'current')).catch(() => {});
       toast({
         title: 'Session déconnectée',
@@ -1016,7 +1017,15 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             </CardContent>
           </Card>
 
-          {isAdmin && isSingleSessionRole(userData.role) && (
+          {isAdmin && isSingleSessionRole(userData.role) && (() => {
+            // A session is "active" while its heartbeat is fresh. A held slot
+            // whose heartbeat has gone stale (app closed/killed without a clean
+            // sign-out) is shown as inactive — it will free itself for the next
+            // login within STALE_SESSION_MS even without a force-disconnect.
+            const hasSession = !!userData.currentSessionId;
+            const sessionStale = hasSession && isSessionStale(timestampToMillis(userData.currentSessionSeenAt), Date.now());
+            const sessionActive = hasSession && !sessionStale;
+            return (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -1033,13 +1042,19 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   <span
                     className={cn(
                       'w-2 h-2 rounded-full',
-                      userData.currentSessionId ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/40',
+                      sessionActive
+                        ? 'bg-emerald-500 animate-pulse'
+                        : sessionStale
+                          ? 'bg-amber-500'
+                          : 'bg-muted-foreground/40',
                     )}
                   />
-                  <span className={cn(!userData.currentSessionId && 'text-muted-foreground')}>
-                    {userData.currentSessionId
+                  <span className={cn(!sessionActive && 'text-muted-foreground')}>
+                    {sessionActive
                       ? 'Connecté sur un appareil'
-                      : 'Aucune session active'}
+                      : sessionStale
+                        ? 'Session inactive (se libère automatiquement)'
+                        : 'Aucune session active'}
                   </span>
                 </div>
                 {userData.currentSessionId && (
@@ -1087,7 +1102,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 </Button>
               </CardContent>
             </Card>
-          )}
+            );
+          })()}
 
           {canDelete && (
             <Card>
