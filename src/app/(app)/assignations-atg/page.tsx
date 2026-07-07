@@ -34,8 +34,7 @@ import { businessHoursBetween, formatBusinessLateness } from '@/lib/business-day
 import { useHolidays } from '@/hooks/use-holidays';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
-import AtCreatePlanificationFlow from './at-create-planification-flow';
-import AtDirectPhotosFlow from './at-direct-photos-flow';
+import AtScanPlaqueFlow from './at-scan-plaque-flow';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -864,6 +863,13 @@ export default function AssignationsATGPage() {
               : filteredPlanifications.length) > 1 ? 's' : ''}
           </Badge>
         </div>
+        {/* AT self-service (scan plaque → planifier / importer photos) — was
+            desktop-only; field agents work from phones, so surface it here. */}
+        {canUseAtFlows && (
+          <div className="flex items-center gap-2 px-4 py-2 border-b bg-card">
+            <AtScanPlaqueFlow />
+          </div>
+        )}
         {effectiveViewMode === 'list' && (
           <div className="sticky top-14 z-20 grid grid-cols-3 gap-1 p-1 border-b bg-card">
             {MISSION_TABS.map((tab) => {
@@ -1133,8 +1139,7 @@ export default function AssignationsATGPage() {
           </Badge>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {canUseAtFlows && <AtCreatePlanificationFlow />}
-          {canUseAtFlows && <AtDirectPhotosFlow />}
+          {canUseAtFlows && <AtScanPlaqueFlow />}
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
