@@ -74,3 +74,7 @@ vendor/
 coverage/
 .cache/
 tmp/
+
+# local-only: nested dev working copy + assistant workspace
+/SL-auto-main/
+/.claude/
