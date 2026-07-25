@@ -46,6 +46,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import Logo from '@/components/logo';
+import { LanguageSwitcher } from '@/components/language-switcher';
 import { useCompagnies } from '@/hooks/use-compagnies';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useRappels } from '@/hooks/use-rappels';
@@ -279,6 +280,7 @@ const AppSidebar = () => {
         </div>
 
         <div className={cn("flex gap-1", isCollapsed ? "flex-col" : "flex-row")}>
+          <LanguageSwitcher className={cn('h-8', isCollapsed ? 'w-full justify-center' : 'flex-1 justify-center')} />
           <Button
             variant="ghost"
             size="icon"

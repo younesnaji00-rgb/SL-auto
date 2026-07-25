@@ -14,6 +14,9 @@ import { DASHBOARD_EN } from './dashboard';
 import { DOSSIERS_EN } from './dossiers';
 import { DOSSIER_DETAIL_EN } from './dossier-detail';
 import { CHIFFRAGE_EN } from './chiffrage';
+import { CHIFFRAGE_B_EN } from './chiffrage-b';
+import { DETAIL_DOCS_EN } from './detail-docs';
+import { EDITOR_EN } from './editor';
 import { TERRAIN_EN } from './terrain';
 import { ADMIN_EN } from './admin';
 import { RAPPELS_EN } from './rappels';
@@ -28,6 +31,9 @@ export const EN: Record<string, string> = {
   ...DOSSIERS_EN,
   ...DOSSIER_DETAIL_EN,
   ...CHIFFRAGE_EN,
+  ...CHIFFRAGE_B_EN,
+  ...DETAIL_DOCS_EN,
+  ...EDITOR_EN,
   ...TERRAIN_EN,
   ...ADMIN_EN,
   ...RAPPELS_EN,

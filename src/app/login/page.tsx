@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { BRAND } from '@/lib/brand';
+import { LanguageSwitcher } from '@/components/language-switcher';
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { collection, query, where, getDocs, setDoc, doc, serverTimestamp, updateDoc, deleteDoc, runTransaction } from 'firebase/firestore';
@@ -476,7 +477,10 @@ export default function LoginPage() {
 
   // ===== NORMAL LOGIN =====
   return (
-    <div className={`flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
+    <div className={`relative flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
+      <div className="absolute top-4 right-4">
+        <LanguageSwitcher />
+      </div>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-4 pb-2">
           <div className="flex justify-center">
