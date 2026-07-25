@@ -20,7 +20,7 @@ import { logWorkflow } from './log-historique';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, User, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 
 type ModalReclamationProps = {
   open: boolean;
@@ -38,6 +38,7 @@ const STATUS_STYLES: Record<string, string> = {
 const DESCRIPTION_TRUNCATE_LENGTH = 150;
 
 function ReclamationRow({ item }: { item: any }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   const description: string = item.description || '';
   const isTruncated = description.length > DESCRIPTION_TRUNCATE_LENGTH;
@@ -45,7 +46,7 @@ function ReclamationRow({ item }: { item: any }) {
   let formattedDate = '';
   try {
     const date = item.createdAt?.toDate?.() ?? new Date(item.createdAt);
-    formattedDate = format(date, "d MMM yyyy 'à' HH:mm", { locale: fr });
+    formattedDate = format(date, "d MMM yyyy 'à' HH:mm", { locale: dateFnsLocale() });
   } catch {
     formattedDate = item.date || '—';
   }
@@ -57,10 +58,10 @@ function ReclamationRow({ item }: { item: any }) {
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm min-w-0">
           <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <span className="font-medium truncate">{item.createdBy || 'Inconnu'}</span>
+          <span className="font-medium truncate">{item.createdBy || t('Inconnu')}</span>
         </div>
         <Badge variant="outline" className={`shrink-0 text-xs ${statusClass}`}>
-          {item.statut}
+          {t(item.statut || '')}
         </Badge>
       </div>
 
@@ -83,11 +84,11 @@ function ReclamationRow({ item }: { item: any }) {
         >
           {expanded ? (
             <>
-              <ChevronUp className="h-3 w-3" /> Réduire
+              <ChevronUp className="h-3 w-3" /> {t('Réduire')}
             </>
           ) : (
             <>
-              <ChevronDown className="h-3 w-3" /> Voir plus
+              <ChevronDown className="h-3 w-3" /> {t('Voir plus')}
             </>
           )}
         </button>
@@ -97,6 +98,7 @@ function ReclamationRow({ item }: { item: any }) {
 }
 
 export default function ModalReclamation({ open, onOpenChange, dossierId }: ModalReclamationProps) {
+  const t = useT();
   const [reclamationText, setReclamationText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const db = useFirestore();
@@ -143,13 +145,13 @@ export default function ModalReclamation({ open, onOpenChange, dossierId }: Moda
       const userId = auth?.currentUser?.uid || 'unknown';
       await logWorkflow(db, dossierId, 'Réclamation ajoutée', userEmail, userId, 'done', { details: reclamationText.trim().substring(0, 100) }, auth?.currentUser?.displayName ?? undefined);
 
-      toast({ title: "Réclamation soumise" });
+      toast({ title: t('Réclamation soumise') });
       setReclamationText('');
     } catch (e: any) {
       console.error('Error submitting reclamation:', e);
       toast({
         variant: 'destructive',
-        title: "Erreur lors de la soumission",
+        title: t('Erreur lors de la soumission'),
         description: e.message
       });
     } finally {
@@ -161,15 +163,15 @@ export default function ModalReclamation({ open, onOpenChange, dossierId }: Moda
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Soumettre une Réclamation</DialogTitle>
+          <DialogTitle>{t('Soumettre une Réclamation')}</DialogTitle>
           <DialogDescription>
-            Elle sera ajoutée à l&apos;historique du dossier.
+            {t("Elle sera ajoutée à l'historique du dossier.")}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="space-y-2">
             <Textarea
-              placeholder="Sujet de la réclamation..."
+              placeholder={t('Sujet de la réclamation...')}
               value={reclamationText}
               onChange={(e) => setReclamationText(e.target.value)}
               disabled={isSubmitting}
@@ -183,7 +185,7 @@ export default function ModalReclamation({ open, onOpenChange, dossierId }: Moda
             onClick={() => onOpenChange(false)}
             disabled={isSubmitting}
           >
-            Annuler
+            {t('Annuler')}
           </Button>
           <Button
             variant="destructive"
@@ -191,14 +193,14 @@ export default function ModalReclamation({ open, onOpenChange, dossierId }: Moda
             disabled={isSubmitting || !reclamationText.trim()}
           >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Soumettre
+            {t('Soumettre')}
           </Button>
         </DialogFooter>
 
         <Separator className="my-2" />
 
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold">Historique des réclamations</h4>
+          <h4 className="text-sm font-semibold">{t('Historique des réclamations')}</h4>
 
           {reclamationsLoading ? (
             <div className="space-y-2">
@@ -212,7 +214,7 @@ export default function ModalReclamation({ open, onOpenChange, dossierId }: Moda
             </div>
           ) : !reclamations || reclamations.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">
-              Aucune réclamation pour le moment.
+              {t('Aucune réclamation pour le moment.')}
             </p>
           ) : (
             <div className="space-y-2">

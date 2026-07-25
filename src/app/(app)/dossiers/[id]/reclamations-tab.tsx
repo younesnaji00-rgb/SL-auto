@@ -17,7 +17,7 @@ import { SkeletonCard } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { DatePicker } from '@/components/ui/date-picker';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
+    const t = useT();
     const db = useFirestore();
     const auth = useAuth();
     const { toast } = useToast();
@@ -60,14 +61,14 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
 
     const handleDelete = async (id: string) => {
         await deleteDoc(doc(db, 'dossiers', dossierId, 'reclamations', id));
-        toast({ title: 'Réclamation supprimée' });
+        toast({ title: t('Réclamation supprimée') });
         setDeleteId(null);
     };
 
     const formatTimestamp = (ts: any) => {
         if (!ts) return null;
         const date = ts.toDate ? ts.toDate() : new Date(ts);
-        return format(date, "d MMM yyyy 'à' HH:mm", { locale: fr });
+        return format(date, "d MMM yyyy 'à' HH:mm", { locale: dateFnsLocale() });
     };
 
     if (loading) return (
@@ -81,8 +82,8 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Réclamations</CardTitle>
-                <Button variant="destructive" size="sm" onClick={handleAdd}><Plus className="mr-2 h-4 w-4" /> Déposer une réclamation</Button>
+                <CardTitle>{t('Réclamations')}</CardTitle>
+                <Button variant="destructive" size="sm" onClick={handleAdd}><Plus className="mr-2 h-4 w-4" /> {t('Déposer une réclamation')}</Button>
             </CardHeader>
             <CardContent>
                 <div className="space-y-6">
@@ -90,8 +91,8 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
                         <EmptyState
                             key="empty-reclamations"
                             icon={<AlertTriangle />}
-                            title="Aucune réclamation"
-                            description="Déposez une première réclamation avec le bouton ci-dessus."
+                            title={t('Aucune réclamation')}
+                            description={t('Déposez une première réclamation avec le bouton ci-dessus.')}
                         />
                     ) : (
                         list.map((r: any) => (
@@ -122,27 +123,27 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="space-y-1">
-                                        <Label>Date</Label>
+                                        <Label>{t('Date')}</Label>
                                         <DatePicker
                                             value={r.date ? new Date(r.date) : null}
                                             onChange={d => handleUpdate(r.id, 'date', d ? d.toISOString().split('T')[0] : '')}
                                         />
                                     </div>
-                                    <div className="space-y-1 md:col-span-2"><Label>Objet</Label><Input value={r.objet} onChange={e => handleUpdate(r.id, 'objet', e.target.value)} /></div>
-                                    <div className="space-y-1 md:col-span-2"><Label>Description</Label><Textarea value={r.description} onChange={e => handleUpdate(r.id, 'description', e.target.value)} rows={2} /></div>
+                                    <div className="space-y-1 md:col-span-2"><Label>{t('Objet')}</Label><Input value={r.objet} onChange={e => handleUpdate(r.id, 'objet', e.target.value)} /></div>
+                                    <div className="space-y-1 md:col-span-2"><Label>{t('Description')}</Label><Textarea value={r.description} onChange={e => handleUpdate(r.id, 'description', e.target.value)} rows={2} /></div>
                                     <div className="space-y-1">
-                                        <Label>Statut</Label>
+                                        <Label>{t('Statut')}</Label>
                                         <Select value={r.statut} onValueChange={v => handleUpdate(r.id, 'statut', v)}>
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="Ouverte">Ouverte</SelectItem>
-                                                <SelectItem value="En cours">En cours</SelectItem>
-                                                <SelectItem value="Traitée">Traitée</SelectItem>
-                                                <SelectItem value="Fermée">Fermée</SelectItem>
+                                                <SelectItem value="Ouverte">{t('Ouverte')}</SelectItem>
+                                                <SelectItem value="En cours">{t('En cours')}</SelectItem>
+                                                <SelectItem value="Traitée">{t('Traitée')}</SelectItem>
+                                                <SelectItem value="Fermée">{t('Fermée')}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="space-y-1 md:col-span-3"><Label>Réponse / Résolution</Label><Textarea value={r.reponse} onChange={e => handleUpdate(r.id, 'reponse', e.target.value)} placeholder="Réponse de l'administration..." /></div>
+                                    <div className="space-y-1 md:col-span-3"><Label>{t('Réponse / Résolution')}</Label><Textarea value={r.reponse} onChange={e => handleUpdate(r.id, 'reponse', e.target.value)} placeholder={t("Réponse de l'administration...")} /></div>
                                 </div>
                             </div>
                         ))
@@ -153,16 +154,16 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
             <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Supprimer cette réclamation ?</AlertDialogTitle>
-                        <AlertDialogDescription>Cette action est irréversible.</AlertDialogDescription>
+                        <AlertDialogTitle>{t('Supprimer cette réclamation ?')}</AlertDialogTitle>
+                        <AlertDialogDescription>{t('Cette action est irréversible.')}</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Annuler</AlertDialogCancel>
+                        <AlertDialogCancel>{t('Annuler')}</AlertDialogCancel>
                         <AlertDialogAction
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             onClick={(e) => { e.preventDefault(); if (deleteId) handleDelete(deleteId); }}
                         >
-                            Supprimer
+                            {t('Supprimer')}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

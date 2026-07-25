@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { format } from "date-fns"
-import { fr } from "date-fns/locale"
+import { dateFnsLocale } from "@/i18n"
 import { Calendar as CalendarIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -49,7 +49,7 @@ export function DatePicker({
           <CalendarIcon className="mr-2 h-4 w-4 text-primary shrink-0" />
           <span className="truncate">
             {value
-              ? format(value, "dd MMMM yyyy", { locale: fr })
+              ? format(value, "dd MMMM yyyy", { locale: dateFnsLocale() })
               : placeholder}
           </span>
         </Button>

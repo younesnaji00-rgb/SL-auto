@@ -15,7 +15,7 @@ import {
   addMonths,
   subMonths,
 } from "date-fns"
-import { fr } from "date-fns/locale"
+import { dateFnsLocale } from "@/i18n"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
@@ -69,7 +69,7 @@ function Calendar({
           <ChevronLeft className="h-4 w-4" />
         </button>
         <span className="text-sm font-semibold capitalize">
-          {format(currentMonth, "MMMM yyyy", { locale: fr })}
+          {format(currentMonth, "MMMM yyyy", { locale: dateFnsLocale() })}
         </span>
         <button
           type="button"
