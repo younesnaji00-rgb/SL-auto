@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 import { PwaRegister } from '@/components/pwa-register';
+import { LocaleProvider } from '@/i18n';
+import { BRAND } from '@/lib/brand';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -15,13 +17,13 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: 'SL-auto',
-  description: 'SL-auto - Système de gestion',
-  manifest: '/manifest.json',
+  title: BRAND.productName,
+  description: BRAND.appDescription,
+  manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'SL-auto',
+    title: BRAND.shortName,
   },
   icons: {
     icon: [
@@ -49,14 +51,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={outfit.variable}>
+    <html lang={BRAND.defaultLocale} suppressHydrationWarning className={outfit.variable}>
       <body className={cn('font-body antialiased')}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-          <FirebaseClientProvider>
-            <PwaRegister />
-            {children}
-            <Toaster />
-          </FirebaseClientProvider>
+          <LocaleProvider>
+            <FirebaseClientProvider>
+              <PwaRegister />
+              {children}
+              <Toaster />
+            </FirebaseClientProvider>
+          </LocaleProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { BRAND } from '@/lib/brand';
 import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 /**
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=fr`,
       {
         headers: {
-          'User-Agent': 'sl-auto-expertise/1.0 (contact@slaouiglobal.com)',
+          'User-Agent': `${BRAND.id}-app/1.0 (${BRAND.companyEmail})`,
           Accept: 'application/json',
         },
       },

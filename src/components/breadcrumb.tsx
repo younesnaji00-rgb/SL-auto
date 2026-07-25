@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { landingPathFor } from '@/lib/role-landing';
+import { BRAND } from '@/lib/brand';
 
 const ROUTE_LABELS: Record<string, string> = {
   dashboard: 'Tableau de bord',
@@ -42,7 +43,7 @@ const Breadcrumb = () => {
       <ol className="flex items-center gap-2 text-sm text-muted-foreground">
         <li>
           <Link href={rootHref} className="font-semibold text-foreground hover:text-primary transition-colors">
-            SL-auto
+            {BRAND.productName}
           </Link>
         </li>
         {segments.map((segment, index) => {

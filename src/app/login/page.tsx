@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { BRAND } from '@/lib/brand';
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { collection, query, where, getDocs, setDoc, doc, serverTimestamp, updateDoc, deleteDoc, runTransaction } from 'firebase/firestore';
@@ -27,7 +28,7 @@ function generateEmail(nom: string): string {
     .replace(/[^a-z0-9\s]/g, '')
     .trim()
     .replace(/\s+/g, '.');
-  return `${sanitized}@sl-auto.app`;
+  return `${sanitized}@${BRAND.authEmailDomain}`;
 }
 
 // Single-session enforcement (BLOCK model): for the basic roles in

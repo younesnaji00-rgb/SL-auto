@@ -28,6 +28,7 @@ import {
   type LoadedImage,
 } from './generate-rapport-shared';
 import { montantEnLettresDhs } from './number-to-words-fr';
+import { BRAND } from './brand';
 import { scaleImageDown } from './rapport-car';
 import { parseFr, normalizeExtraColumns, type DevisRow, type DevisExtraColumn } from './devis-schema';
 import { parseAccordDocType } from './docType-accorde';
@@ -588,8 +589,8 @@ export async function resolveRapportData(
 
   // ── Expert identity (cabinet constants unless overridden) ──
   const experts = (d.experts as Record<string, { nom?: string; compagnie?: string }>) || {};
-  const expertNom = str(d.expertNom) || 'AISSAOUI SLAOUI OUADIE';
-  const cabinetNom = str(d.cabinetNom) || 'SL AUTO EXPERTISE';
+  const expertNom = str(d.expertNom) || BRAND.expertName;
+  const cabinetNom = str(d.cabinetNom) || BRAND.cabinetName;
   const expertAdverse = str(d.expertAdverse ?? experts['2eme']?.nom);
   const cabinetAdverse = str(d.cabinetAdverse ?? experts['2eme']?.compagnie);
 

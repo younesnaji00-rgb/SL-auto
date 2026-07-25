@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { BRAND } from './brand';
 import {
   type DevisSnapshot,
   type EditableDocType,
@@ -398,7 +399,7 @@ export function renderDevisPdf(
     const ts = opts.versionTimestamp ? opts.versionTimestamp.toLocaleString('fr-FR') : '';
     const author = opts.author || '';
     pdf.text(
-      `Version generee le ${ts}${author ? ` par ${author}` : ''} — SL Auto Expertise`,
+      `Version generee le ${ts}${author ? ` par ${author}` : ''} — ${BRAND.companyName}`,
       margin,
       pdf.internal.pageSize.getHeight() - 6
     );

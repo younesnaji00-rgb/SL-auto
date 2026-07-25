@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { getDoc, getDocs, doc, collection, query, where } from 'firebase/firestore';
 import { selectLatestAccord, devisRowToPiece } from './generate-rapport-shared';
 import type { DevisRow } from './devis-schema';
+import { BRAND } from './brand';
 
 export type Piece = {
   id: string;
@@ -26,10 +27,11 @@ export type Piece = {
 };
 
 // ── Constants ──────────────────────────────────────────────────────────
-const COMPANY_NAME = 'SL AUTO EXPERTISE';
-const COMPANY_ADDRESS = '219 BD MOHAMED ZERKTOUNI, Etage 6, Bureau 67, MAARIF - CASABLANCA 20060';
-const COMPANY_TEL = '05 22 64 60 01';
-const COMPANY_EMAIL = 'slautoexpertise@gmail.com';
+// Firm identity flows from the white-label brand config (src/lib/brand.ts).
+const COMPANY_NAME = BRAND.companyName;
+const COMPANY_ADDRESS = BRAND.companyAddress;
+const COMPANY_TEL = BRAND.companyTel;
+const COMPANY_EMAIL = BRAND.companyEmail;
 
 const NAVY = [17, 24, 57] as const;   // Dark navy for text
 const BORDER = [180, 180, 180] as const;
@@ -37,7 +39,7 @@ const HEADER_BG = [230, 235, 245] as const;
 
 // ── Helpers ────────────────────────────────────────────────────────────
 const fC = (val: number) =>
-  (val || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  (val || 0).toLocaleString(BRAND.numberLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const tsToStr = (ts: any): string => {
   if (!ts) return '';

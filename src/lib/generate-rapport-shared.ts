@@ -23,22 +23,21 @@ export type Piece = {
 };
 
 // ── Constants ──────────────────────────────────────────────────────────
-export const COMPANY_NAME = 'SL AUTO EXPERTISE';
-export const COMPANY_ADDRESS =
-  '219 BD MOHAMED ZERKTOUNI, Etage 6, Bureau 67, MAARIF - CASABLANCA 20060';
-export const COMPANY_TEL = '05 22 64 60 01';
-export const COMPANY_EMAIL = 'slautoexpertise@gmail.com';
+// All firm identity now flows from the white-label brand config
+// (src/lib/brand.ts). The exported names are kept so the four PDF
+// generators keep working unchanged.
+import { BRAND } from './brand';
 
-// Template-accurate footer/identity strings (match the supplied PDF templates
-// to the letter — the Bd Al Massire address is the one printed on the reports).
-export const COMPANY_ADDRESS_FOOTER =
-  '182,Bd Al Massire,Résidence Farah IV,5éme Etage,Bureau N°10,Maarif Casablanca-Maroc';
-export const COMPANY_CONTACT_FOOTER =
-  'Tel : 05 22 47 46 76  / 05 22 47 20 10  Fax : 05 22 25 76 97  Email : slautoexpertise@gmail.com';
-/** SL Auto's signing expert, as printed in the report headers/footers. */
-export const EXPERT_NAME = 'AISSAOUI SLAOUI OUADIE';
-export const CABINET_NAME = 'SL AUTO EXPERTISE';
-export const COMPANY_CITY = 'CASABLANCA';
+export const COMPANY_NAME = BRAND.companyName;
+export const COMPANY_ADDRESS = BRAND.companyAddress;
+export const COMPANY_TEL = BRAND.companyTel;
+export const COMPANY_EMAIL = BRAND.companyEmail;
+export const COMPANY_ADDRESS_FOOTER = BRAND.companyAddressFooter;
+export const COMPANY_CONTACT_FOOTER = BRAND.companyContactFooter;
+/** The signing expert, as printed in the report headers/footers. */
+export const EXPERT_NAME = BRAND.expertName;
+export const CABINET_NAME = BRAND.cabinetName;
+export const COMPANY_CITY = BRAND.companyCity;
 
 export const NAVY = [17, 24, 57] as const;
 export const BORDER = [180, 180, 180] as const;
@@ -46,7 +45,7 @@ export const HEADER_BG = [230, 235, 245] as const;
 
 // ── Helpers ────────────────────────────────────────────────────────────
 export const fC = (val: number) =>
-  (val || 0).toLocaleString('fr-MA', {
+  (val || 0).toLocaleString(BRAND.numberLocale, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { buildAccordEmailTemplate } from '@/lib/chiffrage-email';
 
 /**
  * Task #36 — Dialog for sending an accord document by email.
@@ -58,10 +59,9 @@ export function EnvoyerParMailDialog({
 }: EnvoyerParMailDialogProps) {
   const [documentId, setDocumentId] = useState<string>('');
   const [recipient, setRecipient] = useState<string>(defaultRecipient ?? '');
-  const subject = `[SL-AUTO] Accord expertise - Dossier N° ${dossierNumero}`;
-  const [body, setBody] = useState(
-    `Madame, Monsieur,\n\nVeuillez trouver ci-joint l'accord d'expertise concernant le dossier N° ${dossierNumero}.\n\nCordialement,\n\nL'équipe SL Auto Expertise`,
-  );
+  const template = buildAccordEmailTemplate(dossierNumero);
+  const subject = template.subject;
+  const [body, setBody] = useState(template.body);
   const [sending, setSending] = useState(false);
 
   // Reset when `open` flips to true (in case the dialog is re-opened).
@@ -69,9 +69,7 @@ export function EnvoyerParMailDialog({
     if (open) {
       setDocumentId(documents[0]?.id ?? '');
       setRecipient(defaultRecipient ?? '');
-      setBody(
-        `Madame, Monsieur,\n\nVeuillez trouver ci-joint l'accord d'expertise concernant le dossier N° ${dossierNumero}.\n\nCordialement,\n\nL'équipe SL Auto Expertise`,
-      );
+      setBody(buildAccordEmailTemplate(dossierNumero).body);
       setSending(false);
     }
   }, [open, documents, defaultRecipient, dossierNumero]);

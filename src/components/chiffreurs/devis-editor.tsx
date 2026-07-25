@@ -37,6 +37,7 @@ import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import { saveGestionnaireDevisAsPieceJointe } from '@/lib/send-to-chiffrage';
 import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
 import { deriveStatus } from '@/lib/status-machine';
+import { BRAND } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 import ReferencePanel from '@/app/editor/reference-panel';
 import { useSidebar } from '@/components/ui/sidebar';
@@ -1349,7 +1350,7 @@ export function DevisEditor({
                           {puHeader}
                         </th>
                         <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Total H.T ${tripleSuffix}`}</th>
-                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Prix Total ${col.kind === 'accord' ? 'Accordé' : 'Proposé'} SL Auto Expertise`}</th>
+                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Prix Total ${col.kind === 'accord' ? 'Accordé' : 'Proposé'} ${BRAND.companyName}`}</th>
                       </React.Fragment>
                     );
                   }

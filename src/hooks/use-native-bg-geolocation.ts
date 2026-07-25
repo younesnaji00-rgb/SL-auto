@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { BRAND } from '@/lib/brand';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
@@ -125,7 +126,7 @@ export function useNativeBgGeolocation(): {
         // Wake us on meaningful movement; the heartbeat below covers the
         // stationary case so we still publish at least once per minute.
         distanceFilter: 25,
-        backgroundTitle: 'SL-auto — suivi de position',
+        backgroundTitle: `${BRAND.productName} — suivi de position`,
         backgroundMessage:
           'Votre position est partagée pour la planification des missions.',
       },

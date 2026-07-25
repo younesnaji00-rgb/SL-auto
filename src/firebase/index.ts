@@ -4,13 +4,16 @@ import { getFirestore, initializeFirestore, persistentLocalCache, persistentMult
 import { getStorage, connectStorageEmulator, type FirebaseStorage } from 'firebase/storage';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 
+// Env-overridable so white-label deployments (demo, per-client tenants) can
+// point the same codebase at their own Firebase project. Defaults are the
+// original production project so existing deploys are unaffected.
 const firebaseConfig = {
-  apiKey: "AIzaSyCVP_zYN5n2MI-tXjbcknQS1DGqOHCYZ2U",
-  authDomain: "studio-9568416614-6523a.firebaseapp.com",
-  projectId: "studio-9568416614-6523a",
-  storageBucket: "studio-9568416614-6523a.firebasestorage.app",
-  messagingSenderId: "588304904574",
-  appId: "1:588304904574:web:26b8dd1d7f19241c7c832f",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "AIzaSyCVP_zYN5n2MI-tXjbcknQS1DGqOHCYZ2U",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "studio-9568416614-6523a.firebaseapp.com",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "studio-9568416614-6523a",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? "studio-9568416614-6523a.firebasestorage.app",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? "588304904574",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "1:588304904574:web:26b8dd1d7f19241c7c832f",
 };
 
 const useEmulator =

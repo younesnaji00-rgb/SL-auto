@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { BRAND } from '@/lib/brand';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -102,7 +103,7 @@ function generateEmail(nom: string): string {
     .replace(/[^a-z0-9\s]/g, '')     // remove special chars
     .trim()
     .replace(/\s+/g, '.');          // spaces → dots
-  return `${sanitized}@sl-auto.app`;
+  return `${sanitized}@${BRAND.authEmailDomain}`;
 }
 
 export default function UtilisateursClientPage() {
