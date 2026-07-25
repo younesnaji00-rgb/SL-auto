@@ -28,7 +28,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
@@ -111,6 +111,7 @@ function normalizeType(type: string): string {
 
 export default function ATGDossierDetailPage({ params }: { params: Promise<{ dossierId: string }> }) {
   const { dossierId } = use(params);
+  const t = useT();
   const router = useRouter();
   const db = useFirestore();
   const storage = useStorage();
@@ -240,7 +241,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const formatDate = (ts: any) => {
     if (!ts) return '-';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
-    try { return format(date, "d MMM yyyy HH:mm", { locale: fr }); }
+    try { return format(date, "d MMM yyyy HH:mm", { locale: dateFnsLocale() }); }
     catch { return '-'; }
   };
 
@@ -272,10 +273,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         );
       }
 
-      toast({ title: 'Observation enregistrée' });
+      toast({ title: t('Observation enregistrée') });
       setEditingPlanId(null);
     } catch {
-      toast({ variant: 'destructive', title: "Erreur lors de l'enregistrement" });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'enregistrement") });
     }
   };
 
@@ -293,16 +294,16 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     if (available === 0) {
       toast({
         variant: 'destructive',
-        title: 'Limite atteinte',
-        description: `Limite de ${photoCap} photos atteinte pour cette section.`,
+        title: t('Limite atteinte'),
+        description: `${t('Limite de')} ${photoCap} ${t('photos atteinte pour cette section.')}`,
       });
       return;
     }
     if (files.length > available) {
       toast({
         variant: 'destructive',
-        title: 'Limite de photos',
-        description: `${files.length - available} photo(s) ignorée(s) — la limite de ${photoCap} par section a été atteinte.`,
+        title: t('Limite de photos'),
+        description: `${files.length - available} ${t('photo(s) ignorée(s) — la limite de')} ${photoCap} ${t('par section a été atteinte.')}`,
       });
       files = files.slice(0, available);
     }
@@ -344,9 +345,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       // Idempotent — re-uploads in the same category are no-ops because the
       // helper early-returns when currentStatut already equals the target.
       void maybeAdvanceToExpertise(db, dossierId, statutBeforeUpload, categoryAtUpload, userEmail);
-      toast({ title: `${files.length} photo${files.length > 1 ? 's' : ''} uploadée${files.length > 1 ? 's' : ''} avec succès` });
+      toast({ title: `${files.length} ${files.length > 1 ? t('photos uploadées avec succès') : t('photo uploadée avec succès')}` });
     } catch {
-      toast({ variant: 'destructive', title: "Erreur lors de l'upload" });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'upload") });
     } finally {
       setIsUploading(false);
     }
@@ -364,8 +365,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     if (!canDeletePhoto(photo)) {
       toast({
         variant: 'destructive',
-        title: 'Suppression refusée',
-        description: 'Vous ne pouvez supprimer que les photos que vous avez vous-même téléversées.',
+        title: t('Suppression refusée'),
+        description: t('Vous ne pouvez supprimer que les photos que vous avez vous-même téléversées.'),
       });
       return;
     }
@@ -379,10 +380,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       const userId = auth?.currentUser?.uid || 'unknown';
       await logHistorique(db, dossierId, 'Suppression photo Agent de Terrain', userEmail, `Photo "${photo.name || 'inconnue'}" supprimée.`, 'photo', profile?.nom);
       await logWorkflow(db, dossierId, 'Photo supprimée par Agent de Terrain', userEmail, userId, 'done', { details: `Photo "${photo.name || 'inconnue'}" supprimée` }, profile?.nom);
-      toast({ title: 'Photo supprimée' });
+      toast({ title: t('Photo supprimée') });
     } catch (err: any) {
       console.error('Delete error:', err);
-      toast({ variant: 'destructive', title: 'Erreur lors de la suppression' });
+      toast({ variant: 'destructive', title: t('Erreur lors de la suppression') });
     } finally {
       setIsDeletingPhoto(null);
     }
@@ -395,10 +396,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     // own uploads. Everyone else is blocked.
     const isOwnATGUpload = docItem.uploadSource === 'ATG' && docItem.uploadePar === auth?.currentUser?.email;
     if (!canDelete && !(isATG && isOwnATGUpload)) {
-      toast({ variant: 'destructive', title: 'Suppression refusée', description: 'Vous n\'avez pas la permission de supprimer ce document.' });
+      toast({ variant: 'destructive', title: t('Suppression refusée'), description: t('Vous n\'avez pas la permission de supprimer ce document.') });
       return;
     }
-    if (!window.confirm(`Supprimer le document "${docItem.nom || docItem.name || ''}" ?`)) return;
+    if (!window.confirm(`${t('Supprimer le document')} "${docItem.nom || docItem.name || ''}" ?`)) return;
     setIsDeletingDoc(docItem.id);
     try {
       if (docItem.storagePath) {
@@ -409,10 +410,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       const userId = auth?.currentUser?.uid || 'unknown';
       await logHistorique(db, dossierId, 'Suppression document Agent de Terrain', userEmail, `Document "${docItem.nom || docItem.name || 'inconnu'}" supprimé.`, 'document', profile?.nom);
       await logWorkflow(db, dossierId, 'Document supprimé par Agent de Terrain', userEmail, userId, 'done', { details: `Document "${docItem.nom || docItem.name || 'inconnu'}" supprimé` }, profile?.nom);
-      toast({ title: 'Document supprimé' });
+      toast({ title: t('Document supprimé') });
     } catch (err) {
       console.error('Delete doc error:', err);
-      toast({ variant: 'destructive', title: 'Erreur lors de la suppression du document' });
+      toast({ variant: 'destructive', title: t('Erreur lors de la suppression du document') });
     } finally {
       setIsDeletingDoc(null);
     }
@@ -421,7 +422,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   // Delete preuve photo
   const handleDeletePreuvePhoto = async (planId: string, url: string, idx: number) => {
     if (!db || !storage) return;
-    if (!window.confirm('Supprimer cette preuve ?')) return;
+    if (!window.confirm(t('Supprimer cette preuve ?'))) return;
     const key = `${planId}:${idx}`;
     setDeletingPreuve(key);
     try {
@@ -446,10 +447,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       await logHistorique(db, dossierId, 'Suppression preuve Agent de Terrain', userEmail, `Photo de preuve supprimée.`, 'planification', profile?.nom);
       const userId = auth?.currentUser?.uid || 'unknown';
       await logWorkflow(db, dossierId, 'Preuve supprimée par Agent de Terrain', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: 'Photo de preuve supprimée par Agent de Terrain' }, profile?.nom);
-      toast({ title: 'Preuve supprimée' });
+      toast({ title: t('Preuve supprimée') });
     } catch (err) {
       console.error('Delete preuve error:', err);
-      toast({ variant: 'destructive', title: 'Erreur lors de la suppression de la preuve' });
+      toast({ variant: 'destructive', title: t('Erreur lors de la suppression de la preuve') });
     } finally {
       setDeletingPreuve(null);
     }
@@ -485,10 +486,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       await logHistorique(db, dossierId, 'Preuve Agent de Terrain ajoutée', userEmail, `${newUrls.length} photo(s) de preuve ajoutée(s).`, 'planification', profile?.nom);
       const userId = auth?.currentUser?.uid || 'unknown';
       await logWorkflow(db, dossierId, 'Agent de Terrain : preuve ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${newUrls.length} photo(s) de preuve ajoutée(s) par Agent de Terrain` }, profile?.nom);
-      toast({ title: 'Preuve(s) uploadée(s)' });
+      toast({ title: t('Preuve(s) uploadée(s)') });
     } catch (err) {
       console.error('Preuve upload error:', err);
-      toast({ variant: 'destructive', title: "Erreur lors de l'upload de preuve" });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'upload de preuve") });
     } finally {
       setUploadingPreuveId(null);
       const input = preuveInputRefs.current[planId];
@@ -535,10 +536,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         for (const f of list) {
           await uploadDocument(f, docUploadType);
         }
-        toast({ title: list.length === 1 ? 'Document uploadé avec succès' : `${list.length} documents uploadés` });
+        toast({ title: list.length === 1 ? t('Document uploadé avec succès') : `${list.length} ${t('documents uploadés')}` });
       } catch (error: any) {
         console.error('Document upload error:', error);
-        toast({ variant: 'destructive', title: "Erreur lors de l'upload du document", description: error.message || 'Une erreur est survenue.' });
+        toast({ variant: 'destructive', title: t("Erreur lors de l'upload du document"), description: error.message || t('Une erreur est survenue.') });
       } finally {
         setIsDocUploading(false);
         setDocUploadType('');
@@ -556,13 +557,13 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     setIsDocUploading(true);
     try {
       await uploadDocument(selectedDocFile, docUploadType);
-      toast({ title: 'Document uploadé avec succès' });
+      toast({ title: t('Document uploadé avec succès') });
       setDocUploadModalOpen(false);
       setSelectedDocFile(null);
       setDocUploadType('');
     } catch (error: any) {
       console.error('Document upload error:', error);
-      toast({ variant: 'destructive', title: "Erreur lors de l'upload du document", description: error.message || 'Une erreur est survenue.' });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'upload du document"), description: error.message || t('Une erreur est survenue.') });
     } finally {
       setIsDocUploading(false);
     }
@@ -697,7 +698,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           {isPhotosOpen ? <ChevronDown className="h-5 w-5 text-primary shrink-0" /> : <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />}
           <ImageIcon className={cn('h-5 w-5 shrink-0', isPhotosOpen ? 'text-primary' : 'text-muted-foreground')} />
           <div className="flex-1">
-            <span className={cn('text-sm font-bold', isPhotosOpen && 'text-primary')}>Photos</span>
+            <span className={cn('text-sm font-bold', isPhotosOpen && 'text-primary')}>{t('Photos')}</span>
             <Badge variant="secondary" className="text-[10px] font-mono ml-2">{photos.length}</Badge>
           </div>
         </button>
@@ -715,7 +716,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           {isDocsOpen ? <ChevronDown className="h-5 w-5 text-primary shrink-0" /> : <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />}
           <FileText className={cn('h-5 w-5 shrink-0', isDocsOpen ? 'text-primary' : 'text-muted-foreground')} />
           <div className="flex-1">
-            <span className={cn('text-sm font-bold', isDocsOpen && 'text-primary')}>Documents</span>
+            <span className={cn('text-sm font-bold', isDocsOpen && 'text-primary')}>{t('Documents')}</span>
             <Badge variant="secondary" className="text-[10px] font-mono ml-2">{documents.length}</Badge>
           </div>
         </button>
@@ -730,7 +731,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <h3 className="text-sm font-bold flex items-center gap-2 flex-wrap">
                   <ImageIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-                  Photos — {activeTab}
+                  {t('Photos')} — {t(activeTab)}
                   <Badge variant="secondary" className="text-[10px] font-mono">{filteredPhotos.length}/{photoCap}</Badge>
                 </h3>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -743,7 +744,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                       onClick={() => setIsCameraOpen(true)}
                     >
                       {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                      {isUploading ? 'Upload en cours...' : 'Prendre des photos'}
+                      {isUploading ? t('Upload en cours...') : t('Prendre des photos')}
                     </Button>
                   )}
                   {/* Proposition réforme (item 021). AT-only toggle; lifts photo
@@ -766,14 +767,14 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                             { details: `Limite photo par section : ${next ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION}` },
                             profile?.nom,
                           );
-                          toast({ title: next ? 'Proposition réforme activée' : 'Proposition réforme annulée' });
+                          toast({ title: next ? t('Proposition réforme activée') : t('Proposition réforme annulée') });
                         } catch (e) {
                           console.error('propositionReforme toggle error:', e);
-                          toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de modifier la proposition réforme.' });
+                          toast({ variant: 'destructive', title: t('Erreur'), description: t('Impossible de modifier la proposition réforme.') });
                         }
                       }}
                     >
-                      {(dossier as any)?.propositionReforme ? 'Réforme proposée — annuler' : 'Proposition réforme'}
+                      {(dossier as any)?.propositionReforme ? t('Réforme proposée — annuler') : t('Proposition réforme')}
                     </Button>
                   )}
                 </div>
@@ -782,8 +783,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               {filteredPhotos.length === 0 ? (
                 <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
                   <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">Aucune photo {activeTab.toLowerCase()} pour le moment.</p>
-                  <p className="text-xs mt-1">Utilisez le bouton &quot;Prendre une photo&quot; pour capturer.</p>
+                  <p className="text-sm">{t(`Aucune photo ${activeTab.toLowerCase()} pour le moment.`)}</p>
+                  <p className="text-xs mt-1">{t('Utilisez le bouton "Prendre une photo" pour capturer.')}</p>
                 </div>
               ) : (
                 <CollapsedByDayList
@@ -793,7 +794,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                   defaultExpanded={false}
                   gridItems
                   groupLabel={(day, count) =>
-                    `${format(day, 'd MMMM yyyy', { locale: fr })} — ${count} photo${count > 1 ? 's' : ''}`
+                    `${format(day, 'd MMMM yyyy', { locale: dateFnsLocale() })} — ${count} photo${count > 1 ? 's' : ''}`
                   }
                   renderItem={(photo) => (
                     <div
@@ -814,11 +815,11 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm('Supprimer cette photo ?')) handleDeletePhoto(photo);
+                            if (window.confirm(t('Supprimer cette photo ?'))) handleDeletePhoto(photo);
                           }}
                           disabled={isDeletingPhoto === photo.id}
                           className="absolute top-1 right-1 bg-red-600/85 hover:bg-red-600 rounded-full p-1 z-10 shadow"
-                          aria-label="Supprimer la photo"
+                          aria-label={t('Supprimer la photo')}
                         >
                           {isDeletingPhoto === photo.id
                             ? <Loader2 className="h-3 w-3 text-white animate-spin" />
@@ -844,7 +845,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
-                Pieces jointes
+                {t('Pieces jointes')}
               </h3>
             </div>
 
@@ -879,7 +880,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               <img
                 src={previewPreuvePhotos.urls[previewPreuvePhotos.index]}
                 className="max-w-full max-h-full object-contain"
-                alt={`Preuve ${previewPreuvePhotos.index + 1}`}
+                alt={`${t('Preuve')} ${previewPreuvePhotos.index + 1}`}
               />
             </div>
             {previewPreuvePhotos.urls.length > 1 && (

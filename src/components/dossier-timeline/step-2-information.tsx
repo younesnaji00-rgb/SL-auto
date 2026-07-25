@@ -38,6 +38,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCollection, useFirestore } from '@/firebase';
+import { useT } from '@/i18n';
 
 export interface Step2InformationProps {
   dossierId: string;
@@ -108,6 +109,7 @@ export default function Step2Information({
   onEditPlanification,
   onNewPlanification,
 }: Step2InformationProps) {
+  const t = useT();
   const missing = useMemo(() => getMissingRequiredFields(dossier), [dossier]);
 
   const [showCompare, setShowCompare] = useState(false);
@@ -144,11 +146,11 @@ export default function Step2Information({
   const banner = missing.length > 0 && (
     <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm">
       <div className="flex items-center gap-2 text-red-800 font-medium">
-        <AlertCircle className="h-4 w-4" /> Champs requis manquants
+        <AlertCircle className="h-4 w-4" /> {t('Champs requis manquants')}
       </div>
       <ul className="mt-2 list-disc pl-5 text-red-700 text-xs">
         {missing.map((label) => (
-          <li key={label}>{label}</li>
+          <li key={label}>{t(label)}</li>
         ))}
       </ul>
     </div>
@@ -177,7 +179,7 @@ export default function Step2Information({
         ) : (
           <Columns2 className="h-3.5 w-3.5" />
         )}
-        {showCompare ? 'Fermer la comparaison' : 'Comparer'}
+        {showCompare ? t('Fermer la comparaison') : t('Comparer')}
       </Button>
     </div>
   );
@@ -217,8 +219,8 @@ export default function Step2Information({
                 <SelectValue
                   placeholder={
                     scanDocs.length === 0
-                      ? 'Aucun scan disponible'
-                      : 'Sélectionner un scan'
+                      ? t('Aucun scan disponible')
+                      : t('Sélectionner un scan')
                   }
                 />
               </SelectTrigger>
@@ -262,8 +264,8 @@ export default function Step2Information({
               ) : (
                 <div className="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground">
                   {scanDocs.length === 0
-                    ? 'Aucun scan dans ce dossier.'
-                    : 'Sélectionnez un scan pour le visualiser.'}
+                    ? t('Aucun scan dans ce dossier.')
+                    : t('Sélectionnez un scan pour le visualiser.')}
                 </div>
               )}
             </div>

@@ -3,6 +3,7 @@ import { ai } from '@/ai/genkit';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
 import { requireAuth, authErrorResponse } from '@/lib/require-auth';
+import { BRAND } from '@/lib/brand';
 
 /**
  * AI Holiday Calendar Scanner.
@@ -10,6 +11,21 @@ import { requireAuth, authErrorResponse } from '@/lib/require-auth';
  * present, returned as ISO YYYY-MM-DD strings. Used by the Jours fériés
  * settings page to bulk-import a year's holidays from a single picture.
  */
+
+// Market-specific prompt fragments. MA is the original Moroccan prompt text,
+// verbatim; CA covers Canadian holiday lists and their date conventions.
+const HOLIDAYS_MARKET_MA = {
+  origin: `(probablement marocain)`,
+  dateRule: `Format de date OBLIGATOIRE: YYYY-MM-DD (ex: "15/03/2026" → "2026-03-15"). Si le format est ambigu (ex: 03/04/2026), utilise DD/MM/YYYY (standard marocain/français).`,
+};
+
+const HOLIDAYS_MARKET_CA = {
+  origin: `(probablement canadien — jours fériés fédéraux et provinciaux)`,
+  dateRule: `Format de date OBLIGATOIRE: YYYY-MM-DD (ex: "15/03/2026" → "2026-03-15"). Les calendriers canadiens affichent les dates en YYYY-MM-DD, en DD/MM/YYYY ou en toutes lettres ("July 1, 2026", "1er juillet 2026"); si le format numérique est ambigu (ex: 03/04/2026), utilise DD/MM/YYYY.`,
+};
+
+const HOLIDAYS_MARKET = BRAND.market === 'CA' ? HOLIDAYS_MARKET_CA : HOLIDAYS_MARKET_MA;
+
 export async function POST(req: NextRequest) {
   try {
     await requireAuth(req);
@@ -26,14 +42,14 @@ export async function POST(req: NextRequest) {
       config: { responseMimeType: 'application/json' },
       prompt: [
         {
-          text: `Tu es un système d'extraction de dates précis. L'image fournie est une capture d'écran d'un calendrier de jours fériés (probablement marocain) pour une année donnée.
+          text: `Tu es un système d'extraction de dates précis. L'image fournie est une capture d'écran d'un calendrier de jours fériés ${HOLIDAYS_MARKET.origin} pour une année donnée.
 
 TÂCHE:
 Repère CHAQUE date qui figure dans l'image et renvoie-la au format ISO "YYYY-MM-DD".
 
 RÈGLES STRICTES:
 1. Renvoie UNIQUEMENT un tableau JSON brut de chaînes, par exemple: ["2026-01-01","2026-05-01","2026-07-30"]. Pas de markdown, pas de \`\`\`, pas de texte avant ou après.
-2. Format de date OBLIGATOIRE: YYYY-MM-DD (ex: "15/03/2026" → "2026-03-15"). Si le format est ambigu (ex: 03/04/2026), utilise DD/MM/YYYY (standard marocain/français).
+2. ${HOLIDAYS_MARKET.dateRule}
 3. Si l'année n'est pas explicite à côté d'une date mais figure quelque part dans l'image (titre, en-tête), applique-la à toutes les dates non datées.
 4. Ignore les week-ends ordinaires (samedis/dimanches non listés comme fériés). N'inclus une date que si elle correspond explicitement à un jour férié indiqué dans l'image.
 5. Ignore tout ce qui n'est pas une date (titres, descriptions, illustrations).

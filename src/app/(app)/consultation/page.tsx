@@ -3,6 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import ConsultationClientPage from './client-page';
+import { useT } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { getDefaultRouteForRole } from '@/lib/nav-groups';
 
@@ -16,6 +17,7 @@ const CONSULTATION_ALLOWED_ROLES = [
 ];
 
 export default function ConsultationPage() {
+  const t = useT();
   const { profile, loading: userLoading } = useCurrentUser();
   const router = useRouter();
 
@@ -29,7 +31,7 @@ export default function ConsultationPage() {
   }, [userLoading, denied, profile?.role, router]);
 
   if (userLoading) {
-    return <div className="py-12 text-sm text-muted-foreground">Chargement...</div>;
+    return <div className="py-12 text-sm text-muted-foreground">{t('Chargement...')}</div>;
   }
 
   if (denied) return null;
@@ -37,9 +39,9 @@ export default function ConsultationPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Consultation</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t('Consultation')}</h1>
         <p className="text-muted-foreground">
-          Consulter tous les dossiers de sinistres (lecture seule)
+          {t('Consulter tous les dossiers de sinistres (lecture seule)')}
         </p>
       </div>
       <ConsultationClientPage />

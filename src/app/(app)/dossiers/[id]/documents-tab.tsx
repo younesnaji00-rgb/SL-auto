@@ -63,12 +63,14 @@ import {
   type DocumentsFilterPanelDoc,
 } from '@/components/chiffreurs/documents-filter-panel';
 import JSZip from 'jszip';
+import { useT } from '@/i18n';
 
 type DocumentsTabProps = {
   dossierId: string;
 };
 
 export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
+  const t = useT();
   const db = useFirestore();
   const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('dossiers');
@@ -176,8 +178,8 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
     if (uploadType === 'Devis' && devisVariant === 'counter' && !canSelectCounter) {
       toast({
         variant: 'destructive',
-        title: 'Devis original manquant',
-        description: "Uploadez d'abord un devis original avant d'ajouter un contre-devis.",
+        title: t('Devis original manquant'),
+        description: t("Uploadez d'abord un devis original avant d'ajouter un contre-devis."),
       });
       return;
     }
@@ -226,7 +228,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
         await logWorkflow(db, dossierId, 'Nouveau document ajouté', userEmail, userId, 'done', { details: `Document "${file.name}" ajouté (par gestionnaire)` }, profile?.nom);
       }
 
-      toast({ title: selectedFiles.length === 1 ? 'Document uploadé avec succès' : `${selectedFiles.length} documents uploadés` });
+      toast({ title: selectedFiles.length === 1 ? t('Document uploadé avec succès') : `${selectedFiles.length} ${t('documents uploadés')}` });
       setUploadModalOpen(false);
       setSelectedFiles([]);
       setUploadType('');
@@ -234,8 +236,8 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
       console.error('Upload error:', error);
       toast({
         variant: 'destructive',
-        title: "Erreur lors de l'upload",
-        description: error.message || 'Une erreur inconnue est survenue.',
+        title: t("Erreur lors de l'upload"),
+        description: error.message || t('Une erreur inconnue est survenue.'),
       });
     } finally {
       setIsUploading(false);
@@ -257,13 +259,13 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
       }
       await deleteDoc(doc(db, 'dossiers', dossierId, 'documents', document.id));
       await logHistorique(db, dossierId, 'Suppression document', userEmail, `Document "${document.nom || 'inconnu'}" supprimé.`, 'document', profile?.nom);
-      toast({ title: 'Document supprimé avec succès' });
+      toast({ title: t('Document supprimé avec succès') });
     } catch (error: any) {
       console.error('Document delete error:', error);
       toast({
         variant: 'destructive',
-        title: 'Erreur lors de la suppression',
-        description: error?.message || 'Vérifiez les permissions de stockage.',
+        title: t('Erreur lors de la suppression'),
+        description: error?.message || t('Vérifiez les permissions de stockage.'),
       });
     } finally {
       setIsDeleting(null);
@@ -285,7 +287,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
       window.URL.revokeObjectURL(blobUrl);
     } catch (e) {
       console.error('Download error:', e);
-      toast({ variant: 'destructive', title: 'Erreur lors du téléchargement' });
+      toast({ variant: 'destructive', title: t('Erreur lors du téléchargement') });
     }
   };
 
@@ -432,12 +434,12 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
       const docCount = fetched.filter((f) => f.ok).length;
       toast({
         title: includePhotos
-          ? `Archive téléchargée (${docCount} document(s), ${photoCount} photo(s))`
-          : `Archive téléchargée (${docCount} document(s) dans ${folderSet.size} dossier(s))`,
+          ? `${t('Archive téléchargée')} (${docCount} document(s), ${photoCount} photo(s))`
+          : `${t('Archive téléchargée')} (${docCount} document(s) ${t('dans')} ${folderSet.size} ${t('dossier(s)')})`,
       });
     } catch (e) {
       console.error('Batch download error:', e);
-      toast({ variant: 'destructive', title: 'Erreur lors du téléchargement' });
+      toast({ variant: 'destructive', title: t('Erreur lors du téléchargement') });
     } finally {
       setIsBatchDownloading(false);
     }
@@ -463,17 +465,17 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-muted-foreground">
-            {selectedType === ALL_TYPES_KEY ? 'Tous les documents' : selectedType}
+            {selectedType === ALL_TYPES_KEY ? t('Tous les documents') : t(selectedType)}
             <Badge variant="secondary" className="ml-2 text-[10px]">{visibleDocs.length}</Badge>
           </h3>
         </div>
         <div className="flex items-center gap-2">
           {!selectionMode && (
             <>
-              <OptionsManagerModal collectionName="options_types_documents" title="Types de documents" defaultValues={[...defaultDocTypes]} />
+              <OptionsManagerModal collectionName="options_types_documents" title={t('Types de documents')} defaultValues={[...defaultDocTypes]} />
               <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
                 <CheckSquare className="mr-2 h-4 w-4" />
-                Sélectionner
+                {t('Sélectionner')}
               </Button>
             </>
           )}
@@ -484,7 +486,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
       {selectionMode && (
         <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/50 border rounded-lg px-4 py-2">
           <span className="text-sm font-medium">
-            {selectedIds.size} document(s) sélectionné(s)
+            {selectedIds.size} {t('document(s) sélectionné(s)')}
           </span>
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -493,7 +495,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
               onClick={allVisibleSelected ? deselectAllVisible : selectAllVisible}
               disabled={visibleDocs.length === 0}
             >
-              {allVisibleSelected ? 'Tout désélectionner' : 'Sélectionner tout'}
+              {allVisibleSelected ? t('Tout désélectionner') : t('Sélectionner tout')}
             </Button>
             <Button
               size="sm"
@@ -505,24 +507,24 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
               ) : (
                 <Download className="mr-2 h-4 w-4" />
               )}
-              Télécharger ({selectedIds.size})
+              {t('Télécharger')} ({selectedIds.size})
             </Button>
             <Button
               size="sm"
               variant="secondary"
               onClick={() => handleDownloadSelected(true)}
               disabled={selectedIds.size === 0 || !!isBatchDownloading}
-              title="Inclure les photos avant / en cours / après dans le zip"
+              title={t('Inclure les photos avant / en cours / après dans le zip')}
             >
               {isBatchDownloading === 'docs+photos' ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Download className="mr-2 h-4 w-4" />
               )}
-              Inclure photos ({selectedIds.size})
+              {t('Inclure photos')} ({selectedIds.size})
             </Button>
             <Button variant="ghost" size="sm" onClick={exitSelectionMode} disabled={!!isBatchDownloading}>
-              Annuler
+              {t('Annuler')}
             </Button>
           </div>
         </div>
@@ -555,28 +557,28 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
       <Dialog open={isUploadModalOpen} onOpenChange={setUploadModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Catégorie du document</DialogTitle>
+            <DialogTitle>{t('Catégorie du document')}</DialogTitle>
             <DialogDescription>
               {selectedFiles.length === 1 ? (
-                <>Fichier: <span className="font-semibold text-foreground">{selectedFiles[0]?.name}</span></>
+                <>{t('Fichier:')} <span className="font-semibold text-foreground">{selectedFiles[0]?.name}</span></>
               ) : (
-                <><span className="font-semibold text-foreground">{selectedFiles.length} fichiers</span> seront uploadés avec ce type.</>
+                <><span className="font-semibold text-foreground">{selectedFiles.length} {t('fichiers')}</span> {t('seront uploadés avec ce type.')}</>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Type de document</label>
-                <OptionsManagerModal collectionName="options_types_documents" title="Types de documents" defaultValues={[...defaultDocTypes]} />
+                <label className="text-sm font-medium">{t('Type de document')}</label>
+                <OptionsManagerModal collectionName="options_types_documents" title={t('Types de documents')} defaultValues={[...defaultDocTypes]} />
               </div>
               <Select value={uploadType} onValueChange={setUploadType} disabled={isUploading}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choisir une catégorie" />
+                  <SelectValue placeholder={t('Choisir une catégorie')} />
                 </SelectTrigger>
                 <SelectContent>
                   {docTypes.map((type) => (
-                    <SelectItem key={`type-${type.id}`} value={type.label}>{type.label}</SelectItem>
+                    <SelectItem key={`type-${type.id}`} value={type.label}>{t(type.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -584,7 +586,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
 
             {uploadType === 'Devis' && (
               <div className="space-y-2 pt-1 border-t">
-                <Label className="text-xs font-semibold">Variante du devis</Label>
+                <Label className="text-xs font-semibold">{t('Variante du devis')}</Label>
                 <RadioGroup
                   value={devisVariant}
                   onValueChange={(v) => setDevisVariant(v as 'original' | 'counter')}
@@ -594,9 +596,9 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                   <label className="flex items-start gap-2 cursor-pointer">
                     <RadioGroupItem value="original" id="dv-original" className="mt-0.5" />
                     <div className="flex-1">
-                      <div className="text-sm font-medium">Devis original</div>
+                      <div className="text-sm font-medium">{t('Devis original')}</div>
                       <div className="text-[11px] text-muted-foreground">
-                        Lignes et prix imprimés. Extraction complète par l'IA au moment du chiffrage.
+                        {t("Lignes et prix imprimés. Extraction complète par l'IA au moment du chiffrage.")}
                       </div>
                     </div>
                   </label>
@@ -604,13 +606,13 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                     <RadioGroupItem value="counter" id="dv-counter" className="mt-0.5" disabled={!canSelectCounter} />
                     <div className="flex-1">
                       <div className="text-sm font-medium">
-                        Contre-devis / accord
+                        {t('Contre-devis / accord')}
                         <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-red-600 align-middle" />
                       </div>
                       <div className="text-[11px] text-muted-foreground">
                         {canSelectCounter
-                          ? "Prix de contre-proposition (annotés à la main ou en surimpression). Ajoute une colonne rouge au devis lors du chiffrage."
-                          : "Vous devez d'abord uploader un devis original pour ce dossier."}
+                          ? t("Prix de contre-proposition (annotés à la main ou en surimpression). Ajoute une colonne rouge au devis lors du chiffrage.")
+                          : t("Vous devez d'abord uploader un devis original pour ce dossier.")}
                       </div>
                     </div>
                   </label>
@@ -618,16 +620,16 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
 
                 {devisVariant === 'counter' && canSelectCounter && (
                   <div className="space-y-1 pt-2">
-                    <Label className="text-xs font-semibold">Label du round</Label>
+                    <Label className="text-xs font-semibold">{t('Label du round')}</Label>
                     <Input
                       value={counterRoundLabel}
                       onChange={(e) => setCounterRoundLabel(e.target.value)}
-                      placeholder="1er accord"
+                      placeholder={t('1er accord')}
                       className="h-8 text-xs"
                       disabled={isUploading}
                     />
                     <div className="text-[10px] text-muted-foreground">
-                      Devient le nom de la colonne rouge (ex: "1er accord", "Expert arbitre").
+                      {t('Devient le nom de la colonne rouge (ex: "1er accord", "Expert arbitre").')}
                     </div>
                   </div>
                 )}
@@ -637,7 +639,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
             {isUploading && (
               <div className="flex items-center gap-2 text-primary">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Envoi en cours...</span>
+                <span className="text-sm">{t('Envoi en cours...')}</span>
               </div>
             )}
           </div>
@@ -650,7 +652,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
               }}
               disabled={isUploading}
             >
-              Annuler
+              {t('Annuler')}
             </Button>
             <Button
               onClick={handleUpload}
@@ -662,7 +664,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
               }
             >
               {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {isUploading ? 'Transfert...' : 'Uploader'}
+              {isUploading ? t('Transfert...') : t('Uploader')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -678,13 +680,13 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce document ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Supprimer ce document ?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.nom && <span className="font-semibold">{deleteTarget.nom}</span>} sera supprimé définitivement du stockage et du dossier. Cette action est irréversible.
+              {deleteTarget?.nom && <span className="font-semibold">{deleteTarget.nom}</span>} {t('sera supprimé définitivement du stockage et du dossier. Cette action est irréversible.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={!!isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={!!isDeleting}>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={!!isDeleting}
@@ -693,7 +695,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                 if (deleteTarget) handleDelete(deleteTarget);
               }}
             >
-              Supprimer
+              {t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

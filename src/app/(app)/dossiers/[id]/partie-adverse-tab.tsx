@@ -9,11 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useFirestore, useAuth } from '@/firebase';
 import { logHistorique } from './log-historique';
+import { useT } from '@/i18n';
 
 export default function PartieAdverseTab({ dossier, dossierRef }: { dossier: any; dossierRef: DocumentReference }) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
@@ -52,11 +54,11 @@ export default function PartieAdverseTab({ dossier, dossierRef }: { dossier: any
     try {
       await updateDoc(dossierRef, form);
       await logHistorique(db, dossierId, 'Mise à jour', userEmail, 'Informations de la partie adverse mises à jour.', 'autre', auth?.currentUser?.displayName ?? undefined);
-      toast({ title: 'Partie adverse mise à jour' });
+      toast({ title: t('Partie adverse mise à jour') });
       setEditing(false);
     } catch (error) {
       console.error(error);
-      toast({ variant: 'destructive', title: 'Erreur', description: String(error) });
+      toast({ variant: 'destructive', title: t('Erreur'), description: String(error) });
     } finally {
       setSaving(false);
     }
@@ -96,7 +98,7 @@ export default function PartieAdverseTab({ dossier, dossierRef }: { dossier: any
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold tracking-tight">Partie Adverse</h2>
+        <h2 className="text-xl font-bold tracking-tight">{t('Partie Adverse')}</h2>
         <div className="flex justify-end gap-2">
           {!editing ? (
             <button
@@ -104,7 +106,7 @@ export default function PartieAdverseTab({ dossier, dossierRef }: { dossier: any
               onClick={() => setEditing(true)}
               className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold"
             >
-              <Pencil className="h-3.5 w-3.5 text-primary" /> Modifier
+              <Pencil className="h-3.5 w-3.5 text-primary" /> {t('Modifier')}
             </button>
           ) : (
             <>
@@ -114,14 +116,14 @@ export default function PartieAdverseTab({ dossier, dossierRef }: { dossier: any
                 disabled={saving}
                 className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-colors font-semibold shadow-sm"
               >
-                {saving ? <Check className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />} Enregistrer
+                {saving ? <Check className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />} {t('Enregistrer')}
               </button>
               <button
                 type="button"
                 onClick={handleCancel}
                 className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold"
               >
-                <X className="h-3.5 w-3.5 text-muted-foreground" /> Annuler
+                <X className="h-3.5 w-3.5 text-muted-foreground" /> {t('Annuler')}
               </button>
             </>
           )}
@@ -131,18 +133,18 @@ export default function PartieAdverseTab({ dossier, dossierRef }: { dossier: any
       <Card className="border-primary/5 shadow-sm">
         <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider">
-            Détails de la partie adverse
+            {t('Détails de la partie adverse')}
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-6 pt-6">
-          <Field label="Nom" value={form.adverseNom} field="adverseNom" />
-          <Field label="Prénom" value={form.adversePrenom} field="adversePrenom" />
-          <Field label="Téléphone" value={form.adverseTelephone} field="adverseTelephone" />
-          <Field label="Email" value={form.adverseEmail} field="adverseEmail" />
-          <Field label="Adresse" value={form.adverseAdresse} field="adverseAdresse" />
-          <Field label="Compagnie" value={form.adverseCompagnie} field="adverseCompagnie" />
-          <Field label="Matricule" value={form.adverseMatricule} field="adverseMatricule" />
-          <Field label="N° Permis" value={form.adversePermis} field="adversePermis" />
+          <Field label={t('Nom')} value={form.adverseNom} field="adverseNom" />
+          <Field label={t('Prénom')} value={form.adversePrenom} field="adversePrenom" />
+          <Field label={t('Téléphone')} value={form.adverseTelephone} field="adverseTelephone" />
+          <Field label={t('Email')} value={form.adverseEmail} field="adverseEmail" />
+          <Field label={t('Adresse')} value={form.adverseAdresse} field="adverseAdresse" />
+          <Field label={t('Compagnie')} value={form.adverseCompagnie} field="adverseCompagnie" />
+          <Field label={t('Matricule')} value={form.adverseMatricule} field="adverseMatricule" />
+          <Field label={t('N° Permis')} value={form.adversePermis} field="adversePermis" />
         </CardContent>
       </Card>
     </div>

@@ -29,6 +29,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
+import { useT } from '@/i18n';
 
 interface DossierEditModalProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ interface DossierEditModalProps {
 }
 
 export default function DossierEditModal({ isOpen, onClose, dossierId }: DossierEditModalProps) {
+  const t = useT();
   const db = useFirestore();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -116,7 +118,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
           }
         } catch (error) {
           console.error("Error fetching dossier:", error);
-          toast({ variant: 'destructive', title: "Erreur de chargement" });
+          toast({ variant: 'destructive', title: t('Erreur de chargement') });
         } finally {
           setLoading(false);
         }
@@ -153,11 +155,11 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
       };
 
       await updateDoc(doc(db, 'dossiers', dossierId), payload);
-      toast({ title: "Dossier mis à jour" });
+      toast({ title: t('Dossier mis à jour') });
       onClose();
     } catch (error) {
       console.error("Error updating dossier:", error);
-      toast({ variant: 'destructive', title: "Erreur lors de la mise à jour" });
+      toast({ variant: 'destructive', title: t('Erreur lors de la mise à jour') });
     } finally {
       setSaving(false);
     }
@@ -174,16 +176,16 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[1000px] max-h-[95vh] overflow-y-auto p-0 border-none shadow-2xl">
         <DialogHeader className="p-6 border-b bg-muted/30">
-          <DialogTitle className="text-xl font-bold">Modifier Dossier</DialogTitle>
+          <DialogTitle className="text-xl font-bold">{t('Modifier Dossier')}</DialogTitle>
         </DialogHeader>
 
         {loading ? (
-          <InlineLoader label="Chargement des données…" size="md" className="justify-center py-20" />
+          <InlineLoader label={t('Chargement des données…')} size="md" className="justify-center py-20" />
         ) : (
           <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-10">
             <div className="space-y-8">
               <div className="space-y-3">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Expert</Label>
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t('Expert')}</Label>
                 <RadioGroup
                   value={formData.expertRank}
                   onValueChange={(v) => setFormData({ ...formData, expertRank: v })}
@@ -192,7 +194,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
                   {['1er expert', '2eme expert', 'Arbitre'].map((rank) => (
                     <div key={rank} className="flex items-center space-x-2">
                       <RadioGroupItem value={rank} id={`modal-${rank}`} />
-                      <Label htmlFor={`modal-${rank}`} className="text-sm font-medium cursor-pointer capitalize">{rank}</Label>
+                      <Label htmlFor={`modal-${rank}`} className="text-sm font-medium cursor-pointer capitalize">{t(rank)}</Label>
                     </div>
                   ))}
                 </RadioGroup>
@@ -201,44 +203,44 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
 <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground font-semibold">Compagnie</Label>
-                    <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
+                    <Label className="text-xs text-muted-foreground font-semibold">{t('Compagnie')}</Label>
+                    <OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />
                   </div>
                   <Select value={formData.compagnie} onValueChange={(v) => setFormData({ ...formData, compagnie: v })}>
-                    <SelectTrigger className="h-10"><SelectValue placeholder="Choisir" /></SelectTrigger>
-                    <SelectContent>{compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}</SelectContent>
+                    <SelectTrigger className="h-10"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
+                    <SelectContent>{compagnies.map(c => <SelectItem key={c.id} value={c.label}>{t(c.label)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground font-semibold">Type Dossier</Label>
-                    <OptionsManagerModal collectionName="options_types_dossier" title="Types de dossier" />
+                    <Label className="text-xs text-muted-foreground font-semibold">{t('Type Dossier')}</Label>
+                    <OptionsManagerModal collectionName="options_types_dossier" title={t('Types de dossier')} />
                   </div>
                   <Select value={formData.typeDossier} onValueChange={(v) => setFormData({ ...formData, typeDossier: v })}>
-                    <SelectTrigger className="h-10"><SelectValue placeholder="Choisir" /></SelectTrigger>
-                    <SelectContent>{dossierTypes.map(t => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}</SelectContent>
+                    <SelectTrigger className="h-10"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
+                    <SelectContent>{dossierTypes.map(dt => <SelectItem key={dt.id} value={dt.label}>{t(dt.label)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="col-span-2 space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground font-semibold">Nature du dossier</Label>
-                    <OptionsManagerModal collectionName="options_natures" title="Natures" />
+                    <Label className="text-xs text-muted-foreground font-semibold">{t('Nature du dossier')}</Label>
+                    <OptionsManagerModal collectionName="options_natures" title={t('Natures')} />
                   </div>
                   <Select value={formData.nature} onValueChange={(v) => setFormData({ ...formData, nature: v })}>
-                    <SelectTrigger className="h-10"><SelectValue placeholder="Choisir" /></SelectTrigger>
-                    <SelectContent className="max-h-[300px]">{natures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}</SelectContent>
+                    <SelectTrigger className="h-10"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
+                    <SelectContent className="max-h-[300px]">{natures.map(n => <SelectItem key={n.id} value={n.label}>{t(n.label)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
               </div>
 
               <div className="space-y-4 pt-6 border-t">
                 <div className="grid grid-cols-2 gap-6">
-                  <InputField label="Assuré" value={formData.assure.nom} onChange={(e: any) => setFormData({ ...formData, assure: { ...formData.assure, nom: e.target.value } })} />
-                  <InputField label="Tel Assuré" value={formData.assure.telephone} onChange={(e: any) => setFormData({ ...formData, assure: { ...formData.assure, telephone: e.target.value } })} />
-                  <InputField label="Tel Whatsapp" value={formData.assure.whatsapp} onChange={(e: any) => setFormData({ ...formData, assure: { ...formData.assure, whatsapp: e.target.value } })} />
-                  <InputField label="Autre Tel" value={formData.assure.telephone2} onChange={(e: any) => setFormData({ ...formData, assure: { ...formData.assure, telephone2: e.target.value } })} />
+                  <InputField label={t('Assuré')} value={formData.assure.nom} onChange={(e: any) => setFormData({ ...formData, assure: { ...formData.assure, nom: e.target.value } })} />
+                  <InputField label={t('Tel Assuré')} value={formData.assure.telephone} onChange={(e: any) => setFormData({ ...formData, assure: { ...formData.assure, telephone: e.target.value } })} />
+                  <InputField label={t('Tel Whatsapp')} value={formData.assure.whatsapp} onChange={(e: any) => setFormData({ ...formData, assure: { ...formData.assure, whatsapp: e.target.value } })} />
+                  <InputField label={t('Autre Tel')} value={formData.assure.telephone2} onChange={(e: any) => setFormData({ ...formData, assure: { ...formData.assure, telephone2: e.target.value } })} />
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground font-semibold">Date Requête</Label>
+                    <Label className="text-xs text-muted-foreground font-semibold">{t('Date Requête')}</Label>
                     <DatePicker value={formData.dateRequete} onChange={(d) => setFormData({ ...formData, dateRequete: d })} />
                   </div>
                 </div>
@@ -247,39 +249,39 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
 
             <div className="space-y-8">
               <div className="grid grid-cols-2 gap-6">
-                <InputField label="Marque" value={formData.vehicule.marque} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, marque: e.target.value } })} />
-                <InputField label="Modèle" value={formData.vehicule.modele} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, modele: e.target.value } })} />
-                <InputField label="Immatriculation" value={formData.vehicule.immatriculation} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, immatriculation: e.target.value } })} />
-                <InputField label="Immatriculation antérieure" value={formData.vehicule.immatriculationAnterieur} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, immatriculationAnterieur: e.target.value } })} />
-                <InputField label="Immatriculation W" value={formData.vehicule.registrationW} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, registrationW: e.target.value } })} />
+                <InputField label={t('Marque')} value={formData.vehicule.marque} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, marque: e.target.value } })} />
+                <InputField label={t('Modèle')} value={formData.vehicule.modele} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, modele: e.target.value } })} />
+                <InputField label={t('Immatriculation')} value={formData.vehicule.immatriculation} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, immatriculation: e.target.value } })} />
+                <InputField label={t('Immatriculation antérieure')} value={formData.vehicule.immatriculationAnterieur} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, immatriculationAnterieur: e.target.value } })} />
+                <InputField label={t('Immatriculation W')} value={formData.vehicule.registrationW} onChange={(e: any) => setFormData({ ...formData, vehicule: { ...formData.vehicule, registrationW: e.target.value } })} />
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground font-semibold">Date Sinistre</Label>
+                  <Label className="text-xs text-muted-foreground font-semibold">{t('Date Sinistre')}</Label>
                   <DatePicker value={formData.dateSinistre} onChange={(d) => setFormData({ ...formData, dateSinistre: d })} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground font-semibold">Date de MEC</Label>
+                  <Label className="text-xs text-muted-foreground font-semibold">{t('Date de MEC')}</Label>
                   <DatePicker value={formData.vehicule.mec} onChange={(d) => setFormData({ ...formData, vehicule: { ...formData.vehicule, mec: d } })} />
                 </div>
               </div>
 
               <div className="space-y-4 pt-6 border-t">
                 <div className="grid grid-cols-2 gap-6">
-                  <InputField label="Intermédiaire" value={formData.intermediaireNom} onChange={(e: any) => setFormData({ ...formData, intermediaireNom: e.target.value })} />
-                  <InputField label="E-mail Intermédiaire" type="email" value={formData.intermediaireEmail} onChange={(e: any) => setFormData({ ...formData, intermediaireEmail: e.target.value })} />
-                  <InputField label="Ref Compagnie" value={formData.referenceCompagnie} onChange={(e: any) => setFormData({ ...formData, referenceCompagnie: e.target.value })} />
-                  <InputField label="N° de Police" value={formData.policeNumber} onChange={(e: any) => setFormData({ ...formData, policeNumber: e.target.value })} />
+                  <InputField label={t('Intermédiaire')} value={formData.intermediaireNom} onChange={(e: any) => setFormData({ ...formData, intermediaireNom: e.target.value })} />
+                  <InputField label={t('E-mail Intermédiaire')} type="email" value={formData.intermediaireEmail} onChange={(e: any) => setFormData({ ...formData, intermediaireEmail: e.target.value })} />
+                  <InputField label={t('Ref Compagnie')} value={formData.referenceCompagnie} onChange={(e: any) => setFormData({ ...formData, referenceCompagnie: e.target.value })} />
+                  <InputField label={t('N° de Police')} value={formData.policeNumber} onChange={(e: any) => setFormData({ ...formData, policeNumber: e.target.value })} />
 
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground font-semibold">Réparateur</Label>
+                    <Label className="text-xs text-muted-foreground font-semibold">{t('Réparateur')}</Label>
                     <Select value={formData.repairerType} onValueChange={(v) => setFormData({ ...formData, repairerType: v })}>
-                      <SelectTrigger className="h-10"><SelectValue placeholder="Choisir" /></SelectTrigger>
+                      <SelectTrigger className="h-10"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Agréé">Agréé</SelectItem>
-                        <SelectItem value="Normal">Normal</SelectItem>
+                        <SelectItem value="Agréé">{t('Agréé')}</SelectItem>
+                        <SelectItem value="Normal">{t('Normal')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <InputField label="Nom Garage" value={formData.garageName} onChange={(e: any) => setFormData({ ...formData, garageName: e.target.value })} />
+                  <InputField label={t('Nom Garage')} value={formData.garageName} onChange={(e: any) => setFormData({ ...formData, garageName: e.target.value })} />
                 </div>
               </div>
             </div>
@@ -289,10 +291,10 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
         <DialogFooter className="p-6 border-t bg-muted/30 flex flex-row items-center justify-end sm:justify-end">
           <div className="flex gap-3">
             <Button variant="outline" onClick={onClose} disabled={saving} className="h-10 px-6 font-bold shadow-sm">
-              Annuler
+              {t('Annuler')}
             </Button>
             <Button onClick={handleUpdate} loading={saving} disabled={loading} className="h-10 px-8 bg-primary text-primary-foreground shadow-lg shadow-primary/20 font-semibold">
-              {saving ? 'Mise à jour...' : 'Mettre à jour'}
+              {saving ? t('Mise à jour...') : t('Mettre à jour')}
             </Button>
           </div>
         </DialogFooter>

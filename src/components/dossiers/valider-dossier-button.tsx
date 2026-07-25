@@ -10,6 +10,7 @@ import { useCurrentUser, canValidateRapport } from '@/hooks/use-current-user';
 import { hasPermission, SUB_PERMISSIONS } from '@/lib/permissions';
 import { useToast } from '@/hooks/use-toast';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
+import { useT } from '@/i18n';
 
 export interface ValiderDossierButtonProps {
   dossierId: string;
@@ -22,6 +23,7 @@ export function ValiderDossierButton({
   alreadyValidated,
   className,
 }: ValiderDossierButtonProps) {
+  const t = useT();
   const db = useFirestore();
   const auth = useAuth();
   const { profile } = useCurrentUser();
@@ -40,7 +42,7 @@ export function ValiderDossierButton({
 
   const handleClick = async () => {
     if (alreadyValidated) {
-      toast({ title: 'Déjà validé', description: 'Ce dossier a déjà été validé.' });
+      toast({ title: t('Déjà validé'), description: t('Ce dossier a déjà été validé.') });
       return;
     }
     if (!db) return;
@@ -65,12 +67,12 @@ export function ValiderDossierButton({
         profile?.nom,
       );
       toast({
-        title: 'Dossier validé',
-        description: 'Le rapport peut maintenant être généré.',
+        title: t('Dossier validé'),
+        description: t('Le rapport peut maintenant être généré.'),
       });
     } catch (e: any) {
       toast({
-        title: 'Erreur',
+        title: t('Erreur'),
         description: e?.message ?? String(e),
         variant: 'destructive',
       });
@@ -87,7 +89,7 @@ export function ValiderDossierButton({
       variant={alreadyValidated ? 'outline' : 'default'}
     >
       <ShieldCheck className="h-4 w-4 mr-2" />
-      {alreadyValidated ? 'Dossier validé' : 'Valider le dossier'}
+      {alreadyValidated ? t('Dossier validé') : t('Valider le dossier')}
     </Button>
   );
 }

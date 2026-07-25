@@ -11,7 +11,7 @@ import {
 import { Activity, Gauge, Building2, Users, RotateCcw, Search } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { startOfDay, endOfDay, startOfWeek, startOfMonth, isSameDay } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, useLocale, dateFnsLocale, t as tGlobal } from '@/i18n';
 
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -101,9 +101,9 @@ const SYSTEM_LABELS: Record<string, string> = {
 };
 
 const resolveUserName = (raw: string, lookup: UserLookup): string => {
-  if (!raw) return SYSTEM_LABELS.unknown;
+  if (!raw) return tGlobal(SYSTEM_LABELS.unknown);
   const trimmed = raw.trim();
-  if (SYSTEM_LABELS[trimmed]) return SYSTEM_LABELS[trimmed];
+  if (SYSTEM_LABELS[trimmed]) return tGlobal(SYSTEM_LABELS[trimmed]);
   const direct = lookup.byKey.get(trimmed);
   if (direct) return direct;
   const lower = lookup.byKey.get(trimmed.toLowerCase());
@@ -114,6 +114,8 @@ const resolveUserName = (raw: string, lookup: UserLookup): string => {
 };
 
 export default function MonitoringPage() {
+  const t = useT();
+  const { locale } = useLocale();
   const db = useFirestore();
   const { profile } = useCurrentUser();
   const { compagnies: allCompagnies } = useCompagnies();
@@ -227,19 +229,20 @@ export default function MonitoringPage() {
     const today = startOfDay(now);
     const todayEnd = endOfDay(now);
     if (isSameDay(dateFrom, today) && isSameDay(dateTo, todayEnd)) return 'jour';
-    const weekStart = startOfWeek(now, { locale: fr });
+    const weekStart = startOfWeek(now, { locale: dateFnsLocale() });
     if (isSameDay(dateFrom, weekStart) && isSameDay(dateTo, todayEnd)) return 'semaine';
     const monthStart = startOfMonth(now);
     if (isSameDay(dateFrom, monthStart) && isSameDay(dateTo, todayEnd)) return 'mois';
     return 'custom';
-  }, [dateFrom, dateTo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, locale]);
 
   const applyJour = () => {
     setDateFrom(startOfDay(new Date()));
     setDateTo(endOfDay(new Date()));
   };
   const applySemaine = () => {
-    setDateFrom(startOfWeek(new Date(), { locale: fr }));
+    setDateFrom(startOfWeek(new Date(), { locale: dateFnsLocale() }));
     setDateTo(endOfDay(new Date()));
   };
   const applyMois = () => {
@@ -360,9 +363,9 @@ export default function MonitoringPage() {
     <div className="space-y-6 p-4 md:p-6">
       <header className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="font-headline text-2xl font-semibold tracking-tight">Suivi d'équipe</h1>
+          <h1 className="font-headline text-2xl font-semibold tracking-tight">{t("Suivi d'équipe")}</h1>
           <p className="text-sm text-muted-foreground">
-            Funnel des étapes — combien de dossiers ont franchi chaque étape.
+            {t('Funnel des étapes — combien de dossiers ont franchi chaque étape.')}
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
@@ -373,7 +376,7 @@ export default function MonitoringPage() {
               className="h-8"
               onClick={applyJour}
             >
-              Jour
+              {t('Jour')}
             </Button>
             <Button
               size="sm"
@@ -381,7 +384,7 @@ export default function MonitoringPage() {
               className="h-8"
               onClick={applySemaine}
             >
-              Semaine
+              {t('Semaine')}
             </Button>
             <Button
               size="sm"
@@ -389,7 +392,7 @@ export default function MonitoringPage() {
               className="h-8"
               onClick={applyMois}
             >
-              Mois
+              {t('Mois')}
             </Button>
             <Button
               size="sm"
@@ -397,20 +400,20 @@ export default function MonitoringPage() {
               className="h-8"
               disabled
             >
-              Personnalisé
+              {t('Personnalisé')}
             </Button>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Du</label>
-            <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Date de début" className="w-44" />
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t('Du')}</label>
+            <DatePicker value={dateFrom} onChange={setDateFrom} placeholder={t('Date de début')} className="w-44" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Au</label>
-            <DatePicker value={dateTo} onChange={setDateTo} placeholder="Date de fin" className="w-44" />
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t('Au')}</label>
+            <DatePicker value={dateTo} onChange={setDateTo} placeholder={t('Date de fin')} className="w-44" />
           </div>
           <Button variant="outline" size="sm" onClick={resetRange} className="h-10">
             <RotateCcw className="mr-2 h-4 w-4" />
-            Réinitialiser
+            {t('Réinitialiser')}
           </Button>
         </div>
       </header>
@@ -419,15 +422,15 @@ export default function MonitoringPage() {
         <TabsList>
           <TabsTrigger value="global" className="gap-2">
             <Gauge className="h-4 w-4" />
-            Global
+            {t('Global')}
           </TabsTrigger>
           <TabsTrigger value="compagnie" className="gap-2">
             <Building2 className="h-4 w-4" />
-            Par compagnie
+            {t('Par compagnie')}
           </TabsTrigger>
           <TabsTrigger value="user" className="gap-2">
             <Users className="h-4 w-4" />
-            Par utilisateur
+            {t('Par utilisateur')}
           </TabsTrigger>
         </TabsList>
 
@@ -457,29 +460,29 @@ export default function MonitoringPage() {
         <TabsContent value="user" className="space-y-4">
           <div className="flex flex-wrap items-end gap-2">
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Rôle</label>
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t('Rôle')}</label>
               <Select value={roleFilter} onValueChange={setRoleFilter}>
                 <SelectTrigger className="h-10 w-56">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ROLE_FILTER_ALL}>Tous les rôles</SelectItem>
+                  <SelectItem value={ROLE_FILTER_ALL}>{t('Tous les rôles')}</SelectItem>
                   {roles.map((r) => (
                     <SelectItem key={r} value={r}>
-                      {r}
+                      {t(r)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Utilisateur</label>
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t('Utilisateur')}</label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
-                  placeholder="Rechercher un utilisateur…"
+                  placeholder={t('Rechercher un utilisateur…')}
                   className="h-10 w-64 pl-8"
                 />
               </div>
@@ -516,21 +519,22 @@ function GlobalView({
   loading: boolean;
   onSelectStep: (step: StepKey, mode: DrawerMode) => void;
 }) {
+  const t = useT();
   const chartData = STEP_KEYS.map((key) => ({
-    step: STEP_LABELS_SHORT[key],
+    step: t(STEP_LABELS_SHORT[key]),
     value: counts[key],
   }));
 
   const chartConfig = {
-    value: { label: 'Dossiers', color: 'hsl(var(--chart-5))' },
+    value: { label: t('Dossiers'), color: 'hsl(var(--chart-5))' },
   };
 
   if (totalDossiers === 0 && !loading) {
     return (
       <EmptyState
         icon={<Activity />}
-        title="Aucun dossier dans votre périmètre"
-        description="Aucune compagnie assignée n'a de dossiers à analyser."
+        title={t('Aucun dossier dans votre périmètre')}
+        description={t("Aucune compagnie assignée n'a de dossiers à analyser.")}
       />
     );
   }
@@ -548,7 +552,7 @@ function GlobalView({
             <KpiCard
               key={key}
               index={idx + 1}
-              label={STEP_LABELS[key]}
+              label={t(STEP_LABELS[key])}
               realiseEnDelai={realiseEnDelai}
               horsDelai={horsDelai}
               nonRealise={nonRealise}
@@ -563,13 +567,13 @@ function GlobalView({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Volume par étape</CardTitle>
+          <CardTitle className="text-base">{t('Volume par étape')}</CardTitle>
         </CardHeader>
         <CardContent>
           {chartData.every((d) => d.value === 0) ? (
             <EmptyState
-              title="Aucune activité dans cette plage"
-              description="Aucun dossier n'a réalisé une étape dans la période sélectionnée."
+              title={t('Aucune activité dans cette plage')}
+              description={t("Aucun dossier n'a réalisé une étape dans la période sélectionnée.")}
             />
           ) : (
             <ChartContainer config={chartConfig} className="h-72 w-full">
@@ -609,6 +613,7 @@ function KpiCard({
   onSelectHorsDelai: () => void;
   onSelectNonRealise: () => void;
 }) {
+  const t = useT();
   const denominator = total <= 0 ? 1 : total;
   const pctEnDelai = (realiseEnDelai / denominator) * 100;
   const pctHorsDelai = (horsDelai / denominator) * 100;
@@ -629,7 +634,7 @@ function KpiCard({
       </CardHeader>
       <CardContent className="space-y-1.5 pb-3">
         <KpiBarRow
-          label="en délai"
+          label={t('en délai')}
           count={realiseEnDelai}
           pct={pctEnDelai}
           fillClass="bg-emerald-500"
@@ -638,7 +643,7 @@ function KpiCard({
           onClick={onSelectRealise}
         />
         <KpiBarRow
-          label="hors délai"
+          label={t('hors délai')}
           count={horsDelai}
           pct={pctHorsDelai}
           fillClass="bg-amber-500"
@@ -648,7 +653,7 @@ function KpiCard({
         />
         {nonRealise != null && (
           <KpiBarRow
-            label="non réalisé"
+            label={t('non réalisé')}
             count={nonRealise}
             pct={pctNonRealise}
             fillClass="bg-muted-foreground/30"
@@ -710,6 +715,7 @@ function CompagnieView({
   rows: Array<{ compagnie: string; counts: Record<StepKey, number> }>;
   loading: boolean;
 }) {
+  const t = useT();
   const columnMax = useMemo(() => {
     const max: Record<StepKey, number> = STEP_KEYS.reduce((acc, k) => {
       acc[k] = 0;
@@ -728,8 +734,8 @@ function CompagnieView({
     return (
       <EmptyState
         icon={<Building2 />}
-        title="Aucune compagnie à afficher"
-        description="Aucun dossier n'est rattaché à une compagnie dans votre périmètre."
+        title={t('Aucune compagnie à afficher')}
+        description={t("Aucun dossier n'est rattaché à une compagnie dans votre périmètre.")}
       />
     );
   }
@@ -737,16 +743,16 @@ function CompagnieView({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Répartition par compagnie</CardTitle>
+        <CardTitle className="text-base">{t('Répartition par compagnie')}</CardTitle>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="min-w-[12rem]">Compagnie</TableHead>
+              <TableHead className="min-w-[12rem]">{t('Compagnie')}</TableHead>
               {STEP_KEYS.map((key) => (
                 <TableHead key={key} className="text-center text-xs">
-                  {STEP_LABELS_SHORT[key]}
+                  {t(STEP_LABELS_SHORT[key])}
                 </TableHead>
               ))}
             </TableRow>
@@ -754,7 +760,7 @@ function CompagnieView({
           <TableBody>
             {rows.map(({ compagnie, counts }) => (
               <TableRow key={compagnie} className="hover:bg-accent/30">
-                <TableCell className="font-medium">{compagnie}</TableCell>
+                <TableCell className="font-medium">{t(compagnie)}</TableCell>
                 {STEP_KEYS.map((key) => {
                   const v = counts[key];
                   return (
@@ -789,6 +795,7 @@ function UserView({
   loading: boolean;
   userLookup: UserLookup;
 }) {
+  const t = useT();
   const columnMax = useMemo(() => {
     const realiseMax: Record<StepKey, number> = STEP_KEYS.reduce((acc, k) => {
       acc[k] = 0;
@@ -809,8 +816,8 @@ function UserView({
     return (
       <EmptyState
         icon={<Users />}
-        title="Aucune activité utilisateur"
-        description="Aucun utilisateur n'a réalisé d'étape dans la plage sélectionnée."
+        title={t('Aucune activité utilisateur')}
+        description={t("Aucun utilisateur n'a réalisé d'étape dans la plage sélectionnée.")}
       />
     );
   }
@@ -818,19 +825,19 @@ function UserView({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Activité par utilisateur</CardTitle>
+        <CardTitle className="text-base">{t('Activité par utilisateur')}</CardTitle>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="min-w-[14rem]">Utilisateur</TableHead>
+              <TableHead className="min-w-[14rem]">{t('Utilisateur')}</TableHead>
               {STEP_KEYS.map((key) => (
                 <TableHead key={key} className="text-center text-xs">
-                  {STEP_LABELS_SHORT[key]}
+                  {t(STEP_LABELS_SHORT[key])}
                 </TableHead>
               ))}
-              <TableHead className="text-center text-xs">Total</TableHead>
+              <TableHead className="text-center text-xs">{t('Total')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

@@ -1,0 +1,14 @@
+.git
+node_modules
+.next
+SL-auto-main
+android
+capacitor-webdir
+functions/node_modules
+functions/lib
+evals
+tests
+docs
+.plan
+*.log
+tsconfig.tsbuildinfo

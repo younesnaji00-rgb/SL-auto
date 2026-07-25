@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Download, Trash2, X } from 'lucide-react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { useT } from '@/i18n';
 
 export interface DocumentPreviewLightboxDoc {
   url: string;
@@ -36,6 +37,7 @@ function isImageName(name: string): boolean {
 }
 
 export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete }: DocumentPreviewLightboxProps) {
+  const t = useT();
   if (!doc) return null;
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -48,7 +50,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete }: 
               size="icon"
               className="h-7 w-7"
               onClick={() => onDownload(doc)}
-              title="Telecharger"
+              title={t('Télécharger')}
             >
               <Download className="h-4 w-4" />
             </Button>
@@ -59,7 +61,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete }: 
               size="icon"
               className="h-7 w-7 text-destructive hover:bg-destructive/10"
               onClick={() => onDelete(doc)}
-              title="Supprimer"
+              title={t('Supprimer')}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -69,7 +71,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete }: 
             size="icon"
             className="h-7 w-7"
             onClick={onClose}
-            title="Fermer"
+            title={t('Fermer')}
           >
             <X className="h-4 w-4" />
           </Button>

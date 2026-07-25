@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { UserNameLink } from '@/components/user-name-link';
 
@@ -21,6 +21,7 @@ export interface TimelineBarProps {
 }
 
 export function TimelineBar({ steps, activeId, onStepClick, stamps }: TimelineBarProps) {
+  const t = useT();
   const activeIdx = steps.findIndex((s) => s.id === activeId);
   return (
     <div className="sticky top-[49px] z-30 w-full bg-background/95 backdrop-blur border-b" /* flush under action bar */>
@@ -58,12 +59,12 @@ export function TimelineBar({ steps, activeId, onStepClick, stamps }: TimelineBa
                       isActive ? 'font-bold text-primary' : 'text-muted-foreground'
                     )}
                   >
-                    {step.label}
+                    {t(step.label)}
                   </span>
                 </div>
                 {stamp && (
                   <span className="text-[10px] text-muted-foreground leading-tight ml-9 max-w-[180px] truncate">
-                    {format(stamp.date, 'dd/MM/yyyy HH:mm', { locale: fr })} —{' '}
+                    {format(stamp.date, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() })} —{' '}
                     <UserNameLink
                       entry={{ userNom: stamp.userNom, user: stamp.user }}
                       className="text-muted-foreground"

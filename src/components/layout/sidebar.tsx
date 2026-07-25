@@ -54,6 +54,7 @@ import NextLink from 'next/link';
 import { cn } from '@/lib/utils';
 import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
 import { hasPermission } from '@/lib/permissions';
+import { useT } from '@/i18n';
 
 const AppSidebar = () => {
   const pathname = usePathname();
@@ -63,6 +64,7 @@ const AppSidebar = () => {
   const [mounted, setMounted] = useState(false);
   const { compagnies, addCompagnie, deleteCompagnie } = useCompagnies();
   const { profile, signOut } = useCurrentUser();
+  const t = useT();
 
   const [showAddInput, setShowAddInput] = useState(false);
   const [newName, setNewName] = useState('');
@@ -122,7 +124,7 @@ const AppSidebar = () => {
     ? (profile.prenom ? profile.prenom[0] : '') + (profile.nom ? profile.nom[0] : '')
     : 'U';
 
-  const displayName = profile?.nom || 'Utilisateur';
+  const displayName = profile?.nom || t('Utilisateur');
   const displayRole = profile?.role || '';
 
   return (
@@ -137,7 +139,7 @@ const AppSidebar = () => {
           <SidebarGroup key={group.label}>
             {!isCollapsed && (
               <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-                {group.label}
+                {t(group.label)}
               </SidebarGroupLabel>
             )}
             <SidebarGroupContent>
@@ -153,11 +155,11 @@ const AppSidebar = () => {
                           <CollapsibleTrigger asChild>
                             <SidebarMenuButton
                               isActive={isActive}
-                              tooltip={item.label}
+                              tooltip={t(item.label)}
                               className="transition-all duration-200"
                             >
                               <Icon />
-                              <span>{item.label}</span>
+                              <span>{t(item.label)}</span>
                               {!isCollapsed && <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
                             </SidebarMenuButton>
                           </CollapsibleTrigger>
@@ -212,7 +214,7 @@ const AppSidebar = () => {
                                             setNewName('');
                                           }
                                         }}
-                                        placeholder="Nom de la compagnie..."
+                                        placeholder={t('Nom de la compagnie...')}
                                         className="h-8 text-xs"
                                       />
                                     </div>
@@ -221,7 +223,7 @@ const AppSidebar = () => {
                                       onClick={() => setShowAddInput(true)}
                                       className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-primary transition-colors w-full"
                                     >
-                                      <Plus className="h-3 w-3" /> Ajouter
+                                      <Plus className="h-3 w-3" /> {t('Ajouter')}
                                     </button>
                                   )}
                                 </SidebarMenuSubItem>
@@ -235,10 +237,10 @@ const AppSidebar = () => {
 
                   return (
                     <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
+                      <SidebarMenuButton asChild isActive={isActive} tooltip={t(item.label)}>
                         <NextLink href={item.href}>
                           <Icon />
-                          <span>{item.label}</span>
+                          <span>{t(item.label)}</span>
                           {item.href === '/mes-rappels' && unreadRappelsCount > 0 && (
                             <span className="ml-auto text-[10px] font-bold border border-primary text-primary bg-background rounded-full px-1.5 min-w-[1.25rem] text-center leading-tight py-0.5">
                               +{unreadRappelsCount}
@@ -264,7 +266,7 @@ const AppSidebar = () => {
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           >
             {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            {!isCollapsed && <span>{theme === 'dark' ? 'Mode clair' : 'Mode sombre'}</span>}
+            {!isCollapsed && <span>{theme === 'dark' ? t('Mode clair') : t('Mode sombre')}</span>}
           </Button>
         )}
 
@@ -272,7 +274,7 @@ const AppSidebar = () => {
           {!isCollapsed ? (
             <div className="flex flex-col min-w-0 flex-1">
               <span className="text-xs font-semibold truncate">{displayName}</span>
-              <span className="text-[10px] text-muted-foreground truncate uppercase tracking-[0.08em] font-semibold">{displayRole}</span>
+              <span className="text-[10px] text-muted-foreground truncate uppercase tracking-[0.08em] font-semibold">{t(displayRole)}</span>
             </div>
           ) : (
             <span className="text-[10px] font-bold">{userInitials.toUpperCase()}</span>
@@ -285,7 +287,7 @@ const AppSidebar = () => {
             variant="ghost"
             size="icon"
             className="h-8 w-full justify-center text-muted-foreground hover:text-destructive"
-            title="Déconnexion"
+            title={t('Déconnexion')}
             onClick={handleSignOut}
           >
             <LogOut className="h-4 w-4" />
@@ -296,18 +298,18 @@ const AppSidebar = () => {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer {deleteTarget?.nom} ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Supprimer')} {deleteTarget?.nom} ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irréversible. Les dossiers liés à cette compagnie ne seront pas supprimés.
+              {t('Cette action est irréversible. Les dossiers liés à cette compagnie ne seront pas supprimés.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={confirmDeleteCompagnie}
             >
-              Supprimer
+              {t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

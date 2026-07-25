@@ -36,7 +36,7 @@ import { useFirestore, useAuth, useCollection, useStorage } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import VoiceRecorder from '@/components/voice-recorder';
 import VoicePlayer from '@/components/voice-player';
@@ -83,10 +83,11 @@ type Conversation = {
 /* ------------------------------------------------------------------ */
 
 export default function SignalerBugPage() {
+  const t = useT();
   const { profile, firebaseUser, isAdmin } = useCurrentUser();
 
   if (!profile || !firebaseUser) {
-    return <PageLoader label="Chargement…" />;
+    return <PageLoader label={t('Chargement…')} />;
   }
 
   if (isAdmin) {
@@ -97,10 +98,10 @@ export default function SignalerBugPage() {
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <Bug className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold">Signaler un bug</h1>
+        <h1 className="text-2xl font-bold">{t('Signaler un bug')}</h1>
       </div>
       <p className="text-sm text-muted-foreground">
-        Décrivez le problème rencontré. Vous pouvez envoyer des messages, joindre des fichiers ou enregistrer un message vocal.
+        {t('Décrivez le problème rencontré. Vous pouvez envoyer des messages, joindre des fichiers ou enregistrer un message vocal.')}
       </p>
       <ChatThread
         conversationUid={firebaseUser.uid}
@@ -116,6 +117,7 @@ export default function SignalerBugPage() {
 /* ------------------------------------------------------------------ */
 
 function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }) {
+  const t = useT();
   const db = useFirestore();
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
 
@@ -137,15 +139,15 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
   const formatDate = (ts: any) => {
     if (!ts) return '';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
-    return format(date, 'd MMM HH:mm', { locale: fr });
+    return format(date, 'd MMM HH:mm', { locale: dateFnsLocale() });
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <Bug className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold">Signaler un bug</h1>
-        <Badge variant="secondary">{conversations?.length || 0} conversations</Badge>
+        <h1 className="text-2xl font-bold">{t('Signaler un bug')}</h1>
+        <Badge variant="secondary">{conversations?.length || 0} {t('conversations')}</Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 min-h-[calc(100vh-200px)]">
@@ -154,13 +156,13 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
           <CardContent className="p-0">
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <InlineLoader label="Chargement…" size="md" />
+                <InlineLoader label={t('Chargement…')} size="md" />
               </div>
             ) : !conversations || conversations.length === 0 ? (
               <EmptyState
                 icon={<Inbox />}
-                title="Aucun rapport de bug"
-                description="Les conversations apparaîtront ici dès qu'un utilisateur signalera un problème."
+                title={t('Aucun rapport de bug')}
+                description={t("Les conversations apparaîtront ici dès qu'un utilisateur signalera un problème.")}
                 dashed={false}
                 className="border-0 bg-transparent py-12"
               />
@@ -189,14 +191,14 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs text-muted-foreground truncate">{c.lastMessage || 'Message vocal'}</p>
+                          <p className="text-xs text-muted-foreground truncate">{c.lastMessage || t('Message vocal')}</p>
                           {c.unreadByAdmin > 0 && (
                             <Badge className="h-5 min-w-[20px] justify-center text-[10px] bg-primary">
                               {c.unreadByAdmin}
                             </Badge>
                           )}
                         </div>
-                        <Badge variant="outline" className="text-[9px] px-1 py-0 mt-1">{c.recipientRole}</Badge>
+                        <Badge variant="outline" className="text-[9px] px-1 py-0 mt-1">{t(c.recipientRole)}</Badge>
                       </div>
                     </div>
                   </button>
@@ -238,7 +240,7 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
           ) : (
             <CardContent className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
               <Bug className="h-12 w-12 mb-3 opacity-10" />
-              <p className="text-sm">Sélectionnez une conversation</p>
+              <p className="text-sm">{t('Sélectionnez une conversation')}</p>
             </CardContent>
           )}
         </Card>
@@ -260,6 +262,7 @@ function ChatThread({
   currentUser: any;
   profile: any;
 }) {
+  const t = useT();
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
@@ -374,7 +377,7 @@ function ChatThread({
       console.error('Bug report send error:', error);
       toast({
         variant: 'destructive',
-        title: "Erreur lors de l'envoi",
+        title: t("Erreur lors de l'envoi"),
         description: error.message,
       });
     } finally {
@@ -395,14 +398,14 @@ function ChatThread({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
     } catch {
-      toast({ variant: 'destructive', title: 'Erreur lors du téléchargement' });
+      toast({ variant: 'destructive', title: t('Erreur lors du téléchargement') });
     }
   };
 
   const formatDate = (ts: any) => {
     if (!ts) return '';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
-    return format(date, "d MMM yyyy 'à' HH:mm", { locale: fr });
+    return format(date, "d MMM yyyy 'à' HH:mm", { locale: dateFnsLocale() });
   };
 
   const currentEmail = currentUser.email || '';
@@ -421,13 +424,13 @@ function ChatThread({
       <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-340px)]">
         {loading ? (
           <div className="flex justify-center py-10">
-            <InlineLoader label="Chargement…" size="md" />
+            <InlineLoader label={t('Chargement…')} size="md" />
           </div>
         ) : !messages || messages.length === 0 ? (
           <EmptyState
             icon={<Bug />}
-            title="Aucun message pour le moment"
-            description="Décrivez le problème rencontré ci-dessous."
+            title={t('Aucun message pour le moment')}
+            description={t('Décrivez le problème rencontré ci-dessous.')}
             dashed={false}
             className="border-0 bg-transparent py-10"
           />
@@ -445,7 +448,7 @@ function ChatThread({
                   <div className={cn('flex items-center gap-2 flex-wrap', isOwn && 'flex-row-reverse')}>
                     <span className="text-xs font-semibold">{msg.auteurNom}</span>
                     {msg.auteurRole && (
-                      <Badge variant="outline" className="text-[9px] px-1 py-0">{msg.auteurRole}</Badge>
+                      <Badge variant="outline" className="text-[9px] px-1 py-0">{t(msg.auteurRole)}</Badge>
                     )}
                     <span className="text-[10px] text-muted-foreground">{formatDate(msg.date)}</span>
                   </div>
@@ -510,19 +513,19 @@ function ChatThread({
         {voiceBlob ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>Message vocal prêt ({voiceBlob.duration}s)</span>
+              <span>{t('Message vocal prêt')} ({voiceBlob.duration}s)</span>
               <Button variant="ghost" size="sm" onClick={() => setVoiceBlob(null)}>
-                <X className="h-3 w-3 mr-1" /> Annuler
+                <X className="h-3 w-3 mr-1" /> {t('Annuler')}
               </Button>
             </div>
             <Button onClick={handleSend} loading={isSending} size="sm">
-              {isSending ? 'Envoi...' : <><Send className="h-4 w-4 mr-2" /> Envoyer</>}
+              {isSending ? t('Envoi...') : <><Send className="h-4 w-4 mr-2" /> {t('Envoyer')}</>}
             </Button>
           </div>
         ) : (
           <>
             <Textarea
-              placeholder="Décrivez le problème..."
+              placeholder={t('Décrivez le problème...')}
               className="min-h-[80px] resize-none"
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -542,7 +545,7 @@ function ChatThread({
                   className="text-muted-foreground hover:text-primary"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isSending}
-                  title="Joindre un fichier"
+                  title={t('Joindre un fichier')}
                   type="button"
                 >
                   <Paperclip className="h-5 w-5" />
@@ -559,7 +562,7 @@ function ChatThread({
                 disabled={!text.trim() && !selectedFile}
                 className="px-6"
               >
-                {isSending ? 'Envoi...' : <>Envoyer<Send className="ml-2 h-4 w-4" /></>}
+                {isSending ? t('Envoi...') : <>{t('Envoyer')}<Send className="ml-2 h-4 w-4" /></>}
               </Button>
             </div>
           </>

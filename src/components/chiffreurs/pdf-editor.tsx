@@ -33,6 +33,7 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { enqueueUpload } from '@/lib/offline/upload-queue';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 type Tool = 'select' | 'line' | 'text';
@@ -68,7 +69,8 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
-  
+  const t = useT();
+
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -175,11 +177,11 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
           updatedFiles[fileIndex].annotations = annotations;
           updatedFiles[fileIndex].status = 'done';
           await updateDoc(docRef, { files: updatedFiles, updatedAt: serverTimestamp() });
-          toast({ title: 'Correction enregistrée' });
+          toast({ title: t('Correction enregistrée') });
         }
       }
     } catch (e) {
-      toast({ variant: 'destructive', title: 'Erreur de sauvegarde' });
+      toast({ variant: 'destructive', title: t('Erreur de sauvegarde') });
     } finally {
       setIsSaving(false);
     }
@@ -249,7 +251,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
             firestoreDocPath: 'chiffrages',
             firestoreMetadata: { _chiffrageId: chiffrageId, _fileIndex: fileIndex, _type: 'chiffrage-correction', annotations },
           });
-          toast({ title: 'Fichier mis en file d\'attente', description: 'Il sera synchronisé une fois en ligne.' });
+          toast({ title: t('Fichier mis en file d\'attente'), description: t('Il sera synchronisé une fois en ligne.') });
         }
       } else {
         await enqueueUpload({
@@ -261,7 +263,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
           firestoreDocPath: 'chiffrages',
           firestoreMetadata: { _chiffrageId: chiffrageId, _fileIndex: fileIndex, _type: 'chiffrage-correction', annotations },
         });
-        toast({ title: 'Fichier mis en file d\'attente', description: 'Il sera synchronisé une fois en ligne.' });
+        toast({ title: t('Fichier mis en file d\'attente'), description: t('Il sera synchronisé une fois en ligne.') });
       }
 
       const a = document.createElement('a');
@@ -270,11 +272,11 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
       a.click();
       
       setZoom(originalZoom);
-      toast({ title: 'PDF exporté avec succès' });
+      toast({ title: t('PDF exporté avec succès') });
       onClose();
     } catch (e: any) {
       console.error(e);
-      toast({ variant: 'destructive', title: "Erreur d'exportation" });
+      toast({ variant: 'destructive', title: t("Erreur d'exportation") });
     } finally {
       setIsExporting(false);
     }
@@ -290,7 +292,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
             <div className="flex items-center gap-4">
               <DialogTitle className="text-lg font-bold flex items-center gap-2">
                 <Palette className="h-5 w-5 text-primary" />
-                Correcteur Professionnel
+                {t('Correcteur Professionnel')}
               </DialogTitle>
               <Badge variant="outline" className="font-mono text-[10px]">{fileName}</Badge>
             </div>
@@ -300,21 +302,21 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
                 <Button 
                   variant={tool === 'select' ? 'default' : 'ghost'} 
                   size="sm" className="h-8 w-8 p-0" 
-                  onClick={() => setTool('select')} title="Sélectionner"
+                  onClick={() => setTool('select')} title={t('Sélectionner')}
                 >
                   <MousePointer2 className="h-4 w-4" />
                 </Button>
                 <Button 
                   variant={tool === 'line' ? 'default' : 'ghost'} 
                   size="sm" className="h-8 w-8 p-0" 
-                  onClick={() => setTool('line')} title="Barrer (Horizontal)"
+                  onClick={() => setTool('line')} title={t('Barrer (Horizontal)')}
                 >
                   <Minus className="h-4 w-4" />
                 </Button>
                 <Button 
                   variant={tool === 'text' ? 'default' : 'ghost'} 
                   size="sm" className="h-8 w-8 p-0" 
-                  onClick={() => setTool('text')} title="Texte de correction"
+                  onClick={() => setTool('text')} title={t('Texte de correction')}
                 >
                   <Type className="h-4 w-4" />
                 </Button>
@@ -330,7 +332,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
                       color === c.value ? "border-slate-900 scale-125" : "border-transparent"
                     )}
                     style={{ backgroundColor: c.value }}
-                    title={c.name}
+                    title={t(c.name)}
                   />
                 ))}
               </div>
@@ -343,7 +345,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
                   onClick={() => setHasBorder(!hasBorder)}
                 >
                   <Square className={cn("h-3 w-3 mr-1", !hasBorder && "opacity-30")} />
-                  Bordure
+                  {t('Bordure')}
                 </Button>
               </div>
 
@@ -365,11 +367,11 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
               </div>
               <Button variant="outline" size="sm" onClick={handleSave} disabled={isSaving}>
                 {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
-                Enregistrer
+                {t('Enregistrer')}
               </Button>
               <Button variant="default" size="sm" className="bg-primary shadow-lg shadow-primary/20" onClick={handleExportPdf} disabled={isExporting}>
                 {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1.5" />}
-                Exporter PDF
+                {t('Exporter PDF')}
               </Button>
             </div>
           </div>
@@ -478,13 +480,13 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
         <DialogFooter className="px-6 py-2 border-t bg-card shrink-0">
           <div className="flex items-center justify-between w-full">
             <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest opacity-40">
-              DashFlow Canvas Engine — Mode "Correction Native" Manuel
+              {t('DashFlow Canvas Engine — Mode "Correction Native" Manuel')}
             </p>
             <div className="flex gap-4">
               <span className="text-[10px] text-muted-foreground italic">
-                Cliquez pour modifier un texte. Utilisez l'outil "Barre" pour corriger les prix originaux.
+                {t('Cliquez pour modifier un texte. Utilisez l\'outil "Barre" pour corriger les prix originaux.')}
               </span>
-              <Button variant="ghost" size="sm" onClick={onClose} className="font-bold text-xs h-7">Fermer</Button>
+              <Button variant="ghost" size="sm" onClick={onClose} className="font-bold text-xs h-7">{t('Fermer')}</Button>
             </div>
           </div>
         </DialogFooter>

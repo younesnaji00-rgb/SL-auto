@@ -36,6 +36,7 @@ import {
   type LatestChiffrageDoc,
 } from '@/lib/find-latest-chiffrage-docs';
 import { apiFetch } from '@/lib/api-fetch';
+import { useT } from '@/i18n';
 
 interface EnvoyerEmailDialogProps {
   open: boolean;
@@ -51,6 +52,7 @@ export function EnvoyerEmailDialog({
   dossierId,
   refExpert,
 }: EnvoyerEmailDialogProps) {
+  const t = useT();
   const db = useFirestore();
   const { toast } = useToast();
 
@@ -62,13 +64,13 @@ export function EnvoyerEmailDialog({
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const refLabel = refExpert?.trim() || 'Sans Ref.';
+  const refLabel = refExpert?.trim() || t('Sans Ref.');
 
   // Default body — set once when dialog opens.
   const defaultBody = useMemo(
     () =>
-      `Bonjour, veuillez trouver ci-joint le dernier document du dossier ${refLabel}. Cordialement.`,
-    [refLabel],
+      `${t('Bonjour, veuillez trouver ci-joint le dernier document du dossier')} ${refLabel}. ${t('Cordialement.')}`,
+    [refLabel, t],
   );
 
   // Fetch sources on open.
@@ -112,8 +114,8 @@ export function EnvoyerEmailDialog({
     const firstChecked = sources.find((s) => checked.has(s.sourceId));
     const stage = firstChecked?.stage ?? '';
     const newSubject = stage
-      ? `Dossier ${refLabel} — ${stage}`
-      : `Dossier ${refLabel}`;
+      ? `${t('Dossier')} ${refLabel} — ${stage}`
+      : `${t('Dossier')} ${refLabel}`;
     setSubject(newSubject);
     // Intentionally re-derive even if user typed — slice 1 keeps it simple.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -132,7 +134,7 @@ export function EnvoyerEmailDialog({
     const picked = sources.filter((s) => checked.has(s.sourceId));
     if (picked.length === 0) {
       toast({
-        title: 'Sélectionnez au moins un document à joindre',
+        title: t('Sélectionnez au moins un document à joindre'),
         variant: 'destructive',
       });
       return;
@@ -176,18 +178,18 @@ export function EnvoyerEmailDialog({
           }
         }
         onOpenChange(false);
-        toast({ title: 'Email envoyé' });
+        toast({ title: t('Email envoyé') });
         return;
       }
 
       toast({
-        title: data?.error || "Erreur lors de l'envoi de l'email",
+        title: data?.error || t("Erreur lors de l'envoi de l'email"),
         variant: 'destructive',
       });
     } catch (err) {
       console.error('[EnvoyerEmailDialog] submit failed', err);
       toast({
-        title: "Erreur lors de l'envoi de l'email",
+        title: t("Erreur lors de l'envoi de l'email"),
         variant: 'destructive',
       });
     } finally {
@@ -204,16 +206,16 @@ export function EnvoyerEmailDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
-            Envoyer un email
+            {t('Envoyer un email')}
           </DialogTitle>
           <DialogDescription>
-            Sélectionnez les documents à joindre puis rédigez votre message.
+            {t('Sélectionnez les documents à joindre puis rédigez votre message.')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="email-recipient">Destinataire</Label>
+            <Label htmlFor="email-recipient">{t('Destinataire')}</Label>
             <Input
               id="email-recipient"
               type="email"
@@ -224,7 +226,7 @@ export function EnvoyerEmailDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="email-subject">Objet</Label>
+            <Label htmlFor="email-subject">{t('Objet')}</Label>
             <Input
               id="email-subject"
               value={subject}
@@ -233,7 +235,7 @@ export function EnvoyerEmailDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="email-body">Message</Label>
+            <Label htmlFor="email-body">{t('Message')}</Label>
             <Textarea
               id="email-body"
               rows={4}
@@ -243,15 +245,15 @@ export function EnvoyerEmailDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Documents à joindre</Label>
+            <Label>{t('Documents à joindre')}</Label>
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Chargement des documents…
+                {t('Chargement des documents…')}
               </div>
             ) : sources.length === 0 ? (
               <p className="text-sm text-muted-foreground italic">
-                Aucun accord ou proposition d'accord disponible pour ce dossier.
+                {t("Aucun accord ou proposition d'accord disponible pour ce dossier.")}
               </p>
             ) : (
               <div className="space-y-1.5 rounded-md border p-3">
@@ -270,9 +272,9 @@ export function EnvoyerEmailDialog({
                         className="mt-0.5"
                       />
                       <span className="leading-snug">
-                        {s.label} — {s.stage}{' '}
+                        {t(s.label)} — {t(s.stage)}{' '}
                         <span className="text-muted-foreground">
-                          (dernier document mis à jour par le chiffreur)
+                          {t('(dernier document mis à jour par le chiffreur)')}
                         </span>
                       </span>
                     </label>
@@ -289,16 +291,16 @@ export function EnvoyerEmailDialog({
             onClick={() => onOpenChange(false)}
             disabled={isSubmitting}
           >
-            Annuler
+            {t('Annuler')}
           </Button>
           <Button onClick={handleSubmit} disabled={!canSubmit}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Envoi…
+                {t('Envoi…')}
               </>
             ) : (
-              'Envoyer'
+              t('Envoyer')
             )}
           </Button>
         </DialogFooter>

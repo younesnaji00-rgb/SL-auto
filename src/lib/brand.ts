@@ -69,6 +69,8 @@ export interface BrandConfig {
   logoSrc: string | null;
   /** Secondary wordmark image shown next to the logo when expanded. */
   logoWordmarkSrc: string | null;
+  /** Directory (under public/) holding this brand's PWA icons. */
+  iconsPath: string;
   /** Local-storage / IndexedDB namespace prefix. */
   storagePrefix: string;
 }
@@ -105,6 +107,7 @@ const SLAOUI: BrandConfig = {
 
   logoSrc: '/images/logo.png',
   logoWordmarkSrc: '/images/auto-expertise.png',
+  iconsPath: '/icons',
   storagePrefix: 'sl-auto',
 };
 
@@ -138,6 +141,7 @@ const DEMO: BrandConfig = {
 
   logoSrc: null,
   logoWordmarkSrc: null,
+  iconsPath: '/icons/demo',
   storagePrefix: 'appraisio',
 };
 

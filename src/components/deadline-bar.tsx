@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 
 export interface DeadlineBarProps {
   /** Percent of deadline consumed (0-100+) */
@@ -21,6 +22,7 @@ export interface DeadlineBarProps {
  *  overdue → solid destructive
  */
 export function DeadlineBar({ percent, overdue, lateness, className }: DeadlineBarProps) {
+  const t = useT();
   const label = '24h';
   const rounded = Math.max(0, Math.round(percent));
 
@@ -40,7 +42,7 @@ export function DeadlineBar({ percent, overdue, lateness, className }: DeadlineB
     <div className={cn('flex flex-col gap-1 min-w-[120px]', className)}>
       <div className="flex items-center justify-between">
         <span className={cn('text-[10px] font-semibold tabular-nums', overdue ? 'text-destructive' : getTextColor(rounded))}>
-          {overdue ? (lateness ? `En retard ${lateness}` : 'En retard') : `${rounded}%`}
+          {overdue ? (lateness ? `${t('En retard')} ${lateness}` : t('En retard')) : `${rounded}%`}
         </span>
         <span className="text-[9px] text-muted-foreground font-medium tabular-nums">{label}</span>
       </div>

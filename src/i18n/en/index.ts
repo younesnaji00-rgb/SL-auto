@@ -17,6 +17,7 @@ import { CHIFFRAGE_EN } from './chiffrage';
 import { CHIFFRAGE_B_EN } from './chiffrage-b';
 import { DETAIL_DOCS_EN } from './detail-docs';
 import { EDITOR_EN } from './editor';
+import { SHARED_EN } from './shared';
 import { TERRAIN_EN } from './terrain';
 import { ADMIN_EN } from './admin';
 import { RAPPELS_EN } from './rappels';
@@ -34,6 +35,7 @@ export const EN: Record<string, string> = {
   ...CHIFFRAGE_B_EN,
   ...DETAIL_DOCS_EN,
   ...EDITOR_EN,
+  ...SHARED_EN,
   ...TERRAIN_EN,
   ...ADMIN_EN,
   ...RAPPELS_EN,

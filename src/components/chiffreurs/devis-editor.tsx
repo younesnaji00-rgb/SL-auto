@@ -38,6 +38,7 @@ import { saveGestionnaireDevisAsPieceJointe } from '@/lib/send-to-chiffrage';
 import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
 import { deriveStatus } from '@/lib/status-machine';
 import { BRAND } from '@/lib/brand';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import ReferencePanel from '@/app/editor/reference-panel';
 import { useSidebar } from '@/components/ui/sidebar';
@@ -109,6 +110,7 @@ export function DevisEditor({
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
+  const t = useT();
   const { profile, canWrite } = useCurrentUser();
   const canEdit = canWrite('assignations-chiffrage');
   const { setOpen: setAppSidebarOpen } = useSidebar();
@@ -173,7 +175,7 @@ export function DevisEditor({
     if (!db || !chiffrageId) return;
     const unsub = onSnapshot(doc(db, 'chiffrages', chiffrageId), (snap) => {
       if (!snap.exists()) {
-        toast({ variant: 'destructive', title: 'Assignation introuvable.' });
+        toast({ variant: 'destructive', title: t('Assignation introuvable.') });
         router.push('/assignations-chiffrage');
         return;
       }
@@ -194,7 +196,7 @@ export function DevisEditor({
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();
-  }, [db, chiffrageId, router, toast, isGestionnaire, docType]);
+  }, [db, chiffrageId, router, toast, isGestionnaire, docType, t]);
 
   useEffect(() => {
     if (!db || !dossierId) return;
@@ -370,23 +372,23 @@ export function DevisEditor({
         if (result.reason === 'no-original-for-counter') {
           toast({
             variant: 'destructive',
-            title: 'Devis original manquant',
-            description: "Un contre-devis a été uploadé mais aucun devis original n'existe pour ce dossier. Uploadez un original depuis la fiche dossier.",
+            title: t('Devis original manquant'),
+            description: t("Un contre-devis a été uploadé mais aucun devis original n'existe pour ce dossier. Uploadez un original depuis la fiche dossier."),
           });
           return;
         }
         if (result.reason === 'service-overloaded') {
           toast({
             variant: 'destructive',
-            title: 'Service IA surchargé',
-            description: 'Le service IA est momentanément surchargé. Réessayez dans quelques minutes.',
+            title: t('Service IA surchargé'),
+            description: t('Le service IA est momentanément surchargé. Réessayez dans quelques minutes.'),
           });
           return;
         }
         if (isManualRetry) {
-          toast({ variant: 'destructive', title: 'Extraction impossible', description: 'Veuillez saisir les donnees manuellement.' });
+          toast({ variant: 'destructive', title: t('Extraction impossible'), description: t('Veuillez saisir les donnees manuellement.') });
         } else {
-          toast({ title: 'Extraction auto indisponible', description: 'Remplissez manuellement ou reessayez.' });
+          toast({ title: t('Extraction auto indisponible'), description: t('Remplissez manuellement ou reessayez.') });
         }
         return;
       }
@@ -402,7 +404,7 @@ export function DevisEditor({
         const cols = normalizeExtraColumns(sd);
         setExtraColumns(cols);
         setVersions(sd.versions || []);
-        toast({ title: 'Extraction automatique terminee', description: `${sd.rows.length} ligne(s) detectee(s) depuis ${devisFileNames.length} ${typeLabel.lower}(s).` });
+        toast({ title: t('Extraction automatique terminee'), description: `${sd.rows.length} ${t('ligne(s) detectee(s) depuis')} ${devisFileNames.length} ${t(`${typeLabel.lower}(s)`)}.` });
         // Task #33: a fresh scan just populated editor state — lock edits and
         // surface the warning dialog until the chiffreur confirms review.
         // Task #35: feed the dialog the calculationErrors from the API so they
@@ -418,11 +420,11 @@ export function DevisEditor({
       }
     } catch (e: any) {
       console.error('[devis-editor] extraction failed', e);
-      toast({ variant: 'destructive', title: 'Extraction impossible', description: e?.message || '' });
+      toast({ variant: 'destructive', title: t('Extraction impossible'), description: e?.message || '' });
     } finally {
       setExtracting(false);
     }
-  }, [db, storage, chiffrageId, docType, dossierPrefill, toast, devisFileNames.length, typeLabel.lower]);
+  }, [db, storage, chiffrageId, docType, dossierPrefill, toast, devisFileNames.length, typeLabel.lower, t]);
 
   // Always keep an accord column in the chiffreur's table. Default kind is
   // 'accord'; the lightbox / column popover can flip to 'proposition-accord'.
@@ -559,7 +561,7 @@ export function DevisEditor({
   // ordinal, so the preview and the final doc stay aligned.
   const handleSave = async () => {
     if (!canEdit) {
-      toast({ variant: 'destructive', title: 'Action non autorisee' });
+      toast({ variant: 'destructive', title: t('Action non autorisee') });
       return;
     }
     // Task #7: vétusté is required for Adaptable / Originale rows. Block the
@@ -572,7 +574,7 @@ export function DevisEditor({
     if (missingVetuste) {
       toast({
         variant: 'destructive',
-        title: 'Vétusté manquante pour les pièces Adaptable / Originale',
+        title: t('Vétusté manquante pour les pièces Adaptable / Originale'),
       });
       return;
     }
@@ -677,7 +679,7 @@ export function DevisEditor({
   // persistence logic lives here, split by mode.
   const performPersist = async (blob: Blob, stampId: string | null) => {
     if (!canEdit) {
-      toast({ variant: 'destructive', title: 'Action non autorisee' });
+      toast({ variant: 'destructive', title: t('Action non autorisee') });
       return;
     }
     if (!db || !storage) return;
@@ -726,7 +728,7 @@ export function DevisEditor({
       if (isGestionnaire) {
         const activeDossierId = dossierIdProp || dossierId;
         if (!activeDossierId) {
-          toast({ variant: 'destructive', title: 'Dossier manquant', description: 'Impossible de sauvegarder sans dossier.' });
+          toast({ variant: 'destructive', title: t('Dossier manquant'), description: t('Impossible de sauvegarder sans dossier.') });
           return;
         }
         const result = await saveGestionnaireDevisAsPieceJointe({
@@ -763,12 +765,12 @@ export function DevisEditor({
             ),
           );
         }
-        toast({ title: `${targetDocType} enregistré`, description: 'Ajouté aux pièces jointes du dossier.' });
+        toast({ title: `${targetDocType} ${t('enregistré')}`, description: t('Ajouté aux pièces jointes du dossier.') });
         return;
       }
 
       if (!chiffrageId) {
-        toast({ variant: 'destructive', title: 'Assignation manquante', description: 'Aucun chiffrage associé.' });
+        toast({ variant: 'destructive', title: t('Assignation manquante'), description: t('Aucun chiffrage associé.') });
         return;
       }
       const now = new Date();
@@ -803,7 +805,7 @@ export function DevisEditor({
           firestoreDocPath: 'chiffrages',
           firestoreMetadata: { _chiffrageId: chiffrageId, _type: 'devis-version', _docType: targetDocType, _versionId: versionId },
         });
-        toast({ title: 'Version mise en file d\'attente', description: 'Elle sera synchronisee une fois en ligne.' });
+        toast({ title: t('Version mise en file d\'attente'), description: t('Elle sera synchronisee une fois en ligne.') });
       }
 
       const newVersion: DevisVersion = {
@@ -960,11 +962,11 @@ export function DevisEditor({
       }
 
       if (uploaded) {
-        toast({ title: `${targetDocType} enregistre`, description: 'Nouvelle version generee.' });
+        toast({ title: `${targetDocType} ${t('enregistre')}`, description: t('Nouvelle version generee.') });
       }
     } catch (e: any) {
       console.error('[devis-editor] save failed', e);
-      toast({ variant: 'destructive', title: 'Erreur de sauvegarde', description: e?.message || '' });
+      toast({ variant: 'destructive', title: t('Erreur de sauvegarde'), description: e?.message || '' });
     } finally {
       setSaving(false);
     }
@@ -998,22 +1000,22 @@ export function DevisEditor({
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         {!isGestionnaire && chiffrageId && (
           <Button variant="outline" size="icon" asChild>
-            <Link href={`/assignations-chiffrage/${chiffrageId}`} aria-label="Retour">
+            <Link href={`/assignations-chiffrage/${chiffrageId}`} aria-label={t('Retour')}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
         )}
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg sm:text-xl font-bold truncate">Editer les {typeLabel.plural}</h1>
+          <h1 className="text-lg sm:text-xl font-bold truncate">{t(`Editer les ${typeLabel.plural}`)}</h1>
           <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
             {isGestionnaire ? (
-              <span className="truncate">Nouveau {typeLabel.lower} — sera ajouté aux pièces jointes du dossier.</span>
+              <span className="truncate">{t(`Nouveau ${typeLabel.lower} — sera ajouté aux pièces jointes du dossier.`)}</span>
             ) : devisFileNames.length > 0 ? (
               <>
                 <Badge variant="outline" className="text-[10px]">{devisFileNames.length}</Badge>
-                <span className="truncate">{typeLabel.lower}(s) fusionne(s) : {devisFileNames.join(' · ')}</span>
+                <span className="truncate">{t(`${typeLabel.lower}(s) fusionne(s) :`)} {devisFileNames.join(' · ')}</span>
               </>
-            ) : `Aucun ${typeLabel.lower} dans cette assignation`}
+            ) : t(`Aucun ${typeLabel.lower} dans cette assignation`)}
           </div>
         </div>
         <Button
@@ -1025,10 +1027,10 @@ export function DevisEditor({
             if (opening) setAppSidebarOpen(false);
           }}
           disabled={!dossierId}
-          title={comparisonOpen ? 'Fermer la comparaison' : 'Ouvrir la comparaison'}
+          title={comparisonOpen ? t('Fermer la comparaison') : t('Ouvrir la comparaison')}
         >
           <Columns2 className="h-3.5 w-3.5 mr-1.5" />
-          Comparer
+          {t('Comparer')}
         </Button>
         {/*
           Task #33 (revised): the post-scan warning dialog is now informational
@@ -1042,10 +1044,10 @@ export function DevisEditor({
             variant="default"
             size="sm"
             onClick={() => setScanReviewed(true)}
-            title="Confirmer la vérification du scan et déverrouiller le tableau"
+            title={t('Confirmer la vérification du scan et déverrouiller le tableau')}
           >
             <Check className="h-3.5 w-3.5 mr-1.5" />
-            J&apos;ai vérifié
+            {t("J'ai vérifié")}
           </Button>
         )}
         {!isGestionnaire && (
@@ -1055,22 +1057,22 @@ export function DevisEditor({
             onClick={() => runExtraction(true)}
             loading={extracting}
             disabled={!canEdit || devisFileNames.length === 0}
-            title="Relancer l'extraction automatique (écrase les données)"
+            title={t("Relancer l'extraction automatique (écrase les données)")}
           >
             {extracting ? null : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
-            Ré-extraire
+            {t('Ré-extraire')}
           </Button>
         )}
         <Button variant="default" size="sm" onClick={handleSave} loading={saving} disabled={!canEdit}>
           {saving ? null : <Save className="h-3.5 w-3.5 mr-1.5" />}
-          Enregistrer
+          {t('Enregistrer')}
         </Button>
       </div>
 
       {extracting && !saving && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/40 border rounded-lg px-3 py-2">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Extraction automatique en cours depuis {devisFileNames.length} {typeLabel.lower}(s)…
+          {t('Extraction automatique en cours depuis')} {devisFileNames.length} {t(`${typeLabel.lower}(s)`)}…
         </div>
       )}
 
@@ -1092,7 +1094,7 @@ export function DevisEditor({
           {HEADER_FIELDS_LEFT.map((f) => (
             <HeaderField
               key={f.key}
-              label={f.label}
+              label={t(f.label)}
               value={header[f.key] || ''}
               onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
               disabled={!isEditable}
@@ -1103,7 +1105,7 @@ export function DevisEditor({
           {HEADER_FIELDS_RIGHT.map((f) => (
             <HeaderField
               key={f.key}
-              label={f.label}
+              label={t(f.label)}
               value={header[f.key] || ''}
               onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
               disabled={!isEditable}
@@ -1111,17 +1113,17 @@ export function DevisEditor({
           ))}
           <div className="grid grid-cols-2 gap-2 pt-1">
             <HeaderField
-              label="Devis N°"
+              label={t('Devis N°')}
               value={header.devisNumero}
               onChange={(v) => setHeader((h) => ({ ...h, devisNumero: v }))}
               disabled={!isEditable}
             />
             <HeaderField
-              label="Date"
+              label={t('Date')}
               value={header.dateDevis}
               onChange={(v) => setHeader((h) => ({ ...h, dateDevis: v }))}
               disabled={!isEditable}
-              placeholder="JJ/MM/AAAA"
+              placeholder={t('JJ/MM/AAAA')}
             />
           </div>
         </div>
@@ -1135,7 +1137,7 @@ export function DevisEditor({
           disabled={!isEditable}
         />
         <label htmlFor="sans-tva-toggle" className="text-sm font-medium select-none cursor-pointer">
-          Sans TVA
+          {t('Sans TVA')}
         </label>
       </div>
 
@@ -1156,9 +1158,9 @@ export function DevisEditor({
                         type="button"
                         disabled={!isEditable}
                         className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Définir Réparation/Remplacement pour toutes les lignes"
+                        title={t('Définir Réparation/Remplacement pour toutes les lignes')}
                       >
-                        <span>Réparation/Remplacement</span>
+                        <span>{t('Réparation/Remplacement')}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                       </button>
                     </PopoverTrigger>
@@ -1173,13 +1175,13 @@ export function DevisEditor({
                             setRefHeaderOpen(false);
                           }}
                         >
-                          {opt}
+                          {t(opt)}
                         </button>
                       ))}
                     </PopoverContent>
                   </Popover>
                 </th>
-                <th>Designation</th>
+                <th>{t('Designation')}</th>
                 <th style={{ width: '90px' }}>
                   <Popover open={typeHeaderOpen} onOpenChange={setTypeHeaderOpen}>
                     <PopoverTrigger asChild>
@@ -1187,9 +1189,9 @@ export function DevisEditor({
                         type="button"
                         disabled={!isEditable}
                         className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Définir Type pour toutes les lignes"
+                        title={t('Définir Type pour toutes les lignes')}
                       >
-                        <span>Type</span>
+                        <span>{t('Type')}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                       </button>
                     </PopoverTrigger>
@@ -1208,15 +1210,15 @@ export function DevisEditor({
                             setTypeHeaderOpen(false);
                           }}
                         >
-                          {opt}
+                          {t(opt)}
                         </button>
                       ))}
                     </PopoverContent>
                   </Popover>
                 </th>
-                <th style={{ width: '70px' }} className="text-center">Quantite</th>
-                <th style={{ width: '110px' }} className="text-right bg-muted/40">P.U.H.T</th>
-                <th style={{ width: '120px' }} className="text-right">Total H.T</th>
+                <th style={{ width: '70px' }} className="text-center">{t('Quantite')}</th>
+                <th style={{ width: '110px' }} className="text-right bg-muted/40">{t('P.U.H.T')}</th>
+                <th style={{ width: '120px' }} className="text-right">{t('Total H.T')}</th>
                 <th style={{ width: '70px' }} className="text-center">
                   <Popover open={tvaHeaderOpen} onOpenChange={setTvaHeaderOpen}>
                     <PopoverTrigger asChild>
@@ -1224,9 +1226,9 @@ export function DevisEditor({
                         type="button"
                         disabled={!isEditable}
                         className="w-full flex items-center justify-center gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Définir T.V.A pour toutes les lignes"
+                        title={t('Définir T.V.A pour toutes les lignes')}
                       >
-                        <span>T.V.A</span>
+                        <span>{t('T.V.A')}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                       </button>
                     </PopoverTrigger>
@@ -1247,17 +1249,17 @@ export function DevisEditor({
                           setTvaHeaderOpen(false);
                         }}
                       >
-                        Appliquer à toutes les lignes
+                        {t('Appliquer à toutes les lignes')}
                       </Button>
                     </PopoverContent>
                   </Popover>
                 </th>
                 <th style={{ width: '80px' }} className="text-center">
                   <div className="flex items-center justify-center gap-1">
-                    <span>Vetuste</span>
+                    <span>{t('Vetuste')}</span>
                     <button type="button" disabled={!isEditable}
                             className="h-4 w-4 flex items-center justify-center rounded hover:bg-muted focus:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="-5 sur toutes les lignes"
+                            title={t('-5 sur toutes les lignes')}
                             onClick={() => setRows((rs) => rs.map((r) => {
                               if (r.type === 'Occasion') return r;
                               const cur = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
@@ -1267,7 +1269,7 @@ export function DevisEditor({
                     </button>
                     <button type="button" disabled={!isEditable}
                             className="h-4 w-4 flex items-center justify-center rounded hover:bg-muted focus:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="+5 sur toutes les lignes"
+                            title={t('+5 sur toutes les lignes')}
                             onClick={() => setRows((rs) => rs.map((r) => {
                               if (r.type === 'Occasion') return r;
                               const cur = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
@@ -1277,7 +1279,7 @@ export function DevisEditor({
                     </button>
                   </div>
                 </th>
-                <th style={{ width: '120px' }} className="text-right">Prix en TTC</th>
+                <th style={{ width: '120px' }} className="text-right">{t('Prix en TTC')}</th>
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
                   const isAccord = col.kind === 'accord' || col.kind === 'proposition-accord';
@@ -1290,11 +1292,11 @@ export function DevisEditor({
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span className="truncate font-bold text-[11px] cursor-help">
-                              {`${col.label || (col.kind === 'accord' ? 'PUHT accordé' : 'PUHT proposé')}${col.kind === 'proposition-accord' ? propositionExpertSuffix : ''}`}
+                              {`${t(col.label || (col.kind === 'accord' ? 'PUHT accordé' : 'PUHT proposé'))}${col.kind === 'proposition-accord' ? propositionExpertSuffix : ''}`}
                             </span>
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-xs text-xs">
-                            Pour annuler, contactez le gestionnaire pour une nouvelle planification.
+                            {t('Pour annuler, contactez le gestionnaire pour une nouvelle planification.')}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -1307,9 +1309,9 @@ export function DevisEditor({
                           <button
                             type="button"
                             className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary"
-                            title="Choisir un type d'accord"
+                            title={t("Choisir un type d'accord")}
                           >
-                            <span className="truncate">{`${col.label || 'Choisir un accord'}${col.kind === 'proposition-accord' ? propositionExpertSuffix : ''}`}</span>
+                            <span className="truncate">{`${t(col.label || 'Choisir un accord')}${col.kind === 'proposition-accord' ? propositionExpertSuffix : ''}`}</span>
                             <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                           </button>
                         </PopoverTrigger>
@@ -1322,7 +1324,7 @@ export function DevisEditor({
                               setAccordHeaderOpen((s) => ({ ...s, [col.id]: false }));
                             }}
                           >
-                            PUHT accordé
+                            {t('PUHT accordé')}
                           </button>
                           <button
                             type="button"
@@ -1335,7 +1337,7 @@ export function DevisEditor({
                               setAccordHeaderOpen((s) => ({ ...s, [col.id]: false }));
                             }}
                           >
-                            PUHT proposé
+                            {t('PUHT proposé')}
                           </button>
                         </PopoverContent>
                       </Popover>
@@ -1349,8 +1351,8 @@ export function DevisEditor({
                         <th style={{ width: '120px' }} className="text-right bg-muted/40">
                           {puHeader}
                         </th>
-                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Total H.T ${tripleSuffix}`}</th>
-                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Prix Total ${col.kind === 'accord' ? 'Accordé' : 'Proposé'} ${BRAND.companyName}`}</th>
+                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{t(`Total H.T ${tripleSuffix}`)}</th>
+                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`${t('Prix Total')} ${col.kind === 'accord' ? t('Accordé') : t('Proposé')} ${BRAND.companyName}`}</th>
                       </React.Fragment>
                     );
                   }
@@ -1362,14 +1364,14 @@ export function DevisEditor({
                     >
                       <div className="flex items-center gap-1">
                         {isCounter && <span className="inline-block h-1.5 w-1.5 rounded-full bg-destructive shrink-0" aria-hidden />}
-                        <span className="truncate">{col.label}</span>
+                        <span className="truncate">{t(col.label)}</span>
                         {isCounter && col.sourcePdfUrl && (
                           <a
                             href={col.sourcePdfUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-destructive/70 hover:text-destructive"
-                            title="Ouvrir le document source"
+                            title={t('Ouvrir le document source')}
                           >
                             <FileText className="h-3 w-3" />
                           </a>
@@ -1385,9 +1387,9 @@ export function DevisEditor({
                         type="button"
                         disabled={!isEditable}
                         className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Définir Observation pour toutes les lignes"
+                        title={t('Définir Observation pour toutes les lignes')}
                       >
-                        <span>Observation</span>
+                        <span>{t('Observation')}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                       </button>
                     </PopoverTrigger>
@@ -1400,7 +1402,7 @@ export function DevisEditor({
                           setObsHeaderOpen(false);
                         }}
                       >
-                        (aucune)
+                        {t('(aucune)')}
                       </button>
                       {OBSERVATION_OPTIONS.map((opt) => (
                         <button
@@ -1412,7 +1414,7 @@ export function DevisEditor({
                             setObsHeaderOpen(false);
                           }}
                         >
-                          {OBSERVATION_LABELS[opt]}
+                          {t(OBSERVATION_LABELS[opt])}
                         </button>
                       ))}
                     </PopoverContent>
@@ -1443,7 +1445,7 @@ export function DevisEditor({
                           </SelectTrigger>
                           <SelectContent>
                             {REF_OPTIONS.map((opt) => (
-                              <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                              <SelectItem key={opt} value={opt} className="text-xs">{t(opt)}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -1452,7 +1454,7 @@ export function DevisEditor({
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                            title="Effacer"
+                            title={t('Effacer')}
                             onClick={(e) => { e.stopPropagation(); updateRow(r.id, { ref: '' }); }}
                           >
                             <X className="h-3 w-3" />
@@ -1487,7 +1489,7 @@ export function DevisEditor({
                           </SelectTrigger>
                           <SelectContent>
                             {TYPE_OPTIONS.map((opt) => (
-                              <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                              <SelectItem key={opt} value={opt} className="text-xs">{t(opt)}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -1496,7 +1498,7 @@ export function DevisEditor({
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                            title="Effacer"
+                            title={t('Effacer')}
                             onClick={(e) => { e.stopPropagation(); updateRow(r.id, { type: '' }); }}
                           >
                             <X className="h-3 w-3" />
@@ -1576,15 +1578,15 @@ export function DevisEditor({
                                     updateExtraCell(col.id, r.id, '');
                                     toast({
                                       variant: 'destructive',
-                                      title: 'Valeur supérieure au P.U.H.T.',
-                                      description: 'La cellule a été effacée.',
+                                      title: t('Valeur supérieure au P.U.H.T.'),
+                                      description: t('La cellule a été effacée.'),
                                     });
                                   }
                                 }}
                               />
                               {isAccordOverCap && (
                                 <p className="text-[10px] text-destructive mt-0.5 px-1.5 leading-tight">
-                                  Doit être ≤ P.U.H.T
+                                  {t('Doit être ≤ P.U.H.T')}
                                 </p>
                               )}
                             </td>
@@ -1629,13 +1631,13 @@ export function DevisEditor({
                         >
                           <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
                             <SelectValue placeholder="">
-                              {r.observation ? OBSERVATION_LABELS[r.observation] : ''}
+                              {r.observation ? t(OBSERVATION_LABELS[r.observation]) : ''}
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__none__" className="text-xs text-muted-foreground">(aucune)</SelectItem>
+                            <SelectItem value="__none__" className="text-xs text-muted-foreground">{t('(aucune)')}</SelectItem>
                             {OBSERVATION_OPTIONS.map((opt) => (
-                              <SelectItem key={opt} value={opt} className="text-xs">{OBSERVATION_LABELS[opt]}</SelectItem>
+                              <SelectItem key={opt} value={opt} className="text-xs">{t(OBSERVATION_LABELS[opt])}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -1644,7 +1646,7 @@ export function DevisEditor({
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                            title="Effacer"
+                            title={t('Effacer')}
                             onClick={(e) => { e.stopPropagation(); updateRow(r.id, { observation: undefined }); }}
                           >
                             <X className="h-3 w-3" />
@@ -1655,7 +1657,7 @@ export function DevisEditor({
                     <td>
                       {canEdit && (
                         <div className="flex items-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" title="Supprimer" onClick={() => deleteRow(r.id)}>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" title={t('Supprimer')} onClick={() => deleteRow(r.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -1678,7 +1680,7 @@ export function DevisEditor({
                   '[&>td]:border-r [&>td:last-child]:border-r-0',
                 )}
               >
-                <td className="text-muted-foreground">Total</td>
+                <td className="text-muted-foreground">{t('Total')}</td>
                 <td />
                 <td />
                 <td className="text-center">{formatFr(totalsRow.qteSum, 0)}</td>
@@ -1734,11 +1736,11 @@ export function DevisEditor({
         <div className="flex items-center p-2 border-t bg-muted/20 text-xs">
           <div className="flex-1" />
           <div className="flex items-center gap-6">
-            <span className="font-bold">Total H.T</span>
+            <span className="font-bold">{t('Total H.T')}</span>
             <span className="w-28 text-right font-bold">{formatFr(totals.ht)}</span>
             {!sansTva && (
               <>
-                <span className="font-bold">Total TTC Expert</span>
+                <span className="font-bold">{t('Total TTC Expert')}</span>
                 <span className="w-28 text-right font-bold">{totalTTCExpert == null ? '—' : formatFr(totalTTCExpert)}</span>
               </>
             )}
@@ -1842,6 +1844,7 @@ function AccordPUInput({
   disabled?: boolean;
   error?: boolean;
 }) {
+  const t = useT();
   return (
     <input
       value={value}
@@ -1849,7 +1852,7 @@ function AccordPUInput({
       onBlur={onBlurValidate}
       disabled={disabled}
       inputMode="decimal"
-      title={error ? 'La valeur ne peut pas dépasser le P.U.H.T.' : undefined}
+      title={error ? t('La valeur ne peut pas dépasser le P.U.H.T.') : undefined}
       className={cn(
         "w-full h-7 px-1.5 text-xs bg-transparent outline-none rounded border text-right",
         "focus:bg-background disabled:cursor-not-allowed",

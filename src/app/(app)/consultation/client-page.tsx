@@ -18,8 +18,10 @@ import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/i18n';
 
 export default function ConsultationClientPage() {
+  const t = useT();
   const { options: dbCompagnies } = useOptions('compagnies');
   const { options: dbNatures } = useOptions('options_natures');
   const { options: dbStatuses } = useOptions('options_statuts');
@@ -120,7 +122,7 @@ export default function ConsultationClientPage() {
       {fetchError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Erreur</AlertTitle>
+          <AlertTitle>{t('Erreur')}</AlertTitle>
           <AlertDescription>{fetchError}</AlertDescription>
         </Alert>
       )}
@@ -130,33 +132,33 @@ export default function ConsultationClientPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Rechercher..."
+            placeholder={t('Rechercher...')}
             value={filters.search}
             onChange={e => setFilters({ search: e.target.value })}
           />
         </div>
 
         <Select value={filters.nature} onValueChange={v => setFilters({ nature: v })}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Nature du dossier" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder={t('Nature du dossier')} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="Toutes">Toutes les natures</SelectItem>
-            {filterNatures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
+            <SelectItem value="Toutes">{t('Toutes les natures')}</SelectItem>
+            {filterNatures.map(n => <SelectItem key={n.id} value={n.label}>{t(n.label)}</SelectItem>)}
           </SelectContent>
         </Select>
 
         <Select value={filters.status} onValueChange={v => setFilters({ status: v })}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Statut" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder={t('Statut')} /></SelectTrigger>
           <SelectContent className="max-h-[300px]">
-            <SelectItem value="Tous">Tous les statuts</SelectItem>
-            {filterStatuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
+            <SelectItem value="Tous">{t('Tous les statuts')}</SelectItem>
+            {filterStatuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{t(s.label)}</span></SelectItem>)}
           </SelectContent>
         </Select>
 
         <Select value={filters.compagnie} onValueChange={v => setFilters({ compagnie: v })}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Compagnie" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder={t('Compagnie')} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
-            {filterCompagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
+            <SelectItem value="Toutes">{t('Toutes les compagnies')}</SelectItem>
+            {filterCompagnies.map(c => <SelectItem key={c.id} value={c.label}>{t(c.label)}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -170,43 +172,43 @@ export default function ConsultationClientPage() {
 
       {(filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.dateFrom || filters.dateTo) && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Filtres actifs</span>
+          <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">{t('Filtres actifs')}</span>
           {filters.nature !== 'Toutes' && (
             <Badge variant="outline" className="gap-1 pr-1">
-              Nature : {filters.nature}
-              <button onClick={() => clearFilter('nature')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre nature">
+              {t('Nature :')} {t(filters.nature)}
+              <button onClick={() => clearFilter('nature')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label={t('Retirer le filtre nature')}>
                 <X className="h-3 w-3" />
               </button>
             </Badge>
           )}
           {filters.status !== 'Tous' && (
             <Badge variant="outline" className="gap-1 pr-1">
-              Statut : {filters.status}
-              <button onClick={() => clearFilter('status')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre statut">
+              {t('Statut :')} {t(filters.status)}
+              <button onClick={() => clearFilter('status')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label={t('Retirer le filtre statut')}>
                 <X className="h-3 w-3" />
               </button>
             </Badge>
           )}
           {filters.compagnie !== 'Toutes' && (
             <Badge variant="outline" className="gap-1 pr-1">
-              Compagnie : {filters.compagnie}
-              <button onClick={() => clearFilter('compagnie')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre compagnie">
+              {t('Compagnie :')} {t(filters.compagnie)}
+              <button onClick={() => clearFilter('compagnie')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label={t('Retirer le filtre compagnie')}>
                 <X className="h-3 w-3" />
               </button>
             </Badge>
           )}
           {filters.dateFrom && (
             <Badge variant="outline" className="gap-1 pr-1">
-              Du : {filters.dateFrom}
-              <button onClick={() => clearFilter('dateFrom')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer la date de début">
+              {t('Du :')} {filters.dateFrom}
+              <button onClick={() => clearFilter('dateFrom')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label={t('Retirer la date de début')}>
                 <X className="h-3 w-3" />
               </button>
             </Badge>
           )}
           {filters.dateTo && (
             <Badge variant="outline" className="gap-1 pr-1">
-              Au : {filters.dateTo}
-              <button onClick={() => clearFilter('dateTo')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer la date de fin">
+              {t('Au :')} {filters.dateTo}
+              <button onClick={() => clearFilter('dateTo')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label={t('Retirer la date de fin')}>
                 <X className="h-3 w-3" />
               </button>
             </Badge>
@@ -223,7 +225,7 @@ export default function ConsultationClientPage() {
               clearFilter('dateTo');
             }}
           >
-            Tout réinitialiser
+            {t('Tout réinitialiser')}
           </Button>
         </div>
       )}
@@ -232,14 +234,14 @@ export default function ConsultationClientPage() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead>Ref Expert</TableHead>
-              <TableHead>Assuré</TableHead>
-              <TableHead>Compagnie</TableHead>
-              <TableHead>Nature du dossier</TableHead>
-              <TableHead>Type Dossier</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead>Matricule</TableHead>
-              <TableHead>Date Requête</TableHead>
+              <TableHead>{t('Ref Expert')}</TableHead>
+              <TableHead>{t('Assuré')}</TableHead>
+              <TableHead>{t('Compagnie')}</TableHead>
+              <TableHead>{t('Nature du dossier')}</TableHead>
+              <TableHead>{t('Type Dossier')}</TableHead>
+              <TableHead>{t('Statut')}</TableHead>
+              <TableHead>{t('Matricule')}</TableHead>
+              <TableHead>{t('Date Requête')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -256,8 +258,8 @@ export default function ConsultationClientPage() {
                 <TableCell colSpan={8} className="p-0">
                   <EmptyState
                     icon={<FolderOpen />}
-                    title="Aucun dossier trouvé"
-                    description={hasActiveFilters ? "Essayez d'ajuster les filtres pour voir plus de résultats." : 'Aucun dossier dans le système.'}
+                    title={t('Aucun dossier trouvé')}
+                    description={hasActiveFilters ? t("Essayez d'ajuster les filtres pour voir plus de résultats.") : t('Aucun dossier dans le système.')}
                     dashed={false}
                     className="border-0 bg-transparent py-10"
                   />
@@ -268,10 +270,10 @@ export default function ConsultationClientPage() {
                 <TableRow key={d.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell className="font-mono text-sm font-semibold text-primary tabular-nums">{d.refExpert}</TableCell>
                   <TableCell>{renderAssure(d.assure)}</TableCell>
-                  <TableCell className="text-xs">{d.compagnie || '-'}</TableCell>
-                  <TableCell>{d.nature || '-'}</TableCell>
-                  <TableCell>{d.typeDossier || '-'}</TableCell>
-                  <TableCell><Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{d.statut || 'Nouveau'}</Badge></TableCell>
+                  <TableCell className="text-xs">{d.compagnie ? t(d.compagnie) : '-'}</TableCell>
+                  <TableCell>{d.nature ? t(d.nature) : '-'}</TableCell>
+                  <TableCell>{d.typeDossier ? t(d.typeDossier) : '-'}</TableCell>
+                  <TableCell><Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{t(d.statut || 'Nouveau')}</Badge></TableCell>
                   <TableCell className="font-mono text-xs tabular-nums">{d.matricule || '-'}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateRequete)}</TableCell>
                 </TableRow>
@@ -283,14 +285,14 @@ export default function ConsultationClientPage() {
 
       <div className="flex items-center justify-between px-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Afficher</span>
+          <span className="text-sm text-muted-foreground">{t('Afficher')}</span>
           <Select value={String(rowsPerPage)} onValueChange={v => setFilters({ rowsPerPage: Number(v) })}>
             <SelectTrigger className="h-8 w-[70px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {[10, 25, 50, 100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
             </SelectContent>
           </Select>
-          <span className="text-sm text-muted-foreground ml-4 tabular-nums">Total: {dossierList.length} dossiers</span>
+          <span className="text-sm text-muted-foreground ml-4 tabular-nums">{t('Total')}: {dossierList.length} {t('dossiers')}</span>
         </div>
       </div>
     </div>

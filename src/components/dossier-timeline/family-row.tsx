@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import {
   SlotCard,
@@ -88,6 +89,7 @@ export function FamilyRow({
   cardinalFilter = 'all',
   onEditSlot,
 }: FamilyRowProps) {
+  const t = useT();
   const visibleSlots = cardinalFilter === 'all'
     ? group.slots
     : group.slots.filter((s) => {
@@ -113,7 +115,7 @@ export function FamilyRow({
       )}
       <div className="flex items-center justify-between px-1 pb-2 pr-32">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {group.parent}
+          {t(group.parent)}
         </h3>
         <span className="text-[10px] text-muted-foreground font-medium">
           {totalDocs} doc{totalDocs === 1 ? '' : 's'}

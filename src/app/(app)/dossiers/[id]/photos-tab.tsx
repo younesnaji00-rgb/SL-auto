@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { format as dateFormat } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import {
   Upload,
   Loader2,
@@ -118,6 +118,7 @@ export const MAX_PHOTOS_WITH_REFORME = 60;
 
 export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: { dossierId: string; initialCategory?: PhotoCategory; onlyCategory?: PhotoCategory }) {
   const visibleCategories = onlyCategory ? CATEGORIES.filter((c) => c.id === onlyCategory) : CATEGORIES;
+  const t = useT();
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -191,8 +192,8 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
     if (available === 0) {
       toast({
         variant: 'destructive',
-        title: 'Limite atteinte',
-        description: `Limite de ${photoCap} photos atteinte pour cette section.`,
+        title: t('Limite atteinte'),
+        description: `${t('Limite de')} ${photoCap} ${t('photos atteinte pour cette section.')}`,
       });
       return;
     }
@@ -202,8 +203,8 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
       if (files.length > available) {
         toast({
           variant: 'destructive',
-          title: 'Limite de photos',
-          description: `${files.length - available} photo(s) ignorée(s) — la limite de ${photoCap} par section a été atteinte.`,
+          title: t('Limite de photos'),
+          description: `${files.length - available} ${t('photo(s) ignorée(s) — la limite de')} ${photoCap} ${t('par section a été atteinte.')}`,
         });
       }
       // Fire all uploads in parallel. Use allSettled so one failure doesn't abort the batch.
@@ -263,13 +264,13 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
 
       if (failed === 0) {
         toast({
-          title: successful === 1 ? 'Photo uploadée' : `${successful} photos uploadées`,
+          title: successful === 1 ? t('Photo uploadée') : `${successful} ${t('photos uploadées')}`,
         });
       } else {
         toast({
           variant: 'destructive',
-          title: `${failed} échec(s)`,
-          description: `${successful}/${results.length} photos uploadées.`,
+          title: `${failed} ${t('échec(s)')}`,
+          description: `${successful}/${results.length} ${t('photos uploadées.')}`,
         });
         results.forEach((r, i) => {
           if (r.status === 'rejected') console.error(`Upload failed for ${fileList[i].name}:`, r.reason);
@@ -277,7 +278,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
       }
     } catch (err: any) {
       console.error('Upload error:', err);
-      toast({ variant: 'destructive', title: "Erreur lors de l'upload", description: err.message });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'upload"), description: err.message });
     } finally {
       setIsUploading(null);
       const input = fileInputRefs.current[cat];
@@ -308,10 +309,10 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
       await logWorkflow(db, dossierId, 'Photo supprimée', userEmail, userId, 'done', {
         details: `Photo "${photo.name || 'inconnue'}" supprimée (par gestionnaire)`,
       }, profile?.nom);
-      toast({ title: 'Photo supprimée' });
+      toast({ title: t('Photo supprimée') });
     } catch (err: any) {
       console.error('Delete error:', err);
-      toast({ variant: 'destructive', title: 'Erreur lors de la suppression' });
+      toast({ variant: 'destructive', title: t('Erreur lors de la suppression') });
     } finally {
       setIsDeleting(null);
     }
@@ -331,7 +332,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
       window.URL.revokeObjectURL(blobUrl);
     } catch (e) {
       console.error('Download error:', e);
-      toast({ variant: 'destructive', title: 'Erreur lors du téléchargement' });
+      toast({ variant: 'destructive', title: t('Erreur lors du téléchargement') });
     }
   };
 
@@ -339,10 +340,10 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
     if (!db || !editName.trim()) return;
     try {
       await updateDoc(doc(db, 'dossiers', dossierId, 'photos', photo.id), { name: editName.trim() });
-      toast({ title: 'Photo renommée' });
+      toast({ title: t('Photo renommée') });
     } catch (e) {
       console.error('Rename error:', e);
-      toast({ variant: 'destructive', title: 'Erreur lors du renommage' });
+      toast({ variant: 'destructive', title: t('Erreur lors du renommage') });
     } finally {
       setEditingId(null);
       setEditName('');
@@ -371,7 +372,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
           {photo.pendingUpload ? (
             <div className="w-full h-full flex flex-col items-center justify-center text-amber-600 bg-amber-50 dark:bg-amber-950/30">
               <Upload className="h-8 w-8 mb-2 opacity-60" />
-              <span className="text-xs font-medium">En attente</span>
+              <span className="text-xs font-medium">{t('En attente')}</span>
             </div>
           ) : (
             <img
@@ -399,7 +400,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                 variant="secondary"
                 className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
                 onClick={() => handleDownload(photo)}
-                title="Telecharger"
+                title={t('Telecharger')}
               >
                 <Download className="h-3.5 w-3.5" />
               </Button>
@@ -411,7 +412,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                   setEditingId(photo.id);
                   setEditName(photo.name);
                 }}
-                title="Renommer"
+                title={t('Renommer')}
               >
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
@@ -422,7 +423,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                   className="h-7 w-7 rounded-full shadow-lg"
                   disabled={isDeleting === photo.id}
                   onClick={() => handleDelete(photo)}
-                  title="Supprimer"
+                  title={t('Supprimer')}
                 >
                   {isDeleting === photo.id ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -475,7 +476,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               </p>
               {photo.uploadedAt?.toDate && (
                 <p className="text-[9px] text-muted-foreground/70 mt-0.5">
-                  {dateFormat(photo.uploadedAt.toDate(), 'd MMM HH:mm', { locale: fr })}
+                  {dateFormat(photo.uploadedAt.toDate(), 'd MMM HH:mm', { locale: dateFnsLocale() })}
                 </p>
               )}
             </>
@@ -489,7 +490,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
     return (
       <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p>Chargement des photos...</p>
+        <p>{t('Chargement des photos...')}</p>
       </div>
     );
   }
@@ -503,7 +504,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
             return (
               <TabsTrigger key={cat.id} value={cat.id} className="gap-2">
                 <Camera className="h-3.5 w-3.5" />
-                {cat.label}
+                {t(cat.label)}
                 <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5 min-w-[20px]">
                   {count}/{photoCap}
                 </Badge>
@@ -519,7 +520,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               {/* Upload header */}
               <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold">{cat.fullLabel}</h3>
+                  <h3 className="text-sm font-semibold">{t(cat.fullLabel)}</h3>
                   <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5 min-w-[20px]">
                     {catPhotos.length}/{photoCap}
                   </Badge>
@@ -534,7 +535,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                   >
                     <SelectTrigger
                       className="h-8 w-[170px] text-xs"
-                      aria-label="Mode de regroupement des photos"
+                      aria-label={t('Mode de regroupement des photos')}
                     >
                       <SelectValue />
                     </SelectTrigger>
@@ -542,13 +543,13 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                       <SelectItem value="date">
                         <span className="inline-flex items-center gap-2">
                           <ChevronDown className="h-3.5 w-3.5" />
-                          Par date
+                          {t('Par date')}
                         </span>
                       </SelectItem>
                       <SelectItem value="location">
                         <span className="inline-flex items-center gap-2">
                           <MapPin className="h-3.5 w-3.5" />
-                          Par localisation
+                          {t('Par localisation')}
                         </span>
                       </SelectItem>
                     </SelectContent>
@@ -576,7 +577,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                       ) : (
                         <Upload className="h-3.5 w-3.5" />
                       )}
-                      Ajouter
+                      {t('Ajouter')}
                     </Button>
                   )}
                 </div>
@@ -592,7 +593,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                   onClick={() => canEdit && fileInputRefs.current[cat.id]?.click()}
                 >
                   <ImageIcon className="h-12 w-12 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground italic">Aucune photo</p>
+                  <p className="text-sm text-muted-foreground italic">{t('Aucune photo')}</p>
                   {canEdit && (
                     <Button
                       type="button"
@@ -610,7 +611,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                       ) : (
                         <Upload className="h-3 w-3" />
                       )}
-                      Ajouter
+                      {t('Ajouter')}
                     </Button>
                   )}
                 </div>
@@ -627,7 +628,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                   defaultExpanded={false}
                   gridItems
                   groupLabel={(day, count) =>
-                    `${dateFormat(day, 'd MMMM yyyy', { locale: fr })} — ${count} photo${count > 1 ? 's' : ''}`
+                    `${dateFormat(day, 'd MMMM yyyy', { locale: dateFnsLocale() })} — ${count} photo${count > 1 ? 's' : ''}`
                   }
                   renderItem={(photo) => renderPhotoCard(photo)}
                 />
@@ -677,7 +678,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               <button
                 type="button"
                 onClick={() => setPreviewPhoto(null)}
-                aria-label="Fermer"
+                aria-label={t('Fermer')}
                 className="absolute right-3 top-2.5 z-50 h-9 w-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
               >
                 <X className="h-5 w-5" />
@@ -710,7 +711,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                         <button
                           type="button"
                           onClick={() => goto(-1)}
-                          aria-label="Photo précédente"
+                          aria-label={t('Photo précédente')}
                           className="absolute left-4 top-1/2 -translate-y-1/2 z-40 h-12 w-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
                         >
                           <ChevronLeft className="h-7 w-7" />
@@ -720,7 +721,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                         <button
                           type="button"
                           onClick={() => goto(1)}
-                          aria-label="Photo suivante"
+                          aria-label={t('Photo suivante')}
                           className="absolute right-4 top-1/2 -translate-y-1/2 z-40 h-12 w-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
                         >
                           <ChevronRight className="h-7 w-7" />
@@ -731,7 +732,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                         <button
                           type="button"
                           onClick={() => zoomOut()}
-                          aria-label="Dézoomer"
+                          aria-label={t('Dézoomer')}
                           className="h-9 w-9 rounded-full text-white hover:bg-white/20 flex items-center justify-center"
                         >
                           <ZoomOut className="h-4 w-4" />
@@ -748,7 +749,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                             resetTransform(200, 'easeOut');
                             centerView(1, 200, 'easeOut');
                           }}
-                          aria-label="Ajuster à l'écran"
+                          aria-label={t("Ajuster à l'écran")}
                           className="h-9 w-9 rounded-full text-white hover:bg-white/20 flex items-center justify-center"
                         >
                           <Maximize2 className="h-4 w-4" />
@@ -756,7 +757,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                         <button
                           type="button"
                           onClick={() => zoomIn()}
-                          aria-label="Zoomer"
+                          aria-label={t('Zoomer')}
                           className="h-9 w-9 rounded-full text-white hover:bg-white/20 flex items-center justify-center"
                         >
                           <ZoomIn className="h-4 w-4" />
@@ -788,6 +789,7 @@ function PhotosByLocation({
   photos: Photo[];
   renderPhoto: (photo: Photo) => React.ReactNode;
 }) {
+  const t = useT();
   const groups = React.useMemo(() => {
     const map = new Map<string, { key: string; label: string; items: Photo[] }>();
     photos.forEach((photo) => {
@@ -852,7 +854,7 @@ function PhotosByLocation({
                   isUnknown && 'italic text-muted-foreground',
                 )}
               >
-                {group.label} — {count} photo{count > 1 ? 's' : ''}
+                {isUnknown ? t('Sans localisation') : group.label} — {count} photo{count > 1 ? 's' : ''}
               </span>
             </button>
             {open && (

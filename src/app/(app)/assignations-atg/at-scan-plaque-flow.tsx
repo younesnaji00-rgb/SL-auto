@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useFirestore } from '@/firebase';
+import { useT } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { matchDossiersByPlate } from '@/lib/plate-match';
 import ModalPlanification from '@/app/(app)/dossiers/[id]/modal-planification';
@@ -39,6 +40,7 @@ interface ScanState {
  * Scan-only by design: no manual matricule entry.
  */
 export default function AtScanPlaqueFlow() {
+  const t = useT();
   const db = useFirestore();
   const { profile } = useCurrentUser();
   const router = useRouter();
@@ -139,21 +141,21 @@ export default function AtScanPlaqueFlow() {
 
   const scanBanner = () => {
     if (!scan || chosen) return null;
-    const uncertain = scan.confidence === 'low' ? ' (lecture incertaine — vérifiez)' : '';
+    const uncertain = scan.confidence === 'low' ? ` ${t('(lecture incertaine — vérifiez)')}` : '';
     let tone = 'border-emerald-300 bg-emerald-50 text-emerald-900';
     let msg: string;
     if (scan.matches.length > 1) {
-      msg = `${scan.matches.length} dossiers portent cette plaque${uncertain}. Sélectionnez le bon ci-dessous.`;
+      msg = `${scan.matches.length} ${t('dossiers portent cette plaque')}${uncertain}. ${t('Sélectionnez le bon ci-dessous.')}`;
     } else if (scan.fuzzy.length > 0) {
       tone = 'border-amber-300 bg-amber-50 text-amber-900';
-      msg = `Aucune correspondance exacte${uncertain}. Vérifiez les correspondances possibles ci-dessous, ou reprenez la photo.`;
+      msg = `${t('Aucune correspondance exacte')}${uncertain}. ${t('Vérifiez les correspondances possibles ci-dessous, ou reprenez la photo.')}`;
     } else {
       tone = 'border-red-300 bg-red-50 text-red-900';
-      msg = `Aucun dossier ne correspond à cette plaque${uncertain}. Le dossier n'existe peut-être pas encore — reprenez la photo ou contactez votre gestionnaire.`;
+      msg = `${t('Aucun dossier ne correspond à cette plaque')}${uncertain}. ${t("Le dossier n'existe peut-être pas encore — reprenez la photo ou contactez votre gestionnaire.")}`;
     }
     return (
       <div className={`rounded border px-3 py-2 text-xs ${tone}`}>
-        <span className="font-semibold font-mono">Plaque détectée : {scan.plate}</span>
+        <span className="font-semibold font-mono">{t('Plaque détectée :')} {scan.plate}</span>
         <p className="mt-0.5">{msg}</p>
       </div>
     );
@@ -171,7 +173,7 @@ export default function AtScanPlaqueFlow() {
         className="h-9 gap-1.5 text-xs"
       >
         <ScanLine className="h-3.5 w-3.5" />
-        Scanner la plaque
+        {t('Scanner la plaque')}
       </Button>
 
       <Dialog
@@ -183,23 +185,23 @@ export default function AtScanPlaqueFlow() {
       >
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>Scanner la plaque</DialogTitle>
+            <DialogTitle>{t('Scanner la plaque')}</DialogTitle>
             <DialogDescription>
-              Le dossier est identifié par la photo de la plaque, puis choisissez l&apos;action.
+              {t("Le dossier est identifié par la photo de la plaque, puis choisissez l'action.")}
             </DialogDescription>
           </DialogHeader>
 
           {busy ? (
             <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              {scanning ? 'Lecture de la plaque...' : 'Chargement des dossiers...'}
+              {scanning ? t('Lecture de la plaque...') : t('Chargement des dossiers...')}
             </div>
           ) : chosen ? (
             <>
               {/* Action stage — dossier identified */}
               <div className="rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
                 {scan && (
-                  <span className="font-semibold font-mono">Plaque détectée : {scan.plate}</span>
+                  <span className="font-semibold font-mono">{t('Plaque détectée :')} {scan.plate}</span>
                 )}
                 <div className="mt-1.5 flex items-baseline justify-between gap-2">
                   <span className="font-semibold text-sm">{chosen.refExpert || chosen.id}</span>
@@ -212,14 +214,14 @@ export default function AtScanPlaqueFlow() {
                   </span>
                 </div>
                 <div className="mt-0.5 text-[10px] opacity-80">
-                  Statut : {chosen.statut || 'Nouveau'}
+                  {t('Statut :')} {t(chosen.statut || 'Nouveau')}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-2">
                 <Button type="button" onClick={() => handlePhotos(chosen)} className="h-11 gap-2">
                   <Camera className="h-4 w-4" />
-                  Ajouter photos / documents
+                  {t('Ajouter photos / documents')}
                 </Button>
                 <Button
                   type="button"
@@ -228,7 +230,7 @@ export default function AtScanPlaqueFlow() {
                   className="h-11 gap-2"
                 >
                   <Calendar className="h-4 w-4" />
-                  Planifier la mission
+                  {t('Planifier la mission')}
                 </Button>
               </div>
 
@@ -242,7 +244,7 @@ export default function AtScanPlaqueFlow() {
                     className="gap-1.5 text-xs"
                   >
                     <ArrowLeft className="h-3.5 w-3.5" />
-                    Autres résultats
+                    {t('Autres résultats')}
                   </Button>
                 ) : (
                   <span />
@@ -255,7 +257,7 @@ export default function AtScanPlaqueFlow() {
                   className="gap-1.5 text-xs"
                 >
                   <ScanLine className="h-3.5 w-3.5" />
-                  Reprendre la photo
+                  {t('Reprendre la photo')}
                 </Button>
               </div>
             </>
@@ -269,7 +271,7 @@ export default function AtScanPlaqueFlow() {
                   <ul>
                     {scan && scan.matches.length === 0 && scan.fuzzy.length > 0 && (
                       <li className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-amber-700 bg-amber-50 border-b border-border/20">
-                        Correspondances possibles
+                        {t('Correspondances possibles')}
                       </li>
                     )}
                     {displayed.map((d) => (
@@ -302,14 +304,14 @@ export default function AtScanPlaqueFlow() {
 
               <Button type="button" variant="outline" onClick={trigger} className="w-full gap-2">
                 <ScanLine className="h-4 w-4" />
-                Reprendre la photo
+                {t('Reprendre la photo')}
               </Button>
             </>
           )}
 
           <DialogFooter>
             <Button variant="ghost" onClick={closeAll}>
-              Fermer
+              {t('Fermer')}
             </Button>
           </DialogFooter>
         </DialogContent>

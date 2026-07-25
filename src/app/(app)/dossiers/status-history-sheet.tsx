@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 import { useCollection, useFirestore } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { getStatusHeaderStyles } from '@/lib/status-colors';
 
 type StatusHistorySheetProps = {
@@ -23,6 +23,7 @@ type StatusHistorySheetProps = {
 };
 
 export default function StatusHistorySheet({ open, onOpenChange, dossier }: StatusHistorySheetProps) {
+  const t = useT();
   const db = useFirestore();
 
   const historyQuery = useMemo(() => {
@@ -54,7 +55,7 @@ export default function StatusHistorySheet({ open, onOpenChange, dossier }: Stat
     if (!ts) return '-';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
     try {
-      return format(date, 'dd/MM/yyyy HH:mm', { locale: fr });
+      return format(date, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() });
     } catch {
       return '-';
     }
@@ -64,9 +65,9 @@ export default function StatusHistorySheet({ open, onOpenChange, dossier }: Stat
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="text-primary">États Du Dossier</SheetTitle>
+          <SheetTitle className="text-primary">{t('États Du Dossier')}</SheetTitle>
           <SheetDescription>
-            {dossier.refExpert ? <>Dossier <span className="font-semibold text-foreground">{dossier.refExpert}</span></> : 'Historique des changements de statut'}
+            {dossier.refExpert ? <>{t('Dossier')} <span className="font-semibold text-foreground">{dossier.refExpert}</span></> : t('Historique des changements de statut')}
           </SheetDescription>
         </SheetHeader>
 
@@ -78,7 +79,7 @@ export default function StatusHistorySheet({ open, onOpenChange, dossier }: Stat
           ) : !sortedEntries || sortedEntries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
               <Inbox className="h-10 w-10 mb-3 opacity-20" />
-              <p className="text-sm">Aucun changement de statut.</p>
+              <p className="text-sm">{t('Aucun changement de statut.')}</p>
             </div>
           ) : (
             <div className="relative pl-8">
@@ -93,20 +94,20 @@ export default function StatusHistorySheet({ open, onOpenChange, dossier }: Stat
 
                     <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
                       <div className={cn('px-4 py-2 text-sm font-semibold', getStatusHeaderStyles(e.action))}>
-                        {e.action}
+                        {t(e.action)}
                       </div>
                       <div className="p-4 space-y-1.5 text-sm">
                         <div>
-                          <span className="font-semibold">Nom :</span>{' '}
+                          <span className="font-semibold">{t('Nom :')}</span>{' '}
                           <span className="text-muted-foreground">{e.user || '—'}</span>
                         </div>
                         <div>
-                          <span className="font-semibold">Date :</span>{' '}
+                          <span className="font-semibold">{t('Date :')}</span>{' '}
                           <span className="text-muted-foreground">{formatDate(e.date)}</span>
                         </div>
                         {e.details && (
                           <div>
-                            <span className="font-semibold">Message :</span>{' '}
+                            <span className="font-semibold">{t('Message :')}</span>{' '}
                             <span className="text-muted-foreground whitespace-pre-wrap">{e.details}</span>
                           </div>
                         )}

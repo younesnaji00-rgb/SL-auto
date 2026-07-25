@@ -51,8 +51,10 @@ import { ValiderDossierButton } from '@/components/dossiers/valider-dossier-butt
 import CarSvgTop from '@/components/car-svg-top';
 import CarSvgBottom from '@/components/car-svg-bottom';
 import { apiFetch } from '@/lib/api-fetch';
+import { useT } from '@/i18n';
 
 export default function RapportTab({ dossierId }: { dossierId: string }) {
+  const t = useT();
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -173,7 +175,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || 'Erreur lors du scan');
+        throw new Error(err.error || t('Erreur lors du scan'));
       }
 
       const { data } = await res.json();
@@ -221,12 +223,12 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
       await logWorkflow(db, dossierId, 'Rapport mis à jour', userEmail, userId, 'done', { details: `Importation IA : ${data.pieces?.length || 0} pièce(s) extraite(s)` }, profile?.nom);
 
       toast({
-        title: 'Importation réussie',
-        description: `${data.pieces?.length || 0} pièce(s) extraite(s) par l'IA.`,
+        title: t('Importation réussie'),
+        description: `${data.pieces?.length || 0} ${t("pièce(s) extraite(s) par l'IA.")}`,
       });
     } catch (error: any) {
       console.error('Scan rapport error:', error);
-      toast({ variant: 'destructive', title: "Erreur lors de l'importation", description: error.message });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'importation"), description: error.message });
     } finally {
       setIsScanning(false);
       if (scanInputRef.current) scanInputRef.current.value = '';
@@ -280,10 +282,10 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           await logWorkflow(db, dossierId, 'Rapport déposé', userEmail, userId, 'done', { details: `Type: ${type}` }, profile?.nom);
         } catch { /* silent */ }
       }
-      toast({ title: 'Rapport généré' });
+      toast({ title: t('Rapport généré') });
       setTypeDialogOpen(false);
     } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
+      toast({ variant: 'destructive', title: t('Erreur'), description: e.message });
     } finally {
       setIsGenerating(false);
     }
@@ -305,8 +307,8 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
       {/* HEADER WITH GÉNÉRER LE RAPPORT BUTTON */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-lg font-semibold">Rapport</h2>
-          <p className="text-sm text-muted-foreground">Diagramme des points de choc et génération du PDF final.</p>
+          <h2 className="text-lg font-semibold">{t('Rapport')}</h2>
+          <p className="text-sm text-muted-foreground">{t('Diagramme des points de choc et génération du PDF final.')}</p>
         </div>
         <div className="flex items-center gap-2">
           <ValiderDossierButton
@@ -323,13 +325,13 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
                     className="gap-2"
                   >
                     {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-                    Générer le rapport
+                    {t('Générer le rapport')}
                   </Button>
                 </span>
               </TooltipTrigger>
               {!alreadyValidated && (
                 <TooltipContent>
-                  En attente de validation du directeur des opérations ou de l'administrateur
+                  {t("En attente de validation du directeur des opérations ou de l'administrateur")}
                 </TooltipContent>
               )}
             </Tooltip>
@@ -346,11 +348,11 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
 
       {/* POINTS DE CHOC */}
       <Card className="border-primary/10 shadow-sm">
-        <CardHeader className="border-b bg-heading-bg"><CardTitle className="text-xl font-bold">Points de choc</CardTitle></CardHeader>
+        <CardHeader className="border-b bg-heading-bg"><CardTitle className="text-xl font-bold">{t('Points de choc')}</CardTitle></CardHeader>
         <CardContent className="p-6 space-y-12">
           <div className={cn("space-y-6 rounded-md", highlightClass(pointsChocStatus) && `${highlightClass(pointsChocStatus)} p-3`)}>
             <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-l-4 border-blue-500 pl-3 flex items-center gap-2">
-              Vue de dessus <ChangeBadge status={pointsChocStatus} />
+              {t('Vue de dessus')} <ChangeBadge status={pointsChocStatus} />
             </h3>
             <div className={cn("grid gap-12 items-center", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1 max-w-md mx-auto")}>
               <div className={cn("mx-auto", !canEditDossiers && "pointer-events-none")}>
@@ -370,7 +372,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           </div>
           <div className={cn("space-y-6 pt-12 border-t border-dashed rounded-md", highlightClass(pointsChocDessousStatus) && `${highlightClass(pointsChocDessousStatus)} p-3`)}>
             <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-l-4 border-blue-500 pl-3 flex items-center gap-2">
-              Vue de dessous <ChangeBadge status={pointsChocDessousStatus} />
+              {t('Vue de dessous')} <ChangeBadge status={pointsChocDessousStatus} />
             </h3>
             <div className={cn("grid gap-12 items-center", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1 max-w-md mx-auto")}>
               <div className={cn("mx-auto", !canEditDossiers && "pointer-events-none")}>

@@ -19,6 +19,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { buildAccordEmailTemplate } from '@/lib/chiffrage-email';
+import { useT } from '@/i18n';
 
 /**
  * Task #36 — Dialog for sending an accord document by email.
@@ -57,6 +58,7 @@ export function EnvoyerParMailDialog({
   dossierNumero,
   onSend,
 }: EnvoyerParMailDialogProps) {
+  const t = useT();
   const [documentId, setDocumentId] = useState<string>('');
   const [recipient, setRecipient] = useState<string>(defaultRecipient ?? '');
   const template = buildAccordEmailTemplate(dossierNumero);
@@ -91,14 +93,14 @@ export function EnvoyerParMailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Envoyer par mail</DialogTitle>
+          <DialogTitle>{t('Envoyer par mail')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 py-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Document</label>
+            <label className="text-sm font-medium">{t('Document')}</label>
             <Select value={documentId} onValueChange={setDocumentId}>
               <SelectTrigger>
-                <SelectValue placeholder="Choisir un document" />
+                <SelectValue placeholder={t('Choisir un document')} />
               </SelectTrigger>
               <SelectContent>
                 {documents.map((d) => (
@@ -110,25 +112,25 @@ export function EnvoyerParMailDialog({
             </Select>
             {documents.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                Aucun accord disponible pour ce dossier.
+                {t('Aucun accord disponible pour ce dossier.')}
               </p>
             )}
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Destinataire</label>
+            <label className="text-sm font-medium">{t('Destinataire')}</label>
             <Input
               type="email"
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
-              placeholder="nom@compagnie.com"
+              placeholder={t('nom@compagnie.com')}
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Objet</label>
+            <label className="text-sm font-medium">{t('Objet')}</label>
             <Input value={subject} readOnly className="bg-muted" />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Message</label>
+            <label className="text-sm font-medium">{t('Message')}</label>
             <Textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
@@ -142,10 +144,10 @@ export function EnvoyerParMailDialog({
             onClick={() => onOpenChange(false)}
             disabled={sending}
           >
-            Annuler
+            {t('Annuler')}
           </Button>
           <Button onClick={handleSend} disabled={!canSend}>
-            {sending ? 'Envoi...' : 'Envoyer'}
+            {sending ? t('Envoi...') : t('Envoyer')}
           </Button>
         </DialogFooter>
       </DialogContent>

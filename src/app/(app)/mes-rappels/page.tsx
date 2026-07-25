@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { dateFnsLocale, t, useT } from '@/i18n';
 import { useRappels, useRappelsSent, type Rappel } from '@/hooks/use-rappels';
 import { collection, doc, onSnapshot, query, updateDoc, where, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
@@ -30,13 +30,13 @@ function newSessionId(): string {
 function formatDate(ts: any): string {
   if (!ts) return '-';
   const date = ts.toDate ? ts.toDate() : new Date(ts);
-  try { return format(date, 'dd/MM/yyyy HH:mm', { locale: fr }); } catch { return '-'; }
+  try { return format(date, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() }); } catch { return '-'; }
 }
 
 function formatHm(ts: any): string {
   if (!ts) return '--:--';
   const date = ts.toDate ? ts.toDate() : new Date(ts);
-  try { return format(date, 'HH:mm', { locale: fr }); } catch { return '--:--'; }
+  try { return format(date, 'HH:mm', { locale: dateFnsLocale() }); } catch { return '--:--'; }
 }
 
 function tsMillis(ts: any): number {
@@ -106,7 +106,7 @@ function formatRecipients(names: string[]): string {
   if (names.length === 0) return '—';
   if (names.length === 1) return names[0];
   if (names.length === 2) return names.join(', ');
-  return `${names.length} destinataires`;
+  return `${names.length} ${t('destinataires')}`;
 }
 
 interface SessionTaggedProps {
@@ -120,6 +120,7 @@ interface SessionTaggedProps {
  */
 function SessionObservations({ dossierId, sessionId }: SessionTaggedProps) {
   const db = useFirestore();
+  const t = useT();
   const [items, setItems] = useState<any[]>([]);
 
   useEffect(() => {
@@ -150,7 +151,7 @@ function SessionObservations({ dossierId, sessionId }: SessionTaggedProps) {
   return (
     <div className="flex flex-col gap-1 max-w-[280px]">
       {items.map((it) => {
-        const author = it.author || it.authorEmail || 'Utilisateur inconnu';
+        const author = it.author || it.authorEmail || t('Utilisateur inconnu');
         return (
           <div key={it.id} className="text-xs leading-snug break-words">
             <span className="tabular-nums text-muted-foreground">{formatHm(it.createdAt)}</span>
@@ -172,6 +173,7 @@ function SessionObservations({ dossierId, sessionId }: SessionTaggedProps) {
  */
 function SessionModifications({ dossierId, sessionId }: SessionTaggedProps) {
   const db = useFirestore();
+  const t = useT();
   const [items, setItems] = useState<any[]>([]);
 
   useEffect(() => {
@@ -211,10 +213,10 @@ function SessionModifications({ dossierId, sessionId }: SessionTaggedProps) {
       {Array.from(groups.entries()).map(([type, rows]) => (
         <div key={type} className="flex flex-col gap-0.5">
           <div className="text-xs font-semibold text-muted-foreground">
-            {type} ({rows.length})
+            {t(type)} ({rows.length})
           </div>
           {rows.map((it) => {
-            const who = it.userNom || it.user || 'Utilisateur inconnu';
+            const who = it.userNom || it.user || t('Utilisateur inconnu');
             return (
               <div key={it.id} className="text-xs leading-snug break-words pl-1">
                 <span className="tabular-nums text-muted-foreground">{formatHm(it.date)}</span>
@@ -238,6 +240,7 @@ export default function MesRappelsPage() {
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
+  const t = useT();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // The rappel whose treatment session is being inspected in the read-only
   // replay lightbox (null = closed). Works for both the recipient (own work)
@@ -274,13 +277,13 @@ export default function MesRappelsPage() {
     <div className="space-y-4">
       <header className="flex items-center gap-2">
         <Bell className="h-5 w-5 text-primary" />
-        <h1 className="text-xl font-bold">Mes rappels</h1>
+        <h1 className="text-xl font-bold">{t('Mes rappels')}</h1>
       </header>
 
       <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList>
-          {recusVisible && <TabsTrigger value="recus">Reçus</TabsTrigger>}
-          {envoyesVisible && <TabsTrigger value="envoyes">Envoyés</TabsTrigger>}
+          {recusVisible && <TabsTrigger value="recus">{t('Reçus')}</TabsTrigger>}
+          {envoyesVisible && <TabsTrigger value="envoyes">{t('Envoyés')}</TabsTrigger>}
         </TabsList>
 
         {recusVisible && (
@@ -292,22 +295,22 @@ export default function MesRappelsPage() {
           ) : rappels.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
               <Inbox className="h-10 w-10 mb-3 opacity-30" />
-              <p className="text-sm">Aucun rappel pour le moment.</p>
-              <p className="text-xs mt-1 opacity-70">Les rappels envoyés depuis Gestion des dossiers apparaîtront ici.</p>
+              <p className="text-sm">{t('Aucun rappel pour le moment.')}</p>
+              <p className="text-xs mt-1 opacity-70">{t('Les rappels envoyés depuis Gestion des dossiers apparaîtront ici.')}</p>
             </div>
           ) : (
             <Card className="overflow-x-auto border rounded-lg">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30">
-                    <TableHead className="font-bold text-xs">Référence dossier</TableHead>
-                    <TableHead className="font-bold text-xs">Envoyé par</TableHead>
-                    <TableHead className="font-bold text-xs">Observation</TableHead>
-                    <TableHead className="font-bold text-xs">Date</TableHead>
-                    <TableHead className="font-bold text-xs">Observations</TableHead>
-                    <TableHead className="font-bold text-xs">Modifications</TableHead>
-                    <TableHead className="font-bold text-xs text-right">Statut</TableHead>
-                    <TableHead className="font-bold text-xs text-right">Travail effectué</TableHead>
+                    <TableHead className="font-bold text-xs">{t('Référence dossier')}</TableHead>
+                    <TableHead className="font-bold text-xs">{t('Envoyé par')}</TableHead>
+                    <TableHead className="font-bold text-xs">{t('Observation')}</TableHead>
+                    <TableHead className="font-bold text-xs">{t('Date')}</TableHead>
+                    <TableHead className="font-bold text-xs">{t('Observations')}</TableHead>
+                    <TableHead className="font-bold text-xs">{t('Modifications')}</TableHead>
+                    <TableHead className="font-bold text-xs text-right">{t('Statut')}</TableHead>
+                    <TableHead className="font-bold text-xs text-right">{t('Travail effectué')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -364,11 +367,11 @@ export default function MesRappelsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         {r.resolvedAt ? (
-                          <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-300">Traité</Badge>
+                          <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-300">{t('Traité')}</Badge>
                         ) : r.read ? (
-                          <Badge variant="outline" className="text-muted-foreground border-muted-foreground/30">Lu</Badge>
+                          <Badge variant="outline" className="text-muted-foreground border-muted-foreground/30">{t('Lu')}</Badge>
                         ) : (
-                          <Badge className="bg-primary/10 text-primary border border-primary/30">Nouveau</Badge>
+                          <Badge className="bg-primary/10 text-primary border border-primary/30">{t('Nouveau')}</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -384,7 +387,7 @@ export default function MesRappelsPage() {
                               }}
                             >
                               <ScrollText className="h-3.5 w-3.5" />
-                              Voir le détail
+                              {t('Voir le détail')}
                             </Button>
                           ) : null}
                           <Button
@@ -399,15 +402,15 @@ export default function MesRappelsPage() {
                                   if (typeof window !== 'undefined') {
                                     try { window.localStorage.removeItem(SESSION_KEY(r.dossierId)); } catch {}
                                   }
-                                  toast({ title: 'Rappel marqué comme traité' });
+                                  toast({ title: t('Rappel marqué comme traité') });
                                 })
                                 .catch(() => {
-                                  toast({ title: 'Erreur', description: 'Impossible de marquer comme traité', variant: 'destructive' });
+                                  toast({ title: t('Erreur'), description: t('Impossible de marquer comme traité'), variant: 'destructive' });
                                 });
                             }}
                           >
                             <CheckCircle2 className="h-4 w-4 mr-1" />
-                            Marquer traité
+                            {t('Marquer traité')}
                           </Button>
                         </div>
                       </TableCell>
@@ -429,8 +432,8 @@ export default function MesRappelsPage() {
           ) : sentGroups.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
               <Send className="h-10 w-10 mb-3 opacity-30" />
-              <p className="text-sm">Aucun rappel envoyé pour le moment.</p>
-              <p className="text-xs mt-1 opacity-70">Les rappels que vous envoyez depuis Gestion des dossiers apparaîtront ici.</p>
+              <p className="text-sm">{t('Aucun rappel envoyé pour le moment.')}</p>
+              <p className="text-xs mt-1 opacity-70">{t('Les rappels que vous envoyez depuis Gestion des dossiers apparaîtront ici.')}</p>
             </div>
           ) : (
             <Card className="overflow-x-auto border rounded-lg">
@@ -438,10 +441,10 @@ export default function MesRappelsPage() {
                 <TableHeader>
                   <TableRow className="bg-muted/30">
                     <TableHead className="font-bold text-xs w-8" />
-                    <TableHead className="font-bold text-xs">Destinataire(s)</TableHead>
-                    <TableHead className="font-bold text-xs">Dossiers</TableHead>
-                    <TableHead className="font-bold text-xs">Date</TableHead>
-                    <TableHead className="font-bold text-xs text-right">Statut</TableHead>
+                    <TableHead className="font-bold text-xs">{t('Destinataire(s)')}</TableHead>
+                    <TableHead className="font-bold text-xs">{t('Dossiers')}</TableHead>
+                    <TableHead className="font-bold text-xs">{t('Date')}</TableHead>
+                    <TableHead className="font-bold text-xs text-right">{t('Statut')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -477,7 +480,7 @@ export default function MesRappelsPage() {
                                   g.newCount > 0 ? 'text-primary' : 'text-muted-foreground/50',
                                 )}
                               >
-                                Nouveau {g.newCount}
+                                {t('Nouveau')} {g.newCount}
                               </span>
                               <span
                                 className={cn(
@@ -485,7 +488,7 @@ export default function MesRappelsPage() {
                                   g.readCount > 0 ? 'text-muted-foreground' : 'text-muted-foreground/50',
                                 )}
                               >
-                                Lu {g.readCount}
+                                {t('Lu')} {g.readCount}
                               </span>
                               <span
                                 className={cn(
@@ -497,7 +500,7 @@ export default function MesRappelsPage() {
                                       : 'text-muted-foreground/50',
                                 )}
                               >
-                                Traité {g.treatedCount}
+                                {t('Traité')} {g.treatedCount}
                               </span>
                             </div>
                           </TableCell>
@@ -509,12 +512,12 @@ export default function MesRappelsPage() {
                                 <Table>
                                   <TableHeader>
                                     <TableRow className="bg-transparent">
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Dossier</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Destinataire</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Date</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Suivi</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground text-right py-1">Statut</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground text-right py-1">Travail effectué</TableHead>
+                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">{t('Dossier')}</TableHead>
+                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">{t('Destinataire')}</TableHead>
+                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">{t('Date')}</TableHead>
+                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">{t('Suivi')}</TableHead>
+                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground text-right py-1">{t('Statut')}</TableHead>
+                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground text-right py-1">{t('Travail effectué')}</TableHead>
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
@@ -532,20 +535,20 @@ export default function MesRappelsPage() {
                                         <TableCell className="text-sm tabular-nums py-2">{formatDate(r.createdAt)}</TableCell>
                                         <TableCell className="text-xs text-muted-foreground tabular-nums py-2">
                                           {r.resolvedAt ? (
-                                            <span className="text-emerald-700 dark:text-emerald-400">Sauvegardé le {formatDate(r.resolvedAt)}</span>
+                                            <span className="text-emerald-700 dark:text-emerald-400">{t('Sauvegardé le')} {formatDate(r.resolvedAt)}</span>
                                           ) : (r.seenAt || r.read) ? (
-                                            <span>Consulté{r.seenAt ? ` le ${formatDate(r.seenAt)}` : ''}</span>
+                                            <span>{r.seenAt ? `${t('Consulté le')} ${formatDate(r.seenAt)}` : t('Consulté')}</span>
                                           ) : (
-                                            <span className="opacity-60">Non consulté</span>
+                                            <span className="opacity-60">{t('Non consulté')}</span>
                                           )}
                                         </TableCell>
                                         <TableCell className="text-right py-2">
                                           {r.resolvedAt ? (
-                                            <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-300">Traité</Badge>
+                                            <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-300">{t('Traité')}</Badge>
                                           ) : r.read ? (
-                                            <Badge variant="outline" className="text-muted-foreground border-muted-foreground/30">Lu</Badge>
+                                            <Badge variant="outline" className="text-muted-foreground border-muted-foreground/30">{t('Lu')}</Badge>
                                           ) : (
-                                            <Badge className="bg-primary/10 text-primary border border-primary/30">Nouveau</Badge>
+                                            <Badge className="bg-primary/10 text-primary border border-primary/30">{t('Nouveau')}</Badge>
                                           )}
                                         </TableCell>
                                         <TableCell className="text-right py-2">
@@ -557,7 +560,7 @@ export default function MesRappelsPage() {
                                               onClick={() => setReplayRappel(r)}
                                             >
                                               <ScrollText className="h-3.5 w-3.5" />
-                                              Voir le détail
+                                              {t('Voir le détail')}
                                             </Button>
                                           ) : (
                                             <span className="text-muted-foreground text-xs">—</span>

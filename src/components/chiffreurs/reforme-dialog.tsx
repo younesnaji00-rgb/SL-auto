@@ -22,6 +22,7 @@ import {
 import { generateReformeSummaryPDF } from '@/lib/generate-reforme-summary-pdf';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
+import { useT } from '@/i18n';
 
 export interface ReformeDialogProps {
   dossierId: string;
@@ -45,6 +46,7 @@ export function normalizeReformeType(raw: string | undefined): string {
 }
 
 export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogProps) {
+  const t = useT();
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
@@ -185,19 +187,19 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
           console.error('[reforme-dialog] PDF generation/upload failed', pdfErr);
           toast({
             variant: 'destructive',
-            title: 'Réforme enregistrée — PDF indisponible',
-            description: pdfErr?.message || 'Le rapport PDF n\'a pas pu être généré.',
+            title: t('Réforme enregistrée — PDF indisponible'),
+            description: pdfErr?.message || t("Le rapport PDF n'a pas pu être généré."),
           });
           onOpenChange(false);
           return;
         }
       }
 
-      toast({ title: 'Réforme enregistrée' });
+      toast({ title: t('Réforme enregistrée') });
       onOpenChange(false);
     } catch (e: any) {
       console.error('[reforme-dialog] save failed', e);
-      toast({ variant: 'destructive', title: 'Erreur', description: e?.message || '' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: e?.message || '' });
     } finally {
       setSaving(false);
     }
@@ -207,9 +209,9 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent hideCloseButton className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Réforme</DialogTitle>
+          <DialogTitle>{t('Réforme')}</DialogTitle>
           <DialogDescription>
-            Renseignez les valeurs de réforme du véhicule. Les montants dérivés sont calculés automatiquement.
+            {t('Renseignez les valeurs de réforme du véhicule. Les montants dérivés sont calculés automatiquement.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -222,45 +224,45 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
             {/* Left column */}
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="typeReforme">Type Réforme</Label>
+                <Label htmlFor="typeReforme">{t('Type Réforme')}</Label>
                 <Select
                   value={state.typeReforme || 'Technique'}
                   onValueChange={(v) => set('typeReforme', v)}
                 >
-                  <SelectTrigger id="typeReforme"><SelectValue placeholder="Choisir" /></SelectTrigger>
+                  <SelectTrigger id="typeReforme"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                   <SelectContent>
-                    {REFORME_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    {REFORME_TYPES.map((rt) => (
+                      <SelectItem key={rt} value={rt}>{t(rt)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <NumberField id="valeurVenale" label="Valeur vénale (avec TVA)" value={state.valeurVenale} onChange={(v) => set('valeurVenale', v)} parse={num} />
-              <NumberField id="valeurEpave" label="Valeur épave" value={state.valeurEpave} onChange={(v) => set('valeurEpave', v)} parse={num} />
-              <NumberField id="valeurAchat" label="Valeur D'achat" value={state.valeurAchat} onChange={(v) => set('valeurAchat', v)} parse={num} />
-              <NumberField id="valeurCommerciale" label="Valeur commerciale" value={state.valeurCommerciale} onChange={(v) => set('valeurCommerciale', v)} parse={num} />
+              <NumberField id="valeurVenale" label={t('Valeur vénale (avec TVA)')} value={state.valeurVenale} onChange={(v) => set('valeurVenale', v)} parse={num} />
+              <NumberField id="valeurEpave" label={t('Valeur épave')} value={state.valeurEpave} onChange={(v) => set('valeurEpave', v)} parse={num} />
+              <NumberField id="valeurAchat" label={t("Valeur D'achat")} value={state.valeurAchat} onChange={(v) => set('valeurAchat', v)} parse={num} />
+              <NumberField id="valeurCommerciale" label={t('Valeur commerciale')} value={state.valeurCommerciale} onChange={(v) => set('valeurCommerciale', v)} parse={num} />
 
               <div className="space-y-1.5">
-                <Label htmlFor="difference">La différence des valeurs</Label>
+                <Label htmlFor="difference">{t('La différence des valeurs')}</Label>
                 <Input id="difference" disabled value={difference} className="bg-muted" />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="methodeCalcul">La methode de calcul</Label>
+                <Label htmlFor="methodeCalcul">{t('La methode de calcul')}</Label>
                 <Input id="methodeCalcul" value={state.methodeCalcul} onChange={(e) => set('methodeCalcul', e.target.value)} />
               </div>
             </div>
 
             {/* Right column */}
             <div className="space-y-3">
-              <NumberField id="montantAccord" label="Montant Accord" value={state.montantAccord} onChange={(v) => set('montantAccord', v)} parse={num} />
-              <NumberField id="franchise" label="Franchise" value={state.franchise} onChange={(v) => set('franchise', v)} parse={num} />
-              <NumberField id="montantDeplacement" label="Montant Déplacement" value={state.montantDeplacement} onChange={(v) => set('montantDeplacement', v)} parse={num} />
-              <NumberField id="montantHonoraires" label="Montant Honoraires" value={state.montantHonoraires} onChange={(v) => set('montantHonoraires', v)} parse={num} />
+              <NumberField id="montantAccord" label={t('Montant Accord')} value={state.montantAccord} onChange={(v) => set('montantAccord', v)} parse={num} />
+              <NumberField id="franchise" label={t('Franchise')} value={state.franchise} onChange={(v) => set('franchise', v)} parse={num} />
+              <NumberField id="montantDeplacement" label={t('Montant Déplacement')} value={state.montantDeplacement} onChange={(v) => set('montantDeplacement', v)} parse={num} />
+              <NumberField id="montantHonoraires" label={t('Montant Honoraires')} value={state.montantHonoraires} onChange={(v) => set('montantHonoraires', v)} parse={num} />
 
               <div className="space-y-1.5">
-                <Label htmlFor="totalIndemnisation">Total D'indemnisation</Label>
+                <Label htmlFor="totalIndemnisation">{t("Total D'indemnisation")}</Label>
                 <Input id="totalIndemnisation" disabled value={totalIndemnisation} className="bg-muted font-semibold" />
               </div>
             </div>
@@ -269,11 +271,11 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Annuler
+            {t('Annuler')}
           </Button>
           <Button onClick={handleSave} disabled={loading || saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Déposer Le Dossier
+            {t('Déposer Le Dossier')}
           </Button>
         </DialogFooter>
       </DialogContent>

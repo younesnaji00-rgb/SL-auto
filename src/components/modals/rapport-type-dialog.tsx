@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { FileDown, Loader2 } from 'lucide-react';
 import type { RapportType } from '@/lib/generate-rapport-shared';
+import { useT } from '@/i18n';
 
 interface RapportTypeDialogProps {
   open: boolean;
@@ -52,6 +53,7 @@ export function RapportTypeDialog({
   onConfirm,
   isGenerating = false,
 }: RapportTypeDialogProps) {
+  const t = useT();
   const [selected, setSelected] = useState<RapportType>('final');
 
   const handleConfirm = async () => {
@@ -62,9 +64,9 @@ export function RapportTypeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Générer le rapport</DialogTitle>
+          <DialogTitle>{t('Générer le rapport')}</DialogTitle>
           <DialogDescription>
-            Choisissez le type de rapport à générer.
+            {t('Choisissez le type de rapport à générer.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -89,9 +91,9 @@ export function RapportTypeDialog({
                   htmlFor={`rapport-type-${opt.value}`}
                   className="cursor-pointer text-sm font-semibold"
                 >
-                  {opt.title}
+                  {t(opt.title)}
                 </Label>
-                <p className="text-xs text-muted-foreground">{opt.description}</p>
+                <p className="text-xs text-muted-foreground">{t(opt.description)}</p>
               </div>
             </label>
           ))}
@@ -103,7 +105,7 @@ export function RapportTypeDialog({
             onClick={() => onOpenChange(false)}
             disabled={isGenerating}
           >
-            Annuler
+            {t('Annuler')}
           </Button>
           <Button onClick={handleConfirm} disabled={isGenerating} className="gap-2">
             {isGenerating ? (
@@ -111,7 +113,7 @@ export function RapportTypeDialog({
             ) : (
               <FileDown className="h-4 w-4" />
             )}
-            Générer
+            {t('Générer')}
           </Button>
         </DialogFooter>
       </DialogContent>

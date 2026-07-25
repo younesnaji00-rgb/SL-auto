@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { useCollection, useFirestore } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 
 type ObservationHistorySheetProps = {
   open: boolean;
@@ -16,6 +16,7 @@ type ObservationHistorySheetProps = {
 };
 
 export default function ObservationHistorySheet({ open, onOpenChange, dossier }: ObservationHistorySheetProps) {
+  const t = useT();
   const db = useFirestore();
 
   const historyQuery = useMemo(() => {
@@ -44,16 +45,16 @@ export default function ObservationHistorySheet({ open, onOpenChange, dossier }:
   const formatDate = (ts: any) => {
     if (!ts) return '-';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
-    try { return format(date, 'dd/MM/yyyy HH:mm', { locale: fr }); } catch { return '-'; }
+    try { return format(date, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() }); } catch { return '-'; }
   };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="text-primary">Observations du dossier</SheetTitle>
+          <SheetTitle className="text-primary">{t('Observations du dossier')}</SheetTitle>
           <SheetDescription>
-            {dossier.refExpert ? <>Dossier <span className="font-semibold text-foreground">{dossier.refExpert}</span></> : 'Historique des observations'}
+            {dossier.refExpert ? <>{t('Dossier')} <span className="font-semibold text-foreground">{dossier.refExpert}</span></> : t('Historique des observations')}
           </SheetDescription>
         </SheetHeader>
 
@@ -63,7 +64,7 @@ export default function ObservationHistorySheet({ open, onOpenChange, dossier }:
           ) : !sortedEntries || sortedEntries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
               <Inbox className="h-10 w-10 mb-3 opacity-20" />
-              <p className="text-sm">Aucune observation.</p>
+              <p className="text-sm">{t('Aucune observation.')}</p>
             </div>
           ) : (
             <div className="relative pl-8">
@@ -75,7 +76,7 @@ export default function ObservationHistorySheet({ open, onOpenChange, dossier }:
                     <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
                       <div className="px-4 py-2 text-sm font-semibold bg-amber-50/60 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 flex items-center justify-between gap-2">
                         <span className="truncate">{e.author || '—'}</span>
-                        {e.authorRole && <span className="text-[10px] uppercase tracking-wide opacity-70">{e.authorRole}</span>}
+                        {e.authorRole && <span className="text-[10px] uppercase tracking-wide opacity-70">{t(e.authorRole)}</span>}
                       </div>
                       <div className="p-4 space-y-1.5 text-sm">
                         <p className="whitespace-pre-wrap break-words">{e.text || '—'}</p>

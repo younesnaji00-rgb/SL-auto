@@ -35,6 +35,7 @@ import {
 import { FamilyRow } from '@/components/dossier-timeline/family-row';
 import type { ExtraSlotKind, TypedDoc } from '@/components/dossier-timeline/slot-card';
 import { apiFetch } from '@/lib/api-fetch';
+import { useT } from '@/i18n';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -63,6 +64,7 @@ const CATEGORY_TO_TYPE: Record<string, string> = {
 
 export default function AssignationChiffrageDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const t = useT();
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
@@ -94,13 +96,13 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     if (!db || !id) return;
     const unsub = onSnapshot(doc(db, 'chiffrages', id), (snap) => {
       if (!snap.exists()) {
-        toast({ variant: 'destructive', title: 'Assignation introuvable.' });
+        toast({ variant: 'destructive', title: t('Assignation introuvable.') });
         router.push('/assignations-chiffrage');
         return;
       }
       const data = snap.data() as ChiffrageDoc;
       setChiffrage(data);
-      const label = data.dossierNom || `Chiffrage ${id.slice(0, 6)}`;
+      const label = data.dossierNom || `${t('Chiffrage')} ${id.slice(0, 6)}`;
       openTab(id, label);
       refreshTabLabel(id, label);
       setLoading(false);
@@ -277,8 +279,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const handleImportClick = () => {
     toast({
       variant: 'default',
-      title: 'Import non disponible',
-      description: 'Import non disponible pour le chiffreur.',
+      title: t('Import non disponible'),
+      description: t('Import non disponible pour le chiffreur.'),
     });
   };
 
@@ -318,7 +320,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     if (!db || !chiffrage?.dossierId) return;
     const selected = accordDocs.find((d) => d.id === payload.documentId);
     if (!selected) {
-      toast({ variant: 'destructive', title: 'Document introuvable.' });
+      toast({ variant: 'destructive', title: t('Document introuvable.') });
       return;
     }
 
@@ -374,15 +376,15 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       );
 
       toast({
-        title: 'Mail envoyé',
-        description: `Accord envoyé à ${payload.recipient}.`,
+        title: t('Mail envoyé'),
+        description: `${t('Accord envoyé à')} ${payload.recipient}.`,
       });
     } catch (err: any) {
       console.error('Failed to send accord mail:', err);
       toast({
         variant: 'destructive',
-        title: "Échec de l'envoi",
-        description: err?.message || 'Impossible d\'envoyer le mail.',
+        title: t("Échec de l'envoi"),
+        description: err?.message || t("Impossible d'envoyer le mail."),
       });
       // Re-throw so the dialog keeps the form open for another attempt.
       throw err;
@@ -422,9 +424,9 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           <Link href="/assignations-chiffrage"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold">{chiffrage.dossierNom || 'Sans ref.'}</h1>
+          <h1 className="text-xl font-bold">{chiffrage.dossierNom || t('Sans ref.')}</h1>
           <p className="text-sm text-muted-foreground">
-            Correcteur : <span className="font-bold text-foreground">{chiffrage.assignedChiffreurNom}</span>
+            {t('Correcteur :')} <span className="font-bold text-foreground">{chiffrage.assignedChiffreurNom}</span>
           </p>
         </div>
         {canSendMail && chiffrage.dossierId && (
@@ -435,7 +437,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             onClick={() => setMailDialogOpen(true)}
           >
             <Mail className="h-3.5 w-3.5" />
-            Envoyer par mail
+            {t('Envoyer par mail')}
           </Button>
         )}
         {canEdit && chiffrage.dossierId && (
@@ -446,11 +448,11 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             onClick={() => setReformeOpen(true)}
           >
             <Scale className="h-3.5 w-3.5" />
-            Réforme
+            {t('Réforme')}
           </Button>
         )}
         <Badge variant="outline" className={cn("gap-1.5 py-1 px-3 rounded-full border font-semibold", getStatusBadgeStyles(dossierStatut))}>
-          {dossierStatut}
+          {t(dossierStatut)}
         </Badge>
       </div>
 
@@ -465,7 +467,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       {(devisFamilies.length > 0 || factureFamilies.length > 0) && (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Devis &amp; Factures
+            {t('Devis & Factures')}
           </h2>
           {devisFamilies.map((group) => (
             <FamilyRow

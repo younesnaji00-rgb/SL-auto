@@ -5,6 +5,7 @@ import { FileText, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { parseAccordDocType } from '@/lib/docType-accorde';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
 import { useReplayHighlight, highlightClass, ChangeBadge } from './replay-highlight';
@@ -95,6 +96,7 @@ export function SlotCard({
   hideExtraSlotPlus,
   onEdit,
 }: SlotCardProps) {
+  const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const extraSlotInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = React.useState(false);
@@ -210,7 +212,7 @@ export function SlotCard({
     >
       <CardHeader className="py-2.5 px-3 border-b">
         <CardTitle className="font-semibold text-sm flex items-center justify-between gap-2">
-          <span className="truncate" title={slot}>{slot}</span>
+          <span className="truncate" title={t(slot)}>{t(slot)}</span>
           <span className="flex items-center gap-1 shrink-0">
             {showRenameButton && (
               <Button
@@ -219,8 +221,8 @@ export function SlotCard({
                 size="icon"
                 className="h-6 w-6 text-muted-foreground hover:text-foreground"
                 onClick={onRenameExtraSlot}
-                title="Renommer"
-                aria-label="Renommer le slot"
+                title={t('Renommer')}
+                aria-label={t('Renommer le slot')}
               >
                 <Pencil className="h-3 w-3" />
               </Button>
@@ -235,7 +237,7 @@ export function SlotCard({
         {visibleDocs.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-3">
             <p className="text-xs italic text-muted-foreground text-center">
-              {(parsedAccord || isReformeSlot) ? 'En attente de chiffrage' : 'Aucun document'}
+              {(parsedAccord || isReformeSlot) ? t('En attente de chiffrage') : t('Aucun document')}
             </p>
             {/* Round 9 item 004 — per-slot Éditer button on pending
                 accord/proposition slots, vertically stacked under the
@@ -249,7 +251,7 @@ export function SlotCard({
                 onClick={onEdit}
               >
                 <Pencil className="h-3 w-3" />
-                Éditer
+                {t('Éditer')}
               </Button>
             )}
           </div>
@@ -300,14 +302,14 @@ export function SlotCard({
                       <ChangeBadge status={replayStatus} className="shrink-0" />
                     </p>
                     {d.pendingUpload && (
-                      <p className="text-[10px] text-amber-700">En attente…</p>
+                      <p className="text-[10px] text-amber-700">{t('En attente…')}</p>
                     )}
                     {chiffreurName && (
                       <p
                         className="text-[10px] text-muted-foreground truncate"
-                        title={`Chiffré par ${chiffreurName}`}
+                        title={`${t('Chiffré par')} ${chiffreurName}`}
                       >
-                        Chiffré par {chiffreurName}
+                        {t('Chiffré par')} {chiffreurName}
                       </p>
                     )}
                   </div>
@@ -322,7 +324,7 @@ export function SlotCard({
                         onDelete(d);
                       }}
                       disabled={deletingId === d.id || !!d.pendingUpload}
-                      title="Supprimer"
+                      title={t('Supprimer')}
                     >
                       {deletingId === d.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -358,12 +360,12 @@ export function SlotCard({
               {isUploading ? (
                 <>
                   <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                  Envoi…
+                  {t('Envoi…')}
                 </>
               ) : (
                 <>
                   <Plus className="mr-2 h-3.5 w-3.5" />
-                  Ajouter
+                  {t('Ajouter')}
                 </>
               )}
             </Button>
@@ -384,10 +386,10 @@ export function SlotCard({
           )}
           title={
             cardinalPimpleDisabled
-              ? "En attente de chiffrage : remplissez ce slot avant de créer le suivant."
-              : "Créer le cardinal suivant"
+              ? t('En attente de chiffrage : remplissez ce slot avant de créer le suivant.')
+              : t('Créer le cardinal suivant')
           }
-          aria-label="Créer le cardinal suivant"
+          aria-label={t('Créer le cardinal suivant')}
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
@@ -407,8 +409,8 @@ export function SlotCard({
             type="button"
             onClick={() => extraSlotInputRef.current?.click()}
             className="absolute -right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm shadow hover:scale-110 transition z-10"
-            title={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
-            aria-label={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
+            title={baseExtraKind === 'devis' ? t('Ajouter un devis') : t('Ajouter une facture')}
+            aria-label={baseExtraKind === 'devis' ? t('Ajouter un devis') : t('Ajouter une facture')}
           >
             <Plus className="h-3.5 w-3.5" />
           </button>

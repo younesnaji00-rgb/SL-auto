@@ -10,9 +10,11 @@ import { Label } from '@/components/ui/label';
 import { updateDoc, type DocumentReference } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { DatePicker } from '@/components/ui/date-picker';
+import { useT } from '@/i18n';
 
 export default function VehiculeTab({ dossier, dossierRef }: { dossier: any; dossierRef: DocumentReference }) {
     const { toast } = useToast();
+    const t = useT();
     const [isSaving, setIsSaving] = useState(false);
     const [initialLoadDone, setInitialLoadDone] = useState(false);
     
@@ -58,10 +60,10 @@ export default function VehiculeTab({ dossier, dossierRef }: { dossier: any; dos
         setIsSaving(true);
         try {
             await updateDoc(dossierRef, { vehicule: values });
-            toast({ title: "Véhicule mis à jour" });
+            toast({ title: t('Véhicule mis à jour') });
         } catch (e) {
             console.error(e);
-            toast({ variant: 'destructive', title: "Erreur lors de la sauvegarde" });
+            toast({ variant: 'destructive', title: t('Erreur lors de la sauvegarde') });
         } finally {
             setIsSaving(false);
         }
@@ -69,28 +71,28 @@ export default function VehiculeTab({ dossier, dossierRef }: { dossier: any; dos
 
     return (
         <Card>
-            <CardHeader><CardTitle>Détails du Véhicule</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('Détails du Véhicule')}</CardTitle></CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="space-y-2"><Label>Marque</Label><Input value={values.marque} onChange={e => handleChange('marque', e.target.value)} /></div>
-                    <div className="space-y-2"><Label>Modèle</Label><Input value={values.modele} onChange={e => handleChange('modele', e.target.value)} /></div>
-                    <div className="space-y-2"><Label>Immatriculation</Label><Input value={values.immatriculation} onChange={e => handleChange('immatriculation', e.target.value)} /></div>
-                    <div className="space-y-2"><Label>Numéro de série</Label><Input value={values.serie} onChange={e => handleChange('serie', e.target.value)} /></div>
-                    <div className="space-y-2"><Label>Énergie</Label><Input value={values.energie} onChange={e => handleChange('energie', e.target.value)} /></div>
-                    <div className="space-y-2"><Label>Puissance fiscale</Label><Input value={values.puissance} onChange={e => handleChange('puissance', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('Marque')}</Label><Input value={values.marque} onChange={e => handleChange('marque', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('Modèle')}</Label><Input value={values.modele} onChange={e => handleChange('modele', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('Immatriculation')}</Label><Input value={values.immatriculation} onChange={e => handleChange('immatriculation', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('Numéro de série')}</Label><Input value={values.serie} onChange={e => handleChange('serie', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('Énergie')}</Label><Input value={values.energie} onChange={e => handleChange('energie', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('Puissance fiscale')}</Label><Input value={values.puissance} onChange={e => handleChange('puissance', e.target.value)} /></div>
                     <div className="space-y-2">
-                        <Label>Mise en circ. (Date)</Label>
+                        <Label>{t('Mise en circ. (Date)')}</Label>
                         <DatePicker 
                             value={values.mec} 
                             onChange={(d) => handleChange('mec', d)} 
                         />
                     </div>
-                    <div className="space-y-2"><Label>Kilométrage</Label><Input type="number" value={values.km} onChange={e => handleChange('km', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('Kilométrage')}</Label><Input type="number" value={values.km} onChange={e => handleChange('km', e.target.value)} /></div>
                 </div>
                 <div className="flex justify-end">
                     <Button onClick={handleSave} loading={isSaving}>
                         {!isSaving && <Save className="mr-2 h-4 w-4" />}
-                        {isSaving ? 'Enregistrement...' : 'Sauvegarder'}
+                        {isSaving ? t('Enregistrement...') : t('Sauvegarder')}
                     </Button>
                 </div>
             </CardContent>

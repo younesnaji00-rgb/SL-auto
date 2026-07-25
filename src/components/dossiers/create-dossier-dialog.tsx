@@ -33,6 +33,7 @@ import {
   type ExpertInfo,
 } from '@/lib/create-empty-dossier';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
+import { useT } from '@/i18n';
 
 // Radix Select disallows empty-string values on <SelectItem>.
 const NONE_VALUE = '__none__';
@@ -60,6 +61,7 @@ export function CreateDossierDialog({
   onCreated,
   initialCompagnie,
 }: CreateDossierDialogProps) {
+  const t = useT();
   const { toast } = useToast();
   const auth = useAuth();
   const db = useFirestore();
@@ -135,7 +137,7 @@ export function CreateDossierDialog({
   const handleConfirm = async () => {
     const fbUser = auth?.currentUser;
     if (!fbUser || !db) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Utilisateur non connecté.' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: t('Utilisateur non connecté.') });
       return;
     }
     try {
@@ -174,8 +176,8 @@ export function CreateDossierDialog({
       console.error('Create dossier error:', e);
       toast({
         variant: 'destructive',
-        title: 'Erreur',
-        description: e?.message || 'Impossible de créer le dossier',
+        title: t('Erreur'),
+        description: e?.message || t('Impossible de créer le dossier'),
       });
     } finally {
       setIsCreating(false);
@@ -188,22 +190,22 @@ export function CreateDossierDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nouveau dossier</DialogTitle>
+          <DialogTitle>{t('Nouveau dossier')}</DialogTitle>
           <DialogDescription>
-            Choisissez la compagnie et votre rôle d'expert. Les informations des autres experts peuvent être renseignées ici ou plus tard dans le dossier.
+            {t("Choisissez la compagnie et votre rôle d'expert. Les informations des autres experts peuvent être renseignées ici ou plus tard dans le dossier.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-5 py-2">
           <div className="grid gap-2">
-            <Label htmlFor="create-compagnie">Compagnie</Label>
+            <Label htmlFor="create-compagnie">{t('Compagnie')}</Label>
             <Select
               value={compagnie}
               onValueChange={setCompagnie}
               disabled={isCreating}
             >
               <SelectTrigger id="create-compagnie">
-                <SelectValue placeholder="Choisir une compagnie" />
+                <SelectValue placeholder={t('Choisir une compagnie')} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NONE_VALUE}>—</SelectItem>
@@ -217,7 +219,7 @@ export function CreateDossierDialog({
           </div>
 
           <div className="grid gap-2">
-            <Label>Rôle</Label>
+            <Label>{t('Rôle')}</Label>
             <RadioGroup
               value={expertRole}
               onValueChange={(v) => setExpertRole(v as ExpertRole)}
@@ -231,7 +233,7 @@ export function CreateDossierDialog({
                   className="flex items-center gap-3 rounded-md border p-3 cursor-pointer hover:bg-accent/40"
                 >
                   <RadioGroupItem value={role} id={`role-${role}`} />
-                  <span className="text-sm font-medium">{EXPERT_ROLE_LABELS[role]}</span>
+                  <span className="text-sm font-medium">{t(EXPERT_ROLE_LABELS[role])}</span>
                 </label>
               ))}
             </RadioGroup>
@@ -242,10 +244,10 @@ export function CreateDossierDialog({
               key={role}
               className="grid gap-3 rounded-md border bg-muted/20 p-3"
             >
-              <div className="text-sm font-semibold">{EXPERT_ROLE_LABELS[role]}</div>
+              <div className="text-sm font-semibold">{t(EXPERT_ROLE_LABELS[role])}</div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="grid gap-1.5">
-                  <Label htmlFor={`${role}-nom`} className="text-xs">Nom complet</Label>
+                  <Label htmlFor={`${role}-nom`} className="text-xs">{t('Nom complet')}</Label>
                   <Input
                     id={`${role}-nom`}
                     value={experts[role].nom}
@@ -254,7 +256,7 @@ export function CreateDossierDialog({
                   />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor={`${role}-telephone`} className="text-xs">Téléphone</Label>
+                  <Label htmlFor={`${role}-telephone`} className="text-xs">{t('Téléphone')}</Label>
                   <Input
                     id={`${role}-telephone`}
                     value={experts[role].telephone}
@@ -263,7 +265,7 @@ export function CreateDossierDialog({
                   />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor={`${role}-email`} className="text-xs">Email</Label>
+                  <Label htmlFor={`${role}-email`} className="text-xs">{t('Email')}</Label>
                   <Input
                     id={`${role}-email`}
                     type="email"
@@ -273,7 +275,7 @@ export function CreateDossierDialog({
                   />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor={`${role}-compagnie`} className="text-xs">Compagnie</Label>
+                  <Label htmlFor={`${role}-compagnie`} className="text-xs">{t('Compagnie')}</Label>
                   <Input
                     id={`${role}-compagnie`}
                     value={experts[role].compagnie}
@@ -288,10 +290,10 @@ export function CreateDossierDialog({
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={handleCancel} disabled={isCreating}>
-            Annuler
+            {t('Annuler')}
           </Button>
           <Button onClick={handleConfirm} loading={isCreating}>
-            Créer
+            {t('Créer')}
           </Button>
         </DialogFooter>
       </DialogContent>

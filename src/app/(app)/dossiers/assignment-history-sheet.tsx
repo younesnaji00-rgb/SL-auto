@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useCollection, useFirestore } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 
 type AssignmentHistorySheetProps = {
   open: boolean;
@@ -22,6 +22,7 @@ type AssignmentHistorySheetProps = {
 };
 
 export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: AssignmentHistorySheetProps) {
+  const t = useT();
   const db = useFirestore();
 
   // Fetch historique entries that are assignment-related
@@ -50,7 +51,7 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
     if (!ts) return '-';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
     try {
-      return format(date, "dd MMM yyyy 'à' HH:mm", { locale: fr });
+      return format(date, "dd MMM yyyy 'à' HH:mm", { locale: dateFnsLocale() });
     } catch {
       return '-';
     }
@@ -81,22 +82,22 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>Assignations — {dossier.refExpert || 'Dossier'}</SheetTitle>
+          <SheetTitle>{t('Assignations')} — {dossier.refExpert || t('Dossier')}</SheetTitle>
           <SheetDescription>
-            Historique des assignations chiffrage et planification.
+            {t('Historique des assignations chiffrage et planification.')}
           </SheetDescription>
         </SheetHeader>
         <div className="py-6 pr-4 space-y-6 overflow-y-auto max-h-[calc(100vh-150px)]">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground italic">Chargement...</p>
+              <p className="text-sm text-muted-foreground italic">{t('Chargement...')}</p>
             </div>
           ) : !hasData ? (
             <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 border-2 border-dashed rounded-xl bg-muted/20">
               <Inbox className="h-10 w-10 text-muted-foreground/30" />
               <p className="text-sm text-muted-foreground italic px-6">
-                Aucune assignation pour ce dossier.
+                {t('Aucune assignation pour ce dossier.')}
               </p>
             </div>
           ) : (
@@ -105,17 +106,17 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
               {assignmentEntries.length > 0 && (
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                    <Send className="h-3.5 w-3.5" /> Chiffrage
+                    <Send className="h-3.5 w-3.5" /> {t('Chiffrage')}
                   </h3>
                   <div className="space-y-3">
                     {assignmentEntries.map((entry: any) => (
                       <div key={entry.id} className="p-3 rounded-lg border bg-card space-y-1">
-                        <p className="text-sm font-medium">{entry.action}</p>
+                        <p className="text-sm font-medium">{t(entry.action)}</p>
                         {entry.details && (
                           <p className="text-xs text-muted-foreground">{entry.details}</p>
                         )}
                         <p className="text-[11px] text-muted-foreground">
-                          {formatDate(entry.date)} par <span className="font-semibold text-primary">{entry.user}</span>
+                          {formatDate(entry.date)} {t('par')} <span className="font-semibold text-primary">{entry.user}</span>
                         </p>
                       </div>
                     ))}
@@ -127,20 +128,20 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
               {planificationEntries.length > 0 && (
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                    <MapPin className="h-3.5 w-3.5" /> Planification
+                    <MapPin className="h-3.5 w-3.5" /> {t('Planification')}
                   </h3>
                   <div className="space-y-3">
                     {planificationEntries.map((entry: any) => (
                       <div key={entry.id} className="p-3 rounded-lg border bg-card space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">Agent : {entry.agent}</span>
-                          {entry.mission && <Badge variant="outline" className="text-[10px]">{entry.mission}</Badge>}
+                          <span className="text-sm font-medium">{t('Agent :')} {entry.agent}</span>
+                          {entry.mission && <Badge variant="outline" className="text-[10px]">{t(entry.mission)}</Badge>}
                         </div>
                         {entry.zone && (
-                          <p className="text-xs text-muted-foreground">Zone : {entry.zone}</p>
+                          <p className="text-xs text-muted-foreground">{t('Zone :')} {entry.zone}</p>
                         )}
                         <p className="text-[11px] text-muted-foreground">
-                          {formatDate(entry.date)} par <span className="font-semibold text-primary">{entry.modifiedBy}</span>
+                          {formatDate(entry.date)} {t('par')} <span className="font-semibold text-primary">{entry.modifiedBy}</span>
                         </p>
                       </div>
                     ))}

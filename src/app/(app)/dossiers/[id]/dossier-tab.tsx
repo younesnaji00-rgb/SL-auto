@@ -18,11 +18,13 @@ import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useT } from '@/i18n';
 
 export default function DossierTab({ dossierId }: { dossierId: string }) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
+  const t = useT();
   const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('dossiers');
 
@@ -134,16 +136,16 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
 
       await updateDoc(dossierRef, payload);
       await logHistorique(db, dossierId, 'Mise à jour dossier', userEmail, 'Informations générales du dossier mises à jour.', 'autre', profile?.nom);
-      toast({ title: "Dossier mis à jour avec succès" });
+      toast({ title: t('Dossier mis à jour avec succès') });
     } catch (error) {
       console.error(error);
-      toast({ variant: 'destructive', title: "Erreur lors de la mise à jour" });
+      toast({ variant: 'destructive', title: t('Erreur lors de la mise à jour') });
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground">Chargement du dossier...</div>;
+  if (loading) return <div className="p-8 text-center text-muted-foreground">{t('Chargement du dossier...')}</div>;
 
   return (
     <div className="space-y-6">
@@ -152,7 +154,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
           <Card className="border-primary/10">
             <CardContent className="pt-6 space-y-6">
               <div className="space-y-3">
-                <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Expert</Label>
+                <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">{t('Expert')}</Label>
                 <RadioGroup 
                   value={formValues.expertRank} 
                   onValueChange={(v) => setFormValues({...formValues, expertRank: v})}
@@ -161,7 +163,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                   {['1er expert', '2eme expert', 'Arbitre'].map((rank) => (
                     <div key={rank} className="flex items-center space-x-2 bg-muted/30 px-3 py-2 rounded-md border border-transparent hover:border-primary/20 transition-colors">
                       <RadioGroupItem value={rank} id={rank} />
-                      <Label htmlFor={rank} className="cursor-pointer capitalize">{rank}</Label>
+                      <Label htmlFor={rank} className="cursor-pointer capitalize">{t(rank)}</Label>
                     </div>
                   ))}
                 </RadioGroup>
@@ -170,11 +172,11 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label>Compagnie d'assurance</Label>
-                    <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
+                    <Label>{t("Compagnie d'assurance")}</Label>
+                    <OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />
                   </div>
                   <Select value={formValues.compagnie} onValueChange={(v) => setFormValues({...formValues, compagnie: v})}>
-                    <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                     <SelectContent>
                       {compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
                     </SelectContent>
@@ -182,11 +184,11 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label>Type Dossier</Label>
-                    <OptionsManagerModal collectionName="options_types_dossier" title="Types de dossier" />
+                    <Label>{t('Type Dossier')}</Label>
+                    <OptionsManagerModal collectionName="options_types_dossier" title={t('Types de dossier')} />
                   </div>
                   <Select value={formValues.typeDossier} onValueChange={(v) => setFormValues({...formValues, typeDossier: v})}>
-                    <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                     <SelectContent>
                       {dossierTypes.map(t => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
                     </SelectContent>
@@ -194,11 +196,11 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <div className="flex items-center justify-between">
-                    <Label>Nature du dossier</Label>
-                    <OptionsManagerModal collectionName="options_natures" title="Natures" />
+                    <Label>{t('Nature du dossier')}</Label>
+                    <OptionsManagerModal collectionName="options_natures" title={t('Natures')} />
                   </div>
                   <Select value={formValues.nature} onValueChange={(v) => setFormValues({...formValues, nature: v})}>
-                    <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                     <SelectContent>
                       {natures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
                     </SelectContent>
@@ -209,39 +211,39 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
               <div className="space-y-4 pt-4 border-t border-dashed">
                 <div className="flex items-center gap-2 text-primary">
                   <User className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-bold uppercase">Informations Assuré</span>
+                  <span className="text-sm font-bold uppercase">{t('Informations Assuré')}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Assuré</Label>
+                    <Label>{t('Assuré')}</Label>
                     <Input 
                       value={formValues.assure.nom} 
                       onChange={(e) => setFormValues({...formValues, assure: {...formValues.assure, nom: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Tel Assuré</Label>
+                    <Label>{t('Tel Assuré')}</Label>
                     <Input 
                       value={formValues.assure.telephone} 
                       onChange={(e) => setFormValues({...formValues, assure: {...formValues.assure, telephone: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Tel Whatsapp</Label>
+                    <Label>{t('Tel Whatsapp')}</Label>
                     <Input 
                       value={formValues.assure.whatsapp} 
                       onChange={(e) => setFormValues({...formValues, assure: {...formValues.assure, whatsapp: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Autre Tel</Label>
+                    <Label>{t('Autre Tel')}</Label>
                     <Input 
                       value={formValues.assure.telephone2} 
                       onChange={(e) => setFormValues({...formValues, assure: {...formValues.assure, telephone2: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Date Requête</Label>
+                    <Label>{t('Date Requête')}</Label>
                     <DatePicker 
                       value={formValues.dateRequete} 
                       onChange={(d) => setFormValues({...formValues, dateRequete: d})} 
@@ -259,53 +261,53 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-primary">
                   <Car className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-bold uppercase">Véhicule</span>
+                  <span className="text-sm font-bold uppercase">{t('Véhicule')}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Marque</Label>
+                    <Label>{t('Marque')}</Label>
                     <Input 
                       value={formValues.vehicule.marque} 
                       onChange={(e) => setFormValues({...formValues, vehicule: {...formValues.vehicule, marque: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Modèle</Label>
+                    <Label>{t('Modèle')}</Label>
                     <Input 
                       value={formValues.vehicule.modele} 
                       onChange={(e) => setFormValues({...formValues, vehicule: {...formValues.vehicule, modele: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Immatriculation</Label>
+                    <Label>{t('Immatriculation')}</Label>
                     <Input
                       value={formValues.vehicule.immatriculation}
                       onChange={(e) => setFormValues({...formValues, vehicule: {...formValues.vehicule, immatriculation: e.target.value}})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Immatriculation antérieure</Label>
+                    <Label>{t('Immatriculation antérieure')}</Label>
                     <Input
                       value={formValues.vehicule.immatriculationAnterieur}
                       onChange={(e) => setFormValues({...formValues, vehicule: {...formValues.vehicule, immatriculationAnterieur: e.target.value}})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Immatriculation W</Label>
+                    <Label>{t('Immatriculation W')}</Label>
                     <Input 
                       value={formValues.vehicule.registrationW} 
                       onChange={(e) => setFormValues({...formValues, vehicule: {...formValues.vehicule, registrationW: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Date Sinistre</Label>
+                    <Label>{t('Date Sinistre')}</Label>
                     <DatePicker 
                       value={formValues.dateSinistre} 
                       onChange={(d) => setFormValues({...formValues, dateSinistre: d})} 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Date de MEC</Label>
+                    <Label>{t('Date de MEC')}</Label>
                     <DatePicker 
                       value={formValues.vehicule.mec} 
                       onChange={(d) => setFormValues({...formValues, vehicule: {...formValues.vehicule, mec: d}})} 
@@ -317,18 +319,18 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
               <div className="space-y-4 pt-4 border-t border-dashed">
                 <div className="flex items-center gap-2 text-primary">
                   <Info className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-bold uppercase">Administration & Garage</span>
+                  <span className="text-sm font-bold uppercase">{t('Administration & Garage')}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Intermédiaire</Label>
+                    <Label>{t('Intermédiaire')}</Label>
                     <Input 
                       value={formValues.intermediaire.nom} 
                       onChange={(e) => setFormValues({...formValues, intermediaire: {...formValues.intermediaire, nom: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>E-mail Intermédiaire</Label>
+                    <Label>{t('E-mail Intermédiaire')}</Label>
                     <Input 
                       type="email"
                       value={formValues.intermediaire.email} 
@@ -336,14 +338,14 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Ref Compagnie</Label>
+                    <Label>{t('Ref Compagnie')}</Label>
                     <Input 
                       value={formValues.referenceCompagnie} 
                       onChange={(e) => setFormValues({...formValues, referenceCompagnie: e.target.value})} 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>N° de Police</Label>
+                    <Label>{t('N° de Police')}</Label>
                     <Input 
                       value={formValues.policeNumber} 
                       onChange={(e) => setFormValues({...formValues, policeNumber: e.target.value})} 
@@ -351,18 +353,18 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label>Réparateur</Label>
-                      <OptionsManagerModal collectionName="options_reparateur_types" title="Types de réparateur" />
+                      <Label>{t('Réparateur')}</Label>
+                      <OptionsManagerModal collectionName="options_reparateur_types" title={t('Types de réparateur')} />
                     </div>
                     <Select value={formValues.repairerType} onValueChange={(v) => setFormValues({...formValues, repairerType: v})}>
-                      <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                       <SelectContent>
                         {repairerTypes.map(r => <SelectItem key={r.id} value={r.label}>{r.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Nom Garage</Label>
+                    <Label>{t('Nom Garage')}</Label>
                     <Input 
                       value={formValues.garageName} 
                       onChange={(e) => setFormValues({...formValues, garageName: e.target.value})} 
@@ -378,19 +380,19 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-6 border-t">
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2">
-            + Information Adversaire
+            {t('+ Information Adversaire')}
           </Button>
           <Button variant="outline" size="sm" className="gap-2">
-            + Information Expert
+            {t('+ Information Expert')}
           </Button>
         </div>
         {canEdit && (
           <div className="flex gap-3">
             <Button variant="ghost" onClick={() => window.location.reload()}>
-              Annuler
+              {t('Annuler')}
             </Button>
             <Button onClick={handleSave} loading={isSaving} className="min-w-[140px] shadow-lg shadow-primary/20">
-              {isSaving ? "Mise à jour..." : "Mettre à jour"}
+              {isSaving ? t('Mise à jour...') : t('Mettre à jour')}
             </Button>
           </div>
         )}

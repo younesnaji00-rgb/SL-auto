@@ -3,9 +3,11 @@
 import React from 'react';
 import { WifiOff, CloudUpload, Loader2 } from 'lucide-react';
 import { useOfflineSync } from '@/hooks/use-offline-sync';
+import { useT } from '@/i18n';
 
 export function OfflineIndicator() {
   const { isOnline, pendingCount } = useOfflineSync();
+  const t = useT();
 
   if (isOnline && pendingCount === 0) return null;
 
@@ -14,11 +16,11 @@ export function OfflineIndicator() {
       <div className="flex items-center gap-2 px-4 py-2 bg-amber-100/60 dark:bg-amber-950/50 border-b border-amber-200/70 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-sm">
         <WifiOff className="h-4 w-4 shrink-0" />
         <span>
-          Mode hors ligne &mdash; Vos modifications seront synchronis&eacute;es automatiquement une fois reconnect&eacute;.
+          {t('Mode hors ligne — Vos modifications seront synchronisées automatiquement une fois reconnecté.')}
         </span>
         {pendingCount > 0 && (
           <span className="ml-auto shrink-0 font-medium">
-            {pendingCount} fichier{pendingCount > 1 ? 's' : ''} en attente
+            {pendingCount} {pendingCount > 1 ? t('fichiers en attente') : t('fichier en attente')}
           </span>
         )}
       </div>
@@ -31,7 +33,8 @@ export function OfflineIndicator() {
       <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
       <CloudUpload className="h-4 w-4 shrink-0" />
       <span>
-        Synchronisation en cours &mdash; {pendingCount} fichier{pendingCount > 1 ? 's' : ''} en cours d&apos;envoi...
+        {t('Synchronisation en cours —')} {pendingCount}{' '}
+        {pendingCount > 1 ? t("fichiers en cours d'envoi...") : t("fichier en cours d'envoi...")}
       </span>
     </div>
   );

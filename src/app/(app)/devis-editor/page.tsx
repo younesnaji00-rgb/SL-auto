@@ -5,8 +5,10 @@ import { useSearchParams } from 'next/navigation';
 import { PageLoader } from '@/components/ui/page-loader';
 import { DevisEditor } from '@/components/chiffreurs/devis-editor';
 import { isEditableDocType, type EditableDocType } from '@/lib/devis-schema';
+import { useT } from '@/i18n';
 
 function DevisEditorInner() {
+  const t = useT();
   const searchParams = useSearchParams();
   const chiffrageId = searchParams.get('chiffrageId') || '';
   const docTypeRaw = searchParams.get('docType') || 'Devis Garage';
@@ -16,7 +18,7 @@ function DevisEditorInner() {
   if (!chiffrageId) {
     return (
       <div className="max-w-screen-lg mx-auto px-6 py-10 text-sm text-muted-foreground">
-        Paramètres manquants : chiffrageId est requis.
+        {t('Paramètres manquants : chiffrageId est requis.')}
       </div>
     );
   }
@@ -25,8 +27,9 @@ function DevisEditorInner() {
 }
 
 export default function DevisEditorPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<PageLoader label="Chargement de l'éditeur…" />}>
+    <Suspense fallback={<PageLoader label={t("Chargement de l'éditeur…")} />}>
       <DevisEditorInner />
     </Suspense>
   );

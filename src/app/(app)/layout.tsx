@@ -15,6 +15,7 @@ import ChiffrageTabsBar from '@/components/layout/chiffrage-tabs-bar';
 import { useRouter, usePathname } from 'next/navigation';
 import { PageLoader } from '@/components/ui/page-loader';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 
 /** Routes that want to use the full inset width (no padding, no max-w cap). */
 const FULL_WIDTH_ROUTES = ['/devis-editor'];
@@ -22,6 +23,7 @@ const FULL_WIDTH_ROUTES = ['/devis-editor'];
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { firebaseUser, loading } = useCurrentUser();
   const router = useRouter();
+  const t = useT();
 
   React.useEffect(() => {
     if (!loading && !firebaseUser) {
@@ -32,7 +34,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <PageLoader label="Chargement..." />
+        <PageLoader label={t('Chargement...')} />
       </div>
     );
   }

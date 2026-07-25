@@ -3,12 +3,33 @@ import { ai } from '@/ai/genkit';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
 import { requireAuth, authErrorResponse } from '@/lib/require-auth';
+import { BRAND } from '@/lib/brand';
 
 /**
  * AI Rapport Scanner API.
  * Extracts structured rapport data from repair invoices, expert reports, or estimate documents.
  * Returns JSON matching the rapport tab structure: pieces, main d'oeuvre, points de choc, observation.
  */
+
+// Market-specific prompt fragments. MA is the original Moroccan prompt text,
+// verbatim; CA swaps in Canadian sales taxes, CAD prices and labour rates.
+const RAPPORT_MARKET_MA = {
+  country: 'au Maroc',
+  taxLine: `TVA standard au Maroc: 20%.`,
+  currency: 'MAD',
+  ttcRule: `Si seul le TTC est disponible, divise par 1.20 pour obtenir le HT.`,
+  labourRate: `80 MAD/h`,
+};
+
+const RAPPORT_MARKET_CA = {
+  country: 'au Canada',
+  taxLine: `Taxes de vente au Canada: TPS/GST 5% + TVQ/QST 9,975% (Québec, total 14,975%) ou TVH/HST 13% (Ontario).`,
+  currency: 'CAD',
+  ttcRule: `Si seul le montant taxes incluses est disponible, divise par 1.14975 (Québec, TPS+TVQ) ou par 1.13 (Ontario, TVH) pour obtenir le HT, selon la taxe indiquée sur le document.`,
+  labourRate: `90 CAD/h`,
+};
+
+const RAPPORT_MARKET = BRAND.market === 'CA' ? RAPPORT_MARKET_CA : RAPPORT_MARKET_MA;
 export async function POST(req: NextRequest) {
   try {
     await requireAuth(req);
@@ -25,7 +46,7 @@ export async function POST(req: NextRequest) {
       config: { responseMimeType: 'application/json' },
       prompt: [
         {
-          text: `Tu es un système d'extraction de données de haute précision spécialisé dans les rapports d'expertise automobile au Maroc. Tu analyses des factures de réparation, devis, rapports d'expertise, ou documents similaires pour en extraire les données structurées.
+          text: `Tu es un système d'extraction de données de haute précision spécialisé dans les rapports d'expertise automobile ${RAPPORT_MARKET.country}. Tu analyses des factures de réparation, devis, rapports d'expertise, ou documents similaires pour en extraire les données structurées.
 
 CONTEXTE:
 - Les documents sont des rapports d'expertise automobile, factures de réparation, devis de carrosserie/mécanique.
@@ -35,7 +56,7 @@ CONTEXTE:
 - Les types de choc vont de "Choc 1" à "Choc 10".
 - Les zones de choc (dessus): AR, ARG, ARD, LATG, LATD, AVG, AVD, AV, Toit.
 - Les zones de choc (dessous): suspensionAV, soubassementAV, plancher, transmission, differentiel, suspensionAR, echappement, reservoir.
-- TVA standard au Maroc: 20%.
+- ${RAPPORT_MARKET.taxLine}
 
 TÂCHE:
 Analyse minutieusement ce document et extrais TOUTES les informations relatives au rapport d'expertise. Extrais chaque pièce/ligne de devis individuellement.
@@ -49,7 +70,7 @@ SCHÉMA JSON STRICT — renvoie exactement cette structure:
       "typePiece": "ORG" | "ADP" | "REC" | "ORGs" | "ADPs" | "RECs" | "P.P" | "P.Ps" | "R.P" | "R.Ps",
       "vetuste": number (pourcentage, 0-100),
       "quantite": number,
-      "puHT": number (prix unitaire hors taxe en MAD),
+      "puHT": number (prix unitaire hors taxe en ${RAPPORT_MARKET.currency}),
       "remise": number (pourcentage de remise, 0-100),
       "tva": boolean (true si TVA applicable),
       "typeChoc": "Choc 1" | "Choc 2" | ... | "Choc 10"
@@ -81,11 +102,11 @@ RÈGLES STRICTES:
 3. Si le type de choc n'est pas spécifié dans le document, utilise "Choc 1" par défaut.
 4. Si le type de pièce n'est pas clair, utilise "P.Ps" par défaut.
 5. Si l'opération n'est pas spécifiée, déduis-la du contexte: "Echange" pour remplacement, "Réparation" pour remise en état, "Peinture" pour travaux de peinture.
-6. Prix: Extrais le prix unitaire HT. Si seul le TTC est disponible, divise par 1.20 pour obtenir le HT.
+6. Prix: Extrais le prix unitaire HT. ${RAPPORT_MARKET.ttcRule}
 7. Vétusté: Si mentionnée, extrais le pourcentage. Sinon, mets 0.
 8. Remise: Si mentionnée, extrais le pourcentage. Sinon, mets 0.
 9. TVA: true par défaut sauf indication contraire.
-10. Main d'oeuvre: Extrais les heures et tarif horaire pour chaque type. Si le PU n'est pas spécifié, utilise 80 MAD/h par défaut.
+10. Main d'oeuvre: Extrais les heures et tarif horaire pour chaque type. Si le PU n'est pas spécifié, utilise ${RAPPORT_MARKET.labourRate} par défaut.
 11. Points de choc: Détermine les zones impactées d'après les pièces et descriptions. Si une pièce est "pare-chocs avant", marque AV comme true.
 12. Observation: Extrais toute remarque, observation ou conclusion de l'expert.
 13. Si une section n'est pas trouvée dans le document, renvoie un tableau vide pour pieces, des valeurs à 0 pour mainOeuvre, false pour tous les pointsChoc, et null pour observationExpert.

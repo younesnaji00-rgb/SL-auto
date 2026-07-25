@@ -9,6 +9,7 @@
  */
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { t } from '@/i18n';
 import { resolveRapportData, type RapportData } from './rapport-data';
 import { type ReformeData } from './reforme-schema';
 import { fC, NAVY, BORDER, HEADER_BG, COMPANY_CITY, addImageSafe } from './generate-rapport-shared';
@@ -58,13 +59,13 @@ export function buildReformeSummary(data: RapportData, reforme: ReformeData): js
   // ── Header ──────────────────────────────────────────────────────────
   let y = 14;
   setText(9, true);
-  pdf.text(`CABINET : ${data.cabinetNom}`, marginL, y);
-  pdf.text(`EXPERT : ${data.expertNom}`, marginR, y, { align: 'right' });
+  pdf.text(`${t('CABINET :')} ${data.cabinetNom}`, marginL, y);
+  pdf.text(`${t('EXPERT :')} ${data.expertNom}`, marginR, y, { align: 'right' });
   y += 5;
   setText(8, false, [40, 40, 40]);
   pdf.text(
-    `Réf sinistre : ${data.referenceCompagnie}   Date sinistre : ${data.dateSinistre}` +
-      `   Date mission : ${data.dateMission}   Assurance : ${data.compagnie}`,
+    `${t('Réf sinistre :')} ${data.referenceCompagnie}   ${t('Date sinistre :')} ${data.dateSinistre}` +
+      `   ${t('Date mission :')} ${data.dateMission}   ${t('Assurance :')} ${data.compagnie}`,
     marginL,
     y,
   );
@@ -76,7 +77,7 @@ export function buildReformeSummary(data: RapportData, reforme: ReformeData): js
 
   // ── Title ───────────────────────────────────────────────────────────
   setText(13, true);
-  pdf.text(`RÉFORME ${typeReforme.toUpperCase()} : ${data.refExpert}`, pageW / 2, y, {
+  pdf.text(`${t('RÉFORME')} ${t(typeReforme).toUpperCase()} : ${data.refExpert}`, pageW / 2, y, {
     align: 'center',
   });
   y += 7;
@@ -87,10 +88,10 @@ export function buildReformeSummary(data: RapportData, reforme: ReformeData): js
     margin: { left: marginL, right: pageW - marginR },
     tableWidth: contentW,
     body: [
-      ['Assuré', data.assure.fullName || ''],
-      ['Véhicule', data.vehicule.marqueModele || ''],
-      ['Immatriculation', data.vehicule.immatriculation || ''],
-      ["Cie d'assurance", data.compagnie || ''],
+      [t('Assuré'), data.assure.fullName || ''],
+      [t('Véhicule'), data.vehicule.marqueModele || ''],
+      [t('Immatriculation'), data.vehicule.immatriculation || ''],
+      [t("Cie d'assurance"), data.compagnie || ''],
     ],
     styles: { fontSize: 8, cellPadding: 1.4, lineColor: [BORDER[0], BORDER[1], BORDER[2]], lineWidth: 0.2 },
     theme: 'grid',
@@ -103,30 +104,30 @@ export function buildReformeSummary(data: RapportData, reforme: ReformeData): js
 
   // ── Réforme values table ────────────────────────────────────────────
   setText(9, true);
-  pdf.text('VALEURS DE RÉFORME', marginL, y);
+  pdf.text(t('VALEURS DE RÉFORME'), marginL, y);
   y += 2.5;
 
   const valueRows: Array<[string, string]> = [
-    ['Type Réforme', typeReforme],
-    ['Valeur vénale (avec TVA)', fC(reforme.valeurVenale)],
-    ['Valeur épave', fC(reforme.valeurEpave)],
-    ["Valeur d'achat", fC(reforme.valeurAchat)],
-    ['Valeur commerciale', fC(reforme.valeurCommerciale)],
-    ['La différence des valeurs', fC(reforme.difference)],
-    ['La méthode de calcul', reforme.methodeCalcul || ''],
-    ['Montant accord', fC(reforme.montantAccord)],
-    ['Franchise', fC(reforme.franchise)],
-    ['Montant déplacement', fC(reforme.montantDeplacement)],
-    ['Montant honoraires', fC(reforme.montantHonoraires)],
+    [t('Type Réforme'), t(typeReforme)],
+    [t('Valeur vénale (avec TVA)'), fC(reforme.valeurVenale)],
+    [t('Valeur épave'), fC(reforme.valeurEpave)],
+    [t("Valeur d'achat"), fC(reforme.valeurAchat)],
+    [t('Valeur commerciale'), fC(reforme.valeurCommerciale)],
+    [t('La différence des valeurs'), fC(reforme.difference)],
+    [t('La méthode de calcul'), reforme.methodeCalcul || ''],
+    [t('Montant accord'), fC(reforme.montantAccord)],
+    [t('Franchise'), fC(reforme.franchise)],
+    [t('Montant déplacement'), fC(reforme.montantDeplacement)],
+    [t('Montant honoraires'), fC(reforme.montantHonoraires)],
   ];
 
   autoTable(pdf, {
     startY: y,
     margin: { left: marginL, right: pageW - marginR },
     tableWidth: contentW,
-    head: [['Désignation', 'Valeur']],
+    head: [[t('Désignation'), t('Valeur')]],
     body: valueRows,
-    foot: [["Total d'indemnisation", fC(reforme.totalIndemnisation)]],
+    foot: [[t("Total d'indemnisation"), fC(reforme.totalIndemnisation)]],
     styles: { fontSize: 8.5, cellPadding: 1.6, lineColor: [BORDER[0], BORDER[1], BORDER[2]], lineWidth: 0.2 },
     headStyles: { fillColor: [NAVY[0], NAVY[1], NAVY[2]], textColor: [255, 255, 255], fontSize: 8.5 },
     footStyles: { fillColor: [HEADER_BG[0], HEADER_BG[1], HEADER_BG[2]], textColor: [NAVY[0], NAVY[1], NAVY[2]], fontStyle: 'bold', fontSize: 9 },
@@ -146,8 +147,8 @@ export function buildReformeSummary(data: RapportData, reforme: ReformeData): js
   pdf.setLineWidth(0.3);
   pdf.line(marginL, 284, marginR, 284);
   setText(8, false, [40, 40, 40]);
-  pdf.text(`Expert : ${data.expertNom}`, marginL, 289);
-  pdf.text(`Fait à ${COMPANY_CITY} le ${data.today}`, marginR, 289, { align: 'right' });
+  pdf.text(`${t('Expert :')} ${data.expertNom}`, marginL, 289);
+  pdf.text(`${t('Fait à')} ${COMPANY_CITY} ${t('le')} ${data.today}`, marginR, 289, { align: 'right' });
 
   return pdf;
 }

@@ -19,6 +19,7 @@ import { isEditableDocType } from '@/lib/devis-schema';
 import { parseAccordDocType, mapToAccorde, parseAccordeParent } from '@/lib/docType-accorde';
 import { buildDocFamilies, collectFamilySlotLabels } from '@/lib/doc-family';
 import { useToast } from '@/hooks/use-toast';
+import { useT } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 import { SlotCard, isImage, type ExtraSlotKind, type TypedDoc } from './slot-card';
@@ -152,6 +153,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   const auth = useAuth();
   const storage = useStorage();
   const { toast } = useToast();
+  const t = useT();
   const { canWrite, canDelete, profile } = useCurrentUser();
   // Gestionnaires / Admins edit via 'dossiers' section; ATG edits this same grid
   // through their own assignation section. Upload is allowed for either.
@@ -443,14 +445,14 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
 
       if (failCount === 0) {
         toast({
-          title: successCount === 1 ? 'Document uploadé' : `${successCount} documents uploadés`,
-          description: `Ajouté(s) dans "${slot}".`,
+          title: successCount === 1 ? t('Document uploadé') : `${successCount} ${t('documents uploadés')}`,
+          description: `${t('Ajouté(s) dans')} "${t(slot)}".`,
         });
       } else {
         toast({
           variant: 'destructive',
-          title: `${failCount} échec(s)`,
-          description: `${successCount}/${results.length} documents uploadés dans "${slot}".`,
+          title: `${failCount} ${t('échec(s)')}`,
+          description: `${successCount}/${results.length} ${t('documents uploadés dans')} "${t(slot)}".`,
         });
         results.forEach((r, i) => {
           if (r.status === 'rejected') console.error(`Upload failed for ${files[i].name}:`, r.reason);
@@ -494,15 +496,15 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     if (!db) return;
     const kind = extraSlotKindByLabel[oldLabel];
     if (!kind) return;
-    const raw = window.prompt(`Renommer « ${oldLabel} » :`, oldLabel);
+    const raw = window.prompt(`${t('Renommer')} « ${oldLabel} » :`, oldLabel);
     if (raw == null) return;
     const newLabel = raw.trim();
     if (!newLabel || newLabel === oldLabel) return;
     if (allSlotLabels.has(newLabel)) {
       toast({
         variant: 'destructive',
-        title: 'Nom déjà utilisé',
-        description: 'Un autre slot porte déjà ce nom.',
+        title: t('Nom déjà utilisé'),
+        description: t('Un autre slot porte déjà ce nom.'),
       });
       return;
     }
@@ -518,13 +520,13 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           }),
         ),
       );
-      toast({ title: `Slot renommé : ${newLabel}` });
+      toast({ title: `${t('Slot renommé :')} ${newLabel}` });
     } catch (err: any) {
       console.error('[typed-docs-grid] rename extra slot failed', err);
       toast({
         variant: 'destructive',
-        title: 'Erreur lors du renommage',
-        description: err?.message || 'Impossible de renommer le slot.',
+        title: t('Erreur lors du renommage'),
+        description: err?.message || t('Impossible de renommer le slot.'),
       });
     }
   };
@@ -548,7 +550,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     const accordExists = existingTypes.has(accordLabel);
     const propExists = existingTypes.has(propLabel);
     if (accordExists && propExists) {
-      toast({ title: `Les slots de cardinal ${nextOrdinal} existent déjà.` });
+      toast({ title: `${t('Les slots de cardinal')} ${nextOrdinal} ${t('existent déjà.')}` });
       return;
     }
     const userId = auth.currentUser?.uid || 'unknown';
@@ -588,16 +590,16 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
         console.warn('[typed-docs-grid] reset statut on cardinal create failed (non-fatal)', statutErr);
       }
       if (toCreate.length === 2) {
-        toast({ title: `Nouveaux slots créés : ${accordLabel} + ${propLabel}` });
+        toast({ title: `${t('Nouveaux slots créés :')} ${accordLabel} + ${propLabel}` });
       } else {
-        toast({ title: `Nouveau slot créé : ${toCreate[0].label}` });
+        toast({ title: `${t('Nouveau slot créé :')} ${toCreate[0].label}` });
       }
     } catch (err: any) {
       console.error('[typed-docs-grid] create next cardinal failed', err);
       toast({
         variant: 'destructive',
-        title: 'Erreur lors de la création des slots',
-        description: err?.message || 'Impossible de créer le cardinal suivant.',
+        title: t('Erreur lors de la création des slots'),
+        description: err?.message || t('Impossible de créer le cardinal suivant.'),
       });
     }
   };
@@ -605,10 +607,10 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   const handleDelete = async (item: TypedDoc) => {
     if (!db || !storage) return;
     if (!canDeleteDoc(item)) {
-      toast({ variant: 'destructive', title: 'Suppression refusée', description: 'Vous ne pouvez supprimer que les documents que vous avez vous-même téléversés.' });
+      toast({ variant: 'destructive', title: t('Suppression refusée'), description: t('Vous ne pouvez supprimer que les documents que vous avez vous-même téléversés.') });
       return;
     }
-    if (!window.confirm('Supprimer ce document ?')) return;
+    if (!window.confirm(t('Supprimer ce document ?'))) return;
 
     const userEmail = auth?.currentUser?.email || profile?.email || 'Admin';
     setDeletingId(item.id);
@@ -629,13 +631,13 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
         'document',
         profile?.nom,
       );
-      toast({ title: 'Document supprimé' });
+      toast({ title: t('Document supprimé') });
     } catch (err: any) {
       console.error('Typed delete error:', err);
       toast({
         variant: 'destructive',
-        title: 'Erreur lors de la suppression',
-        description: err?.message || 'Vérifiez les permissions de stockage.',
+        title: t('Erreur lors de la suppression'),
+        description: err?.message || t('Vérifiez les permissions de stockage.'),
       });
     } finally {
       setDeletingId(null);
@@ -720,7 +722,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               upload affordance is the first thing the gestionnaire sees. */}
           {showBaseGarageSlots && (
             <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">Devis et Facture</h4>
+              <h4 className="text-sm font-semibold text-muted-foreground">{t('Devis et Facture')}</h4>
               <div className="grid grid-cols-2 gap-3">
                 {(['Devis Garage', 'Facture Garage'] as const).map((slot) => (
                   <SlotCard
@@ -803,7 +805,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               preserve the legacy render order on other timeline steps. */}
           {showAllNonAccordSlots && cardinalFilter !== '2-plus' && !showOnlyAccordSlots && rapportSlots.length > 0 && (
             <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">Rapport</h4>
+              <h4 className="text-sm font-semibold text-muted-foreground">{t('Rapport')}</h4>
               <div className="grid grid-cols-2 gap-3">
                 {rapportSlots.map((slot) => renderSlotCard(slot))}
               </div>
@@ -816,7 +818,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           {!hideReformeSlots && cardinalFilter !== '2-plus' && reformeSlots.length > 0 &&
             (showReformeSlots || ((showAllNonAccordSlots || !hideAccordSlots) && !showOnlyAccordSlots)) && (
             <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">Réforme</h4>
+              <h4 className="text-sm font-semibold text-muted-foreground">{t('Réforme')}</h4>
               <div className="grid grid-cols-2 gap-3">
                 {reformeSlots.map((slot) => renderSlotCard(slot))}
               </div>
@@ -826,7 +828,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           {/* Autres documents — PV, Carte grise, Attestation, etc. */}
           {(showAllNonAccordSlots || !hideOtherSlots) && !showOnlyAccordSlots && otherSlots.length > 0 && (
             <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">Autres documents</h4>
+              <h4 className="text-sm font-semibold text-muted-foreground">{t('Autres documents')}</h4>
               <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
                 {otherSlots.map((slot) => renderSlotCard(slot))}
               </div>
@@ -846,7 +848,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex"
-                title="Ouvrir / télécharger"
+                title={t('Ouvrir / télécharger')}
               >
                 <Button variant="ghost" size="icon" className="h-7 w-7" type="button">
                   <Download className="h-4 w-4" />
@@ -857,7 +859,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => setPreviewDoc(null)}
-                title="Fermer"
+                title={t('Fermer')}
               >
                 <X className="h-4 w-4" />
               </Button>

@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/select";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useT } from "@/i18n";
+import { BRAND } from "@/lib/brand";
 
 const EMPTY_FORM = { nom: "", email: "", phone: "", active: true };
 
@@ -44,6 +46,7 @@ interface Props {
 }
 
 export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
+  const t = useT();
   const { chiffreurs, loading, addChiffreur, updateChiffreur, deleteChiffreur } =
     useChiffreurs();
   const workload = useChiffreurWorkload();
@@ -100,7 +103,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
         onValueChange={(val) => onSelectId?.(val)}
       >
         <SelectTrigger className="w-full">
-          <SelectValue placeholder={loading ? "Chargement…" : "Choisir un chiffreur"} />
+          <SelectValue placeholder={loading ? t('Chargement…') : t('Choisir un chiffreur')} />
         </SelectTrigger>
         <SelectContent>
           {chiffreurs
@@ -114,7 +117,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
                     {count > 0 && (
                       <span
                         className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-semibold tabular-nums dark:bg-amber-900/30 dark:text-amber-200"
-                        title={`${count} dossier(s) en cours`}
+                        title={`${count} ${t('dossier(s) en cours')}`}
                       >
                         {count}
                       </span>
@@ -128,7 +131,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="outline" size="icon" onClick={openAdd} title="Ajouter / Gérer les chiffreurs">
+          <Button variant="outline" size="icon" onClick={openAdd} title={t('Ajouter / Gérer les chiffreurs')}>
             <Plus className="h-4 w-4" />
           </Button>
         </DialogTrigger>
@@ -136,20 +139,20 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editTarget ? "Modifier le chiffreur" : "Nouveau chiffreur"}
+              {editTarget ? t('Modifier le chiffreur') : t('Nouveau chiffreur')}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3 py-2">
             <div>
-              <Label>Nom *</Label>
+              <Label>{t('Nom')} *</Label>
               <Input
                 value={form.nom}
                 onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))}
               />
             </div>
             <div>
-              <Label>Email</Label>
+              <Label>{t('Email')}</Label>
               <Input
                 type="email"
                 value={form.email}
@@ -157,11 +160,11 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
               />
             </div>
             <div>
-              <Label>Téléphone</Label>
+              <Label>{t('Téléphone')}</Label>
               <Input
                 value={form.phone}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                placeholder="+212 6XX XX XX XX"
+                placeholder={BRAND.phonePlaceholder}
               />
             </div>
             <div className="flex items-center gap-2">
@@ -170,16 +173,16 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
                 checked={form.active}
                 onCheckedChange={(v) => setForm((f) => ({ ...f, active: v }))}
               />
-              <Label htmlFor="chiffreur-active">Actif</Label>
+              <Label htmlFor="chiffreur-active">{t('Actif')}</Label>
             </div>
           </div>
 
           <Button onClick={handleSave} loading={saving} className="w-full">
-            {editTarget ? "Mettre à jour" : "Ajouter"}
+            {editTarget ? t('Mettre à jour') : t('Ajouter')}
           </Button>
 
           <div className="mt-4 border-t pt-3 space-y-2 max-h-48 overflow-y-auto">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-2">Gestion de la liste</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-2">{t('Gestion de la liste')}</p>
             {chiffreurs.map((c) => (
               <div key={c.id} className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted/50">
                 <span className={c.active ? "font-medium" : "text-muted-foreground line-through"}>
@@ -191,7 +194,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
                     size="icon"
                     className="h-7 w-7"
                     onClick={() => openEdit(c)}
-                    title="Modifier"
+                    title={t('Modifier')}
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
@@ -202,7 +205,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
                       className="h-7 w-7 text-destructive hover:bg-destructive/10"
                       onClick={() => setDeleteTarget(c)}
                       loading={deletingId === c.id}
-                      title="Supprimer"
+                      title={t('Supprimer')}
                     >
                       {deletingId === c.id ? null : <Trash2 className="h-3.5 w-3.5" />}
                     </Button>
@@ -217,13 +220,13 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !deletingId && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce chiffreur ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Supprimer ce chiffreur ?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.nom && <span className="font-semibold">{deleteTarget.nom}</span>} sera retiré de la liste. Cette action est irréversible.
+              {deleteTarget?.nom && <span className="font-semibold">{deleteTarget.nom}</span>} {t('sera retiré de la liste. Cette action est irréversible.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={!!deletingId}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={!!deletingId}>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={!!deletingId}
@@ -232,7 +235,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
                 if (deleteTarget) handleDelete(deleteTarget.id);
               }}
             >
-              Supprimer
+              {t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

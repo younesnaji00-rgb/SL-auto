@@ -47,7 +47,7 @@ import { collection, onSnapshot, query, orderBy, collectionGroup } from 'firebas
 import { useFirestore } from '@/firebase';
 import { format, startOfDay, endOfDay, isWithinInterval, startOfToday, startOfWeek, startOfMonth } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart } from 'recharts';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles, getStatusHeaderStyles } from '@/lib/status-colors';
 import { Input } from '@/components/ui/input';
@@ -60,6 +60,7 @@ import { landingPathFor } from '@/lib/role-landing';
 const DASHBOARD_ALLOWED_ROLES = ['Admin', "Responsable d'équipe"];
 
 export default function DashboardPage() {
+  const t = useT();
   const { profile, loading: userLoading } = useCurrentUser();
   const router = useRouter();
   const role = profile?.role;
@@ -73,13 +74,14 @@ export default function DashboardPage() {
   }, [userLoading, role, isAllowed, router]);
 
   if (userLoading || (role && !isAllowed)) {
-    return <div className="py-12 text-sm text-muted-foreground">Chargement...</div>;
+    return <div className="py-12 text-sm text-muted-foreground">{t('Chargement...')}</div>;
   }
 
   return <DashboardPageInner />;
 }
 
 function DashboardPageInner() {
+  const t = useT();
   const db = useFirestore();
   const { profile } = useCurrentUser();
   const [dossiers, setDossiers] = useState<any[]>([]);
@@ -297,12 +299,12 @@ function DashboardPageInner() {
   }, [statusBarData]);
 
   const statusBarConfig = useMemo(() => {
-    const config: any = { value: { label: 'Dossiers' } };
+    const config: any = { value: { label: t('Dossiers') } };
     statusChartData.forEach((item, index) => {
-      config[item.name] = { label: item.name, color: chartColors[index % chartColors.length] };
+      config[item.name] = { label: t(item.name), color: chartColors[index % chartColors.length] };
     });
     return config;
-  }, [statusChartData]);
+  }, [statusChartData, t]);
 
   // Default to first status when data loads
   useEffect(() => {
@@ -326,7 +328,7 @@ function DashboardPageInner() {
   const compagnieData = useMemo(() => {
     const byCompagnie: Record<string, number> = {};
     filteredDossiers.forEach((d) => {
-      const key = d.compagnie || 'Inconnue';
+      const key = d.compagnie || t('Inconnue');
       byCompagnie[key] = (byCompagnie[key] || 0) + 1;
     });
     return Object.entries(byCompagnie)
@@ -336,15 +338,15 @@ function DashboardPageInner() {
         value,
         fill: chartColors[index % chartColors.length],
       }));
-  }, [filteredDossiers]);
+  }, [filteredDossiers, t]);
 
   const barChartConfig = useMemo(() => {
-    const config: any = { value: { label: 'Dossiers' } };
+    const config: any = { value: { label: t('Dossiers') } };
     compagnieData.forEach((item, index) => {
-      config[item.name] = { label: item.name, color: chartColors[index % chartColors.length] };
+      config[item.name] = { label: t(item.name), color: chartColors[index % chartColors.length] };
     });
     return config;
-  }, [compagnieData]);
+  }, [compagnieData, t]);
 
   // Status badge styles are imported from @/lib/status-colors
 
@@ -357,7 +359,7 @@ function DashboardPageInner() {
   const formatDate = (val: any) => {
     if (!val) return '-';
     const date = val.toDate ? val.toDate() : new Date(val);
-    try { return format(date, 'dd/MM HH:mm', { locale: fr }); }
+    try { return format(date, 'dd/MM HH:mm', { locale: dateFnsLocale() }); }
     catch { return '-'; }
   };
 
@@ -395,7 +397,7 @@ function DashboardPageInner() {
       <CardHeader className="py-4">
         <CardTitle className="text-sm flex items-center gap-2">
           <Activity className="h-4 w-4 text-primary" />
-          <span>Changements récents <span className="text-muted-foreground font-normal">/ {actionFilterLabels[actionFilter]}</span></span>
+          <span>{t('Changements récents')} <span className="text-muted-foreground font-normal">/ {t(actionFilterLabels[actionFilter])}</span></span>
           <Badge variant="secondary" className="ml-1 text-[10px] tabular-nums">{logs.length}</Badge>
         </CardTitle>
       </CardHeader>
@@ -413,29 +415,29 @@ function DashboardPageInner() {
                 setDateFilter('');
               }
             }}
-            placeholder="Filtrer par date"
+            placeholder={t('Filtrer par date')}
             className="h-8 text-xs"
           />
           <Select value={actionFilter} onValueChange={setActionFilter}>
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Type de changement" />
+              <SelectValue placeholder={t('Type de changement')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tous les changements</SelectItem>
-              <SelectItem value="statut">Changements de statut</SelectItem>
-              <SelectItem value="planification">Planification</SelectItem>
-              <SelectItem value="chiffrage">Chiffrage</SelectItem>
-              <SelectItem value="document">Documents / Photos / Rapports</SelectItem>
-              <SelectItem value="atg">Agent de Terrain</SelectItem>
-              <SelectItem value="reclamation">Réclamations</SelectItem>
+              <SelectItem value="all">{t('Tous les changements')}</SelectItem>
+              <SelectItem value="statut">{t('Changements de statut')}</SelectItem>
+              <SelectItem value="planification">{t('Planification')}</SelectItem>
+              <SelectItem value="chiffrage">{t('Chiffrage')}</SelectItem>
+              <SelectItem value="document">{t('Documents / Photos / Rapports')}</SelectItem>
+              <SelectItem value="atg">{t('Agent de Terrain')}</SelectItem>
+              <SelectItem value="reclamation">{t('Réclamations')}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={userFilter} onValueChange={setUserFilter}>
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Tous les utilisateurs" />
+              <SelectValue placeholder={t('Tous les utilisateurs')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tous les utilisateurs</SelectItem>
+              <SelectItem value="all">{t('Tous les utilisateurs')}</SelectItem>
               {uniqueUsers.map((user) => (
                 <SelectItem key={`${panelKey}-${user}`} value={user}>{user}</SelectItem>
               ))}
@@ -443,12 +445,12 @@ function DashboardPageInner() {
           </Select>
           <Select value={natureFilter} onValueChange={setNatureFilter}>
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Toutes les natures" />
+              <SelectValue placeholder={t('Toutes les natures')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Toutes les natures</SelectItem>
+              <SelectItem value="all">{t('Toutes les natures')}</SelectItem>
               {uniqueNatures.map((nature) => (
-                <SelectItem key={`${panelKey}-nature-${nature}`} value={nature}>{nature}</SelectItem>
+                <SelectItem key={`${panelKey}-nature-${nature}`} value={nature}>{t(nature)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -466,7 +468,7 @@ function DashboardPageInner() {
                 setNatureFilter('all');
               }}
             >
-              <X className="h-3 w-3 mr-1" /> Réinitialiser
+              <X className="h-3 w-3 mr-1" /> {t('Réinitialiser')}
             </Button>
           </div>
         )}
@@ -476,8 +478,8 @@ function DashboardPageInner() {
           {logs.length === 0 ? (
             <EmptyState
               icon={<Inbox />}
-              title="Aucune activité récente"
-              description="Les changements apparaîtront ici au fil de l'activité."
+              title={t('Aucune activité récente')}
+              description={t("Les changements apparaîtront ici au fil de l'activité.")}
               dashed={false}
               className="border-0 bg-transparent py-6"
             />
@@ -504,7 +506,7 @@ function DashboardPageInner() {
                             <Plus className="h-2.5 w-2.5" strokeWidth={3} />
                           </span>
                         )}
-                        {log.action}
+                        {t(log.action)}
                       </p>
                       <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap ml-2 bg-muted px-1.5 py-0.5 rounded tabular-nums">
                         {formatDate(log.date)}
@@ -521,7 +523,7 @@ function DashboardPageInner() {
                     )}
                     <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                       <UserIcon className="h-2.5 w-2.5" />
-                      <span>par <span className="font-semibold text-foreground">{log.user || 'Admin'}</span></span>
+                      <span>{t('par')} <span className="font-semibold text-foreground">{log.user || 'Admin'}</span></span>
                     </div>
                   </div>
                 </div>
@@ -535,7 +537,7 @@ function DashboardPageInner() {
 
   // ── Sub-renders ─────────────────────────────────────────────────────
   const filteredStatusRows = statusBarData.filter((item) =>
-    item.name.toLowerCase().includes(statusFilterSearch.toLowerCase().trim())
+    t(item.name).toLowerCase().includes(statusFilterSearch.toLowerCase().trim())
   );
 
   const filteredCount = filteredDossiers.length;
@@ -543,11 +545,11 @@ function DashboardPageInner() {
   const filterCard = (
     <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg overflow-hidden">
       <CardHeader className="py-4 flex flex-row items-center justify-between gap-2">
-        <CardTitle className="text-base text-primary">Dossier Par État</CardTitle>
+        <CardTitle className="text-base text-primary">{t('Dossier Par État')}</CardTitle>
         <div className="relative w-[180px] max-w-full">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Rechercher..."
+            placeholder={t('Rechercher...')}
             value={statusFilterSearch}
             onChange={(e) => setStatusFilterSearch(e.target.value)}
             className="h-8 pl-7 text-xs border-0 border-b rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
@@ -566,18 +568,18 @@ function DashboardPageInner() {
               setDateToFilter(today);
             }}
           >
-            Aujourd'hui
+            {t("Aujourd'hui")}
           </Button>
           <Button
             type="button"
             size="sm"
             variant="outline"
             onClick={() => {
-              setDateFromFilter(startOfWeek(new Date(), { locale: fr }));
+              setDateFromFilter(startOfWeek(new Date(), { locale: dateFnsLocale() }));
               setDateToFilter(startOfToday());
             }}
           >
-            Semaine
+            {t('Semaine')}
           </Button>
           <Button
             type="button"
@@ -588,39 +590,39 @@ function DashboardPageInner() {
               setDateToFilter(startOfToday());
             }}
           >
-            Mois
+            {t('Mois')}
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Du</label>
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t('Du')}</label>
             <DatePicker
               value={dateFromFilter ?? null}
               onChange={(d) => setDateFromFilter(d ?? undefined)}
-              placeholder="Date de début"
+              placeholder={t('Date de début')}
               className="h-8 text-xs"
             />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Au</label>
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t('Au')}</label>
             <DatePicker
               value={dateToFilter ?? null}
               onChange={(d) => setDateToFilter(d ?? undefined)}
-              placeholder="Date de fin"
+              placeholder={t('Date de fin')}
               className="h-8 text-xs"
             />
           </div>
         </div>
         <p className="text-[11px] text-muted-foreground mt-2 tabular-nums">
-          <span className="font-semibold text-foreground">{filteredCount}</span> dossier{filteredCount === 1 ? '' : 's'} créé{filteredCount === 1 ? '' : 's'}{' '}
+          <span className="font-semibold text-foreground">{filteredCount}</span> {filteredCount === 1 ? t('dossier créé') : t('dossiers créés')}{' '}
           {(!dateFromFilter && !dateToFilter) ? (
-            'au total'
+            t('au total')
           ) : (
             <>
-              entre{' '}
-              <span className="font-semibold text-foreground">{dateFromFilter ? format(dateFromFilter, 'dd/MM/yyyy', { locale: fr }) : '—'}</span>{' '}
-              et{' '}
-              <span className="font-semibold text-foreground">{dateToFilter ? format(dateToFilter, 'dd/MM/yyyy', { locale: fr }) : '—'}</span>
+              {t('entre')}{' '}
+              <span className="font-semibold text-foreground">{dateFromFilter ? format(dateFromFilter, 'dd/MM/yyyy', { locale: dateFnsLocale() }) : '—'}</span>{' '}
+              {t('et')}{' '}
+              <span className="font-semibold text-foreground">{dateToFilter ? format(dateToFilter, 'dd/MM/yyyy', { locale: dateFnsLocale() }) : '—'}</span>
             </>
           )}
         </p>
@@ -629,8 +631,8 @@ function DashboardPageInner() {
         {filteredStatusRows.length === 0 ? (
           <EmptyState
             icon={<Search />}
-            title="Aucun statut"
-            description="Affinez votre recherche pour voir les statuts."
+            title={t('Aucun statut')}
+            description={t('Affinez votre recherche pour voir les statuts.')}
             dashed={false}
             className="border-0 bg-transparent py-8"
           />
@@ -648,7 +650,7 @@ function DashboardPageInner() {
                   item.value === 0 && 'opacity-60',
                 )}
               >
-                <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{item.name}</span>
+                <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{t(item.name)}</span>
                 <span className={cn('text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 tabular-nums', getStatusHeaderStyles(item.name))}>
                   {item.value}
                 </span>
@@ -663,14 +665,14 @@ function DashboardPageInner() {
   const pieCard = (
     <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg">
       <CardHeader className="py-4">
-        <CardTitle className="text-base">Volume par Statut</CardTitle>
+        <CardTitle className="text-base">{t('Volume par Statut')}</CardTitle>
       </CardHeader>
       <CardContent className="pt-2">
         {statusChartData.length === 0 ? (
           <EmptyState
             icon={<PieChartIcon />}
-            title="Aucune donnée"
-            description="Les statistiques apparaîtront dès qu'un dossier sera créé."
+            title={t('Aucune donnée')}
+            description={t("Les statistiques apparaîtront dès qu'un dossier sera créé.")}
             dashed={false}
             className="border-0 bg-transparent py-10"
           />
@@ -724,7 +726,7 @@ function DashboardPageInner() {
               {statusChartData.map((item) => (
                 <div key={item.name} className="flex items-center gap-1.5 text-[10px]">
                   <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
-                  <span className="text-muted-foreground">{item.name}</span>
+                  <span className="text-muted-foreground">{t(item.name)}</span>
                   <span className="font-semibold tabular-nums">{item.value}</span>
                 </div>
               ))}
@@ -739,10 +741,10 @@ function DashboardPageInner() {
     <Card className="shadow-sm overflow-hidden h-fit hover:shadow-md transition-shadow border rounded-lg">
       <CardHeader className="py-4 flex flex-row items-center justify-between">
         <CardTitle className="text-base">
-          Dossiers — <span className="text-primary">{selectedStatus}</span>
+          {t('Dossiers')} — <span className="text-primary">{selectedStatus ? t(selectedStatus) : ''}</span>
         </CardTitle>
         <Button variant="ghost" size="sm" onClick={() => setSelectedStatus(null)}>
-          <X className="h-4 w-4 mr-1" /> Fermer
+          <X className="h-4 w-4 mr-1" /> {t('Fermer')}
         </Button>
       </CardHeader>
       <CardContent className="p-4 pt-0">
@@ -750,13 +752,13 @@ function DashboardPageInner() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30 border-0">
-                <TableHead className="font-semibold text-xs">Ref.</TableHead>
-                <TableHead className="font-semibold text-xs">Assuré</TableHead>
-                <TableHead className="font-semibold text-xs">Compagnie</TableHead>
-                <TableHead className="font-semibold text-xs">Nature du dossier</TableHead>
-                <TableHead className="font-semibold text-xs">Matricule</TableHead>
-                <TableHead className="font-semibold text-xs">Statut</TableHead>
-                <TableHead className="text-right font-semibold text-xs">Date</TableHead>
+                <TableHead className="font-semibold text-xs">{t('Ref.')}</TableHead>
+                <TableHead className="font-semibold text-xs">{t('Assuré')}</TableHead>
+                <TableHead className="font-semibold text-xs">{t('Compagnie')}</TableHead>
+                <TableHead className="font-semibold text-xs">{t('Nature du dossier')}</TableHead>
+                <TableHead className="font-semibold text-xs">{t('Matricule')}</TableHead>
+                <TableHead className="font-semibold text-xs">{t('Statut')}</TableHead>
+                <TableHead className="text-right font-semibold text-xs">{t('Date')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -765,7 +767,7 @@ function DashboardPageInner() {
                   <TableCell colSpan={7} className="p-0">
                     <EmptyState
                       icon={<FolderOpen />}
-                      title="Aucun dossier avec ce statut"
+                      title={t('Aucun dossier avec ce statut')}
                       dashed={false}
                       className="border-0 bg-transparent py-10"
                     />
@@ -780,12 +782,12 @@ function DashboardPageInner() {
                       </Link>
                     </TableCell>
                     <TableCell className="max-w-[120px] truncate text-xs font-medium">{renderAssure(dossier.assure)}</TableCell>
-                    <TableCell className="text-[10px] text-muted-foreground">{dossier.compagnie || '-'}</TableCell>
-                    <TableCell className="text-[10px] text-muted-foreground">{dossier.nature || '-'}</TableCell>
+                    <TableCell className="text-[10px] text-muted-foreground">{dossier.compagnie ? t(dossier.compagnie) : '-'}</TableCell>
+                    <TableCell className="text-[10px] text-muted-foreground">{dossier.nature ? t(dossier.nature) : '-'}</TableCell>
                     <TableCell className="font-mono text-[10px] text-muted-foreground tabular-nums">{dossier.matricule || '-'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn('text-[10px] py-0.5 px-2 rounded-full border font-semibold', getStatusBadgeStyles(dossier.statut))}>
-                        {!dossier.statut || dossier.statut === 'Création dossier' ? 'Création de mission' : dossier.statut}
+                        {t(!dossier.statut || dossier.statut === 'Création dossier' ? 'Création de mission' : dossier.statut)}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right text-[10px] text-muted-foreground font-medium tabular-nums">
@@ -838,14 +840,14 @@ function DashboardPageInner() {
         <div className="space-y-6">
           <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '300ms' }}>
             <CardHeader className="py-4">
-              <CardTitle className="text-base">Répartition par Compagnie</CardTitle>
+              <CardTitle className="text-base">{t('Répartition par Compagnie')}</CardTitle>
             </CardHeader>
             <CardContent className="pt-2">
               {compagnieData.length === 0 ? (
                 <EmptyState
                   icon={<BarChart3 />}
-                  title="Aucune donnée"
-                  description="La répartition apparaîtra dès qu'un dossier sera créé."
+                  title={t('Aucune donnée')}
+                  description={t("La répartition apparaîtra dès qu'un dossier sera créé.")}
                   dashed={false}
                   className="border-0 bg-transparent py-10"
                 />

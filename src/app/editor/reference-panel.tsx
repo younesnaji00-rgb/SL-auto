@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useFirestore, useStorage, useCollection } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
+import { useT } from '@/i18n';
 
 type Mode = 'photos' | 'documents';
 
@@ -35,6 +36,7 @@ interface ReferencePanelProps {
 }
 
 export default function ReferencePanel({ dossierId, isOpen, onClose, className, initialDocType }: ReferencePanelProps) {
+  const t = useT();
   const [split, setSplit] = useState(false);
 
   if (!isOpen) return null;
@@ -43,19 +45,19 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className, 
     <div className={cn('bg-card flex flex-col shrink-0', className ?? 'w-1/2 min-w-[300px] border-r')}>
       {/* Outer panel header */}
       <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/50 shrink-0">
-        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Comparaison</span>
+        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t('Comparaison')}</span>
         <div className="flex items-center gap-1">
           <Button
             variant={split ? 'default' : 'ghost'}
             size="icon"
             className="h-6 w-6"
             onClick={() => setSplit((s) => !s)}
-            title={split ? 'Fermer le second panneau' : 'Diviser le panneau pour comparer 2 documents'}
+            title={split ? t('Fermer le second panneau') : t('Diviser le panneau pour comparer 2 documents')}
             aria-pressed={split}
           >
             {split ? <Minimize2 className="h-3.5 w-3.5" /> : <Rows2 className="h-3.5 w-3.5" />}
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose} title="Fermer">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose} title={t('Fermer')}>
             <X className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -86,6 +88,7 @@ function ReferencePane({
   /** Optional doc type to auto-select on first load (forces `documents` mode). */
   initialDocType?: string;
 }) {
+  const t = useT();
   const db = useFirestore();
   const storage = useStorage();
   const [mode, setMode] = useState<Mode>(initialDocType ? 'documents' : 'photos');
@@ -189,14 +192,14 @@ function ReferencePane({
       {/* Pane mini-header: label (if any) + listOpen toggle */}
       <div className="flex items-center justify-between px-3 py-1 border-b bg-muted/30 shrink-0">
         <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
-          {label ?? ''}
+          {label ? t(label) : ''}
         </span>
         <Button
           variant="ghost"
           size="icon"
           className="h-5 w-5"
           onClick={() => setListOpen((o) => !o)}
-          title={listOpen ? 'Reduire la liste' : 'Afficher la liste'}
+          title={listOpen ? t('Reduire la liste') : t('Afficher la liste')}
           aria-pressed={listOpen}
         >
           {listOpen ? <ChevronsUp className="h-3 w-3" /> : <ChevronsDown className="h-3 w-3" />}
@@ -214,7 +217,7 @@ function ReferencePane({
             onClick={() => setMode('photos')}
           >
             <ImageIcon className="h-3.5 w-3.5" />
-            Photos ({photos?.length || 0})
+            {t('Photos')} ({photos?.length || 0})
           </button>
           <button
             className={cn(
@@ -224,7 +227,7 @@ function ReferencePane({
             onClick={() => setMode('documents')}
           >
             <FileText className="h-3.5 w-3.5" />
-            Documents ({documents?.length || 0})
+            {t('Documents')} ({documents?.length || 0})
           </button>
         </div>
       )}
@@ -245,13 +248,13 @@ function ReferencePane({
                 )}
                 onClick={() => setPhotoSubTab(key)}
               >
-                {categoryLabels[key]} ({groupedPhotos[key].length})
+                {t(categoryLabels[key])} ({groupedPhotos[key].length})
               </button>
             ))}
           </div>
           <div className="max-h-[220px] overflow-y-auto">
             {groupedPhotos[photoSubTab].length === 0 ? (
-              <div className="px-3 py-8 text-center text-xs text-muted-foreground italic">Aucune photo</div>
+              <div className="px-3 py-8 text-center text-xs text-muted-foreground italic">{t('Aucune photo')}</div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 p-2">
                 {groupedPhotos[photoSubTab].map((p: any) => (
@@ -275,7 +278,7 @@ function ReferencePane({
         <div className="border-b max-h-[260px] overflow-auto">
           {(() => {
             if (!documents || documents.length === 0) {
-              return <div className="px-3 py-4 text-center text-xs text-muted-foreground italic">Aucun document</div>;
+              return <div className="px-3 py-4 text-center text-xs text-muted-foreground italic">{t('Aucun document')}</div>;
             }
             const groups: Record<string, any[]> = {};
             for (const d of documents) {
@@ -288,7 +291,7 @@ function ReferencePane({
                 {Object.entries(groups).map(([type, items]) => (
                   <div key={type}>
                     <div className="px-3 py-1 bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      {type} ({items.length})
+                      {t(type)} ({items.length})
                     </div>
                     {items.map((d: any) => (
                       <button
@@ -301,10 +304,10 @@ function ReferencePane({
                           setSelectedId(d.id);
                           setListOpen(false);
                         }}
-                        title={d.nom || d.name || 'Document'}
+                        title={d.nom || d.name || t('Document')}
                       >
                         <FileText className="h-3 w-3 shrink-0" />
-                        <span className="whitespace-nowrap">{d.nom || d.name || 'Document'}</span>
+                        <span className="whitespace-nowrap">{d.nom || d.name || t('Document')}</span>
                       </button>
                     ))}
                   </div>
@@ -321,23 +324,23 @@ function ReferencePane({
           <div className="text-center p-6">
             <ChevronDown className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
             <p className="text-xs text-muted-foreground italic">
-              Sélectionnez un élément ci-dessus pour le visualiser
+              {t('Sélectionnez un élément ci-dessus pour le visualiser')}
             </p>
           </div>
         ) : isLoadingUrl ? (
-          <div className="text-xs text-muted-foreground animate-pulse">Chargement...</div>
+          <div className="text-xs text-muted-foreground animate-pulse">{t('Chargement...')}</div>
         ) : viewerUrl ? (
           isImageFile(selectedItem?.name || selectedItem?.nom || '') ? (
-            <ZoomableImage src={viewerUrl} alt={selectedItem?.name || 'Référence'} />
+            <ZoomableImage src={viewerUrl} alt={selectedItem?.name || t('Référence')} />
           ) : (
             <iframe
               src={viewerUrl}
               className="w-full h-full border-none"
-              title={selectedItem?.nom || 'Document'}
+              title={selectedItem?.nom || t('Document')}
             />
           )
         ) : (
-          <p className="text-xs text-muted-foreground italic">Impossible de charger le fichier</p>
+          <p className="text-xs text-muted-foreground italic">{t('Impossible de charger le fichier')}</p>
         )}
       </div>
     </div>
@@ -424,6 +427,7 @@ function PhotoThumb({
   selected: boolean;
   onClick: () => void;
 }) {
+  const t = useT();
   const storage = useStorage();
   const [url, setUrl] = useState<string | null>(photo.url || null);
   useEffect(() => {
@@ -445,10 +449,10 @@ function PhotoThumb({
         'hover:ring-2 hover:ring-primary transition-shadow focus:outline-none',
         selected && 'ring-2 ring-primary'
       )}
-      title={photo.name || 'Photo'}
+      title={photo.name || t('Photo')}
     >
       {url ? (
-        <img src={url} alt={photo.name || 'Photo'} className="w-full h-full object-cover" />
+        <img src={url} alt={photo.name || t('Photo')} className="w-full h-full object-cover" />
       ) : (
         <div className="flex items-center justify-center w-full h-full text-[10px] text-muted-foreground">…</div>
       )}

@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useT } from '@/i18n';
 
 export type NotificationItem = {
   id: string;
@@ -22,6 +23,7 @@ type NotificationsProps = {
 };
 
 export default function Notifications({ items = [] }: NotificationsProps) {
+  const t = useT();
   const hasUnread = items.some((item) => item.unread);
 
   return (
@@ -35,24 +37,24 @@ export default function Notifications({ items = [] }: NotificationsProps) {
               <span className="relative inline-flex rounded-full h-3 w-3 bg-primary/90"></span>
             </span>
           )}
-          <span className="sr-only">Notifications</span>
+          <span className="sr-only">{t('Notifications')}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 p-0">
         <div className="p-4 border-b">
-          <p className="text-sm font-semibold">Notifications</p>
+          <p className="text-sm font-semibold">{t('Notifications')}</p>
           <p className="text-xs text-muted-foreground">
             {items.length > 0
-              ? `${items.filter((i) => i.unread).length} non lue(s)`
-              : 'Aucune nouvelle activité'}
+              ? `${items.filter((i) => i.unread).length} ${t('non lue(s)')}`
+              : t('Aucune nouvelle activité')}
           </p>
         </div>
         {items.length === 0 ? (
           <div className="p-3">
             <EmptyState
               icon={<Bell />}
-              title="Aucune notification"
-              description="Vous serez notifié des changements importants ici."
+              title={t('Aucune notification')}
+              description={t('Vous serez notifié des changements importants ici.')}
               dashed={false}
               className="border-0 bg-transparent py-6"
             />

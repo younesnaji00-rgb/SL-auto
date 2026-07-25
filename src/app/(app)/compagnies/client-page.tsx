@@ -33,7 +33,7 @@ import { useToast } from '@/hooks/use-toast';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import Link from 'next/link';
 import { PageLoader } from '@/components/ui/page-loader';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -44,6 +44,7 @@ import { cn } from '@/lib/utils';
 import { CreateDossierDialog } from '@/components/dossiers/create-dossier-dialog';
 
 export default function CompagniesClientPage() {
+  const t = useT();
   const searchParams = useSearchParams();
   const router = useRouter();
   const selectedId = searchParams.get('selected');
@@ -79,9 +80,9 @@ export default function CompagniesClientPage() {
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
       await updateDoc(doc(db, 'compagnies', compagnieId), { logoUrl: url });
-      toast({ title: 'Logo mis à jour' });
+      toast({ title: t('Logo mis à jour') });
     } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
+      toast({ variant: 'destructive', title: t('Erreur'), description: e.message });
     }
   };
 
@@ -128,15 +129,15 @@ export default function CompagniesClientPage() {
   }, [dossiers]);
 
   if (loadingCompagnies) {
-    return <PageLoader label="Chargement des partenaires..." />;
+    return <PageLoader label={t('Chargement des partenaires...')} />;
   }
 
   if (!selectedCompagnie) {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-4xl font-semibold tracking-tight">Compagnies</h1>
-          <p className="text-muted-foreground mt-1">Sélectionnez une compagnie partenaire pour consulter ses indicateurs et dossiers.</p>
+          <h1 className="text-4xl font-semibold tracking-tight">{t('Compagnies')}</h1>
+          <p className="text-muted-foreground mt-1">{t('Sélectionnez une compagnie partenaire pour consulter ses indicateurs et dossiers.')}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -165,7 +166,7 @@ export default function CompagniesClientPage() {
                       };
                       input.click();
                     }}
-                    title="Cliquez pour importer un logo"
+                    title={t('Cliquez pour importer un logo')}
                   >
                     {c.logoUrl && !logoErrors.has(c.id) ? (
                       <img
@@ -184,12 +185,12 @@ export default function CompagniesClientPage() {
                   <ChevronRight className="h-5 w-5 text-muted-foreground transform group-hover:translate-x-1 transition-all" />
                 </div>
                 <CardTitle className="text-xl pt-4 group-hover:text-primary transition-colors">{c.nom}</CardTitle>
-                <CardDescription>Visualiser l&apos;activité globale</CardDescription>
+                <CardDescription>{t("Visualiser l'activité globale")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground bg-muted/40 px-3 py-1.5 rounded-full w-fit">
                   <FileText className="h-3 w-3" />
-                  Gérer les sinistres
+                  {t('Gérer les sinistres')}
                 </div>
               </CardContent>
             </Card>
@@ -222,7 +223,7 @@ export default function CompagniesClientPage() {
               };
               input.click();
             }}
-            title="Cliquez pour modifier le logo"
+            title={t('Cliquez pour modifier le logo')}
           >
             {selectedCompagnie.logoUrl && !logoErrors.has(selectedCompagnie.id) ? (
               <img
@@ -245,16 +246,16 @@ export default function CompagniesClientPage() {
                 {selectedCompagnie.nom}
               </h1>
             </div>
-            <p className="text-muted-foreground">Tableau de bord opérationnel</p>
+            <p className="text-muted-foreground">{t('Tableau de bord opérationnel')}</p>
           </div>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" asChild>
-            <Link href="/dossiers">Tous les dossiers</Link>
+            <Link href="/dossiers">{t('Tous les dossiers')}</Link>
           </Button>
           <Button className="shadow-lg shadow-primary/20" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Nouveau dossier
+            {t('Nouveau dossier')}
           </Button>
         </div>
       </div>
@@ -264,7 +265,7 @@ export default function CompagniesClientPage() {
           <Card key={i} className={cn('border shadow-sm', stat.bgClass)}>
             <CardHeader className="py-4">
               <CardTitle className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                {stat.label}
+                {t(stat.label)}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -278,8 +279,8 @@ export default function CompagniesClientPage() {
         <CardHeader className="border-b py-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
-              <CardTitle className="text-lg">Portefeuille Dossiers</CardTitle>
-              <CardDescription>Extraction en temps réel des missions {selectedCompagnie.nom}.</CardDescription>
+              <CardTitle className="text-lg">{t('Portefeuille Dossiers')}</CardTitle>
+              <CardDescription>{t('Extraction en temps réel des missions')} {selectedCompagnie.nom}.</CardDescription>
             </div>
             <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
           </div>
@@ -288,12 +289,12 @@ export default function CompagniesClientPage() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/10 hover:bg-muted/10">
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">Réf Expert</TableHead>
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">Assuré</TableHead>
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">Matricule</TableHead>
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">Statut</TableHead>
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">Création</TableHead>
-                <TableHead className="text-right font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">Gérer</TableHead>
+                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">{t('Réf Expert')}</TableHead>
+                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">{t('Assuré')}</TableHead>
+                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">{t('Matricule')}</TableHead>
+                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">{t('Statut')}</TableHead>
+                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">{t('Création')}</TableHead>
+                <TableHead className="text-right font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">{t('Gérer')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -310,8 +311,8 @@ export default function CompagniesClientPage() {
                   <TableCell colSpan={6} className="p-0">
                     <EmptyState
                       icon={<Inbox />}
-                      title={`Aucun dossier pour ${selectedCompagnie.nom}`}
-                      description="Aucun dossier n'est actuellement associé à cette compagnie sur la période sélectionnée."
+                      title={`${t('Aucun dossier pour')} ${selectedCompagnie.nom}`}
+                      description={t("Aucun dossier n'est actuellement associé à cette compagnie sur la période sélectionnée.")}
                       dashed={false}
                       className="border-0 bg-transparent py-10"
                     />
@@ -331,15 +332,15 @@ export default function CompagniesClientPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>
-                        {d.statut || 'Nouveau'}
+                        {t(d.statut || 'Nouveau')}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground tabular-nums">
-                      {d.dateRequete ? format(d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete), 'dd MMM yyyy', { locale: fr }) : '-'}
+                      {d.dateRequete ? format(d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete), 'dd MMM yyyy', { locale: dateFnsLocale() }) : '-'}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" asChild>
-                        <Link href={`/dossiers/${d.id}`} title="Ouvrir le dossier">
+                        <Link href={`/dossiers/${d.id}`} title={t('Ouvrir le dossier')}>
                           <ExternalLink className="h-4 w-4" />
                         </Link>
                       </Button>

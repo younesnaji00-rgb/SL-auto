@@ -1,3 +1,156 @@
 // French source string -> English translation. Filled by the i18n sweep.
 export const CHIFFRAGE_EN: Record<string, string> = {
+  // ── Devis editor: top bar / page chrome ──
+  'Editer les devis': 'Edit estimates',
+  'Editer les factures': 'Edit invoices',
+  'Nouveau devis — sera ajouté aux pièces jointes du dossier.':
+    'New estimate — it will be added to the file attachments.',
+  'Nouveau facture — sera ajouté aux pièces jointes du dossier.':
+    'New invoice — it will be added to the file attachments.',
+  'devis(s) fusionne(s) :': 'merged estimate(s):',
+  'facture(s) fusionne(s) :': 'merged invoice(s):',
+  'Aucun devis dans cette assignation': 'No estimate in this assignment',
+  'Aucun facture dans cette assignation': 'No invoice in this assignment',
+  'Fermer la comparaison': 'Close comparison',
+  'Ouvrir la comparaison': 'Open comparison',
+  'Comparer': 'Compare',
+  'Confirmer la vérification du scan et déverrouiller le tableau':
+    'Confirm the scan review and unlock the table',
+  "J'ai vérifié": 'I have reviewed',
+  "Relancer l'extraction automatique (écrase les données)":
+    'Re-run automatic extraction (overwrites current data)',
+  'Ré-extraire': 'Re-extract',
+  'Extraction automatique en cours depuis': 'Automatic extraction in progress from',
+  'devis(s)': 'estimate(s)',
+  'facture(s)': 'invoice(s)',
+
+  // ── Devis editor: toasts ──
+  'Assignation introuvable.': 'Assignment not found.',
+  'Devis original manquant': 'Original estimate missing',
+  "Un contre-devis a été uploadé mais aucun devis original n'existe pour ce dossier. Uploadez un original depuis la fiche dossier.":
+    'A counter-estimate was uploaded but no original estimate exists for this file. Upload an original from the file page.',
+  'Service IA surchargé': 'AI service overloaded',
+  'Le service IA est momentanément surchargé. Réessayez dans quelques minutes.':
+    'The AI service is temporarily overloaded. Try again in a few minutes.',
+  'Extraction impossible': 'Extraction failed',
+  'Veuillez saisir les donnees manuellement.': 'Please enter the data manually.',
+  'Extraction auto indisponible': 'Auto-extraction unavailable',
+  'Remplissez manuellement ou reessayez.': 'Fill in manually or retry.',
+  'Extraction automatique terminee': 'Automatic extraction complete',
+  'ligne(s) detectee(s) depuis': 'line(s) detected from',
+  'Action non autorisee': 'Action not allowed',
+  'Vétusté manquante pour les pièces Adaptable / Originale':
+    'Depreciation missing for Aftermarket / OEM parts',
+  'Dossier manquant': 'File missing',
+  'Impossible de sauvegarder sans dossier.': 'Cannot save without a file.',
+  'enregistré': 'saved',
+  'enregistre': 'saved',
+  'Ajouté aux pièces jointes du dossier.': 'Added to the file attachments.',
+  'Assignation manquante': 'Assignment missing',
+  'Aucun chiffrage associé.': 'No associated estimating job.',
+  "Version mise en file d'attente": 'Version queued',
+  'Elle sera synchronisee une fois en ligne.': 'It will sync once back online.',
+  'Nouvelle version generee.': 'New version generated.',
+  'Erreur de sauvegarde': 'Save error',
+
+  // ── Devis editor: identity block ──
+  'Matricule': 'License plate',
+  'Kilométrage': 'Mileage',
+  'N° de châssis': 'VIN',
+  'Client': 'Client',
+  'ICE': 'Business no.',
+  'Assurances': 'Insurance',
+  'Devis N°': 'Estimate no.',
+  'JJ/MM/AAAA': 'DD/MM/YYYY',
+  'Sans TVA': 'Excl. VAT',
+
+  // ── Devis editor: table headers & bulk actions ──
+  'Définir Réparation/Remplacement pour toutes les lignes':
+    'Set Repair/Replacement for all lines',
+  'Réparation/Remplacement': 'Repair/Replacement',
+  'Remplacement': 'Replacement',
+  'Réparation': 'Repair',
+  'Designation': 'Description',
+  'Définir Type pour toutes les lignes': 'Set Type for all lines',
+  'Occasion': 'Used',
+  'Originale': 'OEM',
+  'Adaptable': 'Aftermarket',
+  'Quantite': 'Qty',
+  'P.U.H.T': 'Unit price excl. tax',
+  'Total H.T': 'Total excl. tax',
+  'Définir T.V.A pour toutes les lignes': 'Set VAT for all lines',
+  'T.V.A': 'VAT',
+  'Appliquer à toutes les lignes': 'Apply to all lines',
+  'Vetuste': 'Depreciation',
+  '-5 sur toutes les lignes': '-5 on all lines',
+  '+5 sur toutes les lignes': '+5 on all lines',
+  'Prix en TTC': 'Price incl. tax',
+  'Définir Observation pour toutes les lignes': 'Set Remark for all lines',
+  'Observation': 'Remark',
+  '(aucune)': '(none)',
+  'Sous réserve': 'With reservations',
+  'Non accordé': 'Not approved',
+  'Hors sinistre': 'Unrelated to claim',
+  'Effacer': 'Clear',
+
+  // ── Devis editor: accord / proposition columns ──
+  'PUHT accordé': 'Approved unit price',
+  'PUHT proposé': 'Proposed unit price',
+  'Choisir un accord': 'Choose an agreement',
+  "Choisir un type d'accord": 'Choose an agreement type',
+  'Pour annuler, contactez le gestionnaire pour une nouvelle planification.':
+    'To undo, contact the manager to schedule a new revision.',
+  'Total H.T accordé': 'Approved total excl. tax',
+  'Total H.T proposé': 'Proposed total excl. tax',
+  'Prix Total': 'Total Price',
+  'Accordé': 'Approved',
+  'Proposé': 'Proposed',
+  'Ouvrir le document source': 'Open the source document',
+  'Valeur supérieure au P.U.H.T.': 'Value above the unit price.',
+  'La cellule a été effacée.': 'The cell has been cleared.',
+  'Doit être ≤ P.U.H.T': 'Must be ≤ unit price',
+  'La valeur ne peut pas dépasser le P.U.H.T.': 'The value cannot exceed the unit price.',
+  'Total TTC Expert': 'Appraiser total incl. tax',
+
+  // ── Preview dialog ──
+  'Aperçu avant enregistrement': 'Preview before saving',
+  'Erreur lors du rendu du PDF.': 'Error rendering the PDF.',
+  'Erreur lors du rendu du PDF :': 'Error rendering the PDF:',
+  "Erreur lors de l'affichage du PDF.": 'Error displaying the PDF.',
+  'Cliquez sur le rapport pour poser le tampon.': 'Click the report to place the stamp.',
+  'Tampon': 'Stamp',
+  'Sans tampon': 'No stamp',
+  'Enregistrement…': 'Saving…',
+  'Confirmer & enregistrer': 'Confirm & save',
+  'Redimensionner depuis le coin haut-gauche': 'Resize from the top-left corner',
+  'Redimensionner depuis le coin haut-droit': 'Resize from the top-right corner',
+  'Redimensionner depuis le coin bas-gauche': 'Resize from the bottom-left corner',
+  'Redimensionner depuis le coin bas-droit': 'Resize from the bottom-right corner',
+  'Retirer le tampon du rapport': 'Remove the stamp from the report',
+  'Retirer du rapport': 'Remove from report',
+
+  // ── PDF correction editor ──
+  'Correcteur Professionnel': 'Professional Correction Tool',
+  'Barrer (Horizontal)': 'Strike through (horizontal)',
+  'Texte de correction': 'Correction text',
+  'Rouge': 'Red',
+  'Bleu': 'Blue',
+  'Noir': 'Black',
+  'Vert': 'Green',
+  'Bordure': 'Border',
+  'Exporter PDF': 'Export PDF',
+  'Correction enregistrée': 'Correction saved',
+  "Fichier mis en file d'attente": 'File queued',
+  'Il sera synchronisé une fois en ligne.': 'It will sync once back online.',
+  'PDF exporté avec succès': 'PDF exported successfully',
+  "Erreur d'exportation": 'Export error',
+  'DashFlow Canvas Engine — Mode "Correction Native" Manuel':
+    'DashFlow Canvas Engine — Manual "Native Correction" Mode',
+  'Cliquez pour modifier un texte. Utilisez l\'outil "Barre" pour corriger les prix originaux.':
+    'Click a text to edit it. Use the "Strike" tool to correct the original prices.',
+
+  // ── Scan warning dialog ──
+  'Vérification du scan': 'Scan review',
+  "Le scan est sujet à des erreurs. Merci de vérifier manuellement chaque ligne. Une fois terminé, cliquez sur le bouton « J'ai vérifié » dans la barre d'outils pour déverrouiller le tableau.":
+    'The scan is prone to errors. Please review every line manually. When done, click the "I have reviewed" button in the toolbar to unlock the table.',
 };

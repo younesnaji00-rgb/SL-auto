@@ -4,12 +4,37 @@ import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
 import { transliterateArabic } from '@/lib/transliterate-arabic';
 import { requireAuth, authErrorResponse } from '@/lib/require-auth';
+import { BRAND } from '@/lib/brand';
 
 /**
  * AI Document Scanner API.
  * Extracts structured form data from insurance documents (mission letters, claim forms, etc.)
  * Returns JSON matching the dossier creation form fields.
  */
+
+// Market-specific prompt fragments. MA is the original Moroccan prompt text,
+// verbatim; CA swaps in Canadian insurers, plate formats and date conventions.
+const DOC_MARKET_MA = {
+  country: 'au Maroc',
+  portals: `OU des captures d'écran de portails d'assurance (Sanlam ecosys, Wafa, RMA, etc.)`,
+  insurers: `Les compagnies d'assurance marocaines incluent: Wafa Assurance, RMA, Saham Assurance, Allianz Maroc, AXA Assurance Maroc, MAMDA, MCMA, Atlanta, Sanad, Sanlam, Zurich Maroc, Maroc Assistance, La Marocaine Vie.`,
+  plates: `Les immatriculations marocaines suivent les formats: "12345-A-1", "12345|A|1", ou ancien format numérique.`,
+  brands: `Les marques courantes au Maroc: Renault, Dacia, Peugeot, Citroën, Volkswagen, Hyundai, Kia, Toyota, Fiat, Ford, Mercedes-Benz, BMW, Audi, Opel, Nissan, Suzuki, Mitsubishi, Honda, Chevrolet, Seat, Skoda, MG, Chery, DFSK.`,
+  extrasHint: `(souvent présentes dans les portails Sanlam / RMA / Wafa et sur la carte grise)`,
+  dateHint: `utilise le format DD/MM/YYYY qui est le standard marocain/français`,
+};
+
+const DOC_MARKET_CA = {
+  country: 'au Canada',
+  portals: `OU des captures d'écran de portails d'assurance de compagnies canadiennes (Intact, Desjardins, etc.)`,
+  insurers: `Les compagnies d'assurance canadiennes incluent: Intact Assurance, Desjardins Assurances, Aviva Canada, TD Assurance, belairdirect, Wawanesa, Co-operators, Allstate Canada.`,
+  plates: `Les plaques d'immatriculation canadiennes sont des chaînes alphanumériques de 2 à 8 caractères dont le format varie selon la province (ex: "CKXR 382" en Ontario, "F12 ABC" au Québec).`,
+  brands: `Les marques courantes au Canada: Toyota, Honda, Ford, Chevrolet, GMC, Ram, Jeep, Dodge, Hyundai, Kia, Nissan, Mazda, Subaru, Volkswagen, Tesla, Mercedes-Benz, BMW, Audi, Lexus, Acura, Volvo, Chrysler, Buick, Cadillac, Mitsubishi.`,
+  extrasHint: `(souvent présentes dans les portails des compagnies et sur le certificat d'immatriculation)`,
+  dateHint: `utilise DD/MM/YYYY pour un document rédigé en français et MM/DD/YYYY pour un document rédigé en anglais`,
+};
+
+const DOC_MARKET = BRAND.market === 'CA' ? DOC_MARKET_CA : DOC_MARKET_MA;
 export async function POST(req: NextRequest) {
   try {
     await requireAuth(req);
@@ -34,14 +59,14 @@ export async function POST(req: NextRequest) {
       config: { responseMimeType: 'application/json' },
       prompt: [
         {
-          text: `Tu es un système d'extraction de données de haute précision spécialisé dans les dossiers d'expertise automobile au Maroc. Tu travailles pour un cabinet d'expertise d'assurance. La précision est CRITIQUE — toute erreur peut avoir des conséquences juridiques et financières graves.
+          text: `Tu es un système d'extraction de données de haute précision spécialisé dans les dossiers d'expertise automobile ${DOC_MARKET.country}. Tu travailles pour un cabinet d'expertise d'assurance. La précision est CRITIQUE — toute erreur peut avoir des conséquences juridiques et financières graves.
 
 CONTEXTE:
-- Les documents traités sont des lettres de mission, constats amiables, rapports d'expertise, PV de police, factures de réparation, OU des captures d'écran de portails d'assurance (Sanlam ecosys, Wafa, RMA, etc.).
+- Les documents traités sont des lettres de mission, constats amiables, rapports d'expertise, PV de police, factures de réparation, ${DOC_MARKET.portals}.
 - Plusieurs pages/images peuvent être fournies pour un même dossier : traite-les comme un ensemble et fusionne les informations. Si une information apparaît sur une seule page, elle compte.
-- Les compagnies d'assurance marocaines incluent: Wafa Assurance, RMA, Saham Assurance, Allianz Maroc, AXA Assurance Maroc, MAMDA, MCMA, Atlanta, Sanad, Sanlam, Zurich Maroc, Maroc Assistance, La Marocaine Vie.
-- Les immatriculations marocaines suivent les formats: "12345-A-1", "12345|A|1", ou ancien format numérique.
-- Les marques courantes au Maroc: Renault, Dacia, Peugeot, Citroën, Volkswagen, Hyundai, Kia, Toyota, Fiat, Ford, Mercedes-Benz, BMW, Audi, Opel, Nissan, Suzuki, Mitsubishi, Honda, Chevrolet, Seat, Skoda, MG, Chery, DFSK.
+- ${DOC_MARKET.insurers}
+- ${DOC_MARKET.plates}
+- ${DOC_MARKET.brands}
 
 TÂCHE:
 Analyse minutieusement ce(s) document(s) et extrais UNIQUEMENT les informations EXPLICITEMENT présentes. Ne déduis RIEN, ne complète RIEN, ne devine RIEN.
@@ -94,7 +119,7 @@ SCHÉMA JSON STRICT — renvoie exactement cette structure, où chaque champ est
 
 IMPORTANT: Pour chaque champ rempli, donne la position (bounding box) aussi précise que possible autour du texte correspondant. Convention: [yMin, xMin, yMax, xMax] en coordonnées normalisées 0-1000.
 
-INFOS SUPPLÉMENTAIRES (souvent présentes dans les portails Sanlam / RMA / Wafa et sur la carte grise):
+INFOS SUPPLÉMENTAIRES ${DOC_MARKET.extrasHint}:
 - "dateOfRequest" (Date de réception de la mission) = date à laquelle la mission a été émise/reçue par l'expert. Synonymes courants dans les documents importés: "Date de réception mission", "Date de réception", "Date de mission", "Date de création", "Date de création mission", "Date d'émission", "Date d'envoi". Tous ces libellés mappent sur \`dateOfRequest\`.
 - "insuredSubscriber" (Souscripteur) = personne qui a souscrit le contrat. Format typique: "NOM Prénom" ou "Prénom NOM".
 - "insuredCardHolder" (Titulaire Carte Grise) = propriétaire inscrit sur la carte grise. Peut différer du souscripteur.
@@ -110,7 +135,7 @@ INFOS SUPPLÉMENTAIRES (souvent présentes dans les portails Sanlam / RMA / Wafa
 
 RÈGLES STRICTES (ZÉRO TOLÉRANCE AUX ERREURS):
 1. Renvoie UNIQUEMENT le JSON brut. Pas de markdown, pas de commentaires, pas de \`\`\`, pas de texte avant ou après.
-2. DATES: Format YYYY-MM-DD uniquement. Si le document dit "15/03/2024", renvoie "2024-03-15". Si le format est ambigu (ex: 03/04/2024 pourrait être mars ou avril), utilise le format DD/MM/YYYY qui est le standard marocain/français.
+2. DATES: Format YYYY-MM-DD uniquement. Si le document dit "15/03/2024", renvoie "2024-03-15". Si le format est ambigu (ex: 03/04/2024 pourrait être mars ou avril), ${DOC_MARKET.dateHint}.
 3. NOMS DE COMPAGNIES: Copie le nom EXACT tel qu'il apparaît dans le document. Ne corrige pas l'orthographe, ne standardise pas.
 4. IMMATRICULATION: Copie le format EXACT du document, caractère par caractère. Sur la carte grise, deux numéros peuvent figurer: le numéro courant ("Immatriculation" / "N° d'immatriculation" / "Numéro d'immatriculation") va dans \`registration\`; le numéro antérieur ("Immatriculation antérieure" / "Ancien numéro" / "Précédente immatriculation"), s'il est présent, va dans \`previousRegistration\`. Si un seul numéro est donné, remplis uniquement \`registration\` et laisse \`previousRegistration\` à null. \`registrationW\` reste réservé aux plaques W (transit).
 5. NOMS DE PERSONNES: Copie exactement comme écrit dans le document, avec la casse originale.

@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useCompagnies } from '@/hooks/use-compagnies';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -91,6 +91,7 @@ import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@
 
 export default function UserDetailPage({ params }: { params: Promise<{ uid: string }> }) {
   const { uid } = React.use(params);
+  const t = useT();
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
@@ -327,7 +328,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       console.error('Failed to persist permission overrides', err);
       setDeniedNavItems(prevDenied);
       setGrantedNavItems(prevGranted);
-      toast({ variant: 'destructive', title: 'Erreur', description: "Impossible de mettre à jour la permission." });
+      toast({ variant: 'destructive', title: t('Erreur'), description: t("Impossible de mettre à jour la permission.") });
     } finally {
       setPermissionsSaving((p) => {
         const next = { ...p };
@@ -370,8 +371,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     if (!formData.nom || !formData.nom.trim()) {
       toast({
         variant: 'destructive',
-        title: 'Nom requis',
-        description: 'Le nom complet est obligatoire.',
+        title: t('Nom requis'),
+        description: t('Le nom complet est obligatoire.'),
       });
       return;
     }
@@ -441,10 +442,10 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         for (const d of staleSnap.docs) await deleteDoc(d.ref);
       }
 
-      toast({ title: "Profil mis à jour", description: "Les informations ont été enregistrées avec succès." });
+      toast({ title: t('Profil mis à jour'), description: t('Les informations ont été enregistrées avec succès.') });
     } catch (error) {
       console.error(error);
-      toast({ variant: 'destructive', title: "Erreur", description: "Impossible de sauvegarder les modifications." });
+      toast({ variant: 'destructive', title: t('Erreur'), description: t('Impossible de sauvegarder les modifications.') });
     } finally {
       setIsSaving(false);
     }
@@ -467,11 +468,11 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       // metadata explicitly or it would orphan (PII) after the parent is gone.
       await deleteDoc(doc(db, 'users', uid, 'session_meta', 'current')).catch(() => {});
       await deleteDoc(userRef);
-      toast({ title: "Utilisateur supprimé" });
+      toast({ title: t('Utilisateur supprimé') });
       router.push('/utilisateurs');
     } catch (error) {
       console.error(error);
-      toast({ variant: 'destructive', title: "Erreur lors de la suppression" });
+      toast({ variant: 'destructive', title: t('Erreur lors de la suppression') });
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
@@ -487,12 +488,12 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       await updateDoc(userRef, { currentSessionId: null, currentSessionSeenAt: null });
       await deleteDoc(doc(db, 'users', uid, 'session_meta', 'current')).catch(() => {});
       toast({
-        title: 'Session déconnectée',
-        description: "L'utilisateur a été déconnecté de son appareil et peut se reconnecter ailleurs.",
+        title: t('Session déconnectée'),
+        description: t("L'utilisateur a été déconnecté de son appareil et peut se reconnecter ailleurs."),
       });
     } catch (error) {
       console.error(error);
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de déconnecter la session.' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: t('Impossible de déconnecter la session.') });
     } finally {
       setIsDisconnecting(false);
     }
@@ -501,7 +502,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const formatTimestamp = (ts: any) => {
     if (!ts) return '-';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
-    return format(date, "d MMMM yyyy 'à' HH:mm", { locale: fr });
+    return format(date, "d MMMM yyyy 'à' HH:mm", { locale: dateFnsLocale() });
   };
 
   if (userLoading) {
@@ -520,9 +521,9 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     return (
       <div className="flex flex-col items-center justify-center p-20 text-center">
         <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-bold">Utilisateur introuvable</h1>
+        <h1 className="text-2xl font-bold">{t('Utilisateur introuvable')}</h1>
         <Button asChild className="mt-6" variant="outline">
-          <Link href="/utilisateurs"><ArrowLeft className="mr-2 h-4 w-4" /> Retour à la liste</Link>
+          <Link href="/utilisateurs"><ArrowLeft className="mr-2 h-4 w-4" /> {t('Retour à la liste')}</Link>
         </Button>
       </div>
     );
@@ -539,10 +540,10 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             <h1 className="text-2xl font-bold tracking-tight">
               {formData.prenom} {formData.nom}
             </h1>
-            <Badge variant="secondary">{formData.role}</Badge>
+            <Badge variant="secondary">{t(formData.role)}</Badge>
             <Badge variant={formData.statut === 'Actif' ? 'success' : 'destructive'} className="flex gap-1 items-center">
               <span className={`w-1.5 h-1.5 rounded-full ${formData.statut === 'Actif' ? 'bg-emerald-500' : 'bg-destructive'} animate-pulse`} />
-              {formData.statut}
+              {t(formData.statut)}
             </Badge>
           </div>
         </div>
@@ -554,28 +555,28 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <UserIcon className="h-5 w-5 text-primary" />
-                Informations personnelles
+                {t('Informations personnelles')}
               </CardTitle>
-              <CardDescription>Gérez les coordonnées et les accès de l'utilisateur.</CardDescription>
+              <CardDescription>{t("Gérez les coordonnées et les accès de l'utilisateur.")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label>Prénom</Label>
+                  <Label>{t('Prénom')}</Label>
                   <Input 
                     value={formData.prenom} 
                     onChange={e => setFormData(p => ({...p, prenom: e.target.value}))} 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Nom</Label>
+                  <Label>{t('Nom')}</Label>
                   <Input 
                     value={formData.nom} 
                     onChange={e => setFormData(p => ({...p, nom: e.target.value}))} 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Email</Label>
+                  <Label>{t('Email')}</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input 
@@ -586,7 +587,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Téléphone</Label>
+                  <Label>{t('Téléphone')}</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input 
@@ -597,7 +598,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Mot de passe</Label>
+                  <Label>{t('Mot de passe')}</Label>
                   <div className="relative">
                     <Input
                       type={showPassword ? 'text' : 'password'}
@@ -617,21 +618,21 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Rôle</Label>
+                  <Label>{t('Rôle')}</Label>
                   <Select value={formData.role} onValueChange={v => setFormData(p => ({...p, role: v as Role}))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {roles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                      {roles.map(r => <SelectItem key={r} value={r}>{t(r)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Statut</Label>
+                  <Label>{t('Statut')}</Label>
                   <Select value={formData.statut} onValueChange={v => setFormData(p => ({...p, statut: v as 'Actif' | 'Inactif'}))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Actif">Actif</SelectItem>
-                      <SelectItem value="Inactif">Inactif</SelectItem>
+                      <SelectItem value="Actif">{t('Actif')}</SelectItem>
+                      <SelectItem value="Inactif">{t('Inactif')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -647,7 +648,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   const selected = formData.zone || '';
                   return (
                     <div className="space-y-2">
-                      <Label>Zone</Label>
+                      <Label>{t('Zone')}</Label>
                       <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
                         <PopoverTrigger asChild>
                           <Button
@@ -657,7 +658,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                             aria-expanded={zonePopoverOpen}
                             className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground")}
                           >
-                            {selected || 'Sélectionnez ou saisissez une zone'}
+                            {selected || t('Sélectionnez ou saisissez une zone')}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </PopoverTrigger>
@@ -668,7 +669,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                               <input
                                 value={zoneQuery}
                                 onChange={(e) => setZoneQuery(e.target.value)}
-                                placeholder="Tapez pour rechercher ou créer..."
+                                placeholder={t('Tapez pour rechercher ou créer...')}
                                 className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' && trimmedQuery) {
@@ -682,7 +683,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                             </div>
                             <CommandList>
                               {filteredZones.length === 0 && !trimmedQuery && (
-                                <CommandEmpty>Aucune zone enregistrée. Tapez pour créer.</CommandEmpty>
+                                <CommandEmpty>{t('Aucune zone enregistrée. Tapez pour créer.')}</CommandEmpty>
                               )}
                               {filteredZones.length > 0 && (
                                 <CommandGroup>
@@ -703,7 +704,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                 </CommandGroup>
                               )}
                               {trimmedQuery && !exactMatch && (
-                                <CommandGroup heading="Créer">
+                                <CommandGroup heading={t('Créer')}>
                                   <CommandItem
                                     value={`__create__${trimmedQuery}`}
                                     onSelect={() => {
@@ -713,7 +714,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                     }}
                                   >
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Créer «{trimmedQuery}»
+                                    {t('Créer')} «{trimmedQuery}»
                                   </CommandItem>
                                 </CommandGroup>
                               )}
@@ -727,7 +728,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
               </div>
 
               <div className="space-y-2">
-                <Label>Compagnies d&apos;assurance affiliées</Label>
+                <Label>{t("Compagnies d'assurance affiliées")}</Label>
                 <MultiSelect
                   options={companyOptions}
                   selected={formData.compagnies}
@@ -735,12 +736,12 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   className="w-full"
                 />
                 <p className="text-xs text-muted-foreground">
-                  L&apos;utilisateur ne verra que les dossiers des compagnies sélectionnées. Si aucune n&apos;est sélectionnée, il verra tous les dossiers.
+                  {t("L'utilisateur ne verra que les dossiers des compagnies sélectionnées. Si aucune n'est sélectionnée, il verra tous les dossiers.")}
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label>Sites</Label>
+                <Label>{t('Sites')}</Label>
                 <MultiSelect
                   options={siteOptions}
                   selected={formData.sites}
@@ -748,24 +749,24 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   className="w-full"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Villes dans lesquelles l&apos;utilisateur intervient. Plusieurs choix possibles.
+                  {t("Villes dans lesquelles l'utilisateur intervient. Plusieurs choix possibles.")}
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="h-4 w-4" />
-                  <span>Créé le: {formatTimestamp(userData.createdAt)}</span>
+                  <span>{t('Créé le:')} {formatTimestamp(userData.createdAt)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
-                  <span>Dernière connexion: {formatTimestamp(userData.lastLogin)}</span>
+                  <span>{t('Dernière connexion:')} {formatTimestamp(userData.lastLogin)}</span>
                 </div>
               </div>
             </CardContent>
             <CardFooter className="flex justify-end bg-muted/30 pt-6">
               <Button onClick={handleSave} loading={isSaving}>
-                {isSaving ? 'Enregistrement...' : <><Save className="mr-2 h-4 w-4" /> Sauvegarder</>}
+                {isSaving ? t('Enregistrement...') : <><Save className="mr-2 h-4 w-4" /> {t('Sauvegarder')}</>}
               </Button>
             </CardFooter>
           </Card>
@@ -774,16 +775,16 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 text-primary" />
-                Permissions
+                {t('Permissions')}
               </CardTitle>
               <CardDescription>
-                Accordez ou retirez l&apos;accès à n&apos;importe quelle page pour cet utilisateur, indépendamment de son rôle. Utile pour des privilèges temporaires. «&nbsp;Signaler un bug&nbsp;» reste toujours accessible.
+                {t("Accordez ou retirez l'accès à n'importe quelle page pour cet utilisateur, indépendamment de son rôle. Utile pour des privilèges temporaires. « Signaler un bug » reste toujours accessible.")}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {permissionTree.length === 0 ? (
                 <p className="text-sm text-muted-foreground italic">
-                  Aucun menu configurable.
+                  {t('Aucun menu configurable.')}
                 </p>
               ) : (
                 <ul className="divide-y rounded-md border">
@@ -817,7 +818,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                             )}
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-sm font-medium leading-tight">{item.label}</p>
+                                <p className="text-sm font-medium leading-tight">{t(item.label)}</p>
                                 {isOverride && (
                                   <span
                                     className={cn(
@@ -826,17 +827,17 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                         ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
                                         : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
                                     )}
-                                    title={allowed ? 'Accordé en plus du rôle' : 'Retiré du rôle'}
+                                    title={allowed ? t('Accordé en plus du rôle') : t('Retiré du rôle')}
                                   >
-                                    {allowed ? 'Accordé' : 'Retiré'}
+                                    {allowed ? t('Accordé') : t('Retiré')}
                                   </span>
                                 )}
                                 {!item.roleDefault && !isOverride && (
                                   <span
                                     className="text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px bg-muted text-muted-foreground"
-                                    title="Non inclus dans le rôle par défaut"
+                                    title={t('Non inclus dans le rôle par défaut')}
                                   >
-                                    Hors rôle
+                                    {t('Hors rôle')}
                                   </span>
                                 )}
                               </div>
@@ -846,7 +847,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                           <div className="flex items-center gap-2 shrink-0">
                             {saving && (
                               <span className="text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
-                                Enregistrement…
+                                {t('Enregistrement…')}
                               </span>
                             )}
                             <Switch
@@ -861,7 +862,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                     )
                                   : handleTogglePermission(item.id, v, item.roleDefault)
                               }
-                              aria-label={`Autoriser l'accès à ${item.label}`}
+                              aria-label={`${t("Autoriser l'accès à")} ${t(item.label)}`}
                             />
                           </div>
                         </div>
@@ -879,7 +880,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                 >
                                   <div className="min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <p className="text-sm leading-tight">{child.label}</p>
+                                      <p className="text-sm leading-tight">{t(child.label)}</p>
                                       {cIsOverride && (
                                         <span
                                           className={cn(
@@ -889,7 +890,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                               : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
                                           )}
                                         >
-                                          {cAllowed ? 'Accordé' : 'Retiré'}
+                                          {cAllowed ? t('Accordé') : t('Retiré')}
                                         </span>
                                       )}
                                     </div>
@@ -898,7 +899,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                   <div className="flex items-center gap-2 shrink-0">
                                     {cSaving && (
                                       <span className="text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
-                                        Enregistrement…
+                                        {t('Enregistrement…')}
                                       </span>
                                     )}
                                     <Switch
@@ -907,7 +908,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                       onCheckedChange={(v) =>
                                         handleTogglePermission(child.id, v, child.roleDefault)
                                       }
-                                      aria-label={`Autoriser ${child.label}`}
+                                      aria-label={`${t('Autoriser')} ${t(child.label)}`}
                                     />
                                   </div>
                                 </li>
@@ -925,8 +926,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
 
           <Card>
             <CardHeader>
-              <CardTitle>Dossiers assignés</CardTitle>
-              <CardDescription>Liste des dossiers actuellement sous la responsabilité de cet utilisateur.</CardDescription>
+              <CardTitle>{t('Dossiers assignés')}</CardTitle>
+              <CardDescription>{t('Liste des dossiers actuellement sous la responsabilité de cet utilisateur.')}</CardDescription>
             </CardHeader>
             <CardContent>
               {dossiersLoading ? (
@@ -936,18 +937,18 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 </div>
               ) : !assignedDossiers || assignedDossiers.length === 0 ? (
                 <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg">
-                  Aucun dossier assigné
+                  {t('Aucun dossier assigné')}
                 </div>
               ) : (
                 <div className="rounded-md border">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Réf Expert</TableHead>
-                        <TableHead>Assuré</TableHead>
-                        <TableHead>Nature du dossier</TableHead>
-                        <TableHead>Statut</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead>{t('Réf Expert')}</TableHead>
+                        <TableHead>{t('Assuré')}</TableHead>
+                        <TableHead>{t('Nature du dossier')}</TableHead>
+                        <TableHead>{t('Statut')}</TableHead>
+                        <TableHead className="text-right">{t('Actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -959,7 +960,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                             <TableCell>{assureName}</TableCell>
                             <TableCell>{d.nature || '-'}</TableCell>
                             <TableCell>
-                              <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{d.statut || 'Nouveau'}</Badge>
+                              <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{t(d.statut || 'Nouveau')}</Badge>
                             </TableCell>
                             <TableCell className="text-right">
                               <Button variant="ghost" size="sm" asChild>
@@ -982,7 +983,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Clock className="h-5 w-5 text-muted-foreground" />
-                Historique d'activité
+                {t("Historique d'activité")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -994,7 +995,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 </div>
               ) : !activityHistory || activityHistory.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-6 italic">
-                  Aucune activité récente
+                  {t('Aucune activité récente')}
                 </p>
               ) : (
                 <div className="space-y-4">
@@ -1030,11 +1031,10 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <Smartphone className="h-4 w-4 text-muted-foreground" />
-                  Session / Appareil
+                  {t('Session / Appareil')}
                 </CardTitle>
                 <CardDescription>
-                  Ce rôle est limité à un seul appareil à la fois. Déconnectez sa session
-                  pour lui permettre de se connecter depuis un autre appareil.
+                  {t('Ce rôle est limité à un seul appareil à la fois. Déconnectez sa session pour lui permettre de se connecter depuis un autre appareil.')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -1051,10 +1051,10 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   />
                   <span className={cn(!sessionActive && 'text-muted-foreground')}>
                     {sessionActive
-                      ? 'Connecté sur un appareil'
+                      ? t('Connecté sur un appareil')
                       : sessionStale
-                        ? 'Session inactive (se libère automatiquement)'
-                        : 'Aucune session active'}
+                        ? t('Session inactive (se libère automatiquement)')
+                        : t('Aucune session active')}
                   </span>
                 </div>
                 {userData.currentSessionId && (
@@ -1062,26 +1062,26 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                     <div className="flex items-center justify-between gap-3">
                       <span className="flex items-center gap-1.5 text-muted-foreground">
                         <Smartphone className="h-3.5 w-3.5" />
-                        Appareil
+                        {t('Appareil')}
                       </span>
                       <span className="font-medium text-right">
-                        {sessionMeta?.device || 'Inconnu'}
+                        {sessionMeta?.device || t('Inconnu')}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <span className="flex items-center gap-1.5 text-muted-foreground">
                         <Globe className="h-3.5 w-3.5" />
-                        Adresse IP
+                        {t('Adresse IP')}
                       </span>
                       <span className="font-mono tabular-nums text-right">
-                        {sessionMeta?.ip || 'Inconnue'}
+                        {sessionMeta?.ip || t('Inconnue')}
                       </span>
                     </div>
                     {sessionMeta?.at && (
                       <div className="flex items-center justify-between gap-3">
                         <span className="flex items-center gap-1.5 text-muted-foreground">
                           <Clock className="h-3.5 w-3.5" />
-                          Connecté depuis
+                          {t('Connecté depuis')}
                         </span>
                         <span className="tabular-nums text-right">
                           {formatTimestamp(sessionMeta.at)}
@@ -1098,7 +1098,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   onClick={handleForceDisconnect}
                 >
                   {!isDisconnecting && <LogOut className="mr-2 h-4 w-4" />}
-                  Déconnecter la session
+                  {t('Déconnecter la session')}
                 </Button>
               </CardContent>
             </Card>
@@ -1108,9 +1108,9 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
           {canDelete && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Supprimer cet utilisateur</CardTitle>
+                <CardTitle className="text-base">{t('Supprimer cet utilisateur')}</CardTitle>
                 <CardDescription>
-                  L&apos;utilisateur sera retiré du système. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
+                  {t("L'utilisateur sera retiré du système. Les journaux d'activité (historique, workflow) attribués à cet utilisateur seront conservés.")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1119,7 +1119,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   className="w-full border-destructive text-destructive hover:bg-destructive hover:text-white"
                   onClick={() => setShowDeleteDialog(true)}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer l&apos;utilisateur
+                  <Trash2 className="mr-2 h-4 w-4" /> {t("Supprimer l'utilisateur")}
                 </Button>
               </CardContent>
             </Card>
@@ -1130,20 +1130,20 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogTitle>{t('Confirmer la suppression')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer définitivement l&apos;utilisateur <strong>{formData.prenom} {formData.nom}</strong> ?
-              Cette action est irréversible. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
+              {t("Êtes-vous sûr de vouloir supprimer définitivement l'utilisateur")} <strong>{formData.prenom} {formData.nom}</strong> ?{' '}
+              {t("Cette action est irréversible. Les journaux d'activité (historique, workflow) attribués à cet utilisateur seront conservés.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction 
               onClick={(e) => { e.preventDefault(); handleDeleteUser(); }} 
               className="bg-destructive hover:bg-destructive/90"
               disabled={isDeleting}
             >
-              {isDeleting ? 'Suppression...' : 'Confirmer la suppression'}
+              {isDeleting ? t('Suppression...') : t('Confirmer la suppression')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

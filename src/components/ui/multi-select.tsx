@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/command';
 import { Command as CommandPrimitive } from 'cmdk';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 
 type Option = Record<'value' | 'label', string>;
 
@@ -28,6 +29,7 @@ export function MultiSelect({
   className?: string;
   [key: string]: any;
 }) {
+  const t = useT();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [open, setOpen] = React.useState(false);
   const [inputValue, setInputValue] = React.useState('');
@@ -98,7 +100,7 @@ export function MultiSelect({
             onValueChange={setInputValue}
             onBlur={() => setOpen(false)}
             onFocus={() => setOpen(true)}
-            placeholder="Sélectionnez..."
+            placeholder={t('Sélectionnez...')}
             className="ml-2 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
             {...props}
           />

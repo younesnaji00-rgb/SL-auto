@@ -18,6 +18,7 @@
  */
 import React from 'react';
 import { Document, View, Text, Svg, Path } from '@react-pdf/renderer';
+import { t } from '@/i18n';
 import { resolveRapportData, type RapportData } from '@/lib/rapport-data';
 import { fC, COMPANY_CITY } from '@/lib/generate-rapport-shared';
 import { RapportPage, renderRapport, INK, SOFT } from '@/lib/rapport-pdf-kit';
@@ -166,14 +167,14 @@ function EstimationTable({ values }: { values: string[] }) {
   return (
     <GBox style={{ marginTop: 2 }}>
       <TRow>
-        <Cell w={60} font={SERIF_B} align="center" pad={4}>Désignation et descriptif</Cell>
-        <Cell w={40} font={SERIF_B} align="center" pad={4} last>Valeur estimée</Cell>
+        <Cell w={60} font={SERIF_B} align="center" pad={4}>{t('Désignation et descriptif')}</Cell>
+        <Cell w={40} font={SERIF_B} align="center" pad={4} last>{t('Valeur estimée')}</Cell>
       </TRow>
       {EST_LABELS.map((label, i) => {
         const bold = EST_BOLD.has(i);
         return (
           <TRow key={i}>
-            <Cell w={60} font={bold ? SERIF_B : SERIF}>{label}</Cell>
+            <Cell w={60} font={bold ? SERIF_B : SERIF}>{t(label)}</Cell>
             <Cell w={40} font={bold ? SERIF_B : SERIF} align="right" last>{values[i] ?? ''}</Cell>
           </TRow>
         );
@@ -194,7 +195,7 @@ function ValeursTable({ values }: { values: string[] }) {
     <GBox style={{ marginTop: 6 }}>
       {VAL_LABELS.map((label, i) => (
         <TRow key={i}>
-          <Cell w={73} font={SANS_B}>{label}</Cell>
+          <Cell w={73} font={SANS_B}>{t(label)}</Cell>
           <Cell w={27} font={SANS} align="right" last>{values[i] ?? ''}</Cell>
         </TRow>
       ))}
@@ -207,11 +208,11 @@ function EstimationHeader({ reparation }: { reparation: boolean }) {
   return (
     <>
       <SmallHeading style={{ marginLeft: 14, marginTop: 4, marginBottom: 4 }}>
-        ESTIMATION DES DOMMAGES :
+        {t('ESTIMATION DES DOMMAGES :')}
       </SmallHeading>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 6, marginBottom: 5 }}>
         <CheckBox checked={reparation} />
-        <Text style={{ fontFamily: SERIF, fontSize: 9 }}>Réparation</Text>
+        <Text style={{ fontFamily: SERIF, fontSize: 9 }}>{t('Réparation')}</Text>
       </View>
     </>
   );
@@ -221,16 +222,16 @@ function ReformeRow({ economique, technique }: { economique: boolean; technique:
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, marginBottom: 4 }}>
       <CheckBox checked={economique} />
-      <Text style={{ fontFamily: SERIF, fontSize: 9, marginRight: 22 }}>Réforme Economique</Text>
+      <Text style={{ fontFamily: SERIF, fontSize: 9, marginRight: 22 }}>{t('Réforme Economique')}</Text>
       <CheckBox checked={technique} />
-      <Text style={{ fontFamily: SERIF, fontSize: 9 }}>Réforme Technique</Text>
+      <Text style={{ fontFamily: SERIF, fontSize: 9 }}>{t('Réforme Technique')}</Text>
     </View>
   );
 }
 
 /** Pure layout document (renderable with mock data for tests/preview). */
 export function RapportPreliminaireDocument({ data }: { data: RapportData }) {
-  const t = data.totals;
+  const t2 = data.totals;
   const rv = data.reformeView;
 
   // Main d'oeuvre split by category (TTC); everything not tôlerie/peinture is
@@ -239,7 +240,7 @@ export function RapportPreliminaireDocument({ data }: { data: RapportData }) {
     data.mdoRows.filter((r) => r.key === k).reduce((a, r) => a + r.montantTTC, 0);
   const moTol = mdoTTCByKey('tolerie');
   const moPei = mdoTTCByKey('peinture');
-  const moAutre = Math.max(0, t.mdoTTC - moTol - moPei);
+  const moAutre = Math.max(0, t2.mdoTTC - moTol - moPei);
 
   const isEconomique = rv.isEconomique;
   const isTechnique = rv.isTechnique;
@@ -248,13 +249,13 @@ export function RapportPreliminaireDocument({ data }: { data: RapportData }) {
 
   // 1er expert (SL Auto) — filled; 2ème expert — blank.
   const estValues = [
-    fC(t.fournitureTTC),
+    fC(t2.fournitureTTC),
     fC(moTol),
     fC(moPei),
     fC(moAutre),
-    fC(t.totalTTC),
-    fC(t.vetuste),
-    fC(Math.max(0, t.totalTTC - t.vetuste)),
+    fC(t2.totalTTC),
+    fC(t2.vetuste),
+    fC(Math.max(0, t2.totalTTC - t2.vetuste)),
   ];
   const valValues = [fC(rv.valeurVenale), fC(rv.valeurEpave), fC(diff)];
   const blank7 = ['', '', '', '', '', '', ''];
@@ -266,7 +267,7 @@ export function RapportPreliminaireDocument({ data }: { data: RapportData }) {
     <Document>
       {/* ══════════════════ PAGE 1 — 1ER EXPERT ══════════════════ */}
       <RapportPage>
-        <TitleBox size={11}>RAPPORT D'EXPERTSE PRÉLIMINAIRE -CONTRADICTOIRE</TitleBox>
+        <TitleBox size={11}>{t("RAPPORT D'EXPERTSE PRÉLIMINAIRE -CONTRADICTOIRE")}</TitleBox>
 
         {/* Identity fiche */}
         <GBox style={{ marginTop: 14 }}>
@@ -277,7 +278,7 @@ export function RapportPreliminaireDocument({ data }: { data: RapportData }) {
             ['GSM', data.assure.telephone],
           ].map(([l, v], i) => (
             <TRow key={i}>
-              <Cell w={31} font={SANS_B}>{l}</Cell>
+              <Cell w={31} font={SANS_B}>{t(l)}</Cell>
               <Cell w={69} font={SANS} last>{v}</Cell>
             </TRow>
           ))}
@@ -285,26 +286,26 @@ export function RapportPreliminaireDocument({ data }: { data: RapportData }) {
 
         {/* Entre les soussignés */}
         <View style={{ marginTop: 12 }}>
-          <Text style={{ fontFamily: SERIF_B, fontSize: 9.5, marginBottom: 4 }}>Entre les soussignés:</Text>
+          <Text style={{ fontFamily: SERIF_B, fontSize: 9.5, marginBottom: 4 }}>{t('Entre les soussignés:')}</Text>
           <Text style={prose}>
-            Monsieur <Text style={{ fontFamily: SERIF_B }}>SLAUTO</Text>, Expert désigné par la compagnie {data.compagnie}
+            {t('Monsieur')} <Text style={{ fontFamily: SERIF_B }}>SLAUTO</Text>, {t('Expert désigné par la compagnie')} {data.compagnie}
           </Text>
           <Text style={prose}>
-            Assureur du véhicule immatriculé <Text style={{ fontFamily: SERIF_B }}>{data.vehicule.immatriculation}</Text>
-            {' '}par la police N° <Text style={{ fontFamily: SERIF_B }}>{data.policeNumber}</Text>
+            {t('Assureur du véhicule immatriculé')} <Text style={{ fontFamily: SERIF_B }}>{data.vehicule.immatriculation}</Text>
+            {' '}{t('par la police N°')} <Text style={{ fontFamily: SERIF_B }}>{data.policeNumber}</Text>
           </Text>
           <Text style={prose}>
-            Et Monsieur {dots(52)}, Expert désigné par la compagnie assureur du {dots(23)}
+            {t('Et Monsieur')} {dots(52)}, {t('Expert désigné par la compagnie assureur du')} {dots(23)}
           </Text>
           <Text style={prose}>
-            véhicule immatriculé {dots(28)} par la police N° {dots(28)}
+            {t('véhicule immatriculé')} {dots(28)} {t('par la police N°')} {dots(28)}
           </Text>
-          <Text style={prose}>A l'effet de procéder à l'estimation contradictoire des dommages subis par</Text>
-          <Text style={prose}>{dots(99)} dont les caractéristiques se présentent comme suit:</Text>
+          <Text style={prose}>{t("A l'effet de procéder à l'estimation contradictoire des dommages subis par")}</Text>
+          <Text style={prose}>{dots(99)} {t('dont les caractéristiques se présentent comme suit:')}</Text>
         </View>
 
         {/* Caractéristique technique */}
-        <SmallHeading style={{ marginTop: 8, marginBottom: 4 }}>CARACTERISTIQUE TECHNIQUE DU VEHICULE :</SmallHeading>
+        <SmallHeading style={{ marginTop: 8, marginBottom: 4 }}>{t('CARACTERISTIQUE TECHNIQUE DU VEHICULE :')}</SmallHeading>
         <GBox>
           {[
             ['Marque', data.vehicule.marque, 'Châssis', data.vehicule.serie],
@@ -313,16 +314,16 @@ export function RapportPreliminaireDocument({ data }: { data: RapportData }) {
             ['Cylindre', data.vehicule.cylindre, 'Kilométrages', data.vehicule.km],
           ].map(([l1, v1, l2, v2], i) => (
             <TRow key={i}>
-              <Cell w={20} font={SANS_B}>{l1}</Cell>
+              <Cell w={20} font={SANS_B}>{t(l1)}</Cell>
               <Cell w={30} font={SANS}>{v1}</Cell>
-              <Cell w={22} font={SANS_B}>{l2}</Cell>
+              <Cell w={22} font={SANS_B}>{t(l2)}</Cell>
               <Cell w={28} font={SANS} last>{v2}</Cell>
             </TRow>
           ))}
         </GBox>
 
         {/* Position 1er expert + estimation */}
-        <Bullet>POSITION DU 1ER EXPERT :</Bullet>
+        <Bullet>{t('POSITION DU 1ER EXPERT :')}</Bullet>
         <EstimationHeader reparation={isReparation} />
         <EstimationTable values={estValues} />
         <ReformeRow economique={isEconomique} technique={isTechnique} />
@@ -331,36 +332,36 @@ export function RapportPreliminaireDocument({ data }: { data: RapportData }) {
 
       {/* ══════════════════ PAGE 2 — 2ÈME EXPERT ══════════════════ */}
       <RapportPage>
-        <TitleBox size={10}>ANNEXE 4 : RAPPORT D'EXPERTSE PRÉLIMINAIRE - CONTRADICTOIRE</TitleBox>
+        <TitleBox size={10}>{t("ANNEXE 4 : RAPPORT D'EXPERTSE PRÉLIMINAIRE - CONTRADICTOIRE")}</TitleBox>
 
-        <Bullet>POSITION DU 2ÈME EXPERT :</Bullet>
+        <Bullet>{t('POSITION DU 2ÈME EXPERT :')}</Bullet>
         <EstimationHeader reparation={false} />
         <EstimationTable values={blank7} />
         <ReformeRow economique={false} technique={false} />
         <ValeursTable values={blank3} />
 
         {/* Observation / motif de désaccord */}
-        <SmallHeading style={{ marginTop: 12, marginBottom: 6 }}>OBSERVATION OU MOTIF DE DÉSACCORD :</SmallHeading>
+        <SmallHeading style={{ marginTop: 12, marginBottom: 6 }}>{t('OBSERVATION OU MOTIF DE DÉSACCORD :')}</SmallHeading>
         {[0, 1, 2].map((i) => (
           <View key={i} style={{ borderBottomWidth: 0.7, borderColor: SOFT, borderStyle: 'dotted', height: 13 }} />
         ))}
 
         <Text style={{ fontFamily: SERIF, fontSize: 9, marginTop: 14 }}>
-          En foi de quoi, la présente minute est établie pour servir et valoir ce que de droit
+          {t('En foi de quoi, la présente minute est établie pour servir et valoir ce que de droit')}
         </Text>
 
         {/* Dual signature block */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
           <View style={{ width: '48%' }}>
-            <Text style={{ fontFamily: SERIF, fontSize: 9 }}>Fait à {COMPANY_CITY} , LE {data.today}</Text>
-            <Text style={{ fontFamily: SERIF, fontSize: 9, marginTop: 2 }}>EXPERT DE LA COMPAGNIE</Text>
+            <Text style={{ fontFamily: SERIF, fontSize: 9 }}>{t('Fait à')} {COMPANY_CITY}, {t('le')} {data.today}</Text>
+            <Text style={{ fontFamily: SERIF, fontSize: 9, marginTop: 2 }}>{t('EXPERT DE LA COMPAGNIE')}</Text>
             <Text style={{ fontFamily: SERIF, fontSize: 9 }}>{data.compagnie}</Text>
             <Text style={{ fontFamily: SERIF, fontSize: 9 }}>SLAUTO</Text>
           </View>
           <View style={{ width: '48%' }}>
-            <Text style={{ fontFamily: SERIF, fontSize: 9 }}>EXPERT DE LA COMPAGNIE</Text>
+            <Text style={{ fontFamily: SERIF, fontSize: 9 }}>{t('EXPERT DE LA COMPAGNIE')}</Text>
             <Text style={{ fontFamily: SERIF, fontSize: 9 }}>{dots(35)}</Text>
-            <Text style={{ fontFamily: SERIF, fontSize: 9 }}>Cabinet {dots(26)}</Text>
+            <Text style={{ fontFamily: SERIF, fontSize: 9 }}>{t('Cabinet')} {dots(26)}</Text>
           </View>
         </View>
       </RapportPage>

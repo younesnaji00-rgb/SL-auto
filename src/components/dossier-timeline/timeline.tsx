@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { collection, orderBy, query } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { TimelineBar, type TimelineStep } from './timeline-bar';
 import { useCollapsedSteps } from '@/hooks/use-collapsed-steps';
@@ -23,6 +23,7 @@ export interface TimelineSectionProps {
 }
 
 function TimelineSection({ id, position, label, children, collapsed, onToggle, stamp }: TimelineSectionProps) {
+  const t = useT();
   return (
     <section
       id={`step-${id}`}
@@ -39,11 +40,11 @@ function TimelineSection({ id, position, label, children, collapsed, onToggle, s
           {position}
         </span>
         <div className="flex-1 flex flex-col items-start min-w-0">
-          <h2 className="text-lg font-bold leading-tight">{label}</h2>
+          <h2 className="text-lg font-bold leading-tight">{t(label)}</h2>
           <span className="text-xs text-muted-foreground mt-0.5 truncate max-w-full">
             {stamp ? (
               <>
-                {format(stamp.date, 'dd/MM/yyyy HH:mm', { locale: fr })} —{' '}
+                {format(stamp.date, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() })} —{' '}
                 <UserNameLink
                   entry={{ userNom: stamp.userNom, user: stamp.user }}
                   className="text-muted-foreground"

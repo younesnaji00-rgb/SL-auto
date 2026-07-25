@@ -39,7 +39,7 @@ import { useFirestore, useAuth, useCollection, useStorage } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { logHistorique } from './log-historique';
 
 type PieceJointe = {
@@ -70,6 +70,7 @@ type CommentairesTabProps = {
 };
 
 export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
+  const t = useT();
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -187,12 +188,12 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
 
       setCommentText('');
       setSelectedFile(null);
-      toast({ title: 'Commentaire ajouté' });
+      toast({ title: t('Commentaire ajouté') });
     } catch (error: any) {
       console.error('Comment send error:', error);
-      toast({ 
-        variant: 'destructive', 
-        title: "Erreur lors de l'envoi",
+      toast({
+        variant: 'destructive',
+        title: t("Erreur lors de l'envoi"),
         description: error.message
       });
     } finally {
@@ -214,7 +215,7 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
       window.URL.revokeObjectURL(blobUrl);
     } catch (e) {
       console.error('Download error:', e);
-      toast({ variant: 'destructive', title: "Erreur lors du téléchargement" });
+      toast({ variant: 'destructive', title: t('Erreur lors du téléchargement') });
     }
   };
 
@@ -240,10 +241,10 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
         editedAt: serverTimestamp()
       });
       setEditingId(null);
-      toast({ title: 'Commentaire modifié' });
+      toast({ title: t('Commentaire modifié') });
     } catch (error) {
       console.error('Comment edit error:', error);
-      toast({ variant: 'destructive', title: 'Erreur lors de la modification' });
+      toast({ variant: 'destructive', title: t('Erreur lors de la modification') });
     } finally {
       setIsSavingEdit(false);
     }
@@ -261,10 +262,10 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
       }
 
       await deleteDoc(doc(db, 'dossiers', dossierId, 'commentaires', commentId));
-      toast({ title: 'Commentaire supprimé' });
+      toast({ title: t('Commentaire supprimé') });
     } catch (error) {
       console.error('Comment delete error:', error);
-      toast({ variant: 'destructive', title: 'Erreur lors de la suppression' });
+      toast({ variant: 'destructive', title: t('Erreur lors de la suppression') });
     } finally {
       setDeletingId(null);
     }
@@ -273,7 +274,7 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
   const formatDate = (ts: any) => {
     if (!ts) return '-';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
-    return format(date, "d MMM yyyy 'à' HH:mm", { locale: fr });
+    return format(date, "d MMM yyyy 'à' HH:mm", { locale: dateFnsLocale() });
   };
 
   const currentUserEmail = auth?.currentUser?.email || 'Inconnu';
@@ -290,8 +291,8 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
 
       <Card className="shadow-sm border-primary/10">
         <CardContent className="p-4 space-y-4">
-          <Textarea 
-            placeholder="Écrire un commentaire..." 
+          <Textarea
+            placeholder={t('Écrire un commentaire...')}
             className="min-h-[100px] resize-none focus-visible:ring-primary"
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
@@ -320,7 +321,7 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
               className="text-muted-foreground hover:text-primary"
               onClick={() => attachmentInputRef.current?.click()}
               disabled={isSubmitting}
-              title="Attacher un fichier"
+              title={t('Attacher un fichier')}
             >
               <Paperclip className="h-5 w-5" />
             </Button>
@@ -333,7 +334,7 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  Envoyer
+                  {t('Envoyer')}
                   <Send className="ml-2 h-4 w-4" />
                 </>
               )}
@@ -352,8 +353,8 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
         ) : comments.length === 0 ? (
           <EmptyState
             icon={<MessageSquare />}
-            title="Aucun commentaire pour le moment"
-            description="Ajoutez votre premier commentaire avec le formulaire ci-dessus."
+            title={t('Aucun commentaire pour le moment')}
+            description={t('Ajoutez votre premier commentaire avec le formulaire ci-dessus.')}
           />
         ) : (
           comments.map((comment) => (
@@ -369,7 +370,7 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-sm">{comment.auteurNom || comment.auteur || comment.authorName}</span>
                       {comment.auteurRole && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium">{comment.auteurRole}</Badge>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium">{t(comment.auteurRole)}</Badge>
                       )}
                       <span className="text-xs text-muted-foreground">•</span>
                       <span className="text-xs text-muted-foreground">{formatDate(comment.date || comment.createdAt)}</span>
@@ -418,10 +419,10 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
                     />
                     <div className="flex justify-end gap-2">
                       <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={isSavingEdit}>
-                        Annuler
+                        {t('Annuler')}
                       </Button>
                       <Button size="sm" onClick={() => handleSaveEdit(comment.id)} disabled={isSavingEdit}>
-                        {isSavingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Sauvegarder'}
+                        {isSavingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : t('Sauvegarder')}
                       </Button>
                     </div>
                   </div>
@@ -430,7 +431,7 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
                     {comment.contenu || comment.text}
                     {comment.editedAt && (
                       <div className="mt-2 text-[10px] text-muted-foreground italic">
-                        Modifié le {formatDate(comment.editedAt)}
+                        {t('Modifié le')} {formatDate(comment.editedAt)}
                       </div>
                     )}
                   </div>

@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { DevisEditor } from '@/components/chiffreurs/devis-editor';
+import { useT } from '@/i18n';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -50,6 +51,7 @@ interface ChiffrageDoc {
 type CreatorKind = 'devis' | 'facture';
 
 export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
+  const t = useT();
   const router = useRouter();
   const db = useFirestore();
   const storage = useStorage();
@@ -152,9 +154,9 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
     try {
       const updatedFiles = chiffrage.files.filter((_, i) => i !== index).map(clean);
       await updateDoc(doc(db, 'chiffrages', chiffrageId), { files: updatedFiles, updatedAt: serverTimestamp() });
-      toast({ title: 'Fichier supprimé' });
+      toast({ title: t('Fichier supprimé') });
     } catch {
-      toast({ variant: 'destructive', title: 'Erreur de suppression' });
+      toast({ variant: 'destructive', title: t('Erreur de suppression') });
     } finally {
       setDeletingIndex(null);
     }
@@ -200,7 +202,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
       <DialogContent className="max-w-[98vw] w-full h-[95vh] flex flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-4 py-3 border-b shrink-0">
           <DialogTitle>
-            {creatorKind === 'devis' ? 'Créer un devis' : 'Créer une facture'}
+            {creatorKind === 'devis' ? t('Créer un devis') : t('Créer une facture')}
           </DialogTitle>
         </DialogHeader>
         <div className="flex-1 min-h-0 overflow-auto">
@@ -222,11 +224,11 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
     <div className="flex flex-wrap items-center gap-2">
       <Button size="sm" variant="outline" onClick={() => setCreatorKind('devis')}>
         <FileSignature className="mr-2 h-3.5 w-3.5" />
-        Créer un devis
+        {t('Créer un devis')}
       </Button>
       <Button size="sm" variant="outline" onClick={() => setCreatorKind('facture')}>
         <Receipt className="mr-2 h-3.5 w-3.5" />
-        Créer une facture
+        {t('Créer une facture')}
       </Button>
     </div>
   ) : null;
@@ -237,9 +239,9 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
         {creatorButtons}
         <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl bg-muted/30">
           <FileText className="h-12 w-12 text-muted-foreground mb-4 opacity-20" />
-          <h3 className="text-lg font-semibold">Aucune correction en cours</h3>
+          <h3 className="text-lg font-semibold">{t('Aucune correction en cours')}</h3>
           <p className="text-sm text-muted-foreground text-center max-w-xs mt-2">
-            Utilisez <span className="font-bold">« Envoyer vers chiffrage »</span> pour activer le mode correcteur.
+            {t('Utilisez')} <span className="font-bold">{t('« Envoyer vers chiffrage »')}</span> {t('pour activer le mode correcteur.')}
           </p>
         </div>
         {creatorDialog}
@@ -252,14 +254,14 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
       {creatorButtons}
       <div className="flex items-center justify-between border-b pb-4">
         <div>
-          <h2 className="text-lg font-bold">Plateforme de Correction Native</h2>
+          <h2 className="text-lg font-bold">{t('Plateforme de Correction Native')}</h2>
           <p className="text-xs text-muted-foreground">
-            Correcteur responsable : <span className="font-bold text-foreground">{chiffrage?.assignedChiffreurNom}</span>
+            {t('Correcteur responsable :')} <span className="font-bold text-foreground">{chiffrage?.assignedChiffreurNom}</span>
           </p>
         </div>
         <Badge variant={chiffrage?.status === 'done' ? 'expertise' : 'secondary'} className="gap-1.5 py-1 px-3">
           {chiffrage?.status === 'done' ? <CheckCircle2 className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
-          {chiffrage?.status === 'done' ? 'Terminé' : 'En cours'}
+          {chiffrage?.status === 'done' ? t('Terminé') : t('En cours')}
         </Badge>
       </div>
 
@@ -272,7 +274,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
             >
               {expandedGroups.has(groupKey) ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
               {group.icon === 'photo' ? <ImageIcon className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-4 w-4 text-muted-foreground" />}
-              <span className="text-sm font-bold flex-1">{group.label}</span>
+              <span className="text-sm font-bold flex-1">{t(group.label)}</span>
               <Badge variant="secondary" className="text-[10px] font-mono">{group.files.length}</Badge>
             </button>
             {expandedGroups.has(groupKey) && (
@@ -307,7 +309,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
                       </div>
 
                       <div className="bg-muted/30 p-2 rounded text-[10px] text-muted-foreground italic line-clamp-2 leading-relaxed">
-                        Mode Correcteur : Ajoutez vos annotations, barrez les prix et modifiez les valeurs directement sur l'image.
+                        {t("Mode Correcteur : Ajoutez vos annotations, barrez les prix et modifiez les valeurs directement sur l'image.")}
                       </div>
 
                       <div className="flex gap-1.5 flex-wrap pt-1">
@@ -336,9 +338,9 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
           <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
             <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
               {chiffrage.files[previewIndex].name.match(/\.(jpg|jpeg|png|webp)$/i) ? (
-                <img src={downloadUrls[previewIndex]} className="max-w-full max-h-full object-contain" alt="Aperçu" />
+                <img src={downloadUrls[previewIndex]} className="max-w-full max-h-full object-contain" alt={t('Aperçu')} />
               ) : (
-                <iframe src={downloadUrls[previewIndex]} className="w-full h-full border-none" title="Aperçu" />
+                <iframe src={downloadUrls[previewIndex]} className="w-full h-full border-none" title={t('Aperçu')} />
               )}
             </div>
           </DialogContent>
@@ -348,16 +350,16 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
       <AlertDialog open={deletingIndex !== null} onOpenChange={() => setDeletingIndex(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce fichier ?</AlertDialogTitle>
-            <AlertDialogDescription>Cette action est irréversible.</AlertDialogDescription>
+            <AlertDialogTitle>{t('Supprimer ce fichier ?')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('Cette action est irréversible.')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deletingIndex !== null && handleDelete(deletingIndex)}
             >
-              Supprimer
+              {t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -369,8 +371,9 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
 }
 
 function StatusBadge({ status, hasAnnotations }: { status: string; hasAnnotations: boolean }) {
+  const t = useT();
   if (hasAnnotations) {
-    return <Badge variant="expertise" className="text-[9px] py-0 h-4 uppercase font-black">CORRIGÉ</Badge>;
+    return <Badge variant="expertise" className="text-[9px] py-0 h-4 uppercase font-black">{t('CORRIGÉ')}</Badge>;
   }
-  return <Badge variant="secondary" className="text-[9px] py-0 h-4 uppercase font-black">EN ATTENTE</Badge>;
+  return <Badge variant="secondary" className="text-[9px] py-0 h-4 uppercase font-black">{t('EN ATTENTE')}</Badge>;
 }

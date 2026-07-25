@@ -13,6 +13,7 @@ import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 
 interface Annotation {
   id: string;
@@ -35,6 +36,7 @@ export default function ViewerPage() {
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
+  const t = useT();
 
   const chiffrageId = searchParams.get('chiffrageId') || '';
   const dossierId = searchParams.get('dossierId') || '';
@@ -217,7 +219,7 @@ export default function ViewerPage() {
         }
       } catch (e) {
         console.error(e);
-        toast({ variant: 'destructive', title: 'Erreur de chargement du fichier' });
+        toast({ variant: 'destructive', title: t('Erreur de chargement du fichier') });
       } finally {
         setLoading(false);
       }
@@ -271,7 +273,7 @@ export default function ViewerPage() {
     return (
       <div className="flex flex-col h-screen items-center justify-center gap-4 bg-slate-100 dark:bg-slate-900">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Chargement du document...</p>
+        <p className="text-sm text-muted-foreground">{t('Chargement du document...')}</p>
       </div>
     );
   }
@@ -281,7 +283,7 @@ export default function ViewerPage() {
       {/* Toolbar */}
       <div className="bg-card border-b px-3 py-1.5 flex items-center gap-2 shrink-0 z-50 shadow-sm">
         <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs px-2" onClick={() => router.back()}>
-          <ArrowLeft className="h-3 w-3" /> Retour
+          <ArrowLeft className="h-3 w-3" /> {t('Retour')}
         </Button>
 
         <div className="h-5 w-px bg-border" />
@@ -289,13 +291,13 @@ export default function ViewerPage() {
         {/* Type filter */}
         <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
           <SelectTrigger className="h-7 w-[150px] text-xs">
-            <SelectValue placeholder="Type de document" />
+            <SelectValue placeholder={t('Type de document')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">Tous les types ({allFiles.length})</SelectItem>
+            <SelectItem value="__all__">{t('Tous les types')} ({allFiles.length})</SelectItem>
             {Object.entries(fileTypeGroups).map(([key, group]) => (
               <SelectItem key={key} value={key}>
-                {group.label} ({group.indices.length})
+                {t(group.label)} ({group.indices.length})
               </SelectItem>
             ))}
           </SelectContent>
@@ -310,7 +312,7 @@ export default function ViewerPage() {
             {filteredFileIndices.map((i) => (
               <SelectItem key={i} value={String(i)}>
                 <span className="flex items-center gap-1.5 truncate">
-                  {allFiles[i].source === 'dossier' && <span className="text-[9px] bg-muted px-1 rounded font-semibold text-muted-foreground shrink-0">Dossier</span>}
+                  {allFiles[i].source === 'dossier' && <span className="text-[9px] bg-muted px-1 rounded font-semibold text-muted-foreground shrink-0">{t('Dossier')}</span>}
                   {allFiles[i].name}
                 </span>
               </SelectItem>
@@ -332,7 +334,7 @@ export default function ViewerPage() {
             onClick={() => setComparisonOpen(v => !v)}
           >
             <Columns2 className="h-3 w-3" />
-            Comparaison
+            {t('Comparaison')}
           </Button>
         )}
 
@@ -361,7 +363,7 @@ export default function ViewerPage() {
 
         {/* Read-only indicator */}
         <div className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-300 font-semibold bg-amber-50/80 dark:bg-amber-900/30 px-2 py-1 rounded">
-          <Eye className="h-3 w-3" /> Lecture seule
+          <Eye className="h-3 w-3" /> {t('Lecture seule')}
         </div>
       </div>
 
@@ -436,9 +438,9 @@ export default function ViewerPage() {
           <span>{fileName}</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-amber-500 font-semibold">Lecture seule</span>
-          <span>Zoom : {Math.round(zoom * 100)}%</span>
-          {rotation !== 0 && <span>Rotation : {rotation}deg</span>}
+          <span className="text-amber-500 font-semibold">{t('Lecture seule')}</span>
+          <span>{t('Zoom :')} {Math.round(zoom * 100)}%</span>
+          {rotation !== 0 && <span>{t('Rotation :')} {rotation}deg</span>}
         </div>
       </div>
     </div>
@@ -497,6 +499,7 @@ const ReadOnlyPageWrapper = memo(function ReadOnlyPageWrapper({
 });
 
 const ReadOnlyAnnotation = memo(function ReadOnlyAnnotation({ annotation: a }: { annotation: Annotation }) {
+  const t = useT();
   const thickness = a.thickness || 3;
 
   return (
@@ -540,7 +543,7 @@ const ReadOnlyAnnotation = memo(function ReadOnlyAnnotation({ annotation: a }: {
         <div className="w-full h-full">
           <img
             src={a.stampUrl}
-            alt="tampon"
+            alt={t('tampon')}
             className="w-full h-full object-contain"
             draggable={false}
           />

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { BRAND } from '@/lib/brand';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { useT } from '@/i18n';
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { collection, query, where, getDocs, setDoc, doc, serverTimestamp, updateDoc, deleteDoc, runTransaction } from 'firebase/firestore';
@@ -80,6 +81,7 @@ export default function LoginPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  const t = useT();
 
   // Single-session eviction notice: if the previous tab was signed out
   // because another device claimed the session, show one informational toast.
@@ -91,12 +93,12 @@ export default function LoginPage() {
       // force-disconnect, displacement, sign-out in another tab, cross-tab
       // identity guard), so don't assert a specific one.
       toast({
-        title: 'Session fermée',
-        description: 'Votre session a été fermée. Veuillez vous reconnecter.',
+        title: t('Session fermée'),
+        description: t('Votre session a été fermée. Veuillez vous reconnecter.'),
         variant: 'destructive',
       });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const [nom, setNom] = useState('');
   const [password, setPassword] = useState('');
@@ -176,11 +178,11 @@ export default function LoginPage() {
     setSetupError('');
 
     if (setupPassword.length < 6) {
-      setSetupError('Le mot de passe doit contenir au moins 6 caractères.');
+      setSetupError(t('Le mot de passe doit contenir au moins 6 caractères.'));
       return;
     }
     if (setupPassword !== setupConfirm) {
-      setSetupError('Les mots de passe ne correspondent pas.');
+      setSetupError(t('Les mots de passe ne correspondent pas.'));
       return;
     }
 
@@ -221,7 +223,7 @@ export default function LoginPage() {
       window.sessionStorage.removeItem(EXPECTED_UID_KEY);
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
-      setSetupError(err.message || 'Erreur lors de la création du compte.');
+      setSetupError(err.message || t('Erreur lors de la création du compte.'));
     } finally {
       setSetupLoading(false);
     }
@@ -251,7 +253,7 @@ export default function LoginPage() {
       }
 
       if (snap.empty) {
-        setError('Utilisateur introuvable. Vérifiez votre nom (insensible à la casse).');
+        setError(t('Utilisateur introuvable. Vérifiez votre nom (insensible à la casse).'));
         setLoading(false);
         return;
       }
@@ -261,13 +263,13 @@ export default function LoginPage() {
       const email = userData.email;
 
       if (!email) {
-        setError('Aucun identifiant associé à cet utilisateur.');
+        setError(t('Aucun identifiant associé à cet utilisateur.'));
         setLoading(false);
         return;
       }
 
       if (userData.statut === 'Inactif') {
-        setError('Votre compte est désactivé. Contactez un administrateur.');
+        setError(t('Votre compte est désactivé. Contactez un administrateur.'));
         setLoading(false);
         return;
       }
@@ -350,8 +352,9 @@ export default function LoginPage() {
             window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
             window.localStorage.removeItem(SESSION_STORAGE_KEY);
             setError(
-              "Ce compte est déjà connecté sur un autre appareil. Déconnectez-vous d'abord de cet appareil pour pouvoir vous connecter ici. " +
-                "Si l'autre appareil n'est plus utilisé, réessayez dans une à deux minutes, ou demandez à un administrateur de déconnecter votre session.",
+              t("Ce compte est déjà connecté sur un autre appareil. Déconnectez-vous d'abord de cet appareil pour pouvoir vous connecter ici.") +
+                ' ' +
+                t("Si l'autre appareil n'est plus utilisé, réessayez dans une à deux minutes, ou demandez à un administrateur de déconnecter votre session."),
             );
             setLoading(false);
             return;
@@ -384,13 +387,13 @@ export default function LoginPage() {
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
       if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('Mot de passe incorrect.');
+        setError(t('Mot de passe incorrect.'));
       } else if (err.code === 'auth/user-not-found') {
-        setError('Utilisateur introuvable.');
+        setError(t('Utilisateur introuvable.'));
       } else if (err.code === 'auth/too-many-requests') {
-        setError('Trop de tentatives. Réessayez plus tard.');
+        setError(t('Trop de tentatives. Réessayez plus tard.'));
       } else {
-        setError('Erreur de connexion. Réessayez.');
+        setError(t('Erreur de connexion. Réessayez.'));
       }
     } finally {
       setLoading(false);
@@ -400,7 +403,7 @@ export default function LoginPage() {
   if (checkingAuth || checkingSetup) {
     return (
       <div className={`flex min-h-screen items-center justify-center ${PAGE_BACKGROUND}`}>
-        <PageLoader label="Chargement..." />
+        <PageLoader label={t('Chargement...')} />
       </div>
     );
   }
@@ -417,17 +420,17 @@ export default function LoginPage() {
             <div>
               <div className="flex items-center justify-center gap-2 mb-1">
                 <ShieldCheck className="h-5 w-5 text-primary" />
-                <CardTitle className="text-2xl">Configuration initiale</CardTitle>
+                <CardTitle className="text-2xl">{t('Configuration initiale')}</CardTitle>
               </div>
               <CardDescription className="mt-1">
-                Aucun utilisateur n&apos;existe encore. Créez le compte administrateur pour commencer.
+                {t("Aucun utilisateur n'existe encore. Créez le compte administrateur pour commencer.")}
               </CardDescription>
             </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSetup} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="setup-name">Nom complet de l&apos;administrateur</Label>
+                <Label htmlFor="setup-name">{t("Nom complet de l'administrateur")}</Label>
                 <Input
                   id="setup-name"
                   value={setupName}
@@ -437,19 +440,19 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="setup-password">Mot de passe</Label>
+                <Label htmlFor="setup-password">{t('Mot de passe')}</Label>
                 <Input
                   id="setup-password"
                   type="password"
-                  placeholder="Minimum 6 caractères"
+                  placeholder={t('Minimum 6 caractères')}
                   value={setupPassword}
                   onChange={e => setSetupPassword(e.target.value)}
                   required
                 />
-                <p className="text-xs text-muted-foreground">Au moins 6 caractères.</p>
+                <p className="text-xs text-muted-foreground">{t('Au moins 6 caractères.')}</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="setup-confirm">Confirmez le mot de passe</Label>
+                <Label htmlFor="setup-confirm">{t('Confirmez le mot de passe')}</Label>
                 <Input
                   id="setup-confirm"
                   type="password"
@@ -466,7 +469,7 @@ export default function LoginPage() {
               )}
 
               <Button type="submit" className="w-full" loading={setupLoading}>
-                {setupLoading ? 'Création...' : 'Créer le compte Admin'}
+                {setupLoading ? t('Création...') : t('Créer le compte Admin')}
               </Button>
             </form>
           </CardContent>
@@ -487,14 +490,14 @@ export default function LoginPage() {
             <Logo />
           </div>
           <div>
-            <CardTitle className="text-2xl">Connexion</CardTitle>
-            <CardDescription className="mt-1">Entrez vos identifiants pour accéder au système.</CardDescription>
+            <CardTitle className="text-2xl">{t('Connexion')}</CardTitle>
+            <CardDescription className="mt-1">{t('Entrez vos identifiants pour accéder au système.')}</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="nom">Nom complet</Label>
+              <Label htmlFor="nom">{t('Nom complet')}</Label>
               <Input
                 id="nom"
                 value={nom}
@@ -504,7 +507,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Mot de passe</Label>
+              <Label htmlFor="password">{t('Mot de passe')}</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -532,8 +535,16 @@ export default function LoginPage() {
             )}
 
             <Button type="submit" className="w-full" loading={loading}>
-              {loading ? 'Connexion...' : 'Se connecter'}
+              {loading ? t('Connexion...') : t('Se connecter')}
             </Button>
+
+            {BRAND.id === 'demo' && (
+              <div className="rounded-md border border-dashed bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">{t('Comptes de démonstration')}</p>
+                <p>Admin Demo · Manager Demo · Estimator Demo · Field Agent Demo</p>
+                <p>{t('Mot de passe')} : Demo2026!</p>
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>

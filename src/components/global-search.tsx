@@ -13,8 +13,10 @@ import {
 } from '@/components/ui/command';
 import { getAiSuggestion } from '@/lib/actions/ai-search';
 import { useDebounce } from '@/hooks/use-debounce';
+import { useT } from '@/i18n';
 
 const GlobalSearch = () => {
+  const t = useT();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const [suggestion, setSuggestion] = React.useState<string | null>(null);
@@ -40,12 +42,12 @@ const GlobalSearch = () => {
     setLoading(true);
     const { suggestion: aiSuggestion, error } = await getAiSuggestion(searchQuery);
     if(error) {
-        setSuggestion("Erreur : suggestion indisponible.");
+        setSuggestion(t("Erreur : suggestion indisponible."));
     } else {
         setSuggestion(aiSuggestion);
     }
     setLoading(false);
-  }, []);
+  }, [t]);
 
   React.useEffect(() => {
     runSearch(debouncedQuery);
@@ -69,7 +71,7 @@ const GlobalSearch = () => {
       >
         <div className="flex items-center gap-2">
           <Search className="h-4 w-4" />
-          <span>Rechercher...</span>
+          <span>{t('Rechercher...')}</span>
         </div>
         <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
           <span className="text-xs">⌘</span>K
@@ -77,7 +79,7 @@ const GlobalSearch = () => {
       </Button>
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput 
-          placeholder="Que cherchez-vous ?"
+          placeholder={t('Que cherchez-vous ?')}
           value={query}
           onValueChange={handleInputChange}
         />

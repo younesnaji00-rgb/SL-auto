@@ -32,7 +32,7 @@ import {
   type AccordeSourceDocType,
 } from '@/lib/docType-accorde';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { dateFnsLocale, useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 export const ALL_TYPES_KEY = '__all__';
@@ -122,7 +122,7 @@ const formatSize = (bytes?: number) => {
 const formatDate = (ts: any) => {
   if (!ts) return '-';
   const date = ts.toDate ? ts.toDate() : new Date(ts);
-  return format(date, 'dd/MM/yyyy HH:mm', { locale: fr });
+  return format(date, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() });
 };
 
 const isImage = (name?: string) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(name || '');
@@ -183,6 +183,8 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     onDeleteDocument,
     className,
   } = props;
+
+  const t = useT();
 
   // Per-type counts for the left filter card
   const typeCounts = useMemo(() => {
@@ -323,7 +325,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     canImport ? (
       <Button size="sm" onClick={onImportClick}>
         <Upload className="mr-2 h-4 w-4" />
-        Importer
+        {t('Importer')}
       </Button>
     ) : (
       <TooltipProvider>
@@ -332,11 +334,11 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
             <span tabIndex={0}>
               <Button size="sm" disabled>
                 <Upload className="mr-2 h-4 w-4" />
-                Importer
+                {t('Importer')}
               </Button>
             </span>
           </TooltipTrigger>
-          <TooltipContent>Import non disponible pour le chiffreur</TooltipContent>
+          <TooltipContent>{t('Import non disponible pour le chiffreur')}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
     )
@@ -347,11 +349,11 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
       {/* LEFT: type filter */}
       <Card className="shadow-sm border-0 rounded-xl overflow-hidden lg:col-span-1">
         <CardHeader className="bg-heading-bg py-3 rounded-t-xl flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-sm text-primary">Type de document</CardTitle>
+          <CardTitle className="text-sm text-primary">{t('Type de document')}</CardTitle>
           <div className="relative w-[160px] max-w-full">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Rechercher..."
+              placeholder={t('Rechercher...')}
               value={typeSearch}
               onChange={(e) => onTypeSearchChange(e.target.value)}
               className="h-8 pl-7 text-xs border-0 border-b rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
@@ -368,7 +370,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
             )}
           >
             <span className={cn('truncate', selectedType === ALL_TYPES_KEY && 'font-semibold text-primary')}>
-              Tous les documents
+              {t('Tous les documents')}
             </span>
             <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
               {documents.length}
@@ -377,7 +379,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
 
           {isSearchActive ? (
             filterRows.length === 0 ? (
-              <p className="text-xs italic text-muted-foreground text-center py-8">Aucun type.</p>
+              <p className="text-xs italic text-muted-foreground text-center py-8">{t('Aucun type.')}</p>
             ) : (
               filterRows.map((row, idx) => {
                 const isSelected = selectedType === row.label;
@@ -392,7 +394,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                       row.count === 0 && 'opacity-60'
                     )}
                   >
-                    <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{row.label}</span>
+                    <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{t(row.label)}</span>
                     <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
                       {row.count}
                     </span>
@@ -403,7 +405,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
           ) : filterGroups.nonFamily.length === 0 &&
             filterGroups.devisFamilies.length === 0 &&
             filterGroups.factureFamilies.length === 0 ? (
-            <p className="text-xs italic text-muted-foreground text-center py-8">Aucun type.</p>
+            <p className="text-xs italic text-muted-foreground text-center py-8">{t('Aucun type.')}</p>
           ) : (
             <>
               {filterGroups.nonFamily.map((row) => {
@@ -418,7 +420,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                       row.count === 0 && 'opacity-60'
                     )}
                   >
-                    <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{row.label}</span>
+                    <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{t(row.label)}</span>
                     <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
                       {row.count}
                     </span>
@@ -442,7 +444,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                         type="button"
                         onClick={() => toggleSection(fam.parent)}
                         className="flex items-center justify-center w-9 shrink-0 text-muted-foreground hover:text-foreground"
-                        aria-label={collapsed ? 'Développer la section' : 'Réduire la section'}
+                        aria-label={collapsed ? t('Développer la section') : t('Réduire la section')}
                         aria-expanded={!collapsed}
                       >
                         {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -458,7 +460,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                             isParentSelected && 'font-semibold text-primary'
                           )}
                         >
-                          {fam.parent}
+                          {t(fam.parent)}
                         </span>
                         <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
                           {fam.totalCount}
@@ -471,7 +473,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                         {fam.accords.length > 0 && (
                           <>
                             <div className="pl-12 pr-4 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/30">
-                              Accords
+                              {t('Accords')}
                             </div>
                             {fam.accords.map((row) => {
                               const parsed = parseAccordDocType(row.label);
@@ -488,7 +490,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                                       : 'hover:bg-accent/50',
                                     row.count === 0 && 'opacity-60'
                                   )}
-                                  title={row.label}
+                                  title={t(row.label)}
                                 >
                                   <span
                                     className={cn(
@@ -496,7 +498,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                                       rowSelected && 'font-semibold text-primary'
                                     )}
                                   >
-                                    {display}
+                                    {t(display)}
                                   </span>
                                   <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
                                     {row.count}
@@ -509,7 +511,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                         {fam.propositions.length > 0 && (
                           <>
                             <div className="pl-12 pr-4 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/30">
-                              Propositions
+                              {t('Propositions')}
                             </div>
                             {fam.propositions.map((row) => {
                               const parsed = parseAccordDocType(row.label);
@@ -526,7 +528,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                                       : 'hover:bg-accent/50',
                                     row.count === 0 && 'opacity-60'
                                   )}
-                                  title={row.label}
+                                  title={t(row.label)}
                                 >
                                   <span
                                     className={cn(
@@ -534,7 +536,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                                       rowSelected && 'font-semibold text-primary'
                                     )}
                                   >
-                                    {display}
+                                    {t(display)}
                                   </span>
                                   <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
                                     {row.count}
@@ -559,7 +561,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
         {importButton && (
           <CardHeader className="bg-heading-bg py-3 rounded-t-xl flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-sm text-primary">
-              {selectedType === ALL_TYPES_KEY ? 'Tous les documents' : selectedType}
+              {selectedType === ALL_TYPES_KEY ? t('Tous les documents') : t(selectedType)}
             </CardTitle>
             {importButton}
           </CardHeader>
@@ -573,7 +575,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
             <div className="flex flex-col items-center justify-center h-48 text-center">
               <FileText className="h-10 w-10 text-muted-foreground/30 mb-2" />
               <p className="text-sm text-muted-foreground italic">
-                {selectedType === ALL_TYPES_KEY ? 'Aucun document.' : `Aucun document de type "${selectedType}".`}
+                {selectedType === ALL_TYPES_KEY ? t('Aucun document.') : `${t('Aucun document de type')} "${t(selectedType)}".`}
               </p>
             </div>
           ) : (
@@ -643,7 +645,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                             e.stopPropagation();
                             if (!item.pendingUpload && item.url && onOpenDocument) onOpenDocument(item);
                           }}
-                          title="Apercu"
+                          title={t('Apercu')}
                           disabled={!!item.pendingUpload}
                         >
                           <Eye className="h-3.5 w-3.5" />
@@ -657,7 +659,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                             e.stopPropagation();
                             if (!item.pendingUpload && item.url && onDownloadDocument) onDownloadDocument(item);
                           }}
-                          title="Telecharger"
+                          title={t('Telecharger')}
                           disabled={!!item.pendingUpload}
                         >
                           <Download className="h-3.5 w-3.5" />
@@ -672,7 +674,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                               e.stopPropagation();
                               onDeleteDocument?.(item);
                             }}
-                            title="Supprimer"
+                            title={t('Supprimer')}
                             disabled={isDeleting === item.id || !!item.pendingUpload}
                           >
                             {isDeleting === item.id ? (
@@ -686,7 +688,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
 
                       {item.pendingUpload && (
                         <Badge variant="outline" className="absolute top-1 left-1 text-amber-700 bg-amber-50 border-amber-300 text-[9px] py-0 px-1.5">
-                          En attente
+                          {t('En attente')}
                         </Badge>
                       )}
                     </div>

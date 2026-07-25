@@ -7,6 +7,7 @@ import { ChevronRight } from 'lucide-react';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { landingPathFor } from '@/lib/role-landing';
 import { BRAND } from '@/lib/brand';
+import { useT } from '@/i18n';
 
 const ROUTE_LABELS: Record<string, string> = {
   dashboard: 'Tableau de bord',
@@ -34,6 +35,7 @@ const humanize = (segment: string): string => {
 const Breadcrumb = () => {
   const pathname = usePathname();
   const { profile } = useCurrentUser();
+  const t = useT();
   const rawSegments = pathname.split('/').filter(Boolean);
   const segments = rawSegments.filter((s) => !isIdSegment(s));
   const rootHref = landingPathFor(profile?.role);
@@ -66,7 +68,7 @@ const Breadcrumb = () => {
                   }
                   aria-current={isLast ? 'page' : undefined}
                 >
-                  {label}
+                  {t(label)}
                 </Link>
               </li>
             </React.Fragment>

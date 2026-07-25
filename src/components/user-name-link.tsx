@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { displayUserName } from '@/lib/display-user';
+import { useT } from '@/i18n';
 
 interface UserNameLinkProps {
   /** The audit / workflow / observation entry — anything with `userNom`
@@ -22,7 +23,10 @@ interface UserNameLinkProps {
  * broken link).
  */
 export function UserNameLink({ entry, className }: UserNameLinkProps) {
-  const label = displayUserName(entry);
+  const t = useT();
+  const rawLabel = displayUserName(entry);
+  // Translate only the known fallback — real user names pass through untouched.
+  const label = rawLabel === 'Utilisateur inconnu' ? t('Utilisateur inconnu') : rawLabel;
   const email = entry?.user?.trim();
   const linkClass = cn(
     'text-foreground hover:text-primary hover:underline underline-offset-2',

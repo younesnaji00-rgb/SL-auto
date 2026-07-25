@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { useFirestore, useDoc, useCollection } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { dateFnsLocale, useT } from '@/i18n';
 import type { Rappel } from '@/hooks/use-rappels';
 import { tsToMillis, classifyDossierChanges, diffCollectionById, docPathStatus, type CollectionDiff } from '@/lib/rappel-snapshot';
 import { loadReplaySnapshots, type ReplaySnapshots, SNAP_SUBCOLLECTIONS } from '@/lib/rappel-session';
@@ -51,7 +51,7 @@ function fmtDateTime(ts: any): string {
   const ms = tsToMillis(ts);
   if (!ms) return '—';
   try {
-    return format(new Date(ms), 'dd/MM/yyyy HH:mm', { locale: fr });
+    return format(new Date(ms), 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() });
   } catch {
     return '—';
   }
@@ -67,6 +67,7 @@ function ReplayStepBar({
   activeId: number;
   onStepClick: (id: number) => void;
 }) {
+  const t = useT();
   const activeIdx = steps.findIndex((s) => s.id === activeId);
   return (
     <div data-replay-bar className="sticky top-0 z-30 w-full bg-background/95 backdrop-blur border-b">
@@ -93,7 +94,7 @@ function ReplayStepBar({
                   {idx + 1}
                 </span>
                 <span className={cn('text-xs whitespace-nowrap', isActive ? 'font-bold text-primary' : 'text-muted-foreground')}>
-                  {step.label}
+                  {t(step.label)}
                 </span>
               </button>
               {idx < steps.length - 1 && <div className="w-8 sm:w-12 h-px bg-border shrink-0 mt-3.5" aria-hidden />}
@@ -107,6 +108,7 @@ function ReplayStepBar({
 
 export default function SessionReplayDialog({ rappel, open, onOpenChange }: Props) {
   const db = useFirestore();
+  const t = useT();
   const id = rappel?.dossierId ?? null;
   const startTs = rappel?.sessionStartedAt ?? null;
   const endTs = rappel?.resolvedAt ?? null;
@@ -326,31 +328,31 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
         <DialogHeader className="px-5 py-3 border-b shrink-0 space-y-1.5">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Play className="h-4 w-4 text-primary" />
-            Traitement du dossier{' '}
+            {t('Traitement du dossier')}{' '}
             <span className="font-mono text-primary">{rappel?.dossierRef || id}</span>
             <Badge variant="outline" className="ml-1 gap-1 text-[11px] text-muted-foreground">
-              <Eye className="h-3 w-3" /> Lecture seule
+              <Eye className="h-3 w-3" /> {t('Lecture seule')}
             </Badge>
           </DialogTitle>
           <DialogDescription asChild>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
               {rappel?.recipientNom && (
                 <span>
-                  Gestionnaire : <span className="font-medium text-foreground">{rappel.recipientNom}</span>
+                  {t('Gestionnaire :')} <span className="font-medium text-foreground">{rappel.recipientNom}</span>
                 </span>
               )}
               <span className="inline-flex items-center gap-1">
                 <CalendarClock className="h-3.5 w-3.5 text-emerald-600" />
-                Début : <span className="font-medium text-foreground">{fmtDateTime(startTs)}</span>
+                {t('Début :')} <span className="font-medium text-foreground">{fmtDateTime(startTs)}</span>
               </span>
               <span className="inline-flex items-center gap-1">
                 {endTs ? (
                   <>
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    Sauvegardé : <span className="font-medium text-foreground">{fmtDateTime(endTs)}</span>
+                    {t('Sauvegardé :')} <span className="font-medium text-foreground">{fmtDateTime(endTs)}</span>
                   </>
                 ) : (
-                  <Badge variant="outline" className="text-amber-700 border-amber-300">Traitement en cours</Badge>
+                  <Badge variant="outline" className="text-amber-700 border-amber-300">{t('Traitement en cours')}</Badge>
                 )}
               </span>
             </div>
@@ -367,37 +369,35 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
             <div className="px-3 sm:px-6 pt-3">
               {snapsLoading ? (
                 <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyse des modifications du gestionnaire…
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('Analyse des modifications du gestionnaire…')}
                 </div>
               ) : !hasBaseline ? (
                 <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-px" />
                   <span>
-                    Aucun instantané de départ n'a été enregistré pour ce traitement&nbsp;: les modifications
-                    ne peuvent pas être mises en évidence. Le gestionnaire doit ouvrir le dossier depuis
-                    «&nbsp;Mes rappels&nbsp;» pour démarrer une session.
+                    {t("Aucun instantané de départ n'a été enregistré pour ce traitement : les modifications ne peuvent pas être mises en évidence. Le gestionnaire doit ouvrir le dossier depuis « Mes rappels » pour démarrer une session.")}
                   </span>
                 </div>
               ) : summary.total === 0 ? (
                 <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                  <Info className="h-3.5 w-3.5 shrink-0" /> Aucune modification détectée pendant ce traitement.
+                  <Info className="h-3.5 w-3.5 shrink-0" /> {t('Aucune modification détectée pendant ce traitement.')}
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
-                  <span className="font-medium text-muted-foreground">Modifications du gestionnaire&nbsp;:</span>
+                  <span className="font-medium text-muted-foreground">{t('Modifications du gestionnaire :')}</span>
                   {summary.added > 0 && (
                     <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-semibold text-green-700 bg-green-100/70 dark:text-green-300 dark:bg-green-900/30">
-                      <span className="h-2 w-2 rounded-full bg-green-500" /> {summary.added} ajout{summary.added > 1 ? 's' : ''}
+                      <span className="h-2 w-2 rounded-full bg-green-500" /> {summary.added} {summary.added > 1 ? t('ajouts') : t('ajout')}
                     </span>
                   )}
                   {summary.modified > 0 && (
                     <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-semibold text-yellow-700 bg-yellow-100/70 dark:text-yellow-300 dark:bg-yellow-900/30">
-                      <span className="h-2 w-2 rounded-full bg-yellow-500" /> {summary.modified} modification{summary.modified > 1 ? 's' : ''}
+                      <span className="h-2 w-2 rounded-full bg-yellow-500" /> {summary.modified} {summary.modified > 1 ? t('modifications') : t('modification')}
                     </span>
                   )}
                   {summary.removed > 0 && (
                     <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-semibold text-red-700 bg-red-100/70 dark:text-red-300 dark:bg-red-900/30">
-                      <span className="h-2 w-2 rounded-full bg-red-500" /> {summary.removed} suppression{summary.removed > 1 ? 's' : ''}
+                      <span className="h-2 w-2 rounded-full bg-red-500" /> {summary.removed} {summary.removed > 1 ? t('suppressions') : t('suppression')}
                     </span>
                   )}
                 </div>
@@ -419,7 +419,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                           <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold">
                             {idx + 1}
                           </span>
-                          <h2 className="text-lg font-bold leading-tight">{step.label}</h2>
+                          <h2 className="text-lg font-bold leading-tight">{t(step.label)}</h2>
                         </div>
                         {renderStep(step.id)}
                       </section>

@@ -20,7 +20,7 @@ import {
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
-import { fr } from 'date-fns/locale';
+import { dateFnsLocale, useT } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
@@ -46,6 +46,7 @@ interface ChiffrageItem {
 }
 
 export default function AssignationsChiffragePage() {
+  const t = useT();
   const db = useFirestore();
   const { profile } = useCurrentUser();
   const { openTab } = useChiffrageTabs();
@@ -229,7 +230,7 @@ export default function AssignationsChiffragePage() {
   const formatDate = (ts: any) => {
     if (!ts) return '-';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
-    try { return format(date, "d MMM yyyy 'à' HH:mm", { locale: fr }); }
+    try { return format(date, "d MMM yyyy 'à' HH:mm", { locale: dateFnsLocale() }); }
     catch { return '-'; }
   };
 
@@ -250,17 +251,17 @@ export default function AssignationsChiffragePage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Calculator className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Assignations au Chiffrage</h1>
+          <h1 className="text-2xl font-bold">{t('Assignations au Chiffrage')}</h1>
           <Badge variant="secondary" className="ml-2">{filteredChiffrages.length}</Badge>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
               <SelectTrigger className="w-[180px] h-9 text-xs">
-                <SelectValue placeholder="Compagnie" />
+                <SelectValue placeholder={t('Compagnie')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
+                <SelectItem value="Toutes">{t('Toutes les compagnies')}</SelectItem>
                 {compagnieOptions.map(([name, count]) => (
                   <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                 ))}
@@ -276,10 +277,10 @@ export default function AssignationsChiffragePage() {
             <div className="relative">
               <Select value={chiffreurFilter} onValueChange={v => setFilters({ chiffreurFilter: v })}>
                 <SelectTrigger className="w-[180px] h-9 text-xs">
-                  <SelectValue placeholder="Chiffreur" />
+                  <SelectValue placeholder={t('Chiffreur')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Tous">Tous les chiffreurs</SelectItem>
+                  <SelectItem value="Tous">{t('Tous les chiffreurs')}</SelectItem>
                   {chiffreurOptions.map(([name, count]) => (
                     <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                   ))}
@@ -295,12 +296,12 @@ export default function AssignationsChiffragePage() {
           <div className="relative">
             <Select value={typeReformeFilter} onValueChange={v => setFilters({ typeReformeFilter: v })}>
               <SelectTrigger className="w-[160px] h-9 text-xs">
-                <SelectValue placeholder="Type réforme" />
+                <SelectValue placeholder={t('Type réforme')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Tous">Tous les types</SelectItem>
-                {REFORME_TYPES.map(t => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                <SelectItem value="Tous">{t('Tous les types')}</SelectItem>
+                {REFORME_TYPES.map(rt => (
+                  <SelectItem key={rt} value={rt}>{t(rt)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -319,18 +320,18 @@ export default function AssignationsChiffragePage() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
-                <TableHead className="font-bold text-xs">Dossier</TableHead>
-                <TableHead className="font-bold text-xs">Nom d&apos;assuré</TableHead>
-                <TableHead className="font-bold text-xs">Immatriculation</TableHead>
-                {showChiffreurColumn && <TableHead className="font-bold text-xs">Chiffreur</TableHead>}
-                <TableHead className="font-bold text-xs">Nature du dossier</TableHead>
-                <TableHead className="font-bold text-xs">Statut</TableHead>
-                <TableHead className="font-bold text-xs">Assigné par</TableHead>
-                <TableHead className="font-bold text-xs">Observations</TableHead>
+                <TableHead className="font-bold text-xs">{t('Dossier')}</TableHead>
+                <TableHead className="font-bold text-xs">{t("Nom d'assuré")}</TableHead>
+                <TableHead className="font-bold text-xs">{t('Immatriculation')}</TableHead>
+                {showChiffreurColumn && <TableHead className="font-bold text-xs">{t('Chiffreur')}</TableHead>}
+                <TableHead className="font-bold text-xs">{t('Nature du dossier')}</TableHead>
+                <TableHead className="font-bold text-xs">{t('Statut')}</TableHead>
+                <TableHead className="font-bold text-xs">{t('Assigné par')}</TableHead>
+                <TableHead className="font-bold text-xs">{t('Observations')}</TableHead>
                 <TableHead className="font-bold text-xs w-[160px]">
-                  <SortableHeader label="Délai" sort={deadlineSort} onChange={setDeadlineSort} />
+                  <SortableHeader label={t('Délai')} sort={deadlineSort} onChange={setDeadlineSort} />
                 </TableHead>
-                <TableHead className="font-bold text-xs text-right">Date</TableHead>
+                <TableHead className="font-bold text-xs text-right">{t('Date')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -347,8 +348,8 @@ export default function AssignationsChiffragePage() {
                   <TableCell colSpan={colCount} className="p-0">
                     <EmptyState
                       icon={<Calculator />}
-                      title="Aucun chiffrage assigné"
-                      description="Les nouvelles assignations de chiffrage apparaîtront ici."
+                      title={t('Aucun chiffrage assigné')}
+                      description={t('Les nouvelles assignations de chiffrage apparaîtront ici.')}
                       dashed={false}
                       className="border-0 bg-transparent py-10"
                     />
@@ -367,15 +368,15 @@ export default function AssignationsChiffragePage() {
                         <div className="flex items-center gap-2">
                           <Link
                             href={`/assignations-chiffrage/${c.id}`}
-                            onClick={() => openTab(c.id, c.dossierNom || `Chiffrage ${c.id.slice(0, 6)}`)}
+                            onClick={() => openTab(c.id, c.dossierNom || `${t('Chiffrage')} ${c.id.slice(0, 6)}`)}
                             className="font-bold text-sm text-primary hover:underline"
                           >
-                            {c.dossierNom || 'Sans ref.'}
+                            {c.dossierNom || t('Sans ref.')}
                           </Link>
                           {today && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary animate-pulse">
                               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                              aujourd&apos;hui
+                              {t("aujourd'hui")}
                             </span>
                           )}
                         </div>
@@ -385,7 +386,7 @@ export default function AssignationsChiffragePage() {
                       {showChiffreurColumn && <TableCell className="text-sm">{c.assignedChiffreurNom || '-'}</TableCell>}
                       <TableCell className="text-xs">{nature || '-'}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut))}>{statut}</Badge>
+                        <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut))}>{t(statut)}</Badge>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{c.sentByNom || c.sentByEmail || '-'}</TableCell>
                       <TableCell
@@ -394,7 +395,7 @@ export default function AssignationsChiffragePage() {
                           e.stopPropagation();
                           setObsHistoryDossier({ id: c.dossierId, refExpert: c.dossierNom });
                         }}
-                        title="Voir l'historique des observations"
+                        title={t("Voir l'historique des observations")}
                       >
                         {(() => {
                           const obs = dossierObs[c.dossierId];
@@ -417,7 +418,7 @@ export default function AssignationsChiffragePage() {
                           <div className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-400">
                             <CheckCircle2 className="h-4 w-4 shrink-0" />
                             <span className="truncate">
-                              Chiffré le {format(c.completedAt?.toDate ? c.completedAt.toDate() : new Date(c.completedAt), "dd/MM/yyyy HH:mm")}
+                              {t('Chiffré le')} {format(c.completedAt?.toDate ? c.completedAt.toDate() : new Date(c.completedAt), "dd/MM/yyyy HH:mm")}
                             </span>
                           </div>
                         ) : (

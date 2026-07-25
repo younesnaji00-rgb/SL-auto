@@ -20,6 +20,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useT } from '@/i18n';
 import { useDossierTabs } from '@/hooks/use-dossier-tabs';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 
@@ -60,6 +61,7 @@ export default function DossierDetailPage({
   const readOnly = !canWrite('dossiers');
   const { openTab, refreshTabLabel } = useDossierTabs();
   const { toast } = useToast();
+  const t = useT();
 
   // Active rappel-treatment session for this dossier (recipient-only).
   // Drives the sticky "Valider le traitement" banner. Looked up via the
@@ -198,9 +200,9 @@ export default function DossierDetailPage({
         }
       } catch {}
       setActiveRappel(null);
-      toast({ title: 'Traitement sauvegardé', description: 'Vos modifications ont été enregistrées pour le responsable.' });
+      toast({ title: t('Traitement sauvegardé'), description: t('Vos modifications ont été enregistrées pour le responsable.') });
     } catch {
-      toast({ title: 'Erreur', description: 'Impossible de sauvegarder le traitement.', variant: 'destructive' });
+      toast({ title: t('Erreur'), description: t('Impossible de sauvegarder le traitement.'), variant: 'destructive' });
     } finally {
       setValidating(false);
     }
@@ -222,9 +224,9 @@ export default function DossierDetailPage({
     } else if (a && typeof a === 'object') {
       label = `${a.prenom || ''} ${a.nom || ''}`.trim();
     }
-    if (!label) label = 'Sans nom';
+    if (!label) label = t('Sans nom');
     refreshTabLabel(id, label);
-  }, [id, dossier, refreshTabLabel]);
+  }, [id, dossier, refreshTabLabel, t]);
 
   const [activeStep, setActiveStep] = useLastStep(id);
 
@@ -254,20 +256,20 @@ export default function DossierDetailPage({
   };
 
   if (loading) {
-    return <PageLoader label="Chargement du dossier…" />;
+    return <PageLoader label={t('Chargement du dossier…')} />;
   }
 
   if (!dossier) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-6">
         <ErrorState
-          title="Dossier introuvable"
-          description="Le dossier que vous recherchez n'existe pas ou a été supprimé."
+          title={t('Dossier introuvable')}
+          description={t("Le dossier que vous recherchez n'existe pas ou a été supprimé.")}
           className="max-w-md"
         />
         <Link href="/dossiers" className="mt-4">
           <Button variant="outline">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Retour à la liste
+            <ArrowLeft className="mr-2 h-4 w-4" /> {t('Retour à la liste')}
           </Button>
         </Link>
       </div>
@@ -292,7 +294,7 @@ export default function DossierDetailPage({
             </Link>
             <div>
               <h1 className="text-lg font-bold leading-tight">
-                Dossier : <span className="text-primary">{viewDossier.refExpert || 'Sans Ref.'}</span>
+                {t('Dossier :')} <span className="text-primary">{viewDossier.refExpert || t('Sans Ref.')}</span>
               </h1>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {renderAssure(viewDossier.assure)} &bull; {viewDossier.compagnie || 'N/A'} &bull; {viewDossier.matricule || 'N/A'}
@@ -306,7 +308,7 @@ export default function DossierDetailPage({
               </Badge>
             )}
             <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(viewDossier.statut || 'Nouveau'))}>
-              {viewDossier.statut || 'Nouveau'}
+              {t(viewDossier.statut || 'Nouveau')}
             </Badge>
           </div>
         </div>
@@ -317,10 +319,10 @@ export default function DossierDetailPage({
         <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 flex flex-wrap gap-3 items-center sticky top-0 z-50 dark:bg-amber-900/25 dark:border-amber-800/50">
           <Bell className="h-4 w-4 text-amber-700 dark:text-amber-200" />
           <p className="text-sm font-medium text-amber-900 dark:text-amber-100 flex-1">
-            Vous traitez un rappel pour ce dossier — vos modifications restent locales jusqu&apos;à « Sauvegarder ».
+            {t("Vous traitez un rappel pour ce dossier — vos modifications restent locales jusqu'à « Sauvegarder ».")}
             {draftStore.pendingCount > 0 && (
               <span className="ml-2 inline-flex items-center rounded-full bg-amber-200/80 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-800/60 dark:text-amber-100">
-                {draftStore.pendingCount} modification{draftStore.pendingCount > 1 ? 's' : ''} en attente
+                {draftStore.pendingCount} {draftStore.pendingCount > 1 ? t('modifications en attente') : t('modification en attente')}
               </span>
             )}
           </p>
@@ -329,13 +331,13 @@ export default function DossierDetailPage({
               size="sm"
               variant="ghost"
               onClick={() => {
-                if (window.confirm('Abandonner les modifications non sauvegardées de cette session de rappel ?')) {
+                if (window.confirm(t('Abandonner les modifications non sauvegardées de cette session de rappel ?'))) {
                   draftStore.discard();
                 }
               }}
               className="h-8 text-xs text-amber-800 hover:text-amber-900 dark:text-amber-200"
             >
-              Annuler les modifs
+              {t('Annuler les modifs')}
             </Button>
           )}
           <Button
@@ -345,7 +347,7 @@ export default function DossierDetailPage({
             className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
           >
             <Save className="h-3.5 w-3.5" />
-            {validating ? 'Enregistrement…' : 'Sauvegarder'}
+            {validating ? t('Enregistrement…') : t('Sauvegarder')}
           </Button>
         </div>
       )}
@@ -360,10 +362,10 @@ export default function DossierDetailPage({
       >
         <div className="flex-1" />
         <Button variant="outline" size="sm" onClick={() => setEmailDialogOpen(true)} className="h-8 text-xs gap-1.5">
-          <Mail className="h-3.5 w-3.5" /> Envoyer un email
+          <Mail className="h-3.5 w-3.5" /> {t('Envoyer un email')}
         </Button>
         <Button variant="outline" size="sm" onClick={() => setHistoriqueOpen(true)} className="h-8 text-xs gap-1.5">
-          <History className="h-3.5 w-3.5" /> Historique
+          <History className="h-3.5 w-3.5" /> {t('Historique')}
         </Button>
       </div>
       )}
@@ -456,7 +458,7 @@ export default function DossierDetailPage({
       <Sheet open={isHistoriqueOpen} onOpenChange={setHistoriqueOpen}>
         <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>Historique</SheetTitle>
+            <SheetTitle>{t('Historique')}</SheetTitle>
           </SheetHeader>
           <div className="mt-4">
             <HistoriqueTab dossierId={id} />

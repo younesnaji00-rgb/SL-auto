@@ -20,7 +20,7 @@ import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/do
 import { useOptions } from '@/hooks/use-options';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { addObservation, type VisibilityScope } from '@/app/(app)/dossiers/[id]/log-observation';
 import { accordSlotFromValue } from '@/lib/docType-accorde';
@@ -138,6 +138,7 @@ export default function ObservationsTab({
   const { canWrite, profile } = useCurrentUser();
   const hl = useReplayHighlight();
   const { toast } = useToast();
+  const t = useT();
   // Q-5 → B: gestionnaire + admin + directeur family can validate.
   const role = profile?.role;
   const canValidate =
@@ -397,10 +398,10 @@ export default function ObservationsTab({
         traitementValidePar: userEmail,
         traitementValideParNom: userNom,
       });
-      toast({ title: 'Traitement validé' });
+      toast({ title: t('Traitement validé') });
     } catch (err: any) {
       console.error('Validate observation error:', err);
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message || 'Impossible de valider.' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err.message || t('Impossible de valider.') });
     } finally {
       setValidatingId(null);
     }
@@ -431,10 +432,10 @@ export default function ObservationsTab({
       await updateDoc(doc(db, 'dossiers', dossierId, 'observations', obsId), {
         traitementProofs: arrayUnion(...uploaded),
       });
-      toast({ title: `${uploaded.length} preuve(s) ajoutée(s)` });
+      toast({ title: `${uploaded.length} ${t('preuve(s) ajoutée(s)')}` });
     } catch (err: any) {
       console.error('Proof upload error:', err);
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message || 'Impossible d\'envoyer la preuve.' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err.message || t('Impossible d\'envoyer la preuve.') });
     } finally {
       setUploadingProofFor(null);
     }
@@ -507,10 +508,10 @@ export default function ObservationsTab({
       setChiffrageAccordChoice('');
       setPendingProofs([]);
       setVisibilityScope('all');
-      toast({ title: 'Observation ajoutée' });
+      toast({ title: t('Observation ajoutée') });
     } catch (err: any) {
       console.error('Failed to add observation:', err);
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message || "Impossible d'ajouter l'observation." });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err.message || t("Impossible d'ajouter l'observation.") });
     } finally {
       setIsSubmitting(false);
     }
@@ -532,10 +533,10 @@ export default function ObservationsTab({
                   <SelectValue
                     placeholder={
                       presetsLoading
-                        ? 'Chargement…'
+                        ? t('Chargement…')
                         : activePresets.length === 0
-                          ? 'Aucune observation disponible'
-                          : 'Choisir une observation...'
+                          ? t('Aucune observation disponible')
+                          : t('Choisir une observation...')
                     }
                   />
                 </SelectTrigger>
@@ -552,7 +553,7 @@ export default function ObservationsTab({
               {presetFilled && (
                 <button
                   type="button"
-                  aria-label="Effacer la sélection"
+                  aria-label={t('Effacer la sélection')}
                   onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedPreset(''); }}
                   className="absolute right-9 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-sm z-10"
@@ -563,7 +564,7 @@ export default function ObservationsTab({
             </div>
             <OptionsManagerModal
               collectionName="options_observations"
-              title="Observations"
+              title={t('Observations')}
               defaultValues={['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre']}
             />
           </div>
@@ -578,7 +579,7 @@ export default function ObservationsTab({
             <div className="flex items-center gap-2">
               <Select value={chiffrageAccordChoice} onValueChange={setChiffrageAccordChoice}>
                 <SelectTrigger className="flex-1 text-sm">
-                  <SelectValue placeholder="À propos de quel accord ?" />
+                  <SelectValue placeholder={t('À propos de quel accord ?')} />
                 </SelectTrigger>
                 <SelectContent>
                   {dynamicAccordOptions.map((opt) => (
@@ -591,19 +592,19 @@ export default function ObservationsTab({
           <Textarea
             value={customText}
             onChange={(e) => setCustomText(e.target.value)}
-            placeholder="Ou écrivez une observation personnalisée…"
+            placeholder={t('Ou écrivez une observation personnalisée…')}
             rows={2}
             disabled={presetFilled && selectedPreset !== 'Autre'}
             className="text-sm"
           />
           {bothFilled && (
             <p className="text-[11px] text-destructive">
-              Choisissez une observation prédéfinie OU écrivez du texte personnalisé, pas les deux.
+              {t('Choisissez une observation prédéfinie OU écrivez du texte personnalisé, pas les deux.')}
             </p>
           )}
           {chiffrageAccordMissing && (presetFilled || customFilled) && (
             <p className="text-[11px] text-destructive">
-              Sélectionnez à propos de quel accord.
+              {t('Sélectionnez à propos de quel accord.')}
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
@@ -616,7 +617,7 @@ export default function ObservationsTab({
             >
               <SelectTrigger
                 className="h-8 w-[160px] text-xs"
-                aria-label="Visibilité de l'observation"
+                aria-label={t("Visibilité de l'observation")}
               >
                 <Eye className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
                 <SelectValue />
@@ -626,7 +627,7 @@ export default function ObservationsTab({
                     observation only to your own role is redundant. Admin/Directeur
                     roles aren't in ROLE_TO_SCOPE, so they see every option. */}
                 {VISIBILITY_SCOPE_OPTIONS.filter((opt) => opt.value !== ROLE_TO_SCOPE[profile?.role ?? '']).map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  <SelectItem key={opt.value} value={opt.value}>{t(opt.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -650,11 +651,11 @@ export default function ObservationsTab({
               disabled={isSubmitting}
             >
               <Paperclip className="h-3.5 w-3.5" />
-              Attacher une preuve
+              {t('Attacher une preuve')}
             </Button>
             {pendingProofs.length > 0 && (
               <span className="text-[11px] text-muted-foreground">
-                {pendingProofs.length} fichier{pendingProofs.length > 1 ? 's' : ''} à joindre
+                {pendingProofs.length} {pendingProofs.length > 1 ? t('fichiers à joindre') : t('fichier à joindre')}
               </span>
             )}
             {pendingProofs.length > 0 && (
@@ -667,7 +668,7 @@ export default function ObservationsTab({
                 disabled={isSubmitting}
               >
                 <X className="h-3 w-3" />
-                Annuler
+                {t('Annuler')}
               </Button>
             )}
           </div>
@@ -679,7 +680,7 @@ export default function ObservationsTab({
               className="h-8 text-xs gap-1.5"
             >
               {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-              Envoyer
+              {t('Envoyer')}
             </Button>
           </div>
         </div>
@@ -688,12 +689,12 @@ export default function ObservationsTab({
       {/* List */}
       {loading ? (
         <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
-          <Loader2 className="h-4 w-4 animate-spin mr-2" /> Chargement...
+          <Loader2 className="h-4 w-4 animate-spin mr-2" /> {t('Chargement...')}
         </div>
       ) : observations.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
           <Eye className="h-8 w-8 mb-2 opacity-40" />
-          <p className="text-sm">Aucune observation pour le moment.</p>
+          <p className="text-sm">{t('Aucune observation pour le moment.')}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -724,26 +725,26 @@ export default function ObservationsTab({
                 </Avatar>
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center flex-wrap gap-1.5">
-                    <span className="text-sm font-semibold truncate">{obs.author || 'Inconnu'}</span>
+                    <span className="text-sm font-semibold truncate">{obs.author || t('Inconnu')}</span>
                     <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0', ROLE_BADGE_STYLES[obs.authorRole] || '')}>
-                      {obs.authorRole || 'N/A'}
+                      {obs.authorRole ? t(obs.authorRole) : 'N/A'}
                     </Badge>
                     <Badge className={cn('text-[10px] px-1.5 py-0 border-0', TYPE_BADGE_STYLES[obs.type] || TYPE_BADGE_STYLES['Général'])}>
-                      {obs.type}
+                      {t(obs.type)}
                     </Badge>
                     {replayStatus && <ChangeBadge status={replayStatus} />}
                     {(obs as any).accordSlot && (
                       <Badge
                         variant="outline"
                         className="text-[10px] px-1.5 py-0 border-primary/40 text-primary"
-                        title="À propos de"
+                        title={t('À propos de')}
                       >
-                        {(obs as any).accordSlot}
+                        {t((obs as any).accordSlot)}
                       </Badge>
                     )}
                     {obs.createdAt?.toDate && (
                       <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
-                        {format(obs.createdAt.toDate(), 'dd MMM yyyy à HH:mm', { locale: fr })}
+                        {format(obs.createdAt.toDate(), 'dd MMM yyyy à HH:mm', { locale: dateFnsLocale() })}
                       </span>
                     )}
                   </div>
@@ -756,9 +757,9 @@ export default function ObservationsTab({
                     <div className="mt-1.5 flex items-center gap-1.5 text-[11px]">
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                       <span className="text-emerald-700 dark:text-emerald-300">
-                        Traitement validé
-                        {obs.traitementValideParNom ? ` par ${obs.traitementValideParNom}` : ''}
-                        {obs.traitementValideAt?.toDate ? ` — ${format(obs.traitementValideAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: fr })}` : ''}
+                        {t('Traitement validé')}
+                        {obs.traitementValideParNom ? ` ${t('par')} ${obs.traitementValideParNom}` : ''}
+                        {obs.traitementValideAt?.toDate ? ` — ${format(obs.traitementValideAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() })}` : ''}
                       </span>
                     </div>
                   ) : (
@@ -767,12 +768,12 @@ export default function ObservationsTab({
                         size="sm"
                         variant="outline"
                         className="h-7 text-[11px] gap-1.5 mt-1"
-                        title={proofs.length === 0 ? 'Attachez une preuve pour valider le traitement' : undefined}
+                        title={proofs.length === 0 ? t('Attachez une preuve pour valider le traitement') : undefined}
                         onClick={() => handleValidate(obs.id)}
                         disabled={validatingId === obs.id || proofs.length === 0}
                       >
                         {validatingId === obs.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-                        Valider le traitement
+                        {t('Valider le traitement')}
                       </Button>
                     )
                   )}
@@ -787,7 +788,7 @@ export default function ObservationsTab({
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-background hover:bg-accent transition-colors"
-                          title={`${p.name} — ${p.uploadedByNom || p.uploadedBy}${p.uploadedAt?.toDate ? ` (${format(p.uploadedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: fr })})` : ''}`}
+                          title={`${p.name} — ${p.uploadedByNom || p.uploadedBy}${p.uploadedAt?.toDate ? ` (${format(p.uploadedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() })})` : ''}`}
                         >
                           <Paperclip className="h-3 w-3" />
                           <span className="truncate max-w-[140px]">{p.name}</span>
@@ -818,7 +819,7 @@ export default function ObservationsTab({
                         onClick={() => proofInputRefs.current[obs.id]?.click()}
                       >
                         {uploadingProofFor === obs.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
-                        Ajouter une preuve
+                        {t('Ajouter une preuve')}
                       </Button>
                     </div>
                   )}
@@ -828,20 +829,20 @@ export default function ObservationsTab({
                       no one has viewed yet. */}
                   {firstViewers.length > 0 && (
                     <p className="mt-1.5 text-[10px] text-muted-foreground">
-                      Vu par{' '}
+                      {t('Vu par')}{' '}
                       {firstViewers.map((v, i) => {
                         const d = v.viewedAt?.toDate ? v.viewedAt.toDate() : null;
-                        const when = d ? format(d, 'd MMM HH:mm', { locale: fr }) : '';
+                        const when = d ? format(d, 'd MMM HH:mm', { locale: dateFnsLocale() }) : '';
                         return (
                           <span key={i}>
                             {i > 0 ? ', ' : ''}
                             {v.name}
-                            {v.role ? ` — ${v.role}` : ''}
+                            {v.role ? ` — ${t(v.role)}` : ''}
                             {when ? ` (${when})` : ''}
                           </span>
                         );
                       })}
-                      {extraViewers > 0 && `, +${extraViewers} autre${extraViewers > 1 ? 's' : ''}`}
+                      {extraViewers > 0 && `, +${extraViewers} ${extraViewers > 1 ? t('autres') : t('autre')}`}
                     </p>
                   )}
                 </div>
@@ -862,15 +863,15 @@ export default function ObservationsTab({
               <div className="flex items-center gap-2">
                 {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 <Eye className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-semibold">Observations</span>
+                <span className="text-sm font-semibold">{t('Observations')}</span>
                 {observations.length > 0 && (
                   <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
                     {observations.length}
                   </Badge>
                 )}
                 {unseenCount > 0 && (
-                  <Badge className="text-[10px] h-5 px-1.5 bg-red-500 text-white hover:bg-red-500" aria-label={`${unseenCount} nouvelles observations`}>
-                    {unseenCount} nouvelle{unseenCount > 1 ? 's' : ''}
+                  <Badge className="text-[10px] h-5 px-1.5 bg-red-500 text-white hover:bg-red-500" aria-label={`${unseenCount} ${t('nouvelles observations')}`}>
+                    {unseenCount} {unseenCount > 1 ? t('nouvelles') : t('nouvelle')}
                   </Badge>
                 )}
               </div>

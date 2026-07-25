@@ -22,7 +22,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { format, startOfDay, addDays } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
@@ -173,6 +173,7 @@ function DeadlineBadge({
   createdAt: any;
   completed?: boolean;
 }) {
+  const t = useT();
   const [, setTick] = useState(0);
   useEffect(() => {
     if (completed) return;
@@ -186,14 +187,14 @@ function DeadlineBadge({
   if (pending) {
     return (
       <Badge variant="outline" className="text-[10px] font-medium whitespace-nowrap">
-        En attente
+        {t('En attente')}
       </Badge>
     );
   }
   if (expired) {
     return (
       <Badge variant="destructive" className="text-[10px] font-semibold whitespace-nowrap">
-        {lateness ? `En retard ${lateness}` : 'En retard'}
+        {lateness ? `${t('En retard')} ${lateness}` : t('En retard')}
       </Badge>
     );
   }
@@ -270,6 +271,7 @@ function DeadlineBar({
   completed?: boolean;
   completedStatus?: string;
 }) {
+  const t = useT();
   const [, setTick] = useState(0);
   useEffect(() => {
     if (completed) return;
@@ -292,7 +294,7 @@ function DeadlineBar({
             variant="outline"
             className="text-[10px] font-semibold border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800/60 dark:text-emerald-200 whitespace-nowrap"
           >
-            {completedStatus}
+            {t(completedStatus)}
           </Badge>
         )}
       </div>
@@ -316,7 +318,7 @@ function DeadlineBar({
     return (
       <div className="flex items-center gap-1.5 min-w-[140px]">
         <Clock className="h-3 w-3 text-muted-foreground" />
-        <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">En attente</span>
+        <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">{t('En attente')}</span>
       </div>
     );
   }
@@ -330,13 +332,14 @@ function DeadlineBar({
         />
       </div>
       <span className={cn('text-[10px] font-semibold tabular-nums whitespace-nowrap', expired ? 'text-destructive' : getTextColor(percent))}>
-        {expired ? (lateness ? `En retard ${lateness}` : 'En retard') : `${percent}%`}
+        {expired ? (lateness ? `${t('En retard')} ${lateness}` : t('En retard')) : `${percent}%`}
       </span>
     </div>
   );
 }
 
 export default function AssignationsATGPage() {
+  const t = useT();
   const db = useFirestore();
   const router = useRouter();
   const { profile } = useCurrentUser();
@@ -683,8 +686,8 @@ export default function AssignationsATGPage() {
     if (addrs.length > MAX_STOPS) {
       route = addrs.slice(0, MAX_STOPS);
       toast({
-        title: `${addrs.length - MAX_STOPS} arrêt(s) ignoré(s)`,
-        description: `Google Maps accepte au maximum ${MAX_STOPS} étapes par itinéraire. Les premières (par ordre chronologique) ont été conservées.`,
+        title: `${addrs.length - MAX_STOPS} ${t('arrêt(s) ignoré(s)')}`,
+        description: `${t('Google Maps accepte au maximum')} ${MAX_STOPS} ${t('étapes par itinéraire. Les premières (par ordre chronologique) ont été conservées.')}`,
       });
     }
     // Read the agent's live coords FIRST so we can pass them as the explicit
@@ -728,7 +731,7 @@ export default function AssignationsATGPage() {
   const formatDate = (ts: any) => {
     if (!ts) return '-';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
-    try { return format(date, "d MMM yyyy HH:mm", { locale: fr }); }
+    try { return format(date, "d MMM yyyy HH:mm", { locale: dateFnsLocale() }); }
     catch { return '-'; }
   };
 
@@ -751,7 +754,7 @@ export default function AssignationsATGPage() {
       <div>
         <header className="sticky top-0 z-30 h-14 flex items-center gap-3 px-4 border-b bg-card">
           <UserCheck className="h-5 w-5 text-primary" />
-          <h1 className="text-base font-bold flex-1">Mes missions</h1>
+          <h1 className="text-base font-bold flex-1">{t('Mes missions')}</h1>
           <Badge variant="secondary">
             {effectiveViewMode === 'by-zone'
               ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
@@ -759,7 +762,7 @@ export default function AssignationsATGPage() {
           </Badge>
           <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 -mr-2 relative" aria-label="Filtres">
+              <Button variant="ghost" size="icon" className="h-9 w-9 -mr-2 relative" aria-label={t('Filtres')}>
                 <SlidersHorizontal className="h-4 w-4" />
                 {(compagnieFilter !== 'Toutes' || (canSeeNameFilter && agentFilter !== 'Tous') || dateFrom || dateTo || keyword) && (
                   <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive" />
@@ -768,33 +771,33 @@ export default function AssignationsATGPage() {
             </SheetTrigger>
             <SheetContent side="bottom" className="h-[70vh] flex flex-col p-0">
               <SheetHeader className="px-4 py-3 border-b">
-                <SheetTitle>Filtres</SheetTitle>
+                <SheetTitle>{t('Filtres')}</SheetTitle>
               </SheetHeader>
               <div className="flex-1 px-4 py-4 space-y-4 overflow-y-auto">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Recherche
+                    {t('Recherche')}
                   </label>
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       value={keyword}
                       onChange={(e) => setFilters({ keyword: e.target.value })}
-                      placeholder="Réf, assuré, adresse, immat..."
+                      placeholder={t('Réf, assuré, adresse, immat...')}
                       className="h-10 pl-8 text-sm"
                     />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Compagnie
+                    {t('Compagnie')}
                   </label>
                   <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
                     <SelectTrigger className="w-full h-10 text-sm">
-                      <SelectValue placeholder="Compagnie" />
+                      <SelectValue placeholder={t('Compagnie')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
+                      <SelectItem value="Toutes">{t('Toutes les compagnies')}</SelectItem>
                       {compagnieOptions.map(([name, count]) => (
                         <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                       ))}
@@ -804,14 +807,14 @@ export default function AssignationsATGPage() {
                 {canSeeNameFilter && (
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Agent
+                      {t('Agent')}
                     </label>
                     <Select value={agentFilter} onValueChange={v => setFilters({ agentFilter: v })}>
                       <SelectTrigger className="w-full h-10 text-sm">
-                        <SelectValue placeholder="Agent" />
+                        <SelectValue placeholder={t('Agent')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Tous">Tous les agents</SelectItem>
+                        <SelectItem value="Tous">{t('Tous les agents')}</SelectItem>
                         {agentOptions.map(([name, count]) => (
                           <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                         ))}
@@ -821,7 +824,7 @@ export default function AssignationsATGPage() {
                 )}
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Période
+                    {t('Période')}
                   </label>
                   <DateRangeFilter
                     dateFrom={dateFrom}
@@ -837,13 +840,13 @@ export default function AssignationsATGPage() {
                   className="flex-1 h-10"
                   onClick={() => setFilters({ compagnieFilter: 'Toutes', agentFilter: 'Tous', dateFrom: '', dateTo: '', keyword: '' })}
                 >
-                  Réinitialiser
+                  {t('Réinitialiser')}
                 </Button>
                 <Button
                   className="flex-1 h-10"
                   onClick={() => setIsFilterSheetOpen(false)}
                 >
-                  Appliquer
+                  {t('Appliquer')}
                 </Button>
               </div>
             </SheetContent>
@@ -851,16 +854,16 @@ export default function AssignationsATGPage() {
         </header>
         <div className="flex items-center justify-between h-10 px-4 border-b text-sm">
           <span className="text-muted-foreground">
-            Bonjour <span className="font-semibold text-foreground">{profile?.prenom || profile?.nom || 'agent'}</span>
+            {t('Bonjour')} <span className="font-semibold text-foreground">{profile?.prenom || profile?.nom || t('agent')}</span>
             {' · '}
-            {format(new Date(), 'EEE d MMM', { locale: fr })}
+            {format(new Date(), 'EEE d MMM', { locale: dateFnsLocale() })}
           </span>
           <Badge variant="outline" className="text-xs">
             {(effectiveViewMode === 'by-zone'
               ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
-              : filteredPlanifications.length)} mission{(effectiveViewMode === 'by-zone'
+              : filteredPlanifications.length)} {((effectiveViewMode === 'by-zone'
               ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
-              : filteredPlanifications.length) > 1 ? 's' : ''}
+              : filteredPlanifications.length) > 1 ? t('missions') : t('mission'))}
           </Badge>
         </div>
         {/* AT self-service (scan plaque → planifier / importer photos) — was
@@ -887,7 +890,7 @@ export default function AssignationsATGPage() {
                       : 'text-muted-foreground hover:bg-accent'
                   )}
                 >
-                  <span>{tab.label}</span>
+                  <span>{t(tab.label)}</span>
                   <span
                     className={cn(
                       'inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded text-[10px] font-mono',
@@ -914,8 +917,8 @@ export default function AssignationsATGPage() {
             <div className="p-4">
               <EmptyState
                 icon={<Calendar />}
-                title={`Aucune mission ${activeTab.toLowerCase()}`}
-                description="Les nouvelles assignations apparaîtront ici."
+                title={t(`Aucune mission ${activeTab.toLowerCase()}`)}
+                description={t('Les nouvelles assignations apparaîtront ici.')}
                 dashed={false}
                 className="border-0 bg-transparent py-10"
               />
@@ -933,7 +936,7 @@ export default function AssignationsATGPage() {
                   <div className="flex items-center gap-2 w-full">
                     <CollapsibleTrigger className="flex-1 flex items-center justify-between h-9 px-1 text-xs font-bold tracking-wider uppercase text-muted-foreground hover:text-foreground transition-colors">
                       <span>
-                        {group.label} ({group.items.length})
+                        {t(group.label)} ({group.items.length})
                       </span>
                       <ChevronDown
                         className={cn(
@@ -954,7 +957,7 @@ export default function AssignationsATGPage() {
                         e.stopPropagation();
                         openRouteForItems(group.items);
                       }}
-                      title="Ouvrir l'itinéraire dans Google Maps"
+                      title={t("Ouvrir l'itinéraire dans Google Maps")}
                     >
                       <Navigation className="h-3.5 w-3.5" />
                       Start
@@ -1039,8 +1042,8 @@ export default function AssignationsATGPage() {
           <div className="p-4">
             <EmptyState
               icon={<Users />}
-              title={agentFilter !== 'Tous' ? `Aucun agent correspondant au filtre « ${agentFilter} »` : 'Aucun agent de terrain configuré'}
-              description={agentFilter !== 'Tous' ? "Ajustez le filtre Agent pour voir d'autres zones." : 'Ajoutez des agents depuis la modale de planification pour les voir apparaître ici.'}
+              title={agentFilter !== 'Tous' ? `${t('Aucun agent correspondant au filtre')} « ${agentFilter} »` : t('Aucun agent de terrain configuré')}
+              description={agentFilter !== 'Tous' ? t("Ajustez le filtre Agent pour voir d'autres zones.") : t('Ajoutez des agents depuis la modale de planification pour les voir apparaître ici.')}
               dashed={false}
               className="border-0 bg-transparent py-10"
             />
@@ -1065,7 +1068,7 @@ export default function AssignationsATGPage() {
                       )}>
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <MapPin className="h-4 w-4 shrink-0" />
-                          <span className="text-sm font-bold truncate">{zone}</span>
+                          <span className="text-sm font-bold truncate">{t(zone)}</span>
                           <Badge variant="secondary" className="text-[10px] font-mono h-5 min-w-[20px] justify-center shrink-0">
                             {agents.length}
                           </Badge>
@@ -1131,7 +1134,7 @@ export default function AssignationsATGPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <UserCheck className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Assignations Agent de Terrain</h1>
+          <h1 className="text-2xl font-bold">{t('Assignations Agent de Terrain')}</h1>
           <Badge variant="secondary" className="ml-2">
             {effectiveViewMode === 'by-zone'
               ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
@@ -1145,7 +1148,7 @@ export default function AssignationsATGPage() {
             <Input
               value={keyword}
               onChange={(e) => setFilters({ keyword: e.target.value })}
-              placeholder="Rechercher (réf, assuré, adresse, immat...)"
+              placeholder={t('Rechercher (réf, assuré, adresse, immat...)')}
               className="h-9 w-[260px] pl-8 text-xs"
             />
             {keyword && (
@@ -1157,10 +1160,10 @@ export default function AssignationsATGPage() {
           <div className="relative">
             <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
               <SelectTrigger className="w-[180px] h-9 text-xs">
-                <SelectValue placeholder="Compagnie" />
+                <SelectValue placeholder={t('Compagnie')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
+                <SelectItem value="Toutes">{t('Toutes les compagnies')}</SelectItem>
                 {compagnieOptions.map(([name, count]) => (
                   <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                 ))}
@@ -1176,10 +1179,10 @@ export default function AssignationsATGPage() {
             <div className="relative">
               <Select value={agentFilter} onValueChange={v => setFilters({ agentFilter: v })}>
                 <SelectTrigger className="w-[180px] h-9 text-xs">
-                  <SelectValue placeholder="Agent" />
+                  <SelectValue placeholder={t('Agent')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Tous">Tous les agents</SelectItem>
+                  <SelectItem value="Tous">{t('Tous les agents')}</SelectItem>
                   {agentOptions.map(([name, count]) => (
                     <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                   ))}
@@ -1214,7 +1217,7 @@ export default function AssignationsATGPage() {
                       : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
                   )}
                 >
-                  {tab.label}
+                  {t(tab.label)}
                   <Badge
                     variant={isActive ? 'default' : 'secondary'}
                     className="text-[10px] font-mono ml-1 h-5 min-w-[20px] justify-center"
@@ -1234,8 +1237,8 @@ export default function AssignationsATGPage() {
             <CardContent className="p-0">
               <EmptyState
                 icon={<Users />}
-                title={agentFilter !== 'Tous' ? `Aucun agent correspondant au filtre « ${agentFilter} »` : 'Aucun agent de terrain configuré'}
-                description={agentFilter !== 'Tous' ? 'Ajustez le filtre Agent pour voir d\'autres zones.' : 'Ajoutez des agents depuis la modale de planification pour les voir apparaître ici.'}
+                title={agentFilter !== 'Tous' ? `${t('Aucun agent correspondant au filtre')} « ${agentFilter} »` : t('Aucun agent de terrain configuré')}
+                description={agentFilter !== 'Tous' ? t('Ajustez le filtre Agent pour voir d\'autres zones.') : t('Ajoutez des agents depuis la modale de planification pour les voir apparaître ici.')}
                 dashed={false}
                 className="border-0 bg-transparent py-10"
               />
@@ -1261,13 +1264,13 @@ export default function AssignationsATGPage() {
                     )}>
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 shrink-0" />
-                        <span className="text-sm font-bold">{zone}</span>
+                        <span className="text-sm font-bold">{t(zone)}</span>
                         <Badge variant="secondary" className="text-[10px] font-mono h-5 min-w-[20px] justify-center">
                           {agents.length}
                         </Badge>
                         {totalWorkload > 0 && (
                           <Badge variant="outline" className="text-[10px] h-5 gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200">
-                            <Clock className="h-3 w-3" /> {totalWorkload} actif{totalWorkload > 1 ? 's' : ''}
+                            <Clock className="h-3 w-3" /> {totalWorkload} {totalWorkload > 1 ? t('actifs') : t('actif')}
                           </Badge>
                         )}
                       </div>
@@ -1281,10 +1284,10 @@ export default function AssignationsATGPage() {
                         <Table>
                           <TableHeader>
                             <TableRow className="bg-muted/30">
-                              <TableHead className="font-bold text-xs">Agent</TableHead>
-                              <TableHead className="font-bold text-xs">Zone</TableHead>
-                              <TableHead className="font-bold text-xs">Planifications actives</TableHead>
-                              <TableHead className="font-bold text-xs text-right pr-4">Action</TableHead>
+                              <TableHead className="font-bold text-xs">{t('Agent')}</TableHead>
+                              <TableHead className="font-bold text-xs">{t('Zone')}</TableHead>
+                              <TableHead className="font-bold text-xs">{t('Planifications actives')}</TableHead>
+                              <TableHead className="font-bold text-xs text-right pr-4">{t('Action')}</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -1310,7 +1313,7 @@ export default function AssignationsATGPage() {
                                       </Badge>
                                     ) : (
                                       <Badge variant="outline" className="text-[10px] font-normal italic text-muted-foreground">
-                                        Non définie
+                                        {t('Non définie')}
                                       </Badge>
                                     )}
                                   </TableCell>
@@ -1328,7 +1331,7 @@ export default function AssignationsATGPage() {
                                   </TableCell>
                                   <TableCell className="text-right pr-4">
                                     <span className="text-[11px] text-primary underline-offset-2 hover:underline">
-                                      Voir assignations
+                                      {t('Voir assignations')}
                                     </span>
                                   </TableCell>
                                 </TableRow>
@@ -1357,8 +1360,8 @@ export default function AssignationsATGPage() {
           <CardContent className="p-0">
             <EmptyState
               icon={<Calendar />}
-              title={`Aucune mission ${activeTab.toLowerCase()}`}
-              description="Les nouvelles assignations apparaîtront ici."
+              title={t(`Aucune mission ${activeTab.toLowerCase()}`)}
+              description={t('Les nouvelles assignations apparaîtront ici.')}
               dashed={false}
               className="border-0 bg-transparent py-10"
             />
@@ -1370,18 +1373,18 @@ export default function AssignationsATGPage() {
             const renderTableHeader = (groupKey: GroupKey) => (
               <TableHeader>
                 <TableRow className="bg-muted/30">
-                  <TableHead className="font-bold text-xs">Dossier</TableHead>
-                  <TableHead className="font-bold text-xs">Assuré</TableHead>
-                  <TableHead className="font-bold text-xs">Immat.</TableHead>
-                  <TableHead className="font-bold text-xs">Compagnie</TableHead>
-                  {showAgentColumn && <TableHead className="font-bold text-xs">Agent</TableHead>}
-                  <TableHead className="font-bold text-xs">Date RDV</TableHead>
-                  <TableHead className="font-bold text-xs">Zone</TableHead>
-                  <TableHead className="font-bold text-xs">Adresse</TableHead>
-                  <TableHead className="font-bold text-xs">Téléphone</TableHead>
-                  <TableHead className="font-bold text-xs">Créé le</TableHead>
-                  <TableHead className="font-bold text-xs">Créé par</TableHead>
-                  <TableHead className="font-bold text-xs">Assigné par</TableHead>
+                  <TableHead className="font-bold text-xs">{t('Dossier')}</TableHead>
+                  <TableHead className="font-bold text-xs">{t('Assuré')}</TableHead>
+                  <TableHead className="font-bold text-xs">{t('Immat.')}</TableHead>
+                  <TableHead className="font-bold text-xs">{t('Compagnie')}</TableHead>
+                  {showAgentColumn && <TableHead className="font-bold text-xs">{t('Agent')}</TableHead>}
+                  <TableHead className="font-bold text-xs">{t('Date RDV')}</TableHead>
+                  <TableHead className="font-bold text-xs">{t('Zone')}</TableHead>
+                  <TableHead className="font-bold text-xs">{t('Adresse')}</TableHead>
+                  <TableHead className="font-bold text-xs">{t('Téléphone')}</TableHead>
+                  <TableHead className="font-bold text-xs">{t('Créé le')}</TableHead>
+                  <TableHead className="font-bold text-xs">{t('Créé par')}</TableHead>
+                  <TableHead className="font-bold text-xs">{t('Assigné par')}</TableHead>
                 </TableRow>
               </TableHeader>
             );
@@ -1423,7 +1426,7 @@ export default function AssignationsATGPage() {
                     <>
                       <span>{p.createdByName}</span>
                       {p.createdByRole && (
-                        <span className="ml-1 text-[10px] opacity-70">({p.createdByRole})</span>
+                        <span className="ml-1 text-[10px] opacity-70">({t(p.createdByRole)})</span>
                       )}
                     </>
                   ) : '—'}
@@ -1444,7 +1447,7 @@ export default function AssignationsATGPage() {
                   <div className={cn('flex items-center w-full transition-colors hover:opacity-80', group.color)}>
                     <CollapsibleTrigger className="flex-1 flex items-center justify-between px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold">{group.label}</span>
+                        <span className="text-sm font-bold">{t(group.label)}</span>
                         <Badge variant="secondary" className="text-[10px] font-mono h-5 min-w-[20px] justify-center">
                           {group.items.length}
                         </Badge>
@@ -1467,7 +1470,7 @@ export default function AssignationsATGPage() {
                           e.stopPropagation();
                           openRouteForItems(group.items);
                         }}
-                        title="Ouvrir l'itinéraire dans Google Maps"
+                        title={t("Ouvrir l'itinéraire dans Google Maps")}
                       >
                         <Navigation className="h-3.5 w-3.5" />
                         Start

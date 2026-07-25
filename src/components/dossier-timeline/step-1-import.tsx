@@ -11,7 +11,6 @@ import {
 } from 'firebase/firestore';
 import { Eye, FileIcon, FileText, Loader2, ScanSearch, Trash2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,6 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { useToast } from '@/hooks/use-toast';
+import { useT, dateFnsLocale } from '@/i18n';
 import { useFirestore, useStorage, useAuth, useDoc } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
@@ -117,7 +117,7 @@ function formatDate(ts: any): string {
   try {
     const date = ts?.toDate ? ts.toDate() : new Date(ts);
     if (Number.isNaN(date.getTime())) return '';
-    return format(date, 'dd/MM/yyyy HH:mm', { locale: fr });
+    return format(date, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() });
   } catch {
     return '';
   }
@@ -134,6 +134,7 @@ export default function Step1Import({
   const auth = useAuth();
   const { canWrite, canDelete, profile } = useCurrentUser();
   const { toast } = useToast();
+  const t = useT();
 
   const canEdit = !readOnly && canWrite('dossiers');
   // Inert on the live page; tints the import source doc in the rappel replica.
@@ -188,14 +189,14 @@ export default function Step1Import({
           body: JSON.stringify({ files: payload }),
         });
 
-        if (!response.ok) throw new Error('Erreur lors du scan');
+        if (!response.ok) throw new Error(t('Erreur lors du scan'));
         const { data, fieldsFound } = await response.json();
 
         if (!data || !fieldsFound) {
           toast({
-            title: 'Aucune donnée extraite',
+            title: t('Aucune donnée extraite'),
             description:
-              "L'IA n'a pas pu extraire d'informations de ce document.",
+              t("L'IA n'a pas pu extraire d'informations de ce document."),
           });
           setLastFilledCount(0);
           // Still mark this as the scan source so Step 1 shows which document
@@ -306,38 +307,38 @@ export default function Step1Import({
         setLastFilledCount(written);
         const toastParts = [
           filledFields.length > 0
-            ? `${filledFields.length} champ(s) pré-rempli(s)`
+            ? `${filledFields.length} ${t('champ(s) pré-rempli(s)')}`
             : null,
           overwrittenFields.length > 0
-            ? `${overwrittenFields.length} écrasé(s)`
+            ? `${overwrittenFields.length} ${t('écrasé(s)')}`
             : null,
         ].filter(Boolean);
         toast({
-          title: 'Scan terminé',
+          title: t('Scan terminé'),
           description:
             written > 0
-              ? `${toastParts.join(', ')}. Vérifiez à l'étape Information.${buffered ? ' (Publié après « Sauvegarder » — rappel en cours.)' : ''}`
-              : "Aucune valeur extraite par l'IA.",
+              ? `${toastParts.join(', ')}. ${t("Vérifiez à l'étape Information.")}${buffered ? ` ${t('(Publié après « Sauvegarder » — rappel en cours.)')}` : ''}`
+              : t("Aucune valeur extraite par l'IA."),
         });
       } catch (err: any) {
         console.error('[Step1Import] scan error:', err);
         toast({
           variant: 'destructive',
-          title: 'Erreur de scan',
-          description: err?.message || 'Impossible de scanner le document.',
+          title: t('Erreur de scan'),
+          description: err?.message || t('Impossible de scanner le document.'),
         });
       } finally {
         setIsScanning(false);
       }
     },
-    [db, dossier, dossierId, dossierRef, toast, writeDossierDoc, buffered, draft, profile?.nom]
+    [db, dossier, dossierId, dossierRef, toast, writeDossierDoc, buffered, draft, profile?.nom, t]
   );
 
   const handleDeleteImportDoc = useCallback(async () => {
     if (!importDocRef || !db) return;
     if (
       !window.confirm(
-        'Supprimer ce document et permettre un nouveau scan ?'
+        t('Supprimer ce document et permettre un nouveau scan ?')
       )
     )
       return;
@@ -366,18 +367,18 @@ export default function Step1Import({
           profile?.nom,
         );
       }
-      toast({ title: 'Document source supprimé' });
+      toast({ title: t('Document source supprimé') });
     } catch (err: any) {
       console.error('[Step1Import] delete import doc error:', err);
       toast({
         variant: 'destructive',
-        title: 'Erreur lors de la suppression',
-        description: err?.message || 'Impossible de supprimer le document.',
+        title: t('Erreur lors de la suppression'),
+        description: err?.message || t('Impossible de supprimer le document.'),
       });
     } finally {
       setIsDeletingImport(false);
     }
-  }, [db, dossierId, dossierRef, importDocRef, toast, auth, writeDossierDoc, buffered, draft, profile?.nom]);
+  }, [db, dossierId, dossierRef, importDocRef, toast, auth, writeDossierDoc, buffered, draft, profile?.nom, t]);
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -385,8 +386,8 @@ export default function Step1Import({
       if (!db || !storage) {
         toast({
           variant: 'destructive',
-          title: 'Erreur',
-          description: 'Services Firebase non disponibles.',
+          title: t('Erreur'),
+          description: t('Services Firebase non disponibles.'),
         });
         return;
       }
@@ -444,8 +445,8 @@ export default function Step1Import({
         toast({
           title:
             files.length === 1
-              ? 'Document importé'
-              : `${files.length} documents importés`,
+              ? t('Document importé')
+              : `${files.length} ${t('documents importés')}`,
         });
 
         // Scan all uploaded files in one go. Pass the first uploaded doc id
@@ -455,14 +456,14 @@ export default function Step1Import({
         console.error('[Step1Import] upload error:', err);
         toast({
           variant: 'destructive',
-          title: "Erreur lors de l'import",
-          description: err?.message || 'Une erreur inconnue est survenue.',
+          title: t("Erreur lors de l'import"),
+          description: err?.message || t('Une erreur inconnue est survenue.'),
         });
       } finally {
         setIsUploading(false);
       }
     },
-    [auth, canEdit, db, dossierId, runScanAndMerge, storage, toast]
+    [auth, canEdit, db, dossierId, runScanAndMerge, storage, toast, t]
   );
 
   const onDrop = useCallback(
@@ -537,15 +538,13 @@ export default function Step1Import({
               <div className="space-y-1">
                 <p className="text-sm font-semibold">
                   {isScanning
-                    ? "Analyse du document par l'IA..."
+                    ? t("Analyse du document par l'IA...")
                     : isUploading
-                    ? 'Import en cours...'
-                    : 'Déposez un document à importer'}
+                    ? t('Import en cours...')
+                    : t('Déposez un document à importer')}
                 </p>
                 <p className="text-xs text-muted-foreground max-w-md">
-                  Lettre de mission, constat, capture de portail assurance,
-                  carte grise, etc. PDF ou image. L&apos;IA pré-remplira
-                  l&apos;étape Information.
+                  {t("Lettre de mission, constat, capture de portail assurance, carte grise, etc. PDF ou image. L'IA pré-remplira l'étape Information.")}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -556,7 +555,7 @@ export default function Step1Import({
                   disabled={busy}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="mr-2 h-4 w-4" /> Choisir un fichier
+                  <Upload className="mr-2 h-4 w-4" /> {t('Choisir un fichier')}
                 </Button>
               </div>
               <input
@@ -576,8 +575,8 @@ export default function Step1Import({
         <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/20">
           <ScanSearch className="h-4 w-4 shrink-0 text-amber-600" />
           <span className="text-amber-700 dark:text-amber-400">
-            <strong>{lastFilledCount} champ(s)</strong> pré-rempli(s) par
-            l&apos;IA. Vérifiez à l&apos;étape <em>Information</em>.
+            <strong>{lastFilledCount} {t('champ(s)')}</strong>{' '}
+            {t("pré-rempli(s) par l'IA. Vérifiez à l'étape Information.")}
           </span>
         </div>
       )}
@@ -588,7 +587,7 @@ export default function Step1Import({
         <CardContent className="p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold">
-              Document source du pré-remplissage
+              {t('Document source du pré-remplissage')}
             </h3>
             {hasImportDoc && (
               <Badge variant="secondary" className="text-[10px]">
@@ -601,9 +600,7 @@ export default function Step1Import({
             <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
               <FileText className="h-10 w-10 text-muted-foreground/30" />
               <p className="text-sm italic text-muted-foreground">
-                Aucun document importé. Déposez votre lettre de mission,
-                constat ou document d&apos;assurance pour lancer le
-                pré-remplissage par l&apos;IA.
+                {t("Aucun document importé. Déposez votre lettre de mission, constat ou document d'assurance pour lancer le pré-remplissage par l'IA.")}
               </p>
             </div>
           ) : importDocLoading ? (
@@ -614,8 +611,7 @@ export default function Step1Import({
             <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
               <FileText className="h-8 w-8 text-muted-foreground/30" />
               <p className="text-sm italic text-muted-foreground">
-                Le document source est introuvable (il a peut-être été
-                supprimé depuis l&apos;étape Pièces jointes).
+                {t("Le document source est introuvable (il a peut-être été supprimé depuis l'étape Pièces jointes).")}
               </p>
             </div>
           ) : (
@@ -649,7 +645,7 @@ export default function Step1Import({
                         variant="outline"
                         className="shrink-0 border-amber-300 bg-amber-50 text-[9px] text-amber-700"
                       >
-                        En attente
+                        {t('En attente')}
                       </Badge>
                     )}
                     {canPreview && (
@@ -659,7 +655,7 @@ export default function Step1Import({
                         size="icon"
                         className="h-7 w-7 shrink-0"
                         onClick={() => setPreviewDoc({ url: url as string, nom: name })}
-                        title="Aperçu"
+                        title={t('Aperçu')}
                       >
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
@@ -672,7 +668,7 @@ export default function Step1Import({
                         className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
                         onClick={handleDeleteImportDoc}
                         disabled={isDeletingImport}
-                        title="Supprimer pour nouveau scan"
+                        title={t('Supprimer pour nouveau scan')}
                       >
                         {isDeletingImport ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -689,8 +685,7 @@ export default function Step1Import({
 
           {hasImportDoc && (
             <p className="mt-3 text-[11px] italic text-muted-foreground">
-              Les autres pièces jointes sont gérées dans l&apos;étape 4
-              « Pièces jointes ».
+              {t("Les autres pièces jointes sont gérées dans l'étape 4 « Pièces jointes ».")}
             </p>
           )}
         </CardContent>

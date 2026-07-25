@@ -18,7 +18,7 @@ import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { dateFnsLocale, useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { getStatusDotColor } from '@/lib/status-colors';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -89,6 +89,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
+  const t = useT();
   const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('dossiers');
 
@@ -269,8 +270,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
           draft.bufferLog({ kind: 'workflow', args: ['Modification de dossier', userEmail, userId, 'done', { dossierRef: ref, details: 'Informations du dossier mises à jour' }, profile?.nom] });
         }
         toast({
-          title: 'Modifications en attente',
-          description: 'Elles ne seront visibles sur le dossier qu’après « Sauvegarder » dans la bannière rappel.',
+          title: t('Modifications en attente'),
+          description: t('Elles ne seront visibles sur le dossier qu’après « Sauvegarder » dans la bannière rappel.'),
         });
       } else {
         if (statutChanged) {
@@ -280,13 +281,13 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
           await logHistorique(db, dossierId, 'Mise à jour', userEmail, 'Informations du dossier mises à jour.', 'autre', profile?.nom);
           await logWorkflow(db, dossierId, 'Modification de dossier', userEmail, userId, 'done', { dossierRef: ref, details: 'Informations du dossier mises à jour' }, profile?.nom);
         }
-        toast({ title: 'Informations mises à jour' });
+        toast({ title: t('Informations mises à jour') });
       }
       clearDraft();
       setEditing(false);
     } catch (error: any) {
       console.error(error);
-      toast({ title: 'Erreur', description: String(error), variant: 'destructive' });
+      toast({ title: t('Erreur'), description: String(error), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -303,7 +304,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
   const formatDateDisplay = (date: any) => {
     if (!date) return '-';
     const d = date.toDate ? date.toDate() : new Date(date);
-    try { return format(d, 'dd/MM/yyyy', { locale: fr }); } catch { return '-'; }
+    try { return format(d, 'dd/MM/yyyy', { locale: dateFnsLocale() }); } catch { return '-'; }
   };
 
   return (
@@ -316,19 +317,19 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
           <div className="flex items-center gap-2 text-sm text-amber-900 dark:text-amber-100">
             <Clock className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-200" />
             <span>
-              Brouillon non enregistré récupéré
+              {t('Brouillon non enregistré récupéré')}
               {recovered.savedAt.getTime() > 0 && (
-                <> du <strong>{format(recovered.savedAt, 'dd/MM/yyyy à HH:mm', { locale: fr })}</strong></>
+                <> {t('du')} <strong>{format(recovered.savedAt, 'dd/MM/yyyy à HH:mm', { locale: dateFnsLocale() })}</strong></>
               )}
               .
             </span>
           </div>
           <div className="flex gap-2">
             <Button size="sm" className="h-8 text-xs" onClick={handleRestoreDraft}>
-              Restaurer
+              {t('Restaurer')}
             </Button>
             <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={clearDraft}>
-              Ignorer
+              {t('Ignorer')}
             </Button>
           </div>
         </div>
@@ -340,17 +341,17 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
           {!editing ? (
             <button type="button" onClick={() => setEditing(true)}
               className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold">
-              <Pencil className="h-3.5 w-3.5 text-primary" /> Modifier
+              <Pencil className="h-3.5 w-3.5 text-primary" /> {t('Modifier')}
             </button>
           ) : (
             <>
               <button type="button" onClick={handleSave} disabled={saving}
                 className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-colors font-semibold shadow-sm">
-                {saving ? <Check className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />} Enregistrer
+                {saving ? <Check className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />} {t('Enregistrer')}
               </button>
               <button type="button" onClick={handleCancel}
                 className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold">
-                <X className="h-3.5 w-3.5 text-muted-foreground" /> Annuler
+                <X className="h-3.5 w-3.5 text-muted-foreground" /> {t('Annuler')}
               </button>
             </>
           )}
@@ -360,60 +361,60 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
       {/* ── DOSSIER ── */}
       <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
         <CardHeader className="bg-heading-bg py-3">
-          <CardTitle className="text-sm font-bold uppercase tracking-wider">Informations Dossier</CardTitle>
+          <CardTitle className="text-sm font-bold uppercase tracking-wider">{t('Informations Dossier')}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <FieldRow fields={[
             {
-              label: 'Compagnie', value: form.compagnie, path: 'compagnie',
-              modal: <OptionsManagerModal collectionName="compagnies" title="Compagnies" />,
+              label: t('Compagnie'), value: form.compagnie, path: 'compagnie',
+              modal: <OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />,
               edit: (
                 <Select value={form.compagnie} onValueChange={(v) => handleChange('compagnie', v)}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
+                  <SelectTrigger className="h-9"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                   <SelectContent>{compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}</SelectContent>
                 </Select>
               ),
             },
             {
-              label: 'Type de dossier', value: form.typeDossier, path: 'typeDossier',
-              modal: <OptionsManagerModal collectionName="options_types_dossier" title="Types de dossier" />,
+              label: t('Type de dossier'), value: form.typeDossier, path: 'typeDossier',
+              modal: <OptionsManagerModal collectionName="options_types_dossier" title={t('Types de dossier')} />,
               edit: (
                 <Select value={form.typeDossier} onValueChange={(v) => handleChange('typeDossier', v)}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
+                  <SelectTrigger className="h-9"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                   <SelectContent>{dossierTypes.map(t => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}</SelectContent>
                 </Select>
               ),
             },
             {
-              label: 'Nature du dossier', value: form.nature, path: 'nature',
-              modal: <OptionsManagerModal collectionName="options_natures" title="Natures" />,
+              label: t('Nature du dossier'), value: form.nature, path: 'nature',
+              modal: <OptionsManagerModal collectionName="options_natures" title={t('Natures')} />,
               edit: (
                 <Select value={form.nature} onValueChange={(v) => handleChange('nature', v)}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
+                  <SelectTrigger className="h-9"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                   <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}</SelectContent>
                 </Select>
               ),
             },
             {
-              label: 'Statut', value: form.statut, path: 'statut',
-              modal: <OptionsManagerModal collectionName="options_statuts" title="Statuts" />,
+              label: t('Statut'), value: t(form.statut), path: 'statut',
+              modal: <OptionsManagerModal collectionName="options_statuts" title={t('Statuts')} />,
               edit: (
                 <Select value={form.statut} onValueChange={(v) => handleChange('statut', v)}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
-                  <SelectContent className="max-h-[300px]">{statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}</SelectContent>
+                  <SelectTrigger className="h-9"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
+                  <SelectContent className="max-h-[300px]">{statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{t(s.label)}</span></SelectItem>)}</SelectContent>
                 </Select>
               ),
             },
           ]} editing={editing} />
           <FieldRow fields={[
-            { label: 'Réf Dossier', value: form.refExpert, path: 'refExpert', edit: <Input className="h-9" value={form.refExpert} onChange={(e) => handleChange('refExpert', e.target.value)} /> },
-            { label: 'Référence compagnie', value: form.referenceCompagnie, path: 'referenceCompagnie', edit: <Input className="h-9" value={form.referenceCompagnie} onChange={(e) => handleChange('referenceCompagnie', e.target.value)} /> },
-            { label: 'Matricule', value: form.matricule, path: 'matricule', edit: <Input className="h-9" value={form.matricule} onChange={(e) => handleChange('matricule', e.target.value)} /> },
-            { label: 'N° de Police', value: form.policeNumber, path: 'policeNumber', edit: <Input className="h-9" value={form.policeNumber} onChange={(e) => handleChange('policeNumber', e.target.value)} /> },
+            { label: t('Réf Dossier'), value: form.refExpert, path: 'refExpert', edit: <Input className="h-9" value={form.refExpert} onChange={(e) => handleChange('refExpert', e.target.value)} /> },
+            { label: t('Référence compagnie'), value: form.referenceCompagnie, path: 'referenceCompagnie', edit: <Input className="h-9" value={form.referenceCompagnie} onChange={(e) => handleChange('referenceCompagnie', e.target.value)} /> },
+            { label: t('Matricule'), value: form.matricule, path: 'matricule', edit: <Input className="h-9" value={form.matricule} onChange={(e) => handleChange('matricule', e.target.value)} /> },
+            { label: t('N° de Police'), value: form.policeNumber, path: 'policeNumber', edit: <Input className="h-9" value={form.policeNumber} onChange={(e) => handleChange('policeNumber', e.target.value)} /> },
           ]} editing={editing} />
           <FieldRow fields={[
-            { label: 'Date Sinistre', value: formatDateDisplay(form.dateSinistre), path: 'dateSinistre', edit: <DatePicker value={form.dateSinistre} onChange={(d) => handleChange('dateSinistre', d)} /> },
-            { label: 'Date Requête', value: formatDateDisplay(form.dateRequete), path: 'dateRequete', edit: <DatePicker value={form.dateRequete} onChange={(d) => handleChange('dateRequete', d)} /> },
+            { label: t('Date Sinistre'), value: formatDateDisplay(form.dateSinistre), path: 'dateSinistre', edit: <DatePicker value={form.dateSinistre} onChange={(d) => handleChange('dateSinistre', d)} /> },
+            { label: t('Date Requête'), value: formatDateDisplay(form.dateRequete), path: 'dateRequete', edit: <DatePicker value={form.dateRequete} onChange={(d) => handleChange('dateRequete', d)} /> },
           ]} editing={editing} />
         </CardContent>
       </Card>
@@ -422,20 +423,20 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
       <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
         <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" /> Experts
+            <Users className="h-4 w-4 text-primary" /> {t('Experts')}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <FieldRow fields={[
             {
-              label: 'Rôle du dossier', value: EXPERT_ROLE_LABELS[form.expertRank as ExpertRole] || '-', path: 'expertRank',
+              label: t('Rôle du dossier'), value: EXPERT_ROLE_LABELS[form.expertRank as ExpertRole] ? t(EXPERT_ROLE_LABELS[form.expertRank as ExpertRole]) : '-', path: 'expertRank',
               edit: (
                 <Select value={form.expertRank} onValueChange={(v) => handleChange('expertRank', v)}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
+                  <SelectTrigger className="h-9"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1er">{EXPERT_ROLE_LABELS['1er']}</SelectItem>
-                    <SelectItem value="2eme">{EXPERT_ROLE_LABELS['2eme']}</SelectItem>
-                    <SelectItem value="arbitre">{EXPERT_ROLE_LABELS.arbitre}</SelectItem>
+                    <SelectItem value="1er">{t(EXPERT_ROLE_LABELS['1er'])}</SelectItem>
+                    <SelectItem value="2eme">{t(EXPERT_ROLE_LABELS['2eme'])}</SelectItem>
+                    <SelectItem value="arbitre">{t(EXPERT_ROLE_LABELS.arbitre)}</SelectItem>
                   </SelectContent>
                 </Select>
               ),
@@ -444,13 +445,13 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
           {visibleExpertRoles((form.expertRank as ExpertRole) || '1er').map((role) => (
             <div key={role} className="border-t border-border/10">
               <div className="px-6 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/30">
-                {EXPERT_ROLE_LABELS[role]}
+                {t(EXPERT_ROLE_LABELS[role])}
               </div>
               <FieldRow fields={[
-                { label: 'Nom complet', value: form.experts?.[role]?.nom, path: `experts.${role}.nom`, edit: <Input className="h-9" value={form.experts?.[role]?.nom ?? ''} onChange={(e) => handleExpertChange(role, 'nom', e.target.value)} /> },
-                { label: 'Téléphone', value: form.experts?.[role]?.telephone, path: `experts.${role}.telephone`, edit: <Input className="h-9" value={form.experts?.[role]?.telephone ?? ''} onChange={(e) => handleExpertChange(role, 'telephone', e.target.value)} /> },
-                { label: 'Email', value: form.experts?.[role]?.email, path: `experts.${role}.email`, edit: <Input type="email" className="h-9" value={form.experts?.[role]?.email ?? ''} onChange={(e) => handleExpertChange(role, 'email', e.target.value)} /> },
-                { label: 'Compagnie', value: form.experts?.[role]?.compagnie, path: `experts.${role}.compagnie`, edit: <Input className="h-9" value={form.experts?.[role]?.compagnie ?? ''} onChange={(e) => handleExpertChange(role, 'compagnie', e.target.value)} /> },
+                { label: t('Nom complet'), value: form.experts?.[role]?.nom, path: `experts.${role}.nom`, edit: <Input className="h-9" value={form.experts?.[role]?.nom ?? ''} onChange={(e) => handleExpertChange(role, 'nom', e.target.value)} /> },
+                { label: t('Téléphone'), value: form.experts?.[role]?.telephone, path: `experts.${role}.telephone`, edit: <Input className="h-9" value={form.experts?.[role]?.telephone ?? ''} onChange={(e) => handleExpertChange(role, 'telephone', e.target.value)} /> },
+                { label: t('Email'), value: form.experts?.[role]?.email, path: `experts.${role}.email`, edit: <Input type="email" className="h-9" value={form.experts?.[role]?.email ?? ''} onChange={(e) => handleExpertChange(role, 'email', e.target.value)} /> },
+                { label: t('Compagnie'), value: form.experts?.[role]?.compagnie, path: `experts.${role}.compagnie`, edit: <Input className="h-9" value={form.experts?.[role]?.compagnie ?? ''} onChange={(e) => handleExpertChange(role, 'compagnie', e.target.value)} /> },
               ]} editing={editing} />
             </div>
           ))}
@@ -461,20 +462,20 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
       <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
         <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <User className="h-4 w-4 text-primary" /> Informations Assuré
+            <User className="h-4 w-4 text-primary" /> {t('Informations Assuré')}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <FieldRow fields={[
-            { label: 'Nom complet', value: form.assure.nom, path: 'assure.nom', edit: <Input className="h-9" value={form.assure.nom} onChange={(e) => handleNestedChange('assure', 'nom', e.target.value)} /> },
-            { label: 'Téléphone', value: form.assure.telephone, path: 'assure.telephone', edit: <Input className="h-9" value={form.assure.telephone} onChange={(e) => handleNestedChange('assure', 'telephone', e.target.value)} /> },
+            { label: t('Nom complet'), value: form.assure.nom, path: 'assure.nom', edit: <Input className="h-9" value={form.assure.nom} onChange={(e) => handleNestedChange('assure', 'nom', e.target.value)} /> },
+            { label: t('Téléphone'), value: form.assure.telephone, path: 'assure.telephone', edit: <Input className="h-9" value={form.assure.telephone} onChange={(e) => handleNestedChange('assure', 'telephone', e.target.value)} /> },
             { label: 'WhatsApp', value: form.assure.whatsapp, path: 'assure.whatsapp', edit: <Input className="h-9" value={form.assure.whatsapp} onChange={(e) => handleNestedChange('assure', 'whatsapp', e.target.value)} /> },
           ]} editing={editing} />
           <FieldRow fields={[
-            { label: 'Téléphone 2', value: form.assure.telephone2, path: 'assure.telephone2', edit: <Input className="h-9" value={form.assure.telephone2} onChange={(e) => handleNestedChange('assure', 'telephone2', e.target.value)} /> },
-            { label: 'Email', value: form.assure.email, path: 'assure.email', edit: <Input type="email" className="h-9" value={form.assure.email} onChange={(e) => handleNestedChange('assure', 'email', e.target.value)} /> },
-            { label: 'Adresse', value: form.assure.adresse, path: 'assure.adresse', edit: <Input className="h-9" value={form.assure.adresse} onChange={(e) => handleNestedChange('assure', 'adresse', e.target.value)} /> },
-            { label: 'CIN', value: form.assure.cin, path: 'assure.cin', edit: <Input className="h-9" value={form.assure.cin} onChange={(e) => handleNestedChange('assure', 'cin', e.target.value)} /> },
+            { label: t('Téléphone 2'), value: form.assure.telephone2, path: 'assure.telephone2', edit: <Input className="h-9" value={form.assure.telephone2} onChange={(e) => handleNestedChange('assure', 'telephone2', e.target.value)} /> },
+            { label: t('Email'), value: form.assure.email, path: 'assure.email', edit: <Input type="email" className="h-9" value={form.assure.email} onChange={(e) => handleNestedChange('assure', 'email', e.target.value)} /> },
+            { label: t('Adresse'), value: form.assure.adresse, path: 'assure.adresse', edit: <Input className="h-9" value={form.assure.adresse} onChange={(e) => handleNestedChange('assure', 'adresse', e.target.value)} /> },
+            { label: t('CIN'), value: form.assure.cin, path: 'assure.cin', edit: <Input className="h-9" value={form.assure.cin} onChange={(e) => handleNestedChange('assure', 'cin', e.target.value)} /> },
           ]} editing={editing} />
         </CardContent>
       </Card>
@@ -483,24 +484,24 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
       <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
         <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <Car className="h-4 w-4 text-primary" /> Véhicule
+            <Car className="h-4 w-4 text-primary" /> {t('Véhicule')}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <FieldRow fields={[
-            { label: 'Marque', value: form.vehicule.marque, path: 'vehicule.marque', edit: <Input className="h-9" value={form.vehicule.marque} onChange={(e) => handleNestedChange('vehicule', 'marque', e.target.value)} /> },
-            { label: 'Modèle', value: form.vehicule.modele, path: 'vehicule.modele', edit: <Input className="h-9" value={form.vehicule.modele} onChange={(e) => handleNestedChange('vehicule', 'modele', e.target.value)} /> },
-            { label: 'Immatriculation', value: form.vehicule.immatriculation, path: 'vehicule.immatriculation', edit: <Input className="h-9" value={form.vehicule.immatriculation} onChange={(e) => handleNestedChange('vehicule', 'immatriculation', e.target.value)} /> },
-            { label: 'Numéro de série', value: form.vehicule.serie, path: 'vehicule.serie', edit: <Input className="h-9" value={form.vehicule.serie} onChange={(e) => handleNestedChange('vehicule', 'serie', e.target.value)} /> },
+            { label: t('Marque'), value: form.vehicule.marque, path: 'vehicule.marque', edit: <Input className="h-9" value={form.vehicule.marque} onChange={(e) => handleNestedChange('vehicule', 'marque', e.target.value)} /> },
+            { label: t('Modèle'), value: form.vehicule.modele, path: 'vehicule.modele', edit: <Input className="h-9" value={form.vehicule.modele} onChange={(e) => handleNestedChange('vehicule', 'modele', e.target.value)} /> },
+            { label: t('Immatriculation'), value: form.vehicule.immatriculation, path: 'vehicule.immatriculation', edit: <Input className="h-9" value={form.vehicule.immatriculation} onChange={(e) => handleNestedChange('vehicule', 'immatriculation', e.target.value)} /> },
+            { label: t('Numéro de série'), value: form.vehicule.serie, path: 'vehicule.serie', edit: <Input className="h-9" value={form.vehicule.serie} onChange={(e) => handleNestedChange('vehicule', 'serie', e.target.value)} /> },
           ]} editing={editing} />
           <FieldRow fields={[
-            { label: 'Énergie', value: form.vehicule.energie, path: 'vehicule.energie', edit: <Input className="h-9" value={form.vehicule.energie} onChange={(e) => handleNestedChange('vehicule', 'energie', e.target.value)} /> },
-            { label: 'Puissance fiscale', value: form.vehicule.puissance, path: 'vehicule.puissance', edit: <Input className="h-9" value={form.vehicule.puissance} onChange={(e) => handleNestedChange('vehicule', 'puissance', e.target.value)} /> },
-            { label: 'Mise en circ. (Date)', value: formatDateDisplay(form.vehicule.mec), path: 'vehicule.mec', edit: <DatePicker value={form.vehicule.mec} onChange={(d) => handleNestedChange('vehicule', 'mec', d)} /> },
-            { label: 'Kilométrage', value: form.vehicule.km, path: 'vehicule.km', edit: <Input type="number" className="h-9" value={form.vehicule.km} onChange={(e) => handleNestedChange('vehicule', 'km', e.target.value)} /> },
+            { label: t('Énergie'), value: form.vehicule.energie, path: 'vehicule.energie', edit: <Input className="h-9" value={form.vehicule.energie} onChange={(e) => handleNestedChange('vehicule', 'energie', e.target.value)} /> },
+            { label: t('Puissance fiscale'), value: form.vehicule.puissance, path: 'vehicule.puissance', edit: <Input className="h-9" value={form.vehicule.puissance} onChange={(e) => handleNestedChange('vehicule', 'puissance', e.target.value)} /> },
+            { label: t('Mise en circ. (Date)'), value: formatDateDisplay(form.vehicule.mec), path: 'vehicule.mec', edit: <DatePicker value={form.vehicule.mec} onChange={(d) => handleNestedChange('vehicule', 'mec', d)} /> },
+            { label: t('Kilométrage'), value: form.vehicule.km, path: 'vehicule.km', edit: <Input type="number" className="h-9" value={form.vehicule.km} onChange={(e) => handleNestedChange('vehicule', 'km', e.target.value)} /> },
           ]} editing={editing} />
           <FieldRow fields={[
-            { label: 'Immatriculation antérieure', value: form.vehicule.immatriculationAnterieur, path: 'vehicule.immatriculationAnterieur', edit: <Input className="h-9" value={form.vehicule.immatriculationAnterieur} onChange={(e) => handleNestedChange('vehicule', 'immatriculationAnterieur', e.target.value)} /> },
+            { label: t('Immatriculation antérieure'), value: form.vehicule.immatriculationAnterieur, path: 'vehicule.immatriculationAnterieur', edit: <Input className="h-9" value={form.vehicule.immatriculationAnterieur} onChange={(e) => handleNestedChange('vehicule', 'immatriculationAnterieur', e.target.value)} /> },
           ]} editing={editing} />
         </CardContent>
       </Card>
@@ -509,26 +510,26 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
       <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
         <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <PenLine className="h-4 w-4 text-primary" /> Intermédiaire
+            <PenLine className="h-4 w-4 text-primary" /> {t('Intermédiaire')}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <FieldRow fields={[
-            { label: 'Nom / Raison sociale', value: form.intermediaireNom, path: 'intermediaireNom', edit: <Input className="h-9" value={form.intermediaireNom} onChange={(e) => handleChange('intermediaireNom', e.target.value)} /> },
-            { label: 'Prénom', value: form.intermediairePrenom, path: 'intermediairePrenom', edit: <Input className="h-9" value={form.intermediairePrenom} onChange={(e) => handleChange('intermediairePrenom', e.target.value)} /> },
-            { label: 'Type', value: form.intermediaireType, path: 'intermediaireType', edit: <Input className="h-9" value={form.intermediaireType} onChange={(e) => handleChange('intermediaireType', e.target.value)} /> },
-            { label: 'Code Intermédiaire', value: form.intermediaireCode, path: 'intermediaireCode', edit: <Input className="h-9" value={form.intermediaireCode} onChange={(e) => handleChange('intermediaireCode', e.target.value)} /> },
+            { label: t('Nom / Raison sociale'), value: form.intermediaireNom, path: 'intermediaireNom', edit: <Input className="h-9" value={form.intermediaireNom} onChange={(e) => handleChange('intermediaireNom', e.target.value)} /> },
+            { label: t('Prénom'), value: form.intermediairePrenom, path: 'intermediairePrenom', edit: <Input className="h-9" value={form.intermediairePrenom} onChange={(e) => handleChange('intermediairePrenom', e.target.value)} /> },
+            { label: t('Type'), value: form.intermediaireType, path: 'intermediaireType', edit: <Input className="h-9" value={form.intermediaireType} onChange={(e) => handleChange('intermediaireType', e.target.value)} /> },
+            { label: t('Code Intermédiaire'), value: form.intermediaireCode, path: 'intermediaireCode', edit: <Input className="h-9" value={form.intermediaireCode} onChange={(e) => handleChange('intermediaireCode', e.target.value)} /> },
           ]} editing={editing} />
           <FieldRow fields={[
-            { label: 'Compagnie', value: form.intermediaireCompagnie, path: 'intermediaireCompagnie', edit: (
+            { label: t('Compagnie'), value: form.intermediaireCompagnie, path: 'intermediaireCompagnie', edit: (
               <Select value={form.intermediaireCompagnie} onValueChange={(v) => handleChange('intermediaireCompagnie', v)}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Sélectionner" /></SelectTrigger>
+                <SelectTrigger className="h-9"><SelectValue placeholder={t('Sélectionner')} /></SelectTrigger>
                 <SelectContent>{dbCompagnies.map((c: any) => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}</SelectContent>
               </Select>
             ) },
-            { label: 'Téléphone', value: form.intermediaireTelephone, path: 'intermediaireTelephone', edit: <Input className="h-9" value={form.intermediaireTelephone} onChange={(e) => handleChange('intermediaireTelephone', e.target.value)} /> },
-            { label: 'Email', value: form.intermediaireEmail, path: 'intermediaireEmail', edit: <Input className="h-9" value={form.intermediaireEmail} onChange={(e) => handleChange('intermediaireEmail', e.target.value)} /> },
-            { label: 'Adresse', value: form.intermediaireAdresse, path: 'intermediaireAdresse', edit: <Input className="h-9" value={form.intermediaireAdresse} onChange={(e) => handleChange('intermediaireAdresse', e.target.value)} /> },
+            { label: t('Téléphone'), value: form.intermediaireTelephone, path: 'intermediaireTelephone', edit: <Input className="h-9" value={form.intermediaireTelephone} onChange={(e) => handleChange('intermediaireTelephone', e.target.value)} /> },
+            { label: t('Email'), value: form.intermediaireEmail, path: 'intermediaireEmail', edit: <Input className="h-9" value={form.intermediaireEmail} onChange={(e) => handleChange('intermediaireEmail', e.target.value)} /> },
+            { label: t('Adresse'), value: form.intermediaireAdresse, path: 'intermediaireAdresse', edit: <Input className="h-9" value={form.intermediaireAdresse} onChange={(e) => handleChange('intermediaireAdresse', e.target.value)} /> },
           ]} editing={editing} />
         </CardContent>
       </Card>
@@ -537,26 +538,26 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
       <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
         <CardHeader className="bg-heading-bg py-3">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" /> Partie Adverse
+            <Users className="h-4 w-4 text-primary" /> {t('Partie Adverse')}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <FieldRow fields={[
-            { label: 'Nom', value: form.adverseNom, path: 'adverseNom', edit: <Input className="h-9" value={form.adverseNom} onChange={(e) => handleChange('adverseNom', e.target.value)} /> },
-            { label: 'Prénom', value: form.adversePrenom, path: 'adversePrenom', edit: <Input className="h-9" value={form.adversePrenom} onChange={(e) => handleChange('adversePrenom', e.target.value)} /> },
-            { label: 'Téléphone', value: form.adverseTelephone, path: 'adverseTelephone', edit: <Input className="h-9" value={form.adverseTelephone} onChange={(e) => handleChange('adverseTelephone', e.target.value)} /> },
-            { label: 'Email', value: form.adverseEmail, path: 'adverseEmail', edit: <Input className="h-9" value={form.adverseEmail} onChange={(e) => handleChange('adverseEmail', e.target.value)} /> },
+            { label: t('Nom'), value: form.adverseNom, path: 'adverseNom', edit: <Input className="h-9" value={form.adverseNom} onChange={(e) => handleChange('adverseNom', e.target.value)} /> },
+            { label: t('Prénom'), value: form.adversePrenom, path: 'adversePrenom', edit: <Input className="h-9" value={form.adversePrenom} onChange={(e) => handleChange('adversePrenom', e.target.value)} /> },
+            { label: t('Téléphone'), value: form.adverseTelephone, path: 'adverseTelephone', edit: <Input className="h-9" value={form.adverseTelephone} onChange={(e) => handleChange('adverseTelephone', e.target.value)} /> },
+            { label: t('Email'), value: form.adverseEmail, path: 'adverseEmail', edit: <Input className="h-9" value={form.adverseEmail} onChange={(e) => handleChange('adverseEmail', e.target.value)} /> },
           ]} editing={editing} />
           <FieldRow fields={[
-            { label: 'Adresse', value: form.adverseAdresse, path: 'adverseAdresse', edit: <Input className="h-9" value={form.adverseAdresse} onChange={(e) => handleChange('adverseAdresse', e.target.value)} /> },
-            { label: 'Compagnie', value: form.adverseCompagnie, path: 'adverseCompagnie', edit: (
+            { label: t('Adresse'), value: form.adverseAdresse, path: 'adverseAdresse', edit: <Input className="h-9" value={form.adverseAdresse} onChange={(e) => handleChange('adverseAdresse', e.target.value)} /> },
+            { label: t('Compagnie'), value: form.adverseCompagnie, path: 'adverseCompagnie', edit: (
               <Select value={form.adverseCompagnie} onValueChange={(v) => handleChange('adverseCompagnie', v)}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Sélectionner" /></SelectTrigger>
+                <SelectTrigger className="h-9"><SelectValue placeholder={t('Sélectionner')} /></SelectTrigger>
                 <SelectContent>{dbCompagnies.map((c: any) => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}</SelectContent>
               </Select>
             ) },
-            { label: 'Matricule', value: form.adverseMatricule, path: 'adverseMatricule', edit: <Input className="h-9" value={form.adverseMatricule} onChange={(e) => handleChange('adverseMatricule', e.target.value)} /> },
-            { label: 'N° Permis', value: form.adversePermis, path: 'adversePermis', edit: <Input className="h-9" value={form.adversePermis} onChange={(e) => handleChange('adversePermis', e.target.value)} /> },
+            { label: t('Matricule'), value: form.adverseMatricule, path: 'adverseMatricule', edit: <Input className="h-9" value={form.adverseMatricule} onChange={(e) => handleChange('adverseMatricule', e.target.value)} /> },
+            { label: t('N° Permis'), value: form.adversePermis, path: 'adversePermis', edit: <Input className="h-9" value={form.adversePermis} onChange={(e) => handleChange('adversePermis', e.target.value)} /> },
           ]} editing={editing} />
         </CardContent>
       </Card>

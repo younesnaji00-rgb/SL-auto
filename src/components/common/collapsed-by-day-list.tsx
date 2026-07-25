@@ -2,8 +2,8 @@
 
 import React, { useMemo, useState } from 'react';
 import { format as dateFormat, startOfDay } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { dateFnsLocale, useT } from '@/i18n';
 
 export interface CollapsedByDayListProps<T> {
   items: T[];
@@ -41,6 +41,7 @@ export function CollapsedByDayList<T>({
   className,
   gridItems = false,
 }: CollapsedByDayListProps<T>) {
+  const t = useT();
   const groups = useMemo<Group<T>[]>(() => {
     const map = new Map<string, Group<T>>();
 
@@ -113,11 +114,11 @@ export function CollapsedByDayList<T>({
           if (groupLabel) {
             label = groupLabel(group.dayStart, count);
           } else {
-            const dateLabel = dateFormat(group.dayStart, 'dd MMMM yyyy', { locale: fr });
-            label = `${dateLabel} — ${count} ${count === 1 ? 'élément' : 'éléments'}`;
+            const dateLabel = dateFormat(group.dayStart, 'dd MMMM yyyy', { locale: dateFnsLocale() });
+            label = `${dateLabel} — ${count} ${count === 1 ? t('élément') : t('éléments')}`;
           }
         } else {
-          label = `Sans date — ${count} ${count === 1 ? 'élément' : 'éléments'}`;
+          label = `${t('Sans date')} — ${count} ${count === 1 ? t('élément') : t('éléments')}`;
         }
 
         return (

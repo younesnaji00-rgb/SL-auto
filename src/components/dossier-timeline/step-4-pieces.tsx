@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { useAuth, useCollection, useFirestore } from '@/firebase';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { materializeMissing2emeSlots } from '@/lib/cardinal-materialize';
@@ -80,6 +81,7 @@ function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolea
 }
 
 export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, requireFirstAccordFilled, showReformeSlots }: Step4PiecesProps) {
+  const t = useT();
   const [docsOpen, setDocsOpen] = useSectionOpen(dossierId, 'documents');
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
@@ -154,7 +156,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
         disabled={assignerDisabled}
         className="gap-1.5"
       >
-        <Send className="h-3.5 w-3.5" /> Assigner au chiffrage
+        <Send className="h-3.5 w-3.5" /> {t('Assigner au chiffrage')}
       </Button>
     );
     return (
@@ -171,15 +173,15 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
                     {!allRequiredFilled ? (
                       <>
                         {missingRequired.length > 0 && (
-                          <>Documents requis manquants&nbsp;: {missingRequired.join(', ')}.</>
+                          <>{t('Documents requis manquants')}&nbsp;: {missingRequired.map((s) => t(s)).join(', ')}.</>
                         )}
                         {missingRequired.length > 0 && !garageFilled && <br />}
                         {!garageFilled && (
-                          <>Au moins un Devis Garage ou une Facture Garage est requis.</>
+                          <>{t('Au moins un Devis Garage ou une Facture Garage est requis.')}</>
                         )}
                       </>
                     ) : (
-                      <>Au moins un 1er accord ou une 1ère proposition doit être rempli avant d'assigner.</>
+                      <>{t("Au moins un 1er accord ou une 1ère proposition doit être rempli avant d'assigner.")}</>
                     )}
                   </TooltipContent>
                 </Tooltip>
@@ -210,7 +212,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
         <CollapsibleTrigger asChild>
           <button type="button" className="flex items-center gap-2 mb-3 w-full">
             <FileText className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-base font-semibold">Documents</h3>
+            <h3 className="text-base font-semibold">{t('Documents')}</h3>
             <ChevronDown className={cn('h-4 w-4 ml-auto transition-transform', !docsOpen && '-rotate-90')} />
           </button>
         </CollapsibleTrigger>
@@ -219,10 +221,10 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
             <div className="flex items-center justify-between gap-2">
               <TabsList>
                 <TabsTrigger value="browse" className="gap-1.5">
-                  <FolderOpen className="h-4 w-4" /> Documents
+                  <FolderOpen className="h-4 w-4" /> {t('Documents')}
                 </TabsTrigger>
                 <TabsTrigger value="import" className="gap-1.5">
-                  <Upload className="h-4 w-4" /> Importer un document
+                  <Upload className="h-4 w-4" /> {t('Importer un document')}
                 </TabsTrigger>
               </TabsList>
               {!readOnly && onSendToChiffrage && (
@@ -232,18 +234,18 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
                       <TooltipTrigger asChild>
                         <span tabIndex={0}>
                           <Button size="sm" disabled className="gap-1.5">
-                            <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
+                            <Send className="h-3.5 w-3.5" /> {t('Envoyer vers chiffrage')}
                           </Button>
                         </span>
                       </TooltipTrigger>
                       <TooltipContent>
-                        Documents requis manquants : {missingRequired.join(', ')}.
+                        {t('Documents requis manquants')} : {missingRequired.map((s) => t(s)).join(', ')}.
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 ) : (
                   <Button size="sm" onClick={handleSendToChiffrage} className="gap-1.5">
-                    <Send className="h-3.5 w-3.5" /> Envoyer vers chiffrage
+                    <Send className="h-3.5 w-3.5" /> {t('Envoyer vers chiffrage')}
                   </Button>
                 )
               )}
@@ -263,7 +265,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
           <CollapsibleTrigger asChild>
             <button type="button" className="flex items-center gap-2 mb-3 w-full">
               <Camera className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-base font-semibold">Photos</h3>
+              <h3 className="text-base font-semibold">{t('Photos')}</h3>
               <ChevronDown className={cn('h-4 w-4 ml-auto transition-transform', !photosOpen && '-rotate-90')} />
             </button>
           </CollapsibleTrigger>

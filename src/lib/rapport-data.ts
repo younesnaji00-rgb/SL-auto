@@ -27,7 +27,7 @@ import {
   fetchCompagnieLogo,
   type LoadedImage,
 } from './generate-rapport-shared';
-import { montantEnLettresDhs } from './number-to-words-fr';
+import { amountToWords } from './amount-to-words';
 import { BRAND } from './brand';
 import { scaleImageDown } from './rapport-car';
 import { parseFr, normalizeExtraColumns, type DevisRow, type DevisExtraColumn } from './devis-schema';
@@ -640,7 +640,7 @@ export async function resolveRapportData(
 
   // ── Montant en lettres (computed from indemnisation; field overrides) ──
   const stored = str(d.montantEnLettres);
-  const montantEnLettres = stored || montantEnLettresDhs(indemnisation);
+  const montantEnLettres = stored || amountToWords(indemnisation);
 
   const refExpert = str(d.refExpert) || dossierId;
 

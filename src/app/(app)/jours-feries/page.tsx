@@ -19,10 +19,12 @@ import {
 } from 'firebase/firestore';
 import { MOROCCAN_HOLIDAYS_DEFAULT } from '@/lib/business-days';
 import { apiFetch } from '@/lib/api-fetch';
+import { useT } from '@/i18n';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default function JoursFeriesSettingsPage() {
+  const t = useT();
   const { profile, loading: userLoading, canDelete } = useCurrentUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -56,7 +58,7 @@ export default function JoursFeriesSettingsPage() {
   }, [userLoading, profile?.role, router]);
 
   if (userLoading) {
-    return <div className="py-12 text-sm text-muted-foreground">Chargement...</div>;
+    return <div className="py-12 text-sm text-muted-foreground">{t('Chargement...')}</div>;
   }
   if (profile?.role !== 'Admin' && profile?.role !== 'Directeur' && profile?.role !== 'Directeur des opérations' && profile?.role !== 'Directeur technique') {
     return null;
@@ -66,11 +68,11 @@ export default function JoursFeriesSettingsPage() {
     if (!db) return;
     const clean = label.trim();
     if (!ISO_DATE.test(clean)) {
-      toast({ variant: 'destructive', title: 'Format invalide', description: 'Utilisez YYYY-MM-DD (ex: 2026-07-30).' });
+      toast({ variant: 'destructive', title: t('Format invalide'), description: t('Utilisez YYYY-MM-DD (ex: 2026-07-30).') });
       return;
     }
     if (options.some((o) => o.label === clean)) {
-      toast({ variant: 'destructive', title: 'Doublon', description: 'Cette date est déjà dans la liste.' });
+      toast({ variant: 'destructive', title: t('Doublon'), description: t('Cette date est déjà dans la liste.') });
       return;
     }
     const nextOrder = options.length > 0 ? Math.max(...options.map((o) => o.order ?? 0)) + 1 : 0;
@@ -88,9 +90,9 @@ export default function JoursFeriesSettingsPage() {
     try {
       await addOne(newDate);
       setNewDate('');
-      toast({ title: 'Jour férié ajouté' });
+      toast({ title: t('Jour férié ajouté') });
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err.message });
     } finally {
       setIsAdding(false);
     }
@@ -101,9 +103,9 @@ export default function JoursFeriesSettingsPage() {
     setDeletingId(id);
     try {
       await deleteDoc(doc(db, 'options_holidays', id));
-      toast({ title: 'Jour férié supprimé' });
+      toast({ title: t('Jour férié supprimé') });
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err.message });
     } finally {
       setDeletingId(null);
     }
@@ -119,7 +121,7 @@ export default function JoursFeriesSettingsPage() {
       const existing = new Set(options.map((o) => o.label));
       const fresh = validLines.filter((l) => !existing.has(l));
       if (fresh.length === 0) {
-        toast({ title: 'Rien à importer', description: 'Toutes les dates étaient déjà présentes ou invalides.' });
+        toast({ title: t('Rien à importer'), description: t('Toutes les dates étaient déjà présentes ou invalides.') });
         return;
       }
       const batch = writeBatch(db);
@@ -131,11 +133,11 @@ export default function JoursFeriesSettingsPage() {
       await batch.commit();
       setImportText('');
       toast({
-        title: `${fresh.length} date(s) importée(s)`,
-        description: skipped > 0 ? `${skipped} ligne(s) ignorée(s) (format invalide).` : undefined,
+        title: `${fresh.length} ${t('date(s) importée(s)')}`,
+        description: skipped > 0 ? `${skipped} ${t('ligne(s) ignorée(s) (format invalide).')}` : undefined,
       });
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err.message });
     } finally {
       setIsImporting(false);
     }
@@ -149,19 +151,19 @@ export default function JoursFeriesSettingsPage() {
         // result format: "data:image/png;base64,XXXX"
         const match = /^data:([^;]+);base64,(.+)$/.exec(result || '');
         if (!match) {
-          reject(new Error('Lecture du fichier échouée.'));
+          reject(new Error(t('Lecture du fichier échouée.')));
           return;
         }
         resolve({ contentType: match[1], base64: match[2] });
       };
-      reader.onerror = () => reject(reader.error || new Error('Erreur de lecture.'));
+      reader.onerror = () => reject(reader.error || new Error(t('Erreur de lecture.')));
       reader.readAsDataURL(file);
     });
 
   const handleImageImport = async (file: File) => {
     if (!db) return;
     if (!file.type.startsWith('image/')) {
-      toast({ variant: 'destructive', title: 'Fichier invalide', description: 'Veuillez choisir une image.' });
+      toast({ variant: 'destructive', title: t('Fichier invalide'), description: t('Veuillez choisir une image.') });
       return;
     }
     setIsScanning(true);
@@ -174,16 +176,16 @@ export default function JoursFeriesSettingsPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const msg = (json && json.error) || `Erreur HTTP ${res.status}`;
-        toast({ variant: 'destructive', title: "Échec de l'analyse IA", description: msg });
+        const msg = (json && json.error) || `${t('Erreur HTTP')} ${res.status}`;
+        toast({ variant: 'destructive', title: t("Échec de l'analyse IA"), description: msg });
         return;
       }
       const dates: string[] = Array.isArray(json.dates) ? json.dates : [];
       if (dates.length === 0) {
         toast({
           variant: 'destructive',
-          title: 'Aucune date détectée',
-          description: "L'IA n'a trouvé aucune date dans l'image. Essayez une capture plus nette.",
+          title: t('Aucune date détectée'),
+          description: t("L'IA n'a trouvé aucune date dans l'image. Essayez une capture plus nette."),
         });
         return;
       }
@@ -192,8 +194,8 @@ export default function JoursFeriesSettingsPage() {
       const skipped = dates.length - fresh.length;
       if (fresh.length === 0) {
         toast({
-          title: 'Rien à ajouter',
-          description: `${dates.length} date(s) détectée(s), toutes déjà présentes.`,
+          title: t('Rien à ajouter'),
+          description: `${dates.length} ${t('date(s) détectée(s), toutes déjà présentes.')}`,
         });
         return;
       }
@@ -205,15 +207,15 @@ export default function JoursFeriesSettingsPage() {
       });
       await batch.commit();
       toast({
-        title: `${fresh.length} date(s) ajoutée(s)`,
+        title: `${fresh.length} ${t('date(s) ajoutée(s)')}`,
         description:
-          skipped > 0 ? `${skipped} ignorée(s) (déjà présente(s)).` : undefined,
+          skipped > 0 ? `${skipped} ${t('ignorée(s) (déjà présente(s)).')}` : undefined,
       });
     } catch (err: any) {
       toast({
         variant: 'destructive',
-        title: 'Erreur',
-        description: err?.message || "Impossible d'analyser l'image.",
+        title: t('Erreur'),
+        description: err?.message || t("Impossible d'analyser l'image."),
       });
     } finally {
       setIsScanning(false);
@@ -228,7 +230,7 @@ export default function JoursFeriesSettingsPage() {
       const existing = new Set(options.map((o) => o.label));
       const fresh = Array.from(MOROCCAN_HOLIDAYS_DEFAULT).filter((d) => !existing.has(d));
       if (fresh.length === 0) {
-        toast({ title: 'Liste déjà complète' });
+        toast({ title: t('Liste déjà complète') });
         return;
       }
       const batch = writeBatch(db);
@@ -238,9 +240,9 @@ export default function JoursFeriesSettingsPage() {
         batch.set(ref, { label, order: baseOrder + i, active: true, createdAt: serverTimestamp() });
       });
       await batch.commit();
-      toast({ title: `${fresh.length} jour(s) férié(s) par défaut importé(s)` });
+      toast({ title: `${fresh.length} ${t('jour(s) férié(s) par défaut importé(s)')}` });
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err.message });
     } finally {
       setIsImporting(false);
     }
@@ -250,20 +252,20 @@ export default function JoursFeriesSettingsPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <CalendarDays className="h-6 w-6 text-primary" /> Jours fériés
+          <CalendarDays className="h-6 w-6 text-primary" /> {t('Jours fériés')}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Dates pendant lesquelles les délais ne sont pas comptés (compteur hors délai). Format YYYY-MM-DD.
+          {t('Dates pendant lesquelles les délais ne sont pas comptés (compteur hors délai). Format YYYY-MM-DD.')}
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Ajouter une date</CardTitle>
+          <CardTitle className="text-base">{t('Ajouter une date')}</CardTitle>
         </CardHeader>
         <CardContent className="flex items-end gap-2">
           <div className="flex-1 space-y-1.5">
-            <Label htmlFor="new-date">Date</Label>
+            <Label htmlFor="new-date">{t('Date')}</Label>
             <Input
               id="new-date"
               type="date"
@@ -274,7 +276,7 @@ export default function JoursFeriesSettingsPage() {
           </div>
           <Button onClick={handleAdd} disabled={!newDate || isAdding} className="gap-1.5">
             {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Ajouter
+            {t('Ajouter')}
           </Button>
         </CardContent>
       </Card>
@@ -283,11 +285,10 @@ export default function JoursFeriesSettingsPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
-            Importer depuis une image (IA)
+            {t('Importer depuis une image (IA)')}
           </CardTitle>
           <CardDescription>
-            Choisissez une capture d'écran listant les jours fériés de l'année.
-            L'IA extrait automatiquement les dates et les ajoute à la liste.
+            {t("Choisissez une capture d'écran listant les jours fériés de l'année. L'IA extrait automatiquement les dates et les ajoute à la liste.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex items-center gap-2">
@@ -311,19 +312,19 @@ export default function JoursFeriesSettingsPage() {
             ) : (
               <ImageIcon className="h-4 w-4" />
             )}
-            {isScanning ? 'Analyse en cours...' : 'Choisir une image'}
+            {isScanning ? t('Analyse en cours...') : t('Choisir une image')}
           </Button>
           <p className="text-xs text-muted-foreground">
-            Formats: PNG, JPG, WEBP. Les doublons sont ignorés.
+            {t('Formats: PNG, JPG, WEBP. Les doublons sont ignorés.')}
           </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Importer des dates</CardTitle>
+          <CardTitle className="text-base">{t('Importer des dates')}</CardTitle>
           <CardDescription>
-            Une date par ligne au format YYYY-MM-DD. Les doublons et formats invalides sont ignorés.
+            {t('Une date par ligne au format YYYY-MM-DD. Les doublons et formats invalides sont ignorés.')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -336,11 +337,11 @@ export default function JoursFeriesSettingsPage() {
           />
           <div className="flex justify-between">
             <Button variant="outline" size="sm" onClick={handleSeedDefaults} disabled={isImporting} className="gap-1.5">
-              Importer le calendrier marocain par défaut
+              {t('Importer le calendrier marocain par défaut')}
             </Button>
             <Button onClick={handleImport} disabled={!importText.trim() || isImporting} className="gap-1.5">
               {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              Importer
+              {t('Importer')}
             </Button>
           </div>
         </CardContent>
@@ -349,16 +350,16 @@ export default function JoursFeriesSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            Liste actuelle
+            {t('Liste actuelle')}
             <Badge variant="secondary" className="text-[10px] font-mono">{options.length}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Chargement...</p>
+            <p className="text-sm text-muted-foreground">{t('Chargement...')}</p>
           ) : sorted.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">
-              Aucune date enregistrée. Utilisez «Importer le calendrier marocain par défaut» pour démarrer.
+              {t('Aucune date enregistrée. Utilisez «Importer le calendrier marocain par défaut» pour démarrer.')}
             </p>
           ) : (
             <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -372,7 +373,7 @@ export default function JoursFeriesSettingsPage() {
                       className="h-7 w-7 text-destructive hover:text-destructive"
                       disabled={deletingId === o.id}
                       onClick={() => handleDelete(o.id)}
-                      title="Supprimer"
+                      title={t('Supprimer')}
                     >
                       {deletingId === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                     </Button>

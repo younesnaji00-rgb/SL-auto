@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LIST_TAB_ID, useDossierTabs } from '@/hooks/use-dossier-tabs';
+import { useT } from '@/i18n';
 
 /**
  * Horizontal strip of in-app "browser tabs" for opened dossiers.
@@ -13,6 +14,7 @@ import { LIST_TAB_ID, useDossierTabs } from '@/hooks/use-dossier-tabs';
  */
 export default function DossierTabsBar() {
   const router = useRouter();
+  const t = useT();
   const { displayTabs, activeTabId, activeDossierId, closeTab } = useDossierTabs();
 
   // Reserve the same height whether tabs are present or not to avoid jitter.
@@ -47,7 +49,7 @@ export default function DossierTabsBar() {
   return (
     <div
       role="tablist"
-      aria-label="Dossiers ouverts"
+      aria-label={t('Dossiers ouverts')}
       className="flex h-10 w-full items-stretch gap-1 overflow-x-auto whitespace-nowrap border-b bg-muted/30 px-2"
     >
       {displayTabs.map((tab) => {
@@ -78,7 +80,7 @@ export default function DossierTabsBar() {
             {!isListTab && (
               <button
                 type="button"
-                aria-label={`Fermer ${tab.label}`}
+                aria-label={`${t('Fermer')} ${tab.label}`}
                 onClick={(e) => handleClose(e, tab.dossierId)}
                 className={cn(
                   'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors',

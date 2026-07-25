@@ -33,7 +33,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { getDefaultRouteForRole } from '@/lib/nav-groups';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { useStamps, type Stamp } from '@/hooks/use-stamps';
 import { SkeletonRow } from '@/components/ui/skeleton';
 
@@ -74,6 +74,7 @@ function extensionFromFile(file: File): string {
 }
 
 export default function TamponsSettingsPage() {
+  const t = useT();
   const { profile, loading: userLoading, canDelete } = useCurrentUser();
   const db = useFirestore();
   const storage = useStorage();
@@ -130,7 +131,7 @@ export default function TamponsSettingsPage() {
 
   if (userLoading) {
     return (
-      <div className="py-12 text-sm text-muted-foreground">Chargement...</div>
+      <div className="py-12 text-sm text-muted-foreground">{t('Chargement...')}</div>
     );
   }
 
@@ -187,14 +188,15 @@ export default function TamponsSettingsPage() {
         setProgress({ total, done, failed });
       }
     }
-    const plural = (n: number) => (n > 1 ? 's' : '');
+    const importedLabel = done > 1 ? t('tampons importés') : t('tampon importé');
+    const failedLabel = failed > 1 ? t('échecs') : t('échec');
     const summary =
       failed > 0
-        ? `${done} tampon${plural(done)} importé${plural(done)}, ${failed} échec${plural(failed)}`
-        : `${done} tampon${plural(done)} importé${plural(done)}`;
+        ? `${done} ${importedLabel}, ${failed} ${failedLabel}`
+        : `${done} ${importedLabel}`;
     toast({
       variant: failed > 0 && done === 0 ? 'destructive' : 'default',
-      title: failed > 0 && done === 0 ? 'Import échoué' : 'Import terminé',
+      title: failed > 0 && done === 0 ? t('Import échoué') : t('Import terminé'),
       description: summary,
     });
     setQueued([]);
@@ -214,14 +216,14 @@ export default function TamponsSettingsPage() {
         assignedStampId: deleteField(),
       });
       toast({
-        title: ids.length === 0 ? 'Tampons retirés' : `${ids.length} tampon(s) assigné(s)`,
+        title: ids.length === 0 ? t('Tampons retirés') : `${ids.length} ${t('tampon(s) assigné(s)')}`,
       });
     } catch (err: any) {
       console.error(err);
       toast({
         variant: 'destructive',
-        title: 'Erreur',
-        description: err?.message || "Impossible d'assigner les tampons.",
+        title: t('Erreur'),
+        description: err?.message || t("Impossible d'assigner les tampons."),
       });
     }
   };
@@ -232,7 +234,7 @@ export default function TamponsSettingsPage() {
       await updateDoc(doc(db, 'stamps', stamp.id), { active: next });
     } catch (err: any) {
       console.error(err);
-      toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Impossible de mettre à jour le tampon.' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err?.message || t('Impossible de mettre à jour le tampon.') });
     }
   };
 
@@ -249,11 +251,11 @@ export default function TamponsSettingsPage() {
         }
       }
       await deleteDoc(doc(db, 'stamps', deleteTarget.id));
-      toast({ title: 'Tampon supprimé' });
+      toast({ title: t('Tampon supprimé') });
       setDeleteTarget(null);
     } catch (err: any) {
       console.error(err);
-      toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Suppression impossible.' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err?.message || t('Suppression impossible.') });
     } finally {
       setIsDeleting(false);
     }
@@ -262,17 +264,17 @@ export default function TamponsSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Tampons</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t('Tampons')}</h1>
         <p className="text-muted-foreground">
-          Gérez les tampons utilisés pour signer les devis et documents générés.
+          {t('Gérez les tampons utilisés pour signer les devis et documents générés.')}
         </p>
       </div>
 
       <Card className="border shadow-sm rounded-lg">
         <CardHeader>
-          <CardTitle>Importer des tampons</CardTitle>
+          <CardTitle>{t('Importer des tampons')}</CardTitle>
           <CardDescription>
-            Sélectionnez une ou plusieurs images. Le nom du tampon sera dérivé du nom de fichier (sans l&apos;extension).
+            {t("Sélectionnez une ou plusieurs images. Le nom du tampon sera dérivé du nom de fichier (sans l'extension).")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -292,19 +294,19 @@ export default function TamponsSettingsPage() {
               disabled={isImporting}
             >
               <Upload className="h-4 w-4 mr-2" />
-              Sélectionner des fichiers
+              {t('Sélectionner des fichiers')}
             </Button>
             {queued.length > 0 && !isImporting && (
               <Button type="button" onClick={handleBatchImport}>
-                Importer {queued.length} tampon{queued.length > 1 ? 's' : ''}
+                {t('Importer')} {queued.length} {queued.length > 1 ? t('tampons') : t('tampon')}
               </Button>
             )}
             {isImporting && progress && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span>
-                  {progress.done}/{progress.total} traités
-                  {progress.failed > 0 ? ` · ${progress.failed} échec${progress.failed > 1 ? 's' : ''}` : ''}
+                  {progress.done}/{progress.total} {t('traités')}
+                  {progress.failed > 0 ? ` · ${progress.failed} ${progress.failed > 1 ? t('échecs') : t('échec')}` : ''}
                 </span>
               </div>
             )}
@@ -326,7 +328,7 @@ export default function TamponsSettingsPage() {
                       size="icon"
                       className="h-7 w-7"
                       onClick={() => removeFromQueue(q.id)}
-                      title="Retirer de la file"
+                      title={t('Retirer de la file')}
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -341,9 +343,9 @@ export default function TamponsSettingsPage() {
       <div>
         <Card className="border shadow-sm rounded-lg">
           <CardHeader>
-            <CardTitle>Tampons enregistrés</CardTitle>
+            <CardTitle>{t('Tampons enregistrés')}</CardTitle>
             <CardDescription>
-              Activez, désactivez ou supprimez les tampons existants.
+              {t('Activez, désactivez ou supprimez les tampons existants.')}
             </CardDescription>
           </CardHeader>
             <CardContent>
@@ -356,8 +358,8 @@ export default function TamponsSettingsPage() {
               ) : stamps.length === 0 ? (
                 <EmptyState
                   icon={<StampIcon />}
-                  title="Aucun tampon"
-                  description="Ajoutez votre premier tampon via le formulaire."
+                  title={t('Aucun tampon')}
+                  description={t('Ajoutez votre premier tampon via le formulaire.')}
                   dashed={false}
                   className="border-0 bg-transparent py-10"
                 />
@@ -377,7 +379,7 @@ export default function TamponsSettingsPage() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{stamp.name || 'Sans nom'}</p>
+                        <p className="font-medium truncate">{stamp.name || t('Sans nom')}</p>
                         <p className="text-xs text-muted-foreground truncate">
                           {(() => {
                             const importedBy = stamp.createdByName || stamp.createdBy || '—';
@@ -385,12 +387,12 @@ export default function TamponsSettingsPage() {
                               const ts = stamp.createdAt as { toDate?: () => Date } | null | undefined;
                               try {
                                 const d = ts?.toDate ? ts.toDate() : null;
-                                return d ? format(d, 'dd/MM/yyyy HH:mm', { locale: fr }) : '—';
+                                return d ? format(d, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() }) : '—';
                               } catch {
                                 return '—';
                               }
                             })();
-                            return `Importé par ${importedBy} · ${importedAt}`;
+                            return `${t('Importé par')} ${importedBy} · ${importedAt}`;
                           })()}
                         </p>
                         {(() => {
@@ -398,7 +400,7 @@ export default function TamponsSettingsPage() {
                           if (assignees.length === 0) return null;
                           return (
                             <p className="text-xs text-muted-foreground truncate mt-0.5">
-                              Assigné à : {assignees.join(', ')}
+                              {t('Assigné à :')} {assignees.join(', ')}
                             </p>
                           );
                         })()}
@@ -408,10 +410,10 @@ export default function TamponsSettingsPage() {
                           <Switch
                             checked={stamp.active}
                             onCheckedChange={(checked) => handleToggleActive(stamp, checked)}
-                            aria-label="Basculer l'état actif"
+                            aria-label={t("Basculer l'état actif")}
                           />
                           <span className="text-xs text-muted-foreground hidden sm:inline">
-                            {stamp.active ? 'Actif' : 'Inactif'}
+                            {stamp.active ? t('Actif') : t('Inactif')}
                           </span>
                         </div>
                         {canDelete && (
@@ -420,7 +422,7 @@ export default function TamponsSettingsPage() {
                             size="icon"
                             className="h-8 w-8 text-destructive hover:text-destructive"
                             onClick={() => setDeleteTarget(stamp)}
-                            title="Supprimer"
+                            title={t('Supprimer')}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -436,9 +438,9 @@ export default function TamponsSettingsPage() {
 
       <Card className="border shadow-sm rounded-lg">
         <CardHeader>
-          <CardTitle>Assignation par chiffreur</CardTitle>
+          <CardTitle>{t('Assignation par chiffreur')}</CardTitle>
           <CardDescription>
-            Sélectionnez le tampon à utiliser pour chaque chiffreur. Chaque chiffreur peut avoir un tampon distinct.
+            {t('Sélectionnez le tampon à utiliser pour chaque chiffreur. Chaque chiffreur peut avoir un tampon distinct.')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -451,8 +453,8 @@ export default function TamponsSettingsPage() {
           ) : !chiffreurUsers || chiffreurUsers.length === 0 ? (
             <EmptyState
               icon={<StampIcon />}
-              title="Aucun chiffreur"
-              description="Aucun utilisateur avec le rôle Chiffreur n'a été trouvé."
+              title={t('Aucun chiffreur')}
+              description={t("Aucun utilisateur avec le rôle Chiffreur n'a été trouvé.")}
               dashed={false}
               className="border-0 bg-transparent py-10"
             />
@@ -471,10 +473,10 @@ export default function TamponsSettingsPage() {
                 );
                 const triggerLabel =
                   assignedStamps.length === 0
-                    ? 'Aucun tampon'
+                    ? t('Aucun tampon')
                     : assignedStamps.length === 1
-                      ? assignedStamps[0].name || 'Sans nom'
-                      : `${assignedStamps.length} tampons sélectionnés`;
+                      ? assignedStamps[0].name || t('Sans nom')
+                      : `${assignedStamps.length} ${t('tampons sélectionnés')}`;
                 return (
                   <li
                     key={u.id}
@@ -496,8 +498,8 @@ export default function TamponsSettingsPage() {
                         <p className="font-medium truncate">{label}</p>
                         <p className="text-xs text-muted-foreground truncate">
                           {assignedStamps.length === 0
-                            ? 'Aucun tampon assigné'
-                            : assignedStamps.map((s) => s.name || 'Sans nom').join(', ')}
+                            ? t('Aucun tampon assigné')
+                            : assignedStamps.map((s) => s.name || t('Sans nom')).join(', ')}
                         </p>
                       </div>
                     </div>
@@ -514,7 +516,7 @@ export default function TamponsSettingsPage() {
                         </PopoverTrigger>
                         <PopoverContent align="start" className="w-72 p-2">
                           {visibleStamps.length === 0 ? (
-                            <p className="text-xs text-muted-foreground p-2">Aucun tampon disponible.</p>
+                            <p className="text-xs text-muted-foreground p-2">{t('Aucun tampon disponible.')}</p>
                           ) : (
                             <div className="space-y-0.5 max-h-[300px] overflow-y-auto">
                               {visibleStamps.map((s) => {
@@ -533,8 +535,8 @@ export default function TamponsSettingsPage() {
                                   >
                                     <Checkbox checked={selected} className="shrink-0" />
                                     <span className="truncate flex-1">
-                                      {s.name || 'Sans nom'}
-                                      {!s.active && <span className="text-muted-foreground"> (inactif)</span>}
+                                      {s.name || t('Sans nom')}
+                                      {!s.active && <span className="text-muted-foreground"> ({t('inactif')})</span>}
                                     </span>
                                     {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
                                   </button>
@@ -551,7 +553,7 @@ export default function TamponsSettingsPage() {
                                 className="w-full justify-center text-xs"
                                 onClick={() => handleSetAssignedStamps(u.id, [])}
                               >
-                                Tout désélectionner
+                                {t('Tout désélectionner')}
                               </Button>
                             </div>
                           )}
@@ -569,14 +571,13 @@ export default function TamponsSettingsPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce tampon ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Supprimer ce tampon ?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.name && <span className="font-semibold">{deleteTarget.name}</span>} sera définitivement supprimé du stockage et de la base.
-              Cette action est irréversible.
+              {deleteTarget?.name && <span className="font-semibold">{deleteTarget.name}</span>} {t('sera définitivement supprimé du stockage et de la base. Cette action est irréversible.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={isDeleting}
@@ -585,7 +586,7 @@ export default function TamponsSettingsPage() {
                 confirmDelete();
               }}
             >
-              Supprimer
+              {t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

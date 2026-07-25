@@ -1,8 +1,11 @@
+"use client"
+
 import * as React from "react"
 import { AlertTriangle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { useT } from "@/i18n"
 
 export interface ErrorStateProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
   title?: React.ReactNode
@@ -23,6 +26,7 @@ const ErrorState = React.forwardRef<HTMLDivElement, ErrorStateProps>(
     },
     ref
   ) => {
+    const t = useT()
     return (
       <div
         ref={ref}
@@ -37,14 +41,14 @@ const ErrorState = React.forwardRef<HTMLDivElement, ErrorStateProps>(
           <AlertTriangle className="h-6 w-6" />
         </div>
         <div className="flex flex-col gap-1">
-          <p className="text-sm font-semibold text-destructive">{title}</p>
+          <p className="text-sm font-semibold text-destructive">{typeof title === "string" ? t(title) : title}</p>
           {description ? (
             <p className="text-sm text-muted-foreground">{description}</p>
           ) : null}
         </div>
         {onRetry ? (
           <Button variant="outline" size="sm" onClick={onRetry}>
-            {retryLabel}
+            {t(retryLabel)}
           </Button>
         ) : null}
       </div>

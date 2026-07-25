@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LIST_TAB_ID, useChiffrageTabs } from '@/hooks/use-chiffrage-tabs';
+import { useT } from '@/i18n';
 
 export default function ChiffrageTabsBar() {
   const router = useRouter();
+  const t = useT();
   const { displayTabs, activeTabId, activeChiffrageId, closeTab } = useChiffrageTabs();
 
   if (displayTabs.length === 0) {
@@ -39,7 +41,7 @@ export default function ChiffrageTabsBar() {
   return (
     <div
       role="tablist"
-      aria-label="Chiffrages ouverts"
+      aria-label={t('Chiffrages ouverts')}
       className="flex h-10 w-full items-stretch gap-1 overflow-x-auto whitespace-nowrap border-b bg-muted/30 px-2"
     >
       {displayTabs.map((tab) => {
@@ -70,7 +72,7 @@ export default function ChiffrageTabsBar() {
             {!isListTab && (
               <button
                 type="button"
-                aria-label={`Fermer ${tab.label}`}
+                aria-label={`${t('Fermer')} ${tab.label}`}
                 onClick={(e) => handleClose(e, tab.chiffrageId)}
                 className={cn(
                   'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors',
