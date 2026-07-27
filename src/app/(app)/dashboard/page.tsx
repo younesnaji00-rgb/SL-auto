@@ -393,7 +393,7 @@ function DashboardPageInner() {
     userFilter: string, setUserFilter: (v: string) => void,
     natureFilter: string, setNatureFilter: (v: string) => void,
   ) => (
-    <Card className="shadow-sm border h-fit hover:shadow-md transition-shadow rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: panelKey === '1' ? '100ms' : '200ms' }}>
+    <Card data-tour={`dash-changements-${panelKey}`} className="shadow-sm border h-fit hover:shadow-md transition-shadow rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: panelKey === '1' ? '100ms' : '200ms' }}>
       <CardHeader className="py-4">
         <CardTitle className="text-sm flex items-center gap-2">
           <Activity className="h-4 w-4 text-primary" />
@@ -401,7 +401,7 @@ function DashboardPageInner() {
           <Badge variant="secondary" className="ml-1 text-[10px] tabular-nums">{logs.length}</Badge>
         </CardTitle>
       </CardHeader>
-      <div className="px-3 pt-0 pb-2 bg-muted/10">
+      <div data-tour={`dash-chg-filtres-${panelKey}`} className="px-3 pt-0 pb-2 bg-muted/10">
         <div className="grid grid-cols-4 gap-1.5">
           <DatePicker
             value={dateFilter ? new Date(dateFilter) : null}
@@ -543,7 +543,7 @@ function DashboardPageInner() {
   const filteredCount = filteredDossiers.length;
 
   const filterCard = (
-    <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg overflow-hidden">
+    <Card data-tour="dash-etat-card" className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg overflow-hidden">
       <CardHeader className="py-4 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base text-primary">{t('Dossier Par État')}</CardTitle>
         <div className="relative w-[180px] max-w-full">
@@ -556,7 +556,7 @@ function DashboardPageInner() {
           />
         </div>
       </CardHeader>
-      <div className="px-4 pb-3 pt-0 bg-muted/10 border-b">
+      <div data-tour="dash-etat-periode" className="px-4 pb-3 pt-0 bg-muted/10 border-b">
         <div className="flex gap-2 mb-2">
           <Button
             type="button"
@@ -663,7 +663,7 @@ function DashboardPageInner() {
   );
 
   const pieCard = (
-    <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg">
+    <Card data-tour="dash-pie" className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg">
       <CardHeader className="py-4">
         <CardTitle className="text-base">{t('Volume par Statut')}</CardTitle>
       </CardHeader>
@@ -738,7 +738,7 @@ function DashboardPageInner() {
   );
 
   const filteredTableCard = (
-    <Card className="shadow-sm overflow-hidden h-fit hover:shadow-md transition-shadow border rounded-lg">
+    <Card data-tour="dash-status-table" className="shadow-sm overflow-hidden h-fit hover:shadow-md transition-shadow border rounded-lg">
       <CardHeader className="py-4 flex flex-row items-center justify-between">
         <CardTitle className="text-base">
           {t('Dossiers')} — <span className="text-primary">{selectedStatus ? t(selectedStatus) : ''}</span>
@@ -838,7 +838,7 @@ function DashboardPageInner() {
         )}
         {/* Right column: Répartition par Compagnie (always) + Volume par Statut (only when a status is selected, i.e. the pie had to leave its top-row slot) */}
         <div className="space-y-6">
-          <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '300ms' }}>
+          <Card data-tour="dash-compagnie" className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '300ms' }}>
             <CardHeader className="py-4">
               <CardTitle className="text-base">{t('Répartition par Compagnie')}</CardTitle>
             </CardHeader>

@@ -598,7 +598,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div data-tour="atgd-header" className="flex items-center gap-4">
         <Button variant="outline" size="icon" asChild>
           <Link href="/assignations-atg"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
@@ -676,17 +676,20 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           panel auto-tags new obs with phaseATG=activeTab (round 8 Q-3 → A)
           and only shows obs (or legacy un-tagged AT/dossiers obs) for that
           phase. */}
-      <ObservationsTab
-        dossierId={dossierId}
-        section="assignations-atg"
-        variant="collapsible"
-        contextPhase={activeTab as 'Avant' | 'En cours' | 'Après'}
-      />
+      <div data-tour="atgd-observations">
+        <ObservationsTab
+          dossierId={dossierId}
+          section="assignations-atg"
+          variant="collapsible"
+          contextPhase={activeTab as 'Avant' | 'En cours' | 'Après'}
+        />
+      </div>
 
       {/* Photos & Documents toggle row */}
       <div className="grid grid-cols-2 gap-4">
         {/* Photos toggle */}
         <button
+          data-tour="atgd-photos-toggle"
           onClick={() => { setIsPhotosOpen((v) => !v); setIsDocsOpen(false); }}
           className={cn(
             'flex items-center gap-3 px-5 py-4 rounded-xl border shadow-sm transition-all text-left',
@@ -705,6 +708,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
 
         {/* Documents toggle */}
         <button
+          data-tour="atgd-docs-toggle"
           onClick={() => { setIsDocsOpen((v) => !v); setIsPhotosOpen(false); }}
           className={cn(
             'flex items-center gap-3 px-5 py-4 rounded-xl border shadow-sm transition-all text-left',
@@ -737,6 +741,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                 <div className="flex items-center gap-2 flex-wrap">
                   {canEdit && (
                     <Button
+                      data-tour="atgd-camera"
                       size="sm"
                       variant="outline"
                       className="gap-1.5"
@@ -751,6 +756,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                       cap from 30 to 60 per section. Does NOT change dossier statut. */}
                   {isATG && (
                     <Button
+                      data-tour="atgd-reforme"
                       variant={(dossier as any)?.propositionReforme ? 'destructive' : 'outline'}
                       size="sm"
                       disabled={!dossierRef}

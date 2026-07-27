@@ -336,7 +336,7 @@ export default function UtilisateursClientPage() {
       <div className="md:col-span-1">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
-            <Card className="border shadow-sm rounded-lg">
+            <Card className="border shadow-sm rounded-lg" data-tour="usr-create">
               <CardHeader>
                 <CardTitle>{t('Ajouter un utilisateur')}</CardTitle>
                 <CardDescription>{t('Créez un nouveau profil utilisateur.')}</CardDescription>
@@ -386,7 +386,7 @@ export default function UtilisateursClientPage() {
                       </div>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger><SelectValue placeholder={t('Sélectionnez un rôle')} /></SelectTrigger>
+                          <SelectTrigger data-tour="usr-role"><SelectValue placeholder={t('Sélectionnez un rôle')} /></SelectTrigger>
                         </FormControl>
                         <SelectContent>
                           {roles.map(role => <SelectItem key={role.id} value={role.label}>{t(role.label)}</SelectItem>)}
@@ -559,7 +559,7 @@ export default function UtilisateursClientPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-grow">
+              <div className="relative flex-grow" data-tour="usr-search">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder={t('Rechercher par nom...')}
@@ -569,7 +569,7 @@ export default function UtilisateursClientPage() {
                 />
               </div>
               <Select value={filters.role} onValueChange={value => setFilters({ role: value })}>
-                <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectTrigger className="w-full sm:w-[200px]" data-tour="usr-filter-role">
                   <SelectValue placeholder={t('Filtrer par rôle')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -589,7 +589,7 @@ export default function UtilisateursClientPage() {
                 </Badge>
               </div>
             )}
-            <div className="rounded-lg overflow-hidden bg-muted/10">
+            <div className="rounded-lg overflow-hidden bg-muted/10" data-tour="usr-table">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30 border-0">

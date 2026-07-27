@@ -792,7 +792,7 @@ export default function EditorPage() {
 
         {/* Type filter — always visible */}
         <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
-          <SelectTrigger className="h-7 w-[150px] text-xs">
+          <SelectTrigger className="h-7 w-[150px] text-xs" data-tour="edp-doc-filter">
             <SelectValue placeholder={t('Type de document')} />
           </SelectTrigger>
           <SelectContent>
@@ -807,7 +807,7 @@ export default function EditorPage() {
 
         {/* File switcher */}
         <Select value={String(currentFileIndex)} onValueChange={(v) => handleFileSwitch(Number(v))}>
-          <SelectTrigger className="h-7 w-[200px] text-xs">
+          <SelectTrigger className="h-7 w-[200px] text-xs" data-tour="edp-file-switcher">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -834,6 +834,7 @@ export default function EditorPage() {
             size="sm"
             className="h-7 text-xs gap-1 px-2"
             onClick={() => setComparisonOpen(v => !v)}
+            data-tour="edp-comparison"
           >
             <Columns2 className="h-3 w-3" />
             {t('Comparaison')}
@@ -843,11 +844,11 @@ export default function EditorPage() {
         <div className="flex-1" />
 
         {/* Save & Export */}
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 px-2" onClick={handleSave} loading={isSaving} disabled={!isChiffrageFile} title={!isChiffrageFile ? t('Lecture seule (fichier dossier)') : ''}>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 px-2" onClick={handleSave} loading={isSaving} disabled={!isChiffrageFile} title={!isChiffrageFile ? t('Lecture seule (fichier dossier)') : ''} data-tour="edp-save">
           {isSaving ? null : <Save className="h-3 w-3" />}
           {t('Enregistrer')}
         </Button>
-        <Button variant="default" size="sm" className="h-7 text-xs gap-1 px-2" onClick={handleExport} loading={isExporting}>
+        <Button variant="default" size="sm" className="h-7 text-xs gap-1 px-2" onClick={handleExport} loading={isExporting} data-tour="edp-export">
           {isExporting ? null : <Download className="h-3 w-3" />}
           {t('Exporter PDF')}
         </Button>
@@ -857,18 +858,18 @@ export default function EditorPage() {
       <div className="bg-card border-b px-3 py-1 flex items-center gap-2 shrink-0 z-40">
         {/* Tools */}
         <div className="flex items-center gap-0.5 bg-muted/50 p-0.5 rounded-md">
-          <Button variant={tool === 'select' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" onClick={() => setTool('select')} title={t('Sélectionner / Déplacer')}>
+          <Button variant={tool === 'select' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" onClick={() => setTool('select')} title={t('Sélectionner / Déplacer')} data-tour="edp-tool-select">
             <MousePointer2 className="h-3.5 w-3.5" />
           </Button>
-          <Button variant={tool === 'text' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" onClick={() => setTool('text')} title={t('Ajouter du texte')}>
+          <Button variant={tool === 'text' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" onClick={() => setTool('text')} title={t('Ajouter du texte')} data-tour="edp-tool-text">
             <Type className="h-3.5 w-3.5" />
           </Button>
-          <Button variant={tool === 'line' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" onClick={() => setTool('line')} title={t('Tracer une ligne')}>
+          <Button variant={tool === 'line' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" onClick={() => setTool('line')} title={t('Tracer une ligne')} data-tour="edp-tool-line">
             <Minus className="h-3.5 w-3.5" />
           </Button>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant={tool === 'stamp' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" title={t('Tampon')}>
+              <Button variant={tool === 'stamp' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" title={t('Tampon')} data-tour="edp-tool-stamp">
                 <Stamp className="h-3.5 w-3.5" />
               </Button>
             </PopoverTrigger>
@@ -924,7 +925,7 @@ export default function EditorPage() {
         <div className="h-5 w-px bg-border" />
 
         {/* Colors */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" data-tour="edp-colors">
           {COLORS.map(c => (
             <button
               key={c.value}
@@ -997,7 +998,7 @@ export default function EditorPage() {
         <div className="h-5 w-px bg-border" />
 
         {/* Zoom */}
-        <div className="flex items-center gap-0.5 bg-muted/50 rounded-md px-1 py-0.5">
+        <div className="flex items-center gap-0.5 bg-muted/50 rounded-md px-1 py-0.5" data-tour="edp-zoom">
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.max(0.3, z - 0.1))}>
             <ZoomOut className="h-3 w-3" />
           </Button>
@@ -1111,7 +1112,7 @@ export default function EditorPage() {
       </div>
 
       {/* ── Status bar ──────────────────────────────────────────────────────── */}
-      <div className="bg-card border-t px-4 py-1.5 flex items-center justify-between text-[10px] text-muted-foreground shrink-0">
+      <div className="bg-card border-t px-4 py-1.5 flex items-center justify-between text-[10px] text-muted-foreground shrink-0" data-tour="edp-status">
         <div className="flex items-center gap-4">
           <span>{annotations.length} {annotations.length !== 1 ? t('éléments') : t('élément')}</span>
           {selectedId && <span className="text-primary font-semibold">{t('1 sélectionné — glissez pour déplacer')}</span>}

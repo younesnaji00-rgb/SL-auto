@@ -290,7 +290,7 @@ export default function ViewerPage() {
 
         {/* Type filter */}
         <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
-          <SelectTrigger className="h-7 w-[150px] text-xs">
+          <SelectTrigger className="h-7 w-[150px] text-xs" data-tour="view-doc-filter">
             <SelectValue placeholder={t('Type de document')} />
           </SelectTrigger>
           <SelectContent>
@@ -332,6 +332,7 @@ export default function ViewerPage() {
             size="sm"
             className="h-7 text-xs gap-1 px-2"
             onClick={() => setComparisonOpen(v => !v)}
+            data-tour="view-comparison"
           >
             <Columns2 className="h-3 w-3" />
             {t('Comparaison')}
@@ -341,7 +342,7 @@ export default function ViewerPage() {
         <div className="flex-1" />
 
         {/* Zoom controls */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" data-tour="view-zoom">
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.max(0.5, z - 0.25))} disabled={zoom <= 0.5}>
             <ZoomOut className="h-3 w-3" />
           </Button>
@@ -362,7 +363,7 @@ export default function ViewerPage() {
         </Button>
 
         {/* Read-only indicator */}
-        <div className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-300 font-semibold bg-amber-50/80 dark:bg-amber-900/30 px-2 py-1 rounded">
+        <div className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-300 font-semibold bg-amber-50/80 dark:bg-amber-900/30 px-2 py-1 rounded" data-tour="view-readonly">
           <Eye className="h-3 w-3" /> {t('Lecture seule')}
         </div>
       </div>

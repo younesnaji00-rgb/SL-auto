@@ -33,6 +33,7 @@ function TimelineSection({ id, position, label, children, collapsed, onToggle, s
       <button
         type="button"
         onClick={onToggle}
+        data-tour={`dosd-sec-${id}`}
         className="mb-4 flex items-baseline gap-2 w-full text-left hover:bg-accent/40 rounded px-2 -mx-2 py-1 transition-colors"
         aria-expanded={!collapsed}
       >

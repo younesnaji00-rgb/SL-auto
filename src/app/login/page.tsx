@@ -482,7 +482,7 @@ export default function LoginPage() {
   // ===== NORMAL LOGIN =====
   return (
     <div className={`relative flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4" data-tour="login-lang">
         <LanguageSwitcher />
       </div>
       <TutorialLauncher />
@@ -498,7 +498,7 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-2" data-tour="login-nom">
               <Label htmlFor="nom">{t('Nom complet')}</Label>
               <Input
                 id="nom"
@@ -508,7 +508,7 @@ export default function LoginPage() {
                 autoFocus
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2" data-tour="login-password">
               <Label htmlFor="password">{t('Mot de passe')}</Label>
               <div className="relative">
                 <Input
@@ -541,7 +541,7 @@ export default function LoginPage() {
             </Button>
 
             {BRAND.id === 'demo' && (
-              <div className="rounded-md border border-dashed bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
+              <div className="rounded-md border border-dashed bg-muted/40 p-3 text-xs text-muted-foreground space-y-1" data-tour="login-demo">
                 <p className="font-semibold text-foreground">{t('Comptes de démonstration')}</p>
                 <p>Admin Demo · Manager Demo · Estimator Demo · Field Agent Demo</p>
                 <p>{t('Mot de passe')} : Demo2026!</p>

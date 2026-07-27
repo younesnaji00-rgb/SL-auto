@@ -50,6 +50,7 @@ export default function DossierTabsBar() {
     <div
       role="tablist"
       aria-label={t('Dossiers ouverts')}
+      data-tour="dos-tabs"
       className="flex h-10 w-full items-stretch gap-1 overflow-x-auto whitespace-nowrap border-b bg-muted/30 px-2"
     >
       {displayTabs.map((tab) => {

@@ -419,7 +419,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4" data-tour="chd-header">
         <Button variant="outline" size="icon" asChild>
           <Link href="/assignations-chiffrage"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
@@ -434,6 +434,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             variant="default"
             size="sm"
             className="gap-1.5"
+            data-tour="chd-mail"
             onClick={() => setMailDialogOpen(true)}
           >
             <Mail className="h-3.5 w-3.5" />
@@ -445,6 +446,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             variant="default"
             size="sm"
             className="gap-1.5 bg-purple-600 hover:bg-purple-700"
+            data-tour="chd-reforme"
             onClick={() => setReformeOpen(true)}
           >
             <Scale className="h-3.5 w-3.5" />
@@ -457,7 +459,9 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       </div>
 
       {/* Observations section */}
-      <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />
+      <div data-tour="chd-observations">
+        <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />
+      </div>
 
       {/* Devis & Factures — one horizontal row per parent garage (base or
           gestionnaire-created extra). Each row has a sticky "Éditer web"
@@ -465,7 +469,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           for that family's source. Mirrors the gestionnaire's step-4 layout
           in read-only mode. */}
       {(devisFamilies.length > 0 || factureFamilies.length > 0) && (
-        <section className="space-y-3">
+        <section className="space-y-3" data-tour="chd-familles">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             {t('Devis & Factures')}
           </h2>

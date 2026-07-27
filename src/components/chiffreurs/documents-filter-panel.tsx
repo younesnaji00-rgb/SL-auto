@@ -323,7 +323,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
 
   const importButton = onImportClick ? (
     canImport ? (
-      <Button size="sm" onClick={onImportClick}>
+      <Button size="sm" onClick={onImportClick} data-tour="chd-doc-import">
         <Upload className="mr-2 h-4 w-4" />
         {t('Importer')}
       </Button>
@@ -331,7 +331,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span tabIndex={0}>
+            <span tabIndex={0} data-tour="chd-doc-import">
               <Button size="sm" disabled>
                 <Upload className="mr-2 h-4 w-4" />
                 {t('Importer')}
@@ -347,7 +347,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
   return (
     <div className={cn('grid gap-4 lg:grid-cols-3 items-start', className)}>
       {/* LEFT: type filter */}
-      <Card className="shadow-sm border-0 rounded-xl overflow-hidden lg:col-span-1">
+      <Card className="shadow-sm border-0 rounded-xl overflow-hidden lg:col-span-1" data-tour="chd-doc-types">
         <CardHeader className="bg-heading-bg py-3 rounded-t-xl flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-sm text-primary">{t('Type de document')}</CardTitle>
           <div className="relative w-[160px] max-w-full">
@@ -557,7 +557,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
       </Card>
 
       {/* RIGHT: preview grid */}
-      <Card className="shadow-sm border-0 rounded-xl overflow-hidden lg:col-span-2">
+      <Card className="shadow-sm border-0 rounded-xl overflow-hidden lg:col-span-2" data-tour="chd-doc-grid">
         {importButton && (
           <CardHeader className="bg-heading-bg py-3 rounded-t-xl flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-sm text-primary">

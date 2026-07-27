@@ -762,7 +762,7 @@ export default function AssignationsATGPage() {
           </Badge>
           <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 -mr-2 relative" aria-label={t('Filtres')}>
+              <Button data-tour="atg-filters" variant="ghost" size="icon" className="h-9 w-9 -mr-2 relative" aria-label={t('Filtres')}>
                 <SlidersHorizontal className="h-4 w-4" />
                 {(compagnieFilter !== 'Toutes' || (canSeeNameFilter && agentFilter !== 'Tous') || dateFrom || dateTo || keyword) && (
                   <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive" />
@@ -869,12 +869,12 @@ export default function AssignationsATGPage() {
         {/* AT self-service (scan plaque → planifier / importer photos) — was
             desktop-only; field agents work from phones, so surface it here. */}
         {canUseAtFlows && (
-          <div className="flex items-center gap-2 px-4 py-2 border-b bg-card">
+          <div data-tour="atg-scan" className="flex items-center gap-2 px-4 py-2 border-b bg-card">
             <AtScanPlaqueFlow />
           </div>
         )}
         {effectiveViewMode === 'list' && (
-          <div className="sticky top-14 z-20 grid grid-cols-3 gap-1 p-1 border-b bg-card">
+          <div data-tour="atg-tabs" className="sticky top-14 z-20 grid grid-cols-3 gap-1 p-1 border-b bg-card">
             {MISSION_TABS.map((tab) => {
               const isActive = activeTab === tab.id;
               const count = countByType[tab.id] || 0;
@@ -924,7 +924,7 @@ export default function AssignationsATGPage() {
               />
             </div>
           ) : (
-            <div className="p-4 space-y-4">
+            <div data-tour="atg-groups" className="p-4 space-y-4">
               {groups.filter(g => g.items.length > 0).map((group) => {
                 const addressableCount = group.items.filter(p => p.adresse?.trim()).length;
                 return (
@@ -948,6 +948,7 @@ export default function AssignationsATGPage() {
                     {/* Start button — bundles every group item with an adresse into a
                         Google Maps multi-stop URL, ordered by earliest RDV first. */}
                     <Button
+                      data-tour="atg-route"
                       type="button"
                       size="sm"
                       variant="outline"
@@ -1142,8 +1143,12 @@ export default function AssignationsATGPage() {
           </Badge>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {canUseAtFlows && <AtScanPlaqueFlow />}
-          <div className="relative">
+          {canUseAtFlows && (
+            <div data-tour="atg-scan" className="flex items-center">
+              <AtScanPlaqueFlow />
+            </div>
+          )}
+          <div data-tour="atg-filters" className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               value={keyword}
@@ -1202,7 +1207,7 @@ export default function AssignationsATGPage() {
       {/* Mission type tabs — only relevant for the flat list view; hidden
           in the zone-grouped view because that one pivots on agents. */}
       {effectiveViewMode === 'list' && (
-        <div className="bg-card border rounded-xl shadow-sm sticky top-0 z-20">
+        <div data-tour="atg-tabs" className="bg-card border rounded-xl shadow-sm sticky top-0 z-20">
           <div className="flex overflow-x-auto no-scrollbar">
             {MISSION_TABS.map((tab) => {
               const isActive = activeTab === tab.id;
@@ -1368,7 +1373,7 @@ export default function AssignationsATGPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div data-tour="atg-groups" className="space-y-4">
           {(() => {
             const renderTableHeader = (groupKey: GroupKey) => (
               <TableHeader>
@@ -1461,6 +1466,7 @@ export default function AssignationsATGPage() {
                         Google Maps multi-stop URL, ordered by earliest RDV first. */}
                     <div className="px-3 shrink-0">
                       <Button
+                        data-tour="atg-route"
                         type="button"
                         size="sm"
                         variant="secondary"

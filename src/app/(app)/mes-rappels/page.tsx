@@ -281,9 +281,9 @@ export default function MesRappelsPage() {
       </header>
 
       <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList>
+        <TabsList data-tour="rap-tabs">
           {recusVisible && <TabsTrigger value="recus">{t('Reçus')}</TabsTrigger>}
-          {envoyesVisible && <TabsTrigger value="envoyes">{t('Envoyés')}</TabsTrigger>}
+          {envoyesVisible && <TabsTrigger data-tour="rap-tab-envoyes" value="envoyes">{t('Envoyés')}</TabsTrigger>}
         </TabsList>
 
         {recusVisible && (
@@ -299,7 +299,7 @@ export default function MesRappelsPage() {
               <p className="text-xs mt-1 opacity-70">{t('Les rappels envoyés depuis Gestion des dossiers apparaîtront ici.')}</p>
             </div>
           ) : (
-            <Card className="overflow-x-auto border rounded-lg">
+            <Card data-tour="rap-recus-table" className="overflow-x-auto border rounded-lg">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30">
@@ -309,8 +309,8 @@ export default function MesRappelsPage() {
                     <TableHead className="font-bold text-xs">{t('Date')}</TableHead>
                     <TableHead className="font-bold text-xs">{t('Observations')}</TableHead>
                     <TableHead className="font-bold text-xs">{t('Modifications')}</TableHead>
-                    <TableHead className="font-bold text-xs text-right">{t('Statut')}</TableHead>
-                    <TableHead className="font-bold text-xs text-right">{t('Travail effectué')}</TableHead>
+                    <TableHead data-tour="rap-statut" className="font-bold text-xs text-right">{t('Statut')}</TableHead>
+                    <TableHead data-tour="rap-travail" className="font-bold text-xs text-right">{t('Travail effectué')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

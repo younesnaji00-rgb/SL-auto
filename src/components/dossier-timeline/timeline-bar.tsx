@@ -24,7 +24,7 @@ export function TimelineBar({ steps, activeId, onStepClick, stamps }: TimelineBa
   const t = useT();
   const activeIdx = steps.findIndex((s) => s.id === activeId);
   return (
-    <div className="sticky top-[49px] z-30 w-full bg-background/95 backdrop-blur border-b" /* flush under action bar */>
+    <div className="sticky top-[49px] z-30 w-full bg-background/95 backdrop-blur border-b" data-tour="dosd-timeline" /* flush under action bar */>
       <div className="flex items-start gap-2 px-3 sm:px-6 py-3 overflow-x-auto">
         {steps.map((step, idx) => {
           const isActive = step.id === activeId;
@@ -35,6 +35,7 @@ export function TimelineBar({ steps, activeId, onStepClick, stamps }: TimelineBa
               <button
                 type="button"
                 onClick={() => onStepClick(step.id)}
+                data-tour={`dosd-step-${step.id}`}
                 className={cn(
                   'flex flex-col items-start gap-1 shrink-0 transition-colors',
                   'hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary rounded'

@@ -259,7 +259,7 @@ export default function JoursFeriesSettingsPage() {
         </p>
       </div>
 
-      <Card>
+      <Card data-tour="jf-add">
         <CardHeader>
           <CardTitle className="text-base">{t('Ajouter une date')}</CardTitle>
         </CardHeader>
@@ -281,7 +281,7 @@ export default function JoursFeriesSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-tour="jf-ai">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
@@ -320,7 +320,7 @@ export default function JoursFeriesSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-tour="jf-bulk">
         <CardHeader>
           <CardTitle className="text-base">{t('Importer des dates')}</CardTitle>
           <CardDescription>
@@ -347,7 +347,7 @@ export default function JoursFeriesSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-tour="jf-list">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             {t('Liste actuelle')}

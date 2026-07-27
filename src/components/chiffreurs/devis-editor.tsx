@@ -1005,7 +1005,7 @@ export function DevisEditor({
             </Link>
           </Button>
         )}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0" data-tour="dev-files">
           <h1 className="text-lg sm:text-xl font-bold truncate">{t(`Editer les ${typeLabel.plural}`)}</h1>
           <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
             {isGestionnaire ? (
@@ -1021,6 +1021,7 @@ export function DevisEditor({
         <Button
           variant={comparisonOpen ? 'default' : 'outline'}
           size="sm"
+          data-tour="dev-comparer"
           onClick={() => {
             const opening = !comparisonOpen;
             setComparisonOpen(opening);
@@ -1043,6 +1044,7 @@ export function DevisEditor({
           <Button
             variant="default"
             size="sm"
+            data-tour="dev-verify"
             onClick={() => setScanReviewed(true)}
             title={t('Confirmer la vérification du scan et déverrouiller le tableau')}
           >
@@ -1054,6 +1056,7 @@ export function DevisEditor({
           <Button
             variant="outline"
             size="sm"
+            data-tour="dev-reextract"
             onClick={() => runExtraction(true)}
             loading={extracting}
             disabled={!canEdit || devisFileNames.length === 0}
@@ -1063,7 +1066,7 @@ export function DevisEditor({
             {t('Ré-extraire')}
           </Button>
         )}
-        <Button variant="default" size="sm" onClick={handleSave} loading={saving} disabled={!canEdit}>
+        <Button variant="default" size="sm" data-tour="dev-save" onClick={handleSave} loading={saving} disabled={!canEdit}>
           {saving ? null : <Save className="h-3.5 w-3.5 mr-1.5" />}
           {t('Enregistrer')}
         </Button>
@@ -1089,7 +1092,7 @@ export function DevisEditor({
         <div className={cn(comparisonOpen ? 'flex-1 min-w-0 space-y-4' : 'space-y-4')}>
 
       {/* Identity block */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border rounded-xl p-3 sm:p-4 bg-card shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border rounded-xl p-3 sm:p-4 bg-card shadow-sm" data-tour="dev-header">
         <div className="space-y-2">
           {HEADER_FIELDS_LEFT.map((f) => (
             <HeaderField
@@ -1129,7 +1132,7 @@ export function DevisEditor({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 px-1">
+      <div className="flex items-center gap-2 px-1" data-tour="dev-sans-tva">
         <Checkbox
           id="sans-tva-toggle"
           checked={sansTva}
@@ -1146,7 +1149,7 @@ export function DevisEditor({
           Rows are added only via AI scan, paste, or programmatic flows (no
           manual "add row" button). The table grows to its natural height —
           only horizontal scroll on overflow. */}
-      <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
+      <div className="border rounded-xl bg-card shadow-sm overflow-hidden" data-tour="dev-table">
         <div className="overflow-x-auto relative">
           <table className="min-w-[900px] w-full text-xs border-collapse">
             <thead className="bg-muted/50 sticky top-0 z-10">
@@ -1733,7 +1736,7 @@ export function DevisEditor({
           Total TTC Expert (under Prix en TTC col). Task #16 collapsed the
           previous two-row TVA + TTC footer into this single row.
         */}
-        <div className="flex items-center p-2 border-t bg-muted/20 text-xs">
+        <div className="flex items-center p-2 border-t bg-muted/20 text-xs" data-tour="dev-summary">
           <div className="flex-1" />
           <div className="flex items-center gap-6">
             <span className="font-bold">{t('Total H.T')}</span>

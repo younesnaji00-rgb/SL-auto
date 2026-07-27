@@ -368,7 +368,7 @@ export default function MonitoringPage() {
             {t('Funnel des étapes — combien de dossiers ont franchi chaque étape.')}
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
+        <div data-tour="mon-periode" className="flex flex-wrap items-end gap-2">
           <div className="flex items-center gap-1 rounded-md border p-0.5 self-end h-10">
             <Button
               size="sm"
@@ -419,16 +419,16 @@ export default function MonitoringPage() {
       </header>
 
       <Tabs defaultValue="global" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="global" className="gap-2">
+        <TabsList data-tour="mon-tabs">
+          <TabsTrigger value="global" data-tour="mon-tab-global" className="gap-2">
             <Gauge className="h-4 w-4" />
             {t('Global')}
           </TabsTrigger>
-          <TabsTrigger value="compagnie" className="gap-2">
+          <TabsTrigger value="compagnie" data-tour="mon-tab-compagnie" className="gap-2">
             <Building2 className="h-4 w-4" />
             {t('Par compagnie')}
           </TabsTrigger>
-          <TabsTrigger value="user" className="gap-2">
+          <TabsTrigger value="user" data-tour="mon-tab-user" className="gap-2">
             <Users className="h-4 w-4" />
             {t('Par utilisateur')}
           </TabsTrigger>
@@ -458,7 +458,7 @@ export default function MonitoringPage() {
         </TabsContent>
 
         <TabsContent value="user" className="space-y-4">
-          <div className="flex flex-wrap items-end gap-2">
+          <div data-tour="mon-user-filtres" className="flex flex-wrap items-end gap-2">
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t('Rôle')}</label>
               <Select value={roleFilter} onValueChange={setRoleFilter}>
@@ -541,7 +541,7 @@ function GlobalView({
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div data-tour="mon-kpis" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {STEP_KEYS.map((key, idx) => {
           const realiseEnDelai = counts[key];
           const horsDelai = horsDelaiCounts[key] ?? 0;
@@ -565,7 +565,7 @@ function GlobalView({
         })}
       </div>
 
-      <Card>
+      <Card data-tour="mon-chart">
         <CardHeader>
           <CardTitle className="text-base">{t('Volume par étape')}</CardTitle>
         </CardHeader>
@@ -741,7 +741,7 @@ function CompagnieView({
   }
 
   return (
-    <Card>
+    <Card data-tour="mon-compagnie-table">
       <CardHeader>
         <CardTitle className="text-base">{t('Répartition par compagnie')}</CardTitle>
       </CardHeader>
@@ -823,7 +823,7 @@ function UserView({
   }
 
   return (
-    <Card>
+    <Card data-tour="mon-user-table">
       <CardHeader>
         <CardTitle className="text-base">{t('Activité par utilisateur')}</CardTitle>
       </CardHeader>

@@ -463,7 +463,7 @@ export default function DossiersClientPage() {
       )}
 
       <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative flex-grow max-sm:w-full max-w-sm">
+        <div className="relative flex-grow max-sm:w-full max-w-sm" data-tour="dos-search">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9"
@@ -484,7 +484,7 @@ export default function DossiersClientPage() {
             (yyyy-MM-dd strings) the pipeline already consumes; `datePreset`
             tracks the active button purely for highlight, and is cleared by
             the iter-18 reset together with the date strings. */}
-        <div className="flex items-center gap-1 rounded-md border p-0.5 h-9">
+        <div className="flex items-center gap-1 rounded-md border p-0.5 h-9" data-tour="dos-date-presets">
           <Button
             size="sm"
             variant={filters.datePreset === 'jour' ? 'default' : 'ghost'}
@@ -573,6 +573,7 @@ export default function DossiersClientPage() {
           variant="ghost"
           size="sm"
           className="gap-1.5"
+          data-tour="dos-reset"
           onClick={() => {
             clearFilter();
             setPage(1);
@@ -685,19 +686,19 @@ export default function DossiersClientPage() {
       ) : (
         <div className="flex justify-end gap-2">
           {canEditDossiers && (
-            <Button size="sm" onClick={handleOpenCreate}>
+            <Button size="sm" onClick={handleOpenCreate} data-tour="dos-create">
               <Plus className="mr-2 h-4 w-4" />
               {t('Création de mission')}
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => setExportMode(true)}>
+          <Button variant="outline" size="sm" onClick={() => setExportMode(true)} data-tour="dos-rappeler">
             <Bell className="mr-2 h-4 w-4" />
             {t('Rappeler')}
           </Button>
         </div>
       )}
 
-      <Card className="overflow-x-scroll overflow-y-auto border rounded-lg max-h-[calc(100vh-280px)] [&>div]:overflow-visible">
+      <Card className="overflow-x-scroll overflow-y-auto border rounded-lg max-h-[calc(100vh-280px)] [&>div]:overflow-visible" data-tour="dos-table">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="bg-muted/50">
@@ -1010,7 +1011,11 @@ export default function DossiersClientPage() {
                 };
                 const filterBtn = exportMode ? null : renderColumnFilter();
                 return (
-                  <TableHead key={col.key} className={col.key === 'statut' ? 'min-w-[200px]' : undefined}>
+                  <TableHead
+                    key={col.key}
+                    className={col.key === 'statut' ? 'min-w-[200px]' : undefined}
+                    data-tour={col.key === 'nature' ? 'dos-col-nature' : col.key === 'statut' ? 'dos-col-statut' : undefined}
+                  >
                     {exportMode ? (
                       <div className="flex items-center gap-2">
                         <Checkbox
@@ -1183,7 +1188,7 @@ export default function DossiersClientPage() {
         </Table>
       </Card>
 
-      <div className="flex items-center justify-between px-2">
+      <div className="flex items-center justify-between px-2" data-tour="dos-pagination">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">{t('Afficher')}</span>
           <Select value={String(rowsPerPage)} onValueChange={v => { setFilters({ rowsPerPage: Number(v) }); setPage(1); }}>

@@ -152,7 +152,7 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
 
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 min-h-[calc(100vh-200px)]">
         {/* Conversations list */}
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden" data-tour="bug-inbox">
           <CardContent className="p-0">
             {loading ? (
               <div className="flex items-center justify-center py-12">
@@ -421,7 +421,7 @@ function ChatThread({
       />
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-340px)]">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-340px)]" data-tour="bug-thread">
         {loading ? (
           <div className="flex justify-center py-10">
             <InlineLoader label={t('Chargement…')} size="md" />
@@ -494,7 +494,7 @@ function ChatThread({
       </div>
 
       {/* Compose area */}
-      <div className="border-t p-4 space-y-3">
+      <div className="border-t p-4 space-y-3" data-tour="bug-compose">
         {selectedFile && (
           <div className="flex flex-wrap gap-2">
             <Badge variant="secondary" className="gap-1 pr-1">
@@ -538,7 +538,7 @@ function ChatThread({
               }}
             />
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1" data-tour="bug-tools">
                 <Button
                   variant="ghost"
                   size="icon"

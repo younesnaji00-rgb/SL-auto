@@ -140,7 +140,7 @@ export default function CompagniesClientPage() {
           <p className="text-muted-foreground mt-1">{t('Sélectionnez une compagnie partenaire pour consulter ses indicateurs et dossiers.')}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-tour="cie-grid">
           {compagnies.map((c) => (
             <Card
               key={c.id}
@@ -155,6 +155,7 @@ export default function CompagniesClientPage() {
                 <div className="flex justify-between items-center">
                   <div
                     className="relative p-2.5 rounded-lg bg-muted group-hover:bg-primary/10 transition-colors overflow-hidden"
+                    data-tour="cie-logo"
                     onClick={(e) => {
                       e.stopPropagation();
                       const input = document.createElement('input');
@@ -213,6 +214,7 @@ export default function CompagniesClientPage() {
         <div className="flex items-center gap-5">
           <div
             className="relative h-28 w-28 rounded-lg bg-muted flex items-center justify-center overflow-hidden cursor-pointer border hover:border-primary/30 transition-colors shrink-0"
+            data-tour="cie-logo"
             onClick={() => {
               const input = document.createElement('input');
               input.type = 'file';
@@ -253,14 +255,14 @@ export default function CompagniesClientPage() {
           <Button variant="outline" asChild>
             <Link href="/dossiers">{t('Tous les dossiers')}</Link>
           </Button>
-          <Button className="shadow-lg shadow-primary/20" onClick={() => setCreateOpen(true)}>
+          <Button className="shadow-lg shadow-primary/20" data-tour="cie-new" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             {t('Nouveau dossier')}
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" data-tour="cie-stats">
         {statCards.map((stat, i) => (
           <Card key={i} className={cn('border shadow-sm', stat.bgClass)}>
             <CardHeader className="py-4">
@@ -275,7 +277,7 @@ export default function CompagniesClientPage() {
         ))}
       </div>
 
-      <Card className="shadow-md overflow-hidden border">
+      <Card className="shadow-md overflow-hidden border" data-tour="cie-table">
         <CardHeader className="border-b py-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>

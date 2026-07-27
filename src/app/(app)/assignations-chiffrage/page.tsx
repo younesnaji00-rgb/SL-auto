@@ -257,7 +257,7 @@ export default function AssignationsChiffragePage() {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
-              <SelectTrigger className="w-[180px] h-9 text-xs">
+              <SelectTrigger className="w-[180px] h-9 text-xs" data-tour="ach-compagnie">
                 <SelectValue placeholder={t('Compagnie')} />
               </SelectTrigger>
               <SelectContent>
@@ -276,7 +276,7 @@ export default function AssignationsChiffragePage() {
           {canSeeNameFilter && (
             <div className="relative">
               <Select value={chiffreurFilter} onValueChange={v => setFilters({ chiffreurFilter: v })}>
-                <SelectTrigger className="w-[180px] h-9 text-xs">
+                <SelectTrigger className="w-[180px] h-9 text-xs" data-tour="ach-chiffreur">
                   <SelectValue placeholder={t('Chiffreur')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -295,7 +295,7 @@ export default function AssignationsChiffragePage() {
           )}
           <div className="relative">
             <Select value={typeReformeFilter} onValueChange={v => setFilters({ typeReformeFilter: v })}>
-              <SelectTrigger className="w-[160px] h-9 text-xs">
+              <SelectTrigger className="w-[160px] h-9 text-xs" data-tour="ach-reforme">
                 <SelectValue placeholder={t('Type réforme')} />
               </SelectTrigger>
               <SelectContent>
@@ -311,11 +311,13 @@ export default function AssignationsChiffragePage() {
               </button>
             )}
           </div>
-          <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
+          <div data-tour="ach-dates">
+            <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
+          </div>
         </div>
       </div>
 
-      <Card className="shadow-sm overflow-hidden">
+      <Card className="shadow-sm overflow-hidden" data-tour="ach-table">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -328,7 +330,7 @@ export default function AssignationsChiffragePage() {
                 <TableHead className="font-bold text-xs">{t('Statut')}</TableHead>
                 <TableHead className="font-bold text-xs">{t('Assigné par')}</TableHead>
                 <TableHead className="font-bold text-xs">{t('Observations')}</TableHead>
-                <TableHead className="font-bold text-xs w-[160px]">
+                <TableHead className="font-bold text-xs w-[160px]" data-tour="ach-delai">
                   <SortableHeader label={t('Délai')} sort={deadlineSort} onChange={setDeadlineSort} />
                 </TableHead>
                 <TableHead className="font-bold text-xs text-right">{t('Date')}</TableHead>

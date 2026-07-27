@@ -551,7 +551,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <Card>
+          <Card data-tour="usrd-profile">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <UserIcon className="h-5 w-5 text-primary" />
@@ -771,7 +771,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             </CardFooter>
           </Card>
 
-          <Card>
+          <Card data-tour="usrd-permissions">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 text-primary" />
@@ -924,7 +924,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-tour="usrd-dossiers">
             <CardHeader>
               <CardTitle>{t('Dossiers assignés')}</CardTitle>
               <CardDescription>{t('Liste des dossiers actuellement sous la responsabilité de cet utilisateur.')}</CardDescription>
@@ -979,7 +979,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         </div>
 
         <div className="space-y-6">
-          <Card>
+          <Card data-tour="usrd-activity">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Clock className="h-5 w-5 text-muted-foreground" />
@@ -1027,7 +1027,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             const sessionStale = hasSession && isSessionStale(timestampToMillis(userData.currentSessionSeenAt), Date.now());
             const sessionActive = hasSession && !sessionStale;
             return (
-            <Card>
+            <Card data-tour="usrd-session">
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <Smartphone className="h-4 w-4 text-muted-foreground" />

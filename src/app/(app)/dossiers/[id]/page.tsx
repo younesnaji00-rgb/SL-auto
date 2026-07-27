@@ -284,7 +284,7 @@ export default function DossierDetailPage({
     <RappelDraftContext.Provider value={draftStore}>
     <div className="flex flex-col min-h-screen bg-background">
       {/* TOP HEADER */}
-      <div className="bg-card px-6 py-4 border-b">
+      <div className="bg-card px-6 py-4 border-b" data-tour="dosd-header">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <Link href="/dossiers">
@@ -307,7 +307,7 @@ export default function DossierDetailPage({
                 {viewDossier.lastObservation.text}
               </Badge>
             )}
-            <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(viewDossier.statut || 'Nouveau'))}>
+            <Badge variant="outline" data-tour="dosd-statut" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(viewDossier.statut || 'Nouveau'))}>
               {t(viewDossier.statut || 'Nouveau')}
             </Badge>
           </div>
@@ -316,7 +316,7 @@ export default function DossierDetailPage({
 
       {/* RAPPEL SESSION BANNER — sticky, only when treating a rappel */}
       {activeRappel && (
-        <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 flex flex-wrap gap-3 items-center sticky top-0 z-50 dark:bg-amber-900/25 dark:border-amber-800/50">
+        <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 flex flex-wrap gap-3 items-center sticky top-0 z-50 dark:bg-amber-900/25 dark:border-amber-800/50" data-tour="dosd-rappel-banner">
           <Bell className="h-4 w-4 text-amber-700 dark:text-amber-200" />
           <p className="text-sm font-medium text-amber-900 dark:text-amber-100 flex-1">
             {t("Vous traitez un rappel pour ce dossier — vos modifications restent locales jusqu'à « Sauvegarder ».")}
@@ -361,10 +361,10 @@ export default function DossierDetailPage({
         )}
       >
         <div className="flex-1" />
-        <Button variant="outline" size="sm" onClick={() => setEmailDialogOpen(true)} className="h-8 text-xs gap-1.5">
+        <Button variant="outline" size="sm" onClick={() => setEmailDialogOpen(true)} className="h-8 text-xs gap-1.5" data-tour="dosd-email">
           <Mail className="h-3.5 w-3.5" /> {t('Envoyer un email')}
         </Button>
-        <Button variant="outline" size="sm" onClick={() => setHistoriqueOpen(true)} className="h-8 text-xs gap-1.5">
+        <Button variant="outline" size="sm" onClick={() => setHistoriqueOpen(true)} className="h-8 text-xs gap-1.5" data-tour="dosd-historique">
           <History className="h-3.5 w-3.5" /> {t('Historique')}
         </Button>
       </div>

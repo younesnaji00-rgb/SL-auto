@@ -270,7 +270,7 @@ export default function TamponsSettingsPage() {
         </p>
       </div>
 
-      <Card className="border shadow-sm rounded-lg">
+      <Card className="border shadow-sm rounded-lg" data-tour="tam-import">
         <CardHeader>
           <CardTitle>{t('Importer des tampons')}</CardTitle>
           <CardDescription>
@@ -341,7 +341,7 @@ export default function TamponsSettingsPage() {
       </Card>
 
       <div>
-        <Card className="border shadow-sm rounded-lg">
+        <Card className="border shadow-sm rounded-lg" data-tour="tam-list">
           <CardHeader>
             <CardTitle>{t('Tampons enregistrés')}</CardTitle>
             <CardDescription>
@@ -436,7 +436,7 @@ export default function TamponsSettingsPage() {
           </Card>
       </div>
 
-      <Card className="border shadow-sm rounded-lg">
+      <Card className="border shadow-sm rounded-lg" data-tour="tam-assign">
         <CardHeader>
           <CardTitle>{t('Assignation par chiffreur')}</CardTitle>
           <CardDescription>
