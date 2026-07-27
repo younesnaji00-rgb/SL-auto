@@ -36,7 +36,8 @@ export function TutorialLauncher() {
 
   useEffect(() => () => destroyActiveTour(), []);
 
-  if (!tut) return null;
+  // Brand-gated: the firm's deployment ships without guided tours.
+  if (!BRAND.showTutorials || !tut) return null;
 
   const start = () => {
     try {

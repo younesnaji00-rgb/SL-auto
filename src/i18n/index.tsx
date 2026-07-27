@@ -95,6 +95,9 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
 
   useEffect(() => {
+    // Brands without a language switcher are locked to their default locale —
+    // a stale stored preference (e.g. from testing) must never flip them.
+    if (!BRAND.showLanguageSwitcher) return;
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY) as Locale | null;
       if (stored && SUPPORTED_LOCALES.includes(stored) && stored !== locale) {

@@ -73,6 +73,15 @@ export interface BrandConfig {
   iconsPath: string;
   /** Local-storage / IndexedDB namespace prefix. */
   storagePrefix: string;
+
+  // ── Feature toggles ─────────────────────────────────────────────────
+  /**
+   * Show the EN/FR language switcher (sidebar + login). When false the
+   * app is locked to defaultLocale and any stored preference is ignored.
+   */
+  showLanguageSwitcher: boolean;
+  /** Show the per-page guided tutorials ("?" launcher). */
+  showTutorials: boolean;
 }
 
 const SLAOUI: BrandConfig = {
@@ -109,6 +118,10 @@ const SLAOUI: BrandConfig = {
   logoWordmarkSrc: '/images/auto-expertise.png',
   iconsPath: '/icons',
   storagePrefix: 'sl-auto',
+
+  // The firm's app stays exactly as it always was — no switcher, no tours.
+  showLanguageSwitcher: false,
+  showTutorials: false,
 };
 
 const DEMO: BrandConfig = {
@@ -143,6 +156,9 @@ const DEMO: BrandConfig = {
   logoWordmarkSrc: null,
   iconsPath: '/icons/demo',
   storagePrefix: 'appraisio',
+
+  showLanguageSwitcher: true,
+  showTutorials: true,
 };
 
 const BRANDS: Record<string, BrandConfig> = {

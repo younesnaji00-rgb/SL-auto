@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useLocale, SUPPORTED_LOCALES, LOCALE_NAMES, type Locale } from '@/i18n';
+import { BRAND } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 
 /**
@@ -18,6 +19,9 @@ import { cn } from '@/lib/utils';
  */
 export function LanguageSwitcher({ className }: { className?: string }) {
   const { locale, setLocale } = useLocale();
+
+  // Brand-gated: the firm's deployment hides language switching entirely.
+  if (!BRAND.showLanguageSwitcher) return null;
 
   return (
     <DropdownMenu>
