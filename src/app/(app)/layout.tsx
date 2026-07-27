@@ -14,6 +14,7 @@ import DossierTabsBar from '@/components/layout/dossier-tabs-bar';
 import ChiffrageTabsBar from '@/components/layout/chiffrage-tabs-bar';
 import { useRouter, usePathname } from 'next/navigation';
 import { PageLoader } from '@/components/ui/page-loader';
+import { TutorialLauncher } from '@/components/tutorial/tutorial-launcher';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 
@@ -67,6 +68,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
             {children}
           </div>
         </main>
+        <TutorialLauncher />
       </SidebarInset>
     </div>
   );

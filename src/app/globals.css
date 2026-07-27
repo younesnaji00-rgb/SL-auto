@@ -130,3 +130,56 @@
     border-radius: 9999px;
   }
 }
+
+/* ── Guided tutorial (driver.js) popover theme ─────────────────────── */
+.driver-popover.sl-tour {
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 32px rgba(15, 118, 110, 0.18);
+  max-width: min(22rem, calc(100vw - 2rem));
+}
+.driver-popover.sl-tour .driver-popover-title {
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.driver-popover.sl-tour .driver-popover-description {
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+.driver-popover.sl-tour .driver-popover-progress-text {
+  font-size: 0.72rem;
+  color: hsl(var(--muted-foreground));
+}
+.driver-popover.sl-tour button:not(.driver-popover-close-btn) {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+  text-shadow: none;
+}
+.driver-popover.sl-tour button:not(.driver-popover-close-btn):hover {
+  filter: brightness(1.08);
+}
+.driver-popover.sl-tour .driver-popover-close-btn {
+  color: hsl(var(--muted-foreground));
+}
+.driver-popover.sl-tour .driver-popover-arrow-side-left.driver-popover-arrow {
+  border-left-color: hsl(var(--card));
+}
+.driver-popover.sl-tour .driver-popover-arrow-side-right.driver-popover-arrow {
+  border-right-color: hsl(var(--card));
+}
+.driver-popover.sl-tour .driver-popover-arrow-side-top.driver-popover-arrow {
+  border-top-color: hsl(var(--card));
+}
+.driver-popover.sl-tour .driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-bottom-color: hsl(var(--card));
+}

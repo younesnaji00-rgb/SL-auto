@@ -127,8 +127,8 @@ export default function ConsultationClientPage() {
         </Alert>
       )}
 
-      <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative flex-grow max-sm:w-full max-w-sm">
+      <div className="flex flex-wrap gap-2 items-center" data-tour="consult-filters">
+        <div className="relative flex-grow max-sm:w-full max-w-sm" data-tour="consult-search">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9"
@@ -139,7 +139,7 @@ export default function ConsultationClientPage() {
         </div>
 
         <Select value={filters.nature} onValueChange={v => setFilters({ nature: v })}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder={t('Nature du dossier')} /></SelectTrigger>
+          <SelectTrigger className="w-[180px]" data-tour="consult-nature"><SelectValue placeholder={t('Nature du dossier')} /></SelectTrigger>
           <SelectContent>
             <SelectItem value="Toutes">{t('Toutes les natures')}</SelectItem>
             {filterNatures.map(n => <SelectItem key={n.id} value={n.label}>{t(n.label)}</SelectItem>)}
@@ -147,7 +147,7 @@ export default function ConsultationClientPage() {
         </Select>
 
         <Select value={filters.status} onValueChange={v => setFilters({ status: v })}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder={t('Statut')} /></SelectTrigger>
+          <SelectTrigger className="w-[180px]" data-tour="consult-statut"><SelectValue placeholder={t('Statut')} /></SelectTrigger>
           <SelectContent className="max-h-[300px]">
             <SelectItem value="Tous">{t('Tous les statuts')}</SelectItem>
             {filterStatuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{t(s.label)}</span></SelectItem>)}
@@ -155,7 +155,7 @@ export default function ConsultationClientPage() {
         </Select>
 
         <Select value={filters.compagnie} onValueChange={v => setFilters({ compagnie: v })}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder={t('Compagnie')} /></SelectTrigger>
+          <SelectTrigger className="w-[180px]" data-tour="consult-compagnie"><SelectValue placeholder={t('Compagnie')} /></SelectTrigger>
           <SelectContent>
             <SelectItem value="Toutes">{t('Toutes les compagnies')}</SelectItem>
             {filterCompagnies.map(c => <SelectItem key={c.id} value={c.label}>{t(c.label)}</SelectItem>)}
@@ -230,7 +230,7 @@ export default function ConsultationClientPage() {
         </div>
       )}
 
-      <Card className="overflow-hidden border rounded-lg">
+      <Card className="overflow-hidden border rounded-lg" data-tour="consult-table">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">

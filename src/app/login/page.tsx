@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { BRAND } from '@/lib/brand';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { TutorialLauncher } from '@/components/tutorial/tutorial-launcher';
 import { useT } from '@/i18n';
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
@@ -484,6 +485,7 @@ export default function LoginPage() {
       <div className="absolute top-4 right-4">
         <LanguageSwitcher />
       </div>
+      <TutorialLauncher />
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-4 pb-2">
           <div className="flex justify-center">

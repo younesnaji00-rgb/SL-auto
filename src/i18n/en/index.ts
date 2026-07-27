@@ -23,6 +23,13 @@ import { ADMIN_EN } from './admin';
 import { RAPPELS_EN } from './rappels';
 import { COMPONENTS_EN } from './components';
 import { PDF_EN } from './pdf';
+import { TUTORIAL_EDITOR_EN } from './tutorial-editor';
+import { TUTORIAL_ADMIN_EN } from './tutorial-admin';
+import { TUTORIAL_TERRAIN_EN } from './tutorial-terrain';
+import { TUTORIAL_CHIFFRAGE_EN } from './tutorial-chiffrage';
+import { TUTORIAL_DOSSIERS_EN } from './tutorial-dossiers';
+import { TUTORIAL_DASHBOARD_EN } from './tutorial-dashboard';
+import { TUTORIAL_CORE_EN } from './tutorial-core';
 
 export const EN: Record<string, string> = {
   ...COMMON_EN,
@@ -41,4 +48,11 @@ export const EN: Record<string, string> = {
   ...RAPPELS_EN,
   ...COMPONENTS_EN,
   ...PDF_EN,
+  ...TUTORIAL_EDITOR_EN,
+  ...TUTORIAL_ADMIN_EN,
+  ...TUTORIAL_TERRAIN_EN,
+  ...TUTORIAL_CHIFFRAGE_EN,
+  ...TUTORIAL_DOSSIERS_EN,
+  ...TUTORIAL_DASHBOARD_EN,
+  ...TUTORIAL_CORE_EN,
 };
