@@ -47,9 +47,14 @@ export function TutorialLauncher() {
       return;
     }
     setSeen(pageSeen === '1');
-    if (!welcomed && pathname !== '/login') {
-      // First app page right after the first login: the lightbox. Never on
-      // the login page itself — it would sit on top of the sign-in form.
+    if (pathname === '/login') {
+      // Demo entry point: prompt EVERY visit — each prospect landing here
+      // should be offered the tutorial, regardless of stored flags.
+      const timer = window.setTimeout(() => setShowWelcome(true), 900);
+      return () => window.clearTimeout(timer);
+    }
+    if (!welcomed) {
+      // First app page right after the first login: the lightbox (once).
       const timer = window.setTimeout(() => setShowWelcome(true), 900);
       return () => window.clearTimeout(timer);
     }
