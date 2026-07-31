@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Camera, X, Trash2, Check, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 interface CapturedPhoto {
@@ -26,6 +27,7 @@ interface CameraCaptureProps {
 }
 
 export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = Infinity }: CameraCaptureProps) {
+  const t = useT();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -44,7 +46,7 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
     setError(null);
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setError("Votre navigateur ne supporte pas l'accès à la caméra. Utilisez Chrome ou Safari.");
+      setError(t("Votre navigateur ne supporte pas l'accès à la caméra. Utilisez Chrome ou Safari."));
       return;
     }
 
@@ -69,16 +71,16 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
     } catch (err: any) {
       console.error('Camera error:', err?.name, err?.message);
       if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-        setError("Accès à la caméra refusé. Allez dans les paramètres de votre navigateur pour autoriser l'accès à la caméra pour ce site.");
+        setError(t("Accès à la caméra refusé. Allez dans les paramètres de votre navigateur pour autoriser l'accès à la caméra pour ce site."));
       } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
-        setError("Aucune caméra détectée sur cet appareil.");
+        setError(t("Aucune caméra détectée sur cet appareil."));
       } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
-        setError("La caméra est utilisée par une autre application. Fermez-la et réessayez.");
+        setError(t("La caméra est utilisée par une autre application. Fermez-la et réessayez."));
       } else {
-        setError(`Impossible d'accéder à la caméra: ${err?.message || 'erreur inconnue'}`);
+        setError(`${t("Impossible d'accéder à la caméra:")} ${err?.message || t('erreur inconnue')}`);
       }
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (open) {
@@ -169,7 +171,7 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
 
         {atCap && !error && (
           <div className="absolute left-1/2 -translate-x-1/2 top-16 bg-red-600/90 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg pointer-events-none">
-            Limite de {maxCaptures} photos atteinte
+            {`${t('Limite de')} ${maxCaptures} ${t('photos atteinte')}`}
           </div>
         )}
 
@@ -181,7 +183,7 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
           <span className="text-white text-sm font-medium">
             {Number.isFinite(maxCaptures)
               ? `${captures.length} / ${maxCaptures} photo${maxCaptures > 1 ? 's' : ''}`
-              : (captures.length > 0 ? `${captures.length} photo${captures.length > 1 ? 's' : ''}` : 'Prendre des photos')}
+              : (captures.length > 0 ? `${captures.length} photo${captures.length > 1 ? 's' : ''}` : t('Prendre des photos'))}
           </span>
           <Button variant="ghost" size="icon" onClick={toggleFacing} className="text-white hover:bg-white/20">
             <RotateCcw className="h-5 w-5" />
@@ -213,7 +215,7 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
           onClick={handleClose}
           className="text-white/70 hover:text-white hover:bg-white/10 text-sm"
         >
-          Annuler
+          {t('Annuler')}
         </Button>
 
         {/* Shutter button — disabled once the per-section cap is reached so
@@ -222,7 +224,7 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
         <button
           onClick={handleCapture}
           disabled={!cameraReady || atCap}
-          aria-label={atCap ? 'Limite de photos atteinte' : 'Prendre une photo'}
+          aria-label={atCap ? t('Limite de photos atteinte') : t('Prendre une photo')}
           className="w-18 h-18 rounded-full border-4 border-white flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
           style={{ width: 72, height: 72 }}
         >

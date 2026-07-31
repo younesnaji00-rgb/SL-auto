@@ -30,6 +30,9 @@ import { TUTORIAL_CHIFFRAGE_EN } from './tutorial-chiffrage';
 import { TUTORIAL_DOSSIERS_EN } from './tutorial-dossiers';
 import { TUTORIAL_DASHBOARD_EN } from './tutorial-dashboard';
 import { TUTORIAL_CORE_EN } from './tutorial-core';
+import { LABS_EN } from './labs';
+import { LEFTOVERS_EN } from './leftovers';
+import { TRIAL_EN } from './trial';
 
 export const EN: Record<string, string> = {
   ...COMMON_EN,
@@ -55,4 +58,7 @@ export const EN: Record<string, string> = {
   ...TUTORIAL_DOSSIERS_EN,
   ...TUTORIAL_DASHBOARD_EN,
   ...TUTORIAL_CORE_EN,
+  ...LABS_EN,
+  ...LEFTOVERS_EN,
+  ...TRIAL_EN,
 };

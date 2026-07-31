@@ -12,7 +12,7 @@ export const dossiersTutorial: PageTutorial = {
     {
       title: 'Gestion des dossiers',
       body:
-        "C'est la liste de travail principale du gestionnaire : chaque sinistre y apparaît comme un dossier, de sa création jusqu'à la note d'honoraire. Depuis cette page vous créez, recherchez, filtrez et ouvrez les dossiers.",
+        "C'est la liste de travail principale du gestionnaire : chaque sinistre y apparaît comme un dossier, de sa création jusqu'à la note d'honoraire. À la création, l'IA scanne le document de mission et pré-remplit le dossier — fini la ressaisie des informations déjà écrites par la compagnie. Depuis cette page vous créez, recherchez, filtrez et ouvrez les dossiers.",
     },
     {
       anchor: 'dos-search',
@@ -83,6 +83,54 @@ export const dossiersTutorial: PageTutorial = {
       body:
         "Chaque dossier ouvert reste ici sous forme d'onglet, comme dans un navigateur. Passez d'un dossier à l'autre sans perdre le fil ; le premier onglet ramène toujours à cette liste.",
       side: 'bottom',
+    },
+  ],
+  lab: [
+    {
+      anchor: 'dos-search',
+      title: 'La recherche',
+      body: 'Cliquez dans le champ de recherche pour lui donner le focus.',
+      action: 'click',
+    },
+    {
+      anchor: 'dos-search',
+      title: 'Recherche instantanée',
+      body:
+        "Ici vous taperiez une référence, un nom d'assuré ou une immatriculation : la liste se filtre à chaque caractère saisi.",
+      action: 'observe',
+    },
+    {
+      anchor: 'dos-col-nature',
+      title: 'Filtres de colonne',
+      body: "Cliquez sur l'entonnoir de la colonne Nature pour ouvrir son filtre.",
+      action: 'click',
+    },
+    {
+      anchor: 'dos-col-statut',
+      title: 'La colonne Statut',
+      body:
+        "Le menu se fermera à votre prochain clic. Observez la colonne Statut : le badge coloré indique l'étape de chaque dossier dans le flux.",
+      action: 'observe',
+    },
+    {
+      anchor: 'dos-create',
+      title: 'Créez une mission',
+      body: 'Cliquez sur « Création de mission » pour ouvrir la fenêtre de création.',
+      action: 'click',
+    },
+    {
+      anchor: 'dos-create',
+      title: 'Refermez la fenêtre',
+      body:
+        "Fermez la fenêtre avec Échap. Une fois le dossier créé, l'IA scanne le document de mission et pré-remplit toutes les informations.",
+      action: 'observe',
+    },
+    {
+      anchor: 'dos-table',
+      title: 'La liste de travail',
+      body:
+        "Chaque ligne est un dossier ; un clic sur la ligne l'ouvrirait. Vous savez maintenant chercher, filtrer et créer.",
+      action: 'observe',
     },
   ],
 };

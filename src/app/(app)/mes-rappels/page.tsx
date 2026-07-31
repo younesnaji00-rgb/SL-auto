@@ -140,7 +140,9 @@ function SessionObservations({ dossierId, sessionId }: SessionTaggedProps) {
         rows.sort((a, b) => tsMillis(a.createdAt) - tsMillis(b.createdAt));
         setItems(rows);
       },
-      () => {},
+      (err) => {
+        console.error('[SessionObservations] listener error', (err as any)?.code, err?.message);
+      },
     );
     return () => unsub();
   }, [db, dossierId, sessionId]);
@@ -193,7 +195,9 @@ function SessionModifications({ dossierId, sessionId }: SessionTaggedProps) {
         rows.sort((a, b) => tsMillis(a.date) - tsMillis(b.date));
         setItems(rows);
       },
-      () => {},
+      (err) => {
+        console.error('[SessionModifications] listener error', (err as any)?.code, err?.message);
+      },
     );
     return () => unsub();
   }, [db, dossierId, sessionId]);

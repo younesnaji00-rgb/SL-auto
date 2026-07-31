@@ -382,7 +382,7 @@ export default function UtilisateursClientPage() {
                     <FormItem>
                       <div className="flex items-center justify-between">
                         <FormLabel>{t('Rôle')}</FormLabel>
-                        <OptionsManagerModal collectionName="options_roles" title="Rôles" />
+                        <OptionsManagerModal collectionName="options_roles" title={t('Rôles')} />
                       </div>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
@@ -403,7 +403,7 @@ export default function UtilisateursClientPage() {
                     <FormItem>
                       <div className="flex items-center justify-between">
                         <FormLabel>{t("Compagnies d'Assurance")}</FormLabel>
-                        <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
+                        <OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />
                       </div>
                       <MultiSelect
                         options={companyOptions}
@@ -422,7 +422,7 @@ export default function UtilisateursClientPage() {
                     <FormItem>
                       <div className="flex items-center justify-between">
                         <FormLabel>{t('Sites')}</FormLabel>
-                        <OptionsManagerModal collectionName="options_sites" title="Sites" />
+                        <OptionsManagerModal collectionName="options_sites" title={t('Sites')} />
                       </div>
                       <MultiSelect
                         options={sitesOptions}
@@ -457,7 +457,7 @@ export default function UtilisateursClientPage() {
                         <FormItem className="flex flex-col">
                           <div className="flex items-center justify-between">
                             <FormLabel>{t('Zone')}</FormLabel>
-                            <OptionsManagerModal collectionName="options_zones" title="Zones" />
+                            <OptionsManagerModal collectionName="options_zones" title={t('Zones')} />
                           </div>
                           <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
                             <PopoverTrigger asChild>

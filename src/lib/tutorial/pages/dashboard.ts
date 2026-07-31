@@ -9,7 +9,7 @@ export const dashboardTutorial: PageTutorial = {
     {
       title: 'Tableau de bord',
       body:
-        "Vue d'ensemble en temps réel de l'activité du cabinet, réservée aux administrateurs et responsables d'équipe : volumes par statut, répartition par compagnie et fil des derniers changements. Si des compagnies vous sont assignées, seuls leurs dossiers sont comptés.",
+        "Le tableau de bord donne aux administrateurs et responsables d'équipe une vision en temps réel de chaque processus du cabinet : volumes par statut, répartition par compagnie et fil de chaque changement — une force clé de la plateforme. Si des compagnies vous sont assignées, seuls leurs dossiers sont comptés.",
     },
     {
       anchor: 'dash-etat-card',
@@ -66,6 +66,57 @@ export const dashboardTutorial: PageTutorial = {
       body:
         "Un second panneau identique avec ses propres filtres — préréglé sur les changements de statut — pour surveiller deux types d'activité en parallèle.",
       side: 'left',
+    },
+  ],
+  lab: [
+    {
+      anchor: 'dash-etat-periode',
+      title: 'Changez la période',
+      body:
+        'Cliquez sur « Semaine » : tous les chiffres de la page se recalculent sur les dossiers créés cette semaine.',
+      action: 'click',
+    },
+    {
+      anchor: 'dash-etat-card',
+      title: 'Les états recalculés',
+      body:
+        'Observez la carte des états : chaque statut affiche maintenant son nombre de dossiers sur la période choisie.',
+      action: 'observe',
+    },
+    {
+      anchor: 'dash-etat-card',
+      title: 'Explorez un statut',
+      body:
+        "Cliquez sur une ligne de statut : la liste de ses dossiers s'affiche plus bas sur la page.",
+      action: 'click',
+    },
+    {
+      anchor: 'dash-pie',
+      title: 'Le camembert',
+      body:
+        'Survolez une part du camembert pour lire le nombre exact de dossiers de chaque statut.',
+      action: 'observe',
+    },
+    {
+      anchor: 'dash-compagnie',
+      title: 'Par compagnie',
+      body:
+        "Ici, le volume de dossiers de chaque compagnie d'assurance sur la même période.",
+      action: 'observe',
+    },
+    {
+      anchor: 'dash-chg-filtres-1',
+      title: 'Filtrez le fil',
+      body:
+        "Ouvrez le filtre « Type de changement » du fil d'activité en cliquant dessus.",
+      action: 'click',
+    },
+    {
+      anchor: 'dash-changements-1',
+      title: 'Le fil en direct',
+      body:
+        'La liste se fermera à votre prochain clic. Ce fil trace chaque action du cabinet en temps réel — les nouveautés sont surlignées.',
+      action: 'observe',
     },
   ],
 };

@@ -14,6 +14,7 @@ import { ArrowLeft, FileType, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useT } from '@/i18n';
 import Link from 'next/link';
 
 interface ChiffrageFileDoc {
@@ -39,6 +40,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
+  const t = useT();
 
   const [chiffrage, setChiffrage] = useState<ChiffrageDoc | null>(null);
   const [downloadUrls, setDownloadUrls] = useState<Record<number, string>>({});
@@ -55,7 +57,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
     const unsub = onSnapshot(chiffrageRef, (snap) => {
       if (!snap.exists()) {
         if (hasLoadedRef.current) {
-          toast({ variant: 'destructive', title: "Chiffrage introuvable." });
+          toast({ variant: 'destructive', title: t("Chiffrage introuvable.") });
           router.push("/dashboard");
         }
         return;
@@ -122,12 +124,12 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{chiffrage.dossierNom}</h1>
           <p className="text-muted-foreground text-sm">
-            Correcteur assigné : {chiffrage.assignedChiffreurNom}
+            {t('Correcteur assigné :')} {chiffrage.assignedChiffreurNom}
           </p>
         </div>
         <div className="ml-auto">
           <Badge variant={chiffrage.status === 'done' ? 'success' : 'secondary'} className="gap-1.5 py-1 px-3">
-            {chiffrage.status === 'done' ? 'Terminé' : 'En cours'}
+            {chiffrage.status === 'done' ? t('Terminé') : t('En cours')}
           </Badge>
         </div>
       </div>
@@ -136,8 +138,8 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
         {chiffrage.files.length === 0 && (
           <EmptyState
             icon={<FileType />}
-            title="Aucun fichier"
-            description="Aucun fichier n'a encore été associé à ce chiffrage."
+            title={t('Aucun fichier')}
+            description={t("Aucun fichier n'a encore été associé à ce chiffrage.")}
           />
         )}
         {chiffrage.files.map((file, i) => (
@@ -173,7 +175,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
               </div>
 
               <p className="text-xs text-muted-foreground line-clamp-2 italic bg-muted/30 p-2 rounded">
-                Mode "Correction Native" : Utilisez l'éditeur pour barrer les erreurs et ajouter vos corrections directement sur le document.
+                {t('Mode "Correction Native" : Utilisez l\'éditeur pour barrer les erreurs et ajouter vos corrections directement sur le document.')}
               </p>
 
               <div className="flex gap-2 flex-wrap pt-2">
@@ -183,7 +185,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
                     variant="outline"
                     asChild
                   >
-                    <a href={file.pdfUrl} target="_blank" rel="noopener noreferrer">Voir le PDF Exporté</a>
+                    <a href={file.pdfUrl} target="_blank" rel="noopener noreferrer">{t('Voir le PDF Exporté')}</a>
                   </Button>
                 )}
               </div>
@@ -197,17 +199,18 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
 }
 
 function StatusBadge({ status, hasAnnotations }: { status: string; hasAnnotations: boolean }) {
+  const t = useT();
   if (hasAnnotations) {
-    return <Badge variant="success">Corrigé</Badge>;
+    return <Badge variant="success">{t('Corrigé')}</Badge>;
   }
   if (status === 'processing') {
-    return <Badge variant="chiffrage" className="animate-pulse">En traitement</Badge>;
+    return <Badge variant="chiffrage" className="animate-pulse">{t('En traitement')}</Badge>;
   }
   if (status === 'error') {
-    return <Badge variant="destructive">Erreur</Badge>;
+    return <Badge variant="destructive">{t('Erreur')}</Badge>;
   }
   if (status === 'done') {
-    return <Badge variant="success">Terminé</Badge>;
+    return <Badge variant="success">{t('Terminé')}</Badge>;
   }
-  return <Badge variant="secondary">En attente</Badge>;
+  return <Badge variant="secondary">{t('En attente')}</Badge>;
 }

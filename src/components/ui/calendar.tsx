@@ -12,10 +12,11 @@ import {
   isSameMonth,
   isToday,
   format,
+  addDays,
   addMonths,
   subMonths,
 } from "date-fns"
-import { dateFnsLocale } from "@/i18n"
+import { dateFnsLocale, useLocale } from "@/i18n"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
@@ -28,14 +29,20 @@ export interface CalendarProps {
   disabled?: (date: Date) => boolean
 }
 
-const WEEKDAYS = ["Lu", "Ma", "Me", "Je", "Ve", "Sa", "Di"]
-
 function Calendar({
   selected,
   onSelect,
   className,
   disabled,
 }: CalendarProps) {
+  const { locale } = useLocale()
+  const weekdays = React.useMemo(() => {
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
+    return Array.from({ length: 7 }, (_, i) =>
+      format(addDays(weekStart, i), "EEEEEE", { locale: dateFnsLocale() })
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale])
   const [currentMonth, setCurrentMonth] = React.useState(
     selected ? startOfMonth(selected) : startOfMonth(new Date())
   )
@@ -85,7 +92,7 @@ function Calendar({
 
       {/* Weekday headers */}
       <div className="grid grid-cols-7 mb-1">
-        {WEEKDAYS.map((day) => (
+        {weekdays.map((day) => (
           <div
             key={day}
             className="text-center text-xs font-medium text-muted-foreground uppercase tracking-wide py-2"

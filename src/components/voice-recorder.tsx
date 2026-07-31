@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Square, Trash2, Play, Pause } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 type RecorderState = 'idle' | 'recording' | 'preview';
@@ -14,6 +15,7 @@ interface VoiceRecorderProps {
 }
 
 export default function VoiceRecorder({ onRecorded, maxDuration = 120, disabled }: VoiceRecorderProps) {
+  const t = useT();
   const [state, setState] = useState<RecorderState>('idle');
   const [elapsed, setElapsed] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -127,7 +129,7 @@ export default function VoiceRecorder({ onRecorded, maxDuration = 120, disabled 
         className="text-muted-foreground hover:text-primary"
         onClick={startRecording}
         disabled={disabled}
-        title="Message vocal"
+        title={t('Message vocal')}
         type="button"
       >
         <Mic className="h-5 w-5" />
@@ -147,7 +149,7 @@ export default function VoiceRecorder({ onRecorded, maxDuration = 120, disabled 
           size="icon"
           className="text-red-600 hover:text-red-700 hover:bg-red-500/10"
           onClick={stopRecording}
-          title="Arrêter"
+          title={t('Arrêter')}
           type="button"
         >
           <Square className="h-4 w-4 fill-current" />
@@ -182,7 +184,7 @@ export default function VoiceRecorder({ onRecorded, maxDuration = 120, disabled 
         size="icon"
         className="h-8 w-8 text-destructive hover:text-destructive"
         onClick={handleDiscard}
-        title="Supprimer"
+        title={t('Supprimer')}
         type="button"
       >
         <Trash2 className="h-4 w-4" />
@@ -192,7 +194,7 @@ export default function VoiceRecorder({ onRecorded, maxDuration = 120, disabled 
         onClick={handleSend}
         type="button"
       >
-        Envoyer
+        {t('Envoyer')}
       </Button>
     </div>
   );

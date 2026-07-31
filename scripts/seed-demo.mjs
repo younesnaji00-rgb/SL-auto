@@ -23,6 +23,14 @@
  *     app itself writes when creating the demo users
  *   - 8 sample dossiers across the canonical workflow statuses, with
  *     planifications assigned to the Field Agent demo user
+ *   - Monitoring funnel data (Suivi d'équipe page): per-dossier lifecycle
+ *     fields read by src/app/(app)/monitoring/funnel.ts (datePhotosAvant /
+ *     EnCours / Apres, dateDemandeExpertise*, firstAccordReachedAt,
+ *     dateChiffrage, directorValidated, dateRapportDepose, lastStatusChange)
+ *     plus dossiers/{id}/workflow audit logs (per-user step attribution).
+ *     Recent steps are anchored to the SEED RUN TIME (see hoursAgo/inDays)
+ *     because the monitoring page defaults its period filter to TODAY —
+ *     re-running the seed refreshes the demo's "Jour / Semaine" activity.
  *
  * The emails are generated with the EXACT same slugification as
  * generateEmail() in src/app/login/page.tsx, using the demo brand auth
@@ -74,7 +82,29 @@ function slugId(label) {
 }
 
 function ts(iso) {
-  return new Date(iso);
+  return new Date(iso); // accepts ISO strings AND Date instances (copy)
+}
+
+// ── Relative "recent" timestamps ────────────────────────────────────────────
+// The monitoring funnel (src/app/(app)/monitoring/page.tsx) defaults its
+// period filter to TODAY (Jour preset), so the newest workflow events are
+// anchored to the seed run time instead of fixed dates. Doc ids stay stable —
+// re-running the seed only refreshes the timestamps (still idempotent).
+const NOW = new Date();
+
+/** NOW minus `h` hours (fractions allowed). */
+function hoursAgo(h) {
+  return new Date(NOW.getTime() - h * 3_600_000);
+}
+
+/** NOW plus `d` days — upcoming RDVs so the demo planning never looks stale. */
+function inDays(d) {
+  return new Date(NOW.getTime() + d * 86_400_000);
+}
+
+/** 'YYYY-MM-DD' string for NOW minus `d` days (dateSinistre-style fields). */
+function dateStrDaysAgo(d) {
+  return new Date(NOW.getTime() - d * 86_400_000).toISOString().slice(0, 10);
 }
 
 /** JS value → Firestore REST typed value. */
@@ -344,15 +374,35 @@ function buildDossier(uids, d) {
   };
   // Lifecycle timestamps written as the workflow advances (optional fields on
   // the Dossier type). Only include the ones consistent with the status.
+  // These are EXACTLY the fields the monitoring funnel reads — see STEP_DEFS
+  // in src/app/(app)/monitoring/funnel.ts (doneAt / horsDelaiAt predicates).
   if (d.dateMission) base.dateMissionAgentTerrain = ts(d.dateMission);
   if (d.dateDemandeAvant) base.dateDemandeExpertiseAvant = ts(d.dateDemandeAvant);
   if (d.dateDemandeEnCours) base.dateDemandeExpertiseEnCours = ts(d.dateDemandeEnCours);
+  if (d.dateDemandeApres) base.dateDemandeExpertiseApres = ts(d.dateDemandeApres);
+  if (d.datePhotosAvant) base.datePhotosAvant = ts(d.datePhotosAvant);
+  if (d.datePhotosEnCours) base.datePhotosEnCours = ts(d.datePhotosEnCours);
+  if (d.datePhotosApres) base.datePhotosApres = ts(d.datePhotosApres);
   if (d.dateChiffrage) base.dateChiffrage = ts(d.dateChiffrage);
+  if (d.firstAccordReachedAt) base.firstAccordReachedAt = ts(d.firstAccordReachedAt);
+  if (d.rapportValideAt) {
+    // Shape mirrors valider-dossier-button.tsx ({by: uid, at, role}).
+    base.directorValidated = { by: uids.admin, at: ts(d.rapportValideAt), role: 'Admin' };
+  }
+  if (d.dateRapportDepose) {
+    // Shape mirrors rapport-tab.tsx (author = user email).
+    base.dateRapportDepose = ts(d.dateRapportDepose);
+    base.authorRapportDepose = generateEmail('Manager Demo');
+  }
   if (d.lastStatusDetails) {
+    // Shape mirrors the log-historique.ts denormalization (by = email,
+    // byNom = display name). `lastStatusAt` overrides when the status change
+    // predates the doc's latest update (e.g. rapport deposited afterwards).
     base.lastStatusChange = {
       status: d.statut,
-      at: ts(d.updatedAt ?? d.createdAt),
-      by: 'Manager Demo',
+      at: ts(d.lastStatusAt ?? d.updatedAt ?? d.createdAt),
+      by: generateEmail('Manager Demo'),
+      byNom: 'Manager Demo',
       details: d.lastStatusDetails,
     };
   }
@@ -374,9 +424,15 @@ const DOSSIERS = [
     marque: 'Toyota', modele: 'RAV4 XLE 2022', plate: 'CKXR 382',
     vin: '2T3P1RFV8NC204518', km: '38 450', mec: '2022-03-15',
     garage: 'CarrXpert Toronto East',
-    dateSinistre: '2026-06-28',
-    dateRequete: '2026-06-30T13:15:00Z',
-    createdAt: '2026-06-30T14:02:00Z',
+    // Fresh intake — created a couple of hours before the seed run so the
+    // monitoring "Jour" view always has a Création event (en délai: the
+    // requête→création gap is only 30 minutes).
+    dateSinistre: dateStrDaysAgo(2),
+    dateRequete: hoursAgo(3),
+    createdAt: hoursAgo(2.5),
+    workflow: [
+      { action: 'Création de dossier', at: hoursAgo(2.5), by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+    ],
   },
   {
     id: 'demo-dossier-02',
@@ -395,15 +451,21 @@ const DOSSIERS = [
     dateSinistre: '2026-07-02',
     dateRequete: '2026-07-03T15:40:00Z',
     createdAt: '2026-07-03T16:05:00Z',
-    updatedAt: '2026-07-06T13:30:00Z',
-    dateMission: '2026-07-06T13:30:00Z',
-    dateDemandeAvant: '2026-07-06T13:30:00Z',
+    // Mission Avant requested yesterday, RDV upcoming — photos not yet taken
+    // (photosAvant stays "non réalisé" for this dossier).
+    updatedAt: hoursAgo(26),
+    dateMission: hoursAgo(26),
+    dateDemandeAvant: hoursAgo(26),
     lastStatusDetails: 'Mission Avant planifiée — Field Agent Demo, Montréal.',
     planification: {
       typeMission: 'Avant',
-      dateRDV: '2026-07-08T14:00:00Z',
+      dateRDV: inDays(2),
       adresse: 'Garage Métropolitain, 8250 boul. Saint-Laurent, Montréal, QC',
     },
+    workflow: [
+      { action: 'Création de dossier', at: '2026-07-03T16:05:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Création de planification', at: hoursAgo(26), by: 'manager', details: 'Mission Avant pour Field Agent Demo' },
+    ],
   },
   {
     id: 'demo-dossier-03',
@@ -422,15 +484,29 @@ const DOSSIERS = [
     dateSinistre: '2026-06-20',
     dateRequete: '2026-06-22T12:10:00Z',
     createdAt: '2026-06-22T12:45:00Z',
-    updatedAt: '2026-07-07T18:20:00Z',
-    dateMission: '2026-06-25T14:00:00Z',
-    dateDemandeEnCours: '2026-07-06T15:00:00Z',
+    // Avant expertise + 1er accord done in June; the mid-repair (En cours)
+    // check was requested yesterday and its RDV is upcoming.
+    updatedAt: hoursAgo(20),
+    dateMission: '2026-06-23T13:00:00Z',
+    dateDemandeAvant: '2026-06-23T13:00:00Z',
+    datePhotosAvant: '2026-06-23T17:30:00Z', // same business day → en délai
+    dateChiffrage: '2026-06-29T16:00:00Z',
+    firstAccordReachedAt: '2026-06-30T15:00:00Z',
+    dateDemandeEnCours: hoursAgo(20),
     lastStatusDetails: 'Expertise en cours de réparation — visite atelier Fix Auto Laval.',
     planification: {
       typeMission: 'En cours',
-      dateRDV: '2026-07-09T15:30:00Z',
+      dateRDV: inDays(1),
       adresse: 'Fix Auto Laval, 1990 boul. Industriel, Laval, QC',
     },
+    workflow: [
+      { action: 'Création de dossier', at: '2026-06-22T12:45:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Photos avant ajoutées par Agent de Terrain', at: '2026-06-23T17:30:00Z', by: 'fieldagent', details: '6 photos avant ajoutées' },
+      { action: 'Dossier envoyé vers chiffrage', at: '2026-06-26T14:00:00Z', by: 'manager', details: 'Envoyé au chiffreur : Estimator Demo' },
+      { action: 'Devis mis à jour', at: '2026-06-29T16:00:00Z', by: 'estimator', details: 'Chiffrage enregistré' },
+      { action: "Changement de statut : Proposition d'accord", at: '2026-06-30T15:00:00Z', by: 'manager', details: '1ère proposition envoyée au garage' },
+      { action: 'Création de planification', at: hoursAgo(20), by: 'manager', details: 'Mission En cours pour Field Agent Demo' },
+    ],
   },
   {
     id: 'demo-dossier-04',
@@ -449,11 +525,20 @@ const DOSSIERS = [
     dateSinistre: '2026-06-15',
     dateRequete: '2026-06-16T14:25:00Z',
     createdAt: '2026-06-16T15:00:00Z',
-    updatedAt: '2026-07-05T16:45:00Z',
-    dateMission: '2026-06-18T13:00:00Z',
-    dateDemandeAvant: '2026-06-18T13:00:00Z',
-    dateChiffrage: '2026-07-05T16:45:00Z',
+    // Avant photos taken TODAY (4h ago, demande 26h ago → ≤24 business hours,
+    // en délai) and sent to chiffrage right after — feeds the "Jour" view.
+    updatedAt: hoursAgo(2),
+    dateMission: hoursAgo(26),
+    dateDemandeAvant: hoursAgo(26),
+    datePhotosAvant: hoursAgo(4),
+    dateChiffrage: hoursAgo(2),
     lastStatusDetails: 'Devis garage reçu (4 285 $ CAD) — chiffrage en cours.',
+    workflow: [
+      { action: 'Création de dossier', at: '2026-06-16T15:00:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Création de planification', at: hoursAgo(26), by: 'manager', details: 'Mission Avant pour Field Agent Demo' },
+      { action: 'Photos avant ajoutées par Agent de Terrain', at: hoursAgo(4), by: 'fieldagent', details: '8 photos avant ajoutées' },
+      { action: 'Dossier envoyé vers chiffrage', at: hoursAgo(2), by: 'manager', details: 'Envoyé au chiffreur : Estimator Demo' },
+    ],
   },
   {
     id: 'demo-dossier-05',
@@ -472,11 +557,21 @@ const DOSSIERS = [
     dateSinistre: '2026-06-10',
     dateRequete: '2026-06-11T13:35:00Z',
     createdAt: '2026-06-11T14:10:00Z',
-    updatedAt: '2026-07-08T15:20:00Z',
-    dateMission: '2026-06-13T14:30:00Z',
-    dateDemandeAvant: '2026-06-13T14:30:00Z',
-    dateChiffrage: '2026-06-29T17:00:00Z',
+    // Chiffrage finished yesterday, 1ère proposition sent TODAY (5h ago) —
+    // firstAccordReachedAt drives the "1er accord" funnel step.
+    updatedAt: hoursAgo(5),
+    dateMission: '2026-06-15T14:30:00Z',
+    dateDemandeAvant: '2026-06-15T14:30:00Z',
+    datePhotosAvant: '2026-06-15T17:00:00Z', // same business day → en délai
+    dateChiffrage: hoursAgo(22),
+    firstAccordReachedAt: hoursAgo(5),
     lastStatusDetails: "Proposition d'accord envoyée au garage — 3 640 $ CAD TTC.",
+    workflow: [
+      { action: 'Création de dossier', at: '2026-06-11T14:10:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Photos avant ajoutées par Agent de Terrain', at: '2026-06-15T17:00:00Z', by: 'fieldagent', details: '7 photos avant ajoutées' },
+      { action: 'Devis mis à jour', at: hoursAgo(22), by: 'estimator', details: 'Chiffrage enregistré — 3 640 $ CAD TTC' },
+      { action: "Changement de statut : Proposition d'accord", at: hoursAgo(5), by: 'manager', details: '1ère proposition envoyée au garage' },
+    ],
   },
   {
     id: 'demo-dossier-06',
@@ -495,11 +590,23 @@ const DOSSIERS = [
     dateSinistre: '2026-06-05',
     dateRequete: '2026-06-08T12:50:00Z',
     createdAt: '2026-06-08T13:25:00Z',
-    updatedAt: '2026-07-10T14:40:00Z',
+    // 1er accord in June; the 2ème accord (re-chiffrage of the same source)
+    // was saved 6h ago and validated 2h ago → "2ème+" step counts TODAY,
+    // en délai (accord within 24 business hours of the latest chiffrage).
+    updatedAt: hoursAgo(2),
     dateMission: '2026-06-10T15:00:00Z',
     dateDemandeAvant: '2026-06-10T15:00:00Z',
-    dateChiffrage: '2026-06-24T16:30:00Z',
+    datePhotosAvant: '2026-06-10T17:30:00Z', // same business day → en délai
+    firstAccordReachedAt: '2026-06-25T14:00:00Z',
+    dateChiffrage: hoursAgo(6), // latest (2ème) chiffrage
     lastStatusDetails: '2ème accord après pièces supplémentaires — 5 120 $ CAD TTC.',
+    workflow: [
+      { action: 'Création de dossier', at: '2026-06-08T13:25:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Photos avant ajoutées par Agent de Terrain', at: '2026-06-10T17:30:00Z', by: 'fieldagent', details: '9 photos avant ajoutées' },
+      { action: 'Changement de statut : Accord', at: '2026-06-25T14:00:00Z', by: 'manager', details: '1er accord — 4 480 $ CAD TTC' },
+      { action: 'Devis Garage mis à jour', at: hoursAgo(6), by: 'estimator', details: '2ème chiffrage — pièces supplémentaires' },
+      { action: 'Changement de statut : 2ème accord', at: hoursAgo(2), by: 'manager', details: '2ème accord — 5 120 $ CAD TTC' },
+    ],
   },
   {
     id: 'demo-dossier-07',
@@ -518,11 +625,27 @@ const DOSSIERS = [
     dateSinistre: '2026-06-01',
     dateRequete: '2026-06-02T14:05:00Z',
     createdAt: '2026-06-02T14:40:00Z',
-    updatedAt: '2026-07-12T13:10:00Z',
+    // Accord envoyé long after the chiffrage → intentionally HORS DÉLAI on
+    // the monitoring accord step (feeds the amber KPI segment). Mid-repair
+    // (En cours) check photographed TODAY.
+    updatedAt: hoursAgo(5),
     dateMission: '2026-06-04T13:30:00Z',
     dateDemandeAvant: '2026-06-04T13:30:00Z',
+    datePhotosAvant: '2026-06-04T16:00:00Z', // same business day → en délai
     dateChiffrage: '2026-06-18T15:45:00Z',
+    firstAccordReachedAt: '2026-06-19T15:00:00Z',
+    lastStatusAt: '2026-07-12T13:10:00Z',
+    dateDemandeEnCours: hoursAgo(23),
+    datePhotosEnCours: hoursAgo(5),
     lastStatusDetails: "Accord final envoyé à la compagnie — 6 875 $ CAD TTC.",
+    workflow: [
+      { action: 'Création de dossier', at: '2026-06-02T14:40:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Photos avant ajoutées par Agent de Terrain', at: '2026-06-04T16:00:00Z', by: 'fieldagent', details: '10 photos avant ajoutées' },
+      { action: 'Devis mis à jour', at: '2026-06-18T15:45:00Z', by: 'estimator', details: 'Chiffrage enregistré — 6 875 $ CAD TTC' },
+      { action: 'Changement de statut : Accord', at: '2026-06-19T15:00:00Z', by: 'manager', details: '1er accord validé' },
+      { action: 'Changement de statut : Accord envoyé', at: '2026-07-12T13:10:00Z', by: 'manager', details: 'Accord final transmis à la compagnie' },
+      { action: 'Photos en cours ajoutées par Agent de Terrain', at: hoursAgo(5), by: 'fieldagent', details: '5 photos en cours ajoutées' },
+    ],
   },
   {
     id: 'demo-dossier-08',
@@ -542,11 +665,27 @@ const DOSSIERS = [
     dateSinistre: '2026-05-30',
     dateRequete: '2026-06-01T13:20:00Z',
     createdAt: '2026-06-01T13:50:00Z',
-    updatedAt: '2026-07-15T16:00:00Z',
+    // Réforme verdict in June; the réforme rapport was validated by the
+    // director 6h ago and deposited 1h ago → "Rapport validé" + "Rapport
+    // déposé" both count TODAY.
+    updatedAt: hoursAgo(1),
     dateMission: '2026-06-03T14:00:00Z',
     dateDemandeAvant: '2026-06-03T14:00:00Z',
+    datePhotosAvant: '2026-06-03T16:30:00Z', // same business day → en délai
     dateChiffrage: '2026-06-17T15:30:00Z',
+    firstAccordReachedAt: '2026-06-18T13:00:00Z',
+    lastStatusAt: '2026-06-18T13:00:00Z', // Réforme within 24 business hours of chiffrage
+    rapportValideAt: hoursAgo(6),
+    dateRapportDepose: hoursAgo(1),
     lastStatusDetails: 'Perte totale — VAM 9 800 $ CAD, épave estimée 1 450 $ CAD.',
+    workflow: [
+      { action: 'Création de dossier', at: '2026-06-01T13:50:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Photos avant ajoutées par Agent de Terrain', at: '2026-06-03T16:30:00Z', by: 'fieldagent', details: '12 photos avant ajoutées' },
+      { action: 'Verdict Réforme déposé', at: '2026-06-18T12:30:00Z', by: 'estimator', details: 'VAM 9 800 $ CAD, épave 1 450 $ CAD' },
+      { action: 'Changement de statut : Réforme', at: '2026-06-18T13:00:00Z', by: 'manager', details: 'Dossier basculé en Réforme' },
+      { action: 'Dossier validé', at: hoursAgo(6), by: 'admin', details: 'Rapport réforme validé par la direction' },
+      { action: 'Rapport déposé', at: hoursAgo(1), by: 'manager', details: 'Rapport réforme déposé' },
+    ],
   },
 ];
 
@@ -613,6 +752,11 @@ async function main() {
       statut: 'Actif',
       createdAt: SEED_STAMP,
       lastLogin: null,
+      // Shared showcase accounts are exempt from the account-based free
+      // trial (BRAND.trialDays) — they must never expire. Per-prospect
+      // accounts created via the Users admin page get the trial clock
+      // automatically at their first login (see src/lib/trial.ts).
+      trialExempt: true,
     });
   }
 
@@ -699,6 +843,26 @@ async function main() {
     await writeDoc(`dossiers/${d.id}`, buildDossier(uids, d));
     if (d.planification) {
       await writeDoc(`dossiers/${d.id}/planifications/planif-01`, buildPlanification(uids, d));
+    }
+    // Workflow audit logs (dossiers/{id}/workflow) — shape mirrors
+    // logWorkflow() in src/app/(app)/dossiers/[id]/log-historique.ts. The
+    // monitoring page reads collectionGroup('workflow') for per-user step
+    // attribution: photoAuthor() matches actions containing "photo" plus
+    // "avant" / "en cours" / "après", so keep those words in photo actions.
+    const wf = d.workflow || [];
+    for (let i = 0; i < wf.length; i++) {
+      const w = wf[i];
+      const who = DEMO_USERS.find((u) => u.key === (w.by || 'manager'));
+      await writeDoc(`dossiers/${d.id}/workflow/wf-${String(i + 1).padStart(2, '0')}`, {
+        action: w.action,
+        date: ts(w.at),
+        user: who.email, // logWorkflow stores the author email in `user`
+        userId: uids[who.key],
+        status: 'done',
+        dossierRef: d.refExpert,
+        details: w.details || '',
+        userNom: who.nom,
+      });
     }
   }
 

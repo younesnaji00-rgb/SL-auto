@@ -13,6 +13,7 @@ import { useAuth, useFirestore } from '@/firebase';
 import { SINGLE_SESSION_ROLES } from '@/lib/dossiers-data';
 import { landingPathFor } from '@/lib/role-landing';
 import { collectSessionMeta, isSessionClaimable, timestampToMillis } from '@/lib/session-meta';
+import { trialStatus } from '@/lib/trial';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -276,6 +277,17 @@ export default function LoginPage() {
         return;
       }
 
+      // Account-based free trial (white-label demo): block an expired account
+      // HERE, before signIn — nothing is authenticated yet and no single-
+      // session claim exists, so there is nothing to unwind or sign out.
+      // Exempt accounts and never-started trials pass through (see
+      // src/lib/trial.ts).
+      if (trialStatus(userData).expired) {
+        setError(t('Votre période d’essai est terminée. Contactez-nous pour continuer.'));
+        setLoading(false);
+        return;
+      }
+
       // Single-session enforcement (BLOCK model) — only for the operational
       // roles in SINGLE_SESSION_ROLES. Every other role may be logged in on
       // several devices at once, so they skip the claim/block entirely.
@@ -305,6 +317,19 @@ export default function LoginPage() {
       }
 
       const cred = await signInWithEmailAndPassword(auth, email, password);
+
+      // Account-based free trial: the FIRST login starts the clock. Merge-
+      // write only the timestamp (never touches the rest of the doc); skipped
+      // for exempt accounts and for brands without a trial. Runs after signIn
+      // because Firestore rules require auth for writes. Best-effort — a
+      // failed stamp just retries at the next login.
+      if (BRAND.trialDays != null && !userData.trialExempt && !userData.trialStartedAt) {
+        await setDoc(
+          doc(db, 'users', cred.user.uid),
+          { trialStartedAt: serverTimestamp() },
+          { merge: true },
+        ).catch((err) => console.warn('trialStartedAt stamp failed:', err));
+      }
 
       if (isBasicRole) {
         // Capture the device + public IP for the admin session card. Collected

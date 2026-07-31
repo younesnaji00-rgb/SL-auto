@@ -14,7 +14,7 @@ export const devisEditorTutorial: PageTutorial = {
     {
       title: "L'éditeur de devis structuré",
       body:
-        "L'IA lit le devis scanné du garage et le transforme en tableau, ligne par ligne. Votre rôle : vérifier chaque valeur extraite, l'ajuster si besoin, puis fixer les prix accordés et enregistrer le document.",
+        "L'IA lit le devis scanné du garage et le transforme en tableau, ligne par ligne : aucune ressaisie manuelle du devis. Votre rôle se limite à vérifier chaque valeur extraite, l'ajuster si besoin, puis fixer les prix accordés et enregistrer le document.",
     },
     {
       anchor: 'dev-files',

@@ -16,7 +16,7 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       title: "Le dossier d'expertise",
       body:
-        "Un dossier suit tout le cycle d'un sinistre : création de la mission, import des documents, planification des visites terrain, chiffrage, accord(s) avec le garage, rapport et note d'honoraire. Cette page regroupe toutes ces étapes sur une seule frise verticale.",
+        "Un dossier suit tout le cycle d'un sinistre : création de la mission, import des documents, planification des visites terrain, chiffrage, accord(s) avec le garage, rapport et note d'honoraire — le tout sur une seule frise verticale. Chaque information n'est saisie qu'une fois : elle se déverse automatiquement dans les devis, les accords, le rapport et la note d'honoraire, sans double saisie d'une étape à l'autre.",
     },
     {
       anchor: 'dosd-header',
@@ -140,6 +140,60 @@ export const dossierDetailTutorial: PageTutorial = {
       body:
         "Vous connaissez maintenant le parcours complet d'un dossier. Suivez la frise de haut en bas : c'est l'ordre naturel du travail, et chaque action reste tracée dans l'historique.",
       side: 'bottom',
+    },
+  ],
+  lab: [
+    {
+      anchor: 'dosd-timeline',
+      title: 'La frise des étapes',
+      body:
+        "Cette barre liste toutes les étapes du dossier, dans l'ordre du travail. Chaque bouton est cliquable — parcourons-en quelques-unes.",
+      action: 'observe',
+    },
+    {
+      anchor: 'dosd-step-1',
+      title: 'Étape 1 : la mission',
+      body: 'Cliquez sur la première étape de la frise pour vous y rendre.',
+      action: 'click',
+    },
+    {
+      anchor: 'dosd-sec-1',
+      title: 'Création de mission',
+      body:
+        "Tout part d'ici : l'IA lit le document de mission et pré-remplit le formulaire. Ces informations alimenteront ensuite devis, accords et rapport sans ressaisie.",
+      action: 'observe',
+    },
+    {
+      anchor: 'dosd-step-4',
+      title: 'Étape suivante',
+      body: "Cliquez sur l'étape « Planification avant » dans la frise.",
+      action: 'click',
+    },
+    {
+      anchor: 'dosd-sec-4',
+      title: 'Planification avant',
+      body:
+        'La visite terrain avant réparation : rendez-vous, agent de terrain et photos « avant » du véhicule.',
+      action: 'observe',
+    },
+    {
+      anchor: 'dosd-step-7',
+      title: 'Vers le rapport',
+      body: "Cliquez sur l'étape « Rapport » dans la frise.",
+      action: 'click',
+    },
+    {
+      anchor: 'dosd-sec-7',
+      title: 'Le rapport',
+      body:
+        "Le rapport d'expertise se génère en PDF à partir des données déjà saisies dans le dossier — rien à retaper.",
+      action: 'observe',
+    },
+    {
+      anchor: 'dosd-step-1',
+      title: 'Retour en haut',
+      body: 'Cliquez à nouveau sur la première étape pour revenir en haut du dossier.',
+      action: 'click',
     },
   ],
 };

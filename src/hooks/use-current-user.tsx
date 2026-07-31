@@ -6,6 +6,7 @@ import { doc, onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'fir
 import { useAuth, useFirestore } from '@/firebase';
 import { ROLES_THAT_CAN_DELETE, SINGLE_SESSION_ROLES, type Role } from '@/lib/dossiers-data';
 import { collectSessionMeta } from '@/lib/session-meta';
+import { trialStatus } from '@/lib/trial';
 
 // Single-session enforcement (BLOCK model): the FIRST device to log in claims
 // `currentSessionId` on the user doc and holds it. A SECOND device is blocked
@@ -92,6 +93,10 @@ interface UserProfile {
    *  role gate AND over `deniedNavItems` — clean writes from the admin UI
    *  guarantee no href appears in both lists. */
   grantedNavItems: string[];
+  /** Free-trial clock start (Firestore Timestamp), set at first login. See src/lib/trial.ts. */
+  trialStartedAt?: unknown;
+  /** Free-trial exemption (shared showcase accounts never expire). */
+  trialExempt?: boolean;
 }
 
 type Section = 'dossiers' | 'assignations-chiffrage' | 'assignations-atg' | 'utilisateurs';
@@ -334,6 +339,17 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
               }
             };
 
+            // Account-based free trial (white-label demo): a session that
+            // outlives its trial window is evicted here. Login already blocks
+            // expired accounts up front; this catches mid-session expiry.
+            // Server-confirmed snapshots only, so a freshly granted
+            // `trialExempt` sitting on stale cached data can never evict.
+            if (fromServer && !loginInFlight && trialStatus(data).expired) {
+              console.warn('[trial] EVICTING (trial expired)');
+              await evictThisDevice();
+              return;
+            }
+
             if (fromServer && !loginInFlight && roleEnforced) {
               // Consume the first-snapshot flag on the first SERVER-confirmed
               // evaluation (a cached first snapshot must not burn the flag or
@@ -429,6 +445,8 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
               grantedNavItems: Array.isArray(data.grantedNavItems)
                 ? data.grantedNavItems.filter((v: unknown): v is string => typeof v === 'string')
                 : [],
+              trialStartedAt: data.trialStartedAt ?? null,
+              trialExempt: data.trialExempt === true,
             });
             setLoading(false);
           },

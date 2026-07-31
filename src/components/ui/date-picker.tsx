@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { format } from "date-fns"
-import { dateFnsLocale } from "@/i18n"
+import { dateFnsLocale, useT } from "@/i18n"
 import { Calendar as CalendarIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -31,6 +31,7 @@ export function DatePicker({
   disabledDates,
   className,
 }: DatePickerProps) {
+  const t = useT()
   const [open, setOpen] = React.useState(false)
 
   return (
@@ -50,7 +51,7 @@ export function DatePicker({
           <span className="truncate">
             {value
               ? format(value, "dd MMMM yyyy", { locale: dateFnsLocale() })
-              : placeholder}
+              : t(placeholder)}
           </span>
         </Button>
       </PopoverTrigger>

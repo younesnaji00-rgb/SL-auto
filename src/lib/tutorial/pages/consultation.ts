@@ -52,4 +52,46 @@ export const consultationTutorial: PageTutorial = {
       side: 'top',
     },
   ],
+  lab: [
+    {
+      anchor: 'consult-search',
+      title: 'La recherche',
+      body:
+        "Cliquez dans le champ de recherche : c'est ici que vous taperiez une référence, un nom d'assuré ou une immatriculation.",
+      action: 'click',
+    },
+    {
+      anchor: 'consult-nature',
+      title: 'Filtrer par nature',
+      body: 'Cliquez sur le filtre de nature pour ouvrir sa liste (RC, Dommages, Vol…).',
+      action: 'click',
+    },
+    {
+      anchor: 'consult-statut',
+      title: 'Filtrer par statut',
+      body:
+        'La liste se fermera à votre prochain clic. Ce filtre-ci affiche les dossiers à une étape précise du flux : création → planification → chiffrage → accord → rapport.',
+      action: 'observe',
+    },
+    {
+      anchor: 'consult-statut',
+      title: 'Ouvrez le filtre statut',
+      body: 'Cliquez sur le filtre de statut pour voir les étapes disponibles.',
+      action: 'click',
+    },
+    {
+      anchor: 'consult-compagnie',
+      title: 'Filtrer par compagnie',
+      body:
+        'La liste se fermera à votre prochain clic. Ce dernier filtre limite les résultats à une seule compagnie d\'assurance.',
+      action: 'observe',
+    },
+    {
+      anchor: 'consult-table',
+      title: 'Résultats',
+      body:
+        "Les dossiers filtrés s'affichent ici avec leur statut en couleur ; un clic sur une ligne ouvrirait le dossier, en lecture seule.",
+      action: 'observe',
+    },
+  ],
 };

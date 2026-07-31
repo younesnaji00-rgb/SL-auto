@@ -27,7 +27,7 @@ export const joursFeriesTutorial: PageTutorial = {
       anchor: 'jf-bulk',
       title: 'Import en masse',
       body:
-        "Collez une liste de dates (une par ligne, format YYYY-MM-DD) puis cliquez sur Importer. Le bouton de gauche charge le calendrier par défaut en un clic.",
+        "Collez une liste de dates (une par ligne, format YYYY-MM-DD) puis cliquez sur Importer. À gauche, choisissez un pays dans la liste déroulante puis importez ses jours fériés officiels en un clic.",
       side: 'top',
     },
     {

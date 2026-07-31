@@ -17,7 +17,11 @@ import { getDefaultRouteForRole } from '@/lib/nav-groups';
 import {
   addDoc, collection, deleteDoc, doc, serverTimestamp, writeBatch,
 } from 'firebase/firestore';
-import { MOROCCAN_HOLIDAYS_DEFAULT } from '@/lib/business-days';
+import { HOLIDAYS_CATALOG, getHolidayCountry } from '@/lib/holidays-catalog';
+import { BRAND } from '@/lib/brand';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { apiFetch } from '@/lib/api-fetch';
 import { useT } from '@/i18n';
 
@@ -33,6 +37,7 @@ export default function JoursFeriesSettingsPage() {
   const [newDate, setNewDate] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [importText, setImportText] = useState('');
+  const [seedCountry, setSeedCountry] = useState<string>(BRAND.market);
   const [isImporting, setIsImporting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -225,10 +230,12 @@ export default function JoursFeriesSettingsPage() {
 
   const handleSeedDefaults = async () => {
     if (!db) return;
+    const country = getHolidayCountry(seedCountry);
+    if (!country) return;
     setIsImporting(true);
     try {
       const existing = new Set(options.map((o) => o.label));
-      const fresh = Array.from(MOROCCAN_HOLIDAYS_DEFAULT).filter((d) => !existing.has(d));
+      const fresh = country.dates.filter((d) => !existing.has(d));
       if (fresh.length === 0) {
         toast({ title: t('Liste déjà complète') });
         return;
@@ -335,10 +342,22 @@ export default function JoursFeriesSettingsPage() {
             onChange={(e) => setImportText(e.target.value)}
             className="font-mono text-sm"
           />
-          <div className="flex justify-between">
-            <Button variant="outline" size="sm" onClick={handleSeedDefaults} disabled={isImporting} className="gap-1.5">
-              {t('Importer le calendrier marocain par défaut')}
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Select value={seedCountry} onValueChange={setSeedCountry}>
+                <SelectTrigger className="h-9 w-[160px]" aria-label={t('Pays')}>
+                  <SelectValue placeholder={t('Pays')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {HOLIDAYS_CATALOG.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>{t(c.label)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={handleSeedDefaults} disabled={isImporting} className="gap-1.5">
+                {t('Importer les jours fériés par défaut')}
+              </Button>
+            </div>
             <Button onClick={handleImport} disabled={!importText.trim() || isImporting} className="gap-1.5">
               {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               {t('Importer')}
@@ -359,7 +378,7 @@ export default function JoursFeriesSettingsPage() {
             <p className="text-sm text-muted-foreground">{t('Chargement...')}</p>
           ) : sorted.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">
-              {t('Aucune date enregistrée. Utilisez «Importer le calendrier marocain par défaut» pour démarrer.')}
+              {t('Aucune date enregistrée. Choisissez un pays puis utilisez «Importer les jours fériés par défaut» pour démarrer.')}
             </p>
           ) : (
             <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">

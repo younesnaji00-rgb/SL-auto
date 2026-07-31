@@ -82,6 +82,12 @@ export interface BrandConfig {
   showLanguageSwitcher: boolean;
   /** Show the per-page guided tutorials ("?" launcher). */
   showTutorials: boolean;
+  /**
+   * Account-based free trial length in days, or null for no trial. The clock
+   * starts at the account's FIRST login (`trialStartedAt` on the user doc);
+   * accounts flagged `trialExempt: true` never expire. See src/lib/trial.ts.
+   */
+  trialDays: number | null;
 }
 
 const SLAOUI: BrandConfig = {
@@ -122,6 +128,7 @@ const SLAOUI: BrandConfig = {
   // The firm's app stays exactly as it always was — no switcher, no tours.
   showLanguageSwitcher: false,
   showTutorials: false,
+  trialDays: null,
 };
 
 const DEMO: BrandConfig = {
@@ -159,6 +166,7 @@ const DEMO: BrandConfig = {
 
   showLanguageSwitcher: true,
   showTutorials: true,
+  trialDays: 7,
 };
 
 const BRANDS: Record<string, BrandConfig> = {

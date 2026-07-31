@@ -58,4 +58,48 @@ export const mesRappelsTutorial: PageTutorial = {
       side: 'bottom',
     },
   ],
+  lab: [
+    {
+      anchor: 'rap-tabs',
+      title: 'Reçus et Envoyés',
+      body:
+        "« Reçus » : les rappels qui vous sont adressés. « Envoyés » : ceux que vous avez adressés aux autres.",
+      action: 'observe',
+    },
+    {
+      anchor: 'rap-recus-table',
+      title: 'Vos rappels reçus',
+      body:
+        'Chaque ligne indique le dossier concerné, qui a envoyé le rappel et son message.',
+      action: 'observe',
+    },
+    {
+      anchor: 'rap-recus-table',
+      title: 'Le brouillon local',
+      body:
+        "Cliquer sur une ligne ouvrirait le dossier en session de travail : vos modifications resteraient en brouillon local jusqu'au clic sur le bouton orange « Sauvegarder ». Poursuivons la visite sans ouvrir de dossier.",
+      action: 'observe',
+    },
+    {
+      anchor: 'rap-statut',
+      title: 'Statuts des rappels',
+      body:
+        'Nouveau (pas encore ouvert), Lu (consulté), Traité (travail sauvegardé ou marqué traité via le bouton).',
+      action: 'observe',
+    },
+    {
+      anchor: 'rap-tab-envoyes',
+      title: 'Vos envois',
+      body:
+        "Cliquez sur l'onglet « Envoyés » pour suivre les rappels que vous avez adressés.",
+      action: 'click',
+    },
+    {
+      anchor: 'rap-tabs',
+      title: 'Retour aux reçus',
+      body:
+        'Chaque destinataire y est suivi : Nouveau, Lu, Traité. Cliquez maintenant sur « Reçus » pour revenir à l\'onglet initial.',
+      action: 'click',
+    },
+  ],
 };

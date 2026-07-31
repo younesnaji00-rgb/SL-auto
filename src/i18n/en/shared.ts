@@ -20,6 +20,18 @@ export const SHARED_EN: Record<string, string> = {
   'Vue de dessus du véhicule avec points de choc': 'Top view of the vehicle with impact points',
   'Vue de dessous du véhicule avec points de choc': 'Bottom view of the vehicle with impact points',
 
+  // ── Holidays admin (country catalog import) ──
+  'Pays': 'Country',
+  'Maroc': 'Morocco',
+  'Canada': 'Canada',
+  'France': 'France',
+  'États-Unis': 'United States',
+  'Importer les jours fériés par défaut': 'Import default statutory holidays',
+  'Aucune date enregistrée. Choisissez un pays puis utilisez «Importer les jours fériés par défaut» pour démarrer.':
+    'No dates recorded. Pick a country, then use "Import default statutory holidays" to get started.',
+  "Collez une liste de dates (une par ligne, format YYYY-MM-DD) puis cliquez sur Importer. À gauche, choisissez un pays dans la liste déroulante puis importez ses jours fériés officiels en un clic.":
+    'Paste a list of dates (one per line, YYYY-MM-DD format) then click Import. On the left, pick a country from the dropdown and import its statutory holidays in one click.',
+
   // ── Date range filter ──
   'Du': 'From',
   'Au': 'To',
