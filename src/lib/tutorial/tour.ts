@@ -165,3 +165,39 @@ export function startTutorial(tut: PageTutorial): void {
   active = d;
   prepare(resumeAt, () => d.drive(resumeAt));
 }
+
+/**
+ * Spotlight the "?" launcher with the SAME driver.js overlay the tutorials
+ * use: the whole screen dims except the button, with a tutorial-style
+ * popover beside it. Used for per-page tutorial discovery.
+ */
+export function pointToLauncher(onClosed?: () => void): void {
+  destroyActiveTour();
+  if (!document.querySelector('[data-tour="tutorial-launcher"]')) return;
+  const d = driver({
+    overlayOpacity: 0.55,
+    stagePadding: 8,
+    stageRadius: 999,
+    popoverClass: 'sl-tour',
+    showButtons: ['close'],
+    steps: [
+      {
+        element: '[data-tour="tutorial-launcher"]',
+        popover: {
+          title: escapeHtml(t('Le tutoriel de chaque page est ici, à tout moment.')),
+          description: escapeHtml(
+            t('Cliquez sur le bouton « ? » en bas à droite pour le lancer.'),
+          ),
+          side: 'top',
+          align: 'end',
+        },
+      },
+    ],
+    onDestroyed: () => {
+      if (active === d) active = null;
+      onClosed?.();
+    },
+  });
+  active = d;
+  d.drive(0);
+}

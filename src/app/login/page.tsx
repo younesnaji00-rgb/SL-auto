@@ -5,6 +5,7 @@ import { BRAND } from '@/lib/brand';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { TutorialLauncher } from '@/components/tutorial/tutorial-launcher';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { RolesGuideDialog } from '@/components/roles-guide-dialog';
 import { useT } from '@/i18n';
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
@@ -572,29 +573,17 @@ export default function LoginPage() {
                 <p className="font-semibold text-foreground">{t('Comptes de démonstration')}</p>
                 <p>Admin Demo · Manager Demo · Estimator Demo · Field Agent Demo</p>
                 <p>{t('Mot de passe')} : Demo2026!</p>
-                <details className="pt-1" data-tour="login-roles">
-                  <summary className="cursor-pointer font-semibold text-teal-700 dark:text-teal-400 select-none">
-                    {t('Découvrir les rôles ici')}
-                  </summary>
-                  <ul className="mt-2 space-y-1.5 text-left">
-                    <li>
-                      <span className="font-semibold text-foreground">Admin</span>{' '}
-                      — {t('supervise tout : utilisateurs, permissions, compagnies, jours fériés et configuration.')}
-                    </li>
-                    <li>
-                      <span className="font-semibold text-foreground">Manager</span>{' '}
-                      — {t('pilote les dossiers de bout en bout : création, planification, accords, rapports et suivi des délais.')}
-                    </li>
-                    <li>
-                      <span className="font-semibold text-foreground">Estimator</span>{' '}
-                      — {t('vérifie les devis extraits par l’IA ligne par ligne, négocie les accords et dépose les verdicts de réforme.')}
-                    </li>
-                    <li>
-                      <span className="font-semibold text-foreground">Field Agent</span>{' '}
-                      — {t('réalise les missions photo sur le terrain depuis son mobile : scan de plaque, photos avant/pendant/après.')}
-                    </li>
-                  </ul>
-                </details>
+                <RolesGuideDialog
+                  trigger={
+                    <button
+                      type="button"
+                      data-tour="login-roles"
+                      className="pt-1 font-semibold text-teal-700 dark:text-teal-400 hover:underline"
+                    >
+                      {t('Découvrir les rôles ici')}
+                    </button>
+                  }
+                />
               </div>
             )}
           </form>

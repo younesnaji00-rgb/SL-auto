@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { HelpCircle } from 'lucide-react';
 import { tutorialForPath } from '@/lib/tutorial/registry';
-import { startTutorial, destroyActiveTour } from '@/lib/tutorial/tour';
+import { startTutorial, destroyActiveTour, pointToLauncher } from '@/lib/tutorial/tour';
 import { destroyActiveLab } from '@/lib/tutorial/lab';
 import { BRAND } from '@/lib/brand';
 import { useT } from '@/i18n';
@@ -47,8 +47,9 @@ export function TutorialLauncher() {
       return;
     }
     setSeen(pageSeen === '1');
-    if (!welcomed) {
-      // First app page right after the first login: the lightbox.
+    if (!welcomed && pathname !== '/login') {
+      // First app page right after the first login: the lightbox. Never on
+      // the login page itself — it would sit on top of the sign-in form.
       const timer = window.setTimeout(() => setShowWelcome(true), 900);
       return () => window.clearTimeout(timer);
     }
@@ -60,13 +61,18 @@ export function TutorialLauncher() {
           window.localStorage.setItem(`${storageKey}.pointed`, '1');
         } catch { /* non-fatal */ }
       }, 900);
-      const hide = window.setTimeout(() => setShowPointer(false), 9000);
-      return () => {
-        window.clearTimeout(timer);
-        window.clearTimeout(hide);
-      };
+      return () => window.clearTimeout(timer);
     }
-  }, [tut, storageKey, flag]);
+  }, [tut, storageKey, flag, pathname]);
+
+  // The pointer is a driver.js spotlight — the same dim-everything-except-
+  // the-target overlay the tutorials use, aimed at the "?" button.
+  useEffect(() => {
+    if (!showPointer) return;
+    pointToLauncher(() => setShowPointer(false));
+    const hide = window.setTimeout(() => destroyActiveTour(), 9000);
+    return () => window.clearTimeout(hide);
+  }, [showPointer]);
 
   useEffect(
     () => () => {
@@ -98,12 +104,11 @@ export function TutorialLauncher() {
   const dismissWelcome = () => {
     markWelcomed();
     setShowWelcome(false);
-    // Hand off to the pointer so they know where to find it later.
+    // Hand off to the spotlight so they know where to find it later.
     setShowPointer(true);
     try {
       if (storageKey) window.localStorage.setItem(`${storageKey}.pointed`, '1');
     } catch { /* non-fatal */ }
-    window.setTimeout(() => setShowPointer(false), 9000);
   };
 
   return (
@@ -138,19 +143,9 @@ export function TutorialLauncher() {
         </div>
       )}
 
-      {showPointer && (
-        <div className="sl-pointer fixed z-[80] bottom-[4.6rem] right-[4.4rem] flex items-end gap-2 pointer-events-none">
-          <div className="rounded-xl border bg-card shadow-lg px-3 py-2 text-xs max-w-[15rem] text-foreground">
-            {t('Le tutoriel de chaque page est ici, à tout moment.')}
-          </div>
-          <svg className="sl-pointer-cursor h-9 w-9 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path d="M4 4l7 16 2.5-6.5L20 11 4 4z" fill="#0f766e" stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" transform="rotate(180 12 12)" />
-          </svg>
-        </div>
-      )}
-
       <button
         type="button"
+        data-tour="tutorial-launcher"
         onClick={start}
         title={t('Tutoriel de la page')}
         aria-label={t('Tutoriel de la page')}
@@ -158,7 +153,6 @@ export function TutorialLauncher() {
           'fixed z-[70] bottom-4 right-4 h-11 w-11 rounded-full shadow-lg',
           'bg-teal-700 text-white hover:bg-teal-600 active:scale-95 transition',
           'grid place-items-center print:hidden',
-          showPointer && 'ring-4 ring-teal-400/60 scale-110',
         )}
         style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
       >
