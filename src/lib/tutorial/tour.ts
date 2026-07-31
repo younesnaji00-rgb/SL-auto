@@ -3,9 +3,43 @@
 import { driver, type Driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import { t } from '@/i18n';
+import { BRAND } from '@/lib/brand';
+import { startLab, destroyActiveLab } from './lab';
 import type { PageTutorial, TourStep } from './types';
 
 let active: Driver | null = null;
+
+/**
+ * Shared closing step appended to EVERY page tour: the product's strong
+ * points, the customization pitch, and the pointer to per-page tutorials.
+ * The "start the demo" (hands-on lab) button is injected on this step.
+ */
+const CLOSING_STEP: TourStep = {
+  title: 'Prêt à passer à la pratique ?',
+  body:
+    "Ce que vous venez de voir élimine les tâches répétitives : plus de ressaisie des documents de mission, des devis garage ni des plaques — l'IA les lit pour vous ; les délais, relances et statuts se suivent tout seuls ; et les responsables voient chaque étape de chaque dossier en temps réel.\nEn tant que client, chaque étape peut être personnalisée et adaptée à vos processus.\nChaque page a son propre tutoriel — bouton « ? » en bas à droite.",
+};
+
+const posKey = (key: string) => `${BRAND.storagePrefix}.tour.${key}.pos`;
+
+function readResumeIndex(key: string, max: number): number {
+  try {
+    const raw = window.localStorage.getItem(posKey(key));
+    const n = raw == null ? 0 : parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 && n < max ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeResumeIndex(key: string, index: number | null): void {
+  try {
+    if (index == null) window.localStorage.removeItem(posKey(key));
+    else window.localStorage.setItem(posKey(key), String(index));
+  } catch {
+    // Non-fatal.
+  }
+}
 
 /** Kill any running tour (call on route change/unmount to avoid stranded overlays). */
 export function destroyActiveTour(): void {
@@ -28,6 +62,7 @@ function escapeHtml(s: string): string {
  */
 export function startTutorial(tut: PageTutorial): void {
   destroyActiveTour();
+  destroyActiveLab();
 
   const steps = tut.steps.filter(
     (s) =>
@@ -37,6 +72,10 @@ export function startTutorial(tut: PageTutorial): void {
       !!document.querySelector(`[data-tour="${s.anchor}"]`),
   );
   if (steps.length === 0) return;
+  // Every tour ends on the shared strong-points/customization step, which
+  // also hosts the "start the hands-on demo" button.
+  steps.push(CLOSING_STEP);
+  const resumeAt = readResumeIndex(tut.key, steps.length);
 
   // Run a step's `click` preparation (open tab/menu) BEFORE driver resolves
   // the anchor, then continue.
@@ -63,12 +102,38 @@ export function startTutorial(tut: PageTutorial): void {
     prevBtnText: t('Précédent'),
     doneBtnText: t('Terminer'),
     progressText: '{{current}} / {{total}}',
+    onPopoverRender: (popover) => {
+      // "Start the demo" (hands-on lab) button on the closing step.
+      const isLast = (d.getActiveIndex() ?? 0) === steps.length - 1;
+      if (!isLast) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sl-tour-lab-btn';
+      btn.textContent = t('Démarrer la démo interactive');
+      btn.onclick = () => {
+        writeResumeIndex(tut.key, null);
+        d.destroy();
+        startLab(tut);
+      };
+      popover.footerButtons.prepend(btn);
+    },
+    onDestroyStarted: () => {
+      // Interrupted mid-way (overlay click, Escape, navigation) → remember
+      // the step so the next open resumes there. On the closing step →
+      // start fresh next time. Must call destroy() ourselves: providing
+      // this hook makes driver.js wait for it.
+      const at = d.getActiveIndex() ?? 0;
+      if (at >= steps.length - 1) writeResumeIndex(tut.key, null);
+      else writeResumeIndex(tut.key, at);
+      d.destroy();
+    },
     onDestroyed: () => {
       if (active === d) active = null;
     },
     onNextClick: () => {
       const next = (d.getActiveIndex() ?? 0) + 1;
       if (next >= steps.length) {
+        writeResumeIndex(tut.key, null);
         d.destroy();
         return;
       }
@@ -98,5 +163,5 @@ export function startTutorial(tut: PageTutorial): void {
   });
 
   active = d;
-  prepare(0, () => d.drive(0));
+  prepare(resumeAt, () => d.drive(resumeAt));
 }

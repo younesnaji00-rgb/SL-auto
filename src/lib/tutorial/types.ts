@@ -42,4 +42,9 @@ export interface PageTutorial {
   /** Route matcher. */
   match: (pathname: string) => boolean;
   steps: TourStep[];
+  /**
+   * Curated hands-on lab ("Démarrer la démo") — cursor-guided click-along.
+   * Omit to auto-derive observe-only lab steps from the anchored tour steps.
+   */
+  lab?: import('./lab').LabStep[];
 }

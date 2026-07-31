@@ -1,71 +1,172 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { HelpCircle } from 'lucide-react';
 import { tutorialForPath } from '@/lib/tutorial/registry';
 import { startTutorial, destroyActiveTour } from '@/lib/tutorial/tour';
+import { destroyActiveLab } from '@/lib/tutorial/lab';
 import { BRAND } from '@/lib/brand';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 /**
- * Route-aware floating "?" button (bottom-right). Shows only on pages that
- * have a tutorial; pulses until the page's tour has been opened once
- * (per-page localStorage flag). Mounted once in the (app) layout and on
- * the login page.
+ * Route-aware tutorial entry point (bottom-right "?" button) plus the
+ * discovery UX:
+ *  - First page after the very first login → a centered "want a tour?"
+ *    lightbox (once per browser).
+ *  - Every page whose tour hasn't been taken yet → an animated pointer
+ *    to the "?" button (once per page).
  */
 export function TutorialLauncher() {
   const pathname = usePathname();
   const t = useT();
   const tut = useMemo(() => tutorialForPath(pathname ?? ''), [pathname]);
   const [seen, setSeen] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [showPointer, setShowPointer] = useState(false);
 
-  const storageKey = tut ? `${BRAND.storagePrefix}.tour.${tut.key}` : null;
+  const flag = useCallback((suffix: string) => `${BRAND.storagePrefix}.tour.${suffix}`, []);
+  const storageKey = tut ? flag(tut.key) : null;
 
   useEffect(() => {
-    // Route changed — never leave a stranded overlay behind.
+    // Route changed — never leave a stranded overlay/cursor behind.
     destroyActiveTour();
-    if (!storageKey) return;
+    destroyActiveLab();
+    setShowWelcome(false);
+    setShowPointer(false);
+    if (!tut || !storageKey) return;
+    let welcomed = '1';
+    let pageSeen = '1';
+    let pointerShown = '1';
     try {
-      setSeen(window.localStorage.getItem(storageKey) === '1');
+      welcomed = window.localStorage.getItem(flag('welcomed')) ?? '';
+      pageSeen = window.localStorage.getItem(storageKey) ?? '';
+      pointerShown = window.localStorage.getItem(`${storageKey}.pointed`) ?? '';
     } catch {
-      setSeen(true);
+      return;
     }
-  }, [storageKey]);
+    setSeen(pageSeen === '1');
+    if (!welcomed) {
+      // First app page right after the first login: the lightbox.
+      const timer = window.setTimeout(() => setShowWelcome(true), 900);
+      return () => window.clearTimeout(timer);
+    }
+    if (!pageSeen && !pointerShown) {
+      // New page with an untaken tour: point at the button.
+      const timer = window.setTimeout(() => {
+        setShowPointer(true);
+        try {
+          window.localStorage.setItem(`${storageKey}.pointed`, '1');
+        } catch { /* non-fatal */ }
+      }, 900);
+      const hide = window.setTimeout(() => setShowPointer(false), 9000);
+      return () => {
+        window.clearTimeout(timer);
+        window.clearTimeout(hide);
+      };
+    }
+  }, [tut, storageKey, flag]);
 
-  useEffect(() => () => destroyActiveTour(), []);
+  useEffect(
+    () => () => {
+      destroyActiveTour();
+      destroyActiveLab();
+    },
+    [],
+  );
 
-  // Brand-gated: the firm's deployment ships without guided tours.
   if (!BRAND.showTutorials || !tut) return null;
 
+  const markWelcomed = () => {
+    try {
+      window.localStorage.setItem(flag('welcomed'), '1');
+    } catch { /* non-fatal */ }
+  };
+
   const start = () => {
+    markWelcomed();
+    setShowWelcome(false);
+    setShowPointer(false);
     try {
       if (storageKey) window.localStorage.setItem(storageKey, '1');
-    } catch {
-      // Storage unavailable — still run the tour.
-    }
+    } catch { /* non-fatal */ }
     setSeen(true);
     startTutorial(tut);
   };
 
+  const dismissWelcome = () => {
+    markWelcomed();
+    setShowWelcome(false);
+    // Hand off to the pointer so they know where to find it later.
+    setShowPointer(true);
+    try {
+      if (storageKey) window.localStorage.setItem(`${storageKey}.pointed`, '1');
+    } catch { /* non-fatal */ }
+    window.setTimeout(() => setShowPointer(false), 9000);
+  };
+
   return (
-    <button
-      type="button"
-      onClick={start}
-      title={t('Tutoriel de la page')}
-      aria-label={t('Tutoriel de la page')}
-      className={cn(
-        'fixed z-[70] bottom-4 right-4 h-11 w-11 rounded-full shadow-lg',
-        'bg-teal-700 text-white hover:bg-teal-600 active:scale-95 transition',
-        'grid place-items-center print:hidden',
+    <>
+      {showWelcome && (
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md rounded-2xl bg-card border shadow-2xl p-6 text-center animate-in fade-in zoom-in-95 duration-300">
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-teal-700 text-white">
+              <HelpCircle className="h-8 w-8" />
+            </div>
+            <h2 className="text-xl font-semibold">{t('Envie d’un tutoriel guidé ?')}</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t('Chaque page de l’application propose un tutoriel pas à pas, suivi d’une démo interactive. Idéal pour une première visite.')}
+            </p>
+            <div className="mt-6 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={start}
+                className="rounded-lg bg-teal-700 px-4 py-2.5 text-white font-medium hover:bg-teal-600 transition"
+              >
+                {t('Commencer le tutoriel de cette page')}
+              </button>
+              <button
+                type="button"
+                onClick={dismissWelcome}
+                className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition"
+              >
+                {t('Plus tard')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
-      style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
-    >
-      {!seen && (
-        <span className="absolute inline-flex h-full w-full rounded-full bg-teal-500 opacity-60 animate-ping" />
+
+      {showPointer && (
+        <div className="sl-pointer fixed z-[80] bottom-[4.6rem] right-[4.4rem] flex items-end gap-2 pointer-events-none">
+          <div className="rounded-xl border bg-card shadow-lg px-3 py-2 text-xs max-w-[15rem] text-foreground">
+            {t('Le tutoriel de chaque page est ici, à tout moment.')}
+          </div>
+          <svg className="sl-pointer-cursor h-9 w-9 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path d="M4 4l7 16 2.5-6.5L20 11 4 4z" fill="#0f766e" stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" transform="rotate(180 12 12)" />
+          </svg>
+        </div>
       )}
-      <HelpCircle className="h-6 w-6 relative" />
-    </button>
+
+      <button
+        type="button"
+        onClick={start}
+        title={t('Tutoriel de la page')}
+        aria-label={t('Tutoriel de la page')}
+        className={cn(
+          'fixed z-[70] bottom-4 right-4 h-11 w-11 rounded-full shadow-lg',
+          'bg-teal-700 text-white hover:bg-teal-600 active:scale-95 transition',
+          'grid place-items-center print:hidden',
+          showPointer && 'ring-4 ring-teal-400/60 scale-110',
+        )}
+        style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        {(!seen || showPointer) && (
+          <span className="absolute inline-flex h-full w-full rounded-full bg-teal-500 opacity-60 animate-ping" />
+        )}
+        <HelpCircle className="h-6 w-6 relative" />
+      </button>
+    </>
   );
 }
