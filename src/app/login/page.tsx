@@ -106,6 +106,10 @@ export default function LoginPage() {
 
   const [nom, setNom] = useState('');
   const [password, setPassword] = useState('');
+  // Demo entry: one-click role buttons by default; classic form on demand
+  // (trial prospects with their own accounts).
+  const isDemo = BRAND.id === 'demo';
+  const [showClassicForm, setShowClassicForm] = useState(!isDemo);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -235,11 +239,16 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    await doLogin(nom, password);
+  };
+
+  // Shared by the classic form and the demo one-click role buttons.
+  const doLogin = async (nomValue: string, passwordValue: string) => {
     setError('');
     setLoading(true);
 
     try {
-      const trimmed = nom.trim();
+      const trimmed = nomValue.trim();
       const lower = trimmed.toLowerCase();
       let snap = await getDocs(
         query(collection(db, 'users'), where('nomLowercase', '==', lower))
@@ -317,7 +326,7 @@ export default function LoginPage() {
         window.localStorage.removeItem(SESSION_STORAGE_KEY);
       }
 
-      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const cred = await signInWithEmailAndPassword(auth, email, passwordValue);
 
       // Account-based free trial: the FIRST login starts the clock. Merge-
       // write only the timestamp (never touches the rest of the doc); skipped
@@ -520,11 +529,65 @@ export default function LoginPage() {
             <Logo />
           </div>
           <div>
-            <CardTitle className="text-2xl">{t('Connexion')}</CardTitle>
-            <CardDescription className="mt-1">{t('Entrez vos identifiants pour accéder au système.')}</CardDescription>
+            <CardTitle className="text-2xl">{isDemo && !showClassicForm ? t('Explorer la démo') : t('Connexion')}</CardTitle>
+            <CardDescription className="mt-1">
+              {isDemo && !showClassicForm
+                ? t('Choisissez un rôle — aucun compte, aucun engagement.')
+                : t('Entrez vos identifiants pour accéder au système.')}
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
+          {isDemo && !showClassicForm ? (
+            <div className="space-y-4" data-tour="login-roles-grid">
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { name: 'Admin Demo', label: 'Admin', desc: t('Supervision et réglages') },
+                  { name: 'Manager Demo', label: 'Manager', desc: t('Pilote les dossiers') },
+                  { name: 'Estimator Demo', label: 'Estimator', desc: t('Vérifie les devis') },
+                  { name: 'Field Agent Demo', label: 'Field Agent', desc: t('Photos sur le terrain') },
+                ].map((r) => (
+                  <button
+                    key={r.name}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => doLogin(r.name, 'Demo2026!')}
+                    className="rounded-xl border p-3 text-center transition hover:border-teal-600 hover:bg-teal-700/5 disabled:opacity-50"
+                  >
+                    <span className="block font-semibold">{r.label}</span>
+                    <span className="block text-xs text-muted-foreground mt-0.5">{r.desc}</span>
+                  </button>
+                ))}
+              </div>
+              {loading && (
+                <p className="text-center text-sm text-muted-foreground">{t('Connexion...')}</p>
+              )}
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              <p className="text-xs text-muted-foreground text-center">
+                📱 {t('Conseil : essayez « Field Agent » depuis un téléphone, et les autres rôles depuis un ordinateur.')}
+              </p>
+              <div className="flex flex-col items-center gap-1.5">
+                <RolesGuideDialog
+                  trigger={
+                    <button type="button" data-tour="login-roles" className="text-sm font-semibold text-teal-700 dark:text-teal-400 hover:underline">
+                      {t('Découvrir les rôles ici')}
+                    </button>
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowClassicForm(true)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {t('Connexion avec des identifiants (comptes d’essai)')}
+                </button>
+              </div>
+            </div>
+          ) : (
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2" data-tour="login-nom">
               <Label htmlFor="nom">{t('Nom complet')}</Label>
@@ -587,6 +650,16 @@ export default function LoginPage() {
               </div>
             )}
           </form>
+          )}
+          {isDemo && showClassicForm && (
+            <button
+              type="button"
+              onClick={() => setShowClassicForm(false)}
+              className="mt-3 w-full text-center text-xs text-muted-foreground hover:text-foreground"
+            >
+              {t('Retour aux accès démo en un clic')}
+            </button>
+          )}
         </CardContent>
       </Card>
     </div>

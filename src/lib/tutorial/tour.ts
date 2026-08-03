@@ -4,7 +4,6 @@ import { driver, type Driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import { t } from '@/i18n';
 import { BRAND } from '@/lib/brand';
-import { startLab, destroyActiveLab } from './lab';
 import type { PageTutorial, TourStep } from './types';
 
 let active: Driver | null = null;
@@ -15,9 +14,9 @@ let active: Driver | null = null;
  * The "start the demo" (hands-on lab) button is injected on this step.
  */
 const CLOSING_STEP: TourStep = {
-  title: 'Prêt à passer à la pratique ?',
+  title: 'C’est tout pour cette page !',
   body:
-    "Ce que vous venez de voir élimine les tâches répétitives : plus de ressaisie des documents de mission, des devis garage ni des plaques — l'IA les lit pour vous ; les délais, relances et statuts se suivent tout seuls ; et les responsables voient chaque étape de chaque dossier en temps réel.\nEn tant que client, chaque étape peut être personnalisée et adaptée à vos processus.\nChaque page a son propre tutoriel — bouton « ? » en bas à droite.",
+    "L'IA lit les documents pour vous, les délais se suivent tout seuls — et tout peut être adapté à votre cabinet.\nChaque page a son guide : bouton « ? » en bas à droite.",
 };
 
 const posKey = (key: string) => `${BRAND.storagePrefix}.tour.${key}.pos`;
@@ -62,7 +61,6 @@ function escapeHtml(s: string): string {
  */
 export function startTutorial(tut: PageTutorial): void {
   destroyActiveTour();
-  destroyActiveLab();
 
   const steps = tut.steps.filter(
     (s) =>
@@ -92,6 +90,38 @@ export function startTutorial(tut: PageTutorial): void {
     done();
   };
 
+  let interactCleanup: (() => void) | null = null;
+  const cleanupInteract = () => {
+    interactCleanup?.();
+    interactCleanup = null;
+  };
+  const advanceFrom = (i: number) => {
+    cleanupInteract();
+    const next = i + 1;
+    if (next >= steps.length) {
+      writeResumeIndex(tut.key, null);
+      d.destroy();
+      return;
+    }
+    prepare(next, () => d.moveTo(next));
+  };
+  const beginInteract = (i: number, el: HTMLElement) => {
+    cleanupInteract();
+    const s = steps[i];
+    if (s.interact === 'click') {
+      const h = () => window.setTimeout(() => advanceFrom(i), 500);
+      el.addEventListener('click', h, { capture: true, once: true });
+      interactCleanup = () => el.removeEventListener('click', h, true);
+    } else if (s.interact === 'until' && s.until) {
+      const iv = window.setInterval(() => {
+        try {
+          if (s.until!()) advanceFrom(i);
+        } catch { /* keep polling */ }
+      }, 450);
+      interactCleanup = () => window.clearInterval(iv);
+    }
+  };
+
   const d = driver({
     showProgress: true,
     overlayOpacity: 0.55,
@@ -102,21 +132,6 @@ export function startTutorial(tut: PageTutorial): void {
     prevBtnText: t('Précédent'),
     doneBtnText: t('Terminer'),
     progressText: '{{current}} / {{total}}',
-    onPopoverRender: (popover) => {
-      // "Start the demo" (hands-on lab) button on the closing step.
-      const isLast = (d.getActiveIndex() ?? 0) === steps.length - 1;
-      if (!isLast) return;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'sl-tour-lab-btn';
-      btn.textContent = t('Démarrer la démo interactive');
-      btn.onclick = () => {
-        writeResumeIndex(tut.key, null);
-        d.destroy();
-        startLab(tut);
-      };
-      popover.footerButtons.prepend(btn);
-    },
     onDestroyStarted: () => {
       // Interrupted mid-way (overlay click, Escape, navigation) → remember
       // the step so the next open resumes there. On the closing step →
@@ -127,7 +142,9 @@ export function startTutorial(tut: PageTutorial): void {
       else writeResumeIndex(tut.key, at);
       d.destroy();
     },
+    onHighlightStarted: () => cleanupInteract(),
     onDestroyed: () => {
+      cleanupInteract();
       if (active === d) active = null;
     },
     onNextClick: () => {
@@ -144,14 +161,22 @@ export function startTutorial(tut: PageTutorial): void {
       if (prev < 0) return;
       prepare(prev, () => d.moveTo(prev));
     },
-    steps: steps.map((s) => ({
+    steps: steps.map((s, i) => ({
       element: s.anchor
         ? () =>
             (document.querySelector(`[data-tour="${s.anchor}"]`) as Element | null) ??
             // Anchor vanished (collapsed layout) — fall back to a modal step.
             document.body
         : undefined,
+      ...(s.interact
+        ? {
+            onHighlighted: (el?: Element) => {
+              if (el && el !== document.body) beginInteract(i, el as HTMLElement);
+            },
+          }
+        : {}),
       popover: {
+        ...(s.interact ? { showButtons: ['close', 'previous'] as any } : {}),
         title: escapeHtml(t(s.title)),
         // driver.js renders description as innerHTML; our texts are
         // first-party, escape then reintroduce intentional line breaks.
@@ -167,32 +192,42 @@ export function startTutorial(tut: PageTutorial): void {
 }
 
 /**
- * Spotlight the "?" launcher with the SAME driver.js overlay the tutorials
- * use: the whole screen dims except the button, with a tutorial-style
- * popover beside it. Used for per-page tutorial discovery.
+ * Discovery spotlight: dims the screen (same driver.js overlay as the
+ * tutorials) and walks the help entry points — the sidebar "?" (app-wide
+ * guided tour) then the bottom-right "?" (this page's tutorial).
  */
 export function pointToLauncher(onClosed?: () => void): void {
   destroyActiveTour();
-  if (!document.querySelector('[data-tour="tutorial-launcher"]')) return;
+  const targets: Array<{ sel: string; title: string; body: string }> = [
+    {
+      sel: '[data-tour="sidebar-help"]',
+      title: 'La visite guidée de l’application est ici.',
+      body: 'Ce bouton relance la présentation générale (menu et parcours d’un dossier) à tout moment.',
+    },
+    {
+      sel: '[data-tour="tutorial-launcher"]',
+      title: 'Le guide de chaque page est ici.',
+      body: 'Ce bouton lance le guide interactif de la page où vous êtes.',
+    },
+  ].filter((s) => !!document.querySelector(s.sel));
+  if (targets.length === 0) return;
   const d = driver({
     overlayOpacity: 0.55,
     stagePadding: 8,
     stageRadius: 999,
     popoverClass: 'sl-tour',
-    showButtons: ['close'],
-    steps: [
-      {
-        element: '[data-tour="tutorial-launcher"]',
-        popover: {
-          title: escapeHtml(t('Le tutoriel de chaque page est ici, à tout moment.')),
-          description: escapeHtml(
-            t('Cliquez sur le bouton « ? » en bas à droite pour le lancer.'),
-          ),
-          side: 'top',
-          align: 'end',
-        },
+    showProgress: targets.length > 1,
+    nextBtnText: t('Suivant'),
+    prevBtnText: t('Précédent'),
+    doneBtnText: t('Terminer'),
+    progressText: '{{current}} / {{total}}',
+    steps: targets.map((s) => ({
+      element: s.sel,
+      popover: {
+        title: escapeHtml(t(s.title)),
+        description: escapeHtml(t(s.body)),
       },
-    ],
+    })),
     onDestroyed: () => {
       if (active === d) active = null;
       onClosed?.();

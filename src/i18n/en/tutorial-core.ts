@@ -135,4 +135,57 @@ export const TUTORIAL_CORE_EN: Record<string, string> = {
   'Résultats': 'Results',
   "Les dossiers correspondants s'affichent ici avec leur statut en couleur. Cliquez sur une ligne pour ouvrir le dossier complet.":
     'Matching files appear here with their color-coded status. Click a row to open the full file.',
+  // ── Round 3: merged walkthrough / sidebar intro / role login ──
+  'C’est tout pour cette page !': 'That’s it for this page!',
+  "L'IA lit les documents pour vous, les délais se suivent tout seuls — et tout peut être adapté à votre cabinet.\nChaque page a son guide : bouton « ? » en bas à droite.":
+    'AI reads documents for you, deadlines track themselves — and everything can be tailored to your firm.\nEvery page has its guide: the “?” button at the bottom right.',
+  'La visite guidée de l’application est ici.': 'The app’s guided tour lives here.',
+  'Ce bouton relance la présentation générale (menu et parcours d’un dossier) à tout moment.':
+    'This button replays the overall intro (the menu and a file’s journey) anytime.',
+  'Le guide de chaque page est ici.': 'Each page’s guide lives here.',
+  'Ce bouton lance le guide interactif de la page où vous êtes.':
+    'This button starts the interactive guide for the page you’re on.',
+  'Visite guidée de l’application': 'App guided tour',
+  'Bienvenue !': 'Welcome!',
+  "Faisons le tour du menu, dans l'ordre de vie d'un dossier. 1 minute, promis.":
+    'Let’s tour the menu, in the order a file actually moves. One minute, promise.',
+  'Gestion des dossiers — le cœur': 'File Management — the core',
+  "Tous les dossiers vivent ici, de la création à la facture. Tout le reste s'y rattache.":
+    'Every file lives here, from creation to invoice. Everything else connects to it.',
+  'Ensuite : les photos': 'Next: the photos',
+  'Les missions photo des agents sur le terrain (avant, pendant, après réparations).':
+    'Field agents’ photo missions (before, during, after repairs).',
+  'Puis : le chiffrage': 'Then: estimating',
+  'Les devis des garages, à vérifier par vos chiffreurs.':
+    'Garage estimates, verified by your estimators.',
+  'Les rappels': 'Reminders',
+  'Les demandes échangées entre collègues sur un dossier.':
+    'Requests exchanged between colleagues about a file.',
+  'La vue d’ensemble': 'The overview',
+  "L'activité en direct : volumes, statuts, derniers changements.":
+    'Live activity: volumes, statuses, latest changes.',
+  'Les délais': 'Deadlines',
+  "Chaque étape : à l'heure, en retard, ou à faire.":
+    'Every step: on time, late, or still to do.',
+  'La recherche': 'Search',
+  'Retrouver un dossier en lecture seule, sans risque.':
+    'Find any file, read-only, risk-free.',
+  'L’administration': 'Administration',
+  'Comptes, compagnies, tampons, jours fériés : la configuration du cabinet.':
+    'Accounts, insurers, stamps, holidays: your firm’s configuration.',
+  'À vous de jouer': 'Your turn',
+  'Cliquez sur « Gestion des dossiers » pour continuer la visite là-bas.':
+    'Click “File Management” to continue the tour there.',
+  'Explorer la démo': 'Explore the demo',
+  'Choisissez un rôle — aucun compte, aucun engagement.':
+    'Pick a role — no account, no commitment.',
+  'Supervision et réglages': 'Oversight & settings',
+  'Pilote les dossiers': 'Drives the files',
+  'Vérifie les devis': 'Verifies estimates',
+  'Photos sur le terrain': 'Photos in the field',
+  'Connexion...': 'Signing in...',
+  'Conseil : essayez « Field Agent » depuis un téléphone, et les autres rôles depuis un ordinateur.':
+    'Tip: try “Field Agent” on a phone, and the other roles on a computer.',
+  'Connexion avec des identifiants (comptes d’essai)': 'Sign in with credentials (trial accounts)',
+  'Retour aux accès démo en un clic': 'Back to one-click demo access',
 };

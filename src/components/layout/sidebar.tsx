@@ -44,6 +44,7 @@ import {
   X,
   LogOut,
   ChevronDown,
+  HelpCircle,
 } from 'lucide-react';
 import Logo from '@/components/logo';
 import { LanguageSwitcher } from '@/components/language-switcher';
@@ -55,6 +56,9 @@ import { cn } from '@/lib/utils';
 import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
 import { hasPermission } from '@/lib/permissions';
 import { useT } from '@/i18n';
+import { BRAND } from '@/lib/brand';
+import { startTutorial } from '@/lib/tutorial/tour';
+import { sidebarIntroTutorial } from '@/lib/tutorial/pages/sidebar-intro';
 
 const AppSidebar = () => {
   const pathname = usePathname();
@@ -237,7 +241,7 @@ const AppSidebar = () => {
 
                   return (
                     <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton asChild isActive={isActive} tooltip={t(item.label)}>
+                      <SidebarMenuButton asChild isActive={isActive} tooltip={t(item.label)} data-tour={`nav-${item.href}`}>
                         <NextLink href={item.href}>
                           <Icon />
                           <span>{t(item.label)}</span>
@@ -282,6 +286,23 @@ const AppSidebar = () => {
         </div>
 
         <div className={cn("flex gap-1", isCollapsed ? "flex-col" : "flex-row")}>
+          {BRAND.showTutorials && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-full justify-center text-muted-foreground hover:text-foreground"
+              data-tour="sidebar-help"
+              title={t('Visite guidée de l’application')}
+              onClick={() => {
+                try {
+                  window.localStorage.setItem(`${BRAND.storagePrefix}.tour.pending`, 'dossiers');
+                } catch { /* non-fatal */ }
+                startTutorial(sidebarIntroTutorial);
+              }}
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+          )}
           <LanguageSwitcher className={cn('h-8', isCollapsed ? 'w-full justify-center' : 'flex-1 justify-center')} />
           <Button
             variant="ghost"

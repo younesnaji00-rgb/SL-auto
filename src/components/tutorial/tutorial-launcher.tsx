@@ -4,8 +4,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { HelpCircle } from 'lucide-react';
 import { tutorialForPath } from '@/lib/tutorial/registry';
+import { sidebarIntroTutorial } from '@/lib/tutorial/pages/sidebar-intro';
 import { startTutorial, destroyActiveTour, pointToLauncher } from '@/lib/tutorial/tour';
-import { destroyActiveLab } from '@/lib/tutorial/lab';
 import { BRAND } from '@/lib/brand';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -32,7 +32,6 @@ export function TutorialLauncher() {
   useEffect(() => {
     // Route changed — never leave a stranded overlay/cursor behind.
     destroyActiveTour();
-    destroyActiveLab();
     setShowWelcome(false);
     setShowPointer(false);
     if (!tut || !storageKey) return;
@@ -46,6 +45,17 @@ export function TutorialLauncher() {
     } catch {
       return;
     }
+    // Chained hand-off (sidebar intro -> page walkthrough): auto-start.
+    try {
+      const pending = window.localStorage.getItem(flag('pending'));
+      if (pending && tut.key === pending) {
+        window.localStorage.removeItem(flag('pending'));
+        window.localStorage.setItem(storageKey, '1');
+        setSeen(true);
+        const timer = window.setTimeout(() => startTutorial(tut), 700);
+        return () => window.clearTimeout(timer);
+      }
+    } catch { /* non-fatal */ }
     setSeen(pageSeen === '1');
     if (pathname === '/login') {
       // Demo entry point: prompt EVERY visit — each prospect landing here
@@ -82,7 +92,6 @@ export function TutorialLauncher() {
   useEffect(
     () => () => {
       destroyActiveTour();
-      destroyActiveLab();
     },
     [],
   );
@@ -95,7 +104,8 @@ export function TutorialLauncher() {
     } catch { /* non-fatal */ }
   };
 
-  const start = () => {
+  // Bottom-right "?" — always THIS page's walkthrough.
+  const startPageTour = () => {
     markWelcomed();
     setShowWelcome(false);
     setShowPointer(false);
@@ -104,6 +114,22 @@ export function TutorialLauncher() {
     } catch { /* non-fatal */ }
     setSeen(true);
     startTutorial(tut);
+  };
+
+  // Welcome lightbox — on app pages, first explain the sidebar (in
+  // file-lifecycle order) then chain into the File Management walkthrough.
+  const start = () => {
+    if (pathname === '/login') {
+      startPageTour();
+      return;
+    }
+    markWelcomed();
+    setShowWelcome(false);
+    setShowPointer(false);
+    try {
+      window.localStorage.setItem(flag('pending'), 'dossiers');
+    } catch { /* non-fatal */ }
+    startTutorial(sidebarIntroTutorial);
   };
 
   const dismissWelcome = () => {
@@ -151,7 +177,7 @@ export function TutorialLauncher() {
       <button
         type="button"
         data-tour="tutorial-launcher"
-        onClick={start}
+        onClick={startPageTour}
         title={t('Tutoriel de la page')}
         aria-label={t('Tutoriel de la page')}
         className={cn(

@@ -34,6 +34,14 @@ export interface TourStep {
    * layouts.
    */
   dynamic?: boolean;
+  /**
+   * Hands-on interaction (merged lab): 'click' advances when the user
+   * really clicks the highlighted element; 'until' advances when `until()`
+   * returns true (e.g. a date actually selected). Interactive steps hide
+   * the Next button.
+   */
+  interact?: 'click' | 'until';
+  until?: () => boolean;
 }
 
 export interface PageTutorial {
