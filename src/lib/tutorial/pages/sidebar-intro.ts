@@ -8,6 +8,9 @@ import type { PageTutorial } from '../types';
 export const sidebarIntroTutorial: PageTutorial = {
   key: 'sidebar-intro',
   match: () => false,
+  // Ends on the hand-off click into File Management — the shared closing
+  // step would linger over the next page's walkthrough.
+  noClosing: true,
   steps: [
     {
       title: 'Bienvenue !',

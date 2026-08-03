@@ -568,7 +568,7 @@ export default function LoginPage() {
                 </Alert>
               )}
               <p className="text-xs text-muted-foreground text-center">
-                📱 {t('Conseil : essayez « Field Agent » depuis un téléphone, et les autres rôles depuis un ordinateur.')}
+                {t('Conseil : essayez « Field Agent » depuis un téléphone, et les autres rôles depuis un ordinateur.')}
               </p>
               <div className="flex flex-col items-center gap-1.5">
                 <RolesGuideDialog

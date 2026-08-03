@@ -52,7 +52,24 @@ export function TutorialLauncher() {
         window.localStorage.removeItem(flag('pending'));
         window.localStorage.setItem(storageKey, '1');
         setSeen(true);
-        const timer = window.setTimeout(() => startTutorial(tut), 700);
+        const timer = window.setTimeout(
+          () =>
+            startTutorial(tut, {
+              // First-login flow: once the chained walkthrough finishes,
+              // introduce BOTH help entry points (sidebar "?" + bottom-right
+              // "?") — once per browser.
+              onComplete: () => {
+                try {
+                  if (window.localStorage.getItem(flag('helpBtns'))) return;
+                  window.localStorage.setItem(flag('helpBtns'), '1');
+                } catch {
+                  return;
+                }
+                setShowPointer(true);
+              },
+            }),
+          700,
+        );
         return () => window.clearTimeout(timer);
       }
     } catch { /* non-fatal */ }
@@ -129,7 +146,23 @@ export function TutorialLauncher() {
     try {
       window.localStorage.setItem(flag('pending'), 'dossiers');
     } catch { /* non-fatal */ }
-    startTutorial(sidebarIntroTutorial);
+    startTutorial(sidebarIntroTutorial, {
+      // Already on File Management: the hand-off click doesn't navigate,
+      // so the pending-flag chain never fires — start the walkthrough here.
+      onComplete: () => {
+        try {
+          if (
+            pathname === '/dossiers' &&
+            window.localStorage.getItem(flag('pending')) === 'dossiers'
+          ) {
+            window.localStorage.removeItem(flag('pending'));
+            if (storageKey) window.localStorage.setItem(storageKey, '1');
+            setSeen(true);
+            window.setTimeout(() => startTutorial(tut), 500);
+          }
+        } catch { /* non-fatal */ }
+      },
+    });
   };
 
   const dismissWelcome = () => {
@@ -139,6 +172,10 @@ export function TutorialLauncher() {
     setShowPointer(true);
     try {
       if (storageKey) window.localStorage.setItem(`${storageKey}.pointed`, '1');
+      // On app pages the spotlight covers both "?" buttons — that IS the
+      // help intro. On /login the sidebar doesn't exist yet, so leave the
+      // flag unset and introduce both after the first login instead.
+      if (pathname !== '/login') window.localStorage.setItem(flag('helpBtns'), '1');
     } catch { /* non-fatal */ }
   };
 

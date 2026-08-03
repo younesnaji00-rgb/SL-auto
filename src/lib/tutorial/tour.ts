@@ -59,7 +59,10 @@ function escapeHtml(s: string): string {
  * skipped (unless dynamic/click reveals them) — this is how one step list
  * serves desktop and mobile layouts.
  */
-export function startTutorial(tut: PageTutorial): void {
+export function startTutorial(
+  tut: PageTutorial,
+  opts?: { onComplete?: () => void },
+): void {
   destroyActiveTour();
 
   const steps = tut.steps.filter(
@@ -70,10 +73,11 @@ export function startTutorial(tut: PageTutorial): void {
       !!document.querySelector(`[data-tour="${s.anchor}"]`),
   );
   if (steps.length === 0) return;
-  // Every tour ends on the shared strong-points/customization step, which
-  // also hosts the "start the hands-on demo" button.
-  steps.push(CLOSING_STEP);
+  // Every tour ends on the shared strong-points/customization step —
+  // except chaining tours (sidebar intro), which end on a hand-off click.
+  if (!tut.noClosing) steps.push(CLOSING_STEP);
   const resumeAt = readResumeIndex(tut.key, steps.length);
+  let completed = false;
 
   // Run a step's `click` preparation (open tab/menu) BEFORE driver resolves
   // the anchor, then continue.
@@ -96,9 +100,14 @@ export function startTutorial(tut: PageTutorial): void {
     interactCleanup = null;
   };
   const advanceFrom = (i: number) => {
+    // Interact handlers fire on delayed timers; if the tour was torn down
+    // in between (route change, new tour), touching `d` again would
+    // resurrect a zombie overlay on top of the next tour.
+    if (active !== d) return;
     cleanupInteract();
     const next = i + 1;
     if (next >= steps.length) {
+      completed = true;
       writeResumeIndex(tut.key, null);
       d.destroy();
       return;
@@ -138,18 +147,22 @@ export function startTutorial(tut: PageTutorial): void {
       // start fresh next time. Must call destroy() ourselves: providing
       // this hook makes driver.js wait for it.
       const at = d.getActiveIndex() ?? 0;
-      if (at >= steps.length - 1) writeResumeIndex(tut.key, null);
-      else writeResumeIndex(tut.key, at);
+      if (at >= steps.length - 1) {
+        completed = true;
+        writeResumeIndex(tut.key, null);
+      } else writeResumeIndex(tut.key, at);
       d.destroy();
     },
     onHighlightStarted: () => cleanupInteract(),
     onDestroyed: () => {
       cleanupInteract();
       if (active === d) active = null;
+      if (completed) opts?.onComplete?.();
     },
     onNextClick: () => {
       const next = (d.getActiveIndex() ?? 0) + 1;
       if (next >= steps.length) {
+        completed = true;
         writeResumeIndex(tut.key, null);
         d.destroy();
         return;

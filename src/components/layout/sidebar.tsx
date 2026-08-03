@@ -59,6 +59,7 @@ import { useT } from '@/i18n';
 import { BRAND } from '@/lib/brand';
 import { startTutorial } from '@/lib/tutorial/tour';
 import { sidebarIntroTutorial } from '@/lib/tutorial/pages/sidebar-intro';
+import { tutorialForPath } from '@/lib/tutorial/registry';
 
 const AppSidebar = () => {
   const pathname = usePathname();
@@ -294,10 +295,26 @@ const AppSidebar = () => {
               data-tour="sidebar-help"
               title={t('Visite guidée de l’application')}
               onClick={() => {
+                const pendingKey = `${BRAND.storagePrefix}.tour.pending`;
                 try {
-                  window.localStorage.setItem(`${BRAND.storagePrefix}.tour.pending`, 'dossiers');
+                  window.localStorage.setItem(pendingKey, 'dossiers');
                 } catch { /* non-fatal */ }
-                startTutorial(sidebarIntroTutorial);
+                startTutorial(sidebarIntroTutorial, {
+                  // Already on File Management: the hand-off click doesn't
+                  // navigate, so chain into the page walkthrough directly.
+                  onComplete: () => {
+                    try {
+                      if (
+                        window.location.pathname === '/dossiers' &&
+                        window.localStorage.getItem(pendingKey) === 'dossiers'
+                      ) {
+                        window.localStorage.removeItem(pendingKey);
+                        const tut = tutorialForPath('/dossiers');
+                        if (tut) window.setTimeout(() => startTutorial(tut), 500);
+                      }
+                    } catch { /* non-fatal */ }
+                  },
+                });
               }}
             >
               <HelpCircle className="h-4 w-4" />
