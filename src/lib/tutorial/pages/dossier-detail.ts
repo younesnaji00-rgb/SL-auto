@@ -2,12 +2,14 @@ import type { PageTutorial } from '../types';
 
 /**
  * Dossier detail — the workflow centerpiece. The page is a vertical timeline
- * (sticky step bar + one section per stage), not tabs: each "click" step
- * presses the corresponding bar button (`dosd-step-<id>`, anchors in
- * timeline-bar.tsx) so the page scrolls to the stage, then highlights the
- * section header (`dosd-sec-<id>`, anchors in timeline.tsx). Section ids
- * follow DOSSIER_TIMELINE_STEPS display order: 1, 4, 6, 9, 11, 10, 7, 8.
- * The final step clicks back to step 1 so the page is left at the top.
+ * (sticky step bar + one section per stage). Three stages are hands-on: the
+ * user clicks the timeline-bar button (`dosd-step-<id>`, interact 'click');
+ * the section step that follows keeps a `click` prep on the SAME button —
+ * re-clicking is idempotent (it only scrolls) and gives the scroll time to
+ * settle before the highlight is measured. Remaining stages use engine
+ * click-prep. The final step clicks back to step 1 so the page ends at the
+ * top. Section ids follow DOSSIER_TIMELINE_STEPS display order:
+ * 1, 4, 6, 9, 11, 10, 7, 8.
  */
 export const dossierDetailTutorial: PageTutorial = {
   key: 'dossier-detail',
@@ -16,66 +18,72 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       title: "Le dossier d'expertise",
       body:
-        "Un dossier suit tout le cycle d'un sinistre : création de la mission, import des documents, planification des visites terrain, chiffrage, accord(s) avec le garage, rapport et note d'honoraire — le tout sur une seule frise verticale. Chaque information n'est saisie qu'une fois : elle se déverse automatiquement dans les devis, les accords, le rapport et la note d'honoraire, sans double saisie d'une étape à l'autre.",
+        "Toute la vie du sinistre sur une seule page, étape par étape.\nChaque information n'est saisie qu'une fois : elle se retrouve dans les devis, le rapport et la facture.",
     },
     {
       anchor: 'dosd-header',
-      title: 'En-tête du dossier',
-      body:
-        "La référence expert, l'assuré, la compagnie et l'immatriculation restent toujours visibles ici, quelle que soit l'étape sur laquelle vous travaillez.",
+      title: 'En-tête',
+      body: "L'assuré, la compagnie et la référence restent toujours visibles ici.",
       side: 'bottom',
     },
     {
       anchor: 'dosd-statut',
-      title: 'Statut du dossier',
-      body:
-        "Ce badge avance automatiquement à mesure que le dossier progresse dans le flux : création → planification → chiffrage → accord → rapport. C'est le même statut coloré que dans la liste des dossiers.",
+      title: 'Statut',
+      body: 'Ce badge avance tout seul avec le dossier.',
       side: 'bottom',
     },
     {
       anchor: 'dosd-email',
-      title: 'Envoyer un email',
-      body:
-        "Ouvre une fenêtre pour envoyer un email lié à ce dossier sans quitter la page.",
+      title: 'Email',
+      body: 'Envoyez un email lié au dossier sans quitter la page.',
       side: 'bottom',
     },
     {
       anchor: 'dosd-historique',
-      title: 'Historique du dossier',
-      body:
-        "Chaque action (création, import, changement de statut, envoi au chiffrage…) est tracée. Ce panneau montre qui a fait quoi, et quand.",
+      title: 'Historique',
+      body: 'Qui a fait quoi, et quand.',
       side: 'bottom',
     },
     {
       anchor: 'dosd-rappel-banner',
-      title: "Traitement d'un rappel",
-      body:
-        "Quand vous ouvrez un dossier depuis « Mes rappels », vos modifications restent locales : elles ne sont publiées qu'au clic sur « Sauvegarder ». Ce bandeau affiche le nombre de modifications en attente.",
+      title: 'Rappel en cours',
+      body: "Vos changements restent en brouillon jusqu'au clic sur « Sauvegarder ».",
       side: 'bottom',
     },
     {
       anchor: 'dosd-timeline',
       title: 'La frise des étapes',
-      body:
-        "Tout le flux de travail du dossier, dans l'ordre. Cliquez sur une étape pour y accéder ; l'étape active se met en évidence pendant le défilement. Passons chaque étape en revue.",
+      body: 'Chaque bouton mène à une étape du dossier.',
       side: 'bottom',
+    },
+    {
+      anchor: 'dosd-step-1',
+      title: 'Étape 1 : la mission',
+      body: 'Cliquez sur la première étape de la frise.',
+      side: 'bottom',
+      interact: 'click',
     },
     {
       anchor: 'dosd-sec-1',
       click: 'dosd-step-1',
       delay: 600,
       title: 'Création de mission',
-      body:
-        "Le point de départ : déposez le document de mission et l'IA le lit pour pré-remplir tout le dossier (assuré, véhicule, compagnie, dates…). Vérifiez ensuite le formulaire d'informations, importez les devis du garage, puis cliquez « Envoyer vers chiffrage ».",
+      body: "Déposez le document de mission : l'IA le lit et remplit le dossier.",
       side: 'bottom',
+    },
+    {
+      anchor: 'dosd-step-4',
+      title: 'Étape suivante',
+      body: 'Cliquez sur « Planification avant ».',
+      side: 'bottom',
+      interact: 'click',
     },
     {
       anchor: 'dosd-sec-4',
       click: 'dosd-step-4',
       delay: 600,
       title: 'Planification avant',
-      body:
-        "Planifiez la visite terrain avant réparation : rendez-vous, agent de terrain, photos « avant » du véhicule et observations de cette phase.",
+      body: 'Le rendez-vous terrain et les photos avant réparation.',
       side: 'bottom',
     },
     {
@@ -83,17 +91,15 @@ export const dossierDetailTutorial: PageTutorial = {
       click: 'dosd-step-6',
       delay: 600,
       title: 'Accord',
-      body:
-        "Après le chiffrage, déposez ici les documents du 1er accord conclu avec le garage (et les pièces de réforme le cas échéant), avec les observations liées à cet accord.",
+      body: "Les documents de l'accord conclu avec le garage.",
       side: 'bottom',
     },
     {
       anchor: 'dosd-sec-9',
       click: 'dosd-step-9',
       delay: 600,
-      title: 'Planification en cours',
-      body:
-        "Suivez la réparation pendant les travaux : visite intermédiaire, photos « en cours » et observations de cette phase.",
+      title: 'Pendant les travaux',
+      body: 'La visite et les photos en cours de réparation.',
       side: 'bottom',
     },
     {
@@ -101,8 +107,7 @@ export const dossierDetailTutorial: PageTutorial = {
       click: 'dosd-step-11',
       delay: 600,
       title: '2ème accord et +',
-      body:
-        "Si un nouveau devis arrive, un accord révisé est nécessaire : déposez ici les pièces du 2ème accord et des suivants. Cette étape exige que le 1er accord soit déjà complété.",
+      body: "Un nouveau devis ? Déposez ici l'accord révisé.",
       side: 'bottom',
     },
     {
@@ -110,17 +115,22 @@ export const dossierDetailTutorial: PageTutorial = {
       click: 'dosd-step-10',
       delay: 600,
       title: 'Planification après',
-      body:
-        "La visite finale après réparation : photos « après » pour constater les travaux réalisés, et dernières observations.",
+      body: 'Les photos après réparation, pour constater les travaux.',
       side: 'bottom',
+    },
+    {
+      anchor: 'dosd-step-7',
+      title: 'Vers le rapport',
+      body: "Cliquez sur l'étape « Rapport ».",
+      side: 'bottom',
+      interact: 'click',
     },
     {
       anchor: 'dosd-sec-7',
       click: 'dosd-step-7',
       delay: 600,
       title: 'Rapport',
-      body:
-        "Générez le rapport d'expertise en PDF à partir des données du dossier — l'aboutissement du travail technique.",
+      body: "Le rapport d'expertise se génère en PDF, sans ressaisie.",
       side: 'bottom',
     },
     {
@@ -128,8 +138,7 @@ export const dossierDetailTutorial: PageTutorial = {
       click: 'dosd-step-8',
       delay: 600,
       title: "Note d'honoraire",
-      body:
-        "La facturation clôt le dossier : déposez ici la note d'honoraire du cabinet.",
+      body: 'La facture du cabinet clôt le dossier.',
       side: 'bottom',
     },
     {
@@ -137,63 +146,8 @@ export const dossierDetailTutorial: PageTutorial = {
       click: 'dosd-step-1',
       delay: 600,
       title: 'Visite terminée',
-      body:
-        "Vous connaissez maintenant le parcours complet d'un dossier. Suivez la frise de haut en bas : c'est l'ordre naturel du travail, et chaque action reste tracée dans l'historique.",
+      body: "Suivez la frise de haut en bas : c'est l'ordre naturel du travail.",
       side: 'bottom',
-    },
-  ],
-  lab: [
-    {
-      anchor: 'dosd-timeline',
-      title: 'La frise des étapes',
-      body:
-        "Cette barre liste toutes les étapes du dossier, dans l'ordre du travail. Chaque bouton est cliquable — parcourons-en quelques-unes.",
-      action: 'observe',
-    },
-    {
-      anchor: 'dosd-step-1',
-      title: 'Étape 1 : la mission',
-      body: 'Cliquez sur la première étape de la frise pour vous y rendre.',
-      action: 'click',
-    },
-    {
-      anchor: 'dosd-sec-1',
-      title: 'Création de mission',
-      body:
-        "Tout part d'ici : l'IA lit le document de mission et pré-remplit le formulaire. Ces informations alimenteront ensuite devis, accords et rapport sans ressaisie.",
-      action: 'observe',
-    },
-    {
-      anchor: 'dosd-step-4',
-      title: 'Étape suivante',
-      body: "Cliquez sur l'étape « Planification avant » dans la frise.",
-      action: 'click',
-    },
-    {
-      anchor: 'dosd-sec-4',
-      title: 'Planification avant',
-      body:
-        'La visite terrain avant réparation : rendez-vous, agent de terrain et photos « avant » du véhicule.',
-      action: 'observe',
-    },
-    {
-      anchor: 'dosd-step-7',
-      title: 'Vers le rapport',
-      body: "Cliquez sur l'étape « Rapport » dans la frise.",
-      action: 'click',
-    },
-    {
-      anchor: 'dosd-sec-7',
-      title: 'Le rapport',
-      body:
-        "Le rapport d'expertise se génère en PDF à partir des données déjà saisies dans le dossier — rien à retaper.",
-      action: 'observe',
-    },
-    {
-      anchor: 'dosd-step-1',
-      title: 'Retour en haut',
-      body: 'Cliquez à nouveau sur la première étape pour revenir en haut du dossier.',
-      action: 'click',
     },
   ],
 };

@@ -1,10 +1,10 @@
 import type { PageTutorial } from '../types';
 
 /**
- * Field-agent mission detail (mobile-first): photos per mission stage,
- * documents, réforme toggle. The Photos panel is opened via `click` on the
- * camera step and closed again by the final step so the page ends on its
- * default state.
+ * Field-agent mission detail (mobile-first). The user opens the Photos panel
+ * himself (interact 'click' on the toggle); the final step clicks the same
+ * toggle to close it so the page ends on its default state. Camera, réforme
+ * and document actions stay describe-only (permissions / real uploads).
  */
 export const atgDetailTutorial: PageTutorial = {
   key: 'atg-detail',
@@ -12,51 +12,51 @@ export const atgDetailTutorial: PageTutorial = {
   steps: [
     {
       title: 'Détail de la mission',
-      body:
-        "Votre mission sur ce dossier : prendre les photos de l'étape (Avant, En cours ou Après) et ajouter les documents si besoin.",
+      body: "Prenez les photos de l'étape et ajoutez les documents utiles.",
     },
     {
       anchor: 'atgd-header',
-      title: 'Infos du rendez-vous',
-      body:
-        "Référence, assuré, téléphone et adresse. Touchez le numéro pour appeler, l'adresse pour ouvrir Google Maps.",
+      title: 'Le rendez-vous',
+      body: "Touchez le numéro pour appeler, l'adresse pour ouvrir la carte.",
       side: 'bottom',
     },
     {
       anchor: 'atgd-observations',
       title: 'Remarques',
-      body: "Consultez et ajoutez des remarques liées à cette étape de la mission.",
+      body: 'Lisez et ajoutez des remarques sur la mission.',
       side: 'bottom',
+    },
+    {
+      anchor: 'atgd-photos-toggle',
+      title: 'Ouvrez les photos',
+      body: 'Touchez ici pour ouvrir le panneau photos.',
+      side: 'bottom',
+      interact: 'click',
     },
     {
       anchor: 'atgd-camera',
       title: 'Prendre des photos',
-      body:
-        "Ouvre l'appareil photo. Chaque photo est marquée à votre nom et envoyée dans le dossier ; la première fait avancer le statut automatiquement.",
+      body: 'Chaque photo est signée à votre nom et part directement dans le dossier.',
       side: 'bottom',
-      click: 'atgd-photos-toggle',
       dynamic: true,
     },
     {
       anchor: 'atgd-reforme',
       title: 'Proposition réforme',
-      body:
-        "Véhicule visiblement irréparable ? Activez la proposition de réforme : la limite passe de 30 à 60 photos par section.",
+      body: 'Véhicule visiblement irréparable ? Activez la proposition ici.',
       side: 'bottom',
       dynamic: true,
     },
     {
       anchor: 'atgd-docs-toggle',
       title: 'Documents',
-      body:
-        "Touchez Documents pour photographier ou importer les pièces du dossier (carte grise, permis, constat…), chacune dans son emplacement.",
+      body: 'Chaque pièce (carte grise, permis, constat…) a son emplacement.',
       side: 'top',
     },
     {
       anchor: 'atgd-header',
       title: 'Mission terminée',
-      body:
-        "Une fois les photos envoyées, le bureau les voit immédiatement et le dossier avance. Revenez à la liste avec la flèche.",
+      body: 'Photos envoyées : le bureau les voit immédiatement.',
       side: 'bottom',
       click: 'atgd-photos-toggle',
       dynamic: true,

@@ -1,10 +1,9 @@
 import type { PageTutorial } from '../types';
 
 /**
- * Mes rappels: reminders received/sent about files. Core behavior to teach:
- * opening a received rappel starts a tracked work session on the file, where
- * edits stay in a LOCAL draft until the amber « Sauvegarder » button flushes
- * them.
+ * Mes rappels: reminders received/sent about files. Row clicks navigate into
+ * the dossier, so only the tab switches are hands-on; the final step brings
+ * the page back to its default « Reçus » tab.
  */
 export const mesRappelsTutorial: PageTutorial = {
   key: 'mes-rappels',
@@ -12,94 +11,52 @@ export const mesRappelsTutorial: PageTutorial = {
   steps: [
     {
       title: 'Mes rappels',
-      body:
-        "Cette page regroupe les rappels : des demandes de travail sur un dossier, envoyées par un responsable ou par vous.",
+      body: 'Les demandes de travail échangées avec vos collègues sur les dossiers.',
     },
     {
       anchor: 'rap-tabs',
       title: 'Reçus et Envoyés',
-      body:
-        "« Reçus » : les rappels qui vous sont adressés. « Envoyés » : ceux que vous avez adressés aux autres.",
+      body: '« Reçus » : pour vous. « Envoyés » : de vous.',
       side: 'bottom',
     },
     {
       anchor: 'rap-recus-table',
       title: 'Rappels reçus',
-      body:
-        "Chaque ligne indique le dossier concerné, qui a envoyé le rappel et son message.",
+      body: "Chaque ligne montre le dossier, l'expéditeur et son message.",
       side: 'bottom',
     },
     {
       anchor: 'rap-recus-table',
       title: 'Traiter un rappel',
       body:
-        "Cliquez sur une ligne : le dossier s'ouvre en session de travail. Vos modifications restent en brouillon local jusqu'au clic sur le bouton orange « Sauvegarder » du dossier.",
+        "Un clic sur une ligne ouvre le dossier ; rien n'est publié avant le bouton orange « Sauvegarder ».",
       side: 'bottom',
     },
     {
       anchor: 'rap-statut',
-      title: 'Statuts des rappels',
-      body:
-        "Nouveau (pas encore ouvert), Lu (consulté), Traité (travail sauvegardé ou marqué traité via le bouton).",
+      title: 'Statuts',
+      body: 'Nouveau, Lu ou Traité.',
       side: 'left',
     },
     {
       anchor: 'rap-travail',
       title: 'Travail effectué',
-      body:
-        "« Voir le détail » rejoue la session : observations ajoutées et modifications faites sur le dossier pendant le traitement.",
+      body: '« Voir le détail » montre ce qui a été fait pendant le traitement.',
       side: 'left',
     },
     {
       anchor: 'rap-tab-envoyes',
-      title: 'Suivre vos envois',
-      body:
-        "L'onglet Envoyés groupe vos rappels par envoi et suit chaque destinataire : Nouveau, Lu, Traité.",
-      side: 'bottom',
-    },
-  ],
-  lab: [
-    {
-      anchor: 'rap-tabs',
-      title: 'Reçus et Envoyés',
-      body:
-        "« Reçus » : les rappels qui vous sont adressés. « Envoyés » : ceux que vous avez adressés aux autres.",
-      action: 'observe',
-    },
-    {
-      anchor: 'rap-recus-table',
-      title: 'Vos rappels reçus',
-      body:
-        'Chaque ligne indique le dossier concerné, qui a envoyé le rappel et son message.',
-      action: 'observe',
-    },
-    {
-      anchor: 'rap-recus-table',
-      title: 'Le brouillon local',
-      body:
-        "Cliquer sur une ligne ouvrirait le dossier en session de travail : vos modifications resteraient en brouillon local jusqu'au clic sur le bouton orange « Sauvegarder ». Poursuivons la visite sans ouvrir de dossier.",
-      action: 'observe',
-    },
-    {
-      anchor: 'rap-statut',
-      title: 'Statuts des rappels',
-      body:
-        'Nouveau (pas encore ouvert), Lu (consulté), Traité (travail sauvegardé ou marqué traité via le bouton).',
-      action: 'observe',
-    },
-    {
-      anchor: 'rap-tab-envoyes',
       title: 'Vos envois',
-      body:
-        "Cliquez sur l'onglet « Envoyés » pour suivre les rappels que vous avez adressés.",
-      action: 'click',
+      body: 'Cliquez sur « Envoyés » pour suivre vos rappels.',
+      side: 'bottom',
+      interact: 'click',
     },
     {
       anchor: 'rap-tabs',
       title: 'Retour aux reçus',
-      body:
-        'Chaque destinataire y est suivi : Nouveau, Lu, Traité. Cliquez maintenant sur « Reçus » pour revenir à l\'onglet initial.',
-      action: 'click',
+      body: 'Chaque destinataire y est suivi. Cliquez sur « Reçus » pour revenir.',
+      side: 'bottom',
+      interact: 'click',
     },
   ],
 };

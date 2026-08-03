@@ -11,47 +11,43 @@ export const assignationsChiffrageTutorial: PageTutorial = {
   steps: [
     {
       title: 'Assignations au chiffrage',
-      body:
-        "Cette page liste les dossiers envoyés au chiffrage. Le chiffreur y retrouve les dossiers qui lui sont assignés ; les gestionnaires et administrateurs voient l'ensemble des assignations.",
+      body: 'Les dossiers à chiffrer : chaque chiffreur voit les siens.',
     },
     {
       anchor: 'ach-compagnie',
-      title: 'Filtrer par compagnie',
-      body:
-        "Affichez uniquement les chiffrages d'une compagnie d'assurance. Le nombre de dossiers par compagnie est indiqué entre parenthèses.",
+      title: 'Filtre compagnie',
+      body: 'Cliquez pour filtrer par compagnie.',
       side: 'bottom',
+      interact: 'click',
     },
     {
       anchor: 'ach-chiffreur',
-      title: 'Filtrer par chiffreur',
-      body:
-        "Visible pour les administrateurs et gestionnaires : affichez les assignations d'un chiffreur précis. Le compteur correspond à ses chiffrages ouverts.",
+      title: 'Filtre chiffreur',
+      body: "Réservé aux responsables : la charge de chaque chiffreur.",
       side: 'bottom',
     },
     {
       anchor: 'ach-reforme',
-      title: 'Filtrer par type de réforme',
-      body: 'Limitez la liste aux dossiers en réforme Technique ou Économique.',
+      title: 'Filtre réforme',
+      body: 'Limite la liste aux dossiers en réforme.',
       side: 'bottom',
     },
     {
       anchor: 'ach-dates',
-      title: 'Filtrer par période',
-      body: 'Affichez uniquement les assignations créées entre deux dates.',
+      title: 'Filtre période',
+      body: 'Affiche les assignations entre deux dates.',
       side: 'bottom',
     },
     {
       anchor: 'ach-delai',
       title: 'Le délai de 24 h',
-      body:
-        "Chaque chiffrage doit être traité sous 24 heures ouvrées (week-ends et jours fériés exclus). La barre se remplit avec le temps et passe en rouge quand le délai est dépassé. Cliquez sur l'en-tête pour trier par urgence.",
+      body: 'La barre se remplit avec le temps et passe en rouge en cas de retard.',
       side: 'bottom',
     },
     {
       anchor: 'ach-table',
-      title: 'La liste des assignations',
-      body:
-        "Chaque ligne montre le dossier, l'assuré, le statut en couleur et la dernière observation (cliquez dessus pour l'historique complet). Cliquez sur la référence du dossier pour ouvrir l'assignation ; les dossiers du jour sont surlignés.",
+      title: 'La liste',
+      body: "Cliquez sur la référence d'un dossier pour ouvrir son chiffrage.",
       side: 'top',
     },
   ],

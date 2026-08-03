@@ -22,7 +22,11 @@
  *   - options_zones + options_agents + chiffreurs entries mirroring what the
  *     app itself writes when creating the demo users
  *   - 8 sample dossiers across the canonical workflow statuses, with
- *     planifications assigned to the Field Agent demo user
+ *     planifications assigned to the Field Agent demo user. Their createdAt
+ *     values are seed-run-relative and spread so the dashboard's period
+ *     presets (Aujourd'hui / Semaine / Mois — they filter on createdAt, see
+ *     src/app/(app)/dashboard/page.tsx) each always have files: 2 created
+ *     today, 3 within 1-5 days, 3 within 9-26 days.
  *   - Monitoring funnel data (Suivi d'équipe page): per-dossier lifecycle
  *     fields read by src/app/(app)/monitoring/funnel.ts (datePhotosAvant /
  *     EnCours / Apres, dateDemandeExpertise*, firstAccordReachedAt,
@@ -105,6 +109,16 @@ function inDays(d) {
 /** 'YYYY-MM-DD' string for NOW minus `d` days (dateSinistre-style fields). */
 function dateStrDaysAgo(d) {
   return new Date(NOW.getTime() - d * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * NOW minus `d` days minus `h` extra hours — Timestamp flavour of
+ * dateStrDaysAgo. The extra hours give lifecycle fields chronological
+ * spacing within a day (e.g. dateRequete = daysAgo(3, 1) one hour BEFORE
+ * createdAt = daysAgo(3)).
+ */
+function daysAgo(d, h = 0) {
+  return new Date(NOW.getTime() - (d * 24 + h) * 3_600_000);
 }
 
 /** JS value → Firestore REST typed value. */
@@ -424,9 +438,10 @@ const DOSSIERS = [
     marque: 'Toyota', modele: 'RAV4 XLE 2022', plate: 'CKXR 382',
     vin: '2T3P1RFV8NC204518', km: '38 450', mec: '2022-03-15',
     garage: 'CarrXpert Toronto East',
-    // Fresh intake — created a couple of hours before the seed run so the
-    // monitoring "Jour" view always has a Création event (en délai: the
-    // requête→création gap is only 30 minutes).
+    // Fresh intake — created a couple of hours before the seed run
+    // (dashboard "Aujourd'hui" preset bucket) so the monitoring "Jour" view
+    // always has a Création event (en délai: the requête→création gap is
+    // only 30 minutes).
     dateSinistre: dateStrDaysAgo(2),
     dateRequete: hoursAgo(3),
     createdAt: hoursAgo(2.5),
@@ -448,11 +463,13 @@ const DOSSIERS = [
     marque: 'Honda', modele: 'Civic LX 2021', plate: 'F12 ABC',
     vin: '2HGFE2F50MH523907', km: '52 300', mec: '2021-05-10',
     garage: 'Garage Métropolitain Montréal',
-    dateSinistre: '2026-07-02',
-    dateRequete: '2026-07-03T15:40:00Z',
-    createdAt: '2026-07-03T16:05:00Z',
-    // Mission Avant requested yesterday, RDV upcoming — photos not yet taken
-    // (photosAvant stays "non réalisé" for this dossier).
+    dateSinistre: dateStrDaysAgo(2),
+    dateRequete: daysAgo(1, 4),
+    // Created yesterday (dashboard "Semaine" preset bucket — the presets
+    // filter on createdAt); requête→création gap is 1h → en délai.
+    createdAt: daysAgo(1, 3),
+    // Mission Avant requested an hour after creation, RDV upcoming — photos
+    // not yet taken (photosAvant stays "non réalisé" for this dossier).
     updatedAt: hoursAgo(26),
     dateMission: hoursAgo(26),
     dateDemandeAvant: hoursAgo(26),
@@ -463,7 +480,7 @@ const DOSSIERS = [
       adresse: 'Garage Métropolitain, 8250 boul. Saint-Laurent, Montréal, QC',
     },
     workflow: [
-      { action: 'Création de dossier', at: '2026-07-03T16:05:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Création de dossier', at: daysAgo(1, 3), by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
       { action: 'Création de planification', at: hoursAgo(26), by: 'manager', details: 'Mission Avant pour Field Agent Demo' },
     ],
   },
@@ -481,17 +498,18 @@ const DOSSIERS = [
     marque: 'Ford', modele: 'F-150 XLT 2020', plate: 'G45 KLM',
     vin: '1FTEW1EP4LFA88123', km: '96 700', mec: '2020-08-22',
     garage: 'Fix Auto Laval',
-    dateSinistre: '2026-06-20',
-    dateRequete: '2026-06-22T12:10:00Z',
-    createdAt: '2026-06-22T12:45:00Z',
-    // Avant expertise + 1er accord done in June; the mid-repair (En cours)
-    // check was requested yesterday and its RDV is upcoming.
+    dateSinistre: dateStrDaysAgo(7),
+    dateRequete: daysAgo(5, 1),
+    // Created 5 days ago (dashboard "Semaine" preset bucket). Avant
+    // expertise + 1er accord done earlier in the week; the mid-repair
+    // (En cours) check was requested yesterday and its RDV is upcoming.
+    createdAt: daysAgo(5),
     updatedAt: hoursAgo(20),
-    dateMission: '2026-06-23T13:00:00Z',
-    dateDemandeAvant: '2026-06-23T13:00:00Z',
-    datePhotosAvant: '2026-06-23T17:30:00Z', // same business day → en délai
-    dateChiffrage: '2026-06-29T16:00:00Z',
-    firstAccordReachedAt: '2026-06-30T15:00:00Z',
+    dateMission: daysAgo(4, 2),
+    dateDemandeAvant: daysAgo(4, 2),
+    datePhotosAvant: daysAgo(4), // 2h after the demande → en délai
+    dateChiffrage: daysAgo(2, 4),
+    firstAccordReachedAt: daysAgo(2),
     dateDemandeEnCours: hoursAgo(20),
     lastStatusDetails: 'Expertise en cours de réparation — visite atelier Fix Auto Laval.',
     planification: {
@@ -500,11 +518,11 @@ const DOSSIERS = [
       adresse: 'Fix Auto Laval, 1990 boul. Industriel, Laval, QC',
     },
     workflow: [
-      { action: 'Création de dossier', at: '2026-06-22T12:45:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
-      { action: 'Photos avant ajoutées par Agent de Terrain', at: '2026-06-23T17:30:00Z', by: 'fieldagent', details: '6 photos avant ajoutées' },
-      { action: 'Dossier envoyé vers chiffrage', at: '2026-06-26T14:00:00Z', by: 'manager', details: 'Envoyé au chiffreur : Estimator Demo' },
-      { action: 'Devis mis à jour', at: '2026-06-29T16:00:00Z', by: 'estimator', details: 'Chiffrage enregistré' },
-      { action: "Changement de statut : Proposition d'accord", at: '2026-06-30T15:00:00Z', by: 'manager', details: '1ère proposition envoyée au garage' },
+      { action: 'Création de dossier', at: daysAgo(5), by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Photos avant ajoutées par Agent de Terrain', at: daysAgo(4), by: 'fieldagent', details: '6 photos avant ajoutées' },
+      { action: 'Dossier envoyé vers chiffrage', at: daysAgo(2, 6), by: 'manager', details: 'Envoyé au chiffreur : Estimator Demo' },
+      { action: 'Devis mis à jour', at: daysAgo(2, 4), by: 'estimator', details: 'Chiffrage enregistré' },
+      { action: "Changement de statut : Proposition d'accord", at: daysAgo(2), by: 'manager', details: '1ère proposition envoyée au garage' },
       { action: 'Création de planification', at: hoursAgo(20), by: 'manager', details: 'Mission En cours pour Field Agent Demo' },
     ],
   },
@@ -522,20 +540,22 @@ const DOSSIERS = [
     marque: 'Hyundai', modele: 'Elantra Preferred 2023', plate: 'BXKD 719',
     vin: 'KMHLM4AG5PU384026', km: '21 900', mec: '2023-01-30',
     garage: 'Assured Collision Toronto',
-    dateSinistre: '2026-06-15',
-    dateRequete: '2026-06-16T14:25:00Z',
-    createdAt: '2026-06-16T15:00:00Z',
-    // Avant photos taken TODAY (4h ago, demande 26h ago → ≤24 business hours,
-    // en délai) and sent to chiffrage right after — feeds the "Jour" view.
+    dateSinistre: dateStrDaysAgo(1),
+    dateRequete: hoursAgo(5.5),
+    // Created TODAY (dashboard "Aujourd'hui" preset bucket) — the whole
+    // intake→photos→chiffrage run happened this morning, so the monitoring
+    // "Jour" view gets Création + Avant + chiffrage events. Photos 30min
+    // after the demande → en délai.
+    createdAt: hoursAgo(5),
     updatedAt: hoursAgo(2),
-    dateMission: hoursAgo(26),
-    dateDemandeAvant: hoursAgo(26),
+    dateMission: hoursAgo(4.5),
+    dateDemandeAvant: hoursAgo(4.5),
     datePhotosAvant: hoursAgo(4),
     dateChiffrage: hoursAgo(2),
     lastStatusDetails: 'Devis garage reçu (4 285 $ CAD) — chiffrage en cours.',
     workflow: [
-      { action: 'Création de dossier', at: '2026-06-16T15:00:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
-      { action: 'Création de planification', at: hoursAgo(26), by: 'manager', details: 'Mission Avant pour Field Agent Demo' },
+      { action: 'Création de dossier', at: hoursAgo(5), by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Création de planification', at: hoursAgo(4.5), by: 'manager', details: 'Mission Avant pour Field Agent Demo' },
       { action: 'Photos avant ajoutées par Agent de Terrain', at: hoursAgo(4), by: 'fieldagent', details: '8 photos avant ajoutées' },
       { action: 'Dossier envoyé vers chiffrage', at: hoursAgo(2), by: 'manager', details: 'Envoyé au chiffreur : Estimator Demo' },
     ],
@@ -554,21 +574,22 @@ const DOSSIERS = [
     marque: 'Mazda', modele: 'CX-5 GS 2022', plate: 'H88 TRV',
     vin: 'JM3KFBCM6N1533280', km: '44 100', mec: '2022-06-05',
     garage: 'ProColor Montréal-Est',
-    dateSinistre: '2026-06-10',
-    dateRequete: '2026-06-11T13:35:00Z',
-    createdAt: '2026-06-11T14:10:00Z',
-    // Chiffrage finished yesterday, 1ère proposition sent TODAY (5h ago) —
+    dateSinistre: dateStrDaysAgo(4),
+    dateRequete: daysAgo(3, 1),
+    // Created 3 days ago (dashboard "Semaine" preset bucket). Chiffrage
+    // finished yesterday, 1ère proposition sent TODAY (5h ago) —
     // firstAccordReachedAt drives the "1er accord" funnel step.
+    createdAt: daysAgo(3),
     updatedAt: hoursAgo(5),
-    dateMission: '2026-06-15T14:30:00Z',
-    dateDemandeAvant: '2026-06-15T14:30:00Z',
-    datePhotosAvant: '2026-06-15T17:00:00Z', // same business day → en délai
+    dateMission: daysAgo(2, 3),
+    dateDemandeAvant: daysAgo(2, 3),
+    datePhotosAvant: daysAgo(2), // 3h after the demande → en délai
     dateChiffrage: hoursAgo(22),
     firstAccordReachedAt: hoursAgo(5),
     lastStatusDetails: "Proposition d'accord envoyée au garage — 3 640 $ CAD TTC.",
     workflow: [
-      { action: 'Création de dossier', at: '2026-06-11T14:10:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
-      { action: 'Photos avant ajoutées par Agent de Terrain', at: '2026-06-15T17:00:00Z', by: 'fieldagent', details: '7 photos avant ajoutées' },
+      { action: 'Création de dossier', at: daysAgo(3), by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Photos avant ajoutées par Agent de Terrain', at: daysAgo(2), by: 'fieldagent', details: '7 photos avant ajoutées' },
       { action: 'Devis mis à jour', at: hoursAgo(22), by: 'estimator', details: 'Chiffrage enregistré — 3 640 $ CAD TTC' },
       { action: "Changement de statut : Proposition d'accord", at: hoursAgo(5), by: 'manager', details: '1ère proposition envoyée au garage' },
     ],
@@ -587,23 +608,24 @@ const DOSSIERS = [
     marque: 'Volkswagen', modele: 'Tiguan Comfortline 2021', plate: 'J21 PWE',
     vin: '3VV2B7AX1MM041775', km: '61 800', mec: '2021-04-12',
     garage: 'Carrossier Procolor Laval',
-    dateSinistre: '2026-06-05',
-    dateRequete: '2026-06-08T12:50:00Z',
-    createdAt: '2026-06-08T13:25:00Z',
-    // 1er accord in June; the 2ème accord (re-chiffrage of the same source)
-    // was saved 6h ago and validated 2h ago → "2ème+" step counts TODAY,
-    // en délai (accord within 24 business hours of the latest chiffrage).
+    dateSinistre: dateStrDaysAgo(10),
+    dateRequete: daysAgo(9, 1),
+    // Created 9 days ago (dashboard "Mois" preset bucket). 1er accord 5 days
+    // ago; the 2ème accord (re-chiffrage of the same source) was saved 6h
+    // ago and validated 2h ago → "2ème+" step counts TODAY, en délai
+    // (accord within 24 business hours of the latest chiffrage).
+    createdAt: daysAgo(9),
     updatedAt: hoursAgo(2),
-    dateMission: '2026-06-10T15:00:00Z',
-    dateDemandeAvant: '2026-06-10T15:00:00Z',
-    datePhotosAvant: '2026-06-10T17:30:00Z', // same business day → en délai
-    firstAccordReachedAt: '2026-06-25T14:00:00Z',
+    dateMission: daysAgo(8, 3),
+    dateDemandeAvant: daysAgo(8, 3),
+    datePhotosAvant: daysAgo(8), // 3h after the demande → en délai
+    firstAccordReachedAt: daysAgo(5),
     dateChiffrage: hoursAgo(6), // latest (2ème) chiffrage
     lastStatusDetails: '2ème accord après pièces supplémentaires — 5 120 $ CAD TTC.',
     workflow: [
-      { action: 'Création de dossier', at: '2026-06-08T13:25:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
-      { action: 'Photos avant ajoutées par Agent de Terrain', at: '2026-06-10T17:30:00Z', by: 'fieldagent', details: '9 photos avant ajoutées' },
-      { action: 'Changement de statut : Accord', at: '2026-06-25T14:00:00Z', by: 'manager', details: '1er accord — 4 480 $ CAD TTC' },
+      { action: 'Création de dossier', at: daysAgo(9), by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Photos avant ajoutées par Agent de Terrain', at: daysAgo(8), by: 'fieldagent', details: '9 photos avant ajoutées' },
+      { action: 'Changement de statut : Accord', at: daysAgo(5), by: 'manager', details: '1er accord — 4 480 $ CAD TTC' },
       { action: 'Devis Garage mis à jour', at: hoursAgo(6), by: 'estimator', details: '2ème chiffrage — pièces supplémentaires' },
       { action: 'Changement de statut : 2ème accord', at: hoursAgo(2), by: 'manager', details: '2ème accord — 5 120 $ CAD TTC' },
     ],
@@ -622,28 +644,29 @@ const DOSSIERS = [
     marque: 'Chevrolet', modele: 'Silverado 1500 LT 2019', plate: 'CVBN 204',
     vin: '1GCUYDED3KZ301998', km: '112 400', mec: '2019-09-18',
     garage: 'CSN Collision Toronto North',
-    dateSinistre: '2026-06-01',
-    dateRequete: '2026-06-02T14:05:00Z',
-    createdAt: '2026-06-02T14:40:00Z',
-    // Accord envoyé long after the chiffrage → intentionally HORS DÉLAI on
-    // the monitoring accord step (feeds the amber KPI segment). Mid-repair
+    dateSinistre: dateStrDaysAgo(22),
+    dateRequete: daysAgo(20, 1),
+    // Created 20 days ago (dashboard "Mois" preset bucket). Accord envoyé
+    // 10 days after the chiffrage → intentionally HORS DÉLAI on the
+    // monitoring accord step (feeds the amber KPI segment). Mid-repair
     // (En cours) check photographed TODAY.
+    createdAt: daysAgo(20),
     updatedAt: hoursAgo(5),
-    dateMission: '2026-06-04T13:30:00Z',
-    dateDemandeAvant: '2026-06-04T13:30:00Z',
-    datePhotosAvant: '2026-06-04T16:00:00Z', // same business day → en délai
-    dateChiffrage: '2026-06-18T15:45:00Z',
-    firstAccordReachedAt: '2026-06-19T15:00:00Z',
-    lastStatusAt: '2026-07-12T13:10:00Z',
+    dateMission: daysAgo(19, 2),
+    dateDemandeAvant: daysAgo(19, 2),
+    datePhotosAvant: daysAgo(19), // 2h after the demande → en délai
+    dateChiffrage: daysAgo(12),
+    firstAccordReachedAt: daysAgo(11),
+    lastStatusAt: daysAgo(2), // 10 days after chiffrage → hors délai
     dateDemandeEnCours: hoursAgo(23),
     datePhotosEnCours: hoursAgo(5),
     lastStatusDetails: "Accord final envoyé à la compagnie — 6 875 $ CAD TTC.",
     workflow: [
-      { action: 'Création de dossier', at: '2026-06-02T14:40:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
-      { action: 'Photos avant ajoutées par Agent de Terrain', at: '2026-06-04T16:00:00Z', by: 'fieldagent', details: '10 photos avant ajoutées' },
-      { action: 'Devis mis à jour', at: '2026-06-18T15:45:00Z', by: 'estimator', details: 'Chiffrage enregistré — 6 875 $ CAD TTC' },
-      { action: 'Changement de statut : Accord', at: '2026-06-19T15:00:00Z', by: 'manager', details: '1er accord validé' },
-      { action: 'Changement de statut : Accord envoyé', at: '2026-07-12T13:10:00Z', by: 'manager', details: 'Accord final transmis à la compagnie' },
+      { action: 'Création de dossier', at: daysAgo(20), by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Photos avant ajoutées par Agent de Terrain', at: daysAgo(19), by: 'fieldagent', details: '10 photos avant ajoutées' },
+      { action: 'Devis mis à jour', at: daysAgo(12), by: 'estimator', details: 'Chiffrage enregistré — 6 875 $ CAD TTC' },
+      { action: 'Changement de statut : Accord', at: daysAgo(11), by: 'manager', details: '1er accord validé' },
+      { action: 'Changement de statut : Accord envoyé', at: daysAgo(2), by: 'manager', details: 'Accord final transmis à la compagnie' },
       { action: 'Photos en cours ajoutées par Agent de Terrain', at: hoursAgo(5), by: 'fieldagent', details: '5 photos en cours ajoutées' },
     ],
   },
@@ -662,27 +685,28 @@ const DOSSIERS = [
     vin: '3N1AB7AP4JY277540', km: '148 900', mec: '2018-03-08',
     garage: '',
     nature: 'Réforme',
-    dateSinistre: '2026-05-30',
-    dateRequete: '2026-06-01T13:20:00Z',
-    createdAt: '2026-06-01T13:50:00Z',
-    // Réforme verdict in June; the réforme rapport was validated by the
-    // director 6h ago and deposited 1h ago → "Rapport validé" + "Rapport
-    // déposé" both count TODAY.
+    dateSinistre: dateStrDaysAgo(28),
+    dateRequete: daysAgo(26, 1),
+    // Created 26 days ago (dashboard "Mois" preset bucket). Réforme verdict
+    // 2 weeks ago; the réforme rapport was validated by the director 6h ago
+    // and deposited 1h ago → "Rapport validé" + "Rapport déposé" both count
+    // TODAY.
+    createdAt: daysAgo(26),
     updatedAt: hoursAgo(1),
-    dateMission: '2026-06-03T14:00:00Z',
-    dateDemandeAvant: '2026-06-03T14:00:00Z',
-    datePhotosAvant: '2026-06-03T16:30:00Z', // same business day → en délai
-    dateChiffrage: '2026-06-17T15:30:00Z',
-    firstAccordReachedAt: '2026-06-18T13:00:00Z',
-    lastStatusAt: '2026-06-18T13:00:00Z', // Réforme within 24 business hours of chiffrage
+    dateMission: daysAgo(25, 2),
+    dateDemandeAvant: daysAgo(25, 2),
+    datePhotosAvant: daysAgo(25), // 2h after the demande → en délai
+    dateChiffrage: daysAgo(14, 3),
+    firstAccordReachedAt: daysAgo(14),
+    lastStatusAt: daysAgo(14), // Réforme within 24 business hours of chiffrage
     rapportValideAt: hoursAgo(6),
     dateRapportDepose: hoursAgo(1),
     lastStatusDetails: 'Perte totale — VAM 9 800 $ CAD, épave estimée 1 450 $ CAD.',
     workflow: [
-      { action: 'Création de dossier', at: '2026-06-01T13:50:00Z', by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
-      { action: 'Photos avant ajoutées par Agent de Terrain', at: '2026-06-03T16:30:00Z', by: 'fieldagent', details: '12 photos avant ajoutées' },
-      { action: 'Verdict Réforme déposé', at: '2026-06-18T12:30:00Z', by: 'estimator', details: 'VAM 9 800 $ CAD, épave 1 450 $ CAD' },
-      { action: 'Changement de statut : Réforme', at: '2026-06-18T13:00:00Z', by: 'manager', details: 'Dossier basculé en Réforme' },
+      { action: 'Création de dossier', at: daysAgo(26), by: 'manager', details: 'Dossier créé depuis la requête compagnie' },
+      { action: 'Photos avant ajoutées par Agent de Terrain', at: daysAgo(25), by: 'fieldagent', details: '12 photos avant ajoutées' },
+      { action: 'Verdict Réforme déposé', at: daysAgo(14, 1), by: 'estimator', details: 'VAM 9 800 $ CAD, épave 1 450 $ CAD' },
+      { action: 'Changement de statut : Réforme', at: daysAgo(14), by: 'manager', details: 'Dossier basculé en Réforme' },
       { action: 'Dossier validé', at: hoursAgo(6), by: 'admin', details: 'Rapport réforme validé par la direction' },
       { action: 'Rapport déposé', at: hoursAgo(1), by: 'manager', details: 'Rapport réforme déposé' },
     ],

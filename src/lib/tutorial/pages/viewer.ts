@@ -9,35 +9,30 @@ export const viewerPageTutorial: PageTutorial = {
   steps: [
     {
       title: 'Visionneuse de documents',
-      body:
-        "Cette page affiche en lecture seule les fichiers d'un chiffrage et les pièces du dossier, avec les annotations existantes. Rien ne peut y être modifié.",
+      body: 'Consultez les fichiers et leurs annotations, sans pouvoir rien modifier.',
     },
     {
       anchor: 'view-doc-filter',
       title: 'Choisir un fichier',
-      body:
-        "Filtrez par type de document, puis sélectionnez le fichier à afficher dans la liste juste à droite.",
+      body: 'Filtrez par type, puis sélectionnez le fichier dans la liste.',
       side: 'bottom',
     },
     {
       anchor: 'view-comparison',
-      title: 'Comparer deux pièces',
-      body:
-        "Ouvrez le panneau de comparaison pour afficher une photo ou un document du dossier à côté du fichier consulté.",
+      title: 'Comparer',
+      body: 'Affichez une pièce du dossier à côté du fichier consulté.',
       side: 'bottom',
     },
     {
       anchor: 'view-zoom',
-      title: 'Zoomer sur le document',
-      body:
-        "Rapprochez ou éloignez la vue. Les boutons de rotation juste à droite pivotent le document par quarts de tour.",
+      title: 'Zoom et rotation',
+      body: 'Zoomez et pivotez le document.',
       side: 'bottom',
     },
     {
       anchor: 'view-readonly',
       title: 'Lecture seule',
-      body:
-        "Ce badge rappelle qu'aucune modification n'est possible ici. Pour annoter un fichier, ouvrez-le depuis l'éditeur du chiffrage.",
+      body: 'Rien ne peut être modifié ici.',
       side: 'bottom',
       align: 'end',
     },

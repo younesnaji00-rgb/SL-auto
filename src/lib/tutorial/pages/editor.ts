@@ -2,91 +2,80 @@ import type { PageTutorial } from '../types';
 
 // Annotation editor tour — see docs/TUTORIALS.md. The comparison step's
 // anchor only renders when the editor was opened with a dossierId;
-// DOM-presence filtering skips it otherwise.
+// DOM-presence filtering skips it otherwise. No hands-on steps: activating
+// tools mid-tour risks accidental annotations on a real document.
 export const editorPageTutorial: PageTutorial = {
   key: 'editor',
   match: (p) => p === '/editor',
   steps: [
     {
       title: "Éditeur d'annotations",
-      body:
-        "Cet éditeur sert à annoter les PDF et photos d'un dossier : ajoutez du texte, des lignes et des tampons, par exemple pour corriger un devis. Les annotations sont enregistrées avec le fichier et peuvent être exportées en PDF.",
+      body: 'Annotez les PDF et photos du dossier : texte, lignes et tampons, exportables en PDF.',
     },
     {
       anchor: 'edp-doc-filter',
       title: 'Choisir le document',
-      body:
-        "Filtrez les fichiers par type (photos, devis, factures…), puis ouvrez le fichier voulu dans la liste juste à droite. Les pièces marquées « Dossier » proviennent du dossier et sont en lecture seule.",
+      body: 'Filtrez par type, puis ouvrez un fichier dans la liste juste à droite.',
       side: 'bottom',
     },
     {
       anchor: 'edp-tool-select',
-      title: 'Sélectionner et déplacer',
-      body:
-        "L'outil par défaut : cliquez sur une annotation pour la sélectionner, puis glissez-la pour la déplacer.",
+      title: 'Sélectionner',
+      body: "L'outil par défaut : cliquez une annotation, glissez pour la déplacer.",
       side: 'bottom',
     },
     {
       anchor: 'edp-tool-text',
-      title: 'Ajouter du texte',
-      body:
-        "Activez cet outil puis cliquez sur le document : une zone de texte apparaît, tapez directement dedans.",
+      title: 'Texte',
+      body: 'Activez cet outil, cliquez sur le document et tapez directement.',
       side: 'bottom',
     },
     {
       anchor: 'edp-tool-line',
-      title: 'Tracer une ligne',
-      body:
-        "Cliquez sur le document puis glissez horizontalement, par exemple pour barrer une ligne d'un devis.",
+      title: 'Ligne',
+      body: 'Glissez sur le document, par exemple pour barrer une ligne de devis.',
       side: 'bottom',
     },
     {
       anchor: 'edp-tool-stamp',
-      title: 'Apposer un tampon',
-      body:
-        "Ouvrez ce menu pour importer vos tampons (images) et en choisir un. Cliquez ensuite sur le document pour l'apposer.",
+      title: 'Tampon',
+      body: "Choisissez un tampon puis cliquez sur le document pour l'apposer.",
       side: 'bottom',
     },
     {
       anchor: 'edp-colors',
       title: 'Couleur et tailles',
-      body:
-        "Choisissez la couleur des textes et des lignes ; cliquer une couleur avec une annotation sélectionnée la recolore. Les curseurs voisins règlent la taille du texte et l'épaisseur des lignes.",
+      body: "Réglez la couleur, la taille du texte et l'épaisseur des lignes.",
       side: 'bottom',
     },
     {
       anchor: 'edp-zoom',
       title: 'Zoom et rotation',
-      body:
-        "Ajustez le zoom pour travailler avec précision. Les boutons de rotation juste à droite pivotent le document par quarts de tour.",
+      body: 'Zoomez pour la précision ; les boutons voisins pivotent le document.',
       side: 'bottom',
     },
     {
       anchor: 'edp-comparison',
-      title: 'Panneau de comparaison',
-      body:
-        "Affichez les photos et documents du dossier côte à côte avec le fichier que vous annotez. Le panneau peut même se diviser pour comparer deux pièces à la fois.",
+      title: 'Comparaison',
+      body: 'Affichez une pièce du dossier à côté du fichier que vous annotez.',
       side: 'bottom',
     },
     {
       anchor: 'edp-save',
-      title: 'Enregistrer les annotations',
-      body:
-        "Sauvegarde les annotations du fichier en cours dans le chiffrage. Elles sont aussi enregistrées automatiquement quand vous changez de fichier.",
+      title: 'Enregistrer',
+      body: 'Sauvegarde vos annotations dans le chiffrage.',
       side: 'bottom',
     },
     {
       anchor: 'edp-export',
       title: 'Exporter en PDF',
-      body:
-        "Génère un PDF du document avec vos annotations incrustées : il est téléchargé et joint au chiffrage.",
+      body: 'Génère un PDF avec vos annotations incrustées.',
       side: 'bottom',
     },
     {
       anchor: 'edp-status',
       title: "Barre d'état",
-      body:
-        "Suivez ici l'outil actif, le zoom et le nombre d'annotations. La mention « Lecture seule » apparaît pour les pièces du dossier : consultables mais non modifiables.",
+      body: "L'outil actif, le zoom et la mention « Lecture seule » le cas échéant.",
       side: 'top',
     },
   ],

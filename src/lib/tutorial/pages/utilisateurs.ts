@@ -6,41 +6,37 @@ export const utilisateursTutorial: PageTutorial = {
   steps: [
     {
       title: 'Gestion des utilisateurs',
-      body:
-        "Cette page permet aux administrateurs de créer les comptes de l'équipe et de gérer leurs accès. Chaque compte a un rôle qui détermine les pages et actions disponibles.",
+      body: "Créez les comptes de l'équipe et gérez leurs accès.",
     },
     {
       anchor: 'usr-create',
       title: 'Créer un compte',
-      body:
-        "Renseignez le nom complet et un mot de passe. Le nom complet sert d'identifiant : l'utilisateur se connecte en tapant son nom exact, sans adresse email.",
+      body: "Nom complet et mot de passe : le nom sert d'identifiant de connexion.",
       side: 'right',
     },
     {
       anchor: 'usr-role',
-      title: 'Choisir le rôle',
-      body:
-        "Le rôle définit les droits : Admin et directeurs supervisent tout, le Gestionnaire suit les dossiers, le Chiffreur établit les devis, l'Agent de Terrain constate sur place. Ces trois derniers rôles sont limités à un seul appareil à la fois.",
+      title: 'Le rôle',
+      body: 'Il définit ce que la personne peut voir et faire.',
       side: 'right',
     },
     {
       anchor: 'usr-search',
-      title: 'Rechercher un utilisateur',
-      body: 'Tapez un nom ou un email : la liste se filtre instantanément.',
+      title: 'Recherche',
+      body: 'Tapez un nom : la liste se filtre aussitôt.',
       side: 'bottom',
     },
     {
       anchor: 'usr-filter-role',
       title: 'Filtrer par rôle',
-      body:
-        "Affichez uniquement les comptes d'un rôle donné. Un badge rappelle le filtre actif ; cliquez sur la croix pour le retirer.",
+      body: "Cliquez pour n'afficher que les comptes d'un rôle.",
       side: 'bottom',
+      interact: 'click',
     },
     {
       anchor: 'usr-table',
-      title: 'Liste des comptes',
-      body:
-        "Chaque ligne montre le mot de passe (icône œil), le rôle et le statut. Un compte Inactif ne peut plus se connecter. Cliquez sur une ligne pour ouvrir la fiche détaillée.",
+      title: 'Les comptes',
+      body: 'Cliquez sur une ligne pour ouvrir la fiche du compte.',
       side: 'top',
     },
   ],

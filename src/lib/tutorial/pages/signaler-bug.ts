@@ -9,35 +9,30 @@ export const signalerBugTutorial: PageTutorial = {
   steps: [
     {
       title: 'Signaler un problème',
-      body:
-        "Cette page est une messagerie directe avec l'administrateur pour signaler un problème ou poser une question. Elle est accessible à tous les rôles.",
+      body: "Une messagerie directe avec l'administrateur.",
     },
     {
       anchor: 'bug-thread',
-      title: 'Fil de discussion',
-      body:
-        "Vos messages et les réponses de l'administrateur s'affichent ici en temps réel, du plus ancien au plus récent.",
+      title: 'Le fil',
+      body: 'Vos messages et les réponses, en temps réel.',
       side: 'top',
     },
     {
       anchor: 'bug-compose',
-      title: 'Décrire le problème',
-      body:
-        "Tapez votre message puis cliquez sur Envoyer (ou touche Entrée). Décrivez ce que vous faisiez, ce qui était attendu et ce qui s'est produit.",
+      title: 'Votre message',
+      body: 'Décrivez le problème puis cliquez sur Envoyer.',
       side: 'top',
     },
     {
       anchor: 'bug-tools',
-      title: 'Joindre une preuve',
-      body:
-        "Le trombone joint un fichier (capture d'écran, document…) et le micro enregistre un message vocal de 2 minutes maximum.",
+      title: 'Pièces jointes',
+      body: 'Le trombone joint un fichier ; le micro enregistre un message vocal.',
       side: 'top',
     },
     {
       anchor: 'bug-inbox',
-      title: 'Boîte de réception admin',
-      body:
-        "Côté administrateur : toutes les conversations, avec le nombre de messages non lus. Cliquez sur un utilisateur pour ouvrir son fil et lui répondre.",
+      title: 'Boîte admin',
+      body: 'Toutes les conversations, avec leurs messages non lus.',
       side: 'right',
     },
   ],

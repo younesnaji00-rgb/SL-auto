@@ -540,7 +540,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
                     </p>
                     {entry.details && (
                       <div className="mt-2 pl-4 border-l-2 border-primary/40 text-sm italic text-muted-foreground bg-muted/50 py-2 rounded-r-md">
-                        &quot;{entry.details}&quot;
+                        &quot;{t(entry.details)}&quot;
                       </div>
                     )}
                   </div>

@@ -519,7 +519,7 @@ function DashboardPageInner() {
                       </div>
                     )}
                     {log.details && (
-                      <p className="text-[10px] text-muted-foreground italic leading-snug">{log.details}</p>
+                      <p className="text-[10px] text-muted-foreground italic leading-snug">{t(log.details)}</p>
                     )}
                     <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                       <UserIcon className="h-2.5 w-2.5" />

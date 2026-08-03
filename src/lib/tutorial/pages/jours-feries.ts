@@ -6,35 +6,30 @@ export const joursFeriesTutorial: PageTutorial = {
   steps: [
     {
       title: 'Jours fériés',
-      body:
-        "Les délais des dossiers sont comptés en jours ouvrés : les dates listées ici sont exclues du calcul des échéances et des compteurs hors délai. Tenez ce calendrier à jour chaque année.",
+      body: 'Ces dates sont exclues du calcul des délais.',
     },
     {
       anchor: 'jf-add',
       title: 'Ajouter une date',
-      body:
-        "Choisissez un jour dans le calendrier puis cliquez sur Ajouter. Les doublons sont refusés automatiquement.",
+      body: 'Choisissez un jour dans le calendrier puis cliquez sur Ajouter.',
       side: 'bottom',
     },
     {
       anchor: 'jf-ai',
       title: 'Import par IA',
-      body:
-        "Importez une capture d'écran listant les jours fériés de l'année : l'IA détecte les dates et les ajoute automatiquement, en ignorant les doublons.",
+      body: "Importez une capture d'écran : l'IA détecte les dates toute seule.",
       side: 'bottom',
     },
     {
       anchor: 'jf-bulk',
       title: 'Import en masse',
-      body:
-        "Collez une liste de dates (une par ligne, format YYYY-MM-DD) puis cliquez sur Importer. À gauche, choisissez un pays dans la liste déroulante puis importez ses jours fériés officiels en un clic.",
+      body: "Collez une liste de dates, ou importez les jours fériés d'un pays en un clic.",
       side: 'top',
     },
     {
       anchor: 'jf-list',
-      title: 'Liste des dates',
-      body:
-        "Toutes les dates enregistrées, triées par ordre chronologique. Supprimez une date avec la corbeille si elle a été ajoutée par erreur.",
+      title: 'La liste',
+      body: 'Supprimez une date avec la corbeille en cas d’erreur.',
       side: 'top',
     },
   ],

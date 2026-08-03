@@ -113,7 +113,7 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
                       <div key={entry.id} className="p-3 rounded-lg border bg-card space-y-1">
                         <p className="text-sm font-medium">{t(entry.action)}</p>
                         {entry.details && (
-                          <p className="text-xs text-muted-foreground">{entry.details}</p>
+                          <p className="text-xs text-muted-foreground">{t(entry.details)}</p>
                         )}
                         <p className="text-[11px] text-muted-foreground">
                           {formatDate(entry.date)} {t('par')} <span className="font-semibold text-primary">{entry.user}</span>

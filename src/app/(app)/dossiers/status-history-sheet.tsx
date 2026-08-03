@@ -108,7 +108,7 @@ export default function StatusHistorySheet({ open, onOpenChange, dossier }: Stat
                         {e.details && (
                           <div>
                             <span className="font-semibold">{t('Message :')}</span>{' '}
-                            <span className="text-muted-foreground whitespace-pre-wrap">{e.details}</span>
+                            <span className="text-muted-foreground whitespace-pre-wrap">{t(e.details)}</span>
                           </div>
                         )}
                       </div>
