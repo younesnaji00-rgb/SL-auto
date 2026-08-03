@@ -204,6 +204,24 @@ export function TutorialLauncher() {
             <p className="mt-2 text-sm text-muted-foreground">
               {t('Chaque page de l’application propose un tutoriel pas à pas, suivi d’une démo interactive. Idéal pour une première visite.')}
             </p>
+            {pathname !== '/login' && (
+              <div className="mt-4 space-y-2 text-left">
+                <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-2.5">
+                  <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-teal-700 dark:text-teal-400" />
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">{t('« ? » dans le menu à gauche :')}</span>{' '}
+                    {t('rejoue la visite complète de l’application, à tout moment.')}
+                  </p>
+                </div>
+                <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-2.5">
+                  <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-teal-700 dark:text-teal-400" />
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">{t('« ? » en bas à droite :')}</span>{' '}
+                    {t('le guide de la page où vous êtes.')}
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="mt-6 flex flex-col gap-2">
               <button
                 type="button"

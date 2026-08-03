@@ -13,6 +13,16 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'La compagnie': 'The insurer',
   'Choisissez « Laurentide Assurance » — la compagnie du document du kit.':
     'Pick “Laurentide Assurance” — the insurer on the kit document.',
+  "Votre rôle d'expert": 'Your appraiser role',
+  "1er expert : l'expert principal du dossier.\n2ème expert : intervient si l'assuré ou l'assureur adverse conteste, ou en cas de suspicion.\nArbitre : tranche un désaccord entre les deux experts.\nCes procédures peuvent varier d'un pays à l'autre.":
+    '1st appraiser: the file’s primary appraiser.\n2nd appraiser: steps in when the insured or the opposing insurer disputes, or when suspicion arises.\nArbitrator: settles a disagreement between the two appraisers.\nProcedures may vary from one country to another.',
+  "Cliquez sur l'entonnoir, puis choisissez un type dans la liste.":
+    'Click the funnel, then pick a type from the list.',
+  '« ? » dans le menu à gauche :': '“?” in the left menu:',
+  'rejoue la visite complète de l’application, à tout moment.':
+    'replays the full app tour, anytime.',
+  '« ? » en bas à droite :': '“?” at the bottom right:',
+  'le guide de la page où vous êtes.': 'the guide for the page you are on.',
   "Cliquez sur « Créer » : le dossier s'ouvre aussitôt.":
     'Click “Create”: the file opens right away.',
 

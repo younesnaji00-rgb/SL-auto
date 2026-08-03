@@ -578,13 +578,6 @@ export default function LoginPage() {
                     </button>
                   }
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowClassicForm(true)}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  {t('Connexion avec des identifiants (comptes d’essai)')}
-                </button>
               </div>
             </div>
           ) : (
@@ -650,15 +643,6 @@ export default function LoginPage() {
               </div>
             )}
           </form>
-          )}
-          {isDemo && showClassicForm && (
-            <button
-              type="button"
-              onClick={() => setShowClassicForm(false)}
-              className="mt-3 w-full text-center text-xs text-muted-foreground hover:text-foreground"
-            >
-              {t('Retour aux accès démo en un clic')}
-            </button>
           )}
         </CardContent>
       </Card>

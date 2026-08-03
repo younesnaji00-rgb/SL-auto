@@ -218,7 +218,7 @@ export function CreateDossierDialog({
             </Select>
           </div>
 
-          <div className="grid gap-2">
+          <div className="grid gap-2" data-tour="dos-create-role">
             <Label>{t('Rôle')}</Label>
             <RadioGroup
               value={expertRole}

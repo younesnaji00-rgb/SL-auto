@@ -590,7 +590,7 @@ export default function DossiersClientPage() {
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">{t('Filtres actifs')}</span>
           {filters.nature !== 'Toutes' && (
-            <Badge variant="outline" className="gap-1 pr-1">
+            <Badge variant="outline" className="gap-1 pr-1" data-tour="dos-filter-chip-nature">
               {t('Nature :')} {t(filters.nature)}
               <button onClick={() => clearFilter('nature')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label={t('Retirer le filtre nature')}>
                 <X className="h-3 w-3" />
@@ -698,6 +698,9 @@ export default function DossiersClientPage() {
         </div>
       )}
 
+      {/* relative wrapper so the tutorial can spotlight just the horizontal
+          scrollbar strip at the card's bottom edge (dos-hscroll) */}
+      <div className="relative">
       <Card className="overflow-x-scroll overflow-y-auto border rounded-lg max-h-[calc(100vh-280px)] [&>div]:overflow-visible" data-tour="dos-table">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
@@ -1187,6 +1190,12 @@ export default function DossiersClientPage() {
           </TableBody>
         </Table>
       </Card>
+      <div
+        data-tour="dos-hscroll"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-4"
+      />
+      </div>
 
       <div className="flex items-center justify-between px-2" data-tour="dos-pagination">
         <div className="flex items-center gap-2">

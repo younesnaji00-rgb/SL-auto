@@ -31,16 +31,17 @@ export const dossiersTutorial: PageTutorial = {
       interact: 'click',
     },
     {
+      anchor: 'dos-col-nature',
+      title: 'Filtres de colonne',
+      body: "Cliquez sur l'entonnoir, puis choisissez un type dans la liste.",
+      side: 'bottom',
+      interact: 'until',
+      until: () => !!document.querySelector('[data-tour="dos-filter-chip-nature"]'),
+    },
+    {
       anchor: 'dos-reset',
       title: 'Tout réinitialiser',
       body: 'Cliquez ici pour effacer la recherche et les filtres.',
-      side: 'bottom',
-      interact: 'click',
-    },
-    {
-      anchor: 'dos-col-nature',
-      title: 'Filtres de colonne',
-      body: "Cliquez sur l'entonnoir : chaque colonne a son propre filtre.",
       side: 'bottom',
       interact: 'click',
     },
@@ -63,7 +64,7 @@ export const dossiersTutorial: PageTutorial = {
       side: 'top',
     },
     {
-      anchor: 'dos-table',
+      anchor: 'dos-hscroll',
       title: 'Défilement horizontal',
       body: 'Glissez la barre en bas du tableau pour voir toutes les colonnes.',
       side: 'top',
@@ -91,6 +92,14 @@ export const dossiersTutorial: PageTutorial = {
       title: 'La compagnie',
       body: 'Choisissez « Laurentide Assurance » — la compagnie du document du kit.',
       side: 'bottom',
+      dynamic: true,
+    },
+    {
+      anchor: 'dos-create-role',
+      title: "Votre rôle d'expert",
+      body:
+        "1er expert : l'expert principal du dossier.\n2ème expert : intervient si l'assuré ou l'assureur adverse conteste, ou en cas de suspicion.\nArbitre : tranche un désaccord entre les deux experts.\nCes procédures peuvent varier d'un pays à l'autre.",
+      side: 'right',
       dynamic: true,
     },
     {
