@@ -56,6 +56,9 @@ export default function DossierTabsBar() {
       {displayTabs.map((tab) => {
         const isActive = tab.dossierId === activeTabId;
         const isListTab = tab.dossierId === LIST_TAB_ID;
+        // Only the persistent list tab is a translatable label — the other
+        // tabs carry insured names.
+        const label = isListTab ? t(tab.label) : tab.label;
         return (
           <div
             key={tab.dossierId}
@@ -75,9 +78,9 @@ export default function DossierTabsBar() {
                 ? 'border-border bg-background font-semibold text-foreground shadow-sm'
                 : 'border-transparent text-muted-foreground hover:bg-background/60 hover:text-foreground'
             )}
-            title={tab.label}
+            title={label}
           >
-            <span className="truncate">{tab.label}</span>
+            <span className="truncate">{label}</span>
             {!isListTab && (
               <button
                 type="button"

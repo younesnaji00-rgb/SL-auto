@@ -118,7 +118,16 @@ export function startTutorial(
     cleanupInteract();
     const s = steps[i];
     if (s.interact === 'click') {
-      const h = () => window.setTimeout(() => advanceFrom(i), 500);
+      const h = () => {
+        // Chain hand-off: the click is about to navigate — the pending flag
+        // must be written BEFORE the destination page's launcher reads it.
+        if (s.chain) {
+          try {
+            window.localStorage.setItem(`${BRAND.storagePrefix}.tour.pending`, s.chain);
+          } catch { /* non-fatal */ }
+        }
+        window.setTimeout(() => advanceFrom(i), 500);
+      };
       el.addEventListener('click', h, { capture: true, once: true });
       interactCleanup = () => el.removeEventListener('click', h, true);
     } else if (s.interact === 'until' && s.until) {

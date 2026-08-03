@@ -510,6 +510,18 @@ export const LABS_EN: Record<string, string> = {
   'Cliquez sur une ligne pour ouvrir la fiche du compte.':
     "Click a row to open the account's page.",
 
+  // ── Dossiers : liste / défilement / enchaînement ──
+  'Chaque ligne est un dossier.': 'Each row is a file.',
+  'Défilement horizontal': 'Horizontal scrolling',
+  'Glissez la barre en bas du tableau pour voir toutes les colonnes.':
+    'Drag the bar at the bottom of the table to see every column.',
+  'Ouvrir un dossier': 'Open a file',
+  "Cliquez sur une ligne : le dossier s'ouvre et son guide continue là-bas.":
+    'Click a row: the file opens and its guide continues there.',
+  'Vos dossiers ouverts': 'Your open files',
+  "Chaque dossier ouvert reste ici, comme les onglets d'un navigateur. L'onglet « Dossiers » ramène à la liste.":
+    'Every file you open stays here, like browser tabs. The “Files” tab takes you back to the list.',
+
   // ── Visionneuse ──
   'Consultez les fichiers et leurs annotations, sans pouvoir rien modifier.':
     'Browse the files and their annotations, with no way to change anything.',

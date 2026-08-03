@@ -52,26 +52,39 @@ export function TutorialLauncher() {
         window.localStorage.removeItem(flag('pending'));
         window.localStorage.setItem(storageKey, '1');
         setSeen(true);
-        const timer = window.setTimeout(
-          () =>
-            startTutorial(tut, {
-              // First-login flow: once the chained walkthrough finishes,
-              // introduce BOTH help entry points (sidebar "?" + bottom-right
-              // "?") — once per browser.
-              onComplete: () => {
-                try {
-                  if (window.localStorage.getItem(flag('helpBtns'))) return;
-                  window.localStorage.setItem(flag('helpBtns'), '1');
-                } catch {
-                  return;
-                }
-                setShowPointer(true);
-              },
-            }),
-          700,
-        );
-        return () => window.clearTimeout(timer);
+        // Wait for the page's data-driven anchors before starting — detail
+        // pages render their sections only once the document has loaded, and
+        // the presence filter would silently drop every not-yet-rendered step.
+        const lastAnchor = [...tut.steps].reverse().find((s) => s.anchor && !s.dynamic)?.anchor;
+        const chainsFurther = tut.steps.some((s) => s.chain);
+        let tries = 0;
+        const iv = window.setInterval(() => {
+          tries += 1;
+          const ready = !lastAnchor || !!document.querySelector(`[data-tour="${lastAnchor}"]`);
+          if (!ready && tries < 25) return;
+          window.clearInterval(iv);
+          startTutorial(tut, {
+            // End of the WHOLE chain (tours that chain further defer this):
+            // introduce BOTH help entry points (sidebar "?" + bottom-right
+            // "?") — once per browser.
+            onComplete: chainsFurther
+              ? undefined
+              : () => {
+                  try {
+                    if (window.localStorage.getItem(flag('helpBtns'))) return;
+                    window.localStorage.setItem(flag('helpBtns'), '1');
+                  } catch {
+                    return;
+                  }
+                  setShowPointer(true);
+                },
+          });
+        }, 400);
+        return () => window.clearInterval(iv);
       }
+      // Stale hand-off (e.g. the guided click landed elsewhere): a pending
+      // flag survives at most one navigation.
+      if (pending) window.localStorage.removeItem(flag('pending'));
     } catch { /* non-fatal */ }
     setSeen(pageSeen === '1');
     if (pathname === '/login') {

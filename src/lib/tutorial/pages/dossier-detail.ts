@@ -21,6 +21,13 @@ export const dossierDetailTutorial: PageTutorial = {
         "Toute la vie du sinistre sur une seule page, étape par étape.\nChaque information n'est saisie qu'une fois : elle se retrouve dans les devis, le rapport et la facture.",
     },
     {
+      anchor: 'dos-tabs',
+      title: 'Vos dossiers ouverts',
+      body:
+        "Chaque dossier ouvert reste ici, comme les onglets d'un navigateur. L'onglet « Dossiers » ramène à la liste.",
+      side: 'bottom',
+    },
+    {
       anchor: 'dosd-header',
       title: 'En-tête',
       body: "L'assuré, la compagnie et la référence restent toujours visibles ici.",

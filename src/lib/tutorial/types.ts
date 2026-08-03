@@ -42,6 +42,12 @@ export interface TourStep {
    */
   interact?: 'click' | 'until';
   until?: () => boolean;
+  /**
+   * Key of another PageTutorial to chain into when this interact step's
+   * click navigates away (written to the `pending` flag at click time;
+   * the launcher auto-starts the matching tour on arrival).
+   */
+  chain?: string;
 }
 
 export interface PageTutorial {

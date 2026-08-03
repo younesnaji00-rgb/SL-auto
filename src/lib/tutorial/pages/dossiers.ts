@@ -2,8 +2,7 @@ import type { PageTutorial } from '../types';
 
 /**
  * Gestion des dossiers — the gestionnaire's main worklist.
- * Anchors: `dos-*` in src/app/(app)/dossiers/client-page.tsx
- * (+ `dos-tabs` on the shared dossier tabs bar in the app layout).
+ * Anchors: `dos-*` in src/app/(app)/dossiers/client-page.tsx.
  * Interactive steps stick to safe targets (search focus, date preset,
  * reset, column filter) — the reset step restores the full list right
  * after the date preset may have emptied it.
@@ -66,7 +65,13 @@ export const dossiersTutorial: PageTutorial = {
     {
       anchor: 'dos-table',
       title: 'La liste',
-      body: "Chaque ligne est un dossier ; cliquez dessus pour l'ouvrir.",
+      body: 'Chaque ligne est un dossier.',
+      side: 'top',
+    },
+    {
+      anchor: 'dos-table',
+      title: 'Défilement horizontal',
+      body: 'Glissez la barre en bas du tableau pour voir toutes les colonnes.',
       side: 'top',
     },
     {
@@ -76,10 +81,15 @@ export const dossiersTutorial: PageTutorial = {
       side: 'top',
     },
     {
-      anchor: 'dos-tabs',
-      title: 'Onglets de dossiers',
-      body: 'Chaque dossier ouvert reste ici, comme dans un navigateur.',
-      side: 'bottom',
+      anchor: 'dos-table',
+      title: 'Ouvrir un dossier',
+      body: "Cliquez sur une ligne : le dossier s'ouvre et son guide continue là-bas.",
+      side: 'top',
+      interact: 'click',
+      chain: 'dossier-detail',
     },
   ],
+  // Ends on the row click that opens a dossier — the guide continues (and
+  // the closing pitch lives) on the dossier-detail walkthrough.
+  noClosing: true,
 };
