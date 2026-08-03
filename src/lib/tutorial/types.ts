@@ -48,6 +48,11 @@ export interface TourStep {
    * the launcher auto-starts the matching tour on arrival).
    */
   chain?: string;
+  /**
+   * Download/action link rendered under the body (e.g. the demo kit zip).
+   * `label` is a French i18n key like title/body.
+   */
+  link?: { href: string; label: string; download?: boolean };
 }
 
 export interface PageTutorial {

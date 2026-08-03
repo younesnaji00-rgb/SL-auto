@@ -197,7 +197,7 @@ export function CreateDossierDialog({
         </DialogHeader>
 
         <div className="grid gap-5 py-2">
-          <div className="grid gap-2">
+          <div className="grid gap-2" data-tour="dos-create-compagnie">
             <Label htmlFor="create-compagnie">{t('Compagnie')}</Label>
             <Select
               value={compagnie}
@@ -292,7 +292,7 @@ export function CreateDossierDialog({
           <Button variant="outline" onClick={handleCancel} disabled={isCreating}>
             {t('Annuler')}
           </Button>
-          <Button onClick={handleConfirm} loading={isCreating}>
+          <Button onClick={handleConfirm} loading={isCreating} data-tour="dos-create-submit">
             {t('Créer')}
           </Button>
         </DialogFooter>

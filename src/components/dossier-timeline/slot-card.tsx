@@ -209,6 +209,14 @@ export function SlotCard({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      // Tutorial anchors on the two slots the guided demo imports into.
+      data-tour={
+        slot === 'Devis Garage' && !extraSlotKind
+          ? 'dosd-devis-slot'
+          : slot === "Note d'honoraire"
+            ? 'dosd-honoraire-slot'
+            : undefined
+      }
     >
       <CardHeader className="py-2.5 px-3 border-b">
         <CardTitle className="font-semibold text-sm flex items-center justify-between gap-2">

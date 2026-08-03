@@ -51,12 +51,6 @@ export const dossiersTutorial: PageTutorial = {
       side: 'bottom',
     },
     {
-      anchor: 'dos-create',
-      title: 'Créer un dossier',
-      body: "Ce bouton crée un dossier ; l'IA le remplit en lisant le document de mission.",
-      side: 'bottom',
-    },
-    {
       anchor: 'dos-rappeler',
       title: 'Envoyer des rappels',
       body: 'Cochez des dossiers et envoyez une demande à un collègue.',
@@ -81,15 +75,36 @@ export const dossiersTutorial: PageTutorial = {
       side: 'top',
     },
     {
-      anchor: 'dos-table',
-      title: 'Ouvrir un dossier',
-      body: "Cliquez sur une ligne : le dossier s'ouvre et son guide continue là-bas.",
+      title: 'À vous de créer un dossier !',
+      body:
+        'Téléchargez le kit de démonstration : un document de mission, des photos du véhicule et un devis de garage (tous fictifs).\nVous allez suivre un vrai dossier du début à la fin.',
+      link: { href: '/demo-kit/demo-kit.zip', label: 'Télécharger le kit', download: true },
+    },
+    {
+      anchor: 'dos-create',
+      title: 'Créer le dossier',
+      body: 'Cliquez sur « Création de mission ».',
+      side: 'bottom',
+      interact: 'click',
+    },
+    {
+      anchor: 'dos-create-compagnie',
+      title: 'La compagnie',
+      body: 'Choisissez « Laurentide Assurance » — la compagnie du document du kit.',
+      side: 'bottom',
+      dynamic: true,
+    },
+    {
+      anchor: 'dos-create-submit',
+      title: 'Créer',
+      body: "Cliquez sur « Créer » : le dossier s'ouvre aussitôt.",
       side: 'top',
+      dynamic: true,
       interact: 'click',
       chain: 'dossier-detail',
     },
   ],
-  // Ends on the row click that opens a dossier — the guide continues (and
-  // the closing pitch lives) on the dossier-detail walkthrough.
+  // Ends on the click that creates and opens the dossier — the guide (and
+  // the closing pitch) continues on the dossier-detail walkthrough.
   noClosing: true,
 };

@@ -250,6 +250,9 @@ const CANONICAL_STATUTS = [
 // Canadian insurers — doc shape from src/hooks/use-compagnies.ts (label + nom
 // + couleur + order + active + createdAt).
 const COMPAGNIES = [
+  // Fictional insurer used by the demo-kit guided walkthrough (the mission
+  // document in public/demo-kit is issued by it).
+  { nom: 'Laurentide Assurance', couleur: '#0f4c5c' },
   { nom: 'Intact Assurance', couleur: '#ef4444' },
   { nom: 'Desjardins Assurances', couleur: '#00874e' },
   { nom: 'Aviva Canada', couleur: '#fbbf24' },

@@ -225,6 +225,34 @@
   50% { box-shadow: 0 0 0 3px #0f766e, 0 0 0 12px rgba(15, 118, 110, 0.12); }
 }
 
+/* While a tour is active, Radix portals (select dropdowns, date pickers)
+   must float ABOVE the driver.js overlay AND regain pointer events
+   (driver.css sets `.driver-active * { pointer-events: none }`), or they
+   render dimmed and unclickable mid-step. */
+body.driver-active [data-radix-popper-content-wrapper] {
+  z-index: 1000000001 !important;
+}
+body.driver-active [data-radix-popper-content-wrapper],
+body.driver-active [data-radix-popper-content-wrapper] * {
+  pointer-events: auto !important;
+}
+
+/* Download/action link inside a tour popover (e.g. the demo kit) */
+.driver-popover.sl-tour .sl-tour-link {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 0.35rem 0.85rem;
+  border-radius: 0.5rem;
+  background: #b45309;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.driver-popover.sl-tour .sl-tour-link:hover {
+  filter: brightness(1.08);
+}
+
 /* "Start the demo" button on the tour's closing popover */
 .driver-popover.sl-tour .sl-tour-lab-btn {
   background: #b45309 !important;

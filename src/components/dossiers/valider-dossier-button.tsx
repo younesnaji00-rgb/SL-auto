@@ -87,6 +87,7 @@ export function ValiderDossierButton({
       disabled={submitting || alreadyValidated}
       className={className}
       variant={alreadyValidated ? 'outline' : 'default'}
+      data-tour="dosd-rapport-valider"
     >
       <ShieldCheck className="h-4 w-4 mr-2" />
       {alreadyValidated ? t('Dossier validé') : t('Valider le dossier')}

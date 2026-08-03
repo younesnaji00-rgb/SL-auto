@@ -65,13 +65,23 @@ export function startTutorial(
 ): void {
   destroyActiveTour();
 
-  const steps = tut.steps.filter(
-    (s) =>
+  const steps = tut.steps.filter((s) => {
+    // Hands-on steps whose goal is ALREADY met (photos present, quote
+    // imported…) are skipped — revisiting a fed dossier stays short.
+    if (s.interact === 'until' && s.until) {
+      try {
+        if (s.until()) return false;
+      } catch {
+        /* keep the step */
+      }
+    }
+    return (
       !s.anchor ||
       s.dynamic ||
       !!s.click ||
-      !!document.querySelector(`[data-tour="${s.anchor}"]`),
-  );
+      !!document.querySelector(`[data-tour="${s.anchor}"]`)
+    );
+  });
   if (steps.length === 0) return;
   // Every tour ends on the shared strong-points/customization step —
   // except chaining tours (sidebar intro), which end on a hand-off click.
@@ -185,10 +195,19 @@ export function startTutorial(
     },
     steps: steps.map((s, i) => ({
       element: s.anchor
-        ? () =>
-            (document.querySelector(`[data-tour="${s.anchor}"]`) as Element | null) ??
-            // Anchor vanished (collapsed layout) — fall back to a modal step.
-            document.body
+        ? () => {
+            // Some anchors exist twice (e.g. the Devis Garage slot renders
+            // in two sections) — prefer a visible match.
+            const els = Array.from(
+              document.querySelectorAll<HTMLElement>(`[data-tour="${s.anchor}"]`),
+            );
+            return (
+              els.find((el) => el.getClientRects().length > 0) ??
+              els[0] ??
+              // Anchor vanished (collapsed layout) — fall back to a modal step.
+              document.body
+            );
+          }
         : undefined,
       ...(s.interact
         ? {
@@ -202,7 +221,13 @@ export function startTutorial(
         title: escapeHtml(t(s.title)),
         // driver.js renders description as innerHTML; our texts are
         // first-party, escape then reintroduce intentional line breaks.
-        description: escapeHtml(t(s.body)).replace(/\n/g, '<br/>'),
+        description:
+          escapeHtml(t(s.body)).replace(/\n/g, '<br/>') +
+          (s.link
+            ? `<a class="sl-tour-link" href="${escapeHtml(s.link.href)}"${
+                s.link.download ? ' download' : ' target="_blank" rel="noopener"'
+              }>${escapeHtml(t(s.link.label))}</a>`
+            : ''),
         side: s.side,
         align: s.align ?? 'start',
       },

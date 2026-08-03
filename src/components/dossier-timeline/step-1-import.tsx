@@ -512,7 +512,7 @@ export default function Step1Import({
   return (
     <div className="space-y-4">
       {showDropZone && (
-        <Card className="border-dashed">
+        <Card className="border-dashed" data-tour="dosd-import-drop">
           <CardContent className="p-0">
             <div
               onDrop={onDrop}

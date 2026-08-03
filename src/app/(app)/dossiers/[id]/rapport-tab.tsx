@@ -318,7 +318,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span>
+                <span data-tour="dosd-rapport-generer">
                   <Button
                     onClick={handleOpenTypeDialog}
                     disabled={isGenerating || !alreadyValidated}

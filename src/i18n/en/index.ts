@@ -33,6 +33,7 @@ import { TUTORIAL_CORE_EN } from './tutorial-core';
 import { LABS_EN } from './labs';
 import { LEFTOVERS_EN } from './leftovers';
 import { TRIAL_EN } from './trial';
+import { DEMO_KIT_EN } from './demo-kit';
 
 export const EN: Record<string, string> = {
   ...COMMON_EN,
@@ -61,4 +62,5 @@ export const EN: Record<string, string> = {
   ...LABS_EN,
   ...LEFTOVERS_EN,
   ...TRIAL_EN,
+  ...DEMO_KIT_EN,
 };

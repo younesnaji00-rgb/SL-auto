@@ -516,7 +516,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
         {visibleCategories.map((cat) => {
           const catPhotos = photosForCategory(cat.id);
           return (
-            <TabsContent key={cat.id} value={cat.id} className="mt-4">
+            <TabsContent key={cat.id} value={cat.id} className="mt-4" data-tour={`dosd-photos-${cat.id}`}>
               {/* Upload header */}
               <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
