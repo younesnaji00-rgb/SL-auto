@@ -225,6 +225,14 @@
   50% { box-shadow: 0 0 0 3px #0f766e, 0 0 0 12px rgba(15, 118, 110, 0.12); }
 }
 
+/* Tour anchors scroll under the sticky topbar/tabs stack without this —
+   driver.js scrollIntoView respects scroll-margin, so highlighted elements
+   land BELOW the sticky rows instead of hidden behind them. */
+[data-tour] {
+  scroll-margin-top: 120px;
+  scroll-margin-bottom: 40px;
+}
+
 /* While a tour is active, Radix portals (select dropdowns, date pickers)
    must float ABOVE the driver.js overlay AND regain pointer events
    (driver.css sets `.driver-active * { pointer-events: none }`), or they
@@ -237,10 +245,15 @@ body.driver-active [data-radix-popper-content-wrapper] * {
   pointer-events: auto !important;
 }
 
-/* Download/action link inside a tour popover (e.g. the demo kit) */
+/* Download/action links inside a tour popover (e.g. the demo kit) */
+.driver-popover.sl-tour .sl-tour-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
 .driver-popover.sl-tour .sl-tour-link {
   display: inline-block;
-  margin-top: 10px;
   padding: 0.35rem 0.85rem;
   border-radius: 0.5rem;
   background: #b45309;

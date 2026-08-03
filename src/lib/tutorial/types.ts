@@ -49,10 +49,11 @@ export interface TourStep {
    */
   chain?: string;
   /**
-   * Download/action link rendered under the body (e.g. the demo kit zip).
-   * `label` is a French i18n key like title/body.
+   * Download/action links rendered under the body (e.g. demo-kit files).
+   * `{lang}` in href is replaced with the active locale ('fr'|'en') so
+   * each language serves its own kit. `label` is a French i18n key.
    */
-  link?: { href: string; label: string; download?: boolean };
+  links?: Array<{ href: string; label: string; download?: boolean }>;
 }
 
 export interface PageTutorial {

@@ -2,7 +2,7 @@
 
 import { driver, type Driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
-import { t } from '@/i18n';
+import { t, getLocale } from '@/i18n';
 import { BRAND } from '@/lib/brand';
 import type { PageTutorial, TourStep } from './types';
 
@@ -102,6 +102,33 @@ export function startTutorial(
       }
     }
     done();
+  };
+
+  // The app stacks sticky bars (topbar, dossier tabs) ~110px deep; driver's
+  // scroll can park a highlighted element UNDER them (visible cutout, hidden
+  // element). Nudge the real scroller so the target clears the bars, then
+  // re-anchor the popover.
+  const clearStickyBars = (el?: HTMLElement) => {
+    if (!el || el === document.body) return;
+    const delta = 120 - el.getBoundingClientRect().top;
+    if (delta <= 0) return;
+    let p: HTMLElement | null = el.parentElement;
+    let scroller: HTMLElement | null = null;
+    while (p && p !== document.body) {
+      const st = getComputedStyle(p);
+      if (/(auto|scroll)/.test(st.overflowY) && p.scrollHeight > p.clientHeight) {
+        scroller = p;
+        break;
+      }
+      p = p.parentElement;
+    }
+    if (scroller) scroller.scrollTop -= delta;
+    else window.scrollBy(0, -delta);
+    window.setTimeout(() => {
+      try {
+        if (active === d) d.refresh();
+      } catch { /* torn down */ }
+    }, 80);
   };
 
   let interactCleanup: (() => void) | null = null;
@@ -209,13 +236,10 @@ export function startTutorial(
             );
           }
         : undefined,
-      ...(s.interact
-        ? {
-            onHighlighted: (el?: Element) => {
-              if (el && el !== document.body) beginInteract(i, el as HTMLElement);
-            },
-          }
-        : {}),
+      onHighlighted: (el?: Element) => {
+        clearStickyBars(el as HTMLElement | undefined);
+        if (s.interact && el && el !== document.body) beginInteract(i, el as HTMLElement);
+      },
       popover: {
         ...(s.interact ? { showButtons: ['close', 'previous'] as any } : {}),
         title: escapeHtml(t(s.title)),
@@ -223,10 +247,17 @@ export function startTutorial(
         // first-party, escape then reintroduce intentional line breaks.
         description:
           escapeHtml(t(s.body)).replace(/\n/g, '<br/>') +
-          (s.link
-            ? `<a class="sl-tour-link" href="${escapeHtml(s.link.href)}"${
-                s.link.download ? ' download' : ' target="_blank" rel="noopener"'
-              }>${escapeHtml(t(s.link.label))}</a>`
+          (s.links?.length
+            ? `<div class="sl-tour-links">${s.links
+                .map(
+                  (l) =>
+                    `<a class="sl-tour-link" href="${escapeHtml(
+                      l.href.replace('{lang}', getLocale()),
+                    )}"${l.download ? ' download' : ' target="_blank" rel="noopener"'}>${escapeHtml(
+                      t(l.label),
+                    )}</a>`,
+                )
+                .join('')}</div>`
             : ''),
         side: s.side,
         align: s.align ?? 'start',

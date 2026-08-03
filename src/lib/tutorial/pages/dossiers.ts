@@ -77,8 +77,7 @@ export const dossiersTutorial: PageTutorial = {
     {
       title: 'À vous de créer un dossier !',
       body:
-        'Téléchargez le kit de démonstration : un document de mission, des photos du véhicule et un devis de garage (tous fictifs).\nVous allez suivre un vrai dossier du début à la fin.',
-      link: { href: '/demo-kit/demo-kit.zip', label: 'Télécharger le kit', download: true },
+        "Vous allez suivre un vrai dossier du début à la fin, avec des documents fictifs fournis à chaque étape (document de mission, photos, devis).\nCommençons par créer le dossier.",
     },
     {
       anchor: 'dos-create',

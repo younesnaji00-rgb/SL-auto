@@ -55,7 +55,7 @@ export const dossierDetailTutorial: PageTutorial = {
       anchor: 'dosd-import-drop',
       title: "L'import magique",
       body:
-        "Déposez « 1-mission-document.pdf » du kit ici (ou « Choisir un fichier »).\nL'IA lit le document et remplit le dossier toute seule.",
+        "Téléchargez le document de mission ci-dessous, puis déposez-le ici (ou « Choisir un fichier »).\nL'IA lit le document et remplit le dossier toute seule.",
       side: 'bottom',
       interact: 'until',
       // Advance when the import is accepted (dropzone disappears) — or when
@@ -73,7 +73,9 @@ export const dossierDetailTutorial: PageTutorial = {
         }
         return !!w[flagKey];
       },
-      link: { href: '/demo-kit/demo-kit.zip', label: 'Télécharger le kit', download: true },
+      links: [
+        { href: '/demo-kit/{lang}/mission-document.pdf', label: 'Document de mission (PDF)', download: true },
+      ],
     },
     {
       title: 'Regardez !',
@@ -98,10 +100,15 @@ export const dossierDetailTutorial: PageTutorial = {
       click: 'dosd-step-4',
       delay: 600,
       title: 'Les photos avant réparation',
-      body: 'Cliquez sur « Ajouter » et choisissez les 3 photos « 2-photo-before » du kit.',
+      body: 'Téléchargez les 3 photos ci-dessous, puis cliquez sur « Ajouter » pour les déposer.',
       side: 'top',
       interact: 'until',
       until: photosPresent('avant'),
+      links: [
+        { href: '/demo-kit/photos/before-1.png', label: 'Photo 1', download: true },
+        { href: '/demo-kit/photos/before-2.png', label: 'Photo 2', download: true },
+        { href: '/demo-kit/photos/before-3.png', label: 'Photo 3', download: true },
+      ],
     },
     {
       title: 'Sur le terrain',
@@ -120,10 +127,13 @@ export const dossierDetailTutorial: PageTutorial = {
       click: 'dosd-step-6',
       delay: 600,
       title: 'Le devis du garage',
-      body: 'Ajoutez « 3-garage-quote.pdf » du kit dans cette carte « Devis Garage ».',
+      body: 'Téléchargez le devis ci-dessous, puis ajoutez-le dans cette carte « Devis Garage ».',
       side: 'top',
       interact: 'until',
       until: () => !!document.querySelector('[data-tour="dosd-devis-slot"] ul li'),
+      links: [
+        { href: '/demo-kit/{lang}/garage-quote.pdf', label: 'Devis du garage (PDF)', download: true },
+      ],
     },
     {
       title: "L'IA lit aussi le devis",
@@ -142,10 +152,14 @@ export const dossierDetailTutorial: PageTutorial = {
       click: 'dosd-step-9',
       delay: 600,
       title: 'Les photos pendant travaux',
-      body: 'Ajoutez les photos « 4-photo-during » du kit.',
+      body: 'Téléchargez les 2 photos ci-dessous, puis cliquez sur « Ajouter ».',
       side: 'top',
       interact: 'until',
       until: photosPresent('en_cours'),
+      links: [
+        { href: '/demo-kit/photos/during-1.png', label: 'Photo 1', download: true },
+        { href: '/demo-kit/photos/during-2.png', label: 'Photo 2', download: true },
+      ],
     },
     {
       anchor: 'dosd-step-10',
@@ -159,10 +173,14 @@ export const dossierDetailTutorial: PageTutorial = {
       click: 'dosd-step-10',
       delay: 600,
       title: 'Le véhicule réparé',
-      body: 'Ajoutez les photos « 5-photo-after » du kit.',
+      body: 'Téléchargez les 2 photos ci-dessous, puis cliquez sur « Ajouter ».',
       side: 'top',
       interact: 'until',
       until: photosPresent('apres'),
+      links: [
+        { href: '/demo-kit/photos/after-1.png', label: 'Photo 1', download: true },
+        { href: '/demo-kit/photos/after-2.png', label: 'Photo 2', download: true },
+      ],
     },
     {
       anchor: 'dosd-step-7',
