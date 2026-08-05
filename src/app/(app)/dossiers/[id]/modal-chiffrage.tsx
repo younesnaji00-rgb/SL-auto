@@ -208,7 +208,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
         <div className="grid gap-4 py-4 flex-1 overflow-hidden">
           {/* Chiffreur selection */}
-          <div className="space-y-2">
+          <div className="space-y-2" data-tour="chif-choose">
             <Label>{t('Chiffreur responsable')}</Label>
             <ChiffreurDialog
               selectedId={selectedChiffreurId}
@@ -252,7 +252,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>{t('Annuler')}</Button>
-          <Button onClick={handleAssign} disabled={isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0}>
+          <Button data-tour="chif-send" onClick={handleAssign} disabled={isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0}>
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
             {t('Envoyer')} ({totalFileCount})
           </Button>

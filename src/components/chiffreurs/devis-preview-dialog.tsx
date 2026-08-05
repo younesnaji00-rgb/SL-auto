@@ -381,7 +381,7 @@ export function DevisPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl" data-tour="dev-preview">
         <DialogHeader>
           <DialogTitle>{t('Aperçu avant enregistrement')}</DialogTitle>
         </DialogHeader>

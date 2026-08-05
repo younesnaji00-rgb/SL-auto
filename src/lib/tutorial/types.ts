@@ -37,17 +37,41 @@ export interface TourStep {
   /**
    * Hands-on interaction (merged lab): 'click' advances when the user
    * really clicks the highlighted element; 'until' advances when `until()`
-   * returns true (e.g. a date actually selected). Interactive steps hide
-   * the Next button.
+   * returns true (e.g. a date actually selected). Interactive steps keep
+   * their Next button — nobody is forced to complete the action.
    */
   interact?: 'click' | 'until';
   until?: () => boolean;
+  /**
+   * Cleanup run when the user advances with the Next button INSTEAD of
+   * completing the hands-on action — e.g. close the sheet/dialog this
+   * step opened so the next step's anchor isn't buried underneath it.
+   */
+  onNext?: () => void;
   /**
    * Key of another PageTutorial to chain into when this interact step's
    * click navigates away (written to the `pending` flag at click time;
    * the launcher auto-starts the matching tour on arrival).
    */
   chain?: string;
+  /**
+   * With `chain`: write the pending flags when the step SHOWS (not only on
+   * the anchored click), so any route to the target page — dossier tab,
+   * row click — resumes the chained tour. Stale-pending cleanup absorbs
+   * the case where the user goes elsewhere instead.
+   */
+  chainEager?: boolean;
+  /**
+   * With `chain`: also save THIS tour's resume position at the next step,
+   * so chaining back into this tour later continues where the journey
+   * left off (used for round-trip hops to other pages).
+   */
+  chainResume?: boolean;
+  /**
+   * With `chain`: start the TARGET tour at the step with this title
+   * (used to enter a tour at a hidden re-entry step instead of step 1).
+   */
+  chainAt?: string;
   /**
    * Download/action links rendered under the body (e.g. demo-kit files).
    * `{lang}` in href is replaced with the active locale ('fr'|'en') so

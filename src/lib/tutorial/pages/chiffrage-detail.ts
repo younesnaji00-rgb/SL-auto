@@ -63,5 +63,15 @@ export const chiffrageDetailTutorial: PageTutorial = {
       body: 'Véhicule irréparable ? Saisissez ici la décision de réforme.',
       side: 'bottom',
     },
+    {
+      anchor: 'slot-editer',
+      title: "Ouvrons l'éditeur",
+      body: 'Cliquez sur « Éditer » : le devis lu par l’IA devient un tableau intelligent.',
+      side: 'top',
+      interact: 'click',
+      chain: 'devis-editor',
+    },
   ],
+  // Chains into the devis editor — the journey continues there.
+  noClosing: true,
 };

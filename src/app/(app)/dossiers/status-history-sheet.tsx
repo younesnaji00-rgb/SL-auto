@@ -63,7 +63,7 @@ export default function StatusHistorySheet({ open, onOpenChange, dossier }: Stat
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-lg overflow-y-auto" data-tour="dos-status-sheet">
         <SheetHeader>
           <SheetTitle className="text-primary">{t('États Du Dossier')}</SheetTitle>
           <SheetDescription>

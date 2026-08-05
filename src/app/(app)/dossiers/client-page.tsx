@@ -666,7 +666,7 @@ export default function DossiersClientPage() {
 
       {/* Export toolbar */}
       {exportMode ? (
-        <div className="flex items-center justify-between bg-muted/50 border rounded-lg px-4 py-2">
+        <div className="flex items-center justify-between bg-muted/50 border rounded-lg px-4 py-2" data-tour="dos-export-bar">
           <span className="text-sm font-medium">
             {selectedRows.size} / {dossierList.length} {t('dossier(s) sélectionné(s)')}
           </span>
@@ -674,11 +674,11 @@ export default function DossiersClientPage() {
             <Button variant="outline" size="sm" onClick={allVisibleSelected ? () => setSelectedRows(new Set()) : handleSelectAll}>
               {allVisibleSelected ? t('Tout désélectionner') : t('Sélectionner tout')}
             </Button>
-            <Button size="sm" onClick={() => setIsSendToOpen(true)} disabled={selectedRows.size === 0}>
+            <Button size="sm" onClick={() => setIsSendToOpen(true)} disabled={selectedRows.size === 0} data-tour="dos-send-to">
               <Send className="mr-2 h-4 w-4" />
               {t('Envoyer à')}
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleCancelExport}>
+            <Button variant="ghost" size="sm" onClick={handleCancelExport} data-tour="dos-export-cancel">
               {t('Annuler')}
             </Button>
           </div>
@@ -1101,6 +1101,7 @@ export default function DossiersClientPage() {
                   <TableCell>{d.nature ? t(d.nature) : '-'}</TableCell>
                   <TableCell>{d.typeDossier ? t(d.typeDossier) : '-'}</TableCell>
                   <TableCell
+                    data-tour="dos-statut-cell"
                     onClick={exportMode ? undefined : (e) => {
                       e.stopPropagation();
                       setStatusHistoryDossier(d);
@@ -1251,7 +1252,7 @@ export default function DossiersClientPage() {
         dossier={observationHistoryDossier}
       />
       <Dialog open={isSendToOpen} onOpenChange={setIsSendToOpen}>
-        <DialogContent>
+        <DialogContent data-tour="dos-sendto-dialog">
           <DialogHeader>
             <DialogTitle>{t('Envoyer à')}</DialogTitle>
             <DialogDescription>{t('Sélectionnez un ou plusieurs gestionnaires destinataires.')}</DialogDescription>

@@ -48,6 +48,8 @@ export function TutorialLauncher() {
     // Chained hand-off (sidebar intro -> page walkthrough): auto-start.
     try {
       const pending = window.localStorage.getItem(flag('pending'));
+      // eslint-disable-next-line no-console
+      console.debug('[tour] launcher', pathname, 'tut', tut.key, 'pending', pending);
       if (pending && tut.key === pending) {
         window.localStorage.removeItem(flag('pending'));
         window.localStorage.setItem(storageKey, '1');
@@ -55,36 +57,52 @@ export function TutorialLauncher() {
         // Wait for the page's data-driven anchors before starting — detail
         // pages render their sections only once the document has loaded, and
         // the presence filter would silently drop every not-yet-rendered step.
-        const lastAnchor = [...tut.steps].reverse().find((s) => s.anchor && !s.dynamic)?.anchor;
-        const chainsFurther = tut.steps.some((s) => s.chain);
+        // Layout-level anchors (tab bar, sidebar nav) exist immediately and
+        // prove nothing, so skip them when picking the poll target.
+        const lastAnchor = [...tut.steps]
+          .reverse()
+          .find(
+            (s) =>
+              s.anchor &&
+              !s.dynamic &&
+              s.anchor !== 'dos-tabs' &&
+              !s.anchor.startsWith('nav-'),
+          )?.anchor;
         let tries = 0;
         const iv = window.setInterval(() => {
           tries += 1;
           const ready = !lastAnchor || !!document.querySelector(`[data-tour="${lastAnchor}"]`);
-          if (!ready && tries < 25) return;
+          if (!ready && tries < 50) return;
           window.clearInterval(iv);
+          // eslint-disable-next-line no-console
+          console.debug('[tour] chained start', tut.key, 'ready', ready, 'tries', tries);
           startTutorial(tut, {
-            // End of the WHOLE chain (tours that chain further defer this):
-            // introduce BOTH help entry points (sidebar "?" + bottom-right
-            // "?") — once per browser.
-            onComplete: chainsFurther
-              ? undefined
-              : () => {
-                  try {
-                    if (window.localStorage.getItem(flag('helpBtns'))) return;
-                    window.localStorage.setItem(flag('helpBtns'), '1');
-                  } catch {
-                    return;
-                  }
-                  setShowPointer(true);
-                },
+            // End of the WHOLE chain: introduce BOTH help entry points
+            // (sidebar "?" + bottom-right "?") — once per browser.
+            // `onComplete` only fires on a genuine completion (last step
+            // reached); mid-journey hand-offs leave a pending flag, which
+            // identifies them better than "does this tour contain chains".
+            onComplete: () => {
+              try {
+                if (window.localStorage.getItem(flag('pending'))) return;
+                if (window.localStorage.getItem(flag('helpBtns'))) return;
+                window.localStorage.setItem(flag('helpBtns'), '1');
+              } catch {
+                return;
+              }
+              setShowPointer(true);
+            },
           });
         }, 400);
         return () => window.clearInterval(iv);
       }
       // Stale hand-off (e.g. the guided click landed elsewhere): a pending
       // flag survives at most one navigation.
-      if (pending) window.localStorage.removeItem(flag('pending'));
+      if (pending) {
+        // eslint-disable-next-line no-console
+        console.debug('[tour] stale pending cleared', pending, 'on', pathname);
+        window.localStorage.removeItem(flag('pending'));
+      }
     } catch { /* non-fatal */ }
     setSeen(pageSeen === '1');
     if (pathname === '/login') {
@@ -143,7 +161,9 @@ export function TutorialLauncher() {
       if (storageKey) window.localStorage.setItem(storageKey, '1');
     } catch { /* non-fatal */ }
     setSeen(true);
-    startTutorial(tut);
+    // Manual "?" start: always from the very first step — never a stale
+    // resume position left by an interrupted run.
+    startTutorial(tut, { fresh: true });
   };
 
   // Welcome lightbox — on app pages, first explain the sidebar (in
@@ -160,6 +180,7 @@ export function TutorialLauncher() {
       window.localStorage.setItem(flag('pending'), 'dossiers');
     } catch { /* non-fatal */ }
     startTutorial(sidebarIntroTutorial, {
+      fresh: true,
       // Already on File Management: the hand-off click doesn't navigate,
       // so the pending-flag chain never fires — start the walkthrough here.
       onComplete: () => {

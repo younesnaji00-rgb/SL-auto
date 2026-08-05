@@ -45,10 +45,16 @@ export const assignationsChiffrageTutorial: PageTutorial = {
       side: 'bottom',
     },
     {
-      anchor: 'ach-table',
-      title: 'La liste',
-      body: "Cliquez sur la référence d'un dossier pour ouvrir son chiffrage.",
+      anchor: 'ach-row',
+      title: 'Votre dossier est arrivé',
+      body:
+        "L'assignation envoyée il y a un instant est déjà là, avec son délai de 24 h.\nCliquez sur la référence pour ouvrir le chiffrage.",
       side: 'top',
+      interact: 'click',
+      chain: 'chiffrage-detail',
     },
   ],
+  // Chains into the chiffrage detail — the closing pitch lives at the end
+  // of the journey, back on the dossier.
+  noClosing: true,
 };

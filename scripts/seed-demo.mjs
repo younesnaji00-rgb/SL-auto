@@ -891,6 +891,36 @@ async function main() {
         userNom: who.nom,
       });
     }
+
+    // Status-change audit trail (dossiers/{id}/historique, type 'statut') —
+    // shape mirrors logHistorique() in log-historique.ts. The list page's
+    // status-pill sheet (StatusHistorySheet) reads EXACTLY this; without it
+    // the "step sequencing" demo moment opens an empty sheet. The ladder is
+    // derived from each dossier's real lifecycle dates so chronology holds.
+    const manager = DEMO_USERS.find((u) => u.key === 'manager');
+    const ladder = [
+      ['Création dossier', d.createdAt, 'Dossier créé'],
+      d.dateDemandeAvant && ['Planification programmée avant', d.dateDemandeAvant, 'Mission terrain programmée'],
+      d.datePhotosAvant && ['Planification expertise avant', d.datePhotosAvant, 'Photos avant réparation reçues'],
+      d.dateChiffrage && ['Chiffrage en cours', d.dateChiffrage, 'Dossier assigné au chiffrage'],
+      d.firstAccordReachedAt && ["Proposition d'accord", d.firstAccordReachedAt, 'Proposition du chiffreur'],
+    ].filter(Boolean);
+    // End on the dossier's current status when the ladder didn't reach it.
+    if (!ladder.some(([s]) => s === d.statut)) {
+      ladder.push([d.statut, d.lastStatusAt ?? d.updatedAt ?? d.createdAt, d.lastStatusDetails || 'Changement de statut']);
+    }
+    ladder.sort((a, b) => new Date(a[1]) - new Date(b[1]));
+    for (let i = 0; i < ladder.length; i++) {
+      const [statut, at, details] = ladder[i];
+      await writeDoc(`dossiers/${d.id}/historique/hist-statut-${String(i + 1).padStart(2, '0')}`, {
+        action: statut,
+        date: ts(at),
+        user: manager.email,
+        userNom: manager.nom,
+        details,
+        type: 'statut',
+      });
+    }
   }
 
   // Summary -------------------------------------------------------------------

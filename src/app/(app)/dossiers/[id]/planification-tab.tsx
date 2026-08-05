@@ -91,7 +91,7 @@ export default function PlanificationTab({
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-end">
-                <Button size="sm" onClick={() => onNewPlanification(typeFilter)}>
+                <Button size="sm" onClick={() => onNewPlanification(typeFilter)} data-tour={typeFilter === 'Avant' ? 'dosd-planif-new' : undefined}>
                   <Plus className="mr-2 h-4 w-4" /> {t('Nouvelle planification')}
                 </Button>
             </div>
@@ -101,7 +101,7 @@ export default function PlanificationTab({
                     <CalendarIcon className="h-12 w-12 text-muted-foreground mb-4" />
                     <CardTitle>{t('Aucune planification')}</CardTitle>
                     <CardDescription className="mb-6">{t("Ce dossier n'a pas encore de mission planifiée.")}</CardDescription>
-                    <Button onClick={() => onNewPlanification(typeFilter)}>{t('Programmer une mission')}</Button>
+                    <Button onClick={() => onNewPlanification(typeFilter)} data-tour={typeFilter === 'Avant' ? 'dosd-planif-new' : undefined}>{t('Programmer une mission')}</Button>
                 </Card>
             ) : (
                 <Card className="overflow-hidden shadow-sm">

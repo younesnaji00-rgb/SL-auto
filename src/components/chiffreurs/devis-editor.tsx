@@ -1185,7 +1185,7 @@ export function DevisEditor({
                   </Popover>
                 </th>
                 <th>{t('Designation')}</th>
-                <th style={{ width: '90px' }}>
+                <th style={{ width: '90px' }} data-tour="dev-col-type">
                   <Popover open={typeHeaderOpen} onOpenChange={setTypeHeaderOpen}>
                     <PopoverTrigger asChild>
                       <button
@@ -1257,7 +1257,7 @@ export function DevisEditor({
                     </PopoverContent>
                   </Popover>
                 </th>
-                <th style={{ width: '80px' }} className="text-center">
+                <th style={{ width: '80px' }} className="text-center" data-tour="dev-col-vetuste">
                   <div className="flex items-center justify-center gap-1">
                     <span>{t('Vetuste')}</span>
                     <button type="button" disabled={!isEditable}

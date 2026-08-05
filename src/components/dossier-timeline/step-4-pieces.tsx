@@ -155,6 +155,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
         onClick={handleSendToChiffrage}
         disabled={assignerDisabled}
         className="gap-1.5"
+        data-tour="dosd-assign-chiffrage"
       >
         <Send className="h-3.5 w-3.5" /> {t('Assigner au chiffrage')}
       </Button>
@@ -223,7 +224,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
                 <TabsTrigger value="browse" className="gap-1.5">
                   <FolderOpen className="h-4 w-4" /> {t('Documents')}
                 </TabsTrigger>
-                <TabsTrigger value="import" className="gap-1.5">
+                <TabsTrigger value="import" className="gap-1.5" data-tour="dosd-docs-import-tab">
                   <Upload className="h-4 w-4" /> {t('Importer un document')}
                 </TabsTrigger>
               </TabsList>

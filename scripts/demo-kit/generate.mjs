@@ -169,6 +169,184 @@ const quoteEn = `<!doctype html><html><head><meta charset="utf-8"><style>${QUOTE
   <div class="foot">Metro Collision Centre is a fictional company created for the Appraisio demo.</div>
 </body></html>`;
 
+// ── source documents required before assigning to estimating ────────────────
+
+const registrationFr = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}</style></head><body>
+  <div class="head">
+    <div class="logo"><div class="n">Registre provincial des véhicules</div><div class="s">Document fictif — démonstration</div></div>
+    <div class="addr">Bureau d'immatriculation (fictif)<br>Montréal (Québec)</div>
+  </div>
+  <h1>CERTIFICAT D'IMMATRICULATION</h1>
+  <div class="ref">N° de certificat : <b>QC-2024-8845127</b> &nbsp;·&nbsp; Délivré le 14 mars 2024</div>
+  <table class="info">
+    <tr><td class="k">Propriétaire</td><td>Marc Tremblay</td></tr>
+    <tr><td class="k">Adresse</td><td>4821, rue Beaubien Est, Montréal (Québec) H1T 1V1</td></tr>
+    <tr><td class="k">Marque / Modèle</td><td>Honda Civic LX</td></tr>
+    <tr><td class="k">Année</td><td>2022</td></tr>
+    <tr><td class="k">Couleur</td><td>Grise</td></tr>
+    <tr><td class="k">Immatriculation</td><td>K52 XBM</td></tr>
+    <tr><td class="k">Numéro de série (NIV)</td><td>2HGFE2F52NH103428</td></tr>
+    <tr><td class="k">Masse nette</td><td>1 335 kg</td></tr>
+    <tr><td class="k">Usage</td><td>Promenade</td></tr>
+  </table>
+  <div class="stamp">DOCUMENT DE DÉMONSTRATION — FICTIF</div>
+  <div class="foot">Document fictif créé pour la démonstration Appraisio — n'imite aucun organisme réel.</div>
+</body></html>`;
+
+const registrationEn = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}</style></head><body>
+  <div class="head">
+    <div class="logo"><div class="n">Provincial Vehicle Registry</div><div class="s">Fictional document — demonstration</div></div>
+    <div class="addr">Vehicle Registration Office (fictional)<br>Toronto, Ontario</div>
+  </div>
+  <h1>VEHICLE REGISTRATION CERTIFICATE</h1>
+  <div class="ref">Certificate no.: <b>ON-2024-8845127</b> &nbsp;·&nbsp; Issued March 14, 2024</div>
+  <table class="info">
+    <tr><td class="k">Owner</td><td>Marc Tremblay</td></tr>
+    <tr><td class="k">Address</td><td>4821 Dundas Street East, Toronto, Ontario M9A 1B7</td></tr>
+    <tr><td class="k">Make / Model</td><td>Honda Civic LX</td></tr>
+    <tr><td class="k">Year</td><td>2022</td></tr>
+    <tr><td class="k">Colour</td><td>Grey</td></tr>
+    <tr><td class="k">Licence plate</td><td>K52 XBM</td></tr>
+    <tr><td class="k">VIN</td><td>2HGFE2F52NH103428</td></tr>
+    <tr><td class="k">Net weight</td><td>1,335 kg</td></tr>
+    <tr><td class="k">Use</td><td>Personal</td></tr>
+  </table>
+  <div class="stamp">DEMONSTRATION DOCUMENT — FICTIONAL</div>
+  <div class="foot">Fictional document created for the Appraisio demo — does not imitate any real authority.</div>
+</body></html>`;
+
+const insuranceFr = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}</style></head><body>
+  <div class="head">
+    <div class="logo"><div class="n">Laurentide Assurance</div><div class="s">Groupe d'assurance générale — Québec</div></div>
+    <div class="addr">1250, boul. René-Lévesque O., bureau 900<br>Montréal (Québec) H3B 4W8</div>
+  </div>
+  <h1>ATTESTATION D'ASSURANCE AUTOMOBILE</h1>
+  <div class="ref">Police n° : <b>AUTO-88-452-716</b> &nbsp;·&nbsp; En vigueur du 1er janvier 2026 au 1er janvier 2027</div>
+  <table class="info">
+    <tr><td class="k">Assuré</td><td>Marc Tremblay</td></tr>
+    <tr><td class="k">Véhicule assuré</td><td>Honda Civic LX 2022 — grise</td></tr>
+    <tr><td class="k">Immatriculation</td><td>K52 XBM</td></tr>
+    <tr><td class="k">Numéro de série (NIV)</td><td>2HGFE2F52NH103428</td></tr>
+    <tr><td class="k">Responsabilité civile</td><td>2 000 000 $ CA</td></tr>
+    <tr><td class="k">Franchise collision</td><td>500,00 $ CA</td></tr>
+    <tr><td class="k">Franchise sans collision</td><td>250,00 $ CA</td></tr>
+  </table>
+  <p class="body">La présente atteste que le véhicule décrit ci-dessus est assuré auprès de Laurentide Assurance pour la période indiquée.</p>
+  <div class="stamp">DOCUMENT DE DÉMONSTRATION — FICTIF</div>
+  <div class="foot">Laurentide Assurance est une société fictive créée pour la démonstration Appraisio.</div>
+</body></html>`;
+
+const insuranceEn = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}</style></head><body>
+  <div class="head">
+    <div class="logo"><div class="n">Laurentide Assurance</div><div class="s">General Insurance Group — Canada</div></div>
+    <div class="addr">181 Bay Street, Suite 2100<br>Toronto, Ontario M5J 2T3</div>
+  </div>
+  <h1>CERTIFICATE OF AUTOMOBILE INSURANCE</h1>
+  <div class="ref">Policy no.: <b>AUTO-88-452-716</b> &nbsp;·&nbsp; In force January 1, 2026 to January 1, 2027</div>
+  <table class="info">
+    <tr><td class="k">Insured</td><td>Marc Tremblay</td></tr>
+    <tr><td class="k">Insured vehicle</td><td>2022 Honda Civic LX — grey</td></tr>
+    <tr><td class="k">Licence plate</td><td>K52 XBM</td></tr>
+    <tr><td class="k">VIN</td><td>2HGFE2F52NH103428</td></tr>
+    <tr><td class="k">Third-party liability</td><td>$2,000,000 CAD</td></tr>
+    <tr><td class="k">Collision deductible</td><td>$500.00 CAD</td></tr>
+    <tr><td class="k">Comprehensive deductible</td><td>$250.00 CAD</td></tr>
+  </table>
+  <p class="body">This certifies that the vehicle described above is insured with Laurentide Assurance for the period shown.</p>
+  <div class="stamp">DEMONSTRATION DOCUMENT — FICTIONAL</div>
+  <div class="foot">Laurentide Assurance is a fictional company created for the Appraisio demo.</div>
+</body></html>`;
+
+const accidentFr = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}</style></head><body>
+  <div class="head">
+    <div class="logo"><div class="n">Constat amiable d'accident</div><div class="s">Document fictif — démonstration</div></div>
+    <div class="addr">Date : 26 juillet 2026 · 14 h 35<br>Stationnement, 2050 rue Ontario Est, Montréal</div>
+  </div>
+  <h1>PROCÈS-VERBAL DE CONSTAT</h1>
+  <table class="info">
+    <tr><td class="k">Véhicule A — Conducteur</td><td>Marc Tremblay — Laurentide Assurance, police AUTO-88-452-716</td></tr>
+    <tr><td class="k">Véhicule A</td><td>Honda Civic LX 2022 — K52 XBM</td></tr>
+    <tr><td class="k">Véhicule B — Conducteur</td><td>S. Nguyen — Boréal Assurance (fictive), police BA-2211-0483</td></tr>
+    <tr><td class="k">Véhicule B</td><td>Ford F-150 2019 — L88 QRC</td></tr>
+    <tr><td class="k">Circonstances</td><td>Le véhicule B a reculé de son espace de stationnement et a heurté l'avant droit du véhicule A, immobilisé dans l'allée.</td></tr>
+    <tr><td class="k">Dégâts apparents — Véh. A</td><td>Pare-chocs avant, aile avant droite, bloc optique droit</td></tr>
+    <tr><td class="k">Dégâts apparents — Véh. B</td><td>Éraflures au pare-chocs arrière</td></tr>
+    <tr><td class="k">Blessés</td><td>Aucun</td></tr>
+    <tr><td class="k">Témoin</td><td>—</td></tr>
+  </table>
+  <p class="body">Signé par les deux conducteurs sur place. Croquis au verso (non reproduit).</p>
+  <div class="stamp">DOCUMENT DE DÉMONSTRATION — FICTIF</div>
+  <div class="foot">Document fictif créé pour la démonstration Appraisio.</div>
+</body></html>`;
+
+const accidentEn = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}</style></head><body>
+  <div class="head">
+    <div class="logo"><div class="n">Joint Accident Report</div><div class="s">Fictional document — demonstration</div></div>
+    <div class="addr">Date: July 26, 2026 · 2:35 PM<br>Parking lot, 2050 Eastern Avenue, Toronto</div>
+  </div>
+  <h1>ACCIDENT STATEMENT</h1>
+  <table class="info">
+    <tr><td class="k">Vehicle A — Driver</td><td>Marc Tremblay — Laurentide Assurance, policy AUTO-88-452-716</td></tr>
+    <tr><td class="k">Vehicle A</td><td>2022 Honda Civic LX — K52 XBM</td></tr>
+    <tr><td class="k">Vehicle B — Driver</td><td>S. Nguyen — Boreal Insurance (fictional), policy BA-2211-0483</td></tr>
+    <tr><td class="k">Vehicle B</td><td>2019 Ford F-150 — L88 QRC</td></tr>
+    <tr><td class="k">Circumstances</td><td>Vehicle B backed out of its parking space and struck the front right of vehicle A, which was stationary in the aisle.</td></tr>
+    <tr><td class="k">Visible damage — Veh. A</td><td>Front bumper, front right fender, right headlamp</td></tr>
+    <tr><td class="k">Visible damage — Veh. B</td><td>Rear bumper scuffs</td></tr>
+    <tr><td class="k">Injuries</td><td>None</td></tr>
+    <tr><td class="k">Witness</td><td>—</td></tr>
+  </table>
+  <p class="body">Signed by both drivers on site. Sketch on reverse (not reproduced).</p>
+  <div class="stamp">DEMONSTRATION DOCUMENT — FICTIONAL</div>
+  <div class="foot">Fictional document created for the Appraisio demo.</div>
+</body></html>`;
+
+// Odometer + VIN-plate "phone photos" (shared, language-neutral).
+const odometerHtml = `<!doctype html><html><head><style>*{margin:0}body{width:1280px;height:960px;overflow:hidden}</style></head><body>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 960" width="1280" height="960">
+  <rect width="1280" height="960" fill="#14171b"/>
+  <ellipse cx="640" cy="500" rx="560" ry="380" fill="#1d2126"/>
+  <rect x="240" y="290" width="800" height="420" rx="40" fill="#0b0d10" stroke="#2c323a" stroke-width="8"/>
+  <path d="M300 640 a360 360 0 0 1 680 0" stroke="#39424c" stroke-width="10" fill="none"/>
+  <path d="M300 640 a360 360 0 0 1 250 -330" stroke="#4fc3f7" stroke-width="10" fill="none"/>
+  <text x="640" y="480" font-family="Consolas,monospace" font-size="60" fill="#d7e3ee" text-anchor="middle">88 km/h</text>
+  <rect x="440" y="520" width="400" height="86" rx="10" fill="#11151a" stroke="#2c323a" stroke-width="4"/>
+  <text x="640" y="578" font-family="Consolas,monospace" font-size="52" fill="#e8f2c9" text-anchor="middle">054 213 km</text>
+  <text x="640" y="660" font-family="Arial" font-size="26" fill="#5c6772" text-anchor="middle">ODO</text>
+  <text x="40" y="920" font-family="Arial" font-size="30" fill="#ffffff" opacity=".8">IMG_2026-07-29 09:21</text>
+</svg></body></html>`;
+
+const vinPlateHtml = `<!doctype html><html><head><style>*{margin:0}body{width:1280px;height:960px;overflow:hidden}</style></head><body>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 960" width="1280" height="960">
+  <rect width="1280" height="960" fill="#3a3f45"/>
+  <rect y="620" width="1280" height="340" fill="#2e3338"/>
+  <rect x="180" y="330" width="920" height="300" rx="14" fill="#9aa2aa"/>
+  <rect x="196" y="346" width="888" height="268" rx="8" fill="#b6bdc4"/>
+  <circle cx="240" cy="390" r="14" fill="#6e767e"/><circle cx="1040" cy="390" r="14" fill="#6e767e"/>
+  <text x="640" y="440" font-family="Arial" font-size="34" fill="#3d444b" text-anchor="middle" letter-spacing="4">VEHICLE IDENTIFICATION NUMBER</text>
+  <rect x="260" y="470" width="760" height="90" rx="6" fill="#a6adb4" stroke="#7c848c" stroke-width="3"/>
+  <text x="640" y="532" font-family="Consolas,monospace" font-size="52" font-weight="700" fill="#2b3137" text-anchor="middle" letter-spacing="6">2HGFE2F52NH103428</text>
+  <text x="40" y="920" font-family="Arial" font-size="30" fill="#ffffff" opacity=".8">IMG_2026-07-29 09:23</text>
+</svg></body></html>`;
+
+// License-plate "phone photo" for the ATG plate-scan demo. The plate value
+// MUST match a seeded dossier's immatriculation (demo-dossier-02, Honda
+// Civic, 'F12 ABC' — it has a live Field Agent mission) so the scan finds
+// a real file. Québec-style: white plate, blue embossed characters.
+const licensePlateHtml = `<!doctype html><html><head><style>*{margin:0}body{width:1280px;height:960px;overflow:hidden}</style></head><body>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 960" width="1280" height="960">
+  <rect width="1280" height="960" fill="#5a6067"/>
+  <rect y="640" width="1280" height="320" fill="#4a4f55"/>
+  <path d="M140 250 q500 -70 1000 0 l-20 460 q-480 60 -960 0z" fill="#8e979f"/>
+  <rect x="340" y="360" width="600" height="300" rx="18" fill="#f4f6f2" stroke="#c3c8bd" stroke-width="6"/>
+  <rect x="356" y="376" width="568" height="268" rx="10" fill="#fbfcf9"/>
+  <circle cx="396" cy="416" r="10" fill="#9aa2aa"/><circle cx="884" cy="416" r="10" fill="#9aa2aa"/>
+  <circle cx="396" cy="604" r="10" fill="#9aa2aa"/><circle cx="884" cy="604" r="10" fill="#9aa2aa"/>
+  <text x="640" y="545" font-family="Arial" font-size="120" font-weight="800" fill="#1d3f8f" text-anchor="middle" letter-spacing="14">F12 ABC</text>
+  <text x="640" y="626" font-family="Georgia,serif" font-size="30" font-style="italic" fill="#1d3f8f" text-anchor="middle">Je me souviens</text>
+  <text x="40" y="920" font-family="Arial" font-size="30" fill="#ffffff" opacity=".8">IMG_2026-08-05 10:12</text>
+</svg></body></html>`;
+
 // ── placeholder photos (until generate-photos-ai.mjs replaces them) ────────
 
 function carScene({ stage, crop, shot }) {
@@ -251,12 +429,23 @@ const pdf = async (html, rel) => {
 };
 await pdf(missionEn, 'en/mission-document.pdf');
 await pdf(quoteEn, 'en/garage-quote.pdf');
+await pdf(registrationEn, 'en/vehicle-registration.pdf');
+await pdf(insuranceEn, 'en/insurance-certificate.pdf');
+await pdf(accidentEn, 'en/accident-report.pdf');
 await pdf(missionFr, 'fr/mission-document.pdf');
 await pdf(quoteFr, 'fr/garage-quote.pdf');
+await pdf(registrationFr, 'fr/vehicle-registration.pdf');
+await pdf(insuranceFr, 'fr/insurance-certificate.pdf');
+await pdf(accidentFr, 'fr/accident-report.pdf');
 
 const skipPhotos = process.argv.includes('--docs-only');
 if (!skipPhotos) {
-  for (const [name, html] of photos) {
+  for (const [name, html] of [
+    ...photos,
+    ['photos/odometer.png', odometerHtml],
+    ['photos/vin-plate.png', vinPlateHtml],
+    ['photos/license-plate.png', licensePlateHtml],
+  ]) {
     await page.setContent(html, { waitUntil: 'load' });
     await page.screenshot({ path: join(OUT, name), type: 'png' });
     console.log(name);

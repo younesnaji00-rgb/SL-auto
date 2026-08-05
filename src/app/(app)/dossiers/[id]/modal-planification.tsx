@@ -454,7 +454,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 </SelectContent>
               </Select>
               <Select value={formData.agentTerrain} onValueChange={(v) => setFormData({...formData, agentTerrain: v})}>
-                <SelectTrigger><SelectValue placeholder={t('Choisir un agent')} /></SelectTrigger>
+                <SelectTrigger data-tour="plan-agent"><SelectValue placeholder={t('Choisir un agent')} /></SelectTrigger>
                 <SelectContent>
                   {filteredAgents.map(agent => {
                     const rawCount = agentWorkload[agent.label] || 0;
@@ -514,7 +514,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+            <div className="space-y-2" data-tour="plan-date">
               <Label>{t('Date RDV')}</Label>
               <DatePicker
                 value={formData.dateRDV}
@@ -536,7 +536,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2" data-tour="plan-adresse">
             <Label>{t('Adresse complète')}</Label>
             <Input
               placeholder={t('Adresse du rendez-vous...')}
@@ -563,7 +563,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2" data-tour="plan-observation">
             <Label>{t('Observation')}</Label>
             <div className="flex items-center gap-2">
               <Select
@@ -624,7 +624,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           )}
 
           {(isCurrentUserAT || formData.agentTerrain) && effectiveIsFresh && effectiveLocation && (
-            <Alert variant="info">
+            <Alert variant="info" data-tour="plan-agent-loc">
               <AlertTitle>{isCurrentUserAT ? t('Votre position actuelle') : t("Position actuelle de l'agent")}</AlertTitle>
               <AlertDescription>
                 {agentAddress ? (
@@ -653,7 +653,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           )}
 
           {!isCurrentUserAT && isAgentLocationUnavailable && (
-            <Alert variant="info">
+            <Alert variant="info" data-tour="plan-agent-loc">
               <AlertTitle>{t("Position de l'agent non disponible")}</AlertTitle>
               <AlertDescription>
                 <p className="mb-2">
@@ -745,7 +745,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             {t('Annuler')}
           </Button>
-          <Button onClick={handleSave} disabled={loading}>
+          <Button onClick={handleSave} disabled={loading} data-tour="plan-save">
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : t('Enregistrer')}
           </Button>
         </DialogFooter>

@@ -70,6 +70,11 @@ export const sidebarIntroTutorial: PageTutorial = {
       body: 'Cliquez sur « Gestion des dossiers » pour continuer la visite là-bas.',
       side: 'right',
       interact: 'click',
+      // The launchers pre-write the pending flag too (for their same-page
+      // fallbacks); declaring the chain here as well lets the engine's
+      // Next/Done button perform the hand-off click instead of stranding
+      // the guided journey on the dashboard.
+      chain: 'dossiers',
     },
   ],
 };

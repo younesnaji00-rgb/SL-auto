@@ -72,4 +72,140 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Et ensuite ?': 'What next?',
   "Photos terrain : « Assignations Agent de Terrain ». Chiffrage : « Assignations Chiffrage ». Délais : « Suivi d'équipe ».\nTout le cabinet travaille sur le même dossier, sans double saisie.":
     'Field photos: “Field Agent Assignments”. Estimating: “Estimating Assignments”. Deadlines: “Team monitoring”.\nThe whole firm works on the same file, with nothing typed twice.',
+
+  // ── Reminders sub-flow ──
+  'Une demande à un collègue sur des dossiers précis ? Cliquez sur « Rappeler ».':
+    'Need a colleague to act on specific files? Click “Remind”.',
+  'Cochez les dossiers': 'Tick the files',
+  'Cochez un ou plusieurs dossiers dans la liste.': 'Tick one or more files in the list.',
+  'Envoyez la demande': 'Send the request',
+  'Cliquez sur « Envoyer à ».': 'Click “Send to”.',
+  'Le rappel': 'The reminder',
+  'Choisissez le ou les collègues, écrivez votre demande, puis « Envoyer ».\nChaque destinataire le reçoit dans « Mes Rappels », traite le dossier, et vous êtes notifié — zéro e-mail perdu.':
+    'Pick the colleague(s), write your request, then “Send”.\nEach recipient gets it in “My Reminders”, treats the file, and you are notified — no lost e-mails.',
+  'Sortir de la sélection': 'Leave selection mode',
+  "Pas envoyé ? « Annuler » ressort du mode sélection.":
+    'Changed your mind? “Cancel” leaves selection mode.',
+
+  // ── The cross-page journey ──
+  'La séquence des étapes': 'The step sequence',
+  "Cliquez sur la pastille de statut d'un dossier.": 'Click the status pill on any file.',
+  'Toute la vie du dossier': 'The file’s whole life',
+  "Chaque changement de statut, dans l'ordre : qui, quand, quoi.\nRegardez, puis fermez (×) pour continuer.":
+    'Every status change, in order: who, when, what.\nHave a look, then close (×) to continue.',
+  'Les pièces du dossier': 'The file’s documents',
+  "Déposez les 5 pièces ci-dessous dans leurs cartes : constat, carte grise, attestation, kilométrage, châssis.\nElles seront exigées avant le chiffrage — et l'IA lit aussi la carte grise.":
+    'Drop the 5 documents below into their cards: accident report, registration, insurance certificate, odometer, VIN.\nThey are required before estimating — and the AI reads the registration too.',
+  'Constat (PDF)': 'Accident report (PDF)',
+  'Carte grise (PDF)': 'Registration (PDF)',
+  'Attestation (PDF)': 'Insurance certificate (PDF)',
+  'Photo kilométrage': 'Odometer photo',
+  'Photo châssis': 'VIN photo',
+  'Programmons la visite terrain': 'Let’s schedule the field visit',
+  "En vrai, un agent prend ces photos sur place.\nCliquez sur « Nouvelle planification » pour créer sa mission.":
+    'In real life, a field agent takes these photos on site.\nClick “New schedule” to create their mission.',
+  "L'agent": 'The agent',
+  'Choisissez « Field Agent Demo ».': 'Pick “Field Agent Demo”.',
+  'La date': 'The date',
+  "Choisissez la date d'aujourd'hui.\nL'app peut même vérifier la faisabilité des tournées de l'agent via Google Maps.":
+    'Pick today’s date.\nThe app can even check the feasibility of the agent’s route via Google Maps.',
+  'Enregistrez': 'Save',
+  "La mission apparaît instantanément chez l'agent.": 'The mission appears on the agent’s side instantly.',
+  "L'adresse complète": 'The full address',
+  "Tapez l'adresse du rendez-vous — par exemple « 455 boul. René-Lévesque O, Montréal, QC ».\nC'est elle qui alimente l'itinéraire Google Maps de l'agent.":
+    'Type the appointment address — for example “455 boul. René-Lévesque O, Montréal, QC”.\nIt is what feeds the agent’s Google Maps route.',
+  "Les consignes pour l'agent": 'Instructions for the agent',
+  "Une observation type (menu) ou personnalisée (champ en dessous) : l'agent la voit sur sa mission.":
+    'A preset remark (menu) or a custom one (field below): the agent sees it on their mission.',
+  "La position de l'agent": 'The agent’s location',
+  "L'app affiche ici la position GPS en direct de l'agent (avec lien Google Maps) et s'en sert pour vérifier que sa tournée est faisable.\nDans cette démo, l'agent n'a pas de téléphone connecté : vous pouvez demander sa position ou la saisir à la main.":
+    'The app shows the agent’s live GPS position here (with a Google Maps link) and uses it to check that their route is feasible.\nIn this demo the agent has no connected phone: you can request their location or type it in manually.',
+  'Une 2ème destination': 'A 2nd destination',
+  'Les agents enchaînent plusieurs visites par jour.\nCliquez encore sur « Nouvelle planification » pour créer une seconde mission.':
+    'Agents chain several visits a day.\nClick “New schedule” again to create a second mission.',
+  'Enregistrez la 2ème mission': 'Save the 2nd mission',
+  "Même agent, date d'aujourd'hui — mais une AUTRE adresse (ex. « 1000 rue De La Gauchetière O, Montréal, QC »).\nCôté agent, « Start » enchaînera toutes les adresses du jour dans UN itinéraire Google Maps ordonné.":
+    'Same agent, today’s date — but a DIFFERENT address (e.g. “1000 rue De La Gauchetière O, Montréal, QC”).\nOn the agent’s side, “Start” will chain all of the day’s addresses into ONE ordered Google Maps route.',
+  'Allons voir côté agent': 'Let’s see the agent’s side',
+  'Cliquez sur « Assignations Agent de Terrain » dans le menu.':
+    'Click “Field Agent Assignments” in the menu.',
+  'Les remarques': 'Comments',
+  "Sous chaque étape : des commentaires visibles par tous, ou par un rôle précis (menu avec l'œil).\nChacun voit qui a lu quoi.":
+    'Under every stage: comments visible to everyone, or to one specific role (the eye menu).\nEveryone can see who has read what.',
+  'Chaque ligne du devis devient un tableau modifiable pour vos chiffreurs.\nEnvoyons-le au chiffrage.':
+    'Every line of the quote becomes an editable table for your estimators.\nLet’s send it to estimating.',
+  'Assignez le chiffrage': 'Assign the estimating',
+  'Toutes les pièces sont là : le bouton est déverrouillé.\nCliquez sur « Assigner au chiffrage ».':
+    'All the documents are in: the button is unlocked.\nClick “Assign to estimating”.',
+  'Le chiffreur': 'The estimator',
+  'Choisissez « Estimator Demo ».': 'Pick “Estimator Demo”.',
+  'Envoyez': 'Send',
+  'Toutes les pièces et photos partent avec la mission.': 'Every document and photo travels with the mission.',
+  'Suivons le dossier chez le chiffreur': 'Follow the file to the estimator',
+  'Cliquez sur « Assignations Chiffrage » dans le menu.': 'Click “Estimating Assignments” in the menu.',
+  "Vous venez de suivre UN dossier à travers toute l'équipe : terrain, chiffrage, direction — sans double saisie, sans e-mails.\n« Suivi d'équipe » veille sur tous les délais ; « Tampons » gère les cachets posés sur les devis.":
+    'You just followed ONE file across the whole team: field, estimating, management — nothing typed twice, no e-mails.\n“Team monitoring” watches every deadline; “Stamps” manages the seals placed on estimates.',
+
+  // ── Field agent pages ──
+  "« Start » ouvre Google Maps avec toutes les adresses de la journée, dans l'ordre.":
+    '“Start” opens Google Maps with the whole day’s addresses, in order.',
+  "Photographiez la plaque : l'application retrouve le dossier toute seule.\nEssayez avec la plaque ci-dessous — elle correspond au dossier Honda Civic (F12 ABC) déjà présent dans la démo.":
+    'Photograph the plate: the app finds the file on its own.\nTry it with the plate below — it matches the Honda Civic file (F12 ABC) already in the demo.',
+  'Photo de plaque (démo)': 'Licence-plate photo (demo)',
+  'Les rendez-vous du jour — la priorité de la tournée.':
+    'Today’s appointments — the route’s priority.',
+  'Le délai de 24 h ouvrées est dépassé : la barre passe au rouge.':
+    'The 24-business-hour deadline has passed: the bar turns red.',
+  'Les missions des prochains jours, déjà planifiées.':
+    'The next days’ missions, already scheduled.',
+  "Touchez le numéro pour appeler, l'adresse pour ouvrir la carte.\n(Démo fictive : aucun vrai numéro de téléphone n'est renseigné ici.)":
+    'Tap the number to call, the address to open the map.\n(Fictional demo: no real phone number is filled in here.)',
+  'Votre mission est déjà là': 'Your mission is already here',
+  'La planification créée il y a un instant est arrivée en direct.\nCliquez dessus pour l’ouvrir.':
+    'The schedule you created a moment ago arrived live.\nClick it to open it.',
+  "L'agent photographie directement depuis son téléphone : chaque photo est horodatée, signée à son nom et part dans le dossier en temps réel.":
+    'The agent shoots straight from their phone: every photo is timestamped, signed with their name and lands in the file in real time.',
+  "L'agent peut aussi déposer des pièces ici (carte grise, permis, constat…) : chacune a son emplacement.":
+    'The agent can also drop documents here (registration, licence, accident report…): each has its slot.',
+  'Revenez au dossier': 'Back to the file',
+  'Rouvrez votre dossier': 'Reopen your file',
+  "Votre dossier est en haut de la liste : cliquez sur sa ligne pour reprendre la visite.\nSon onglet en haut (comme un navigateur) y ramène aussi — et dans le dossier, la frise des étapes vous ramène à l'étape où vous étiez.":
+    'Your file is at the top of the list: click its row to resume the tour.\nIts tab at the top (like a browser) takes you back too — and inside the file, the stage timeline returns you to the stage you were on.',
+  "Tout ce que l'agent envoie arrive en direct au bureau — ajoutez au moins une photo ou une pièce ici pour la voir apparaître dans le dossier.\nCliquez sur « Gestion des dossiers » pour y retourner.":
+    'Everything the agent sends reaches the office live — add at least one photo or document here to see it appear in the file.\nClick “File Management” to head back.',
+  "L'accord enregistré arrive tout seul dans le dossier.\nCliquez sur « Gestion des dossiers » pour y retourner.":
+    'The saved agreement lands in the file by itself.\nClick “File Management” to head back.',
+  "Tout ce que l'agent envoie arrive en direct au bureau.\nCliquez sur l'onglet du dossier en haut pour reprendre la visite.":
+    'Everything the agent sends reaches the office live.\nClick the file’s tab at the top to resume the tour.',
+
+  // ── Estimating pages ──
+  'Votre dossier est arrivé': 'Your file has arrived',
+  "L'assignation envoyée il y a un instant est déjà là, avec son délai de 24 h.\nCliquez sur la référence pour ouvrir le chiffrage.":
+    'The assignment you sent a moment ago is already here, with its 24-hour deadline.\nClick the reference to open the estimate.',
+  "Ouvrons l'éditeur": 'Open the editor',
+  'Cliquez sur « Éditer » : le devis lu par l’IA devient un tableau intelligent.':
+    'Click “Edit”: the AI-read quote becomes a smart table.',
+  "L'IA a transformé le devis scanné du garage en tableau : vous vérifiez, sans rien ressaisir.":
+    'The AI turned the shop’s scanned quote into a table: you verify, nothing retyped.',
+  "Comparez avec l'original, puis cliquez « J'ai vérifié » pour déverrouiller le tableau.":
+    'Compare with the original, then click “I checked” to unlock the table.',
+  'Tout se calcule tout seul': 'Everything calculates itself',
+  'Modifiez une quantité ou un prix : Total HT, TTC et les sommes en pied de tableau se recalculent instantanément.':
+    'Change a quantity or a price: the pre-tax total, tax-included total and footer sums recalculate instantly.',
+  'La TVA intelligente': 'Smart tax',
+  "Passez le Type d'une ligne à « Originale » : sa TVA passe à 20 % automatiquement.":
+    'Set a row’s Type to “OEM”: its tax rate jumps to 20% automatically.',
+  'La vétusté qui sait': 'Depreciation that knows',
+  'Type « Occasion » ? La cellule vétusté se désactive toute seule.\nLes flèches ± 5 ajustent toutes les lignes d’un coup.\nSaisissez une vétusté (ex. 10 %) sur votre ligne « Originale » — obligatoire avant l’enregistrement.':
+    '“Used” part? The depreciation cell disables itself.\nThe ±5 arrows adjust every row at once.\nEnter a depreciation (e.g. 10%) on your “OEM” row — required before saving.',
+  "Saisissez vos prix accordés ligne par ligne — jamais au-dessus du prix d'origine, l'éditeur y veille.\nL'en-tête de colonne bascule entre « accord » et « proposition » pour un 2ème expert.":
+    'Type your agreed prices line by line — never above the original price, the editor enforces it.\nThe column header switches between “agreement” and “proposal” for a 2nd appraiser.',
+  'Le total du devis et le total expert, toujours à jour.':
+    'The quote total and the expert total, always up to date.',
+  "Cliquez « Enregistrer » : l'aperçu PDF se génère.": 'Click “Save”: the PDF preview is generated.',
+  'Le PDF sait quoi montrer': 'The PDF knows what to show',
+  "La vétusté a disparu du PDF, l'accord est replié en une seule colonne « Prix Total Accordé ».\nEn proposition, une colonne vide « Accord 2ème expert » apparaît pour la signature.\nPosez aussi le tampon du cabinet (menu « Tampon »), puis confirmez ou fermez.":
+    'Depreciation is gone from the PDF, and the agreement collapses into a single “Agreed Total” column.\nOn a proposal, an empty “2nd appraiser agreement” column appears for the signature.\nPlace the firm’s stamp too (“Stamp” menu), then confirm or close.',
+  "L'accord enregistré arrive tout seul dans le dossier.\nCliquez sur l'onglet du dossier en haut : la visite y reprend.":
+    'The saved agreement lands in the file by itself.\nClick the file’s tab at the top: the tour resumes there.',
 };

@@ -17,7 +17,8 @@ export const atgDetailTutorial: PageTutorial = {
     {
       anchor: 'atgd-header',
       title: 'Le rendez-vous',
-      body: "Touchez le numéro pour appeler, l'adresse pour ouvrir la carte.",
+      body:
+        "Touchez le numéro pour appeler, l'adresse pour ouvrir la carte.\n(Démo fictive : aucun vrai numéro de téléphone n'est renseigné ici.)",
       side: 'bottom',
     },
     {
@@ -36,7 +37,8 @@ export const atgDetailTutorial: PageTutorial = {
     {
       anchor: 'atgd-camera',
       title: 'Prendre des photos',
-      body: 'Chaque photo est signée à votre nom et part directement dans le dossier.',
+      body:
+        "L'agent photographie directement depuis son téléphone : chaque photo est horodatée, signée à son nom et part dans le dossier en temps réel.",
       side: 'bottom',
       dynamic: true,
     },
@@ -45,21 +47,24 @@ export const atgDetailTutorial: PageTutorial = {
       title: 'Proposition réforme',
       body: 'Véhicule visiblement irréparable ? Activez la proposition ici.',
       side: 'bottom',
-      dynamic: true,
     },
     {
       anchor: 'atgd-docs-toggle',
       title: 'Documents',
-      body: 'Chaque pièce (carte grise, permis, constat…) a son emplacement.',
+      body: "L'agent peut aussi déposer des pièces ici (carte grise, permis, constat…) : chacune a son emplacement.",
       side: 'top',
     },
     {
-      anchor: 'atgd-header',
-      title: 'Mission terminée',
-      body: 'Photos envoyées : le bureau les voit immédiatement.',
-      side: 'bottom',
-      click: 'atgd-photos-toggle',
-      dynamic: true,
+      anchor: 'nav-/dossiers',
+      title: 'Revenez au dossier',
+      body:
+        "Tout ce que l'agent envoie arrive en direct au bureau — ajoutez au moins une photo ou une pièce ici pour la voir apparaître dans le dossier.\nCliquez sur « Gestion des dossiers » pour y retourner.",
+      side: 'right',
+      interact: 'click',
+      chain: 'dossiers',
+      chainAt: 'Rouvrez votre dossier',
     },
   ],
+  // Hops back into the dossier journey (title-based resume).
+  noClosing: true,
 };

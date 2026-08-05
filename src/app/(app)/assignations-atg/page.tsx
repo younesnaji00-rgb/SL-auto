@@ -690,11 +690,16 @@ export default function AssignationsATGPage() {
         description: `${t('Google Maps accepte au maximum')} ${MAX_STOPS} ${t('étapes par itinéraire. Les premières (par ordre chronologique) ont été conservées.')}`,
       });
     }
+    // Pre-open the tab SYNCHRONOUSLY: window.open after an await is no
+    // longer a user gesture and popup blockers silently kill it — the
+    // "Start does nothing" bug.
+    const win = window.open('about:blank', '_blank');
     // Read the agent's live coords FIRST so we can pass them as the explicit
     // `origin` — "My+Location" is unreliable; an explicit lat,lng always works.
     const origin = await readCurrentPositionString();
     const url = buildMultiStopMapsUrl(route, origin ?? undefined);
-    window.open(url, '_blank', 'noopener,noreferrer');
+    if (win && !win.closed) win.location.href = url;
+    else window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // Group agents by zone for the "Par zone" view. Agents without a zone go
@@ -933,7 +938,7 @@ export default function AssignationsATGPage() {
                   open={openSections[group.key]}
                   onOpenChange={(open) => setOpenSections(prev => ({ ...prev, [group.key]: open }))}
                 >
-                  <div className="flex items-center gap-2 w-full">
+                  <div className="flex items-center gap-2 w-full" data-tour={`atg-group-${group.key}`}>
                     <CollapsibleTrigger className="flex-1 flex items-center justify-between h-9 px-1 text-xs font-bold tracking-wider uppercase text-muted-foreground hover:text-foreground transition-colors">
                       <span>
                         {t(group.label)} ({group.items.length})
@@ -972,6 +977,7 @@ export default function AssignationsATGPage() {
                           key={`${p.dossierId}-${p.id}`}
                           role="button"
                           tabIndex={0}
+                          data-tour="atg-row"
                           onClick={() => router.push(`/assignations-atg/${p.dossierId}?mission=${encodeURIComponent(activeTab)}`)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
@@ -1396,6 +1402,7 @@ export default function AssignationsATGPage() {
             const renderRow = (p: PlanificationItem) => (
               <TableRow
                 key={`${p.dossierId}-${p.id}`}
+                data-tour="atg-row"
                 className="hover:bg-muted/50 transition-colors cursor-pointer"
                 onClick={() => router.push(`/assignations-atg/${p.dossierId}?mission=${encodeURIComponent(activeTab)}`)}
               >
@@ -1414,9 +1421,24 @@ export default function AssignationsATGPage() {
                     </span>
                   ) : '-'}
                 </TableCell>
-                <TableCell className="text-xs text-muted-foreground max-w-[240px]">
+                <TableCell className="text-xs max-w-[240px]">
                   {p.adresse ? (
-                    <span className="truncate block" title={p.adresse}>{p.adresse}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        window.open(
+                          `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.adresse)}`,
+                          '_blank',
+                          'noopener,noreferrer',
+                        );
+                      }}
+                      className="text-primary hover:underline truncate block max-w-full text-left cursor-pointer"
+                      title={p.adresse}
+                    >
+                      {p.adresse}
+                    </button>
                   ) : '-'}
                 </TableCell>
                 <TableCell>
@@ -1449,7 +1471,7 @@ export default function AssignationsATGPage() {
                 onOpenChange={(open) => setOpenSections(prev => ({ ...prev, [group.key]: open }))}
               >
                 <Card className="shadow-sm overflow-hidden">
-                  <div className={cn('flex items-center w-full transition-colors hover:opacity-80', group.color)}>
+                  <div className={cn('flex items-center w-full transition-colors hover:opacity-80', group.color)} data-tour={`atg-group-${group.key}`}>
                     <CollapsibleTrigger className="flex-1 flex items-center justify-between px-4 py-3">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold">{t(group.label)}</span>

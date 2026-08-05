@@ -827,7 +827,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
 
           {/* Autres documents — PV, Carte grise, Attestation, etc. */}
           {(showAllNonAccordSlots || !hideOtherSlots) && !showOnlyAccordSlots && otherSlots.length > 0 && (
-            <section className="space-y-2">
+            <section className="space-y-2" data-tour="dosd-other-docs">
               <h4 className="text-sm font-semibold text-muted-foreground">{t('Autres documents')}</h4>
               <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
                 {otherSlots.map((slot) => renderSlotCard(slot))}

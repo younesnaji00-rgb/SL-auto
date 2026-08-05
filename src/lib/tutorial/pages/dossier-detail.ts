@@ -8,20 +8,21 @@ const photosPresent = (cat: string) => () => {
   return !!m && Number(m[1]) > 0;
 };
 
+const slotFilled = (anchor: string) =>
+  !!document.querySelector(`[data-tour="${anchor}"] ul li`);
+
 /**
- * Dossier detail — the guided end-to-end lifecycle, driven by the demo kit
- * (public/demo-kit): the user imports the mission document (AI scan), the
- * damage photos, the garage quote, then sees the report and fee-note steps.
+ * Dossier detail — the guided end-to-end JOURNEY, driven by the demo kit
+ * (public/demo-kit). The user imports the mission document (AI scan), the
+ * five source documents, the photos and the garage quote; schedules a real
+ * field mission (hop to Assignations AT and back); assigns the estimating
+ * (hop to Assignations Chiffrage → the auto-calculating editor and back);
+ * then reaches the report and fee-note steps.
  *
- * Mechanics:
- * - `dosd-import-drop` only exists while the dossier has no scanned source
- *   document, so the import step naturally disappears on already-fed files.
- * - Import/photo/quote steps use `interact: 'until'` with DOM predicates —
- *   they advance when the upload REALLY happened. Steps whose predicate is
- *   already true at start are skipped by the engine (revisits stay short).
- * - Timeline-bar steps (`dosd-step-<id>`, interact 'click') carry the user
- *   from section to section; the content step that follows keeps a `click`
- *   prep on the SAME bar button (idempotent — it only scrolls).
+ * Mechanics: interact 'until' steps advance on REAL completion; steps whose
+ * goal is already met are skipped on revisits; `chain`+`chainResume` hops
+ * save a title-based resume marker so the journey continues where it left
+ * off when the user returns via the chained tours.
  */
 export const dossierDetailTutorial: PageTutorial = {
   key: 'dossier-detail',
@@ -60,8 +61,7 @@ export const dossierDetailTutorial: PageTutorial = {
       interact: 'until',
       // Advance when the import is accepted (dropzone disappears) — or when
       // an upload ran and settled even if the AI scan errored, so a scan
-      // hiccup never strands the walkthrough. Progress flag is per-dossier
-      // (URL) and resets on reload.
+      // hiccup never strands the walkthrough.
       until: () => {
         const dz = document.querySelector('[data-tour="dosd-import-drop"]');
         if (!dz) return true;
@@ -81,6 +81,33 @@ export const dossierDetailTutorial: PageTutorial = {
       title: 'Regardez !',
       body:
         "Assuré, immatriculation, compagnie, dates… tout est pré-rempli par l'IA.\nVérifiez, corrigez si besoin : rien n'est à ressaisir deux fois.",
+    },
+    {
+      anchor: 'dosd-other-docs',
+      title: 'Les pièces du dossier',
+      body:
+        "Déposez les 5 pièces ci-dessous dans leurs cartes : constat, carte grise, attestation, kilométrage, châssis.\nElles seront exigées avant le chiffrage — et l'IA lit aussi la carte grise.",
+      side: 'top',
+      // The slot cards live in the "Importer un document" TAB of the
+      // Documents section — unmounted until the tab is selected. Click it
+      // first or the anchor (and the 5 upload cards) simply don't exist.
+      click: 'dosd-docs-import-tab',
+      delay: 450,
+      // dynamic: on a freshly created dossier this section mounts a beat
+      // after the tour starts — without the flag the presence filter drops
+      // the step, the 5 source docs are never requested, and the
+      // "Assigner au chiffrage" gate stays locked for the whole journey.
+      dynamic: true,
+      interact: 'until',
+      until: () =>
+        ['dosd-slot-pv', 'dosd-slot-carte', 'dosd-slot-attestation', 'dosd-slot-km', 'dosd-slot-vin'].every(slotFilled),
+      links: [
+        { href: '/demo-kit/{lang}/accident-report.pdf', label: 'Constat (PDF)', download: true },
+        { href: '/demo-kit/{lang}/vehicle-registration.pdf', label: 'Carte grise (PDF)', download: true },
+        { href: '/demo-kit/{lang}/insurance-certificate.pdf', label: 'Attestation (PDF)', download: true },
+        { href: '/demo-kit/photos/odometer.png', label: 'Photo kilométrage', download: true },
+        { href: '/demo-kit/photos/vin-plate.png', label: 'Photo châssis', download: true },
+      ],
     },
     {
       anchor: 'dosd-timeline',
@@ -111,9 +138,103 @@ export const dossierDetailTutorial: PageTutorial = {
       ],
     },
     {
-      title: 'Sur le terrain',
+      anchor: 'dosd-planif-new',
+      click: 'dosd-step-4',
+      delay: 600,
+      title: 'Programmons la visite terrain',
       body:
-        "En vrai, vos agents envoient ces photos depuis leur téléphone.\nLeurs missions se gèrent dans « Assignations Agent de Terrain », dans le menu.",
+        "En vrai, un agent prend ces photos sur place.\nCliquez sur « Nouvelle planification » pour créer sa mission.",
+      side: 'left',
+      interact: 'click',
+    },
+    {
+      anchor: 'plan-agent',
+      title: "L'agent",
+      body: 'Choisissez « Field Agent Demo ».',
+      side: 'right',
+      dynamic: true,
+    },
+    {
+      anchor: 'plan-date',
+      title: 'La date',
+      body:
+        "Choisissez la date d'aujourd'hui.\nL'app peut même vérifier la faisabilité des tournées de l'agent via Google Maps.",
+      side: 'right',
+      dynamic: true,
+    },
+    {
+      anchor: 'plan-adresse',
+      title: "L'adresse complète",
+      body:
+        "Tapez l'adresse du rendez-vous — par exemple « 455 boul. René-Lévesque O, Montréal, QC ».\nC'est elle qui alimente l'itinéraire Google Maps de l'agent.",
+      side: 'right',
+      dynamic: true,
+      interact: 'until',
+      until: () =>
+        !!(
+          document.querySelector('[data-tour="plan-adresse"] input') as HTMLInputElement | null
+        )?.value?.trim(),
+    },
+    {
+      anchor: 'plan-observation',
+      title: "Les consignes pour l'agent",
+      body:
+        "Une observation type (menu) ou personnalisée (champ en dessous) : l'agent la voit sur sa mission.",
+      side: 'right',
+      dynamic: true,
+    },
+    {
+      anchor: 'plan-agent-loc',
+      title: "La position de l'agent",
+      body:
+        "L'app affiche ici la position GPS en direct de l'agent (avec lien Google Maps) et s'en sert pour vérifier que sa tournée est faisable.\nDans cette démo, l'agent n'a pas de téléphone connecté : vous pouvez demander sa position ou la saisir à la main.",
+      side: 'right',
+      dynamic: true,
+    },
+    {
+      anchor: 'plan-save',
+      title: 'Enregistrez',
+      body: "La mission apparaît instantanément chez l'agent.",
+      side: 'top',
+      dynamic: true,
+      interact: 'click',
+    },
+    {
+      anchor: 'dosd-planif-new',
+      click: 'dosd-step-4',
+      delay: 500,
+      title: 'Une 2ème destination',
+      body:
+        'Les agents enchaînent plusieurs visites par jour.\nCliquez encore sur « Nouvelle planification » pour créer une seconde mission.',
+      side: 'left',
+      interact: 'click',
+    },
+    {
+      anchor: 'plan-save',
+      title: 'Enregistrez la 2ème mission',
+      body:
+        "Même agent, date d'aujourd'hui — mais une AUTRE adresse (ex. « 1000 rue De La Gauchetière O, Montréal, QC »).\nCôté agent, « Start » enchaînera toutes les adresses du jour dans UN itinéraire Google Maps ordonné.",
+      side: 'top',
+      dynamic: true,
+      interact: 'click',
+    },
+    {
+      anchor: 'nav-/assignations-atg',
+      title: 'Allons voir côté agent',
+      body: 'Cliquez sur « Assignations Agent de Terrain » dans le menu.',
+      side: 'right',
+      interact: 'click',
+      chain: 'assignations-atg',
+      chainResume: true,
+    },
+    {
+      anchor: 'dosd-observations',
+      click: 'dosd-step-4',
+      delay: 600,
+      title: 'Les remarques',
+      body:
+        "Sous chaque étape : des commentaires visibles par tous, ou par un rôle précis (menu avec l'œil).\nChacun voit qui a lu quoi.",
+      side: 'top',
     },
     {
       anchor: 'dosd-step-6',
@@ -130,7 +251,7 @@ export const dossierDetailTutorial: PageTutorial = {
       body: 'Téléchargez le devis ci-dessous, puis ajoutez-le dans cette carte « Devis Garage ».',
       side: 'top',
       interact: 'until',
-      until: () => !!document.querySelector('[data-tour="dosd-devis-slot"] ul li'),
+      until: () => slotFilled('dosd-devis-slot'),
       links: [
         { href: '/demo-kit/{lang}/garage-quote.pdf', label: 'Devis du garage (PDF)', download: true },
       ],
@@ -138,7 +259,41 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       title: "L'IA lit aussi le devis",
       body:
-        "Chaque ligne du devis devient modifiable pour vos chiffreurs.\nIls travaillent depuis « Assignations Chiffrage », dans le menu.",
+        'Chaque ligne du devis devient un tableau modifiable pour vos chiffreurs.\nEnvoyons-le au chiffrage.',
+    },
+    {
+      anchor: 'dosd-assign-chiffrage',
+      click: 'dosd-step-6',
+      delay: 600,
+      title: 'Assignez le chiffrage',
+      body:
+        'Toutes les pièces sont là : le bouton est déverrouillé.\nCliquez sur « Assigner au chiffrage ».',
+      side: 'left',
+      interact: 'click',
+    },
+    {
+      anchor: 'chif-choose',
+      title: 'Le chiffreur',
+      body: 'Choisissez « Estimator Demo ».',
+      side: 'right',
+      dynamic: true,
+    },
+    {
+      anchor: 'chif-send',
+      title: 'Envoyez',
+      body: 'Toutes les pièces et photos partent avec la mission.',
+      side: 'top',
+      dynamic: true,
+      interact: 'click',
+    },
+    {
+      anchor: 'nav-/assignations-chiffrage',
+      title: 'Suivons le dossier chez le chiffreur',
+      body: 'Cliquez sur « Assignations Chiffrage » dans le menu.',
+      side: 'right',
+      interact: 'click',
+      chain: 'assignations-chiffrage',
+      chainResume: true,
     },
     {
       anchor: 'dosd-step-9',
@@ -216,7 +371,7 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       title: 'Et ensuite ?',
       body:
-        "Photos terrain : « Assignations Agent de Terrain ». Chiffrage : « Assignations Chiffrage ». Délais : « Suivi d'équipe ».\nTout le cabinet travaille sur le même dossier, sans double saisie.",
+        "Vous venez de suivre UN dossier à travers toute l'équipe : terrain, chiffrage, direction — sans double saisie, sans e-mails.\n« Suivi d'équipe » veille sur tous les délais ; « Tampons » gère les cachets posés sur les devis.",
     },
   ],
 };

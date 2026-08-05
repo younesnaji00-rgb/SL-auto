@@ -23,8 +23,12 @@ export const assignationsAtgTutorial: PageTutorial = {
     {
       anchor: 'atg-scan',
       title: 'Scanner une plaque',
-      body: "Photographiez la plaque : l'application retrouve le dossier toute seule.",
+      body:
+        "Photographiez la plaque : l'application retrouve le dossier toute seule.\nEssayez avec la plaque ci-dessous — elle correspond au dossier Honda Civic (F12 ABC) déjà présent dans la démo.",
       side: 'bottom',
+      links: [
+        { href: '/demo-kit/photos/license-plate.png', label: 'Photo de plaque (démo)', download: true },
+      ],
     },
     {
       anchor: 'atg-tabs',
@@ -39,23 +43,55 @@ export const assignationsAtgTutorial: PageTutorial = {
       body: 'Cherchez par nom, adresse ou immatriculation.',
       side: 'bottom',
     },
+    // Everything below depends on the missions DATA — dynamic keeps the
+    // steps when the tour starts before Firestore has delivered the list
+    // (they resolve to their real anchors by the time the user gets there).
     {
       anchor: 'atg-groups',
       title: 'Par échéance',
       body: "Trois groupes : Aujourd'hui, En retard, À venir.",
       side: 'top',
+      dynamic: true,
+    },
+    {
+      anchor: 'atg-group-today',
+      title: "Aujourd'hui",
+      body: 'Les rendez-vous du jour — la priorité de la tournée.',
+      side: 'bottom',
+      dynamic: true,
+    },
+    {
+      anchor: 'atg-group-expired',
+      title: 'En retard',
+      body: 'Le délai de 24 h ouvrées est dépassé : la barre passe au rouge.',
+      side: 'bottom',
+      dynamic: true,
+    },
+    {
+      anchor: 'atg-group-future',
+      title: 'À venir',
+      body: 'Les missions des prochains jours, déjà planifiées.',
+      side: 'bottom',
+      dynamic: true,
     },
     {
       anchor: 'atg-route',
       title: 'Itinéraire du jour',
-      body: '« Start » ouvre Google Maps avec toutes les adresses de la journée.',
+      body: "« Start » ouvre Google Maps avec toutes les adresses de la journée, dans l'ordre.",
       side: 'bottom',
+      dynamic: true,
     },
     {
-      anchor: 'atg-groups',
-      title: 'Ouvrir une mission',
-      body: 'Touchez une carte pour prendre les photos.',
+      anchor: 'atg-row',
+      title: 'Votre mission est déjà là',
+      body: 'La planification créée il y a un instant est arrivée en direct.\nCliquez dessus pour l’ouvrir.',
       side: 'top',
+      dynamic: true,
+      interact: 'click',
+      chain: 'atg-detail',
     },
   ],
+  // Chains into the mission detail — the closing pitch lives at the end of
+  // the journey, back on the dossier.
+  noClosing: true,
 };

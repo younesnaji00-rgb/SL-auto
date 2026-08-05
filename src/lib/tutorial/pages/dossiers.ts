@@ -52,10 +52,120 @@ export const dossiersTutorial: PageTutorial = {
       side: 'bottom',
     },
     {
+      anchor: 'dos-statut-cell',
+      title: 'La séquence des étapes',
+      body: "Cliquez sur la pastille de statut d'un dossier.",
+      side: 'bottom',
+      interact: 'until',
+      until: () => !!document.querySelector('[data-tour="dos-status-sheet"]'),
+    },
+    {
+      anchor: 'dos-status-sheet',
+      title: 'Toute la vie du dossier',
+      body:
+        "Chaque changement de statut, dans l'ordre : qui, quand, quoi.\nRegardez, puis fermez (×) pour continuer.",
+      side: 'left',
+      dynamic: true,
+      interact: 'until',
+      // Advance once the sheet has been OPEN and is closed again (a plain
+      // "sheet absent" predicate would be true at tour start and the step
+      // would be skipped by the engine's already-satisfied filter).
+      until: () => {
+        const w = window as unknown as Record<string, boolean>;
+        if (document.querySelector('[data-tour="dos-status-sheet"]')) {
+          w['sl.statusSheetSeen'] = true;
+          return false;
+        }
+        return !!w['sl.statusSheetSeen'];
+      },
+      // Advancing with Next must retract the sheet — the next steps anchor
+      // to the toolbar it covers.
+      onNext: () => {
+        document
+          .querySelector<HTMLElement>('[data-tour="dos-status-sheet"] button.absolute')
+          ?.click();
+      },
+    },
+    {
       anchor: 'dos-rappeler',
       title: 'Envoyer des rappels',
-      body: 'Cochez des dossiers et envoyez une demande à un collègue.',
+      body: 'Une demande à un collègue sur des dossiers précis ? Cliquez sur « Rappeler ».',
       side: 'bottom',
+      interact: 'click',
+    },
+    {
+      // Anchor the TABLE, not the selection toolbar: the driver overlay
+      // only lets clicks through inside the highlight cutout, so the rows
+      // must BE the highlighted region for the checkboxes to be tickable.
+      anchor: 'dos-table',
+      title: 'Cochez les dossiers',
+      body: 'Cochez un ou plusieurs dossiers dans la liste.',
+      side: 'top',
+      dynamic: true,
+      interact: 'until',
+      // tbody scope: in selection mode the table HEADER also renders
+      // per-column checkboxes that are all checked by default — matching
+      // them would self-advance the step before any file is ticked.
+      until: () =>
+        !!document.querySelector(
+          '[data-tour="dos-table"] tbody [role="checkbox"][data-state="checked"]',
+        ),
+    },
+    {
+      anchor: 'dos-send-to',
+      title: 'Envoyez la demande',
+      body: 'Cliquez sur « Envoyer à ».',
+      side: 'bottom',
+      dynamic: true,
+      interact: 'click',
+    },
+    {
+      anchor: 'dos-sendto-dialog',
+      title: 'Le rappel',
+      body:
+        'Choisissez le ou les collègues, écrivez votre demande, puis « Envoyer ».\nChaque destinataire le reçoit dans « Mes Rappels », traite le dossier, et vous êtes notifié — zéro e-mail perdu.',
+      side: 'left',
+      dynamic: true,
+      interact: 'until',
+      until: () => {
+        const w = window as unknown as Record<string, boolean>;
+        if (document.querySelector('[data-tour="dos-sendto-dialog"]')) {
+          w['sl.sendtoSeen'] = true;
+          return false;
+        }
+        return !!w['sl.sendtoSeen'];
+      },
+      // Next while the dialog is still open: close it so the export bar
+      // steps underneath are reachable.
+      onNext: () => {
+        document
+          .querySelector<HTMLElement>('[data-tour="dos-sendto-dialog"] button.absolute')
+          ?.click();
+      },
+    },
+    {
+      anchor: 'dos-export-cancel',
+      title: 'Sortir de la sélection',
+      body: "Pas envoyé ? « Annuler » ressort du mode sélection.",
+      side: 'bottom',
+      dynamic: true,
+      interact: 'until',
+      // Seen-flag pattern: "bar absent" alone is true BEFORE selection mode
+      // ever starts, and the start filter would drop the step entirely —
+      // leaving the tour stuck in selection mode with no create button.
+      until: () => {
+        const w = window as unknown as Record<string, boolean>;
+        if (document.querySelector('[data-tour="dos-export-bar"]')) {
+          w['sl.exportBarSeen'] = true;
+          return false;
+        }
+        return !!w['sl.exportBarSeen'];
+      },
+      // Next = do it for me: leave selection mode so the rest of the tour
+      // gets the normal toolbar back.
+      onNext: () => {
+        document.querySelector<HTMLElement>('[data-tour="dos-export-cancel"]')?.click();
+      },
     },
     {
       anchor: 'dos-table',
@@ -110,6 +220,20 @@ export const dossiersTutorial: PageTutorial = {
       dynamic: true,
       interact: 'click',
       chain: 'dossier-detail',
+    },
+    // Hidden re-entry step — only reachable via `chainAt` from the ATG /
+    // editor hop-backs (the previous step always navigates away).
+    {
+      anchor: 'dos-table',
+      title: 'Rouvrez votre dossier',
+      body:
+        "Votre dossier est en haut de la liste : cliquez sur sa ligne pour reprendre la visite.\nSon onglet en haut (comme un navigateur) y ramène aussi — et dans le dossier, la frise des étapes vous ramène à l'étape où vous étiez.",
+      side: 'top',
+      interact: 'click',
+      chain: 'dossier-detail',
+      // Written at highlight time: the dossier TAB is a valid route back
+      // too, not just the table row.
+      chainEager: true,
     },
   ],
   // Ends on the click that creates and opens the dossier — the guide (and

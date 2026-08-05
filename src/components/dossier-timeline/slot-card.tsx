@@ -209,13 +209,23 @@ export function SlotCard({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      // Tutorial anchors on the two slots the guided demo imports into.
+      // Tutorial anchors on the slots the guided demo imports into.
       data-tour={
         slot === 'Devis Garage' && !extraSlotKind
           ? 'dosd-devis-slot'
           : slot === "Note d'honoraire"
             ? 'dosd-honoraire-slot'
-            : undefined
+            : slot === 'PV-Constat / Récépissé de police'
+              ? 'dosd-slot-pv'
+              : slot === 'Carte grise'
+                ? 'dosd-slot-carte'
+                : slot === "Attestation d'assurance"
+                  ? 'dosd-slot-attestation'
+                  : slot === 'Kilométrage'
+                    ? 'dosd-slot-km'
+                    : slot === 'Numéro de chassis'
+                      ? 'dosd-slot-vin'
+                      : undefined
       }
     >
       <CardHeader className="py-2.5 px-3 border-b">
@@ -257,6 +267,7 @@ export function SlotCard({
                 variant="outline"
                 className="h-7 text-xs gap-1.5"
                 onClick={onEdit}
+                data-tour="slot-editer"
               >
                 <Pencil className="h-3 w-3" />
                 {t('Éditer')}

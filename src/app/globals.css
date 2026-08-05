@@ -244,6 +244,24 @@ body.driver-active [data-radix-popper-content-wrapper],
 body.driver-active [data-radix-popper-content-wrapper] * {
   pointer-events: auto !important;
 }
+/* Dialogs and sheets opened DURING a tour step (estimator picker, PDF
+   preview, status sheet…) must stay fully interactive too. */
+body.driver-active [role="dialog"],
+body.driver-active [role="dialog"] *,
+body.driver-active [role="alertdialog"],
+body.driver-active [role="alertdialog"] * {
+  pointer-events: auto !important;
+}
+
+/* Horizontal-scrolling step: the marker must never swallow pointer events
+   (it sits over the real scrollbar), and the scroll container must stay
+   usable while that step is active. */
+body.driver-active [data-tour="dos-hscroll"] {
+  pointer-events: none !important;
+}
+body.driver-active:has(.sl-step-dos-hscroll) [data-tour="dos-table"] {
+  pointer-events: auto !important;
+}
 
 /* Download/action links inside a tour popover (e.g. the demo kit) */
 .driver-popover.sl-tour .sl-tour-links {

@@ -372,6 +372,7 @@ export default function AssignationsChiffragePage() {
                             href={`/assignations-chiffrage/${c.id}`}
                             onClick={() => openTab(c.id, c.dossierNom || `${t('Chiffrage')} ${c.id.slice(0, 6)}`)}
                             className="font-bold text-sm text-primary hover:underline"
+                            data-tour="ach-row"
                           >
                             {c.dossierNom || t('Sans ref.')}
                           </Link>

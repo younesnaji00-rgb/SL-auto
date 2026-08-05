@@ -393,7 +393,7 @@ export default function DossierDetailPage({
                 <div className="mt-4">
                   <PhotosTab dossierId={id} onlyCategory="avant" />
                 </div>
-                <div className="mt-4">
+                <div className="mt-4" data-tour="dosd-observations">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="Avant" />
                 </div>
               </>

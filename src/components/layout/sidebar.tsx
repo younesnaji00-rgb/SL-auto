@@ -300,6 +300,7 @@ const AppSidebar = () => {
                   window.localStorage.setItem(pendingKey, 'dossiers');
                 } catch { /* non-fatal */ }
                 startTutorial(sidebarIntroTutorial, {
+                  fresh: true,
                   // Already on File Management: the hand-off click doesn't
                   // navigate, so chain into the page walkthrough directly.
                   onComplete: () => {
