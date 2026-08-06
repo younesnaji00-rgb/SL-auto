@@ -23,6 +23,10 @@ const posKey = (key: string) => `${BRAND.storagePrefix}.tour.${key}.pos`;
 // Title-based resume marker for round-trip hops: numeric indexes shift when
 // already-completed steps are filtered out on the return visit, titles don't.
 const posTitleKey = (key: string) => `${BRAND.storagePrefix}.tour.${key}.posTitle`;
+// Furthest step ever reached (by title, path-scoped): chain returns resume at
+// MAX(re-entry point, furthest) so a hop never sends the user backwards
+// through steps they already completed.
+const farKey = (key: string) => `${BRAND.storagePrefix}.tour.${key}.far`;
 
 // Resume markers are PATH-SCOPED: tours whose route matches many pages
 // (dossier detail, mission detail) must not resume dossier A's position on
@@ -52,6 +56,7 @@ function writeResumeIndex(key: string, index: number | null): void {
     if (index == null) {
       window.localStorage.removeItem(posKey(key));
       window.localStorage.removeItem(posTitleKey(key));
+      window.localStorage.removeItem(farKey(key));
     } else {
       window.localStorage.setItem(
         posKey(key),
@@ -60,6 +65,21 @@ function writeResumeIndex(key: string, index: number | null): void {
     }
   } catch {
     // Non-fatal.
+  }
+}
+
+// Read a `value@@path`-scoped marker; null when absent or for another page.
+function readScopedTitle(storageKey: string): string | null {
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const sep = raw.lastIndexOf('@@');
+    const ttl = sep >= 0 ? raw.slice(0, sep) : raw;
+    const path = sep >= 0 ? raw.slice(sep + 2) : '*';
+    if (path !== '*' && path !== window.location.pathname) return null;
+    return ttl;
+  } catch {
+    return null;
   }
 }
 
@@ -133,23 +153,27 @@ export function startTutorial(
   if (opts?.fresh) writeResumeIndex(tut.key, null);
   else {
     try {
-      const savedTitle = window.localStorage.getItem(posTitleKey(tut.key));
-      if (savedTitle) {
-        window.localStorage.removeItem(posTitleKey(tut.key));
-        // Title markers carry the page they were meant for ('*' = any page,
-        // used by chainAt hops written from another route).
-        const sep = savedTitle.lastIndexOf('@@');
-        const ttl = sep >= 0 ? savedTitle.slice(0, sep) : savedTitle;
-        const path = sep >= 0 ? savedTitle.slice(sep + 2) : '*';
-        if (path === '*' || path === window.location.pathname) {
-          const idx = steps.findIndex((s) => s.title === ttl);
-          if (idx >= 0) resumeAt = idx;
-          // eslint-disable-next-line no-console
-          console.debug('[tour] resume-title', tut.key, ttl, '->', idx);
-        } else {
-          // eslint-disable-next-line no-console
-          console.debug('[tour] stale resume-title dropped', tut.key, path);
+      // Title markers carry the page they were meant for ('*' = any page,
+      // used by chainAt hops written from another route).
+      const rawTitle = window.localStorage.getItem(posTitleKey(tut.key));
+      const ttl = readScopedTitle(posTitleKey(tut.key));
+      window.localStorage.removeItem(posTitleKey(tut.key));
+      if (ttl) {
+        let idx = steps.findIndex((s) => s.title === ttl);
+        // chainResume returns ("continue after the step you left from") must
+        // never send the user BACKWARDS through steps they already reached —
+        // take the furthest step if it is beyond. chainAt markers ('@@*',
+        // written for hidden sub-flow entries) are precise: enter exactly
+        // there, or a second sub-flow run would skip its own steps.
+        const isChainAt = !!rawTitle && rawTitle.endsWith('@@*');
+        if (!isChainAt) {
+          const far = readScopedTitle(farKey(tut.key));
+          const farIdx = far ? steps.findIndex((s) => s.title === far) : -1;
+          if (farIdx > idx) idx = farIdx;
         }
+        if (idx >= 0) resumeAt = idx;
+        // eslint-disable-next-line no-console
+        console.debug('[tour] resume-title', tut.key, ttl, 'chainAt', isChainAt, '->', idx);
       }
     } catch { /* non-fatal */ }
   }
@@ -516,6 +540,16 @@ export function startTutorial(
     onNextClick: () => {
       const at = d.getActiveIndex() ?? 0;
       const s: TourStep | undefined = steps[at];
+      // Until-steps with a scripted action: Next = do it for me. The step
+      // does NOT advance here — the until-predicate fires once the action
+      // lands, so the follow-up steps always find the UI they describe
+      // (skipping used to show steps for a sheet that was never opened).
+      if (s?.interact === 'until' && s.doIt) {
+        try {
+          s.doIt();
+        } catch { /* non-fatal */ }
+        return;
+      }
       // Skipping the hands-on action may leave UI open (sheet, dialog,
       // selection mode) that would bury the next step's anchor — let the
       // step clean up after itself. Runs BEFORE moveTo so the driver's
@@ -567,7 +601,29 @@ export function startTutorial(
     },
     // Clickable step counter: "27 / 35" turns into a number input so the
     // user can jump straight to any step instead of arrowing through.
-    onPopoverRender: (popover: { progress?: HTMLElement } | undefined) => {
+    onPopoverRender: (popover: { progress?: HTMLElement; footer?: HTMLElement } | undefined) => {
+      // "Restart" — back to step 1 of this page's guide, clearing every
+      // saved position. Exiting/reopening the guide RESUMES at the save
+      // point; this button is the explicit way to start over.
+      const footer = popover?.footer;
+      if (footer && !footer.querySelector('.sl-tour-restart')) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'sl-tour-restart';
+        btn.textContent = `↺ ${t('Recommencer')}`;
+        btn.title = t('Reprendre ce guide depuis le début');
+        btn.addEventListener('click', () => {
+          if (active !== d) return;
+          writeResumeIndex(tut.key, null);
+          cleanupInteract();
+          prepare(0, () => {
+            try {
+              d.moveTo(0);
+            } catch { /* torn down */ }
+          });
+        });
+        footer.insertBefore(btn, footer.firstChild);
+      }
       const prog = popover?.progress;
       if (!prog || prog.dataset.jumpWired) return;
       prog.dataset.jumpWired = '1';
@@ -642,6 +698,18 @@ export function startTutorial(
         : undefined,
       onHighlighted: (el?: Element) => {
         clearStickyBars(el as HTMLElement | undefined);
+        // Track the furthest step ever reached (by title, path-scoped) so
+        // chain returns never send the user backwards.
+        try {
+          const cur = readScopedTitle(farKey(tut.key));
+          const curIdx = cur ? steps.findIndex((st) => st.title === cur) : -1;
+          if (i > curIdx) {
+            window.localStorage.setItem(
+              farKey(tut.key),
+              `${s.title}@@${window.location.pathname}`,
+            );
+          }
+        } catch { /* non-fatal */ }
         // Until-steps poll a predicate — attach them even on a body
         // fallback (their element doesn't matter). Click-steps need a real
         // anchor: containment against body would match any click.

@@ -41,6 +41,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { formatDurationFr } from '@/lib/atg-feasibility';
 import { MapPin } from 'lucide-react';
 import { apiFetch } from '@/lib/api-fetch';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 /** Narrows a free-form typeMission string to the canonical tri-state, or null. */
 function normalizeTypeMission(
@@ -405,7 +406,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="sm:max-w-[550px]" {...tourDialogGuard()}>
         <DialogHeader>
           <DialogTitle>{initialData ? t('Modifier la Planification') : t('Nouvelle Planification')}</DialogTitle>
           <DialogDescription>{t('Remplissez les informations pour programmer la mission de terrain.')}</DialogDescription>

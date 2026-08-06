@@ -58,6 +58,11 @@ export const dossiersTutorial: PageTutorial = {
       side: 'bottom',
       interact: 'until',
       until: () => !!document.querySelector('[data-tour="dos-status-sheet"]'),
+      // Next without clicking: open the sheet for them — the next step
+      // describes the OPEN sheet and must never show over a closed one.
+      doIt: () => {
+        document.querySelector<HTMLElement>('[data-tour="dos-statut-cell"]')?.click();
+      },
     },
     {
       anchor: 'dos-status-sheet',
@@ -105,6 +110,17 @@ export const dossiersTutorial: PageTutorial = {
         'Cochez autant de dossiers que vous voulez dans la liste, puis cliquez sur « Suivant ».',
       side: 'top',
       dynamic: true,
+      // Next with nothing ticked: tick the first two rows for them — the
+      // send steps need a real selection to work with.
+      onNext: () => {
+        const checked = document.querySelector(
+          '[data-tour="dos-table"] tbody [role="checkbox"][data-state="checked"]',
+        );
+        if (checked) return;
+        const rows = document.querySelectorAll<HTMLElement>('[data-tour="dos-table"] tbody tr');
+        rows[0]?.click();
+        rows[1]?.click();
+      },
     },
     {
       // Shown BEFORE the send: after « Envoyer », the app quits the
@@ -132,20 +148,38 @@ export const dossiersTutorial: PageTutorial = {
       side: 'left',
       dynamic: true,
       interact: 'until',
+      // Advance ONLY on a real send: the dialog was open, is now closed,
+      // AND selection mode exited (sending does that; Cancel/✕ keeps it —
+      // and an accidental outside-click close must not advance either).
       until: () => {
         const w = window as unknown as Record<string, boolean>;
         if (document.querySelector('[data-tour="dos-sendto-dialog"]')) {
           w['sl.sendtoSeen'] = true;
           return false;
         }
-        return !!w['sl.sendtoSeen'];
+        return (
+          !!w['sl.sendtoSeen'] &&
+          !document.querySelector('[data-tour="dos-export-bar"]')
+        );
       },
-      // Next while the dialog is still open: close it so the steps
-      // underneath are reachable.
-      onNext: () => {
-        document
-          .querySelector<HTMLElement>('[data-tour="dos-sendto-dialog"] button.absolute')
-          ?.click();
+      // Next = send it for them: the Mes Rappels detour right after needs a
+      // real rappel to exist. Self-recipient if none picked; if the dialog
+      // was closed in the meantime, reopen it first.
+      doIt: () => {
+        const dlg = document.querySelector<HTMLElement>('[data-tour="dos-sendto-dialog"]');
+        if (!dlg) {
+          document.querySelector<HTMLElement>('[data-tour="dos-send-to"]')?.click();
+          return;
+        }
+        if (!dlg.querySelector('[role="checkbox"][data-state="checked"]')) {
+          const labels = Array.from(dlg.querySelectorAll<HTMLElement>('label'));
+          (labels.find((l) => /\((vous|you)\)/i.test(l.textContent || '')) ?? labels[0])?.click();
+        }
+        window.setTimeout(() => {
+          Array.from(dlg.querySelectorAll<HTMLButtonElement>('button'))
+            .find((b) => /(Envoyer|Send)\s*\(/.test(b.textContent || ''))
+            ?.click();
+        }, 400);
       },
     },
     {

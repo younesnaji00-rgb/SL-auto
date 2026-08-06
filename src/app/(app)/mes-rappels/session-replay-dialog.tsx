@@ -25,6 +25,7 @@ import {
   type ReplayHighlightValue,
 } from '@/components/dossier-timeline/replay-highlight';
 import { DOSSIER_TIMELINE_STEPS } from '@/components/dossier-timeline/timeline';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 // The real dossier-timeline components — rendered read-only + live so the
 // replica is the exact detail page (every field, photo, table), not an
@@ -324,8 +325,8 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-tour="rap-replay" className="max-w-6xl w-[97vw] h-[94vh] p-0 gap-0 flex flex-col overflow-hidden">
-        <DialogHeader className="px-5 py-3 border-b shrink-0 space-y-1.5">
+      <DialogContent data-tour="rap-replay" {...tourDialogGuard()} className="max-w-6xl w-[97vw] h-[94vh] p-0 gap-0 flex flex-col overflow-hidden">
+        <DialogHeader data-tour="rap-replay-head" className="px-5 py-3 border-b shrink-0 space-y-1.5">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Play className="h-4 w-4 text-primary" />
             {t('Traitement du dossier')}{' '}
@@ -383,7 +384,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                   <Info className="h-3.5 w-3.5 shrink-0" /> {t('Aucune modification détectée pendant ce traitement.')}
                 </div>
               ) : (
-                <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                <div data-tour="rap-replay-summary" className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
                   <span className="font-medium text-muted-foreground">{t('Modifications du gestionnaire :')}</span>
                   {summary.added > 0 && (
                     <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-semibold text-green-700 bg-green-100/70 dark:text-green-300 dark:bg-green-900/30">

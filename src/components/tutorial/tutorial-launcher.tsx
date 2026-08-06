@@ -161,9 +161,10 @@ export function TutorialLauncher() {
       if (storageKey) window.localStorage.setItem(storageKey, '1');
     } catch { /* non-fatal */ }
     setSeen(true);
-    // Manual "?" start: always from the very first step — never a stale
-    // resume position left by an interrupted run.
-    startTutorial(tut, { fresh: true });
+    // Manual "?" start: RESUME at the saved position — leaving the guide
+    // must never lose the save point. The popover's "Restart" button is
+    // the explicit way to start over.
+    startTutorial(tut);
   };
 
   // Welcome lightbox — on app pages, first explain the sidebar (in

@@ -34,6 +34,7 @@ import {
 } from '@/lib/create-empty-dossier';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
 import { useT } from '@/i18n';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 // Radix Select disallows empty-string values on <SelectItem>.
 const NONE_VALUE = '__none__';
@@ -188,7 +189,7 @@ export function CreateDossierDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto" {...tourDialogGuard()}>
         <DialogHeader>
           <DialogTitle>{t('Nouveau dossier')}</DialogTitle>
           <DialogDescription>

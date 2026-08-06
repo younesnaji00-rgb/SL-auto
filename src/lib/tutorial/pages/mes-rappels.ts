@@ -80,10 +80,28 @@ export const mesRappelsTutorial: PageTutorial = {
       interact: 'click',
     },
     {
+      anchor: 'rap-replay-head',
+      title: 'Qui et quand',
+      body:
+        'Tout est dans l’en-tête : le gestionnaire qui a traité, l’heure de début de sa session et l’heure de la sauvegarde.',
+      side: 'bottom',
+      dynamic: true,
+      onlyIf: () => !!document.querySelector('[data-tour="rap-recus-table"]'),
+    },
+    {
+      anchor: 'rap-replay-summary',
+      title: 'Le résumé des changements',
+      body:
+        'Le compte exact de ce qui a changé : vert = ajouts, jaune = modifications, rouge = suppressions.',
+      side: 'bottom',
+      dynamic: true,
+      onlyIf: () => !!document.querySelector('[data-tour="rap-recus-table"]'),
+    },
+    {
       anchor: 'rap-replay',
       title: 'Les modifications en couleurs',
       body:
-        'Qui : le gestionnaire, dans l’en-tête. Quand : Début et Sauvegardé.\nQuoi : chaque changement est surligné — vert = ajouté, jaune = modifié, rouge = supprimé.\nParcourez la page, puis « Suivant ».',
+        'Le dossier est reproduit tel que le gestionnaire l’a laissé : faites défiler — chaque champ touché est surligné de sa couleur, sur place.\nParcourez, puis « Suivant ».',
       side: 'left',
       dynamic: true,
       onlyIf: () => !!document.querySelector('[data-tour="rap-recus-table"]'),

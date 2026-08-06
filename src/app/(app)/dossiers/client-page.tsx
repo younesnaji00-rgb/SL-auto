@@ -29,6 +29,7 @@ import { useDossierTabs } from '@/hooks/use-dossier-tabs';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { BRAND } from '@/lib/brand';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { exportToExcel, type ExportColumn } from '@/lib/export-excel';
@@ -1259,7 +1260,7 @@ export default function DossiersClientPage() {
         dossier={observationHistoryDossier}
       />
       <Dialog open={isSendToOpen} onOpenChange={setIsSendToOpen}>
-        <DialogContent data-tour="dos-sendto-dialog">
+        <DialogContent data-tour="dos-sendto-dialog" {...tourDialogGuard()}>
           <DialogHeader>
             <DialogTitle>{t('Envoyer à')}</DialogTitle>
             <DialogDescription>{t('Sélectionnez un ou plusieurs gestionnaires destinataires.')}</DialogDescription>

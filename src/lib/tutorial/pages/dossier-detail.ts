@@ -11,6 +11,14 @@ const photosPresent = (cat: string) => () => {
 const slotFilled = (anchor: string) =>
   !!document.querySelector(`[data-tour="${anchor}"] ul li`);
 
+// "Do it for me" on Next: trigger the popover's own prefill button — the
+// uploads run and the step's until-predicate advances like a manual import.
+const clickPrefill = () => {
+  document
+    .querySelector<HTMLElement>('.driver-popover .sl-tour-prefill')
+    ?.click();
+};
+
 // True while THIS dossier is open as a rappel-treatment session (handshake
 // key written by the Mes Rappels row click, cleared on save).
 const rappelSessionActive = () => {
@@ -87,6 +95,7 @@ export const dossierDetailTutorial: PageTutorial = {
       links: [
         { href: '/demo-kit/{lang}/mission-document.pdf', label: 'Document de mission (PDF)', download: true },
       ],
+      doIt: clickPrefill,
       prefill: [
         {
           href: '/demo-kit/{lang}/mission-document.pdf',
@@ -143,6 +152,7 @@ export const dossierDetailTutorial: PageTutorial = {
         { href: '/demo-kit/photos/before-2.png', label: 'Photo 2', download: true },
         { href: '/demo-kit/photos/before-3.png', label: 'Photo 3', download: true },
       ],
+      doIt: clickPrefill,
       prefill: [
         { href: '/demo-kit/photos/before-1.png', name: 'before-1.png', input: '[data-tour="dosd-photos-avant"] input[type=file]' },
         { href: '/demo-kit/photos/before-2.png', name: 'before-2.png', input: '[data-tour="dosd-photos-avant"] input[type=file]' },
@@ -186,6 +196,14 @@ export const dossierDetailTutorial: PageTutorial = {
         !!(
           document.querySelector('[data-tour="plan-adresse"] input') as HTMLInputElement | null
         )?.value?.trim(),
+      // Next without typing: fill the sample address for them.
+      doIt: () => {
+        const input = document.querySelector<HTMLInputElement>('[data-tour="plan-adresse"] input');
+        if (!input) return;
+        const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        set?.call(input, '455 boul. René-Lévesque O, Montréal, QC');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      },
     },
     {
       anchor: 'plan-observation',
@@ -268,6 +286,7 @@ export const dossierDetailTutorial: PageTutorial = {
       links: [
         { href: '/demo-kit/{lang}/garage-quote.pdf', label: 'Devis du garage (PDF)', download: true },
       ],
+      doIt: clickPrefill,
       prefill: [
         {
           href: '/demo-kit/{lang}/garage-quote.pdf',
@@ -335,6 +354,7 @@ export const dossierDetailTutorial: PageTutorial = {
         { href: '/demo-kit/photos/during-1.png', label: 'Photo 1', download: true },
         { href: '/demo-kit/photos/during-2.png', label: 'Photo 2', download: true },
       ],
+      doIt: clickPrefill,
       prefill: [
         { href: '/demo-kit/photos/during-1.png', name: 'during-1.png', input: '[data-tour="dosd-photos-en_cours"] input[type=file]' },
         { href: '/demo-kit/photos/during-2.png', name: 'during-2.png', input: '[data-tour="dosd-photos-en_cours"] input[type=file]' },
@@ -360,6 +380,7 @@ export const dossierDetailTutorial: PageTutorial = {
         { href: '/demo-kit/photos/after-1.png', label: 'Photo 1', download: true },
         { href: '/demo-kit/photos/after-2.png', label: 'Photo 2', download: true },
       ],
+      doIt: clickPrefill,
       prefill: [
         { href: '/demo-kit/photos/after-1.png', name: 'after-1.png', input: '[data-tour="dosd-photos-apres"] input[type=file]' },
         { href: '/demo-kit/photos/after-2.png', name: 'after-2.png', input: '[data-tour="dosd-photos-apres"] input[type=file]' },
@@ -424,7 +445,7 @@ export const dossierDetailTutorial: PageTutorial = {
       anchor: 'dosd-info-form',
       title: 'Modifiez le dossier',
       body:
-        'Cliquez sur « Modifier », changez un ou deux champs — le téléphone de l’assuré, une adresse — puis « Enregistrer ».\nLe compteur « modifications en attente » apparaît dans la bannière.',
+        'Cliquez sur « Modifier », puis faites les trois gestes que le suivi sait distinguer :\n• modifiez un champ rempli (ex. le téléphone) ;\n• videz un champ rempli ;\n• remplissez un champ vide.\nTerminez par « Enregistrer » : le compteur « modifications en attente » apparaît dans la bannière.',
       side: 'top',
       dynamic: true,
       onlyIf: rappelSessionActive,
@@ -432,6 +453,33 @@ export const dossierDetailTutorial: PageTutorial = {
       // The pending-count badge is the only child <span> of the banner text.
       until: () =>
         !!document.querySelector('[data-tour="dosd-rappel-banner"] p span'),
+      // Next without editing: make one change for them (edit mode → new
+      // phone → save the form) so the replay still has something to show.
+      doIt: () => {
+        const root = document.querySelector<HTMLElement>('[data-tour="dosd-info-form"]');
+        if (!root) return;
+        const btn = (re: RegExp) =>
+          Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+            re.test((b.textContent || '').trim()),
+          );
+        if (!btn(/^(Enregistrer|Save)$/i)) btn(/Modifier|Edit/i)?.click();
+        window.setTimeout(() => {
+          const spans = Array.from(root.querySelectorAll<HTMLElement>('span'));
+          const lab = spans.find((s) => /^(t[ée]l[ée]phone|phone)$/i.test((s.textContent || '').trim()));
+          const cell = lab?.closest('div');
+          const grid = cell?.parentElement;
+          const idx = grid && cell ? Array.prototype.indexOf.call(grid.children, cell) : -1;
+          const input =
+            (grid?.nextElementSibling?.children?.[idx] as HTMLElement | undefined)?.querySelector('input') ??
+            root.querySelector('input');
+          if (input) {
+            const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+            set?.call(input, '+1 (514) 555-0177');
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          window.setTimeout(() => btn(/Enregistrer|Save/i)?.click(), 400);
+        }, 700);
+      },
     },
     {
       anchor: 'dosd-rappel-save',
@@ -451,7 +499,8 @@ export const dossierDetailTutorial: PageTutorial = {
         }
         return !!w['sl.rappelBannerSeen'];
       },
-      onNext: () => {
+      // Next = save for them; the predicate advances once the banner goes.
+      doIt: () => {
         document
           .querySelector<HTMLElement>('[data-tour="dosd-rappel-save"]')
           ?.click();

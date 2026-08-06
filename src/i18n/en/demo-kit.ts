@@ -107,9 +107,15 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Le travail effectué': 'The work done',
   'Votre rappel est passé en « Traité ».\nCliquez sur « Voir le détail » : vous voyez le dossier exactement comme le gestionnaire l’a laissé.':
     'Your reminder is now “Treated”.\nClick “View detail”: you see the file exactly as the manager left it.',
+  'Qui et quand': 'Who and when',
+  'Tout est dans l’en-tête : le gestionnaire qui a traité, l’heure de début de sa session et l’heure de la sauvegarde.':
+    'It is all in the header: the manager who treated it, when their session started and when it was saved.',
+  'Le résumé des changements': 'The change summary',
+  'Le compte exact de ce qui a changé : vert = ajouts, jaune = modifications, rouge = suppressions.':
+    'The exact count of what changed: green = additions, yellow = modifications, red = removals.',
   'Les modifications en couleurs': 'The changes, in colors',
-  'Qui : le gestionnaire, dans l’en-tête. Quand : Début et Sauvegardé.\nQuoi : chaque changement est surligné — vert = ajouté, jaune = modifié, rouge = supprimé.\nParcourez la page, puis « Suivant ».':
-    'Who: the manager, in the header. When: Started and Saved.\nWhat: every change is highlighted — green = added, yellow = modified, red = removed.\nBrowse the page, then “Next”.',
+  'Le dossier est reproduit tel que le gestionnaire l’a laissé : faites défiler — chaque champ touché est surligné de sa couleur, sur place.\nParcourez, puis « Suivant ».':
+    'The file is reproduced exactly as the manager left it: scroll through — every touched field is highlighted in its color, in place.\nBrowse, then “Next”.',
   'Retour aux dossiers': 'Back to the files',
   'Zéro e-mail, zéro doute sur qui a changé quoi.\nCliquez sur « Gestion des dossiers » : la visite reprend où vous l’aviez laissée.':
     'Zero e-mails, zero doubt about who changed what.\nClick “File Management”: the tour resumes where you left it.',
@@ -122,8 +128,8 @@ export const DEMO_KIT_EN: Record<string, string> = {
   "Vos modifications restent locales jusqu'au bouton vert « Sauvegarder » de cette bannière — rien ne part avant.":
     'Your changes stay local until this banner’s green “Save” button — nothing leaves before that.',
   'Modifiez le dossier': 'Modify the file',
-  'Cliquez sur « Modifier », changez un ou deux champs — le téléphone de l’assuré, une adresse — puis « Enregistrer ».\nLe compteur « modifications en attente » apparaît dans la bannière.':
-    'Click “Edit”, change a field or two — the insured’s phone, an address — then “Save”.\nThe “pending changes” counter appears in the banner.',
+  'Cliquez sur « Modifier », puis faites les trois gestes que le suivi sait distinguer :\n• modifiez un champ rempli (ex. le téléphone) ;\n• videz un champ rempli ;\n• remplissez un champ vide.\nTerminez par « Enregistrer » : le compteur « modifications en attente » apparaît dans la bannière.':
+    'Click “Edit”, then make the three moves the tracking can tell apart:\n• change a filled field (e.g. the phone);\n• clear a filled field;\n• fill an empty field.\nFinish with “Save”: the “pending changes” counter appears in the banner.',
   'Publiez vos modifications': 'Publish your changes',
   'Cliquez sur le bouton vert « Sauvegarder » : vos modifications partent sur le dossier et le rappel passe en « Traité ».':
     'Click the green “Save” button: your changes land on the file and the reminder switches to “Treated”.',
@@ -265,5 +271,7 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Échec — utilisez les boutons de téléchargement': 'Failed — use the download buttons',
   'Cliquez pour aller directement à une étape': 'Click to jump straight to a step',
   'Numéro d’étape': 'Step number',
+  Recommencer: 'Restart',
+  'Reprendre ce guide depuis le début': 'Start this guide over from step 1',
   vous: 'you',
 };

@@ -22,6 +22,7 @@ import { renderDevisPdf } from '@/lib/devis-pdf';
 import type { DevisSnapshot } from '@/lib/devis-schema';
 import { useFirestore } from '@/firebase';
 import { useT } from '@/i18n';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 export interface DevisPreviewDialogProps {
   open: boolean;
@@ -381,7 +382,7 @@ export function DevisPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl" data-tour="dev-preview">
+      <DialogContent className="max-w-4xl" data-tour="dev-preview" {...tourDialogGuard()}>
         <DialogHeader>
           <DialogTitle>{t('Aperçu avant enregistrement')}</DialogTitle>
         </DialogHeader>

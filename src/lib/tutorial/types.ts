@@ -43,6 +43,15 @@ export interface TourStep {
   interact?: 'click' | 'until';
   until?: () => boolean;
   /**
+   * "Do it for me" for until-steps: performed when the user clicks Next
+   * WITHOUT doing the hands-on action themselves (open the sheet, run the
+   * prefill…). The step does NOT advance on Next — the until-predicate
+   * fires once the performed action lands, exactly like a manual one.
+   * Without this, skipping would show follow-up steps whose UI never
+   * appeared. (interact:'click' steps already auto-click their anchor.)
+   */
+  doIt?: () => void;
+  /**
    * Keep the step only when this predicate is true at tour start — for
    * hidden sub-flows that must not appear on normal runs (e.g. the rappel
    * treatment steps, gated on an active rappel session). Evaluated once,

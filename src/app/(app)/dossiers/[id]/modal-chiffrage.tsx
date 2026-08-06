@@ -24,6 +24,7 @@ import { useChiffreurs } from '@/hooks/use-chiffreurs';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 type ModalChiffrageProps = {
   open: boolean;
@@ -198,7 +199,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-[550px] max-h-[85vh] flex flex-col" {...tourDialogGuard()}>
         <DialogHeader>
           <DialogTitle>{t('Envoyer vers Chiffrage')}</DialogTitle>
           <DialogDescription>
