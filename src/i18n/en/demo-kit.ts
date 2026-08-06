@@ -14,8 +14,8 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Choisissez « Laurentide Assurance » — la compagnie du document du kit.':
     'Pick “Laurentide Assurance” — the insurer on the kit document.',
   "Votre rôle d'expert": 'Your appraiser role',
-  "1er expert : l'expert principal du dossier.\n2ème expert : intervient si l'assuré ou l'assureur adverse conteste, ou en cas de suspicion.\nArbitre : tranche un désaccord entre les deux experts.\nCes procédures peuvent varier d'un pays à l'autre.":
-    '1st appraiser: the file’s primary appraiser.\n2nd appraiser: steps in when the insured or the opposing insurer disputes, or when suspicion arises.\nArbitrator: settles a disagreement between the two appraisers.\nProcedures may vary from one country to another.',
+  "1er expert : l'expert principal du dossier.\n2ème expert : intervient si l'assuré ou l'assureur adverse conteste, ou en cas de suspicion.\nArbitre : tranche un désaccord entre les deux experts.\nPlus il y a d'experts en jeu, plus le formulaire affiche de champs pour saisir leurs noms.\nCes procédures peuvent varier d'un pays à l'autre — et l'application peut toujours être adaptée sur mesure à vos façons de faire.":
+    '1st appraiser: the file’s primary appraiser.\n2nd appraiser: steps in when the insured or the opposing insurer disputes, or when suspicion arises.\nArbitrator: settles a disagreement between the two appraisers.\nThe more appraisers are at play, the more name fields the creation form shows.\nProcedures may vary from one country to another — and the app can always be custom-tailored to the way you work.',
   "Cliquez sur l'entonnoir, puis choisissez un type dans la liste.":
     'Click the funnel, then pick a type from the list.',
   '« ? » dans le menu à gauche :': '“?” in the left menu:',
@@ -77,15 +77,59 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Une demande à un collègue sur des dossiers précis ? Cliquez sur « Rappeler ».':
     'Need a colleague to act on specific files? Click “Remind”.',
   'Cochez les dossiers': 'Tick the files',
-  'Cochez un ou plusieurs dossiers dans la liste.': 'Tick one or more files in the list.',
+  'Cochez autant de dossiers que vous voulez dans la liste, puis cliquez sur « Suivant ».':
+    'Tick as many files as you like in the list, then click “Next”.',
   'Envoyez la demande': 'Send the request',
   'Cliquez sur « Envoyer à ».': 'Click “Send to”.',
   'Le rappel': 'The reminder',
-  'Choisissez le ou les collègues, écrivez votre demande, puis « Envoyer ».\nChaque destinataire le reçoit dans « Mes Rappels », traite le dossier, et vous êtes notifié — zéro e-mail perdu.':
-    'Pick the colleague(s), write your request, then “Send”.\nEach recipient gets it in “My Reminders”, treats the file, and you are notified — no lost e-mails.',
+  'Écrivez votre demande, choisissez le destinataire — pour la démo, choisissez-VOUS (« vous ») afin de jouer aussi le rôle du destinataire — puis « Envoyer ».\nChaque destinataire le reçoit dans « Mes Rappels » et vous êtes notifié — zéro e-mail perdu.':
+    'Write your request, pick the recipient — for this demo, pick YOURSELF (“you”) so you can also play the recipient — then “Send”.\nEach recipient gets it in “My Reminders” and you are notified — no lost e-mails.',
   'Sortir de la sélection': 'Leave selection mode',
-  "Pas envoyé ? « Annuler » ressort du mode sélection.":
-    'Changed your mind? “Cancel” leaves selection mode.',
+  "À tout moment, « Annuler » ressort du mode sélection sans rien envoyer.\nPas maintenant : continuons l'envoi.":
+    '“Cancel” leaves selection mode at any time without sending anything.\nNot now though: let’s finish the send.',
+  'Suivons le rappel': 'Follow the reminder',
+  'Votre rappel est parti — et comme vous êtes aussi destinataire, vous allez le recevoir.\nCliquez sur « Mes Rappels » dans le menu.':
+    'Your reminder is on its way — and since you are also the recipient, you are about to receive it.\nClick “My Reminders” in the menu.',
+
+  // ── Mes Rappels round-trip (treat your own reminder, replay highlights) ──
+  'Les demandes de travail échangées avec vos collègues sur les dossiers.\nLe rappel envoyé il y a un instant est déjà arrivé — en direct.':
+    'The work requests exchanged with your colleagues about files.\nThe reminder you sent a moment ago has already arrived — live.',
+  'Cliquez sur « Envoyés » pour suivre vos rappels côté expéditeur.':
+    'Click “Sent” to track your reminders from the sender’s side.',
+  'Le suivi par destinataire': 'Tracking by recipient',
+  'Chaque envoi est suivi : Nouveau, Lu, Traité — par destinataire et par dossier.\nVous saurez toujours qui a fait quoi, et quand.':
+    'Every send is tracked: New, Read, Treated — per recipient and per file.\nYou will always know who did what, and when.',
+  'Cliquez sur « Reçus » : jouons maintenant le rôle du destinataire.':
+    'Click “Received”: now let’s play the recipient.',
+  'Traitez votre rappel': 'Treat your reminder',
+  "Cliquez sur la référence de votre rappel : le dossier s'ouvre en « session de traitement ».\nTout ce que vous y modifierez sera tracé pour l'expéditeur.":
+    'Click your reminder’s reference: the file opens in a “treatment session”.\nEverything you change in it will be traced for the sender.',
+  'Le travail effectué': 'The work done',
+  'Votre rappel est passé en « Traité ».\nCliquez sur « Voir le détail » : vous voyez le dossier exactement comme le gestionnaire l’a laissé.':
+    'Your reminder is now “Treated”.\nClick “View detail”: you see the file exactly as the manager left it.',
+  'Les modifications en couleurs': 'The changes, in colors',
+  'Qui : le gestionnaire, dans l’en-tête. Quand : Début et Sauvegardé.\nQuoi : chaque changement est surligné — vert = ajouté, jaune = modifié, rouge = supprimé.\nParcourez la page, puis « Suivant ».':
+    'Who: the manager, in the header. When: Started and Saved.\nWhat: every change is highlighted — green = added, yellow = modified, red = removed.\nBrowse the page, then “Next”.',
+  'Retour aux dossiers': 'Back to the files',
+  'Zéro e-mail, zéro doute sur qui a changé quoi.\nCliquez sur « Gestion des dossiers » : la visite reprend où vous l’aviez laissée.':
+    'Zero e-mails, zero doubt about who changed what.\nClick “File Management”: the tour resumes where you left it.',
+
+  // ── Hidden rappel-treatment steps (dossier detail) ──
+  'Le traitement commence': 'The treatment begins',
+  "Le dossier s'est ouvert en session de traitement : tout ce que vous modifiez maintenant est enregistré pour l'expéditeur — qui, quoi, quand.":
+    'The file opened in a treatment session: everything you change now is recorded for the sender — who, what, when.',
+  'La bannière de traitement': 'The treatment banner',
+  "Vos modifications restent locales jusqu'au bouton vert « Sauvegarder » de cette bannière — rien ne part avant.":
+    'Your changes stay local until this banner’s green “Save” button — nothing leaves before that.',
+  'Modifiez le dossier': 'Modify the file',
+  'Cliquez sur « Modifier », changez un ou deux champs — le téléphone de l’assuré, une adresse — puis « Enregistrer ».\nLe compteur « modifications en attente » apparaît dans la bannière.':
+    'Click “Edit”, change a field or two — the insured’s phone, an address — then “Save”.\nThe “pending changes” counter appears in the banner.',
+  'Publiez vos modifications': 'Publish your changes',
+  'Cliquez sur le bouton vert « Sauvegarder » : vos modifications partent sur le dossier et le rappel passe en « Traité ».':
+    'Click the green “Save” button: your changes land on the file and the reminder switches to “Treated”.',
+  'Retour aux rappels': 'Back to the reminders',
+  "Retournez dans « Mes Rappels » pour voir ce que l'expéditeur voit de votre travail.":
+    'Head back to “My Reminders” to see what the sender sees of your work.',
 
   // ── The cross-page journey ──
   'La séquence des étapes': 'The step sequence',
@@ -94,8 +138,8 @@ export const DEMO_KIT_EN: Record<string, string> = {
   "Chaque changement de statut, dans l'ordre : qui, quand, quoi.\nRegardez, puis fermez (×) pour continuer.":
     'Every status change, in order: who, when, what.\nHave a look, then close (×) to continue.',
   'Les pièces du dossier': 'The file’s documents',
-  "Déposez les 5 pièces ci-dessous dans leurs cartes : constat, carte grise, attestation, kilométrage, châssis.\nElles seront exigées avant le chiffrage — et l'IA lit aussi la carte grise.":
-    'Drop the 5 documents below into their cards: accident report, registration, insurance certificate, odometer, VIN.\nThey are required before estimating — and the AI reads the registration too.',
+  "Cinq pièces seront exigées avant le chiffrage : constat, carte grise, attestation, kilométrage, châssis.\nEn pratique, c'est l'agent de terrain qui les importe depuis SA page, sur place — nous le ferons là-bas dans un instant.\nSi le temps presse, vous pouvez aussi les déposer ici, dans l'onglet « Importer un document ».":
+    'Five documents are required before estimating: accident report, registration, insurance certificate, odometer, VIN.\nIn practice the field agent imports them from THEIR page, on site — we will do it there in a moment.\nIf time is short, you can also drop them here, in the “Import a document” tab.',
   'Constat (PDF)': 'Accident report (PDF)',
   'Carte grise (PDF)': 'Registration (PDF)',
   'Attestation (PDF)': 'Insurance certificate (PDF)',
@@ -127,8 +171,8 @@ export const DEMO_KIT_EN: Record<string, string> = {
   "Même agent, date d'aujourd'hui — mais une AUTRE adresse (ex. « 1000 rue De La Gauchetière O, Montréal, QC »).\nCôté agent, « Start » enchaînera toutes les adresses du jour dans UN itinéraire Google Maps ordonné.":
     'Same agent, today’s date — but a DIFFERENT address (e.g. “1000 rue De La Gauchetière O, Montréal, QC”).\nOn the agent’s side, “Start” will chain all of the day’s addresses into ONE ordered Google Maps route.',
   'Allons voir côté agent': 'Let’s see the agent’s side',
-  'Cliquez sur « Assignations Agent de Terrain » dans le menu.':
-    'Click “Field Agent Assignments” in the menu.',
+  "C'est aussi là-bas que l'agent importe les pièces du dossier, directement sur le terrain.\nCliquez sur « Assignations Agent de Terrain » dans le menu.":
+    'It is also where the agent imports the file’s documents, right in the field.\nClick “Field Agent Assignments” in the menu.',
   'Les remarques': 'Comments',
   "Sous chaque étape : des commentaires visibles par tous, ou par un rôle précis (menu avec l'œil).\nChacun voit qui a lu quoi.":
     'Under every stage: comments visible to everyone, or to one specific role (the eye menu).\nEveryone can see who has read what.',
@@ -165,9 +209,14 @@ export const DEMO_KIT_EN: Record<string, string> = {
     'The schedule you created a moment ago arrived live.\nClick it to open it.',
   "L'agent photographie directement depuis son téléphone : chaque photo est horodatée, signée à son nom et part dans le dossier en temps réel.":
     'The agent shoots straight from their phone: every photo is timestamped, signed with their name and lands in the file in real time.',
-  "L'agent peut aussi déposer des pièces ici (carte grise, permis, constat…) : chacune a son emplacement.":
-    'The agent can also drop documents here (registration, licence, accident report…): each has its slot.',
+  "C'est ici que l'agent dépose les pièces du dossier, directement sur le terrain.\nTouchez pour ouvrir le panneau documents.":
+    'This is where the agent drops the file’s documents, right in the field.\nTap to open the documents panel.',
+  'Les 5 pièces du dossier': 'The file’s 5 documents',
+  "Chaque pièce a sa carte : déposez les 5 fichiers ci-dessous (constat, carte grise, attestation, kilométrage, châssis) — l'IA lit même la carte grise.\nElles partent en direct dans le dossier, côté bureau. (Si le temps presse, on peut aussi les importer depuis la gestion du dossier, onglet « Importer un document ».)":
+    'Each document has its card: drop the 5 files below (accident report, registration, insurance certificate, odometer, VIN) — the AI even reads the registration.\nThey land in the file live, on the office side. (If time is short, they can also be imported from file management, “Import a document” tab.)',
   'Revenez au dossier': 'Back to the file',
+  "Les 5 pièces (et tout ce que l'agent envoie) sont déjà arrivées dans le dossier, côté bureau.\nCliquez sur « Gestion des dossiers » pour y retourner.":
+    'The 5 documents (and everything the agent sends) have already landed in the file, on the office side.\nClick “File Management” to head back.',
   'Rouvrez votre dossier': 'Reopen your file',
   "Votre dossier est en haut de la liste : cliquez sur sa ligne pour reprendre la visite.\nSon onglet en haut (comme un navigateur) y ramène aussi — et dans le dossier, la frise des étapes vous ramène à l'étape où vous étiez.":
     'Your file is at the top of the list: click its row to resume the tour.\nIts tab at the top (like a browser) takes you back too — and inside the file, the stage timeline returns you to the stage you were on.',
@@ -208,4 +257,13 @@ export const DEMO_KIT_EN: Record<string, string> = {
     'Depreciation is gone from the PDF, and the agreement collapses into a single “Agreed Total” column.\nOn a proposal, an empty “2nd appraiser agreement” column appears for the signature.\nPlace the firm’s stamp too (“Stamp” menu), then confirm or close.',
   "L'accord enregistré arrive tout seul dans le dossier.\nCliquez sur l'onglet du dossier en haut : la visite y reprend.":
     'The saved agreement lands in the file by itself.\nClick the file’s tab at the top: the tour resumes there.',
+
+  // ── Tour engine chrome (prefill button, jump-to-step, self-recipient) ──
+  'Déposer les fichiers pour moi': 'Drop the files in for me',
+  'Import en cours…': 'Uploading…',
+  'Fichiers déposés !': 'Files delivered!',
+  'Échec — utilisez les boutons de téléchargement': 'Failed — use the download buttons',
+  'Cliquez pour aller directement à une étape': 'Click to jump straight to a step',
+  'Numéro d’étape': 'Step number',
+  vous: 'you',
 };

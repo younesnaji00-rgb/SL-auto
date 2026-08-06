@@ -51,14 +51,43 @@ export const atgDetailTutorial: PageTutorial = {
     {
       anchor: 'atgd-docs-toggle',
       title: 'Documents',
-      body: "L'agent peut aussi déposer des pièces ici (carte grise, permis, constat…) : chacune a son emplacement.",
+      body:
+        "C'est ici que l'agent dépose les pièces du dossier, directement sur le terrain.\nTouchez pour ouvrir le panneau documents.",
       side: 'top',
+      interact: 'click',
+    },
+    {
+      anchor: 'atgd-docs',
+      title: 'Les 5 pièces du dossier',
+      body:
+        "Chaque pièce a sa carte : déposez les 5 fichiers ci-dessous (constat, carte grise, attestation, kilométrage, châssis) — l'IA lit même la carte grise.\nElles partent en direct dans le dossier, côté bureau. (Si le temps presse, on peut aussi les importer depuis la gestion du dossier, onglet « Importer un document ».)",
+      side: 'top',
+      dynamic: true,
+      interact: 'until',
+      until: () =>
+        ['dosd-slot-pv', 'dosd-slot-carte', 'dosd-slot-attestation', 'dosd-slot-km', 'dosd-slot-vin'].every(
+          (a) => !!document.querySelector(`[data-tour="atgd-docs"] [data-tour="${a}"] ul li`),
+        ),
+      links: [
+        { href: '/demo-kit/{lang}/accident-report.pdf', label: 'Constat (PDF)', download: true },
+        { href: '/demo-kit/{lang}/vehicle-registration.pdf', label: 'Carte grise (PDF)', download: true },
+        { href: '/demo-kit/{lang}/insurance-certificate.pdf', label: 'Attestation (PDF)', download: true },
+        { href: '/demo-kit/photos/odometer.png', label: 'Photo kilométrage', download: true },
+        { href: '/demo-kit/photos/vin-plate.png', label: 'Photo châssis', download: true },
+      ],
+      prefill: [
+        { href: '/demo-kit/{lang}/accident-report.pdf', name: 'accident-report.pdf', input: '[data-tour="atgd-docs"] [data-tour="dosd-slot-pv"] input[type=file]' },
+        { href: '/demo-kit/{lang}/vehicle-registration.pdf', name: 'vehicle-registration.pdf', input: '[data-tour="atgd-docs"] [data-tour="dosd-slot-carte"] input[type=file]' },
+        { href: '/demo-kit/{lang}/insurance-certificate.pdf', name: 'insurance-certificate.pdf', input: '[data-tour="atgd-docs"] [data-tour="dosd-slot-attestation"] input[type=file]' },
+        { href: '/demo-kit/photos/odometer.png', name: 'odometer.png', input: '[data-tour="atgd-docs"] [data-tour="dosd-slot-km"] input[type=file]' },
+        { href: '/demo-kit/photos/vin-plate.png', name: 'vin-plate.png', input: '[data-tour="atgd-docs"] [data-tour="dosd-slot-vin"] input[type=file]' },
+      ],
     },
     {
       anchor: 'nav-/dossiers',
       title: 'Revenez au dossier',
       body:
-        "Tout ce que l'agent envoie arrive en direct au bureau — ajoutez au moins une photo ou une pièce ici pour la voir apparaître dans le dossier.\nCliquez sur « Gestion des dossiers » pour y retourner.",
+        "Les 5 pièces (et tout ce que l'agent envoie) sont déjà arrivées dans le dossier, côté bureau.\nCliquez sur « Gestion des dossiers » pour y retourner.",
       side: 'right',
       interact: 'click',
       chain: 'dossiers',

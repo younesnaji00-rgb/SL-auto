@@ -357,7 +357,7 @@ export default function MesRappelsPage() {
                         router.push(`/dossiers/${r.dossierId}`);
                       }}
                     >
-                      <TableCell className="font-mono text-sm font-semibold text-primary tabular-nums">
+                      <TableCell data-tour="rap-row-ref" className="font-mono text-sm font-semibold text-primary tabular-nums">
                         {r.dossierRef || r.dossierId}
                       </TableCell>
                       <TableCell className="text-sm">{r.senderNom || '—'}</TableCell>
@@ -385,6 +385,7 @@ export default function MesRappelsPage() {
                               variant="ghost"
                               size="sm"
                               className="h-8 text-xs gap-1.5"
+                              data-tour="rap-detail-btn"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setReplayRappel(r);
@@ -440,7 +441,7 @@ export default function MesRappelsPage() {
               <p className="text-xs mt-1 opacity-70">{t('Les rappels que vous envoyez depuis Gestion des dossiers apparaîtront ici.')}</p>
             </div>
           ) : (
-            <Card className="overflow-x-auto border rounded-lg">
+            <Card data-tour="rap-envoyes-table" className="overflow-x-auto border rounded-lg">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30">

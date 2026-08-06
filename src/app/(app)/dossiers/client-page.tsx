@@ -28,6 +28,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useDossierTabs } from '@/hooks/use-dossier-tabs';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { BRAND } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { exportToExcel, type ExportColumn } from '@/lib/export-excel';
@@ -359,15 +360,21 @@ export default function DossiersClientPage() {
     setGestLoading(true);
     getDocs(query(collection(db, 'users'), where('role', '==', 'Gestionnaire')))
       .then((snap) => {
-        setGestionnaires(snap.docs.map((d) => ({
+        const list = snap.docs.map((d) => ({
           uid: d.id,
           nom: (d.data() as any).nom || '',
           prenom: (d.data() as any).prenom || '',
-        })));
+        }));
+        // Demo brand: a prospect explores alone, so let them address a rappel
+        // to THEMSELVES and play both sender and recipient in one browser.
+        if (BRAND.id === 'demo' && profile?.uid && !list.some((g) => g.uid === profile.uid)) {
+          list.unshift({ uid: profile.uid, nom: profile.nom || '', prenom: profile.prenom || '' });
+        }
+        setGestionnaires(list);
       })
       .catch((err) => console.warn('[mes-rappels] fetch gestionnaires failed', err))
       .finally(() => setGestLoading(false));
-  }, [isSendToOpen, db]);
+  }, [isSendToOpen, db, profile?.uid, profile?.nom, profile?.prenom]);
 
   const handleSendRappel = async () => {
     if (!db || !profile || selectedRows.size === 0 || selectedGestUids.size === 0) return;
@@ -1282,7 +1289,10 @@ export default function DossiersClientPage() {
                       });
                     }}
                   />
-                  <span className="text-sm">{`${g.prenom} ${g.nom}`.trim() || '—'}</span>
+                  <span className="text-sm">
+                    {`${g.prenom} ${g.nom}`.trim() || '—'}
+                    {g.uid === profile?.uid ? ` (${t('vous')})` : ''}
+                  </span>
                 </label>
               ))}
             </div>

@@ -344,6 +344,7 @@ export default function DossierDetailPage({
             size="sm"
             onClick={handleValiderTraitement}
             disabled={validating}
+            data-tour="dosd-rappel-save"
             className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
           >
             <Save className="h-3.5 w-3.5" />

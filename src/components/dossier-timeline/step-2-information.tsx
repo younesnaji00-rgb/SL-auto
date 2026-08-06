@@ -157,13 +157,15 @@ export default function Step2Information({
   );
 
   const informationContent = (
-    <InformationTab
-      dossier={dossier}
-      dossierRef={dossierRef}
-      dossierId={dossierId}
-      onEditPlanification={onEditPlanification}
-      onNewPlanification={onNewPlanification}
-    />
+    <div data-tour="dosd-info-form">
+      <InformationTab
+        dossier={dossier}
+        dossierRef={dossierRef}
+        dossierId={dossierId}
+        onEditPlanification={onEditPlanification}
+        onNewPlanification={onNewPlanification}
+      />
+    </div>
   );
 
   const toggleButton = (

@@ -24,10 +24,23 @@ const posKey = (key: string) => `${BRAND.storagePrefix}.tour.${key}.pos`;
 // already-completed steps are filtered out on the return visit, titles don't.
 const posTitleKey = (key: string) => `${BRAND.storagePrefix}.tour.${key}.posTitle`;
 
+// Resume markers are PATH-SCOPED: tours whose route matches many pages
+// (dossier detail, mission detail) must not resume dossier A's position on
+// freshly opened dossier B — a stale marker means "restart", not "resume".
+// Markers written from ANOTHER page (chainAt hops) use the '*' wildcard.
 function readResumeIndex(key: string, max: number): number {
   try {
     const raw = window.localStorage.getItem(posKey(key));
-    const n = raw == null ? 0 : parseInt(raw, 10);
+    if (raw == null) return 0;
+    const at = raw.indexOf('@');
+    const n = parseInt(at >= 0 ? raw.slice(0, at) : raw, 10);
+    const path = at >= 0 ? raw.slice(at + 1) : null;
+    if (path && path !== '*' && path !== window.location.pathname) {
+      // eslint-disable-next-line no-console
+      console.debug('[tour] stale resume dropped', key, path, '!=', window.location.pathname);
+      window.localStorage.removeItem(posKey(key));
+      return 0;
+    }
     return Number.isFinite(n) && n > 0 && n < max ? n : 0;
   } catch {
     return 0;
@@ -39,7 +52,12 @@ function writeResumeIndex(key: string, index: number | null): void {
     if (index == null) {
       window.localStorage.removeItem(posKey(key));
       window.localStorage.removeItem(posTitleKey(key));
-    } else window.localStorage.setItem(posKey(key), String(index));
+    } else {
+      window.localStorage.setItem(
+        posKey(key),
+        `${index}@${window.location.pathname}`,
+      );
+    }
   } catch {
     // Non-fatal.
   }
@@ -78,6 +96,15 @@ export function startTutorial(
   destroyActiveTour();
 
   const steps = tut.steps.filter((s) => {
+    // Conditional sub-flows (rappel treatment…) are dropped whole when
+    // their gate is false — they must never surface on normal runs.
+    if (s.onlyIf) {
+      try {
+        if (!s.onlyIf()) return false;
+      } catch {
+        return false;
+      }
+    }
     // Hands-on steps whose goal is ALREADY met (photos present, quote
     // imported…) are skipped — revisiting a fed dossier stays short.
     if (s.interact === 'until' && s.until) {
@@ -109,10 +136,20 @@ export function startTutorial(
       const savedTitle = window.localStorage.getItem(posTitleKey(tut.key));
       if (savedTitle) {
         window.localStorage.removeItem(posTitleKey(tut.key));
-        const idx = steps.findIndex((s) => s.title === savedTitle);
-        if (idx >= 0) resumeAt = idx;
-        // eslint-disable-next-line no-console
-        console.debug('[tour] resume-title', tut.key, savedTitle, '->', idx);
+        // Title markers carry the page they were meant for ('*' = any page,
+        // used by chainAt hops written from another route).
+        const sep = savedTitle.lastIndexOf('@@');
+        const ttl = sep >= 0 ? savedTitle.slice(0, sep) : savedTitle;
+        const path = sep >= 0 ? savedTitle.slice(sep + 2) : '*';
+        if (path === '*' || path === window.location.pathname) {
+          const idx = steps.findIndex((s) => s.title === ttl);
+          if (idx >= 0) resumeAt = idx;
+          // eslint-disable-next-line no-console
+          console.debug('[tour] resume-title', tut.key, ttl, '->', idx);
+        } else {
+          // eslint-disable-next-line no-console
+          console.debug('[tour] stale resume-title dropped', tut.key, path);
+        }
       }
     } catch { /* non-fatal */ }
   }
@@ -222,8 +259,9 @@ export function startTutorial(
     if (!s.chain) return;
     try {
       window.localStorage.setItem(`${BRAND.storagePrefix}.tour.pending`, s.chain);
-      // Optional: enter the target tour at a specific step.
-      if (s.chainAt) window.localStorage.setItem(posTitleKey(s.chain), s.chainAt);
+      // Optional: enter the target tour at a specific step. Written from
+      // THIS page for the target page → wildcard path scope.
+      if (s.chainAt) window.localStorage.setItem(posTitleKey(s.chain), `${s.chainAt}@@*`);
       // eslint-disable-next-line no-console
       console.debug('[tour] chain->', s.chain, 'written');
     } catch { /* non-fatal */ }
@@ -232,7 +270,10 @@ export function startTutorial(
     // completed steps are filtered out on the return visit).
     if (s.chainResume && steps[i + 1]) {
       try {
-        window.localStorage.setItem(posTitleKey(tut.key), steps[i + 1].title);
+        window.localStorage.setItem(
+          posTitleKey(tut.key),
+          `${steps[i + 1].title}@@${window.location.pathname}`,
+        );
       } catch { /* non-fatal */ }
     }
   };
@@ -327,6 +368,54 @@ export function startTutorial(
     if ((ev as KeyboardEvent).key === 'Escape') lastEscape = Date.now();
   };
 
+  // "Déposer les fichiers pour moi": fetch each kit file and feed it to the
+  // page's REAL file input (DataTransfer + change event) — the normal upload
+  // pipeline runs, and the step's until-predicate advances the tour exactly
+  // as if the user had picked the files by hand.
+  const onPrefillClick = (ev: Event) => {
+    const btn = (ev.target as HTMLElement | null)?.closest?.(
+      '.sl-tour-prefill',
+    ) as HTMLElement | null;
+    if (!btn || active !== d) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const s: TourStep | undefined = steps[d.getActiveIndex() ?? 0];
+    if (!s?.prefill?.length || btn.dataset.busy) return;
+    btn.dataset.busy = '1';
+    btn.textContent = `⏳ ${t('Import en cours…')}`;
+    (async () => {
+      // Batch consecutive files aimed at the same input into ONE change
+      // event (multi-file inputs: the 3 "before" photos, …).
+      const groups: Array<{ input: string; files: Array<{ href: string; name: string }> }> = [];
+      for (const f of s.prefill!) {
+        const last = groups[groups.length - 1];
+        if (last && last.input === f.input) last.files.push(f);
+        else groups.push({ input: f.input, files: [f] });
+      }
+      for (const g of groups) {
+        const dt = new DataTransfer();
+        for (const f of g.files) {
+          const res = await fetch(f.href.replace('{lang}', getLocale()));
+          if (!res.ok) throw new Error(`fetch ${f.href} -> ${res.status}`);
+          const blob = await res.blob();
+          dt.items.add(new File([blob], f.name, { type: blob.type || 'application/octet-stream' }));
+        }
+        const input = document.querySelector<HTMLInputElement>(g.input);
+        if (!input) throw new Error(`input not found: ${g.input}`);
+        input.files = dt.files;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        // Let each upload start (and React settle) before the next batch.
+        await new Promise((r) => window.setTimeout(r, 800));
+      }
+      btn.textContent = `✓ ${t('Fichiers déposés !')}`;
+    })().catch((e) => {
+      // eslint-disable-next-line no-console
+      console.debug('[tour] prefill failed', e);
+      btn.textContent = `⚠ ${t('Échec — utilisez les boutons de téléchargement')}`;
+      delete btn.dataset.busy;
+    });
+  };
+
   const d = driver({
     showProgress: true,
     overlayOpacity: 0.55,
@@ -418,6 +507,7 @@ export function startTutorial(
       window.removeEventListener('scroll', onAnyScroll, true);
       document.removeEventListener('pointerdown', trackPointer, true);
       document.removeEventListener('keyup', trackKeys, true);
+      document.removeEventListener('click', onPrefillClick, true);
       if (scrollRaf) window.cancelAnimationFrame(scrollRaf);
       if (refreshIv) window.clearInterval(refreshIv);
       if (active === d) active = null;
@@ -475,6 +565,65 @@ export function startTutorial(
       if (prev < 0) return;
       prepare(prev, () => d.moveTo(prev));
     },
+    // Clickable step counter: "27 / 35" turns into a number input so the
+    // user can jump straight to any step instead of arrowing through.
+    onPopoverRender: (popover: { progress?: HTMLElement } | undefined) => {
+      const prog = popover?.progress;
+      if (!prog || prog.dataset.jumpWired) return;
+      prog.dataset.jumpWired = '1';
+      prog.style.cursor = 'pointer';
+      prog.title = t('Cliquez pour aller directement à une étape');
+      prog.addEventListener('click', () => {
+        if (active !== d || prog.querySelector('input')) return;
+        const current = (d.getActiveIndex() ?? 0) + 1;
+        const restore = prog.textContent;
+        prog.textContent = '';
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.min = '1';
+        inp.max = String(steps.length);
+        inp.value = String(current);
+        inp.className = 'sl-tour-jump';
+        inp.setAttribute('aria-label', t('Numéro d’étape'));
+        let done = false;
+        const finish = (target: number | null) => {
+          if (done) return;
+          done = true;
+          prog.textContent = restore;
+          if (target != null && target !== current && active === d) {
+            cleanupInteract();
+            prepare(target - 1, () => {
+              try {
+                d.moveTo(target - 1);
+              } catch { /* torn down */ }
+            });
+          }
+        };
+        inp.addEventListener('keydown', (e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const n = parseInt(inp.value, 10);
+            finish(Number.isFinite(n) ? Math.max(1, Math.min(steps.length, n)) : null);
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+          }
+        });
+        // Escape is resolved on KEYUP while the input still owns focus, so
+        // driver's own window-level Escape (quit the tour) never sees it.
+        inp.addEventListener('keyup', (e) => {
+          e.stopPropagation();
+          if (e.key === 'Escape') finish(null);
+        });
+        inp.addEventListener('blur', () => {
+          const n = parseInt(inp.value, 10);
+          finish(Number.isFinite(n) ? Math.max(1, Math.min(steps.length, n)) : null);
+        });
+        prog.appendChild(inp);
+        inp.focus();
+        inp.select();
+      });
+    },
     steps: steps.map((s, i) => ({
       element: s.anchor
         ? () => {
@@ -517,8 +666,8 @@ export function startTutorial(
         // first-party, escape then reintroduce intentional line breaks.
         description:
           escapeHtml(t(s.body)).replace(/\n/g, '<br/>') +
-          (s.links?.length
-            ? `<div class="sl-tour-links">${s.links
+          (s.links?.length || s.prefill?.length
+            ? `<div class="sl-tour-links">${(s.links ?? [])
                 .map(
                   (l) =>
                     `<a class="sl-tour-link" href="${escapeHtml(
@@ -527,7 +676,15 @@ export function startTutorial(
                       t(l.label),
                     )}</a>`,
                 )
-                .join('')}</div>`
+                .join('')}${
+                // No-download alternative: inject the kit files straight
+                // into the real upload inputs.
+                s.prefill?.length
+                  ? `<button type="button" class="sl-tour-link sl-tour-prefill">⚡ ${escapeHtml(
+                      t('Déposer les fichiers pour moi'),
+                    )}</button>`
+                  : ''
+              }</div>`
             : ''),
         side: s.side,
         align: s.align ?? 'start',
@@ -539,6 +696,7 @@ export function startTutorial(
   window.addEventListener('scroll', onAnyScroll, { capture: true, passive: true });
   document.addEventListener('pointerdown', trackPointer, true);
   document.addEventListener('keyup', trackKeys, true);
+  document.addEventListener('click', onPrefillClick, true);
   refreshIv = window.setInterval(safeRefresh, 600);
   prepare(resumeAt, () => {
     // eslint-disable-next-line no-console

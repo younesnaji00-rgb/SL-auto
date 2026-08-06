@@ -324,7 +324,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[97vw] h-[94vh] p-0 gap-0 flex flex-col overflow-hidden">
+      <DialogContent data-tour="rap-replay" className="max-w-6xl w-[97vw] h-[94vh] p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader className="px-5 py-3 border-b shrink-0 space-y-1.5">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Play className="h-4 w-4 text-primary" />

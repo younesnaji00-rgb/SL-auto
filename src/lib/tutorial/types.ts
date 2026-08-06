@@ -43,6 +43,13 @@ export interface TourStep {
   interact?: 'click' | 'until';
   until?: () => boolean;
   /**
+   * Keep the step only when this predicate is true at tour start — for
+   * hidden sub-flows that must not appear on normal runs (e.g. the rappel
+   * treatment steps, gated on an active rappel session). Evaluated once,
+   * before the presence filter.
+   */
+  onlyIf?: () => boolean;
+  /**
    * Cleanup run when the user advances with the Next button INSTEAD of
    * completing the hands-on action — e.g. close the sheet/dialog this
    * step opened so the next step's anchor isn't buried underneath it.
@@ -78,6 +85,15 @@ export interface TourStep {
    * each language serves its own kit. `label` is a French i18n key.
    */
   links?: Array<{ href: string; label: string; download?: boolean }>;
+  /**
+   * One-click "do the uploads for me" — for prospects uncomfortable with
+   * downloading files. Renders a button under the links; clicking it
+   * fetches each href (`{lang}` resolved like links) and injects it into
+   * the file input matched by `input` (DataTransfer + change event), so
+   * the REAL upload pipeline runs. Consecutive entries with the same
+   * `input` are batched into one change event.
+   */
+  prefill?: Array<{ href: string; name: string; input: string }>;
 }
 
 export interface PageTutorial {

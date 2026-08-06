@@ -97,19 +97,24 @@ export const dossiersTutorial: PageTutorial = {
       // Anchor the TABLE, not the selection toolbar: the driver overlay
       // only lets clicks through inside the highlight cutout, so the rows
       // must BE the highlighted region for the checkboxes to be tickable.
+      // NO auto-advance here — ticking the first box used to yank the user
+      // to the next step before they could select several files.
       anchor: 'dos-table',
       title: 'Cochez les dossiers',
-      body: 'Cochez un ou plusieurs dossiers dans la liste.',
+      body:
+        'Cochez autant de dossiers que vous voulez dans la liste, puis cliquez sur « Suivant ».',
       side: 'top',
       dynamic: true,
-      interact: 'until',
-      // tbody scope: in selection mode the table HEADER also renders
-      // per-column checkboxes that are all checked by default — matching
-      // them would self-advance the step before any file is ticked.
-      until: () =>
-        !!document.querySelector(
-          '[data-tour="dos-table"] tbody [role="checkbox"][data-state="checked"]',
-        ),
+    },
+    {
+      // Shown BEFORE the send: after « Envoyer », the app quits the
+      // selection mode by itself, so this bar no longer exists.
+      anchor: 'dos-export-cancel',
+      title: 'Sortir de la sélection',
+      body:
+        "À tout moment, « Annuler » ressort du mode sélection sans rien envoyer.\nPas maintenant : continuons l'envoi.",
+      side: 'bottom',
+      dynamic: true,
     },
     {
       anchor: 'dos-send-to',
@@ -123,7 +128,7 @@ export const dossiersTutorial: PageTutorial = {
       anchor: 'dos-sendto-dialog',
       title: 'Le rappel',
       body:
-        'Choisissez le ou les collègues, écrivez votre demande, puis « Envoyer ».\nChaque destinataire le reçoit dans « Mes Rappels », traite le dossier, et vous êtes notifié — zéro e-mail perdu.',
+        'Écrivez votre demande, choisissez le destinataire — pour la démo, choisissez-VOUS (« vous ») afin de jouer aussi le rôle du destinataire — puis « Envoyer ».\nChaque destinataire le reçoit dans « Mes Rappels » et vous êtes notifié — zéro e-mail perdu.',
       side: 'left',
       dynamic: true,
       interact: 'until',
@@ -135,8 +140,8 @@ export const dossiersTutorial: PageTutorial = {
         }
         return !!w['sl.sendtoSeen'];
       },
-      // Next while the dialog is still open: close it so the export bar
-      // steps underneath are reachable.
+      // Next while the dialog is still open: close it so the steps
+      // underneath are reachable.
       onNext: () => {
         document
           .querySelector<HTMLElement>('[data-tour="dos-sendto-dialog"] button.absolute')
@@ -144,28 +149,14 @@ export const dossiersTutorial: PageTutorial = {
       },
     },
     {
-      anchor: 'dos-export-cancel',
-      title: 'Sortir de la sélection',
-      body: "Pas envoyé ? « Annuler » ressort du mode sélection.",
-      side: 'bottom',
-      dynamic: true,
-      interact: 'until',
-      // Seen-flag pattern: "bar absent" alone is true BEFORE selection mode
-      // ever starts, and the start filter would drop the step entirely —
-      // leaving the tour stuck in selection mode with no create button.
-      until: () => {
-        const w = window as unknown as Record<string, boolean>;
-        if (document.querySelector('[data-tour="dos-export-bar"]')) {
-          w['sl.exportBarSeen'] = true;
-          return false;
-        }
-        return !!w['sl.exportBarSeen'];
-      },
-      // Next = do it for me: leave selection mode so the rest of the tour
-      // gets the normal toolbar back.
-      onNext: () => {
-        document.querySelector<HTMLElement>('[data-tour="dos-export-cancel"]')?.click();
-      },
+      anchor: 'nav-/mes-rappels',
+      title: 'Suivons le rappel',
+      body:
+        'Votre rappel est parti — et comme vous êtes aussi destinataire, vous allez le recevoir.\nCliquez sur « Mes Rappels » dans le menu.',
+      side: 'right',
+      interact: 'click',
+      chain: 'mes-rappels',
+      chainResume: true,
     },
     {
       anchor: 'dos-table',
@@ -208,7 +199,7 @@ export const dossiersTutorial: PageTutorial = {
       anchor: 'dos-create-role',
       title: "Votre rôle d'expert",
       body:
-        "1er expert : l'expert principal du dossier.\n2ème expert : intervient si l'assuré ou l'assureur adverse conteste, ou en cas de suspicion.\nArbitre : tranche un désaccord entre les deux experts.\nCes procédures peuvent varier d'un pays à l'autre.",
+        "1er expert : l'expert principal du dossier.\n2ème expert : intervient si l'assuré ou l'assureur adverse conteste, ou en cas de suspicion.\nArbitre : tranche un désaccord entre les deux experts.\nPlus il y a d'experts en jeu, plus le formulaire affiche de champs pour saisir leurs noms.\nCes procédures peuvent varier d'un pays à l'autre — et l'application peut toujours être adaptée sur mesure à vos façons de faire.",
       side: 'right',
       dynamic: true,
     },

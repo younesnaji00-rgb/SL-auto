@@ -846,7 +846,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
 
       {/* Documents section (revealed when toggled) */}
       {isDocsOpen && (
-        <Card className="shadow-sm">
+        <Card data-tour="atgd-docs" className="shadow-sm">
           <CardContent className="pt-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold flex items-center gap-2">

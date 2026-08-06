@@ -283,6 +283,30 @@ body.driver-active:has(.sl-step-dos-hscroll) [data-tour="dos-table"] {
 .driver-popover.sl-tour .sl-tour-link:hover {
   filter: brightness(1.08);
 }
+/* "Do the uploads for me" button (no-download alternative) */
+.driver-popover.sl-tour .sl-tour-prefill {
+  background: #0f766e;
+  border: none;
+  cursor: pointer;
+}
+.driver-popover.sl-tour .sl-tour-prefill[data-busy] {
+  opacity: 0.85;
+  cursor: default;
+}
+
+/* Clickable step counter → inline "go to step N" input */
+.driver-popover.sl-tour .driver-popover-progress-text:hover {
+  text-decoration: underline dotted;
+}
+.driver-popover.sl-tour .sl-tour-jump {
+  width: 4.5em;
+  padding: 1px 4px;
+  border: 1px solid #0f766e;
+  border-radius: 4px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+}
 
 /* "Start the demo" button on the tour's closing popover */
 .driver-popover.sl-tour .sl-tour-lab-btn {

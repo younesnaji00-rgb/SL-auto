@@ -11,6 +11,17 @@ const photosPresent = (cat: string) => () => {
 const slotFilled = (anchor: string) =>
   !!document.querySelector(`[data-tour="${anchor}"] ul li`);
 
+// True while THIS dossier is open as a rappel-treatment session (handshake
+// key written by the Mes Rappels row click, cleared on save).
+const rappelSessionActive = () => {
+  try {
+    const id = window.location.pathname.split('/').pop() || '';
+    return !!id && !!window.localStorage.getItem(`rappel-active-session-${id}`);
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Dossier detail — the guided end-to-end JOURNEY, driven by the demo kit
  * (public/demo-kit). The user imports the mission document (AI scan), the
@@ -76,6 +87,13 @@ export const dossierDetailTutorial: PageTutorial = {
       links: [
         { href: '/demo-kit/{lang}/mission-document.pdf', label: 'Document de mission (PDF)', download: true },
       ],
+      prefill: [
+        {
+          href: '/demo-kit/{lang}/mission-document.pdf',
+          name: 'mission-document.pdf',
+          input: '[data-tour="dosd-import-drop"] input[type=file]',
+        },
+      ],
     },
     {
       title: 'Regardez !',
@@ -86,7 +104,7 @@ export const dossierDetailTutorial: PageTutorial = {
       anchor: 'dosd-other-docs',
       title: 'Les pièces du dossier',
       body:
-        "Déposez les 5 pièces ci-dessous dans leurs cartes : constat, carte grise, attestation, kilométrage, châssis.\nElles seront exigées avant le chiffrage — et l'IA lit aussi la carte grise.",
+        "Cinq pièces seront exigées avant le chiffrage : constat, carte grise, attestation, kilométrage, châssis.\nEn pratique, c'est l'agent de terrain qui les importe depuis SA page, sur place — nous le ferons là-bas dans un instant.\nSi le temps presse, vous pouvez aussi les déposer ici, dans l'onglet « Importer un document ».",
       side: 'top',
       // The slot cards live in the "Importer un document" TAB of the
       // Documents section — unmounted until the tab is selected. Click it
@@ -94,20 +112,9 @@ export const dossierDetailTutorial: PageTutorial = {
       click: 'dosd-docs-import-tab',
       delay: 450,
       // dynamic: on a freshly created dossier this section mounts a beat
-      // after the tour starts — without the flag the presence filter drops
-      // the step, the 5 source docs are never requested, and the
-      // "Assigner au chiffrage" gate stays locked for the whole journey.
+      // after the tour starts — without the flag the presence filter would
+      // drop the step.
       dynamic: true,
-      interact: 'until',
-      until: () =>
-        ['dosd-slot-pv', 'dosd-slot-carte', 'dosd-slot-attestation', 'dosd-slot-km', 'dosd-slot-vin'].every(slotFilled),
-      links: [
-        { href: '/demo-kit/{lang}/accident-report.pdf', label: 'Constat (PDF)', download: true },
-        { href: '/demo-kit/{lang}/vehicle-registration.pdf', label: 'Carte grise (PDF)', download: true },
-        { href: '/demo-kit/{lang}/insurance-certificate.pdf', label: 'Attestation (PDF)', download: true },
-        { href: '/demo-kit/photos/odometer.png', label: 'Photo kilométrage', download: true },
-        { href: '/demo-kit/photos/vin-plate.png', label: 'Photo châssis', download: true },
-      ],
     },
     {
       anchor: 'dosd-timeline',
@@ -135,6 +142,11 @@ export const dossierDetailTutorial: PageTutorial = {
         { href: '/demo-kit/photos/before-1.png', label: 'Photo 1', download: true },
         { href: '/demo-kit/photos/before-2.png', label: 'Photo 2', download: true },
         { href: '/demo-kit/photos/before-3.png', label: 'Photo 3', download: true },
+      ],
+      prefill: [
+        { href: '/demo-kit/photos/before-1.png', name: 'before-1.png', input: '[data-tour="dosd-photos-avant"] input[type=file]' },
+        { href: '/demo-kit/photos/before-2.png', name: 'before-2.png', input: '[data-tour="dosd-photos-avant"] input[type=file]' },
+        { href: '/demo-kit/photos/before-3.png', name: 'before-3.png', input: '[data-tour="dosd-photos-avant"] input[type=file]' },
       ],
     },
     {
@@ -221,7 +233,8 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'nav-/assignations-atg',
       title: 'Allons voir côté agent',
-      body: 'Cliquez sur « Assignations Agent de Terrain » dans le menu.',
+      body:
+        "C'est aussi là-bas que l'agent importe les pièces du dossier, directement sur le terrain.\nCliquez sur « Assignations Agent de Terrain » dans le menu.",
       side: 'right',
       interact: 'click',
       chain: 'assignations-atg',
@@ -254,6 +267,13 @@ export const dossierDetailTutorial: PageTutorial = {
       until: () => slotFilled('dosd-devis-slot'),
       links: [
         { href: '/demo-kit/{lang}/garage-quote.pdf', label: 'Devis du garage (PDF)', download: true },
+      ],
+      prefill: [
+        {
+          href: '/demo-kit/{lang}/garage-quote.pdf',
+          name: 'garage-quote.pdf',
+          input: '[data-tour="dosd-devis-slot"] input[type=file]',
+        },
       ],
     },
     {
@@ -315,6 +335,10 @@ export const dossierDetailTutorial: PageTutorial = {
         { href: '/demo-kit/photos/during-1.png', label: 'Photo 1', download: true },
         { href: '/demo-kit/photos/during-2.png', label: 'Photo 2', download: true },
       ],
+      prefill: [
+        { href: '/demo-kit/photos/during-1.png', name: 'during-1.png', input: '[data-tour="dosd-photos-en_cours"] input[type=file]' },
+        { href: '/demo-kit/photos/during-2.png', name: 'during-2.png', input: '[data-tour="dosd-photos-en_cours"] input[type=file]' },
+      ],
     },
     {
       anchor: 'dosd-step-10',
@@ -335,6 +359,10 @@ export const dossierDetailTutorial: PageTutorial = {
       links: [
         { href: '/demo-kit/photos/after-1.png', label: 'Photo 1', download: true },
         { href: '/demo-kit/photos/after-2.png', label: 'Photo 2', download: true },
+      ],
+      prefill: [
+        { href: '/demo-kit/photos/after-1.png', name: 'after-1.png', input: '[data-tour="dosd-photos-apres"] input[type=file]' },
+        { href: '/demo-kit/photos/after-2.png', name: 'after-2.png', input: '[data-tour="dosd-photos-apres"] input[type=file]' },
       ],
     },
     {
@@ -372,6 +400,73 @@ export const dossierDetailTutorial: PageTutorial = {
       title: 'Et ensuite ?',
       body:
         "Vous venez de suivre UN dossier à travers toute l'équipe : terrain, chiffrage, direction — sans double saisie, sans e-mails.\n« Suivi d'équipe » veille sur tous les délais ; « Tampons » gère les cachets posés sur les devis.",
+    },
+    // ── Hidden rappel-treatment sub-flow ──────────────────────────────
+    // Reachable ONLY via chainAt from Mes Rappels (row click on a received
+    // rappel). onlyIf gates every step on the active-session handshake the
+    // row click writes, so normal visits never see them.
+    {
+      title: 'Le traitement commence',
+      body:
+        "Le dossier s'est ouvert en session de traitement : tout ce que vous modifiez maintenant est enregistré pour l'expéditeur — qui, quoi, quand.",
+      onlyIf: rappelSessionActive,
+    },
+    {
+      anchor: 'dosd-rappel-banner',
+      title: 'La bannière de traitement',
+      body:
+        "Vos modifications restent locales jusqu'au bouton vert « Sauvegarder » de cette bannière — rien ne part avant.",
+      side: 'bottom',
+      dynamic: true,
+      onlyIf: rappelSessionActive,
+    },
+    {
+      anchor: 'dosd-info-form',
+      title: 'Modifiez le dossier',
+      body:
+        'Cliquez sur « Modifier », changez un ou deux champs — le téléphone de l’assuré, une adresse — puis « Enregistrer ».\nLe compteur « modifications en attente » apparaît dans la bannière.',
+      side: 'top',
+      dynamic: true,
+      onlyIf: rappelSessionActive,
+      interact: 'until',
+      // The pending-count badge is the only child <span> of the banner text.
+      until: () =>
+        !!document.querySelector('[data-tour="dosd-rappel-banner"] p span'),
+    },
+    {
+      anchor: 'dosd-rappel-save',
+      title: 'Publiez vos modifications',
+      body:
+        'Cliquez sur le bouton vert « Sauvegarder » : vos modifications partent sur le dossier et le rappel passe en « Traité ».',
+      side: 'bottom',
+      dynamic: true,
+      onlyIf: rappelSessionActive,
+      interact: 'until',
+      // Seen-flag: the banner disappears once the treatment is saved.
+      until: () => {
+        const w = window as unknown as Record<string, boolean>;
+        if (document.querySelector('[data-tour="dosd-rappel-banner"]')) {
+          w['sl.rappelBannerSeen'] = true;
+          return false;
+        }
+        return !!w['sl.rappelBannerSeen'];
+      },
+      onNext: () => {
+        document
+          .querySelector<HTMLElement>('[data-tour="dosd-rappel-save"]')
+          ?.click();
+      },
+    },
+    {
+      anchor: 'nav-/mes-rappels',
+      title: 'Retour aux rappels',
+      body:
+        "Retournez dans « Mes Rappels » pour voir ce que l'expéditeur voit de votre travail.",
+      side: 'right',
+      onlyIf: rappelSessionActive,
+      interact: 'click',
+      chain: 'mes-rappels',
+      chainAt: 'Le travail effectué',
     },
   ],
 };
