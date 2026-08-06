@@ -31,11 +31,12 @@ export const assignationsAtgTutorial: PageTutorial = {
       ],
     },
     {
+      // Presentational: switching tabs must NOT advance the tour — the
+      // user explores, then clicks « Suivant » himself.
       anchor: 'atg-tabs',
       title: 'Types de mission',
       body: 'Touchez un onglet : Avant, En cours ou Après.',
       side: 'bottom',
-      interact: 'click',
     },
     {
       anchor: 'atg-filters',

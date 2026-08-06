@@ -690,16 +690,23 @@ export default function AssignationsATGPage() {
         description: `${t('Google Maps accepte au maximum')} ${MAX_STOPS} ${t('étapes par itinéraire. Les premières (par ordre chronologique) ont été conservées.')}`,
       });
     }
-    // Pre-open the tab SYNCHRONOUSLY: window.open after an await is no
-    // longer a user gesture and popup blockers silently kill it — the
-    // "Start does nothing" bug.
-    const win = window.open('about:blank', '_blank');
-    // Read the agent's live coords FIRST so we can pass them as the explicit
-    // `origin` — "My+Location" is unreliable; an explicit lat,lng always works.
+    // Open the tab SYNCHRONOUSLY (window.open after an await is no longer a
+    // user gesture — popup blockers kill it), and navigate it to a working
+    // Maps URL IMMEDIATELY: parking it on about:blank while geolocation
+    // resolves left users staring at a blank tab whenever the later
+    // handle-write failed (COOP/permission-prompt cases).
+    const win = window.open(buildMultiStopMapsUrl(route), '_blank');
+    // Then read the agent's live coords and upgrade the tab to an explicit
+    // `origin` — "My+Location" is unreliable; a literal lat,lng always works.
     const origin = await readCurrentPositionString();
-    const url = buildMultiStopMapsUrl(route, origin ?? undefined);
-    if (win && !win.closed) win.location.href = url;
-    else window.open(url, '_blank', 'noopener,noreferrer');
+    if (origin) {
+      const url = buildMultiStopMapsUrl(route, origin);
+      try {
+        if (win && !win.closed) win.location.href = url;
+      } catch {
+        // Handle severed (COOP) — the tab already shows the My+Location route.
+      }
+    }
   };
 
   // Group agents by zone for the "Par zone" view. Agents without a zone go

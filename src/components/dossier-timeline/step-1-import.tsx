@@ -32,6 +32,7 @@ import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-histor
 import { useDossierDocWrite } from '@/app/(app)/dossiers/[id]/rappel-draft';
 import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
+import { BRAND } from '@/lib/brand';
 
 export interface Step1ImportProps {
   dossierId: string;
@@ -563,7 +564,12 @@ export default function Step1Import({
                 type="file"
                 className="hidden"
                 multiple
-                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.bmp"
+                accept={
+                  // Demo kit ships an electronic (HTML) mission order whose
+                  // field table is extracted without any AI call.
+                  '.pdf,.jpg,.jpeg,.png,.gif,.webp,.bmp' +
+                  (BRAND.id === 'demo' ? ',.html,.htm' : '')
+                }
                 onChange={onFileInputChange}
               />
             </div>

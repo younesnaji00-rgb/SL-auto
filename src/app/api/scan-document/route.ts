@@ -35,6 +35,75 @@ const DOC_MARKET_CA = {
 };
 
 const DOC_MARKET = BRAND.market === 'CA' ? DOC_MARKET_CA : DOC_MARKET_MA;
+
+// ── OCR-free extraction for structured text documents ───────────────────────
+// HTML/plain-text uploads (e.g. an insurer portal's electronic mission order,
+// or the demo kit's mission-document.html) carry their field table as text —
+// no AI needed. Labels are normalized (accents/punctuation stripped) and
+// matched against this map; anything unmatched is ignored. When at least one
+// field parses, the AI call is skipped entirely.
+const TEXT_LABEL_MAP: Record<string, string> = {
+  'compagnie d assurance': 'company',
+  'insurance company': 'company',
+  'reference compagnie': 'companyRef',
+  'company reference': 'companyRef',
+  'n de police': 'policyNumber',
+  'policy number': 'policyNumber',
+  'date de reception mission': 'dateOfRequest',
+  'date of assignment': 'dateOfRequest',
+  'assure': 'insuredName',
+  'insured': 'insuredName',
+  'telephone de l assure': 'insuredPhone',
+  'insured s phone': 'insuredPhone',
+  'adresse de l assure': 'insuredAddress',
+  'insured s address': 'insuredAddress',
+  'marque': 'brand',
+  'make': 'brand',
+  'modele': 'model',
+  'model': 'model',
+  'immatriculation': 'registration',
+  'licence plate': 'registration',
+  'license plate': 'registration',
+  'n de chassis niv': 'chassisNumber',
+  'vin': 'chassisNumber',
+  'energie': 'fuelType',
+  'fuel': 'fuelType',
+  'kilometrage': 'mileage',
+  'mileage': 'mileage',
+  'date du sinistre': 'dateOfLoss',
+  'date of loss': 'dateOfLoss',
+  'nature du sinistre': 'nature',
+  'nature of loss': 'nature',
+  'garage reparateur': 'garageName',
+  'repair facility': 'garageName',
+  'usage': 'vehicleUsage',
+  'use': 'vehicleUsage',
+};
+
+function normalizeLabel(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+// Parses `<td class="k">Label</td><td>Value</td>` rows (the structure the
+// demo kit's electronic mission order uses). Returns null when the document
+// carries no recognizable field table.
+function extractFromTextDocument(html: string): Record<string, string> | null {
+  const data: Record<string, string> = {};
+  const rowRe = /<td class="k">([^<]+)<\/td>\s*<td>([^<]+)<\/td>/g;
+  let m: RegExpExecArray | null;
+  while ((m = rowRe.exec(html)) !== null) {
+    const key = TEXT_LABEL_MAP[normalizeLabel(m[1])];
+    const value = m[2].trim();
+    if (key && value && !(key in data)) data[key] = value;
+  }
+  return Object.keys(data).length > 0 ? data : null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     await requireAuth(req);
@@ -48,6 +117,32 @@ export async function POST(req: NextRequest) {
 
     if (rawFiles.length === 0) {
       return NextResponse.json({ error: "Fichier manquant." }, { status: 400 });
+    }
+
+    // Text documents first: when a structured field table parses, the data
+    // is exact by construction — skip the AI entirely (faster, free, and
+    // immune to AI-backend outages).
+    const textData: Record<string, string> = {};
+    for (const f of rawFiles) {
+      if (!f.contentType || !f.contentType.startsWith('text/')) continue;
+      try {
+        const decoded = Buffer.from(f.fileBase64, 'base64').toString('utf8');
+        const parsed = extractFromTextDocument(decoded);
+        if (parsed) {
+          for (const [k, v] of Object.entries(parsed)) {
+            if (!(k in textData)) textData[k] = v;
+          }
+        }
+      } catch {
+        /* not parseable as text — leave to the AI */
+      }
+    }
+    if (Object.keys(textData).length > 0) {
+      return NextResponse.json({
+        data: textData,
+        regions: {},
+        fieldsFound: Object.keys(textData).length,
+      });
     }
 
     const mediaParts = rawFiles.map(f => ({

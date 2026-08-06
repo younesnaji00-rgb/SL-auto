@@ -48,6 +48,7 @@ import { deriveStatus, isPlanificationStatus } from '@/lib/status-machine';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
 import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-grid';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { BRAND } from '@/lib/brand';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -161,6 +162,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const [deletingPreuve, setDeletingPreuve] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Demo brand: gallery import next to the camera — prospects demo from a
+  // desktop, where "take photos" has no camera to talk to.
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const preuveInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const docFileInputRef = useRef<HTMLInputElement>(null);
   const docCameraInputRef = useRef<HTMLInputElement>(null);
@@ -738,7 +742,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                   {t('Photos')} — {t(activeTab)}
                   <Badge variant="secondary" className="text-[10px] font-mono">{filteredPhotos.length}/{photoCap}</Badge>
                 </h3>
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap" data-tour="atgd-photo-actions">
                   {canEdit && (
                     <Button
                       data-tour="atgd-camera"
@@ -751,6 +755,33 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                       {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
                       {isUploading ? t('Upload en cours...') : t('Prendre des photos')}
                     </Button>
+                  )}
+                  {canEdit && BRAND.id === 'demo' && (
+                    <>
+                      <Button
+                        data-tour="atgd-import"
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        disabled={isUploading}
+                        onClick={() => galleryInputRef.current?.click()}
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        {t('Importer des photos')}
+                      </Button>
+                      <input
+                        ref={galleryInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length > 0) void handleUploadFiles(files);
+                          e.target.value = '';
+                        }}
+                      />
+                    </>
                   )}
                   {/* Proposition réforme (item 021). AT-only toggle; lifts photo
                       cap from 30 to 60 per section. Does NOT change dossier statut. */}

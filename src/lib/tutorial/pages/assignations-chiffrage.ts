@@ -14,11 +14,12 @@ export const assignationsChiffrageTutorial: PageTutorial = {
       body: 'Les dossiers à chiffrer : chaque chiffreur voit les siens.',
     },
     {
+      // Presentational: opening the dropdown must NOT advance the tour —
+      // the user explores the options, then clicks « Suivant » himself.
       anchor: 'ach-compagnie',
       title: 'Filtre compagnie',
       body: 'Cliquez pour filtrer par compagnie.',
       side: 'bottom',
-      interact: 'click',
     },
     {
       anchor: 'ach-chiffreur',

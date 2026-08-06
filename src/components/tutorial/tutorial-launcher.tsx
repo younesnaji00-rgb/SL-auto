@@ -5,18 +5,39 @@ import { usePathname } from 'next/navigation';
 import { HelpCircle } from 'lucide-react';
 import { tutorialForPath } from '@/lib/tutorial/registry';
 import { sidebarIntroTutorial } from '@/lib/tutorial/pages/sidebar-intro';
-import { startTutorial, destroyActiveTour, pointToLauncher } from '@/lib/tutorial/tour';
+import {
+  startTutorial,
+  destroyActiveTour,
+  pointToLauncher,
+  resetTourProgress,
+} from '@/lib/tutorial/tour';
 import { BRAND } from '@/lib/brand';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
+// Every tour the comprehensive lab chains through. Cleared when the lab is
+// (re)started from scratch and when it genuinely completes, so a replay
+// walks every page from its first step.
+const JOURNEY_KEYS = [
+  'sidebar-intro',
+  'dossiers',
+  'mes-rappels',
+  'dossier-detail',
+  'assignations-atg',
+  'atg-detail',
+  'assignations-chiffrage',
+  'chiffrage-detail',
+  'devis-editor',
+];
+
 /**
- * Route-aware tutorial entry point (bottom-right "?" button) plus the
+ * The single tutorial entry point (bottom-right "?" button) plus the
  * discovery UX:
- *  - First page after the very first login → a centered "want a tour?"
- *    lightbox (once per browser).
- *  - Every page whose tour hasn't been taken yet → an animated pointer
- *    to the "?" button (once per page).
+ *  - Every sign-in → a centered "want a tour?" lightbox.
+ *  - Dismissing it → a spotlight on the "?" button.
+ * The "?" button IS the comprehensive hands-on lab: it resumes an
+ * interrupted run on the current page, or starts the lab from the sidebar
+ * intro when there is nothing to resume.
  */
 export function TutorialLauncher() {
   const pathname = usePathname();
@@ -77,14 +98,16 @@ export function TutorialLauncher() {
           // eslint-disable-next-line no-console
           console.debug('[tour] chained start', tut.key, 'ready', ready, 'tries', tries);
           startTutorial(tut, {
-            // End of the WHOLE chain: introduce BOTH help entry points
-            // (sidebar "?" + bottom-right "?") — once per browser.
-            // `onComplete` only fires on a genuine completion (last step
-            // reached); mid-journey hand-offs leave a pending flag, which
-            // identifies them better than "does this tour contain chains".
+            // End of the WHOLE chain. `onComplete` only fires on a genuine
+            // completion (last step reached); mid-journey hand-offs leave a
+            // pending flag, which identifies them better than "does this
+            // tour contain chains".
             onComplete: () => {
               try {
                 if (window.localStorage.getItem(flag('pending'))) return;
+                // The lab is over: forget every saved position so the next
+                // "?" click replays it from the very first step.
+                resetTourProgress(JOURNEY_KEYS);
                 if (window.localStorage.getItem(flag('helpBtns'))) return;
                 window.localStorage.setItem(flag('helpBtns'), '1');
               } catch {
@@ -160,31 +183,30 @@ export function TutorialLauncher() {
     } catch { /* non-fatal */ }
   };
 
-  // Bottom-right "?" — always THIS page's walkthrough.
-  const startPageTour = () => {
-    markWelcomed();
-    setShowWelcome(false);
-    setShowPointer(false);
+  // True when THIS page's tour has a saved position for THIS path — the
+  // "?" button must resume it instead of restarting the whole lab.
+  const hasSavedProgress = () => {
     try {
-      if (storageKey) window.localStorage.setItem(storageKey, '1');
-    } catch { /* non-fatal */ }
-    setSeen(true);
-    // Manual "?" start: RESUME at the saved position — leaving the guide
-    // must never lose the save point. The popover's "Restart" button is
-    // the explicit way to start over.
-    startTutorial(tut);
+      const posRaw = window.localStorage.getItem(`${BRAND.storagePrefix}.tour.${tut.key}.pos`);
+      const titleRaw = window.localStorage.getItem(`${BRAND.storagePrefix}.tour.${tut.key}.posTitle`);
+      const matches = (raw: string | null, sep: string) => {
+        if (!raw) return false;
+        const at = raw.lastIndexOf(sep);
+        if (at < 0) return true;
+        const path = raw.slice(at + sep.length);
+        return path === '*' || path === pathname;
+      };
+      return matches(posRaw, '@') || matches(titleRaw, '@@');
+    } catch {
+      return false;
+    }
   };
 
-  // Welcome lightbox — on app pages, first explain the sidebar (in
-  // file-lifecycle order) then chain into the File Management walkthrough.
-  const start = () => {
-    if (pathname === '/login') {
-      startPageTour();
-      return;
-    }
-    markWelcomed();
-    setShowWelcome(false);
-    setShowPointer(false);
+  // The comprehensive lab, from the very beginning: forget every saved
+  // position, walk the sidebar (each page explained), then chain into the
+  // File Management walkthrough at step 1.
+  const startLab = () => {
+    resetTourProgress(JOURNEY_KEYS);
     try {
       window.localStorage.setItem(flag('pending'), 'dossiers');
     } catch { /* non-fatal */ }
@@ -195,7 +217,7 @@ export function TutorialLauncher() {
       onComplete: () => {
         try {
           if (
-            pathname === '/dossiers' &&
+            window.location.pathname === '/dossiers' &&
             window.localStorage.getItem(flag('pending')) === 'dossiers'
           ) {
             window.localStorage.removeItem(flag('pending'));
@@ -208,6 +230,24 @@ export function TutorialLauncher() {
     });
   };
 
+  // "?" button and the lightbox's primary button: resume an interrupted
+  // run on this page, otherwise (re)start the lab from the sidebar intro.
+  // /login has its own small page tour (no sidebar exists there yet).
+  const start = () => {
+    markWelcomed();
+    setShowWelcome(false);
+    setShowPointer(false);
+    try {
+      if (storageKey) window.localStorage.setItem(storageKey, '1');
+    } catch { /* non-fatal */ }
+    setSeen(true);
+    if (pathname === '/login' || hasSavedProgress()) {
+      startTutorial(tut);
+      return;
+    }
+    startLab();
+  };
+
   const dismissWelcome = () => {
     markWelcomed();
     setShowWelcome(false);
@@ -215,9 +255,9 @@ export function TutorialLauncher() {
     setShowPointer(true);
     try {
       if (storageKey) window.localStorage.setItem(`${storageKey}.pointed`, '1');
-      // On app pages the spotlight covers both "?" buttons — that IS the
-      // help intro. On /login the sidebar doesn't exist yet, so leave the
-      // flag unset and introduce both after the first login instead.
+      // On app pages the spotlight introduces the "?" button — that IS the
+      // help intro. On /login the button belongs to the login tour; the
+      // real one is introduced after the first sign-in instead.
       if (pathname !== '/login') window.localStorage.setItem(flag('helpBtns'), '1');
     } catch { /* non-fatal */ }
   };
@@ -232,22 +272,15 @@ export function TutorialLauncher() {
             </div>
             <h2 className="text-xl font-semibold">{t('Envie d’un tutoriel guidé ?')}</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              {t('Chaque page de l’application propose un tutoriel pas à pas, suivi d’une démo interactive. Idéal pour une première visite.')}
+              {t('Un laboratoire guidé vous fait vivre un dossier de A à Z : création, terrain, chiffrage, rapport — avec des documents fournis à chaque étape.')}
             </p>
             {pathname !== '/login' && (
               <div className="mt-4 space-y-2 text-left">
                 <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-2.5">
                   <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-teal-700 dark:text-teal-400" />
                   <p className="text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">{t('« ? » dans le menu à gauche :')}</span>{' '}
-                    {t('rejoue la visite complète de l’application, à tout moment.')}
-                  </p>
-                </div>
-                <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-2.5">
-                  <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-teal-700 dark:text-teal-400" />
-                  <p className="text-xs text-muted-foreground">
                     <span className="font-semibold text-foreground">{t('« ? » en bas à droite :')}</span>{' '}
-                    {t('le guide de la page où vous êtes.')}
+                    {t('lance la visite guidée — et reprend toujours là où vous vous étiez arrêté.')}
                   </p>
                 </div>
               </div>
@@ -258,7 +291,7 @@ export function TutorialLauncher() {
                 onClick={start}
                 className="rounded-lg bg-teal-700 px-4 py-2.5 text-white font-medium hover:bg-teal-600 transition"
               >
-                {t('Commencer le tutoriel de cette page')}
+                {t('Commencer la visite guidée')}
               </button>
               <button
                 type="button"
@@ -275,9 +308,9 @@ export function TutorialLauncher() {
       <button
         type="button"
         data-tour="tutorial-launcher"
-        onClick={startPageTour}
-        title={t('Tutoriel de la page')}
-        aria-label={t('Tutoriel de la page')}
+        onClick={start}
+        title={t('Visite guidée')}
+        aria-label={t('Visite guidée')}
         className={cn(
           'fixed z-[70] bottom-4 right-4 h-11 w-11 rounded-full shadow-lg',
           'bg-teal-700 text-white hover:bg-teal-600 active:scale-95 transition',

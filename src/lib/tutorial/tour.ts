@@ -16,7 +16,7 @@ let active: Driver | null = null;
 const CLOSING_STEP: TourStep = {
   title: 'C’est tout pour cette page !',
   body:
-    "L'IA lit les documents pour vous, les délais se suivent tout seuls — et tout peut être adapté à votre cabinet.\nChaque page a son guide : bouton « ? » en bas à droite.",
+    "L'IA lit les documents pour vous, les délais se suivent tout seuls — et tout peut être adapté à votre cabinet.\nLe bouton « ? » en bas à droite relance la visite guidée à tout moment.",
 };
 
 const posKey = (key: string) => `${BRAND.storagePrefix}.tour.${key}.pos`;
@@ -66,6 +66,16 @@ function writeResumeIndex(key: string, index: number | null): void {
   } catch {
     // Non-fatal.
   }
+}
+
+/**
+ * Forget saved positions for a set of tours. Used when the comprehensive
+ * lab is (re)started from the beginning: a replay must walk the File
+ * Management steps from step 1, not resume at the furthest point of the
+ * previous run.
+ */
+export function resetTourProgress(keys: string[]): void {
+  for (const k of keys) writeResumeIndex(k, null);
 }
 
 // Read a `value@@path`-scoped marker; null when absent or for another page.
@@ -402,6 +412,35 @@ export function startTutorial(
       d.refresh();
     } catch { /* torn down */ }
   };
+  // While the tour dims the page, wheel events land on the OVERLAY — whose
+  // scroll chain is the document, not the app's inner scroll container, so
+  // the page looks frozen. Forward wheel deltas to the scroller that holds
+  // the highlighted element: the user can read the whole page (scrolling
+  // stays possible) without being able to click outside the highlight.
+  const onWheel = (ev: Event) => {
+    if (active !== d) return;
+    const e = ev as WheelEvent;
+    const target = e.target as HTMLElement | null;
+    // The popover and the highlighted element scroll themselves natively.
+    if (target?.closest?.('.driver-popover, .driver-active-element')) return;
+    const el = document.querySelector<HTMLElement>('.driver-active-element');
+    let p: HTMLElement | null =
+      el && el !== document.body ? el.parentElement : null;
+    let scroller: HTMLElement | null = null;
+    while (p && p !== document.body) {
+      const st = getComputedStyle(p);
+      if (/(auto|scroll)/.test(st.overflowY) && p.scrollHeight > p.clientHeight) {
+        scroller = p;
+        break;
+      }
+      p = p.parentElement;
+    }
+    if (scroller) {
+      e.preventDefault();
+      scroller.scrollTop += e.deltaY;
+    }
+    // No inner scroller: leave the event to the browser (document scroll).
+  };
   let scrollRaf = 0;
   const onAnyScroll = () => {
     if (scrollRaf) return;
@@ -442,7 +481,7 @@ export function startTutorial(
     const s: TourStep | undefined = steps[d.getActiveIndex() ?? 0];
     if (!s?.prefill?.length || btn.dataset.busy) return;
     btn.dataset.busy = '1';
-    btn.textContent = `⏳ ${t('Import en cours…')}`;
+    btn.textContent = t('Import en cours…');
     (async () => {
       // Batch consecutive files aimed at the same input into ONE change
       // event (multi-file inputs: the 3 "before" photos, …).
@@ -467,11 +506,11 @@ export function startTutorial(
         // Let each upload start (and React settle) before the next batch.
         await new Promise((r) => window.setTimeout(r, 800));
       }
-      btn.textContent = `✓ ${t('Fichiers déposés !')}`;
+      btn.textContent = t('Fichiers déposés !');
     })().catch((e) => {
       // eslint-disable-next-line no-console
       console.debug('[tour] prefill failed', e);
-      btn.textContent = `⚠ ${t('Échec — utilisez les boutons de téléchargement')}`;
+      btn.textContent = t('Échec — utilisez les boutons de téléchargement');
       delete btn.dataset.busy;
     });
   };
@@ -481,6 +520,9 @@ export function startTutorial(
     overlayOpacity: 0.55,
     stagePadding: 6,
     stageRadius: 10,
+    // Glide between highlighted sections instead of teleporting — the user
+    // sees WHERE on the page the next step lives.
+    smoothScroll: true,
     popoverClass: 'sl-tour',
     // NEVER destroy on overlay clicks: the cutout can lag an animating
     // dialog/sheet, so a click on the "highlighted" element may land on the
@@ -565,6 +607,7 @@ export function startTutorial(
       console.debug('[tour] destroyed', tut.key, 'at', d.getActiveIndex(), 'completed', completed);
       cleanupInteract();
       window.removeEventListener('scroll', onAnyScroll, true);
+      window.removeEventListener('wheel', onWheel, true);
       document.removeEventListener('pointerdown', trackPointer, true);
       document.removeEventListener('keyup', trackKeys, true);
       document.removeEventListener('click', onPrefillClick, true);
@@ -767,7 +810,7 @@ export function startTutorial(
                 // No-download alternative: inject the kit files straight
                 // into the real upload inputs.
                 s.prefill?.length
-                  ? `<button type="button" class="sl-tour-link sl-tour-prefill">⚡ ${escapeHtml(
+                  ? `<button type="button" class="sl-tour-link sl-tour-prefill">${escapeHtml(
                       t('Déposer les fichiers pour moi'),
                     )}</button>`
                   : ''
@@ -781,6 +824,7 @@ export function startTutorial(
 
   active = d;
   window.addEventListener('scroll', onAnyScroll, { capture: true, passive: true });
+  window.addEventListener('wheel', onWheel, { capture: true, passive: false });
   document.addEventListener('pointerdown', trackPointer, true);
   document.addEventListener('keyup', trackKeys, true);
   document.addEventListener('click', onPrefillClick, true);
@@ -813,21 +857,17 @@ export function startTutorial(
 
 /**
  * Discovery spotlight: dims the screen (same driver.js overlay as the
- * tutorials) and walks the help entry points — the sidebar "?" (app-wide
- * guided tour) then the bottom-right "?" (this page's tutorial).
+ * tutorials) and points at the single "?" button — the entry to the
+ * comprehensive hands-on lab.
  */
 export function pointToLauncher(onClosed?: () => void): void {
   destroyActiveTour();
   const targets: Array<{ sel: string; title: string; body: string }> = [
     {
-      sel: '[data-tour="sidebar-help"]',
-      title: 'La visite guidée de l’application est ici.',
-      body: 'Ce bouton relance la présentation générale (menu et parcours d’un dossier) à tout moment.',
-    },
-    {
       sel: '[data-tour="tutorial-launcher"]',
-      title: 'Le guide de chaque page est ici.',
-      body: 'Ce bouton lance le guide interactif de la page où vous êtes.',
+      title: 'La visite guidée est ici.',
+      body:
+        'Ce bouton lance le laboratoire guidé complet : le menu, puis un dossier suivi de A à Z.\nSi vous quittez en cours de route, il reprend exactement où vous en étiez.',
     },
   ].filter((s) => !!document.querySelector(s.sel));
   if (targets.length === 0) return;

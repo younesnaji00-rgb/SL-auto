@@ -44,7 +44,6 @@ import {
   X,
   LogOut,
   ChevronDown,
-  HelpCircle,
 } from 'lucide-react';
 import Logo from '@/components/logo';
 import { LanguageSwitcher } from '@/components/language-switcher';
@@ -57,9 +56,6 @@ import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
 import { hasPermission } from '@/lib/permissions';
 import { useT } from '@/i18n';
 import { BRAND } from '@/lib/brand';
-import { startTutorial } from '@/lib/tutorial/tour';
-import { sidebarIntroTutorial } from '@/lib/tutorial/pages/sidebar-intro';
-import { tutorialForPath } from '@/lib/tutorial/registry';
 
 const AppSidebar = () => {
   const pathname = usePathname();
@@ -286,41 +282,9 @@ const AppSidebar = () => {
           )}
         </div>
 
+        {/* The guided-tour entry point is the single bottom-right "?"
+            button (TutorialLauncher) — no duplicate here. */}
         <div className={cn("flex gap-1", isCollapsed ? "flex-col" : "flex-row")}>
-          {BRAND.showTutorials && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-full justify-center text-muted-foreground hover:text-foreground"
-              data-tour="sidebar-help"
-              title={t('Visite guidée de l’application')}
-              onClick={() => {
-                const pendingKey = `${BRAND.storagePrefix}.tour.pending`;
-                try {
-                  window.localStorage.setItem(pendingKey, 'dossiers');
-                } catch { /* non-fatal */ }
-                startTutorial(sidebarIntroTutorial, {
-                  fresh: true,
-                  // Already on File Management: the hand-off click doesn't
-                  // navigate, so chain into the page walkthrough directly.
-                  onComplete: () => {
-                    try {
-                      if (
-                        window.location.pathname === '/dossiers' &&
-                        window.localStorage.getItem(pendingKey) === 'dossiers'
-                      ) {
-                        window.localStorage.removeItem(pendingKey);
-                        const tut = tutorialForPath('/dossiers');
-                        if (tut) window.setTimeout(() => startTutorial(tut), 500);
-                      }
-                    } catch { /* non-fatal */ }
-                  },
-                });
-              }}
-            >
-              <HelpCircle className="h-4 w-4" />
-            </Button>
-          )}
           <LanguageSwitcher className={cn('h-8', isCollapsed ? 'w-full justify-center' : 'flex-1 justify-center')} />
           <Button
             variant="ghost"

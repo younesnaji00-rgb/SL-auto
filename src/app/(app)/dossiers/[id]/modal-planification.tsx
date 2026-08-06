@@ -42,6 +42,7 @@ import { formatDurationFr } from '@/lib/atg-feasibility';
 import { MapPin } from 'lucide-react';
 import { apiFetch } from '@/lib/api-fetch';
 import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
+import { BRAND } from '@/lib/brand';
 
 /** Narrows a free-form typeMission string to the canonical tri-state, or null. */
 function normalizeTypeMission(
@@ -87,12 +88,16 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   const { toast } = useToast();
   const { profile } = useCurrentUser();
   const isCurrentUserAT = profile?.role === 'Agent de Terrain';
+  // Demo brand: the demo user's own browser position plays the field
+  // agent's live GPS (disclosed in the UI) — the demo agents have no
+  // connected phone, and the feature deserves to be SEEN.
+  const demoSelfAsAgent = BRAND.id === 'demo' && !isCurrentUserAT;
   const [loading, setLoading] = useState(false);
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
   const [selfLocation, setSelfLocation] = useState<{ lat: number; lng: number; updatedAtMs: number } | null>(null);
 
   useEffect(() => {
-    if (!open || !isCurrentUserAT) return;
+    if (!open || !(isCurrentUserAT || demoSelfAsAgent)) return;
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
     let cancelled = false;
     navigator.geolocation.getCurrentPosition(
@@ -104,7 +109,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
       { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
     );
     return () => { cancelled = true; };
-  }, [open, isCurrentUserAT]);
+  }, [open, isCurrentUserAT, demoSelfAsAgent]);
 
   const { options: dbRDVTypes } = useOptions('options_types_rdv');
   const rdvTypes = useMemo(() => dbRDVTypes.filter(o => o.active !== false), [dbRDVTypes]);
@@ -197,15 +202,26 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   }, [initialData, open, defaultTypeMission, defaultAgentTerrain]);
 
   const agentLive = useAgentLiveLocation(formData.agentTerrain);
-  const effectiveLocation = isCurrentUserAT ? selfLocation : agentLive.location;
-  const effectiveIsFresh = isCurrentUserAT ? !!selfLocation : agentLive.isFresh;
+  // Demo brand: fall back to the demo user's own position when the agent
+  // has no fresh GPS fix (always the case for the seeded demo agents).
+  const demoSelfLocationActive =
+    demoSelfAsAgent && !agentLive.isFresh && !!selfLocation;
+  const effectiveLocation = isCurrentUserAT
+    ? selfLocation
+    : demoSelfLocationActive
+      ? selfLocation
+      : agentLive.location;
+  const effectiveIsFresh = isCurrentUserAT
+    ? !!selfLocation
+    : demoSelfLocationActive || agentLive.isFresh;
 
   // True when an agent is selected but their fresh GPS position is not
   // available (denied / no last-known location / no UID match). Drives both
   // the existing "Position non disponible" alert and the manual fallback
   // <Input> row that lets the gestionnaire type a location by hand.
   const isAgentLocationUnavailable =
-    !!formData.agentTerrain && !agentLive.isFresh && !!agentLive.agentUid;
+    !!formData.agentTerrain && !agentLive.isFresh && !!agentLive.agentUid &&
+    !demoSelfLocationActive;
 
   // Resolve the displayed coords (the agent's live position, or — when the
   // current user is the AT — their own browser position) to a human-readable
@@ -406,7 +422,11 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px]" {...tourDialogGuard()}>
+      <DialogContent
+        className="sm:max-w-[550px] max-h-[88vh] overflow-y-auto"
+        data-tour="plan-dialog"
+        {...tourDialogGuard()}
+      >
         <DialogHeader>
           <DialogTitle>{initialData ? t('Modifier la Planification') : t('Nouvelle Planification')}</DialogTitle>
           <DialogDescription>{t('Remplissez les informations pour programmer la mission de terrain.')}</DialogDescription>
@@ -585,7 +605,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 </SelectTrigger>
                 <SelectContent>
                   {activeObservationPresets.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.label}>{opt.label}</SelectItem>
+                    <SelectItem key={opt.id} value={opt.label}>{t(opt.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -606,14 +626,18 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label>{t('Observation personnalisée')}</Label>
-            <Textarea
-              placeholder={t('Ajouter une observation personnalisée (facultatif)…')}
-              value={formData.observationPersonnalisee}
-              onChange={(e) => setFormData({ ...formData, observationPersonnalisee: e.target.value })}
-            />
-          </div>
+          {/* Redundant for the demo: picking « Autre » already reveals a
+              free-text field right above. */}
+          {BRAND.id !== 'demo' && (
+            <div className="space-y-2">
+              <Label>{t('Observation personnalisée')}</Label>
+              <Textarea
+                placeholder={t('Ajouter une observation personnalisée (facultatif)…')}
+                value={formData.observationPersonnalisee}
+                onChange={(e) => setFormData({ ...formData, observationPersonnalisee: e.target.value })}
+              />
+            </div>
+          )}
 
           {feasibilityPastRdv && (
             <Alert variant="warning">
@@ -635,7 +659,12 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                     {effectiveLocation.lat.toFixed(5)}, {effectiveLocation.lng.toFixed(5)}
                   </p>
                 )}
-                {!isCurrentUserAT && agentLive.location && (
+                {demoSelfLocationActive && (
+                  <p className="text-sm italic text-muted-foreground mt-1">
+                    {t('Démo : la position affichée est celle de votre navigateur — en production, celle du téléphone de l’agent.')}
+                  </p>
+                )}
+                {!isCurrentUserAT && !demoSelfLocationActive && agentLive.location && (
                   <p className="text-sm italic text-muted-foreground mt-1">
                     {t('Mise à jour')} {formatDistanceToNow(new Date(agentLive.location.updatedAtMs), { addSuffix: true, locale: dateFnsLocale() })}
                   </p>

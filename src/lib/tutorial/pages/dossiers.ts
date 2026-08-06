@@ -34,18 +34,18 @@ export const dossiersTutorial: PageTutorial = {
         "Tous vos dossiers, de la création à la facture.\nÀ la création, l'IA lit le document de mission et remplit le dossier pour vous.",
     },
     {
+      // Presentational: interacting with the field must NOT advance the
+      // tour — the user tries it, then clicks « Suivant » himself.
       anchor: 'dos-search',
       title: 'Recherche rapide',
       body: 'Cliquez dans le champ : vous y taperez un nom, une référence ou une immatriculation.',
       side: 'bottom',
-      interact: 'click',
     },
     {
       anchor: 'dos-date-presets',
       title: 'Filtrer par date',
       body: 'Cliquez sur Jour, Semaine ou Mois.',
       side: 'bottom',
-      interact: 'click',
     },
     {
       anchor: 'dos-col-nature',

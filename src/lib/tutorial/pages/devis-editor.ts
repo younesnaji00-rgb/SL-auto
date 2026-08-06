@@ -57,11 +57,15 @@ export const devisEditorTutorial: PageTutorial = {
       side: 'bottom',
     },
     {
-      anchor: 'dev-table',
+      // The accord entry column ITSELF is highlighted (its header cell) —
+      // pointing at the whole table left users guessing which column the
+      // step was talking about.
+      anchor: 'dev-col-accord',
       title: "Colonnes d'accord",
       body:
         "Saisissez vos prix accordés ligne par ligne — jamais au-dessus du prix d'origine, l'éditeur y veille.\nL'en-tête de colonne bascule entre « accord » et « proposition » pour un 2ème expert.",
-      side: 'top',
+      side: 'bottom',
+      dynamic: true,
     },
     {
       anchor: 'dev-summary',

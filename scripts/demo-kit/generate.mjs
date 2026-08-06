@@ -10,7 +10,7 @@
 // All content is FICTIONAL: "Laurentide Assurance" (insurer), "Metro
 // Collision" (repair shop) and every person are invented for the demo.
 import { chromium } from 'playwright-core';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -167,6 +167,86 @@ const quoteEn = `<!doctype html><html><head><meta charset="utf-8"><style>${QUOTE
   <div class="note">Estimate valid for 30 days. Estimated repair time: 4 business days after parts arrival. Courtesy car available on request.</div>
   <div class="stamp">DEMONSTRATION DOCUMENT — FICTIONAL</div>
   <div class="foot">Metro Collision Centre is a fictional company created for the Appraisio demo.</div>
+</body></html>`;
+
+// ── mission order, electronic copy (HTML) ───────────────────────────────────
+// This is the file the guided tour imports first. It is served as .html so
+// /api/scan-document can extract the field table DETERMINISTICALLY (simple
+// text parsing, no AI call) — the demo pre-fill works even when the AI
+// backend is unavailable. Labels must match TEXT_LABEL_MAP in
+// src/app/api/scan-document/route.ts. Dates use ISO YYYY-MM-DD (the official
+// Canadian all-numeric format).
+
+const missionRow = (k, v) => `    <tr><td class="k">${k}</td><td>${v}</td></tr>`;
+
+const missionHtmlFr = `<!doctype html><html><head><meta charset="utf-8"><title>Mandat d'expertise — CLM-2026-0199</title><style>${BASE_CSS} body{max-width:860px;margin:0 auto;} .foot{position:static;margin-top:40px;}</style></head><body>
+  <div class="head">
+    <div class="logo"><div class="n">Laurentide Assurance</div><div class="s">Groupe d'assurance générale — Québec</div></div>
+    <div class="addr">1250, boul. René-Lévesque O., bureau 900<br>Montréal (Québec) H3B 4W8<br>Tél. : 1 800 555-0164 · sinistres@laurentide-assurance.ca</div>
+  </div>
+  <h1>MANDAT D'EXPERTISE AUTOMOBILE — COPIE ÉLECTRONIQUE</h1>
+  <div class="ref">Transmis par le portail sinistres · Montréal, le 2026-07-28</div>
+  <p class="body">Nous vous mandatons afin de procéder à l'expertise du véhicule décrit ci-dessous, endommagé lors d'un sinistre déclaré à nos bureaux.</p>
+  <table class="info">
+${[
+  ["Compagnie d'assurance", 'Laurentide Assurance'],
+  ['Référence compagnie', 'CLM-2026-0199'],
+  ['N° de police', 'AUTO-88-452-716'],
+  ['Date de réception mission', '2026-07-28'],
+  ['Assuré', 'Marc Tremblay'],
+  ["Téléphone de l'assuré", '514 555-0192'],
+  ["Adresse de l'assuré", '4821, rue Beaubien Est, Montréal (Québec) H1T 1V1'],
+  ['Marque', 'Honda'],
+  ['Modèle', 'Civic LX'],
+  ['Immatriculation', 'K52 XBM'],
+  ['N° de châssis (NIV)', '2HGFE2F52NH103428'],
+  ['Énergie', 'Essence'],
+  ['Kilométrage', '54213'],
+  ['Date du sinistre', '2026-07-26'],
+  ['Nature du sinistre', 'Collision'],
+  ['Garage réparateur', 'Métro Collision'],
+  ['Usage', 'Promenade'],
+].map(([k, v]) => missionRow(k, v)).join('\n')}
+  </table>
+  <p class="body">Les dommages déclarés concernent le pare-chocs avant, l'aile avant droite et le bloc optique droit. Pour toute question, veuillez citer la référence <b>CLM-2026-0199</b>.</p>
+  <div class="sig"><span class="name">Julie Bergeron</span><br>Analyste en indemnisation — Service des sinistres automobiles<br>Laurentide Assurance</div>
+  <div class="stamp">DOCUMENT DE DÉMONSTRATION — FICTIF</div>
+  <div class="foot">Laurentide Assurance est une société fictive créée pour la démonstration Appraisio. Toute ressemblance avec des personnes ou sociétés réelles serait fortuite.</div>
+</body></html>`;
+
+const missionHtmlEn = `<!doctype html><html><head><meta charset="utf-8"><title>Appraisal assignment — CLM-2026-0199</title><style>${BASE_CSS} body{max-width:860px;margin:0 auto;} .foot{position:static;margin-top:40px;}</style></head><body>
+  <div class="head">
+    <div class="logo"><div class="n">Laurentide Assurance</div><div class="s">General Insurance Group — Canada</div></div>
+    <div class="addr">181 Bay Street, Suite 2100<br>Toronto, Ontario M5J 2T3<br>Tel: 1-800-555-0164 · claims@laurentide-assurance.ca</div>
+  </div>
+  <h1>AUTOMOBILE APPRAISAL ASSIGNMENT — ELECTRONIC COPY</h1>
+  <div class="ref">Sent via the claims portal · Toronto, 2026-07-28</div>
+  <p class="body">We hereby assign you to appraise the vehicle described below, damaged in a loss reported to our office.</p>
+  <table class="info">
+${[
+  ['Insurance company', 'Laurentide Assurance'],
+  ['Company reference', 'CLM-2026-0199'],
+  ['Policy number', 'AUTO-88-452-716'],
+  ['Date of assignment', '2026-07-28'],
+  ['Insured', 'Marc Tremblay'],
+  ["Insured's phone", '(416) 555-0192'],
+  ["Insured's address", '4821 Dundas Street East, Toronto, Ontario M9A 1B7'],
+  ['Make', 'Honda'],
+  ['Model', 'Civic LX'],
+  ['Licence plate', 'K52 XBM'],
+  ['VIN', '2HGFE2F52NH103428'],
+  ['Fuel', 'Gasoline'],
+  ['Mileage', '54213'],
+  ['Date of loss', '2026-07-26'],
+  ['Nature of loss', 'Collision'],
+  ['Repair facility', 'Metro Collision Centre'],
+  ['Use', 'Personal'],
+].map(([k, v]) => missionRow(k, v)).join('\n')}
+  </table>
+  <p class="body">The reported damage involves the front bumper, the front right fender and the right headlamp assembly. For any question, please quote reference <b>CLM-2026-0199</b>.</p>
+  <div class="sig"><span class="name">Julie Bergeron</span><br>Claims Analyst — Automobile Claims Department<br>Laurentide Assurance</div>
+  <div class="stamp">DEMONSTRATION DOCUMENT — FICTIONAL</div>
+  <div class="foot">Laurentide Assurance is a fictional company created for the Appraisio demo. Any resemblance to real persons or companies is coincidental.</div>
 </body></html>`;
 
 // ── source documents required before assigning to estimating ────────────────
@@ -427,6 +507,11 @@ const pdf = async (html, rel) => {
   await page.pdf({ path: join(OUT, rel), format: 'Letter', printBackground: true });
   console.log(rel);
 };
+writeFileSync(join(OUT, 'en', 'mission-document.html'), missionHtmlEn);
+console.log('en/mission-document.html');
+writeFileSync(join(OUT, 'fr', 'mission-document.html'), missionHtmlFr);
+console.log('fr/mission-document.html');
+
 await pdf(missionEn, 'en/mission-document.pdf');
 await pdf(quoteEn, 'en/garage-quote.pdf');
 await pdf(registrationEn, 'en/vehicle-registration.pdf');

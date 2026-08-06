@@ -15,9 +15,9 @@ export const TUTORIAL_CORE_EN: Record<string, string> = {
 
   // ── Welcome lightbox + pointer ──
   'Envie d’un tutoriel guidé ?': 'Want a guided tutorial?',
-  'Chaque page de l’application propose un tutoriel pas à pas, suivi d’une démo interactive. Idéal pour une première visite.':
-    'Every page of the app has a step-by-step tutorial, followed by a hands-on demo. Perfect for a first visit.',
-  'Commencer le tutoriel de cette page': 'Start this page’s tutorial',
+  'Un laboratoire guidé vous fait vivre un dossier de A à Z : création, terrain, chiffrage, rapport — avec des documents fournis à chaque étape.':
+    'A guided hands-on lab walks you through a file from A to Z: creation, field work, estimating, report — with documents provided at every step.',
+  'Commencer la visite guidée': 'Start the guided tour',
   'Plus tard': 'Later',
   'Le tutoriel de chaque page est ici, à tout moment.': 'Each page’s tutorial lives here, anytime.',
   'Cliquez sur le bouton « ? » en bas à droite pour le lancer.':
@@ -137,15 +137,12 @@ export const TUTORIAL_CORE_EN: Record<string, string> = {
     'Matching files appear here with their color-coded status. Click a row to open the full file.',
   // ── Round 3: merged walkthrough / sidebar intro / role login ──
   'C’est tout pour cette page !': 'That’s it for this page!',
-  "L'IA lit les documents pour vous, les délais se suivent tout seuls — et tout peut être adapté à votre cabinet.\nChaque page a son guide : bouton « ? » en bas à droite.":
-    'AI reads documents for you, deadlines track themselves — and everything can be tailored to your firm.\nEvery page has its guide: the “?” button at the bottom right.',
-  'La visite guidée de l’application est ici.': 'The app’s guided tour lives here.',
-  'Ce bouton relance la présentation générale (menu et parcours d’un dossier) à tout moment.':
-    'This button replays the overall intro (the menu and a file’s journey) anytime.',
-  'Le guide de chaque page est ici.': 'Each page’s guide lives here.',
-  'Ce bouton lance le guide interactif de la page où vous êtes.':
-    'This button starts the interactive guide for the page you’re on.',
-  'Visite guidée de l’application': 'App guided tour',
+  "L'IA lit les documents pour vous, les délais se suivent tout seuls — et tout peut être adapté à votre cabinet.\nLe bouton « ? » en bas à droite relance la visite guidée à tout moment.":
+    'AI reads documents for you, deadlines track themselves — and everything can be tailored to your firm.\nThe “?” button at the bottom right restarts the guided tour anytime.',
+  'La visite guidée est ici.': 'The guided tour lives here.',
+  'Ce bouton lance le laboratoire guidé complet : le menu, puis un dossier suivi de A à Z.\nSi vous quittez en cours de route, il reprend exactement où vous en étiez.':
+    'This button launches the full hands-on lab: the menu, then one file followed from A to Z.\nIf you leave mid-way, it picks up exactly where you were.',
+  'Visite guidée': 'Guided tour',
   'Bienvenue !': 'Welcome!',
   "Faisons le tour du menu, dans l'ordre de vie d'un dossier. 1 minute, promis.":
     'Let’s tour the menu, in the order a file actually moves. One minute, promise.',

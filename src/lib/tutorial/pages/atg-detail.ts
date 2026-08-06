@@ -35,10 +35,11 @@ export const atgDetailTutorial: PageTutorial = {
       interact: 'click',
     },
     {
-      anchor: 'atgd-camera',
+      // The whole actions row: camera + (demo) gallery import stay clickable.
+      anchor: 'atgd-photo-actions',
       title: 'Prendre des photos',
       body:
-        "L'agent photographie directement depuis son téléphone : chaque photo est horodatée, signée à son nom et part dans le dossier en temps réel.",
+        "L'agent photographie directement depuis son téléphone : chaque photo est horodatée, signée à son nom et part dans le dossier en temps réel.\nPour la démo, « Importer des photos » permet aussi de déposer des images depuis vos fichiers.",
       side: 'bottom',
       dynamic: true,
     },
@@ -60,7 +61,7 @@ export const atgDetailTutorial: PageTutorial = {
       anchor: 'atgd-docs',
       title: 'Les 5 pièces du dossier',
       body:
-        "Chaque pièce a sa carte : déposez les 5 fichiers ci-dessous (constat, carte grise, attestation, kilométrage, châssis) — l'IA lit même la carte grise.\nElles partent en direct dans le dossier, côté bureau. (Si le temps presse, on peut aussi les importer depuis la gestion du dossier, onglet « Importer un document ».)",
+        "Chaque pièce a sa carte : déposez les 5 fichiers ci-dessous (constat, carte grise, attestation, kilométrage, châssis) — l'IA lit même la carte grise.\nElles partent en direct dans le dossier, côté bureau. (Quand les pièces arrivent autrement — par courriel ou via la compagnie — on peut aussi les importer depuis la gestion du dossier, onglet « Importer un document ».)",
       side: 'top',
       dynamic: true,
       interact: 'until',

@@ -100,7 +100,10 @@ export const PDF_EN: Record<string, string> = {
   'En Cours Travaux :': 'During repairs:',
   'Aprés Travaux :': 'After repairs:',
   'Point de choc': 'Impact point',
-  'Avant': 'Front',
+  // NOTE: no bare 'Avant' key here — this file is merged into the GLOBAL
+  // dictionary after terrain.ts, and 'Front' was leaking into the photo
+  // phase tabs (Avant / En cours / Après must read Before / In progress /
+  // After). The shared 'Avant': 'Before' mapping wins app-wide.
   'Arrière': 'Rear',
 
   // ── Conclusions / totals ──

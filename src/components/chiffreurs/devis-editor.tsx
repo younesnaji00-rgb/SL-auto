@@ -1351,7 +1351,9 @@ export function DevisEditor({
                     const tripleSuffix = col.kind === 'accord' ? 'accordé' : 'proposé';
                     return (
                       <React.Fragment key={col.id}>
-                        <th style={{ width: '120px' }} className="text-right bg-muted/40">
+                        {/* data-tour: the guided tour highlights the accord
+                            entry column itself, not the whole table. */}
+                        <th style={{ width: '120px' }} className="text-right bg-muted/40" data-tour="dev-col-accord">
                           {puHeader}
                         </th>
                         <th style={{ width: '130px' }} className="text-right bg-muted/40">{t(`Total H.T ${tripleSuffix}`)}</th>

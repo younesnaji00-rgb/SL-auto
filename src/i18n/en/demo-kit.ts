@@ -18,11 +18,9 @@ export const DEMO_KIT_EN: Record<string, string> = {
     '1st appraiser: the file’s primary appraiser.\n2nd appraiser: steps in when the insured or the opposing insurer disputes, or when suspicion arises.\nArbitrator: settles a disagreement between the two appraisers.\nThe more appraisers are at play, the more name fields the creation form shows.\nProcedures may vary from one country to another — and the app can always be custom-tailored to the way you work.',
   "Cliquez sur l'entonnoir, puis choisissez un type dans la liste.":
     'Click the funnel, then pick a type from the list.',
-  '« ? » dans le menu à gauche :': '“?” in the left menu:',
-  'rejoue la visite complète de l’application, à tout moment.':
-    'replays the full app tour, anytime.',
   '« ? » en bas à droite :': '“?” at the bottom right:',
-  'le guide de la page où vous êtes.': 'the guide for the page you are on.',
+  'lance la visite guidée — et reprend toujours là où vous vous étiez arrêté.':
+    'starts the guided tour — always picking up right where you left off.',
   "Cliquez sur « Créer » : le dossier s'ouvre aussitôt.":
     'Click “Create”: the file opens right away.',
 
@@ -30,19 +28,19 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Toute la vie du sinistre sur une seule page.\nSuivons-la de haut en bas avec les documents du kit.':
     'The whole life of the claim on one page.\nLet’s walk it top to bottom with the kit documents.',
   "L'import magique": 'The magic import',
-  "Téléchargez le document de mission ci-dessous, puis déposez-le ici (ou « Choisir un fichier »).\nL'IA lit le document et remplit le dossier toute seule.":
-    'Download the assignment document below, then drop it here (or “Choose a file”).\nThe AI reads the document and fills in the file by itself.',
-  'Document de mission (PDF)': 'Assignment document (PDF)',
+  "Téléchargez le document de mission ci-dessous, puis déposez-le ici (ou « Choisir un fichier »).\nLe document est lu et le dossier se remplit tout seul.":
+    'Download the assignment document below, then drop it here (or “Choose a file”).\nThe document is read and the file fills itself in.',
+  'Document de mission': 'Assignment document',
   'Devis du garage (PDF)': 'Repair estimate (PDF)',
   'Regardez !': 'Look!',
-  "Assuré, immatriculation, compagnie, dates… tout est pré-rempli par l'IA.\nVérifiez, corrigez si besoin : rien n'est à ressaisir deux fois.":
-    'Insured, plate, insurer, dates… everything was pre-filled by the AI.\nCheck it and fix if needed: nothing is ever typed twice.',
+  "Assuré, immatriculation, compagnie, dates… tout est pré-rempli depuis le document.\nVérifiez, corrigez si besoin : rien n'est à ressaisir deux fois.":
+    'Insured, plate, insurer, dates… everything was pre-filled from the document.\nCheck it and fix if needed: nothing is ever typed twice.',
   "Chaque bouton est une étape de la vie du dossier. Suivons-les dans l'ordre.":
     'Each button is a stage of the file’s life. Let’s follow them in order.',
-  'Étape suivante : les photos': 'Next: the photos',
+  'Étape suivante : la visite terrain': 'Next: the field visit',
   'Les photos avant réparation': 'The before-repair photos',
-  'Téléchargez les 3 photos ci-dessous, puis cliquez sur « Ajouter » pour les déposer.':
-    'Download the 3 photos below, then click “Add” to upload them.',
+  "Sur place, l'agent photographie le véhicule depuis son téléphone — jouons-le ici côté bureau.\nTéléchargez les 3 photos ci-dessous, puis cliquez sur « Ajouter » pour les déposer.":
+    'On site, the agent shoots the vehicle from their phone — let’s play it here on the office side.\nDownload the 3 photos below, then click “Add” to upload them.',
   'Téléchargez les 2 photos ci-dessous, puis cliquez sur « Ajouter ».':
     'Download the 2 photos below, then click “Add”.',
   'Sur le terrain': 'Out in the field',
@@ -150,16 +148,16 @@ export const DEMO_KIT_EN: Record<string, string> = {
   "Chaque changement de statut, dans l'ordre : qui, quand, quoi.\nRegardez, puis fermez (×) pour continuer.":
     'Every status change, in order: who, when, what.\nHave a look, then close (×) to continue.',
   'Les pièces du dossier': 'The file’s documents',
-  "Cinq pièces seront exigées avant le chiffrage : constat, carte grise, attestation, kilométrage, châssis.\nEn pratique, c'est l'agent de terrain qui les importe depuis SA page, sur place — nous le ferons là-bas dans un instant.\nSi le temps presse, vous pouvez aussi les déposer ici, dans l'onglet « Importer un document ».":
-    'Five documents are required before estimating: accident report, registration, insurance certificate, odometer, VIN.\nIn practice the field agent imports them from THEIR page, on site — we will do it there in a moment.\nIf time is short, you can also drop them here, in the “Import a document” tab.',
+  "Cinq pièces seront exigées avant le chiffrage : constat, carte grise, attestation, kilométrage, châssis.\nEn pratique, c'est l'agent de terrain qui les importe depuis SA page, sur place — nous le ferons là-bas dans un instant.\nMais parfois les pièces arrivent autrement — par courriel, envoyées par la compagnie, ou dans des circonstances particulières : vous pouvez alors les déposer ici, dans l'onglet « Importer un document ».":
+    'Five documents are required before estimating: accident report, registration, insurance certificate, odometer, VIN.\nIn practice the field agent imports them from THEIR page, on site — we will do it there in a moment.\nBut sometimes the documents arrive another way — by e-mail, sent by the insurer, or under special circumstances: you can then drop them here, in the “Import a document” tab.',
   'Constat (PDF)': 'Accident report (PDF)',
   'Carte grise (PDF)': 'Registration (PDF)',
   'Attestation (PDF)': 'Insurance certificate (PDF)',
   'Photo kilométrage': 'Odometer photo',
   'Photo châssis': 'VIN photo',
   'Programmons la visite terrain': 'Let’s schedule the field visit',
-  "En vrai, un agent prend ces photos sur place.\nCliquez sur « Nouvelle planification » pour créer sa mission.":
-    'In real life, a field agent takes these photos on site.\nClick “New schedule” to create their mission.',
+  "Un agent de terrain se déplace pour photographier le véhicule et récupérer les pièces.\nCliquez sur « Nouvelle planification » pour créer sa mission.":
+    'A field agent travels out to photograph the vehicle and collect the documents.\nClick “New schedule” to create their mission.',
   "L'agent": 'The agent',
   'Choisissez « Field Agent Demo ».': 'Pick “Field Agent Demo”.',
   'La date': 'The date',
@@ -174,14 +172,17 @@ export const DEMO_KIT_EN: Record<string, string> = {
   "Une observation type (menu) ou personnalisée (champ en dessous) : l'agent la voit sur sa mission.":
     'A preset remark (menu) or a custom one (field below): the agent sees it on their mission.',
   "La position de l'agent": 'The agent’s location',
-  "L'app affiche ici la position GPS en direct de l'agent (avec lien Google Maps) et s'en sert pour vérifier que sa tournée est faisable.\nDans cette démo, l'agent n'a pas de téléphone connecté : vous pouvez demander sa position ou la saisir à la main.":
-    'The app shows the agent’s live GPS position here (with a Google Maps link) and uses it to check that their route is feasible.\nIn this demo the agent has no connected phone: you can request their location or type it in manually.',
+  "L'app affiche ici la position GPS en direct de l'agent (avec lien Google Maps) et s'en sert pour vérifier que sa tournée est faisable.\nDémo oblige : c'est la position de VOTRE navigateur qui joue celle de l'agent — acceptez la demande de localisation pour la voir apparaître.":
+    'The app shows the agent’s live GPS position here (with a Google Maps link) and uses it to check that their route is feasible.\nDemo twist: YOUR browser’s position plays the agent’s — accept the location prompt to see it appear.',
   'Une 2ème destination': 'A 2nd destination',
   'Les agents enchaînent plusieurs visites par jour.\nCliquez encore sur « Nouvelle planification » pour créer une seconde mission.':
     'Agents chain several visits a day.\nClick “New schedule” again to create a second mission.',
+  'La 2ème mission': 'The 2nd mission',
+  "Même agent, date d'aujourd'hui — mais une AUTRE adresse : tapez par exemple « 1000 rue De La Gauchetière O, Montréal, QC ».":
+    'Same agent, today’s date — but a DIFFERENT address: type for example “1000 rue De La Gauchetière O, Montréal, QC”.',
   'Enregistrez la 2ème mission': 'Save the 2nd mission',
-  "Même agent, date d'aujourd'hui — mais une AUTRE adresse (ex. « 1000 rue De La Gauchetière O, Montréal, QC »).\nCôté agent, « Start » enchaînera toutes les adresses du jour dans UN itinéraire Google Maps ordonné.":
-    'Same agent, today’s date — but a DIFFERENT address (e.g. “1000 rue De La Gauchetière O, Montréal, QC”).\nOn the agent’s side, “Start” will chain all of the day’s addresses into ONE ordered Google Maps route.',
+  "Cliquez sur « Enregistrer ».\nCôté agent, « Start » enchaînera toutes les adresses du jour dans UN itinéraire Google Maps ordonné.":
+    'Click “Save”.\nOn the agent’s side, “Start” will chain all of the day’s addresses into ONE ordered Google Maps route.',
   'Allons voir côté agent': 'Let’s see the agent’s side',
   "C'est aussi là-bas que l'agent importe les pièces du dossier, directement sur le terrain.\nCliquez sur « Assignations Agent de Terrain » dans le menu.":
     'It is also where the agent imports the file’s documents, right in the field.\nClick “Field Agent Assignments” in the menu.',
@@ -219,13 +220,13 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Votre mission est déjà là': 'Your mission is already here',
   'La planification créée il y a un instant est arrivée en direct.\nCliquez dessus pour l’ouvrir.':
     'The schedule you created a moment ago arrived live.\nClick it to open it.',
-  "L'agent photographie directement depuis son téléphone : chaque photo est horodatée, signée à son nom et part dans le dossier en temps réel.":
-    'The agent shoots straight from their phone: every photo is timestamped, signed with their name and lands in the file in real time.',
+  "L'agent photographie directement depuis son téléphone : chaque photo est horodatée, signée à son nom et part dans le dossier en temps réel.\nPour la démo, « Importer des photos » permet aussi de déposer des images depuis vos fichiers.":
+    'The agent shoots straight from their phone: every photo is timestamped, signed with their name and lands in the file in real time.\nFor the demo, “Import photos” also lets you drop in images from your files.',
   "C'est ici que l'agent dépose les pièces du dossier, directement sur le terrain.\nTouchez pour ouvrir le panneau documents.":
     'This is where the agent drops the file’s documents, right in the field.\nTap to open the documents panel.',
   'Les 5 pièces du dossier': 'The file’s 5 documents',
-  "Chaque pièce a sa carte : déposez les 5 fichiers ci-dessous (constat, carte grise, attestation, kilométrage, châssis) — l'IA lit même la carte grise.\nElles partent en direct dans le dossier, côté bureau. (Si le temps presse, on peut aussi les importer depuis la gestion du dossier, onglet « Importer un document ».)":
-    'Each document has its card: drop the 5 files below (accident report, registration, insurance certificate, odometer, VIN) — the AI even reads the registration.\nThey land in the file live, on the office side. (If time is short, they can also be imported from file management, “Import a document” tab.)',
+  "Chaque pièce a sa carte : déposez les 5 fichiers ci-dessous (constat, carte grise, attestation, kilométrage, châssis) — l'IA lit même la carte grise.\nElles partent en direct dans le dossier, côté bureau. (Quand les pièces arrivent autrement — par courriel ou via la compagnie — on peut aussi les importer depuis la gestion du dossier, onglet « Importer un document ».)":
+    'Each document has its card: drop the 5 files below (accident report, registration, insurance certificate, odometer, VIN) — the AI even reads the registration.\nThey land in the file live, on the office side. (When documents arrive another way — by e-mail or from the insurer — they can also be imported from file management, “Import a document” tab.)',
   'Revenez au dossier': 'Back to the file',
   "Les 5 pièces (et tout ce que l'agent envoie) sont déjà arrivées dans le dossier, côté bureau.\nCliquez sur « Gestion des dossiers » pour y retourner.":
     'The 5 documents (and everything the agent sends) have already landed in the file, on the office side.\nClick “File Management” to head back.',
@@ -269,6 +270,17 @@ export const DEMO_KIT_EN: Record<string, string> = {
     'Depreciation is gone from the PDF, and the agreement collapses into a single “Agreed Total” column.\nOn a proposal, an empty “2nd appraiser agreement” column appears for the signature.\nPlace the firm’s stamp too (“Stamp” menu), then confirm or close.',
   "L'accord enregistré arrive tout seul dans le dossier.\nCliquez sur l'onglet du dossier en haut : la visite y reprend.":
     'The saved agreement lands in the file by itself.\nClick the file’s tab at the top: the tour resumes there.',
+
+  // ── Planification modal (demo-visible strings) ──
+  'Importer des photos': 'Import photos',
+  'Démo : la position affichée est celle de votre navigateur — en production, celle du téléphone de l’agent.':
+    'Demo: the position shown is your browser’s — in production, the agent’s phone.',
+  'Assuré injoignable': 'Insured unreachable',
+  "Véhicule hors ville d'expertise": 'Vehicle outside the appraisal city',
+  'Assuré non disponible': 'Insured not available',
+  'Rendez-vous reporté': 'Appointment postponed',
+  'Numéro erroné': 'Wrong phone number',
+  'Assuré en retard': 'Insured running late',
 
   // ── Tour engine chrome (prefill button, jump-to-step, self-recipient) ──
   'Déposer les fichiers pour moi': 'Drop the files in for me',

@@ -75,7 +75,7 @@ export const dossierDetailTutorial: PageTutorial = {
       anchor: 'dosd-import-drop',
       title: "L'import magique",
       body:
-        "Téléchargez le document de mission ci-dessous, puis déposez-le ici (ou « Choisir un fichier »).\nL'IA lit le document et remplit le dossier toute seule.",
+        "Téléchargez le document de mission ci-dessous, puis déposez-le ici (ou « Choisir un fichier »).\nLe document est lu et le dossier se remplit tout seul.",
       side: 'bottom',
       interact: 'until',
       // Advance when the import is accepted (dropzone disappears) — or when
@@ -92,14 +92,16 @@ export const dossierDetailTutorial: PageTutorial = {
         }
         return !!w[flagKey];
       },
+      // The kit's mission order is an ELECTRONIC (HTML) document: its field
+      // table is extracted deterministically — no AI dependency in the demo.
       links: [
-        { href: '/demo-kit/{lang}/mission-document.pdf', label: 'Document de mission (PDF)', download: true },
+        { href: '/demo-kit/{lang}/mission-document.html', label: 'Document de mission', download: true },
       ],
       doIt: clickPrefill,
       prefill: [
         {
-          href: '/demo-kit/{lang}/mission-document.pdf',
-          name: 'mission-document.pdf',
+          href: '/demo-kit/{lang}/mission-document.html',
+          name: 'mission-document.html',
           input: '[data-tour="dosd-import-drop"] input[type=file]',
         },
       ],
@@ -107,13 +109,13 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       title: 'Regardez !',
       body:
-        "Assuré, immatriculation, compagnie, dates… tout est pré-rempli par l'IA.\nVérifiez, corrigez si besoin : rien n'est à ressaisir deux fois.",
+        "Assuré, immatriculation, compagnie, dates… tout est pré-rempli depuis le document.\nVérifiez, corrigez si besoin : rien n'est à ressaisir deux fois.",
     },
     {
       anchor: 'dosd-other-docs',
       title: 'Les pièces du dossier',
       body:
-        "Cinq pièces seront exigées avant le chiffrage : constat, carte grise, attestation, kilométrage, châssis.\nEn pratique, c'est l'agent de terrain qui les importe depuis SA page, sur place — nous le ferons là-bas dans un instant.\nSi le temps presse, vous pouvez aussi les déposer ici, dans l'onglet « Importer un document ».",
+        "Cinq pièces seront exigées avant le chiffrage : constat, carte grise, attestation, kilométrage, châssis.\nEn pratique, c'est l'agent de terrain qui les importe depuis SA page, sur place — nous le ferons là-bas dans un instant.\nMais parfois les pièces arrivent autrement — par courriel, envoyées par la compagnie, ou dans des circonstances particulières : vous pouvez alors les déposer ici, dans l'onglet « Importer un document ».",
       side: 'top',
       // The slot cards live in the "Importer un document" TAB of the
       // Documents section — unmounted until the tab is selected. Click it
@@ -133,31 +135,10 @@ export const dossierDetailTutorial: PageTutorial = {
     },
     {
       anchor: 'dosd-step-4',
-      title: 'Étape suivante : les photos',
+      title: 'Étape suivante : la visite terrain',
       body: 'Cliquez sur « Planification avant ».',
       side: 'bottom',
       interact: 'click',
-    },
-    {
-      anchor: 'dosd-photos-avant',
-      click: 'dosd-step-4',
-      delay: 600,
-      title: 'Les photos avant réparation',
-      body: 'Téléchargez les 3 photos ci-dessous, puis cliquez sur « Ajouter » pour les déposer.',
-      side: 'top',
-      interact: 'until',
-      until: photosPresent('avant'),
-      links: [
-        { href: '/demo-kit/photos/before-1.png', label: 'Photo 1', download: true },
-        { href: '/demo-kit/photos/before-2.png', label: 'Photo 2', download: true },
-        { href: '/demo-kit/photos/before-3.png', label: 'Photo 3', download: true },
-      ],
-      doIt: clickPrefill,
-      prefill: [
-        { href: '/demo-kit/photos/before-1.png', name: 'before-1.png', input: '[data-tour="dosd-photos-avant"] input[type=file]' },
-        { href: '/demo-kit/photos/before-2.png', name: 'before-2.png', input: '[data-tour="dosd-photos-avant"] input[type=file]' },
-        { href: '/demo-kit/photos/before-3.png', name: 'before-3.png', input: '[data-tour="dosd-photos-avant"] input[type=file]' },
-      ],
     },
     {
       anchor: 'dosd-planif-new',
@@ -165,7 +146,7 @@ export const dossierDetailTutorial: PageTutorial = {
       delay: 600,
       title: 'Programmons la visite terrain',
       body:
-        "En vrai, un agent prend ces photos sur place.\nCliquez sur « Nouvelle planification » pour créer sa mission.",
+        "Un agent de terrain se déplace pour photographier le véhicule et récupérer les pièces.\nCliquez sur « Nouvelle planification » pour créer sa mission.",
       side: 'left',
       interact: 'click',
     },
@@ -217,7 +198,7 @@ export const dossierDetailTutorial: PageTutorial = {
       anchor: 'plan-agent-loc',
       title: "La position de l'agent",
       body:
-        "L'app affiche ici la position GPS en direct de l'agent (avec lien Google Maps) et s'en sert pour vérifier que sa tournée est faisable.\nDans cette démo, l'agent n'a pas de téléphone connecté : vous pouvez demander sa position ou la saisir à la main.",
+        "L'app affiche ici la position GPS en direct de l'agent (avec lien Google Maps) et s'en sert pour vérifier que sa tournée est faisable.\nDémo oblige : c'est la position de VOTRE navigateur qui joue celle de l'agent — acceptez la demande de localisation pour la voir apparaître.",
       side: 'right',
       dynamic: true,
     },
@@ -240,13 +221,58 @@ export const dossierDetailTutorial: PageTutorial = {
       interact: 'click',
     },
     {
+      // The WHOLE dialog is highlighted this time: every field stays
+      // clickable — agent, date, address — the user fills them himself.
+      anchor: 'plan-dialog',
+      title: 'La 2ème mission',
+      body:
+        "Même agent, date d'aujourd'hui — mais une AUTRE adresse : tapez par exemple « 1000 rue De La Gauchetière O, Montréal, QC ».",
+      side: 'left',
+      dynamic: true,
+      interact: 'until',
+      until: () =>
+        !!(
+          document.querySelector('[data-tour="plan-adresse"] input') as HTMLInputElement | null
+        )?.value?.trim(),
+      // Next without typing: fill the second address for them.
+      doIt: () => {
+        const input = document.querySelector<HTMLInputElement>('[data-tour="plan-adresse"] input');
+        if (!input) return;
+        const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        set?.call(input, '1000 rue De La Gauchetière O, Montréal, QC');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      },
+    },
+    {
       anchor: 'plan-save',
       title: 'Enregistrez la 2ème mission',
       body:
-        "Même agent, date d'aujourd'hui — mais une AUTRE adresse (ex. « 1000 rue De La Gauchetière O, Montréal, QC »).\nCôté agent, « Start » enchaînera toutes les adresses du jour dans UN itinéraire Google Maps ordonné.",
+        "Cliquez sur « Enregistrer ».\nCôté agent, « Start » enchaînera toutes les adresses du jour dans UN itinéraire Google Maps ordonné.",
       side: 'top',
       dynamic: true,
       interact: 'click',
+    },
+    {
+      anchor: 'dosd-photos-avant',
+      click: 'dosd-step-4',
+      delay: 600,
+      title: 'Les photos avant réparation',
+      body:
+        "Sur place, l'agent photographie le véhicule depuis son téléphone — jouons-le ici côté bureau.\nTéléchargez les 3 photos ci-dessous, puis cliquez sur « Ajouter » pour les déposer.",
+      side: 'top',
+      interact: 'until',
+      until: photosPresent('avant'),
+      links: [
+        { href: '/demo-kit/photos/before-1.png', label: 'Photo 1', download: true },
+        { href: '/demo-kit/photos/before-2.png', label: 'Photo 2', download: true },
+        { href: '/demo-kit/photos/before-3.png', label: 'Photo 3', download: true },
+      ],
+      doIt: clickPrefill,
+      prefill: [
+        { href: '/demo-kit/photos/before-1.png', name: 'before-1.png', input: '[data-tour="dosd-photos-avant"] input[type=file]' },
+        { href: '/demo-kit/photos/before-2.png', name: 'before-2.png', input: '[data-tour="dosd-photos-avant"] input[type=file]' },
+        { href: '/demo-kit/photos/before-3.png', name: 'before-3.png', input: '[data-tour="dosd-photos-avant"] input[type=file]' },
+      ],
     },
     {
       anchor: 'nav-/assignations-atg',
