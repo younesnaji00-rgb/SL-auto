@@ -113,14 +113,19 @@ export const mesRappelsTutorial: PageTutorial = {
       },
     },
     {
-      anchor: 'nav-/dossiers',
-      title: 'Retour aux dossiers',
+      // Back to the TREATED dossier itself (not the list): the row click
+      // reopens it so the user sees their changes live on the real file —
+      // the dossier-detail epilogue then hands back to the main journey.
+      anchor: 'rap-row-ref',
+      title: 'Retour au dossier traité',
       body:
-        'Zéro e-mail, zéro doute sur qui a changé quoi.\nCliquez sur « Gestion des dossiers » : la visite reprend où vous l’aviez laissée.',
-      side: 'right',
+        'Zéro e-mail, zéro doute sur qui a changé quoi.\nRevenons sur le dossier : cliquez à nouveau sur la référence de votre rappel.',
+      side: 'bottom',
+      dynamic: true,
       onlyIf: () => !!document.querySelector('[data-tour="rap-recus-table"]'),
       interact: 'click',
-      chain: 'dossiers',
+      chain: 'dossier-detail',
+      chainAt: 'Vos modifications sont publiées',
     },
   ],
   // Mid-journey side trip — the closing pitch lives at the end of the

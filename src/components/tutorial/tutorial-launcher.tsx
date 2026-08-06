@@ -111,8 +111,16 @@ export function TutorialLauncher() {
       const timer = window.setTimeout(() => setShowWelcome(true), 900);
       return () => window.clearTimeout(timer);
     }
-    if (!welcomed) {
-      // First app page right after the first login: the lightbox (once).
+    // Fresh sign-in (marker set by the login page): offer the tutorial on
+    // EVERY login, not just the first one. Dismissing it spotlights both
+    // "?" buttons with their explanations.
+    let justLogged = '';
+    try {
+      justLogged = window.sessionStorage.getItem(flag('justLoggedIn')) ?? '';
+      if (justLogged) window.sessionStorage.removeItem(flag('justLoggedIn'));
+    } catch { /* non-fatal */ }
+    if (!welcomed || justLogged) {
+      // App page right after signing in: the lightbox.
       const timer = window.setTimeout(() => setShowWelcome(true), 900);
       return () => window.clearTimeout(timer);
     }

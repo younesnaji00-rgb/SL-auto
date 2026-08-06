@@ -294,26 +294,18 @@ body.driver-active:has(.sl-step-dos-hscroll) [data-tour="dos-table"] {
   cursor: default;
 }
 
-/* "Restart" — back to step 1, in the popover footer */
-.driver-popover.sl-tour .sl-tour-restart {
-  border: none;
-  background: transparent;
-  color: inherit;
-  opacity: 0.7;
-  font: inherit;
-  font-size: 0.78em;
+/* Clickable step counter → inline "go to step N" input. The counter is
+   contoured like an editable field so users recognize it's clickable. */
+.driver-popover.sl-tour .driver-popover-progress-text {
+  display: inline-block;
+  border: 1px solid rgba(120, 120, 120, 0.45);
+  border-radius: 5px;
+  padding: 1px 8px;
   cursor: pointer;
-  padding: 2px 4px;
-  margin-right: 6px;
+  transition: border-color 0.15s;
 }
-.driver-popover.sl-tour .sl-tour-restart:hover {
-  opacity: 1;
-  text-decoration: underline;
-}
-
-/* Clickable step counter → inline "go to step N" input */
 .driver-popover.sl-tour .driver-popover-progress-text:hover {
-  text-decoration: underline dotted;
+  border-color: #0f766e;
 }
 .driver-popover.sl-tour .sl-tour-jump {
   width: 4.5em;

@@ -416,6 +416,13 @@ export default function LoginPage() {
       }
 
       window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
+      // Fresh sign-in marker: the tutorial launcher offers the guided tour
+      // on the landing page after EVERY login (demo brand only reads it).
+      if (BRAND.showTutorials) {
+        try {
+          window.sessionStorage.setItem(`${BRAND.storagePrefix}.tour.justLoggedIn`, '1');
+        } catch { /* non-fatal */ }
+      }
       router.push(landingPathFor(userData.role));
     } catch (err: any) {
       console.error('Login error:', err);

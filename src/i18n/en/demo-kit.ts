@@ -85,8 +85,8 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Écrivez votre demande, choisissez le destinataire — pour la démo, choisissez-VOUS (« vous ») afin de jouer aussi le rôle du destinataire — puis « Envoyer ».\nChaque destinataire le reçoit dans « Mes Rappels » et vous êtes notifié — zéro e-mail perdu.':
     'Write your request, pick the recipient — for this demo, pick YOURSELF (“you”) so you can also play the recipient — then “Send”.\nEach recipient gets it in “My Reminders” and you are notified — no lost e-mails.',
   'Sortir de la sélection': 'Leave selection mode',
-  "À tout moment, « Annuler » ressort du mode sélection sans rien envoyer.\nPas maintenant : continuons l'envoi.":
-    '“Cancel” leaves selection mode at any time without sending anything.\nNot now though: let’s finish the send.',
+  "À tout moment, « Annuler » ressort du mode sélection sans rien envoyer.\nSi vous le faites, le guide reprendra au début de l'envoi de rappels.":
+    '“Cancel” leaves selection mode at any time without sending anything.\nIf you do, the guide restarts from the beginning of the reminder part.',
   'Suivons le rappel': 'Follow the reminder',
   'Votre rappel est parti — et comme vous êtes aussi destinataire, vous allez le recevoir.\nCliquez sur « Mes Rappels » dans le menu.':
     'Your reminder is on its way — and since you are also the recipient, you are about to receive it.\nClick “My Reminders” in the menu.',
@@ -116,9 +116,15 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Les modifications en couleurs': 'The changes, in colors',
   'Le dossier est reproduit tel que le gestionnaire l’a laissé : faites défiler — chaque champ touché est surligné de sa couleur, sur place.\nParcourez, puis « Suivant ».':
     'The file is reproduced exactly as the manager left it: scroll through — every touched field is highlighted in its color, in place.\nBrowse, then “Next”.',
-  'Retour aux dossiers': 'Back to the files',
-  'Zéro e-mail, zéro doute sur qui a changé quoi.\nCliquez sur « Gestion des dossiers » : la visite reprend où vous l’aviez laissée.':
-    'Zero e-mails, zero doubt about who changed what.\nClick “File Management”: the tour resumes where you left it.',
+  'Retour au dossier traité': 'Back to the treated file',
+  'Zéro e-mail, zéro doute sur qui a changé quoi.\nRevenons sur le dossier : cliquez à nouveau sur la référence de votre rappel.':
+    'Zero e-mails, zero doubt about who changed what.\nLet’s go back to the file: click your reminder’s reference again.',
+  'Vos modifications sont publiées': 'Your changes are live',
+  'Vous revoilà sur le dossier traité : vos changements sont maintenant sur le VRAI dossier — retrouvez le champ que vous avez modifié.\n« Historique » (en haut) garde la trace de chaque action : qui, quoi, quand.':
+    'Back on the treated file: your changes are now on the REAL file — find the field you modified.\n“History” (at the top) keeps track of every action: who, what, when.',
+  'Reprenons la visite': 'Back to the tour',
+  "La boucle est bouclée : rappel envoyé, reçu, traité, vérifié.\nCliquez sur « Gestion des dossiers » : la visite guidée continue là où vous l'aviez laissée.":
+    'Full circle: reminder sent, received, treated, verified.\nClick “File Management”: the guided tour continues where you left it.',
 
   // ── Hidden rappel-treatment steps (dossier detail) ──
   'Le traitement commence': 'The treatment begins',
@@ -271,7 +277,5 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Échec — utilisez les boutons de téléchargement': 'Failed — use the download buttons',
   'Cliquez pour aller directement à une étape': 'Click to jump straight to a step',
   'Numéro d’étape': 'Step number',
-  Recommencer: 'Restart',
-  'Reprendre ce guide depuis le début': 'Start this guide over from step 1',
   vous: 'you',
 };

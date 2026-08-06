@@ -517,5 +517,27 @@ export const dossierDetailTutorial: PageTutorial = {
       chain: 'mes-rappels',
       chainAt: 'Le travail effectué',
     },
+    // Epilogue — reached from the replay via 'Retour au dossier traité':
+    // back on the treated dossier to see the published changes, then hand
+    // the user back to the main journey on the dossiers list.
+    {
+      anchor: 'dosd-info-form',
+      title: 'Vos modifications sont publiées',
+      body:
+        'Vous revoilà sur le dossier traité : vos changements sont maintenant sur le VRAI dossier — retrouvez le champ que vous avez modifié.\n« Historique » (en haut) garde la trace de chaque action : qui, quoi, quand.',
+      side: 'top',
+      dynamic: true,
+      onlyIf: rappelSessionActive,
+    },
+    {
+      anchor: 'nav-/dossiers',
+      title: 'Reprenons la visite',
+      body:
+        "La boucle est bouclée : rappel envoyé, reçu, traité, vérifié.\nCliquez sur « Gestion des dossiers » : la visite guidée continue là où vous l'aviez laissée.",
+      side: 'right',
+      onlyIf: rappelSessionActive,
+      interact: 'click',
+      chain: 'dossiers',
+    },
   ],
 };

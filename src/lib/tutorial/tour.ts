@@ -306,7 +306,15 @@ export function startTutorial(
     const s = steps[i];
     // eslint-disable-next-line no-console
     console.debug('[tour] interact-attach', tut.key, i, s.anchor ?? '(modal)', s.interact);
-    if (s.interact === 'click') {
+    const cleanups: Array<() => void> = [];
+    interactCleanup = () => cleanups.forEach((f) => {
+      try {
+        f();
+      } catch { /* non-fatal */ }
+    });
+    // Anchorless click-steps on a body fallback would match ANY click —
+    // skip those; anchored ones re-resolve their target per click.
+    if (s.interact === 'click' && (s.anchor || el !== document.body)) {
       const h = (ev: Event) => {
         // Re-query the anchor at CLICK time: React may have replaced the
         // highlighted node since the step rendered (live lists re-render on
@@ -327,7 +335,7 @@ export function startTutorial(
       // without an anchor keep element-level semantics via containment on
       // the highlighted element itself.
       document.addEventListener('click', h, true);
-      interactCleanup = () => document.removeEventListener('click', h, true);
+      cleanups.push(() => document.removeEventListener('click', h, true));
     } else if (s.interact === 'until' && s.until) {
       let polls = 0;
       const iv = window.setInterval(() => {
@@ -341,11 +349,39 @@ export function startTutorial(
           if (ok) advanceFrom(i);
         } catch { /* keep polling */ }
       }, 450);
-      interactCleanup = () => {
+      cleanups.push(() => {
         // eslint-disable-next-line no-console
         console.debug('[tour] until-cleanup', tut.key, i, 'after', polls, 'polls');
         window.clearInterval(iv);
-      };
+      });
+    }
+    // Reset-watch: when the page state a step depends on is torn down by
+    // the user (e.g. leaving selection mode mid reminder-flow), jump BACK
+    // to the step that rebuilds it instead of describing vanished UI.
+    if (s.resetIf && s.resetTo) {
+      const rv = window.setInterval(() => {
+        try {
+          if (active !== d) {
+            window.clearInterval(rv);
+            return;
+          }
+          if (s.resetIf!()) {
+            window.clearInterval(rv);
+            const idx = steps.findIndex((st) => st.title === s.resetTo);
+            // eslint-disable-next-line no-console
+            console.debug('[tour] reset', tut.key, i, '->', s.resetTo, idx);
+            if (idx >= 0) {
+              cleanupInteract();
+              prepare(idx, () => {
+                try {
+                  d.moveTo(idx);
+                } catch { /* torn down */ }
+              });
+            }
+          }
+        } catch { /* keep polling */ }
+      }, 450);
+      cleanups.push(() => window.clearInterval(rv));
     }
   };
 
@@ -601,29 +637,7 @@ export function startTutorial(
     },
     // Clickable step counter: "27 / 35" turns into a number input so the
     // user can jump straight to any step instead of arrowing through.
-    onPopoverRender: (popover: { progress?: HTMLElement; footer?: HTMLElement } | undefined) => {
-      // "Restart" — back to step 1 of this page's guide, clearing every
-      // saved position. Exiting/reopening the guide RESUMES at the save
-      // point; this button is the explicit way to start over.
-      const footer = popover?.footer;
-      if (footer && !footer.querySelector('.sl-tour-restart')) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'sl-tour-restart';
-        btn.textContent = `↺ ${t('Recommencer')}`;
-        btn.title = t('Reprendre ce guide depuis le début');
-        btn.addEventListener('click', () => {
-          if (active !== d) return;
-          writeResumeIndex(tut.key, null);
-          cleanupInteract();
-          prepare(0, () => {
-            try {
-              d.moveTo(0);
-            } catch { /* torn down */ }
-          });
-        });
-        footer.insertBefore(btn, footer.firstChild);
-      }
+    onPopoverRender: (popover: { progress?: HTMLElement } | undefined) => {
       const prog = popover?.progress;
       if (!prog || prog.dataset.jumpWired) return;
       prog.dataset.jumpWired = '1';
@@ -710,10 +724,15 @@ export function startTutorial(
             );
           }
         } catch { /* non-fatal */ }
-        // Until-steps poll a predicate — attach them even on a body
-        // fallback (their element doesn't matter). Click-steps need a real
-        // anchor: containment against body would match any click.
-        if (s.interact && el && (s.interact === 'until' || el !== document.body))
+        // Until-steps and reset-watched steps poll predicates — attach them
+        // even on a body fallback (their element doesn't matter). Anchorless
+        // click-steps need a real element (handled inside beginInteract).
+        if (
+          el &&
+          (s.interact === 'until' ||
+            s.resetIf ||
+            (s.interact === 'click' && (s.anchor || el !== document.body)))
+        )
           beginInteract(i, el as HTMLElement);
         // Eager hand-off: write the pending flags as soon as the step shows,
         // so ANY route to the target page (dossier tab, row click…) resumes
@@ -775,7 +794,7 @@ export function startTutorial(
     // onHighlighted hook didn't fire for the initial highlight. Fast first
     // attempt (users can click quickly after a resume) + a late retry.
     const s = steps[resumeAt];
-    if (s?.interact) {
+    if (s?.interact || s?.resetIf) {
       const ensureAttached = () => {
         if (active !== d || interactCleanup) return;
         const el = s.anchor

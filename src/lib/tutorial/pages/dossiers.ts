@@ -1,5 +1,22 @@
 import type { PageTutorial } from '../types';
 
+// Reset-watch for the reminder sub-flow: true once the selection toolbar was
+// SEEN and is now gone (the user clicked « Annuler ») — the reminder steps
+// depend on selection mode, so the tour jumps back to « Envoyer des
+// rappels » to rebuild it. Seen-flag is consumed so re-entry re-arms.
+const selectionGone = () => {
+  const w = window as unknown as Record<string, boolean>;
+  if (document.querySelector('[data-tour="dos-export-bar"]')) {
+    w['sl.selBarSeen'] = true;
+    return false;
+  }
+  if (w['sl.selBarSeen']) {
+    w['sl.selBarSeen'] = false;
+    return true;
+  }
+  return false;
+};
+
 /**
  * Gestion des dossiers — the gestionnaire's main worklist.
  * Anchors: `dos-*` in src/app/(app)/dossiers/client-page.tsx.
@@ -110,6 +127,8 @@ export const dossiersTutorial: PageTutorial = {
         'Cochez autant de dossiers que vous voulez dans la liste, puis cliquez sur « Suivant ».',
       side: 'top',
       dynamic: true,
+      resetIf: selectionGone,
+      resetTo: 'Envoyer des rappels',
       // Next with nothing ticked: tick the first two rows for them — the
       // send steps need a real selection to work with.
       onNext: () => {
@@ -128,9 +147,11 @@ export const dossiersTutorial: PageTutorial = {
       anchor: 'dos-export-cancel',
       title: 'Sortir de la sélection',
       body:
-        "À tout moment, « Annuler » ressort du mode sélection sans rien envoyer.\nPas maintenant : continuons l'envoi.",
+        "À tout moment, « Annuler » ressort du mode sélection sans rien envoyer.\nSi vous le faites, le guide reprendra au début de l'envoi de rappels.",
       side: 'bottom',
       dynamic: true,
+      resetIf: selectionGone,
+      resetTo: 'Envoyer des rappels',
     },
     {
       anchor: 'dos-send-to',
@@ -139,6 +160,8 @@ export const dossiersTutorial: PageTutorial = {
       side: 'bottom',
       dynamic: true,
       interact: 'click',
+      resetIf: selectionGone,
+      resetTo: 'Envoyer des rappels',
     },
     {
       anchor: 'dos-sendto-dialog',
@@ -162,6 +185,22 @@ export const dossiersTutorial: PageTutorial = {
           !document.querySelector('[data-tour="dos-export-bar"]')
         );
       },
+      // Dialog dismissed WITHOUT sending (selection bar still there): step
+      // back to « Envoyez la demande » so the user can reopen it. Consumes
+      // the seen-flag so a later real send is detected cleanly.
+      resetIf: () => {
+        const w = window as unknown as Record<string, boolean>;
+        if (
+          w['sl.sendtoSeen'] &&
+          !document.querySelector('[data-tour="dos-sendto-dialog"]') &&
+          !!document.querySelector('[data-tour="dos-export-bar"]')
+        ) {
+          w['sl.sendtoSeen'] = false;
+          return true;
+        }
+        return false;
+      },
+      resetTo: 'Envoyez la demande',
       // Next = send it for them: the Mes Rappels detour right after needs a
       // real rappel to exist. Self-recipient if none picked; if the dialog
       // was closed in the meantime, reopen it first.

@@ -52,6 +52,14 @@ export interface TourStep {
    */
   doIt?: () => void;
   /**
+   * Reset-watch: while this step is active, `resetIf()` is polled — when it
+   * turns true (the user tore down the state this part of the flow depends
+   * on, e.g. left selection mode), the tour jumps back to the step titled
+   * `resetTo` instead of walking steps whose UI no longer exists.
+   */
+  resetIf?: () => boolean;
+  resetTo?: string;
+  /**
    * Keep the step only when this predicate is true at tour start — for
    * hidden sub-flows that must not appear on normal runs (e.g. the rappel
    * treatment steps, gated on an active rappel session). Evaluated once,
