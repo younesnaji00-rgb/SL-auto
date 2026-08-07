@@ -46,12 +46,6 @@ export const chiffrageDetailTutorial: PageTutorial = {
       side: 'left',
     },
     {
-      anchor: 'chd-doc-import',
-      title: 'Import de documents',
-      body: "Ici, l'import est réservé au gestionnaire, depuis la fiche dossier.",
-      side: 'left',
-    },
-    {
       anchor: 'chd-mail',
       title: 'Envoyer par mail',
       body: "Envoie l'accord choisi en pièce jointe ; le statut avance tout seul.",

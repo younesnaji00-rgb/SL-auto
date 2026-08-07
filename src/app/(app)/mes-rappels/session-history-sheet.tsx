@@ -15,6 +15,7 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { dateFnsLocale, useT } from '@/i18n';
 import { getStatusHeaderStyles } from '@/lib/status-colors';
+import { auditText } from '@/lib/audit-i18n';
 
 type Props = {
   open: boolean;
@@ -232,7 +233,7 @@ function TimelineCard({ entry }: { entry: Entry }) {
         <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
           <div className={cn('px-4 py-2 text-sm font-semibold flex items-center gap-2', headerClass)}>
             <ClipboardList className="h-3.5 w-3.5" />
-            <span>{t(raw.action || raw.type || 'Modification')}</span>
+            <span>{auditText(raw.action || raw.type || 'Modification', t)}</span>
             {raw.type && !isStatut && (
               <span className="ml-auto text-[10px] font-normal uppercase tracking-wide opacity-70">
                 {t(String(raw.type))}
@@ -251,7 +252,7 @@ function TimelineCard({ entry }: { entry: Entry }) {
             {raw.details && (
               <div>
                 <span className="font-semibold">{t('Détails :')}</span>{' '}
-                <span className="text-muted-foreground whitespace-pre-wrap">{raw.details}</span>
+                <span className="text-muted-foreground whitespace-pre-wrap">{auditText(raw.details, t)}</span>
               </div>
             )}
           </div>

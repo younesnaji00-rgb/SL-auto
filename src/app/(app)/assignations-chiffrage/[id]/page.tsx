@@ -23,6 +23,7 @@ import { useChiffrageTabs } from '@/hooks/use-chiffrage-tabs';
 import { addObservation } from '@/app/(app)/dossiers/[id]/log-observation';
 import ObservationsTab from '@/components/observations-tab';
 import { ReformeDialog } from '@/components/chiffreurs/reforme-dialog';
+import { BRAND } from '@/lib/brand';
 import {
   EnvoyerParMailDialog,
   type EnvoyerParMailDialogDoc,
@@ -530,7 +531,10 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         onTypeSearchChange={setTypeSearch}
         loading={docsLoading}
         canImport={false}
-        onImportClick={handleImportClick}
+        // Demo: the greyed-out "Importer" button only ever surfaced a tooltip
+        // saying it does nothing — drop it, keeping the card header.
+        onImportClick={BRAND.id === 'demo' ? undefined : handleImportClick}
+        alwaysShowHeader
         canDelete={false}
         onOpenDocument={handleOpenDocument}
         onDownloadDocument={handleDownloadDocument}

@@ -78,13 +78,11 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Cochez autant de dossiers que vous voulez dans la liste, puis cliquez sur « Suivant ».':
     'Tick as many files as you like in the list, then click “Next”.',
   'Envoyez la demande': 'Send the request',
-  'Cliquez sur « Envoyer à ».': 'Click “Send to”.',
+  "« Annuler », à gauche, ressort du mode sélection sans rien envoyer.\nQuand votre sélection est prête, cliquez sur « Envoyer à ».":
+    '“Cancel”, on the left, leaves selection mode without sending anything.\nWhen your selection is ready, click “Send to”.',
   'Le rappel': 'The reminder',
   'Écrivez votre demande, choisissez le destinataire — pour la démo, choisissez-VOUS (« vous ») afin de jouer aussi le rôle du destinataire — puis « Envoyer ».\nChaque destinataire le reçoit dans « Mes Rappels » et vous êtes notifié — zéro e-mail perdu.':
     'Write your request, pick the recipient — for this demo, pick YOURSELF (“you”) so you can also play the recipient — then “Send”.\nEach recipient gets it in “My Reminders” and you are notified — no lost e-mails.',
-  'Sortir de la sélection': 'Leave selection mode',
-  "À tout moment, « Annuler » ressort du mode sélection sans rien envoyer.\nSi vous le faites, le guide reprendra au début de l'envoi de rappels.":
-    '“Cancel” leaves selection mode at any time without sending anything.\nIf you do, the guide restarts from the beginning of the reminder part.',
   'Suivons le rappel': 'Follow the reminder',
   'Votre rappel est parti — et comme vous êtes aussi destinataire, vous allez le recevoir.\nCliquez sur « Mes Rappels » dans le menu.':
     'Your reminder is on its way — and since you are also the recipient, you are about to receive it.\nClick “My Reminders” in the menu.',
@@ -118,8 +116,14 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Zéro e-mail, zéro doute sur qui a changé quoi.\nRevenons sur le dossier : cliquez à nouveau sur la référence de votre rappel.':
     'Zero e-mails, zero doubt about who changed what.\nLet’s go back to the file: click your reminder’s reference again.',
   'Vos modifications sont publiées': 'Your changes are live',
-  'Vous revoilà sur le dossier traité : vos changements sont maintenant sur le VRAI dossier — retrouvez le champ que vous avez modifié.\n« Historique » (en haut) garde la trace de chaque action : qui, quoi, quand.':
-    'Back on the treated file: your changes are now on the REAL file — find the field you modified.\n“History” (at the top) keeps track of every action: who, what, when.',
+  'Vous revoilà sur le dossier traité : vos changements sont maintenant sur le VRAI dossier — retrouvez le champ que vous avez modifié.':
+    'Back on the treated file: your changes are now on the REAL file — find the field you modified.',
+  "Ouvrez l'historique": 'Open the history',
+  "Le dossier tient aussi son propre journal.\nCliquez sur « Historique » : il s'ouvre sur la droite.":
+    'The file also keeps its own log.\nClick “History”: it opens on the right.',
+  'Le journal du dossier': 'The file’s log',
+  "Ce journal retrace les JALONS du dossier : chaque changement de statut et chaque pièce entrée ou supprimée — avec qui l'a fait et quand.\nIl ne détaille pas champ par champ ce qui a été retouché : pour cela, c'est le suivi de rappel que vous venez de voir, avec ses couleurs.\nEn haut, « Dates clés » récapitule les dates du dossier. Parcourez, puis « Suivant ».":
+    'This log traces the file’s MILESTONES: every status change and every document added or removed — with who did it and when.\nIt does not break down field-by-field edits: that is what the reminder tracking you just saw does, with its colours.\nAt the top, “Key dates” recaps the file’s dates. Have a look, then “Next”.',
   'Reprenons la visite': 'Back to the tour',
   "La boucle est bouclée : rappel envoyé, reçu, traité, vérifié.\nCliquez sur « Gestion des dossiers » : la visite guidée continue là où vous l'aviez laissée.":
     'Full circle: reminder sent, received, treated, verified.\nClick “File Management”: the guided tour continues where you left it.',
@@ -172,8 +176,8 @@ export const DEMO_KIT_EN: Record<string, string> = {
   "Une observation type (menu) ou personnalisée (champ en dessous) : l'agent la voit sur sa mission.":
     'A preset remark (menu) or a custom one (field below): the agent sees it on their mission.',
   "La position de l'agent": 'The agent’s location',
-  "L'app affiche ici la position GPS en direct de l'agent (avec lien Google Maps) et s'en sert pour vérifier que sa tournée est faisable.\nDémo oblige : c'est la position de VOTRE navigateur qui joue celle de l'agent — acceptez la demande de localisation pour la voir apparaître.":
-    'The app shows the agent’s live GPS position here (with a Google Maps link) and uses it to check that their route is feasible.\nDemo twist: YOUR browser’s position plays the agent’s — accept the location prompt to see it appear.',
+  "L'app affiche ici la position GPS en direct de l'agent (avec lien Google Maps) et s'en sert pour vérifier que sa tournée est faisable.\nDémo oblige : cliquez sur « Demander la localisation de l'AT » — c'est la position de VOTRE navigateur qui jouera celle de l'agent.":
+    'The app shows the agent’s live GPS position here (with a Google Maps link) and uses it to check that their route is feasible.\nDemo twist: click “Request the field agent’s location” — YOUR browser’s position will stand in for the agent’s.',
   'Une 2ème destination': 'A 2nd destination',
   'Les agents enchaînent plusieurs visites par jour.\nCliquez encore sur « Nouvelle planification » pour créer une seconde mission.':
     'Agents chain several visits a day.\nClick “New schedule” again to create a second mission.',
@@ -270,6 +274,38 @@ export const DEMO_KIT_EN: Record<string, string> = {
     'Depreciation is gone from the PDF, and the agreement collapses into a single “Agreed Total” column.\nOn a proposal, an empty “2nd appraiser agreement” column appears for the signature.\nPlace the firm’s stamp too (“Stamp” menu), then confirm or close.',
   "L'accord enregistré arrive tout seul dans le dossier.\nCliquez sur l'onglet du dossier en haut : la visite y reprend.":
     'The saved agreement lands in the file by itself.\nClick the file’s tab at the top: the tour resumes there.',
+
+  // ── Seeded history entries (dossiers/{id}/historique details) ──
+  // Fixed strings written by scripts/seed-demo.mjs; the interpolated ones the
+  // app writes at runtime are handled by src/lib/audit-rules.ts instead.
+  'Dossier créé': 'File created',
+  'Mission terrain programmée': 'Field mission scheduled',
+  'Photos avant réparation reçues': 'Before-repair photos received',
+  'Dossier assigné au chiffrage': 'File assigned to estimating',
+  'Proposition du chiffreur': 'Estimator’s proposal',
+  'Changement de statut': 'Status change',
+  'Mission Avant planifiée — Field Agent Demo, Montréal.':
+    'Before mission scheduled — Field Agent Demo, Montréal.',
+  'Expertise en cours de réparation — visite atelier Fix Auto Laval.':
+    'Appraisal during repairs — Fix Auto Laval shop visit.',
+  'Devis garage reçu (4 285 $ CAD) — chiffrage en cours.':
+    'Repair-shop estimate received (CAD $4,285) — estimating in progress.',
+  "Proposition d'accord envoyée au garage — 3 640 $ CAD TTC.":
+    'Proposed agreement sent to the repair shop — CAD $3,640 incl. tax.',
+  '2ème accord après pièces supplémentaires — 5 120 $ CAD TTC.':
+    '2nd agreement after additional parts — CAD $5,120 incl. tax.',
+  'Accord final envoyé à la compagnie — 6 875 $ CAD TTC.':
+    'Final agreement sent to the insurer — CAD $6,875 incl. tax.',
+  'Perte totale — VAM 9 800 $ CAD, épave estimée 1 450 $ CAD.':
+    'Total loss — ACV CAD $9,800, salvage estimated CAD $1,450.',
+
+  // ── Field-agent list: overdue-aware copy + download disclosure ──
+  "Le délai de 24 h ouvrées est dépassé : la mission passe en rouge, avec le retard accumulé.":
+    'The 24 business-hour deadline has passed: the mission turns red, showing how late it is.',
+  "Aucune mission en retard pour l'instant — ce groupe n'apparaît que s'il y en a.\nPassé 24 h ouvrées sans photos, la mission bascule ici et son badge de délai passe au rouge.":
+    'Nothing is overdue right now — this group only appears when something is.\nAfter 24 business hours without photos, a mission moves here and its deadline badge turns red.',
+  'Ces boutons téléchargent le fichier sur votre ordinateur.':
+    'These buttons download the file to your computer.',
 
   // ── Planification modal (demo-visible strings) ──
   'Importer des photos': 'Import photos',

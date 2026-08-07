@@ -38,6 +38,7 @@ import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
 
 // ── Historique (kept for drawer dialog; full drawer in task #17) ─────────────
 import HistoriqueTab from './historique-tab';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 // ── Modals ────────────────────────────────────────────────────────────────────
 import ModalPlanification from './modal-planification';
@@ -457,7 +458,12 @@ export default function DossierDetailPage({
         refExpert={viewDossier.refExpert as string | undefined}
       />
       <Sheet open={isHistoriqueOpen} onOpenChange={setHistoriqueOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-xl overflow-y-auto"
+          data-tour="dosd-historique-sheet"
+          {...tourDialogGuard()}
+        >
           <SheetHeader>
             <SheetTitle>{t('Historique')}</SheetTitle>
           </SheetHeader>

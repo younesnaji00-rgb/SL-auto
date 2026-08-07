@@ -283,6 +283,13 @@ body.driver-active:has(.sl-step-dos-hscroll) [data-tour="dos-table"] {
 .driver-popover.sl-tour .sl-tour-link:hover {
   filter: brightness(1.08);
 }
+/* Plain-language note under download buttons */
+.driver-popover.sl-tour .sl-tour-hint {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: hsl(var(--muted-foreground));
+}
 /* "Do the uploads for me" button (no-download alternative) */
 .driver-popover.sl-tour .sl-tour-prefill {
   background: #0f766e;

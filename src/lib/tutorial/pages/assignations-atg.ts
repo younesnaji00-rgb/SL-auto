@@ -29,6 +29,15 @@ export const assignationsAtgTutorial: PageTutorial = {
       links: [
         { href: '/demo-kit/photos/license-plate.png', label: 'Photo de plaque (démo)', download: true },
       ],
+      // No-download path: hand the plate photo straight to the scanner's
+      // real file input, exactly as if it had been shot with the camera.
+      prefill: [
+        {
+          href: '/demo-kit/photos/license-plate.png',
+          name: 'license-plate.png',
+          input: '[data-tour="atg-scan"] input[type=file]',
+        },
+      ],
     },
     {
       // Presentational: switching tabs must NOT advance the tour — the
@@ -62,9 +71,17 @@ export const assignationsAtgTutorial: PageTutorial = {
       dynamic: true,
     },
     {
+      // The "En retard" group is absent from the DOM when nothing is
+      // overdue (the page only renders non-empty groups), so the copy adapts
+      // instead of describing a section that isn't on screen.
       anchor: 'atg-group-expired',
       title: 'En retard',
-      body: 'Le délai de 24 h ouvrées est dépassé : la barre passe au rouge.',
+      body:
+        "Le délai de 24 h ouvrées est dépassé : la mission passe en rouge, avec le retard accumulé.",
+      bodyFn: () =>
+        document.querySelector('[data-tour="atg-group-expired"]')
+          ? "Le délai de 24 h ouvrées est dépassé : la mission passe en rouge, avec le retard accumulé."
+          : "Aucune mission en retard pour l'instant — ce groupe n'apparaît que s'il y en a.\nPassé 24 h ouvrées sans photos, la mission bascule ici et son badge de délai passe au rouge.",
       side: 'bottom',
       dynamic: true,
     },

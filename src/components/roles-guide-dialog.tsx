@@ -91,7 +91,7 @@ const ROLES: RoleSpec[] = [
       "Scanne la plaque d'immatriculation du véhicule : l'IA la lit et retrouve le bon dossier automatiquement — aucune recherche manuelle.",
       "Prend les photos par catégorie directement depuis l'app ; elles sont horodatées, filigranées à son nom et versées au dossier.",
       "L'avancement des photos fait progresser le statut du dossier automatiquement — le Manager voit la mission se terminer en direct.",
-      'Ajoute les documents constatés sur place et ses observations (texte ou vocal).',
+      'Ajoute les documents constatés sur place et ses observations.',
       "Partage sa position pendant les tournées pour faciliter la planification (service dédié sur Android, même écran verrouillé).",
     ],
     pages: 'Assignations Terrain · Détail de mission (mobile)',

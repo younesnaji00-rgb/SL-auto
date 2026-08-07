@@ -10,6 +10,7 @@ import { Document, View, Text } from '@react-pdf/renderer';
 import { t } from '@/i18n';
 import { BRAND } from '@/lib/brand';
 import { resolveRapportData, type RapportData } from '@/lib/rapport-data';
+import { vehicleSide } from '@/lib/vehicle-side';
 import {
   fC,
   COMPANY_NAME,
@@ -226,9 +227,12 @@ export function RapportEstimatifDocument({ data }: { data: RapportData }) {
         {/* Point de choc */}
         <View style={{ flexDirection: 'row', borderWidth: 0.6, borderColor: LINE, marginTop: 4, height: 96 }}>
           <View style={{ width: '36%', alignItems: 'center', justifyContent: 'center', borderRightWidth: 0.6, borderColor: LINE }}>
-            <Text style={{ fontSize: 6.5 }}>{t('Avant')}</Text>
+            {/* Car-diagram sides. NOT translated through the flat dictionary:
+                "Avant" also labels the BEFORE-repairs mission phase app-wide,
+                and one key cannot mean both "front" and "before". */}
+            <Text style={{ fontSize: 6.5 }}>{vehicleSide('Avant')}</Text>
             <CarTopSvg zones={data.pointsChoc} height={78} />
-            <Text style={{ fontSize: 6.5 }}>{t('Arrière')}</Text>
+            <Text style={{ fontSize: 6.5 }}>{vehicleSide('Arrière')}</Text>
           </View>
           <View style={{ width: '64%', alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>{t('Point de choc')}</Text>

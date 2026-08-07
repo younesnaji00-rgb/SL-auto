@@ -15,6 +15,7 @@ import { collection, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { useT, dateFnsLocale } from '@/i18n';
 import { getStatusHeaderStyles } from '@/lib/status-colors';
+import { auditText } from '@/lib/audit-i18n';
 
 type StatusHistorySheetProps = {
   open: boolean;
@@ -94,7 +95,7 @@ export default function StatusHistorySheet({ open, onOpenChange, dossier }: Stat
 
                     <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
                       <div className={cn('px-4 py-2 text-sm font-semibold', getStatusHeaderStyles(e.action))}>
-                        {t(e.action)}
+                        {auditText(e.action, t)}
                       </div>
                       <div className="p-4 space-y-1.5 text-sm">
                         <div>
@@ -108,7 +109,7 @@ export default function StatusHistorySheet({ open, onOpenChange, dossier }: Stat
                         {e.details && (
                           <div>
                             <span className="font-semibold">{t('Message :')}</span>{' '}
-                            <span className="text-muted-foreground whitespace-pre-wrap">{t(e.details)}</span>
+                            <span className="text-muted-foreground whitespace-pre-wrap">{auditText(e.details, t)}</span>
                           </div>
                         )}
                       </div>

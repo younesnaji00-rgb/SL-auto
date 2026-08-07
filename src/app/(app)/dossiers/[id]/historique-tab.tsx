@@ -22,6 +22,7 @@ import { useDossierDocWrite, applyPendingToDossier } from './rappel-draft';
 import { displayUserName } from '@/lib/display-user';
 import { UserNameLink } from '@/components/user-name-link';
 import { useT, intlLocale } from '@/i18n';
+import { auditText } from '@/lib/audit-i18n';
 
 /**
  * AI-sourced date fields visible in Dates clés. For these fields:
@@ -534,13 +535,13 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
                   <div className="absolute -left-[27px] top-1.5 w-3 h-3 rounded-full bg-muted-foreground border-2 border-background z-10" />
 
                   <div className="space-y-1">
-                    <p className="font-semibold text-base">{t(entry.action)}</p>
+                    <p className="font-semibold text-base">{auditText(entry.action, t)}</p>
                     <p className="text-sm text-muted-foreground">
                       {formatDate(entry.date)} {t('par')} <UserNameLink entry={entry} className="font-bold" />
                     </p>
                     {entry.details && (
                       <div className="mt-2 pl-4 border-l-2 border-primary/40 text-sm italic text-muted-foreground bg-muted/50 py-2 rounded-r-md">
-                        &quot;{t(entry.details)}&quot;
+                        &quot;{auditText(entry.details, t)}&quot;
                       </div>
                     )}
                   </div>

@@ -142,21 +142,13 @@ export const dossiersTutorial: PageTutorial = {
       },
     },
     {
-      // Shown BEFORE the send: after « Envoyer », the app quits the
-      // selection mode by itself, so this bar no longer exists.
-      anchor: 'dos-export-cancel',
-      title: 'Sortir de la sélection',
-      body:
-        "À tout moment, « Annuler » ressort du mode sélection sans rien envoyer.\nSi vous le faites, le guide reprendra au début de l'envoi de rappels.",
-      side: 'bottom',
-      dynamic: true,
-      resetIf: selectionGone,
-      resetTo: 'Envoyer des rappels',
-    },
-    {
+      // The Cancel explainer is folded in here: a separate step for it sat
+      // between the selection and the send, and after « Envoyer » the app
+      // leaves selection mode by itself so that bar would be gone anyway.
       anchor: 'dos-send-to',
       title: 'Envoyez la demande',
-      body: 'Cliquez sur « Envoyer à ».',
+      body:
+        "« Annuler », à gauche, ressort du mode sélection sans rien envoyer.\nQuand votre sélection est prête, cliquez sur « Envoyer à ».",
       side: 'bottom',
       dynamic: true,
       interact: 'click',

@@ -67,6 +67,13 @@ export interface TourStep {
    */
   onlyIf?: () => boolean;
   /**
+   * Body text chosen at DISPLAY time (returns a translation key, like
+   * `body`). For steps whose message depends on live page state — e.g. the
+   * field-agent "overdue" step, which reads differently when nothing is
+   * actually overdue. Falls back to `body` when it returns nothing.
+   */
+  bodyFn?: () => string;
+  /**
    * Cleanup run when the user advances with the Next button INSTEAD of
    * completing the hands-on action — e.g. close the sheet/dialog this
    * step opened so the next step's anchor isn't buried underneath it.

@@ -28,12 +28,6 @@ export const assignationsChiffrageTutorial: PageTutorial = {
       side: 'bottom',
     },
     {
-      anchor: 'ach-reforme',
-      title: 'Filtre réforme',
-      body: 'Limite la liste aux dossiers en réforme.',
-      side: 'bottom',
-    },
-    {
       anchor: 'ach-dates',
       title: 'Filtre période',
       body: 'Affiche les assignations entre deux dates.',

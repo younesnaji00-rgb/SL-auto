@@ -331,8 +331,15 @@ export function startTutorial(
         // snapshots), which would orphan an element-attached listener.
         const target = ev.target as Node | null;
         if (s.anchor) {
-          const anchorEl = document.querySelector(`[data-tour="${s.anchor}"]`);
-          if (!anchorEl || !target || !anchorEl.contains(target)) return;
+          // ANY element carrying the anchor counts, not just the first:
+          // list steps (mission rows, assignment rows, dossier rows) render
+          // the anchor once per row, and a user who clicks the second row
+          // would otherwise navigate away with no hand-off flags written —
+          // the guided journey would die silently on the next page.
+          const anchorEls = Array.from(
+            document.querySelectorAll(`[data-tour="${s.anchor}"]`),
+          );
+          if (!target || !anchorEls.some((a) => a.contains(target))) return;
         } else if (!target || !el.contains(target)) {
           return;
         }
@@ -515,6 +522,49 @@ export function startTutorial(
     });
   };
 
+  // Popover body HTML: the step text, its download links and the prefill
+  // button. Steps may compute their text at DISPLAY time (`bodyFn`) — the
+  // ATG "overdue" step reads different copy depending on whether anything is
+  // actually overdue — so this runs again on every popover render.
+  const describe = (s: TourStep): string => {
+    let body = s.body;
+    if (s.bodyFn) {
+      try {
+        body = s.bodyFn() || s.body;
+      } catch {
+        body = s.body;
+      }
+    }
+    const linksHtml = (s.links ?? [])
+      .map(
+        (l) =>
+          `<a class="sl-tour-link" href="${escapeHtml(
+            l.href.replace('{lang}', getLocale()),
+          )}"${l.download ? ' download' : ' target="_blank" rel="noopener"'}>${escapeHtml(
+            t(l.label),
+          )}</a>`,
+      )
+      .join('');
+    const prefillHtml = s.prefill?.length
+      ? `<button type="button" class="sl-tour-link sl-tour-prefill">${escapeHtml(
+          t('Déposer les fichiers pour moi'),
+        )}</button>`
+      : '';
+    // Say plainly what the links do: they save a file to the computer. Kept
+    // in its OWN row directly under them — the prefill button below uploads
+    // into the app instead, and must not read as a download.
+    const hint = s.links?.some((l) => l.download)
+      ? `<div class="sl-tour-hint">${escapeHtml(
+          t('Ces boutons téléchargent le fichier sur votre ordinateur.'),
+        )}</div>`
+      : '';
+    return (
+      escapeHtml(t(body)).replace(/\n/g, '<br/>') +
+      (linksHtml ? `<div class="sl-tour-links">${linksHtml}</div>${hint}` : '') +
+      (prefillHtml ? `<div class="sl-tour-links">${prefillHtml}</div>` : '')
+    );
+  };
+
   const d = driver({
     showProgress: true,
     overlayOpacity: 0.55,
@@ -680,7 +730,15 @@ export function startTutorial(
     },
     // Clickable step counter: "27 / 35" turns into a number input so the
     // user can jump straight to any step instead of arrowing through.
-    onPopoverRender: (popover: { progress?: HTMLElement } | undefined) => {
+    onPopoverRender: (
+      popover: { progress?: HTMLElement; description?: HTMLElement } | undefined,
+    ) => {
+      // Steps whose copy depends on live page state recompute it here, so a
+      // re-render (refresh heartbeat, resize) never restores stale text.
+      const cur: TourStep | undefined = steps[d.getActiveIndex() ?? 0];
+      if (cur?.bodyFn && popover?.description) {
+        popover.description.innerHTML = describe(cur);
+      }
       const prog = popover?.progress;
       if (!prog || prog.dataset.jumpWired) return;
       prog.dataset.jumpWired = '1';
@@ -793,29 +851,8 @@ export function startTutorial(
           (s.anchor ? ` sl-step-${s.anchor.replace(/[^a-zA-Z0-9-]/g, '')}` : ''),
         title: escapeHtml(t(s.title)),
         // driver.js renders description as innerHTML; our texts are
-        // first-party, escape then reintroduce intentional line breaks.
-        description:
-          escapeHtml(t(s.body)).replace(/\n/g, '<br/>') +
-          (s.links?.length || s.prefill?.length
-            ? `<div class="sl-tour-links">${(s.links ?? [])
-                .map(
-                  (l) =>
-                    `<a class="sl-tour-link" href="${escapeHtml(
-                      l.href.replace('{lang}', getLocale()),
-                    )}"${l.download ? ' download' : ' target="_blank" rel="noopener"'}>${escapeHtml(
-                      t(l.label),
-                    )}</a>`,
-                )
-                .join('')}${
-                // No-download alternative: inject the kit files straight
-                // into the real upload inputs.
-                s.prefill?.length
-                  ? `<button type="button" class="sl-tour-link sl-tour-prefill">${escapeHtml(
-                      t('Déposer les fichiers pour moi'),
-                    )}</button>`
-                  : ''
-              }</div>`
-            : ''),
+        // first-party, escaped inside describe().
+        description: describe(s),
         side: s.side,
         align: s.align ?? 'start',
       },

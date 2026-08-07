@@ -98,11 +98,11 @@ export const TUTORIAL_CORE_EN: Record<string, string> = {
   "Scanne la plaque d'immatriculation du véhicule : l'IA la lit et retrouve le bon dossier automatiquement — aucune recherche manuelle.":
     'Scans the vehicle’s license plate: AI reads it and finds the right file automatically — no manual searching.',
   "Prend les photos par catégorie directement depuis l'app ; elles sont horodatées, filigranées à son nom et versées au dossier.":
-    'Takes photos by category right in the app; they are timestamped, watermarked with their name, and filed to the dossier.',
+    'Takes photos by category right in the app; they are timestamped, watermarked with their name, and filed to the claim file.',
   "L'avancement des photos fait progresser le statut du dossier automatiquement — le Manager voit la mission se terminer en direct.":
     'Photo progress advances the file’s status automatically — the Manager watches the mission complete in real time.',
-  'Ajoute les documents constatés sur place et ses observations (texte ou vocal).':
-    'Adds documents found on site and their observations (text or voice).',
+  'Ajoute les documents constatés sur place et ses observations.':
+    'Adds documents found on site and their written observations.',
   "Partage sa position pendant les tournées pour faciliter la planification (service dédié sur Android, même écran verrouillé).":
     'Shares their location during rounds to help scheduling (dedicated Android service, even with the screen locked).',
   'Assignations Terrain · Détail de mission (mobile)':

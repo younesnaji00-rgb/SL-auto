@@ -95,9 +95,12 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   const [loading, setLoading] = useState(false);
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
   const [selfLocation, setSelfLocation] = useState<{ lat: number; lng: number; updatedAtMs: number } | null>(null);
+  const [selfLocationPending, setSelfLocationPending] = useState(false);
 
+  // Field agents planning their OWN mission: their position is the subject of
+  // the form, so it is read as soon as the dialog opens.
   useEffect(() => {
-    if (!open || !(isCurrentUserAT || demoSelfAsAgent)) return;
+    if (!open || !isCurrentUserAT) return;
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
     let cancelled = false;
     navigator.geolocation.getCurrentPosition(
@@ -109,7 +112,23 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
       { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
     );
     return () => { cancelled = true; };
-  }, [open, isCurrentUserAT, demoSelfAsAgent]);
+  }, [open, isCurrentUserAT]);
+
+  // Demo brand: the demo user's browser position stands in for the agent's
+  // live GPS — but ONLY once they explicitly ask for it. Merely opening the
+  // appointment dialog must never raise a browser permission prompt.
+  const requestSelfLocation = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    setSelfLocationPending(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setSelfLocationPending(false);
+        setSelfLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, updatedAtMs: Date.now() });
+      },
+      () => setSelfLocationPending(false),
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
+    );
+  };
 
   const { options: dbRDVTypes } = useOptions('options_types_rdv');
   const rdvTypes = useMemo(() => dbRDVTypes.filter(o => o.active !== false), [dbRDVTypes]);
@@ -689,7 +708,25 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 <p className="mb-2">
                   {t('Aucune position récente de')} {formData.agentTerrain}. {t("La vérification d'itinéraire ne peut pas tenir compte de sa position actuelle.")}
                 </p>
-                {agentLive.requestState === 'idle' && (
+                {/* Demo: the agents have no connected phone, so this button
+                    stands in the demo user's own browser position — and the
+                    permission prompt only fires on this explicit click. */}
+                {demoSelfAsAgent ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={selfLocationPending}
+                    onClick={requestSelfLocation}
+                  >
+                    {selfLocationPending ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <MapPin className="h-4 w-4 mr-1" />
+                    )}
+                    {t("Demander la localisation de l'AT")}
+                  </Button>
+                ) : agentLive.requestState === 'idle' ? (
                   <Button
                     type="button"
                     size="sm"
@@ -699,7 +736,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                     <MapPin className="h-4 w-4 mr-1" />
                     {t("Demander la localisation de l'AT")}
                   </Button>
-                )}
+                ) : null}
                 {(agentLive.requestState === 'pending' || agentLive.requestState === 'sent') && (
                   <span className="text-sm italic">
                     <Loader2 className="inline h-3 w-3 animate-spin mr-1" />

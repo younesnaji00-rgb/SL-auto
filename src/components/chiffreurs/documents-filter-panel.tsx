@@ -80,6 +80,11 @@ export interface DocumentsFilterPanelProps {
   canImport: boolean;
   /** Invoked when user clicks the "Importer" button (opens the file picker). */
   onImportClick?: () => void;
+  /**
+   * Keep the preview card's header (its title) even when no import button is
+   * rendered. Without it the header only exists to host that button.
+   */
+  alwaysShowHeader?: boolean;
   /** Whether the user can delete documents (renders the trash button). */
   canDelete?: boolean;
   /** Document currently being deleted (for spinner). */
@@ -173,6 +178,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     loading,
     canImport,
     onImportClick,
+    alwaysShowHeader = false,
     canDelete = false,
     isDeleting = null,
     selectionMode = false,
@@ -558,7 +564,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
 
       {/* RIGHT: preview grid */}
       <Card className="shadow-sm border-0 rounded-xl overflow-hidden lg:col-span-2" data-tour="chd-doc-grid">
-        {importButton && (
+        {(importButton || alwaysShowHeader) && (
           <CardHeader className="bg-heading-bg py-3 rounded-t-xl flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-sm text-primary">
               {selectedType === ALL_TYPES_KEY ? t('Tous les documents') : t(selectedType)}

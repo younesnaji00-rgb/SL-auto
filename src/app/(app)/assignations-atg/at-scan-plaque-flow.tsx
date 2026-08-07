@@ -79,8 +79,12 @@ export default function AtScanPlaqueFlow() {
   }, [wanted, loaded, db]);
 
   // A new shot surfaces the progress dialog and clears the previous result.
+  // It also arms the dossier fetch: the scan button is not the only way a
+  // photo reaches the input (the guided tour feeds it directly), and without
+  // `wanted` the match effect below would wait on a list that never loads.
   useEffect(() => {
     if (scanning) {
+      setWanted(true);
       setScan(null);
       setChosen(null);
       setResultOpen(true);

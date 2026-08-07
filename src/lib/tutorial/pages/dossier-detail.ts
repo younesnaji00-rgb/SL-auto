@@ -198,7 +198,7 @@ export const dossierDetailTutorial: PageTutorial = {
       anchor: 'plan-agent-loc',
       title: "La position de l'agent",
       body:
-        "L'app affiche ici la position GPS en direct de l'agent (avec lien Google Maps) et s'en sert pour vérifier que sa tournée est faisable.\nDémo oblige : c'est la position de VOTRE navigateur qui joue celle de l'agent — acceptez la demande de localisation pour la voir apparaître.",
+        "L'app affiche ici la position GPS en direct de l'agent (avec lien Google Maps) et s'en sert pour vérifier que sa tournée est faisable.\nDémo oblige : cliquez sur « Demander la localisation de l'AT » — c'est la position de VOTRE navigateur qui jouera celle de l'agent.",
       side: 'right',
       dynamic: true,
     },
@@ -550,10 +550,38 @@ export const dossierDetailTutorial: PageTutorial = {
       anchor: 'dosd-info-form',
       title: 'Vos modifications sont publiées',
       body:
-        'Vous revoilà sur le dossier traité : vos changements sont maintenant sur le VRAI dossier — retrouvez le champ que vous avez modifié.\n« Historique » (en haut) garde la trace de chaque action : qui, quoi, quand.',
+        'Vous revoilà sur le dossier traité : vos changements sont maintenant sur le VRAI dossier — retrouvez le champ que vous avez modifié.',
       side: 'top',
       dynamic: true,
       onlyIf: rappelSessionActive,
+    },
+    {
+      anchor: 'dosd-historique',
+      title: "Ouvrez l'historique",
+      body:
+        "Le dossier tient aussi son propre journal.\nCliquez sur « Historique » : il s'ouvre sur la droite.",
+      side: 'bottom',
+      onlyIf: rappelSessionActive,
+      interact: 'until',
+      until: () => !!document.querySelector('[data-tour="dosd-historique-sheet"]'),
+      doIt: () => {
+        document.querySelector<HTMLElement>('[data-tour="dosd-historique"]')?.click();
+      },
+    },
+    {
+      anchor: 'dosd-historique-sheet',
+      title: 'Le journal du dossier',
+      body:
+        "Ce journal retrace les JALONS du dossier : chaque changement de statut et chaque pièce entrée ou supprimée — avec qui l'a fait et quand.\nIl ne détaille pas champ par champ ce qui a été retouché : pour cela, c'est le suivi de rappel que vous venez de voir, avec ses couleurs.\nEn haut, « Dates clés » récapitule les dates du dossier. Parcourez, puis « Suivant ».",
+      side: 'left',
+      dynamic: true,
+      onlyIf: rappelSessionActive,
+      // Close the sheet on the way out: the next step needs the sidebar.
+      onNext: () => {
+        document
+          .querySelector<HTMLElement>('[data-tour="dosd-historique-sheet"] button.absolute')
+          ?.click();
+      },
     },
     {
       anchor: 'nav-/dossiers',
