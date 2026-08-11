@@ -562,6 +562,10 @@ export const dossierDetailTutorial: PageTutorial = {
         'Cliquez sur « Modifier », puis faites les trois gestes que le suivi sait distinguer :\n• modifiez un champ rempli (ex. le téléphone) ;\n• videz un champ rempli ;\n• remplissez un champ vide.\nTerminez par « Enregistrer » : le compteur « modifications en attente » apparaît dans la bannière.',
       side: 'top',
       dynamic: true,
+      // The form stays highlighted (every field must be reachable) but the
+      // hand aims at the « Modifier » button — once editing starts it
+      // disappears and the hand falls back to the form.
+      cursorSel: '[data-tour="dosd-info-edit"]',
       onlyIf: rappelSessionActive,
       interact: 'until',
       // The pending-count badge is the only child <span> of the banner text.

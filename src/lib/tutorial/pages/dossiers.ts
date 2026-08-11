@@ -70,7 +70,9 @@ export const dossiersTutorial: PageTutorial = {
       side: 'bottom',
     },
     {
-      anchor: 'dos-statut-cell',
+      // The PILL itself, not the whole cell — the user must see exactly
+      // where to click.
+      anchor: 'dos-statut-pill',
       title: 'La séquence des étapes',
       body: "Cliquez sur la pastille de statut d'un dossier.",
       side: 'bottom',
@@ -123,6 +125,9 @@ export const dossiersTutorial: PageTutorial = {
         'Cochez autant de dossiers que vous voulez dans la liste, puis cliquez sur « Suivant ».',
       side: 'top',
       dynamic: true,
+      // The whole table stays highlighted (the checkboxes must be inside
+      // the cutout) but the hand points at the first row's checkbox.
+      cursorSel: '[data-tour="dos-table"] tbody [role="checkbox"]',
       resetIf: selectionGone,
       resetTo: 'Envoyer des rappels',
       // Next with nothing ticked: tick the first two rows for them — the
@@ -155,7 +160,7 @@ export const dossiersTutorial: PageTutorial = {
       anchor: 'dos-sendto-dialog',
       title: 'Le rappel',
       body:
-        'Écrivez votre demande, choisissez le destinataire — pour la démo, choisissez-VOUS (« vous ») afin de jouer aussi le rôle du destinataire — puis « Envoyer ».\nChaque destinataire le reçoit dans « Mes Rappels » et vous êtes notifié — zéro e-mail perdu.',
+        'Choisissez le destinataire — pour la démo, choisissez-VOUS (« vous ») afin de jouer aussi le rôle du destinataire — puis « Envoyer ».\nChaque destinataire le reçoit dans « Mes Rappels » et vous êtes notifié — zéro e-mail perdu.',
       side: 'left',
       dynamic: true,
       interact: 'until',

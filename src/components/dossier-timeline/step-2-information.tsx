@@ -212,9 +212,12 @@ export default function Step2Information({
           {informationContent}
         </div>
         <aside className="hidden lg:block">
+          {/* Fixed (viewport-tall) height, not max-h: with only a cap the
+              flex-1 viewer collapses to the iframe's default ~150px and the
+              document shows as a tiny strip. */}
           <div
             data-tour="dosd-compare-panel"
-            className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-hidden flex flex-col gap-3 rounded-md border bg-card p-3"
+            className="sticky top-20 h-[calc(100vh-6rem)] overflow-hidden flex flex-col gap-3 rounded-md border bg-card p-3"
           >
             <Select
               value={selectedScanId ?? undefined}

@@ -81,8 +81,8 @@ export const DEMO_KIT_EN: Record<string, string> = {
   "« Annuler », à gauche, ressort du mode sélection sans rien envoyer.\nQuand votre sélection est prête, cliquez sur « Envoyer à ».":
     '“Cancel”, on the left, leaves selection mode without sending anything.\nWhen your selection is ready, click “Send to”.',
   'Le rappel': 'The reminder',
-  'Écrivez votre demande, choisissez le destinataire — pour la démo, choisissez-VOUS (« vous ») afin de jouer aussi le rôle du destinataire — puis « Envoyer ».\nChaque destinataire le reçoit dans « Mes Rappels » et vous êtes notifié — zéro e-mail perdu.':
-    'Write your request, pick the recipient — for this demo, pick YOURSELF (“you”) so you can also play the recipient — then “Send”.\nEach recipient gets it in “My Reminders” and you are notified — no lost e-mails.',
+  'Choisissez le destinataire — pour la démo, choisissez-VOUS (« vous ») afin de jouer aussi le rôle du destinataire — puis « Envoyer ».\nChaque destinataire le reçoit dans « Mes Rappels » et vous êtes notifié — zéro e-mail perdu.':
+    'Pick the recipient — for this demo, pick YOURSELF (“you”) so you can also play the recipient — then “Send”.\nEach recipient gets it in “My Reminders” and you are notified — no lost e-mails.',
   'Suivons le rappel': 'Follow the reminder',
   'Votre rappel est parti — et comme vous êtes aussi destinataire, vous allez le recevoir.\nCliquez sur « Mes Rappels » dans le menu.':
     'Your reminder is on its way — and since you are also the recipient, you are about to receive it.\nClick “My Reminders” in the menu.',

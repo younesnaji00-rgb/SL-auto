@@ -840,7 +840,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
       {/* Lightbox preview */}
       {previewDoc && (
         <Dialog open onOpenChange={() => setPreviewDoc(null)}>
-          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
+          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0" hideCloseButton>
             <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2">
               <DialogTitle className="text-sm truncate flex-1">{previewDoc.nom}</DialogTitle>
               <a

@@ -47,6 +47,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, da
       <DialogContent
         className="max-w-4xl h-[85vh] flex flex-col p-0"
         data-tour={dataTour}
+        hideCloseButton
         {...tourDialogGuard()}
       >
         <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2">

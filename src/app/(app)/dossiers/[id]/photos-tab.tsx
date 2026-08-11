@@ -662,6 +662,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
             <DialogContent
               className="max-w-[100vw] w-screen h-screen p-0 rounded-none border-0 flex flex-col bg-black/95"
               onKeyDown={onKey}
+              hideCloseButton
             >
               <DialogHeader className="px-4 py-3 border-b border-white/10 shrink-0 pr-14">
                 <DialogTitle className="text-sm truncate text-white">

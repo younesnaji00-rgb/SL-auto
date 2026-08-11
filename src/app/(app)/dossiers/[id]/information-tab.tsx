@@ -340,6 +340,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
         <div className="flex justify-end gap-2">
           {!editing ? (
             <button type="button" onClick={() => setEditing(true)}
+              data-tour="dosd-info-edit"
               className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold">
               <Pencil className="h-3.5 w-3.5 text-primary" /> {t('Modifier')}
             </button>

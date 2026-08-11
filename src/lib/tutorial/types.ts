@@ -51,6 +51,13 @@ export interface TourStep {
    */
   cursorAt?: 'left' | 'center';
   /**
+   * Aim the animated cursor at a PRECISE control inside (or near) the
+   * highlighted area — a CSS selector resolved live (first visible match).
+   * The highlight itself stays on `anchor`; only the hand moves. Falls back
+   * to the highlighted element when nothing matches.
+   */
+  cursorSel?: string;
+  /**
    * Choose WHICH element to highlight when the anchor matches several
    * (e.g. one table row among many). Receives the visible matches; return
    * undefined to fall back to the first one.

@@ -483,9 +483,26 @@ export function startTutorial(
     if (cursorEl && cursorEl.isConnected) return cursorEl;
     cursorEl = document.createElement('div');
     cursorEl.className = 'sl-tour-cursor';
+    // A pointing HAND (lucide "pointer" outline, ISC — same icon set as the
+    // app), finger up: it sits just under the target, tapping at it. Each
+    // path is drawn twice — a white halo pass then the teal stroke — so the
+    // hand stays crisp on any background.
+    const HAND_PATHS = [
+      'M22 14a8 8 0 0 1-8 8',
+      'M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2',
+      'M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1',
+      'M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10',
+      'M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15',
+    ];
+    const pass = (stroke: string, width: number) =>
+      HAND_PATHS.map(
+        (p) =>
+          `<path d="${p}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`,
+      ).join('');
     cursorEl.innerHTML =
-      '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true">' +
-      '<path d="M12 22 L4.5 11 H9 V2.5 H15 V11 H19.5 Z" fill="#0f766e" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="round"/>' +
+      '<svg viewBox="0 0 24 24" width="32" height="32" aria-hidden="true">' +
+      pass('#ffffff', 4.4) +
+      pass('#0f766e', 2) +
       '</svg>';
     document.body.appendChild(cursorEl);
     return cursorEl;
@@ -494,29 +511,42 @@ export function startTutorial(
     if (active !== d) return;
     const el = document.querySelector<HTMLElement>('.driver-active-element');
     const c = ensureCursor();
-    if (!el || el === document.body) {
+    const s: TourStep | undefined = steps[d.getActiveIndex() ?? 0];
+    // Steps may aim the hand at a PRECISE control inside a larger highlight
+    // (the checkbox in the ticked table, the Edit button in the form) via
+    // cursorSel — fall back to the highlighted element when it is absent.
+    let target: HTMLElement | null = null;
+    if (s?.cursorSel) {
+      target =
+        Array.from(document.querySelectorAll<HTMLElement>(s.cursorSel)).find(
+          (t) => t.getClientRects().length > 0,
+        ) ?? null;
+    }
+    if (!target) target = el && el !== document.body ? el : null;
+    if (!target) {
       c.style.display = 'none';
       return;
     }
-    const r = el.getBoundingClientRect();
+    const r = target.getBoundingClientRect();
     if ((r.width === 0 && r.height === 0) || r.bottom < 0 || r.top > window.innerHeight) {
       c.style.display = 'none';
       return;
     }
-    const below = r.top < 84;
+    // The hand naturally points UP: park it just below the target. Only when
+    // the target hugs the bottom edge does it flip above, pointing down.
+    const flip = r.bottom + 56 > window.innerHeight;
     // Wide bars (page headers, tab strips) carry their text on the LEFT —
-    // an arrow at the geometric center points at empty space. Steps opt in
+    // a hand at the geometric center points at empty space. Steps opt in
     // with cursorAt: 'left'.
-    const s: TourStep | undefined = steps[d.getActiveIndex() ?? 0];
     const anchorX =
       s?.cursorAt === 'left'
         ? r.left + Math.min(90, r.width * 0.18)
         : r.left + r.width / 2;
     const x = Math.min(Math.max(anchorX, 20), window.innerWidth - 20);
-    const y = below
-      ? Math.min(r.bottom + 8, window.innerHeight - 40)
-      : Math.max(r.top - 40, 6);
-    c.classList.toggle('sl-tour-cursor-up', below);
+    const y = flip
+      ? Math.max(r.top - 44, 6)
+      : Math.min(r.bottom + 10, window.innerHeight - 46);
+    c.classList.toggle('sl-tour-cursor-flip', flip);
     c.style.display = 'block';
     c.style.left = `${x}px`;
     c.style.top = `${y}px`;
