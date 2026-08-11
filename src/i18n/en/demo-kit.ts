@@ -344,8 +344,10 @@ export const DEMO_KIT_EN: Record<string, string> = {
     'The 24 business-hour deadline has passed: the mission turns red, showing how late it is.',
   "Aucune mission en retard pour l'instant — ce groupe n'apparaît que s'il y en a.\nPassé 24 h ouvrées sans photos, la mission bascule ici et son badge de délai passe au rouge.":
     'Nothing is overdue right now — this group only appears when something is.\nAfter 24 business hours without photos, a mission moves here and its deadline badge turns red.',
-  'Ces boutons téléchargent le fichier sur votre ordinateur.':
-    'These buttons download the file to your computer.',
+  'Le bouton ambre télécharge le fichier sur votre ordinateur.':
+    'The amber button downloads the file to your computer.',
+  'Les boutons ambre téléchargent les fichiers sur votre ordinateur.':
+    'The amber buttons download the files to your computer.',
 
   // ── Planification modal (demo-visible strings) ──
   'Importer des photos': 'Import photos',
@@ -366,4 +368,53 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Cliquez pour aller directement à une étape': 'Click to jump straight to a step',
   'Numéro d’étape': 'Step number',
   vous: 'you',
+
+  // ── Batch 7: locked Next, page intro, comparer, reminders return trip,
+  //    phone view, plan gating, demo reset ──
+  'Réalisez l’action demandée pour continuer.':
+    'Do the highlighted action to continue.',
+  "Votre vue d'ensemble : chaque ligne du tableau est un dossier.\nD'un coup d'œil : où chacun est rendu (son statut), qui a fait la dernière action et quand, la compagnie, l'échéance… et des filtres dédiés pour retrouver n'importe quoi en une seconde.\nDe la création à la facture, tout part d'ici — et à la création, l'IA lit le document de mission et remplit le dossier pour vous.":
+    'Your overview: every row of the table is a file.\nAt a glance: where each one stands (its status), who acted last and when, the insurer, the deadline… plus dedicated filters to find anything in a second.\nFrom creation to invoice, everything starts here — and at creation, AI reads the assignment document and fills the file for you.',
+  'Rouvrez le dossier traité': 'Reopen the handled file',
+  'Le dossier de votre rappel est ici, dans la liste — sa ligne est entourée.\nCliquez dessus pour le rouvrir et voir vos modifications sur le vrai dossier.':
+    'Your reminder’s file is right here in the list — its row is outlined.\nClick it to reopen it and see your changes on the real file.',
+  "Chaque envoi est suivi : Nouveau, Lu, Traité — par destinataire et par dossier.\nUne fois le rappel traité, « Voir le détail » (dans la ligne dépliée) vous rejouera les modifications du destinataire, en couleurs.\nVous saurez toujours qui a fait quoi, et quand.":
+    'Every send is tracked: New, Read, Handled — per recipient and per file.\nOnce a reminder is handled, “View details” (inside the expanded row) replays the recipient’s changes, in colors.\nYou will always know who did what, and when.',
+  'Votre rappel est passé en « Traité » — et c’est l’EXPÉDITEUR qui vérifie le travail, depuis « Envoyés ».\nDépliez la ligne de votre envoi.':
+    'Your reminder turned “Handled” — and it is the SENDER who reviews the work, from “Sent”.\nExpand your send’s row.',
+  'Cliquez sur « Voir le détail » : vous voyez le dossier exactement comme le gestionnaire l’a laissé.':
+    'Click “View details”: you see the file exactly as the manager left it.',
+  'Retour par la Gestion des dossiers': 'Back through File Management',
+  'Zéro e-mail, zéro doute sur qui a changé quoi.\nRevenons au dossier par le chemin normal : cliquez sur « Gestion des dossiers » dans le menu — on vous montrera sa ligne.':
+    'Zero emails, zero doubt about who changed what.\nLet’s go back to the file the normal way: click “File Management” in the menu — we will point out its row.',
+  "L'œil : le document original": 'The eye: the original document',
+  "Le document importé reste attaché au dossier.\nCliquez sur l'œil pour l'ouvrir tel quel.":
+    'The imported document stays attached to the file.\nClick the eye to open it as-is.',
+  "L'original, tel qu'il est arrivé": 'The original, as it arrived',
+  "C'est la pièce d'origine — celle qui a servi au pré-remplissage.\nRegardez, puis fermez (×) pour continuer.":
+    'This is the source piece — the one the pre-fill was read from.\nHave a look, then close (×) to continue.',
+  'Le comparateur': 'The comparer',
+  'Pour vérifier les champs extraits sans aller-retour :\ncliquez sur « Comparer ».':
+    'To verify the extracted fields without back-and-forth:\nclick “Compare”.',
+  'Vérifiez sans quitter le formulaire': 'Verify without leaving the form',
+  "Le document s'affiche À CÔTÉ du formulaire et vous suit pendant tout le défilement — chaque champ se vérifie en face de sa source.\nSur un document photographié ou scanné, la molette et le double-clic zooment pour lire les petits caractères. (Ici la pièce est électronique : elle est déjà nette.)\nExplorez, puis « Suivant » — la comparaison se refermera toute seule.":
+    'The document shows up BESIDE the form and follows you through the whole scroll — every field gets checked right next to its source.\nOn a photographed or scanned document, the mouse wheel and double-click zoom in to read the fine print. (Here the piece is electronic: it is already sharp.)\nExplore, then “Next” — the comparison will close itself.',
+  'Choisissez « Field Agent Demo » : la visite avance dès votre choix.':
+    'Pick “Field Agent Demo”: the tour moves on as soon as you choose.',
+  "L'heure du rendez-vous": 'The appointment time',
+  "L'heure est pré-remplie à 09:00 — ajustez-la si besoin.\nSi elle est déjà passée ou rend la tournée infaisable, l'app vous prévient avant d'enregistrer.":
+    'The time is pre-filled at 09:00 — adjust it if needed.\nIf it is already past or makes the route unworkable, the app warns you before saving.',
+  'Choisissez « Estimator Demo » : la visite avance dès votre choix.':
+    'Pick “Estimator Demo”: the tour moves on as soon as you choose.',
+  "La page de l'agent de terrain : ses rendez-vous photos — Avant, En cours et Après réparation — groupés par échéance, avec l'itinéraire du jour.\nTout ce que l'agent capture ici part en direct dans le dossier, côté bureau.":
+    'The field agent’s page: their photo appointments — Before, In progress and After repair — grouped by deadline, with the route of the day.\nEverything the agent captures here lands in the file live, office side.',
+  'La vue téléphone': 'Phone view',
+  "Cette page est pensée mobile : l'agent la vit sur son téléphone.\nCliquez sur « Vue téléphone » pour voir son interface EXACTE, cadrée comme un téléphone.":
+    'This page is designed mobile-first: the agent lives it on their phone.\nClick “Phone view” to see their EXACT interface, framed like a phone.',
+  "Ce que voit l'agent": 'What the agent sees',
+  "Vous êtes dans l'écran réel de l'agent : onglets, missions, itinéraire — à l'identique.\nCliquez sur « Vue bureau » pour continuer la visite en grand.":
+    'You are inside the agent’s real screen: tabs, missions, route — identical.\nClick “Desktop view” to continue the tour full-size.',
+  'Préparation de votre démo : les données d’exemple se réinitialisent…':
+    'Preparing your demo: the sample data is resetting…',
+  'Préparation de votre démo…': 'Preparing your demo…',
 };

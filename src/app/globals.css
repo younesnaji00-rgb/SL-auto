@@ -186,6 +186,48 @@ body.driver-active-element {
   border-radius: 0.75rem;
   box-shadow: 0 12px 32px rgba(15, 118, 110, 0.18);
   max-width: min(22rem, calc(100vw - 2rem));
+  /* Snap-and-pop instead of flying: driver's animate is OFF (the tweened
+     flight fought the smooth scroll and wandered), so the popover appears
+     at its destination with a short pop-in, replayed per step by tour.ts.
+     Safe here — this is driver's own node, nothing waits on animationend. */
+  animation: sl-pop-in 0.18s ease-out;
+}
+@keyframes sl-pop-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+/* Locked Next on hands-on steps: driver disables the button; re-enable
+   pointer events (CSS-only — the disabled attribute still swallows clicks,
+   and the engine's interact guard absorbs keyboard Next) so hovering it can
+   explain WHY it is greyed out. */
+.driver-popover.sl-tour.sl-tour-interact .driver-popover-next-btn.driver-popover-btn-disabled {
+  pointer-events: auto;
+  cursor: not-allowed;
+  opacity: 0.45;
+  position: relative;
+}
+.driver-popover.sl-tour.sl-tour-interact
+  .driver-popover-next-btn.driver-popover-btn-disabled:hover {
+  filter: none;
+}
+.driver-popover.sl-tour.sl-tour-interact
+  .driver-popover-next-btn.driver-popover-btn-disabled:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: 230px;
+  white-space: normal;
+  text-align: left;
+  background: #0f172a;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 6px 9px;
+  border-radius: 7px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  z-index: 5;
 }
 .driver-popover.sl-tour .driver-popover-title {
   font-family: inherit;

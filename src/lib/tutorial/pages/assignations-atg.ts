@@ -13,32 +13,36 @@ export const assignationsAtgTutorial: PageTutorial = {
     {
       title: 'Mes missions terrain',
       body:
-        "Vos rendez-vous photos : Avant, En cours et Après réparation.\nSur ordinateur, « Vue téléphone » (en haut) affiche l'interface exacte que l'agent voit sur son téléphone.",
+        "La page de l'agent de terrain : ses rendez-vous photos — Avant, En cours et Après réparation — groupés par échéance, avec l'itinéraire du jour.\nTout ce que l'agent capture ici part en direct dans le dossier, côté bureau.",
+    },
+    {
+      anchor: 'atg-phone-toggle',
+      title: 'La vue téléphone',
+      body:
+        "Cette page est pensée mobile : l'agent la vit sur son téléphone.\nCliquez sur « Vue téléphone » pour voir son interface EXACTE, cadrée comme un téléphone.",
+      side: 'bottom',
+      // until (not click): the swap can also have happened a beat earlier
+      // (e.g. during the intro) — advance as soon as the phone frame is on.
+      interact: 'until',
+      until: () => !!document.querySelector('[data-tour="atg-desktop-toggle"]'),
+    },
+    {
+      anchor: 'atg-desktop-toggle',
+      title: "Ce que voit l'agent",
+      body:
+        "Vous êtes dans l'écran réel de l'agent : onglets, missions, itinéraire — à l'identique.\nCliquez sur « Vue bureau » pour continuer la visite en grand.",
+      side: 'bottom',
+      dynamic: true,
+      // Only meaningful when the desktop toggle exists (i.e. NOT already on
+      // a real phone, where there is nothing to switch back to).
+      onlyIf: () => !!document.querySelector('[data-tour="atg-phone-toggle"]'),
+      interact: 'click',
     },
     {
       anchor: 'atg-gps',
       title: 'Partage de position',
       body: 'Activez-le pour recevoir les missions proches de vous.',
       side: 'bottom',
-    },
-    {
-      anchor: 'atg-scan',
-      title: 'Scanner une plaque',
-      body:
-        "Photographiez la plaque : l'application retrouve le dossier toute seule.\nEssayez avec la plaque ci-dessous — elle correspond au dossier Honda Civic (F12 ABC) déjà présent dans la démo.",
-      side: 'bottom',
-      links: [
-        { href: '/demo-kit/photos/license-plate.png', label: 'Photo de plaque (démo)', download: true },
-      ],
-      // No-download path: hand the plate photo straight to the scanner's
-      // real file input, exactly as if it had been shot with the camera.
-      prefill: [
-        {
-          href: '/demo-kit/photos/license-plate.png',
-          name: 'license-plate.png',
-          input: '[data-tour="atg-scan"] input[type=file]',
-        },
-      ],
     },
     {
       // Presentational: switching tabs must NOT advance the tour — the

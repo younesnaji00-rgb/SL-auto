@@ -113,6 +113,10 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // Demo brand: a gestionnaire login restarts the showcase — the server
+  // wipes walkthrough leftovers and re-seeds the sample data while this
+  // flag drives the "preparing your demo" message.
+  const [preparing, setPreparing] = useState(false);
 
   // Redirect already-authenticated users to dashboard, BUT only when the
   // live Firebase Auth user matches this tab's expected identity. If another
@@ -415,6 +419,40 @@ export default function LoginPage() {
         deleteDoc(doc(db, 'users', cred.user.uid, 'session_meta', 'current')).catch(() => {});
       }
 
+      // Demo restart: logging in as the GESTIONNAIRE resets the showcase —
+      // every entry from the previous run (created files, reminders,
+      // estimating assignments) is deleted and the sample data re-seeded.
+      // Blocking here (with a message) keeps the first screen clean; a
+      // failure or timeout never blocks the login itself.
+      if (BRAND.id === 'demo' && userData.role === 'Gestionnaire') {
+        setPreparing(true);
+        try {
+          const idToken = await cred.user.getIdToken();
+          const ctrl = new AbortController();
+          const timer = window.setTimeout(() => ctrl.abort(), 30_000);
+          await fetch('/api/demo-reset', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${idToken}` },
+            signal: ctrl.signal,
+          });
+          window.clearTimeout(timer);
+        } catch {
+          // Non-fatal: the demo simply keeps its previous data.
+        }
+        // The walkthrough state must restart with the data: saved tour
+        // positions point at dossiers that no longer exist.
+        try {
+          const prefix = `${BRAND.storagePrefix}.tour.`;
+          const stale: string[] = [];
+          for (let i = 0; i < window.localStorage.length; i++) {
+            const k = window.localStorage.key(i);
+            if (k && k.startsWith(prefix)) stale.push(k);
+          }
+          for (const k of stale) window.localStorage.removeItem(k);
+        } catch { /* non-fatal */ }
+        setPreparing(false);
+      }
+
       window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
       // Fresh sign-in marker: the tutorial launcher offers the guided tour
       // on the landing page after EVERY login (demo brand only reads it).
@@ -567,7 +605,11 @@ export default function LoginPage() {
                 ))}
               </div>
               {loading && (
-                <p className="text-center text-sm text-muted-foreground">{t('Connexion...')}</p>
+                <p className="text-center text-sm text-muted-foreground">
+                  {preparing
+                    ? t('Préparation de votre démo : les données d’exemple se réinitialisent…')
+                    : t('Connexion...')}
+                </p>
               )}
               {error && (
                 <Alert variant="destructive">
@@ -628,7 +670,11 @@ export default function LoginPage() {
             )}
 
             <Button type="submit" className="w-full" loading={loading}>
-              {loading ? t('Connexion...') : t('Se connecter')}
+              {loading
+                ? preparing
+                  ? t('Préparation de votre démo…')
+                  : t('Connexion...')
+                : t('Se connecter')}
             </Button>
 
             {BRAND.id === 'demo' && (

@@ -5,9 +5,11 @@ import type { PageTutorial } from '../types';
  * user arrives here right after sending a rappel TO THEMSELVES (demo brand
  * allows self-addressed rappels): they see the sender side (Envoyés), then
  * play the recipient — the row click opens the dossier in a treatment
- * session (chains into dossier-detail's hidden rappel steps), and on return
- * (`chainAt` 'Le travail effectué') the replay lightbox shows every change
- * color-highlighted (green added / yellow modified / red removed).
+ * session (chains into dossier-detail's hidden rappel steps). On return
+ * (`chainAt` 'Le travail effectué') the SENDER side takes over: Envoyés tab
+ * → « Voir le détail » → the replay lightbox shows every change
+ * color-highlighted — then the journey goes back to the treated dossier
+ * through File Management (its row is picked out on the list).
  */
 export const mesRappelsTutorial: PageTutorial = {
   key: 'mes-rappels',
@@ -35,7 +37,7 @@ export const mesRappelsTutorial: PageTutorial = {
       anchor: 'rap-envoyes-table',
       title: 'Le suivi par destinataire',
       body:
-        'Chaque envoi est suivi : Nouveau, Lu, Traité — par destinataire et par dossier.\nVous saurez toujours qui a fait quoi, et quand.',
+        "Chaque envoi est suivi : Nouveau, Lu, Traité — par destinataire et par dossier.\nUne fois le rappel traité, « Voir le détail » (dans la ligne dépliée) vous rejouera les modifications du destinataire, en couleurs.\nVous saurez toujours qui a fait quoi, et quand.",
       side: 'bottom',
       // dynamic: the Envoyés table is unmounted until its tab is clicked.
       // onlyIf: some roles never see the Envoyés tab at all.
@@ -69,11 +71,25 @@ export const mesRappelsTutorial: PageTutorial = {
       chainAt: 'Le traitement commence',
     },
     // ── Hidden re-entry (chainAt from the dossier treatment hop-back) ──
+    // The review lives on the SENDER side: « Voir le détail » sits in the
+    // Envoyés tab — the recipient list only opens the dossier itself.
     {
-      anchor: 'rap-detail-btn',
+      click: 'rap-tab-envoyes',
+      delay: 500,
+      anchor: 'rap-envoyes-group',
       title: 'Le travail effectué',
       body:
-        'Votre rappel est passé en « Traité ».\nCliquez sur « Voir le détail » : vous voyez le dossier exactement comme le gestionnaire l’a laissé.',
+        'Votre rappel est passé en « Traité » — et c’est l’EXPÉDITEUR qui vérifie le travail, depuis « Envoyés ».\nDépliez la ligne de votre envoi.',
+      side: 'bottom',
+      dynamic: true,
+      onlyIf: () => !!document.querySelector('[data-tour="rap-recus-table"]'),
+      interact: 'click',
+    },
+    {
+      anchor: 'rap-detail-btn',
+      title: 'Voir le détail',
+      body:
+        'Cliquez sur « Voir le détail » : vous voyez le dossier exactement comme le gestionnaire l’a laissé.',
       side: 'left',
       dynamic: true,
       onlyIf: () => !!document.querySelector('[data-tour="rap-recus-table"]'),
@@ -113,19 +129,19 @@ export const mesRappelsTutorial: PageTutorial = {
       },
     },
     {
-      // Back to the TREATED dossier itself (not the list): the row click
-      // reopens it so the user sees their changes live on the real file —
-      // the dossier-detail epilogue then hands back to the main journey.
-      anchor: 'rap-row-ref',
-      title: 'Retour au dossier traité',
+      // Back to the treated dossier THROUGH File Management — the normal
+      // path — where its own row is highlighted; the dossier-detail
+      // epilogue then hands back to the main journey.
+      anchor: 'nav-/dossiers',
+      title: 'Retour par la Gestion des dossiers',
       body:
-        'Zéro e-mail, zéro doute sur qui a changé quoi.\nRevenons sur le dossier : cliquez à nouveau sur la référence de votre rappel.',
-      side: 'bottom',
+        'Zéro e-mail, zéro doute sur qui a changé quoi.\nRevenons au dossier par le chemin normal : cliquez sur « Gestion des dossiers » dans le menu — on vous montrera sa ligne.',
+      side: 'right',
       dynamic: true,
       onlyIf: () => !!document.querySelector('[data-tour="rap-recus-table"]'),
       interact: 'click',
-      chain: 'dossier-detail',
-      chainAt: 'Vos modifications sont publiées',
+      chain: 'dossiers',
+      chainAt: 'Rouvrez le dossier traité',
     },
   ],
   // Mid-journey side trip — the closing pitch lives at the end of the

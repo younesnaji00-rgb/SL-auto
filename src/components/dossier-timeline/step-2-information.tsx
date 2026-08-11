@@ -173,6 +173,7 @@ export default function Step2Information({
       <Button
         variant={showCompare ? 'default' : 'outline'}
         size="sm"
+        data-tour="dosd-compare-btn"
         onClick={() => setShowCompare((v) => !v)}
         className="gap-1.5"
       >
@@ -211,7 +212,10 @@ export default function Step2Information({
           {informationContent}
         </div>
         <aside className="hidden lg:block">
-          <div className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-hidden flex flex-col gap-3 rounded-md border bg-card p-3">
+          <div
+            data-tour="dosd-compare-panel"
+            className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-hidden flex flex-col gap-3 rounded-md border bg-card p-3"
+          >
             <Select
               value={selectedScanId ?? undefined}
               onValueChange={(v) => setSelectedScanId(v)}

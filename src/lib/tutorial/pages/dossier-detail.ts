@@ -1,4 +1,5 @@
 import type { PageTutorial } from '../types';
+import { treatedDossierKey } from '../keys';
 
 // The photo grids group shots into COLLAPSED day rows, so counting <img>
 // nodes misses fresh uploads — read the "N/30" counter badge instead.
@@ -11,20 +12,30 @@ const photosPresent = (cat: string) => () => {
 const slotFilled = (anchor: string) =>
   !!document.querySelector(`[data-tour="${anchor}"] ul li`);
 
-// "Do it for me" on Next: trigger the popover's own prefill button — the
-// uploads run and the step's until-predicate advances like a manual import.
-const clickPrefill = () => {
-  document
-    .querySelector<HTMLElement>('.driver-popover .sl-tour-prefill')
-    ?.click();
-};
-
 // True while THIS dossier is open as a rappel-treatment session (handshake
-// key written by the Mes Rappels row click, cleared on save).
+// key written by the Mes Rappels row click, cleared on save). While live,
+// the dossier id is stashed under the tour's own key: the epilogue re-enters
+// this dossier AFTER the save (through File Management), when the handshake
+// key is already gone.
 const rappelSessionActive = () => {
   try {
     const id = window.location.pathname.split('/').pop() || '';
-    return !!id && !!window.localStorage.getItem(`rappel-active-session-${id}`);
+    const on = !!id && !!window.localStorage.getItem(`rappel-active-session-${id}`);
+    if (on) window.localStorage.setItem(treatedDossierKey(), id);
+    return on;
+  } catch {
+    return false;
+  }
+};
+
+// Epilogue gate: the dossier treated during the guided journey, whether the
+// treatment session is still live or already saved.
+const treatedEpilogue = () => {
+  try {
+    const id = window.location.pathname.split('/').pop() || '';
+    if (!id) return false;
+    if (rappelSessionActive()) return true;
+    return window.localStorage.getItem(treatedDossierKey()) === id;
   } catch {
     return false;
   }
@@ -58,12 +69,14 @@ export const dossierDetailTutorial: PageTutorial = {
       body:
         "Chaque dossier ouvert reste ici, comme les onglets d'un navigateur. L'onglet « Dossiers » ramène à la liste.",
       side: 'bottom',
+      cursorAt: 'left',
     },
     {
       anchor: 'dosd-header',
       title: 'En-tête',
       body: "L'assuré, la compagnie et la référence restent toujours visibles ici.",
       side: 'bottom',
+      cursorAt: 'left',
     },
     {
       anchor: 'dosd-statut',
@@ -97,7 +110,6 @@ export const dossierDetailTutorial: PageTutorial = {
       links: [
         { href: '/demo-kit/{lang}/mission-document.html', label: 'Document de mission', download: true },
       ],
-      doIt: clickPrefill,
       prefill: [
         {
           href: '/demo-kit/{lang}/mission-document.html',
@@ -110,6 +122,59 @@ export const dossierDetailTutorial: PageTutorial = {
       title: 'Regardez !',
       body:
         "Assuré, immatriculation, compagnie, dates… tout est pré-rempli depuis le document.\nVérifiez, corrigez si besoin : rien n'est à ressaisir deux fois.",
+    },
+    {
+      anchor: 'dosd-import-eye',
+      title: "L'œil : le document original",
+      body:
+        "Le document importé reste attaché au dossier.\nCliquez sur l'œil pour l'ouvrir tel quel.",
+      side: 'bottom',
+      dynamic: true,
+      interact: 'until',
+      until: () => !!document.querySelector('[data-tour="dosd-import-preview"]'),
+    },
+    {
+      anchor: 'dosd-import-preview',
+      title: "L'original, tel qu'il est arrivé",
+      body:
+        "C'est la pièce d'origine — celle qui a servi au pré-remplissage.\nRegardez, puis fermez (×) pour continuer.",
+      side: 'left',
+      dynamic: true,
+      interact: 'until',
+      // Advance once the preview has been OPEN and is closed again.
+      until: () => {
+        const w = window as unknown as Record<string, boolean>;
+        if (document.querySelector('[data-tour="dosd-import-preview"]')) {
+          w['sl.importPreviewSeen'] = true;
+          return false;
+        }
+        return !!w['sl.importPreviewSeen'];
+      },
+    },
+    {
+      anchor: 'dosd-compare-btn',
+      title: 'Le comparateur',
+      body:
+        'Pour vérifier les champs extraits sans aller-retour :\ncliquez sur « Comparer ».',
+      side: 'left',
+      dynamic: true,
+      interact: 'click',
+    },
+    {
+      anchor: 'dosd-compare-panel',
+      title: 'Vérifiez sans quitter le formulaire',
+      body:
+        "Le document s'affiche À CÔTÉ du formulaire et vous suit pendant tout le défilement — chaque champ se vérifie en face de sa source.\nSur un document photographié ou scanné, la molette et le double-clic zooment pour lire les petits caractères. (Ici la pièce est électronique : elle est déjà nette.)\nExplorez, puis « Suivant » — la comparaison se refermera toute seule.",
+      side: 'left',
+      dynamic: true,
+      // Advancing must close the comparer: the next steps work full-width.
+      onNext: () => {
+        if (document.querySelector('[data-tour="dosd-compare-panel"]')) {
+          document
+            .querySelector<HTMLElement>('[data-tour="dosd-compare-btn"]')
+            ?.click();
+        }
+      },
     },
     {
       anchor: 'dosd-other-docs',
@@ -153,15 +218,35 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'plan-agent',
       title: "L'agent",
-      body: 'Choisissez « Field Agent Demo ».',
+      body: 'Choisissez « Field Agent Demo » : la visite avance dès votre choix.',
       side: 'right',
       dynamic: true,
+      interact: 'until',
+      // Radix keeps `data-placeholder` on the trigger until a value is set.
+      until: () => {
+        const tr = document.querySelector('[data-tour="plan-agent"]');
+        return !!tr && !tr.hasAttribute('data-placeholder');
+      },
     },
     {
       anchor: 'plan-date',
       title: 'La date',
       body:
         "Choisissez la date d'aujourd'hui.\nL'app peut même vérifier la faisabilité des tournées de l'agent via Google Maps.",
+      side: 'right',
+      dynamic: true,
+      interact: 'until',
+      // The picker button drops its placeholder styling once a date is set.
+      until: () => {
+        const b = document.querySelector('[data-tour="plan-date"] button');
+        return !!b && !b.className.includes('text-muted-foreground');
+      },
+    },
+    {
+      anchor: 'plan-time',
+      title: "L'heure du rendez-vous",
+      body:
+        "L'heure est pré-remplie à 09:00 — ajustez-la si besoin.\nSi elle est déjà passée ou rend la tournée infaisable, l'app vous prévient avant d'enregistrer.",
       side: 'right',
       dynamic: true,
     },
@@ -177,14 +262,6 @@ export const dossierDetailTutorial: PageTutorial = {
         !!(
           document.querySelector('[data-tour="plan-adresse"] input') as HTMLInputElement | null
         )?.value?.trim(),
-      // Next without typing: fill the sample address for them.
-      doIt: () => {
-        const input = document.querySelector<HTMLInputElement>('[data-tour="plan-adresse"] input');
-        if (!input) return;
-        const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-        set?.call(input, '455 boul. René-Lévesque O, Montréal, QC');
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      },
     },
     {
       anchor: 'plan-observation',
@@ -234,14 +311,6 @@ export const dossierDetailTutorial: PageTutorial = {
         !!(
           document.querySelector('[data-tour="plan-adresse"] input') as HTMLInputElement | null
         )?.value?.trim(),
-      // Next without typing: fill the second address for them.
-      doIt: () => {
-        const input = document.querySelector<HTMLInputElement>('[data-tour="plan-adresse"] input');
-        if (!input) return;
-        const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-        set?.call(input, '1000 rue De La Gauchetière O, Montréal, QC');
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      },
     },
     {
       anchor: 'plan-save',
@@ -267,7 +336,6 @@ export const dossierDetailTutorial: PageTutorial = {
         { href: '/demo-kit/photos/before-2.png', label: 'Photo 2', download: true },
         { href: '/demo-kit/photos/before-3.png', label: 'Photo 3', download: true },
       ],
-      doIt: clickPrefill,
       prefill: [
         { href: '/demo-kit/photos/before-1.png', name: 'before-1.png', input: '[data-tour="dosd-photos-avant"] input[type=file]' },
         { href: '/demo-kit/photos/before-2.png', name: 'before-2.png', input: '[data-tour="dosd-photos-avant"] input[type=file]' },
@@ -312,7 +380,6 @@ export const dossierDetailTutorial: PageTutorial = {
       links: [
         { href: '/demo-kit/{lang}/garage-quote.pdf', label: 'Devis du garage (PDF)', download: true },
       ],
-      doIt: clickPrefill,
       prefill: [
         {
           href: '/demo-kit/{lang}/garage-quote.pdf',
@@ -339,9 +406,15 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'chif-choose',
       title: 'Le chiffreur',
-      body: 'Choisissez « Estimator Demo ».',
+      body: 'Choisissez « Estimator Demo » : la visite avance dès votre choix.',
       side: 'right',
       dynamic: true,
+      interact: 'until',
+      // The send button unlocks exactly when a chiffreur is selected.
+      until: () => {
+        const b = document.querySelector<HTMLButtonElement>('[data-tour="chif-send"]');
+        return !!b && !b.disabled;
+      },
     },
     {
       anchor: 'chif-send',
@@ -380,7 +453,6 @@ export const dossierDetailTutorial: PageTutorial = {
         { href: '/demo-kit/photos/during-1.png', label: 'Photo 1', download: true },
         { href: '/demo-kit/photos/during-2.png', label: 'Photo 2', download: true },
       ],
-      doIt: clickPrefill,
       prefill: [
         { href: '/demo-kit/photos/during-1.png', name: 'during-1.png', input: '[data-tour="dosd-photos-en_cours"] input[type=file]' },
         { href: '/demo-kit/photos/during-2.png', name: 'during-2.png', input: '[data-tour="dosd-photos-en_cours"] input[type=file]' },
@@ -423,7 +495,6 @@ export const dossierDetailTutorial: PageTutorial = {
         { href: '/demo-kit/photos/after-1.png', label: 'Photo 1', download: true },
         { href: '/demo-kit/photos/after-2.png', label: 'Photo 2', download: true },
       ],
-      doIt: clickPrefill,
       prefill: [
         { href: '/demo-kit/photos/after-1.png', name: 'after-1.png', input: '[data-tour="dosd-photos-apres"] input[type=file]' },
         { href: '/demo-kit/photos/after-2.png', name: 'after-2.png', input: '[data-tour="dosd-photos-apres"] input[type=file]' },
@@ -496,33 +567,6 @@ export const dossierDetailTutorial: PageTutorial = {
       // The pending-count badge is the only child <span> of the banner text.
       until: () =>
         !!document.querySelector('[data-tour="dosd-rappel-banner"] p span'),
-      // Next without editing: make one change for them (edit mode → new
-      // phone → save the form) so the replay still has something to show.
-      doIt: () => {
-        const root = document.querySelector<HTMLElement>('[data-tour="dosd-info-form"]');
-        if (!root) return;
-        const btn = (re: RegExp) =>
-          Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
-            re.test((b.textContent || '').trim()),
-          );
-        if (!btn(/^(Enregistrer|Save)$/i)) btn(/Modifier|Edit/i)?.click();
-        window.setTimeout(() => {
-          const spans = Array.from(root.querySelectorAll<HTMLElement>('span'));
-          const lab = spans.find((s) => /^(t[ée]l[ée]phone|phone)$/i.test((s.textContent || '').trim()));
-          const cell = lab?.closest('div');
-          const grid = cell?.parentElement;
-          const idx = grid && cell ? Array.prototype.indexOf.call(grid.children, cell) : -1;
-          const input =
-            (grid?.nextElementSibling?.children?.[idx] as HTMLElement | undefined)?.querySelector('input') ??
-            root.querySelector('input');
-          if (input) {
-            const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-            set?.call(input, '+1 (514) 555-0177');
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-          window.setTimeout(() => btn(/Enregistrer|Save/i)?.click(), 400);
-        }, 700);
-      },
     },
     {
       anchor: 'dosd-rappel-save',
@@ -541,12 +585,6 @@ export const dossierDetailTutorial: PageTutorial = {
           return false;
         }
         return !!w['sl.rappelBannerSeen'];
-      },
-      // Next = save for them; the predicate advances once the banner goes.
-      doIt: () => {
-        document
-          .querySelector<HTMLElement>('[data-tour="dosd-rappel-save"]')
-          ?.click();
       },
     },
     {
@@ -570,7 +608,7 @@ export const dossierDetailTutorial: PageTutorial = {
         'Vous revoilà sur le dossier traité : vos changements sont maintenant sur le VRAI dossier — retrouvez le champ que vous avez modifié.',
       side: 'top',
       dynamic: true,
-      onlyIf: rappelSessionActive,
+      onlyIf: treatedEpilogue,
     },
     {
       anchor: 'dosd-historique',
@@ -578,12 +616,9 @@ export const dossierDetailTutorial: PageTutorial = {
       body:
         "Le dossier tient aussi son propre journal.\nCliquez sur « Historique » : il s'ouvre sur la droite.",
       side: 'bottom',
-      onlyIf: rappelSessionActive,
+      onlyIf: treatedEpilogue,
       interact: 'until',
       until: () => !!document.querySelector('[data-tour="dosd-historique-sheet"]'),
-      doIt: () => {
-        document.querySelector<HTMLElement>('[data-tour="dosd-historique"]')?.click();
-      },
     },
     {
       anchor: 'dosd-historique-sheet',
@@ -592,7 +627,7 @@ export const dossierDetailTutorial: PageTutorial = {
         "Ce journal retrace les JALONS du dossier : chaque changement de statut et chaque pièce entrée ou supprimée — avec qui l'a fait et quand.\nIl ne détaille pas champ par champ ce qui a été retouché : pour cela, c'est le suivi de rappel que vous venez de voir, avec ses couleurs.\nEn haut, « Dates clés » récapitule les dates du dossier. Parcourez, puis « Suivant ».",
       side: 'left',
       dynamic: true,
-      onlyIf: rappelSessionActive,
+      onlyIf: treatedEpilogue,
       // Close the sheet on the way out: the next step needs the sidebar.
       onNext: () => {
         document
@@ -606,9 +641,13 @@ export const dossierDetailTutorial: PageTutorial = {
       body:
         "La boucle est bouclée : rappel envoyé, reçu, traité, vérifié.\nCliquez sur « Gestion des dossiers » : la visite guidée continue là où vous l'aviez laissée.",
       side: 'right',
-      onlyIf: rappelSessionActive,
+      onlyIf: treatedEpilogue,
       interact: 'click',
       chain: 'dossiers',
+      // Explicit re-entry: the return trip through File Management consumed
+      // the title marker 'Suivons le rappel' left behind (chainAt overwrote
+      // it), so name the continuation step directly.
+      chainAt: 'Défilement horizontal',
     },
   ],
 };

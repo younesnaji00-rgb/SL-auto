@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Download, Trash2, X } from 'lucide-react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { useT } from '@/i18n';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 export interface DocumentPreviewLightboxDoc {
   url: string;
@@ -30,18 +31,24 @@ interface DocumentPreviewLightboxProps {
   /** Optional. When set, shows a download button in the header. */
   onDownload?: (doc: DocumentPreviewLightboxDoc) => void;
   onDelete?: (doc: DocumentPreviewLightboxDoc) => void;
+  /** Optional tour anchor stamped on the dialog (guided walkthroughs). */
+  dataTour?: string;
 }
 
 function isImageName(name: string): boolean {
   return /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(name || '');
 }
 
-export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete }: DocumentPreviewLightboxProps) {
+export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, dataTour }: DocumentPreviewLightboxProps) {
   const t = useT();
   if (!doc) return null;
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
+      <DialogContent
+        className="max-w-4xl h-[85vh] flex flex-col p-0"
+        data-tour={dataTour}
+        {...tourDialogGuard()}
+      >
         <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2">
           <DialogTitle className="text-sm truncate flex-1">{doc.nom}</DialogTitle>
           {onDownload && (

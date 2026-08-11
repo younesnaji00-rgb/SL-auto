@@ -380,21 +380,9 @@ export default function MesRappelsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {r.sessionId ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 text-xs gap-1.5"
-                              data-tour="rap-detail-btn"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setReplayRappel(r);
-                              }}
-                            >
-                              <ScrollText className="h-3.5 w-3.5" />
-                              {t('Voir le détail')}
-                            </Button>
-                          ) : null}
+                          {/* « Voir le détail » (the session replay) belongs to
+                              the SENDER — it lives in the Envoyés tab. The
+                              recipient opens the dossier itself via the row. */}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -459,6 +447,7 @@ export default function MesRappelsPage() {
                     return (
                       <React.Fragment key={g.key}>
                         <TableRow
+                          data-tour="rap-envoyes-group"
                           className="cursor-pointer hover:bg-muted/50 transition-colors"
                           onClick={() => toggleExpand(g.key)}
                         >
@@ -562,6 +551,7 @@ export default function MesRappelsPage() {
                                               variant="ghost"
                                               size="sm"
                                               className="h-8 text-xs gap-1.5"
+                                              data-tour="rap-detail-btn"
                                               onClick={() => setReplayRappel(r)}
                                             >
                                               <ScrollText className="h-3.5 w-3.5" />

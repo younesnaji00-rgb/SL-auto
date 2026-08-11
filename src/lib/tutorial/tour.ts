@@ -4,9 +4,23 @@ import { driver, type Driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import { t, getLocale } from '@/i18n';
 import { BRAND } from '@/lib/brand';
+import { treatedDossierKey } from './keys';
 import type { PageTutorial, TourStep } from './types';
 
 let active: Driver | null = null;
+let activeKey: string | null = null;
+
+/**
+ * Key of the tour currently on screen (null when none). The launcher uses it
+ * to treat an in-flight tour as resumable progress: toggling the ATG phone
+ * view swaps the whole layout under a RUNNING tour, and the "?" button must
+ * restart that page's tour at its current step — not the whole lab.
+ */
+export function activeTourKey(): string | null {
+  return active ? activeKey : null;
+}
+
+export { treatedDossierKey };
 
 // Tours that belong to the chained guided journey. Only these share the
 // journey-wide CONTINUOUS step numbering (page 2 starts at 33, not at 1) —
@@ -95,6 +109,7 @@ export function resetTourProgress(keys: string[]): void {
   for (const k of keys) writeResumeIndex(k, null);
   try {
     window.localStorage.removeItem(journeyBaseKey());
+    window.localStorage.removeItem(treatedDossierKey());
   } catch { /* non-fatal */ }
 }
 
@@ -219,6 +234,13 @@ export function startTutorial(
     } catch { /* non-fatal */ }
   }
   let completed = false;
+  // Where THIS run entered the step list. Journey numbering is relative to
+  // it: a mid-list entry (chainAt into a hidden sub-flow, title resume on a
+  // round trip) must continue the global count (base+1, base+2, …) instead
+  // of exposing the entry step's absolute position — entering the treatment
+  // sub-flow used to jump the counter from ~37 to ~71 because the hidden
+  // steps live at the END of the page's list.
+  const entryIdx = resumeAt;
 
   // Run a step's `click` preparation (open tab/menu) BEFORE driver resolves
   // the anchor, then continue.
@@ -324,9 +346,14 @@ export function startTutorial(
     if (!s.chain) return;
     try {
       window.localStorage.setItem(`${BRAND.storagePrefix}.tour.pending`, s.chain);
-      // The next page continues the count right after this hand-off step.
+      // The next page continues the count right after this hand-off step —
+      // counting only the steps WALKED this visit (entry-relative), so
+      // round trips never double-count a page's earlier steps.
       if (isJourneyTour) {
-        window.localStorage.setItem(journeyBaseKey(), String(journeyBase + i + 1));
+        window.localStorage.setItem(
+          journeyBaseKey(),
+          String(journeyBase + Math.max(0, i - entryIdx) + 1),
+        );
       }
       // Optional: enter the target tour at a specific step. Written from
       // THIS page for the target page → wildcard path scope.
@@ -477,7 +504,15 @@ export function startTutorial(
       return;
     }
     const below = r.top < 84;
-    const x = Math.min(Math.max(r.left + r.width / 2, 20), window.innerWidth - 20);
+    // Wide bars (page headers, tab strips) carry their text on the LEFT —
+    // an arrow at the geometric center points at empty space. Steps opt in
+    // with cursorAt: 'left'.
+    const s: TourStep | undefined = steps[d.getActiveIndex() ?? 0];
+    const anchorX =
+      s?.cursorAt === 'left'
+        ? r.left + Math.min(90, r.width * 0.18)
+        : r.left + r.width / 2;
+    const x = Math.min(Math.max(anchorX, 20), window.innerWidth - 20);
     const y = below
       ? Math.min(r.bottom + 8, window.innerHeight - 40)
       : Math.max(r.top - 40, 6);
@@ -626,12 +661,17 @@ export function startTutorial(
           t('Déposer les fichiers pour moi'),
         )}</button>`
       : '';
-    // Say plainly what the links do: they save a file to the computer. Kept
-    // in its OWN row directly under them — the prefill button below uploads
-    // into the app instead, and must not read as a download.
-    const hint = s.links?.some((l) => l.download)
+    // Say plainly what the links do: they save a file to the computer. Named
+    // by COLOR (the amber buttons) so the teal prefill button below — which
+    // uploads into the app instead — is explicitly not covered.
+    const dlCount = (s.links ?? []).filter((l) => l.download).length;
+    const hint = dlCount
       ? `<div class="sl-tour-hint">${escapeHtml(
-          t('Ces boutons téléchargent le fichier sur votre ordinateur.'),
+          t(
+            dlCount > 1
+              ? 'Les boutons ambre téléchargent les fichiers sur votre ordinateur.'
+              : 'Le bouton ambre télécharge le fichier sur votre ordinateur.',
+          ),
         )}</div>`
       : '';
     return (
@@ -651,7 +691,12 @@ export function startTutorial(
     stagePadding: 6,
     stageRadius: 10,
     // Glide between highlighted sections instead of teleporting — the user
-    // sees WHERE on the page the next step lives.
+    // sees WHERE on the page the next step lives. The glide is the SCROLL
+    // only: driver's own popover flight (animate) is off, because tweening
+    // the popover while the page smooth-scrolls sends it on a wandering
+    // path ("it doesn't know where it's headed") — the popover now snaps to
+    // its destination and pops in there (see .sl-tour pop-in in globals.css).
+    animate: false,
     smoothScroll: true,
     popoverClass: 'sl-tour',
     // NEVER destroy on overlay clicks: the cutout can lag an animating
@@ -751,51 +796,19 @@ export function startTutorial(
     onNextClick: () => {
       const at = d.getActiveIndex() ?? 0;
       const s: TourStep | undefined = steps[at];
-      // Until-steps with a scripted action: Next = do it for me. The step
-      // does NOT advance here — the until-predicate fires once the action
-      // lands, so the follow-up steps always find the UI they describe
-      // (skipping used to show steps for a sheet that was never opened).
-      if (s?.interact === 'until' && s.doIt) {
-        try {
-          s.doIt();
-        } catch { /* non-fatal */ }
-        return;
-      }
-      // Skipping the hands-on action may leave UI open (sheet, dialog,
-      // selection mode) that would bury the next step's anchor — let the
-      // step clean up after itself. Runs BEFORE moveTo so the driver's
-      // cleanupInteract (onHighlightStarted) still cancels this step's
-      // until-interval before the closing mutation can double-advance.
+      // Hands-on steps have NO working Next: the button renders greyed-out
+      // (disableButtons) with a hover hint, and this guard also absorbs the
+      // keyboard ArrowRight, which driver routes through the same hook. The
+      // ONLY ways forward are the real action, the popover's own prefill /
+      // download buttons, and the clickable step counter.
+      if (s?.interact) return;
+      // Advancing may leave UI open (sheet, dialog, selection mode) that
+      // would bury the next step's anchor — let the step clean up after
+      // itself. Runs BEFORE moveTo so the driver's cleanupInteract
+      // (onHighlightStarted) still cancels this step's polling first.
       try {
         s?.onNext?.();
       } catch { /* non-fatal */ }
-      // Click steps: "Next" means "do it for me" — perform the real click.
-      // The synthetic click flows through the document-capture interact
-      // listener, which advances the tour and (for chain steps) writes the
-      // pending hand-off flags. Skipping instead would strand the guide:
-      // chains would die on "Done", sub-flows would lose their anchors.
-      // A disabled target (nothing selected yet, incomplete form) would
-      // dispatch nothing and wedge the tour — fall through to a plain
-      // advance instead.
-      if (s?.interact === 'click' && s.anchor) {
-        const els = Array.from(
-          document.querySelectorAll<HTMLElement>(`[data-tour="${s.anchor}"]`),
-        );
-        const el = els.find((e) => e.getClientRects().length > 0) ?? els[0];
-        // Container anchors (the dossiers table on the re-entry step)
-        // need the actionable child — the first row — not the wrapper.
-        const target = el ? (el.querySelector<HTMLElement>('tbody tr') ?? el) : null;
-        if (target && !target.matches(':disabled, [aria-disabled="true"], [data-disabled]')) {
-          // Write the hand-off flags OURSELVES — the capture listener would
-          // too, but it may not be attached when a resume drove straight
-          // into this step, and the click is about to navigate away. No
-          // advance scheduled here: chain clicks navigate (route change
-          // tears the tour down) and the listener advances the rest.
-          writeChainFlags(s, at);
-          target.click();
-          return;
-        }
-      }
       const next = at + 1;
       if (next >= steps.length) {
         completed = true;
@@ -813,7 +826,9 @@ export function startTutorial(
     // Clickable step counter: "27 / 35" turns into a number input so the
     // user can jump straight to any step instead of arrowing through.
     onPopoverRender: (
-      popover: { progress?: HTMLElement; description?: HTMLElement } | undefined,
+      popover:
+        | { progress?: HTMLElement; description?: HTMLElement; nextButton?: HTMLElement }
+        | undefined,
     ) => {
       // Steps whose copy depends on live page state recompute it here, so a
       // re-render (refresh heartbeat, resize) never restores stale text.
@@ -821,10 +836,19 @@ export function startTutorial(
       if (cur?.bodyFn && popover?.description) {
         popover.description.innerHTML = describe(cur);
       }
+      // Locked Next (hands-on steps): the hover bubble explaining WHY it is
+      // greyed out reads its text from this attribute (CSS attr()).
+      popover?.nextButton?.setAttribute(
+        'data-tip',
+        t('Réalisez l’action demandée pour continuer.'),
+      );
       const prog = popover?.progress;
-      // Journey-wide numbering: page 2 continues at 33, not at 1.
+      // Journey-wide numbering: page 2 continues at 33, not at 1. Counted
+      // from THIS run's entry step — a mid-list entry (hidden sub-flows,
+      // round-trip resumes) continues the global count seamlessly.
+      const shownIdx = (i: number) => journeyBase + Math.max(0, i - entryIdx) + 1;
       if (prog && !prog.querySelector('input')) {
-        prog.textContent = `${journeyBase + (d.getActiveIndex() ?? 0) + 1} / ${journeyBase + steps.length}`;
+        prog.textContent = `${shownIdx(d.getActiveIndex() ?? 0)} / ${journeyBase + Math.max(1, steps.length - entryIdx)}`;
       }
       if (!prog || prog.dataset.jumpWired) return;
       prog.dataset.jumpWired = '1';
@@ -832,34 +856,38 @@ export function startTutorial(
       prog.title = t('Cliquez pour aller directement à une étape');
       prog.addEventListener('click', () => {
         if (active !== d || prog.querySelector('input')) return;
-        // Global (journey-wide) numbers; jumps are clamped to the steps that
-        // live on THIS page.
-        const current = journeyBase + (d.getActiveIndex() ?? 0) + 1;
+        // Global (journey-wide) numbers; jumps are clamped to the steps
+        // this run can reach on THIS page (entry step onwards).
+        const current = shownIdx(d.getActiveIndex() ?? 0);
         const restore = prog.textContent;
         prog.textContent = '';
         const inp = document.createElement('input');
         inp.type = 'number';
         inp.min = String(journeyBase + 1);
-        inp.max = String(journeyBase + steps.length);
+        inp.max = String(journeyBase + Math.max(1, steps.length - entryIdx));
         inp.value = String(current);
         inp.className = 'sl-tour-jump';
         inp.setAttribute('aria-label', t('Numéro d’étape'));
         let done = false;
+        const toLocal = (n: number) => entryIdx + (n - journeyBase - 1);
         const finish = (target: number | null) => {
           if (done) return;
           done = true;
           prog.textContent = restore;
           if (target != null && target !== current && active === d) {
             cleanupInteract();
-            prepare(target - journeyBase - 1, () => {
+            prepare(toLocal(target), () => {
               try {
-                d.moveTo(target - journeyBase - 1);
+                d.moveTo(toLocal(target));
               } catch { /* torn down */ }
             });
           }
         };
         const clampGlobal = (n: number) =>
-          Math.max(journeyBase + 1, Math.min(journeyBase + steps.length, n));
+          Math.max(
+            journeyBase + 1,
+            Math.min(journeyBase + Math.max(1, steps.length - entryIdx), n),
+          );
         inp.addEventListener('keydown', (e) => {
           e.stopPropagation();
           if (e.key === 'Enter') {
@@ -889,13 +917,26 @@ export function startTutorial(
       element: s.anchor
         ? () => {
             // Some anchors exist twice (e.g. the Devis Garage slot renders
-            // in two sections) — prefer a visible match.
+            // in two sections) — prefer a visible match. Steps aiming at ONE
+            // instance among repeated anchors (a specific table row) narrow
+            // the choice with anchorPick.
             const els = Array.from(
               document.querySelectorAll<HTMLElement>(`[data-tour="${s.anchor}"]`),
-            );
+            ).filter((el) => el.getClientRects().length > 0 || el === document.body);
+            const all = els.length
+              ? els
+              : Array.from(
+                  document.querySelectorAll<HTMLElement>(`[data-tour="${s.anchor}"]`),
+                );
+            let picked: HTMLElement | undefined;
+            if (s.anchorPick) {
+              try {
+                picked = s.anchorPick(all) ?? undefined;
+              } catch { /* fall through */ }
+            }
             return (
-              els.find((el) => el.getClientRects().length > 0) ??
-              els[0] ??
+              picked ??
+              all[0] ??
               // Anchor vanished (collapsed layout) — fall back to a modal step.
               document.body
             );
@@ -904,6 +945,19 @@ export function startTutorial(
       onHighlighted: (el?: Element) => {
         clearStickyBars(el as HTMLElement | undefined);
         positionCursor();
+        // The popover teleports between steps (animate:false) — replay its
+        // little pop-in so each new position announces itself.
+        const pop = document.querySelector<HTMLElement>('.driver-popover');
+        if (pop) {
+          pop.style.animation = 'none';
+          void pop.offsetWidth;
+          pop.style.animation = '';
+        }
+        // Continuous resume marker: EVERY highlighted step saves its
+        // position, so anything that tears the page down under a running
+        // tour (phone-view toggle, hard reload) resumes right here instead
+        // of restarting the lab.
+        if (i < steps.length - 1) writeResumeIndex(tut.key, i);
         // Track the furthest step ever reached (by title, path-scoped) so
         // chain returns never send the user backwards.
         try {
@@ -932,14 +986,13 @@ export function startTutorial(
         if (s.chain && s.chainEager) writeChainFlags(s, i);
       },
       popover: {
-        // Interactive steps have NO Next button: the step advances only
-        // when the user actually performs the action (the until-predicate
-        // or the real click). The popover's prefill/download buttons remain
-        // as legitimate ways to complete it; the clickable step counter
-        // stays as the escape hatch.
-        showButtons: s.interact
-          ? (['previous', 'close'] as ('previous' | 'close')[])
-          : undefined,
+        // Interactive steps keep their Next button VISIBLE but locked
+        // (greyed out, hover explains why): the step advances only when the
+        // user actually performs the action — the until-predicate or the
+        // real click. driver disables the button natively; the CSS override
+        // in globals.css restores hover so the explanation bubble shows,
+        // and onNextClick's interact guard absorbs keyboard ArrowRight.
+        disableButtons: s.interact ? (['next'] as 'next'[]) : undefined,
         // Extra classes let styling/tests target hands-on steps and let CSS
         // scope per-step rules (e.g. keep the table scrollbar usable).
         popoverClass:
@@ -957,6 +1010,7 @@ export function startTutorial(
   });
 
   active = d;
+  activeKey = tut.key;
   window.addEventListener('scroll', onAnyScroll, { capture: true, passive: true });
   window.addEventListener('wheel', onWheel, { capture: true, passive: false });
   document.addEventListener('pointerdown', trackPointer, true);
@@ -1028,5 +1082,6 @@ export function pointToLauncher(onClosed?: () => void): void {
     },
   });
   active = d;
+  activeKey = null;
   d.drive(0);
 }

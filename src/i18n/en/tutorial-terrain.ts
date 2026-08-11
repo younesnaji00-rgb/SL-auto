@@ -62,7 +62,7 @@ export const TUTORIAL_TERRAIN_EN: Record<string, string> = {
   "Nouveau (pas encore ouvert), Lu (consulté), Traité (travail sauvegardé ou marqué traité via le bouton).":
     'New (not opened yet), Read (viewed), Handled (work saved or marked handled via the button).',
   "« Voir le détail » rejoue la session : observations ajoutées et modifications faites sur le dossier pendant le traitement.":
-    '“Voir le détail” replays the session: observations added and changes made to the file during handling.',
+    '“View details” replays the session: observations added and changes made to the file during handling.',
   'Suivre vos envois': 'Track what you sent',
   "L'onglet Envoyés groupe vos rappels par envoi et suit chaque destinataire : Nouveau, Lu, Traité.":
     'The Sent tab groups your reminders by send and tracks each recipient: New, Read, Handled.',

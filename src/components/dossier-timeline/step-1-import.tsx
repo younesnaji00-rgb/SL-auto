@@ -660,6 +660,7 @@ export default function Step1Import({
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 shrink-0"
+                        data-tour="dosd-import-eye"
                         onClick={() => setPreviewDoc({ url: url as string, nom: name })}
                         title={t('Aperçu')}
                       >
@@ -699,6 +700,7 @@ export default function Step1Import({
 
       <DocumentPreviewLightbox
         doc={previewDoc}
+        dataTour="dosd-import-preview"
         onClose={() => setPreviewDoc(null)}
         onDelete={() => {
           handleDeleteImportDoc();

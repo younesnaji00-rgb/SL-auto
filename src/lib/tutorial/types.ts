@@ -37,20 +37,25 @@ export interface TourStep {
   /**
    * Hands-on interaction (merged lab): 'click' advances when the user
    * really clicks the highlighted element; 'until' advances when `until()`
-   * returns true (e.g. a date actually selected). Interactive steps keep
-   * their Next button — nobody is forced to complete the action.
+   * returns true (e.g. a date actually selected). Interactive steps show a
+   * LOCKED Next button (greyed out, hover explains why): the user must
+   * perform the action — the popover's own prefill/download buttons and the
+   * clickable step counter remain the only assisted paths.
    */
   interact?: 'click' | 'until';
   until?: () => boolean;
   /**
-   * "Do it for me" for until-steps: performed when the user clicks Next
-   * WITHOUT doing the hands-on action themselves (open the sheet, run the
-   * prefill…). The step does NOT advance on Next — the until-predicate
-   * fires once the performed action lands, exactly like a manual one.
-   * Without this, skipping would show follow-up steps whose UI never
-   * appeared. (interact:'click' steps already auto-click their anchor.)
+   * Point the animated cursor at the LEFT edge of the highlighted element
+   * instead of its center — for wide bars (headers, tab strips) whose text
+   * sits on the left.
    */
-  doIt?: () => void;
+  cursorAt?: 'left' | 'center';
+  /**
+   * Choose WHICH element to highlight when the anchor matches several
+   * (e.g. one table row among many). Receives the visible matches; return
+   * undefined to fall back to the first one.
+   */
+  anchorPick?: (els: HTMLElement[]) => HTMLElement | undefined;
   /**
    * Reset-watch: while this step is active, `resetIf()` is polled — when it
    * turns true (the user tore down the state this part of the flow depends

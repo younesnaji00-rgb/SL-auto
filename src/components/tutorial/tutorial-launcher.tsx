@@ -10,25 +10,12 @@ import {
   destroyActiveTour,
   pointToLauncher,
   resetTourProgress,
+  activeTourKey,
+  JOURNEY_KEYS,
 } from '@/lib/tutorial/tour';
 import { BRAND } from '@/lib/brand';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
-
-// Every tour the comprehensive lab chains through. Cleared when the lab is
-// (re)started from scratch and when it genuinely completes, so a replay
-// walks every page from its first step.
-const JOURNEY_KEYS = [
-  'sidebar-intro',
-  'dossiers',
-  'mes-rappels',
-  'dossier-detail',
-  'assignations-atg',
-  'atg-detail',
-  'assignations-chiffrage',
-  'chiffrage-detail',
-  'devis-editor',
-];
 
 /**
  * The single tutorial entry point (bottom-right "?" button) plus the
@@ -241,7 +228,10 @@ export function TutorialLauncher() {
       if (storageKey) window.localStorage.setItem(storageKey, '1');
     } catch { /* non-fatal */ }
     setSeen(true);
-    if (pathname === '/login' || hasSavedProgress()) {
+    // A tour already running on THIS page counts as progress: layout swaps
+    // (ATG phone view) can strand it visually, and "?" must restart it at
+    // its current step — never throw the user back to the sidebar intro.
+    if (pathname === '/login' || activeTourKey() === tut.key || hasSavedProgress()) {
       startTutorial(tut);
       return;
     }

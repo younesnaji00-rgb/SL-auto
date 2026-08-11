@@ -1085,6 +1085,8 @@ export default function DossiersClientPage() {
               dossierList.slice((page - 1) * rowsPerPage, page * rowsPerPage).map(d => (
                 <TableRow
                   key={d.id}
+                  data-tour="dos-row"
+                  data-dossier-id={d.id}
                   className={cn(
                     "group hover:bg-muted/50 transition-colors [&_td]:!py-2",
                     !exportMode && "cursor-pointer",

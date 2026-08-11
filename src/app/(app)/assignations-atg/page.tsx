@@ -787,7 +787,13 @@ export default function AssignationsATGPage() {
       <div className={cn(!isMobile && 'mx-auto w-full max-w-[430px] border-x bg-background shadow-xl min-h-screen')}>
         <header className="sticky top-0 z-30 h-14 flex items-center gap-3 px-4 border-b bg-card">
           {!isMobile && (
-            <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={togglePhoneView}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 text-xs"
+              onClick={togglePhoneView}
+              data-tour="atg-desktop-toggle"
+            >
               <Monitor className="h-3.5 w-3.5" />
               {t('Vue bureau')}
             </Button>
@@ -906,8 +912,9 @@ export default function AssignationsATGPage() {
           </Badge>
         </div>
         {/* AT self-service (scan plaque → planifier / importer photos) — was
-            desktop-only; field agents work from phones, so surface it here. */}
-        {canUseAtFlows && (
+            desktop-only; field agents work from phones, so surface it here.
+            Hidden on the demo brand: the showcase drops the plate-scan flow. */}
+        {canUseAtFlows && BRAND.id !== 'demo' && (
           <div data-tour="atg-scan" className="flex items-center gap-2 px-4 py-2 border-b bg-card">
             <AtScanPlaqueFlow />
           </div>
@@ -1195,7 +1202,7 @@ export default function AssignationsATGPage() {
               {t('Vue téléphone')}
             </Button>
           )}
-          {canUseAtFlows && (
+          {canUseAtFlows && BRAND.id !== 'demo' && (
             <div data-tour="atg-scan" className="flex items-center">
               <AtScanPlaqueFlow />
             </div>

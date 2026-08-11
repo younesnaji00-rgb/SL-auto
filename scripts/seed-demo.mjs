@@ -41,20 +41,34 @@
  * domain 'demo.appraisio.app' (see src/lib/brand.ts).
  */
 
-const PROJECT_ID = process.env.PROJECT_ID;
-const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+import { pathToFileURL } from 'node:url';
 
-if (!PROJECT_ID || !ACCESS_TOKEN) {
-  console.error('FATAL: PROJECT_ID and ACCESS_TOKEN env vars are required.');
-  console.error('  PROJECT_ID=my-demo-project ACCESS_TOKEN=$(gcloud auth print-access-token) node scripts/seed-demo.mjs');
-  process.exit(1);
-}
+let PROJECT_ID = process.env.PROJECT_ID;
+let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 
 const AUTH_EMAIL_DOMAIN = 'demo.appraisio.app'; // BRAND.authEmailDomain for the demo brand
 const SHARED_PASSWORD = 'Demo2026!';
 
-const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
-const IDENTITY_BASE = `https://identitytoolkit.googleapis.com/v1/projects/${PROJECT_ID}`;
+let FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+let IDENTITY_BASE = `https://identitytoolkit.googleapis.com/v1/projects/${PROJECT_ID}`;
+
+/**
+ * Point the module at a project + token at RUNTIME — used by the in-app
+ * demo-reset API route (scripts keep configuring via env vars). Resets the
+ * write/fail counters so each run reports its own numbers.
+ */
+export function configureSeed({ projectId, accessToken }) {
+  PROJECT_ID = projectId;
+  ACCESS_TOKEN = accessToken;
+  FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+  IDENTITY_BASE = `https://identitytoolkit.googleapis.com/v1/projects/${projectId}`;
+  failCount = 0;
+  writeCount = 0;
+}
+
+export function seedCounts() {
+  return { written: writeCount, failed: failCount };
+}
 
 let failCount = 0;
 let writeCount = 0;
@@ -94,7 +108,7 @@ function ts(iso) {
 // period filter to TODAY (Jour preset), so the newest workflow events are
 // anchored to the seed run time instead of fixed dates. Doc ids stay stable —
 // re-running the seed only refreshes the timestamps (still idempotent).
-const NOW = new Date();
+let NOW = new Date();
 
 /** NOW minus `h` hours (fractions allowed). */
 function hoursAgo(h) {
@@ -426,7 +440,11 @@ function buildDossier(uids, d) {
   return base;
 }
 
-const DOSSIERS = [
+export function buildDossiersData() {
+  // Relative dates (hoursAgo/daysAgo/inDays) must be computed at SEED time,
+  // not at module import — a warm server process may be days old.
+  NOW = new Date();
+  return [
   {
     id: 'demo-dossier-01',
     statut: 'Création dossier',
@@ -714,7 +732,8 @@ const DOSSIERS = [
       { action: 'Rapport déposé', at: hoursAgo(1), by: 'manager', details: 'Rapport réforme déposé' },
     ],
   },
-];
+  ];
+}
 
 // Planification doc shape mirrors the addDoc payload in
 // src/app/(app)/dossiers/[id]/modal-planification.tsx.
@@ -750,17 +769,96 @@ function buildPlanification(uids, d) {
 // Main
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function main() {
-  console.log(`Seeding demo project '${PROJECT_ID}' (auth domain ${AUTH_EMAIL_DOMAIN})`);
-
-  // 1. Auth users --------------------------------------------------------
-  console.log('\n[1/6] Firebase Auth users');
+/**
+ * Resolve the four demo accounts' uids (creating any missing auth user).
+ * No profile-doc writes here — the reset route must never clobber a live
+ * users/{uid} doc (that would erase the just-claimed single-session fields).
+ */
+export async function resolveDemoUids() {
   const uids = {}; // key → uid
   for (const u of DEMO_USERS) {
     const email = generateEmail(u.nom);
     u.email = email;
     uids[u.key] = await createOrLookupAuthUser({ nom: u.nom, email });
   }
+  return uids;
+}
+
+export function demoManagerEmail() {
+  return generateEmail('Manager Demo');
+}
+
+/**
+ * Phase 6 on its own: the 8 sample dossiers + planifications + workflow +
+ * historique. The in-app demo-reset route calls exactly this after wiping
+ * user-created data — options/holidays/users are left untouched there.
+ */
+export async function seedSampleDossiers(uids) {
+  for (const d of buildDossiersData()) {
+    await writeDoc(`dossiers/${d.id}`, buildDossier(uids, d));
+    if (d.planification) {
+      await writeDoc(`dossiers/${d.id}/planifications/planif-01`, buildPlanification(uids, d));
+    }
+    // Workflow audit logs (dossiers/{id}/workflow) — shape mirrors
+    // logWorkflow() in src/app/(app)/dossiers/[id]/log-historique.ts. The
+    // monitoring page reads collectionGroup('workflow') for per-user step
+    // attribution: photoAuthor() matches actions containing "photo" plus
+    // "avant" / "en cours" / "après", so keep those words in photo actions.
+    const wf = d.workflow || [];
+    for (let i = 0; i < wf.length; i++) {
+      const w = wf[i];
+      const who = DEMO_USERS.find((u) => u.key === (w.by || 'manager'));
+      await writeDoc(`dossiers/${d.id}/workflow/wf-${String(i + 1).padStart(2, '0')}`, {
+        action: w.action,
+        date: ts(w.at),
+        user: who.email, // logWorkflow stores the author email in `user`
+        userId: uids[who.key],
+        status: 'done',
+        dossierRef: d.refExpert,
+        details: w.details || '',
+        userNom: who.nom,
+      });
+    }
+
+    // Status-change audit trail (dossiers/{id}/historique, type 'statut') —
+    // shape mirrors logHistorique() in log-historique.ts. The list page's
+    // status-pill sheet (StatusHistorySheet) reads EXACTLY this; without it
+    // the "step sequencing" demo moment opens an empty sheet. The ladder is
+    // derived from each dossier's real lifecycle dates so chronology holds.
+    const manager = DEMO_USERS.find((u) => u.key === 'manager');
+    const ladder = [
+      ['Création dossier', d.createdAt, 'Dossier créé'],
+      d.dateDemandeAvant && ['Planification programmée avant', d.dateDemandeAvant, 'Mission terrain programmée'],
+      d.datePhotosAvant && ['Planification expertise avant', d.datePhotosAvant, 'Photos avant réparation reçues'],
+      d.dateChiffrage && ['Chiffrage en cours', d.dateChiffrage, 'Dossier assigné au chiffrage'],
+      d.firstAccordReachedAt && ["Proposition d'accord", d.firstAccordReachedAt, 'Proposition du chiffreur'],
+    ].filter(Boolean);
+    // End on the dossier's current status when the ladder didn't reach it.
+    if (!ladder.some(([s]) => s === d.statut)) {
+      ladder.push([d.statut, d.lastStatusAt ?? d.updatedAt ?? d.createdAt, d.lastStatusDetails || 'Changement de statut']);
+    }
+    ladder.sort((a, b) => new Date(a[1]) - new Date(b[1]));
+    for (let i = 0; i < ladder.length; i++) {
+      const [statut, at, details] = ladder[i];
+      await writeDoc(`dossiers/${d.id}/historique/hist-statut-${String(i + 1).padStart(2, '0')}`, {
+        action: statut,
+        date: ts(at),
+        user: manager.email,
+        userNom: manager.nom,
+        details,
+        type: 'statut',
+      });
+    }
+  }
+
+}
+
+async function main() {
+  console.log(`Seeding demo project '${PROJECT_ID}' (auth domain ${AUTH_EMAIL_DOMAIN})`);
+
+  // 1. Auth users --------------------------------------------------------
+  console.log('\n[1/6] Firebase Auth users');
+  const uids = await resolveDemoUids();
 
   // 2. users/{uid} profile docs ------------------------------------------
   // Shape mirrors utilisateurs/client-page.tsx onSubmit setDoc.
@@ -866,63 +964,7 @@ async function main() {
 
   // 6. Sample dossiers -------------------------------------------------------
   console.log('\n[6/6] Sample dossiers');
-  for (const d of DOSSIERS) {
-    await writeDoc(`dossiers/${d.id}`, buildDossier(uids, d));
-    if (d.planification) {
-      await writeDoc(`dossiers/${d.id}/planifications/planif-01`, buildPlanification(uids, d));
-    }
-    // Workflow audit logs (dossiers/{id}/workflow) — shape mirrors
-    // logWorkflow() in src/app/(app)/dossiers/[id]/log-historique.ts. The
-    // monitoring page reads collectionGroup('workflow') for per-user step
-    // attribution: photoAuthor() matches actions containing "photo" plus
-    // "avant" / "en cours" / "après", so keep those words in photo actions.
-    const wf = d.workflow || [];
-    for (let i = 0; i < wf.length; i++) {
-      const w = wf[i];
-      const who = DEMO_USERS.find((u) => u.key === (w.by || 'manager'));
-      await writeDoc(`dossiers/${d.id}/workflow/wf-${String(i + 1).padStart(2, '0')}`, {
-        action: w.action,
-        date: ts(w.at),
-        user: who.email, // logWorkflow stores the author email in `user`
-        userId: uids[who.key],
-        status: 'done',
-        dossierRef: d.refExpert,
-        details: w.details || '',
-        userNom: who.nom,
-      });
-    }
-
-    // Status-change audit trail (dossiers/{id}/historique, type 'statut') —
-    // shape mirrors logHistorique() in log-historique.ts. The list page's
-    // status-pill sheet (StatusHistorySheet) reads EXACTLY this; without it
-    // the "step sequencing" demo moment opens an empty sheet. The ladder is
-    // derived from each dossier's real lifecycle dates so chronology holds.
-    const manager = DEMO_USERS.find((u) => u.key === 'manager');
-    const ladder = [
-      ['Création dossier', d.createdAt, 'Dossier créé'],
-      d.dateDemandeAvant && ['Planification programmée avant', d.dateDemandeAvant, 'Mission terrain programmée'],
-      d.datePhotosAvant && ['Planification expertise avant', d.datePhotosAvant, 'Photos avant réparation reçues'],
-      d.dateChiffrage && ['Chiffrage en cours', d.dateChiffrage, 'Dossier assigné au chiffrage'],
-      d.firstAccordReachedAt && ["Proposition d'accord", d.firstAccordReachedAt, 'Proposition du chiffreur'],
-    ].filter(Boolean);
-    // End on the dossier's current status when the ladder didn't reach it.
-    if (!ladder.some(([s]) => s === d.statut)) {
-      ladder.push([d.statut, d.lastStatusAt ?? d.updatedAt ?? d.createdAt, d.lastStatusDetails || 'Changement de statut']);
-    }
-    ladder.sort((a, b) => new Date(a[1]) - new Date(b[1]));
-    for (let i = 0; i < ladder.length; i++) {
-      const [statut, at, details] = ladder[i];
-      await writeDoc(`dossiers/${d.id}/historique/hist-statut-${String(i + 1).padStart(2, '0')}`, {
-        action: statut,
-        date: ts(at),
-        user: manager.email,
-        userNom: manager.nom,
-        details,
-        type: 'statut',
-      });
-    }
-  }
-
+  await seedSampleDossiers(uids);
   // Summary -------------------------------------------------------------------
   console.log('\n──────────────────────────────────────────');
   console.log(`Done. ${writeCount} document(s) written, ${failCount} failure(s).`);
@@ -936,7 +978,24 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error('\nFATAL:', err.message || err);
-  process.exit(1);
-});
+// Run only when invoked as a script — the demo-reset API route imports this
+// module and must not trigger a full seed at import time.
+const invokedAsCli = (() => {
+  try {
+    return !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+  } catch {
+    return false;
+  }
+})();
+
+if (invokedAsCli) {
+  if (!PROJECT_ID || !ACCESS_TOKEN) {
+    console.error('FATAL: PROJECT_ID and ACCESS_TOKEN env vars are required.');
+    console.error('  PROJECT_ID=my-demo-project ACCESS_TOKEN=$(gcloud auth print-access-token) node scripts/seed-demo.mjs');
+    process.exit(1);
+  }
+  main().catch((err) => {
+    console.error('\nFATAL:', err.message || err);
+    process.exit(1);
+  });
+}

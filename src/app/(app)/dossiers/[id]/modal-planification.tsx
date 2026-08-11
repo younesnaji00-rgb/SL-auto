@@ -562,7 +562,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 disabledDates={(date) => date < startOfToday()}
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2" data-tour="plan-time">
               <Label>{t('Heure RDV')}</Label>
               <div className="relative">
                 <Clock className="absolute left-3 top-3 h-4 w-4 text-primary" />

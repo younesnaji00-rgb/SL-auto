@@ -69,11 +69,6 @@ export const atgDetailTutorial: PageTutorial = {
         ['dosd-slot-pv', 'dosd-slot-carte', 'dosd-slot-attestation', 'dosd-slot-km', 'dosd-slot-vin'].every(
           (a) => !!document.querySelector(`[data-tour="atgd-docs"] [data-tour="${a}"] ul li`),
         ),
-      // Next without uploading: run the prefill — the 5 documents gate the
-      // "Assign to estimating" button later in the journey.
-      doIt: () => {
-        document.querySelector<HTMLElement>('.driver-popover .sl-tour-prefill')?.click();
-      },
       links: [
         { href: '/demo-kit/{lang}/accident-report.pdf', label: 'Constat (PDF)', download: true },
         { href: '/demo-kit/{lang}/vehicle-registration.pdf', label: 'Carte grise (PDF)', download: true },

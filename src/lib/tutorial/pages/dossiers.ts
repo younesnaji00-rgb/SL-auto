@@ -1,4 +1,5 @@
 import type { PageTutorial } from '../types';
+import { treatedDossierKey } from '../keys';
 
 // Reset-watch for the reminder sub-flow: true once the selection toolbar was
 // SEEN and is now gone (the user clicked « Annuler ») — the reminder steps
@@ -31,7 +32,7 @@ export const dossiersTutorial: PageTutorial = {
     {
       title: 'Gestion des dossiers',
       body:
-        "Tous vos dossiers, de la création à la facture.\nÀ la création, l'IA lit le document de mission et remplit le dossier pour vous.",
+        "Votre vue d'ensemble : chaque ligne du tableau est un dossier.\nD'un coup d'œil : où chacun est rendu (son statut), qui a fait la dernière action et quand, la compagnie, l'échéance… et des filtres dédiés pour retrouver n'importe quoi en une seconde.\nDe la création à la facture, tout part d'ici — et à la création, l'IA lit le document de mission et remplit le dossier pour vous.",
     },
     {
       // Presentational: interacting with the field must NOT advance the
@@ -75,11 +76,6 @@ export const dossiersTutorial: PageTutorial = {
       side: 'bottom',
       interact: 'until',
       until: () => !!document.querySelector('[data-tour="dos-status-sheet"]'),
-      // Next without clicking: open the sheet for them — the next step
-      // describes the OPEN sheet and must never show over a closed one.
-      doIt: () => {
-        document.querySelector<HTMLElement>('[data-tour="dos-statut-cell"]')?.click();
-      },
     },
     {
       anchor: 'dos-status-sheet',
@@ -193,25 +189,6 @@ export const dossiersTutorial: PageTutorial = {
         return false;
       },
       resetTo: 'Envoyez la demande',
-      // Next = send it for them: the Mes Rappels detour right after needs a
-      // real rappel to exist. Self-recipient if none picked; if the dialog
-      // was closed in the meantime, reopen it first.
-      doIt: () => {
-        const dlg = document.querySelector<HTMLElement>('[data-tour="dos-sendto-dialog"]');
-        if (!dlg) {
-          document.querySelector<HTMLElement>('[data-tour="dos-send-to"]')?.click();
-          return;
-        }
-        if (!dlg.querySelector('[role="checkbox"][data-state="checked"]')) {
-          const labels = Array.from(dlg.querySelectorAll<HTMLElement>('label'));
-          (labels.find((l) => /\((vous|you)\)/i.test(l.textContent || '')) ?? labels[0])?.click();
-        }
-        window.setTimeout(() => {
-          Array.from(dlg.querySelectorAll<HTMLButtonElement>('button'))
-            .find((b) => /(Envoyer|Send)\s*\(/.test(b.textContent || ''))
-            ?.click();
-        }, 400);
-      },
     },
     {
       anchor: 'nav-/mes-rappels',
@@ -223,12 +200,9 @@ export const dossiersTutorial: PageTutorial = {
       chain: 'mes-rappels',
       chainResume: true,
     },
-    {
-      anchor: 'dos-table',
-      title: 'La liste',
-      body: 'Chaque ligne est un dossier.',
-      side: 'top',
-    },
+    // (The old "each row is a file" stop lived here — its content moved up
+    // into the page intro, so the return from the reminder loop lands
+    // straight on the horizontal-scroll step.)
     {
       anchor: 'dos-hscroll',
       title: 'Défilement horizontal',
@@ -290,6 +264,28 @@ export const dossiersTutorial: PageTutorial = {
       // Written at highlight time: the dossier TAB is a valid route back
       // too, not just the table row.
       chainEager: true,
+    },
+    // Hidden re-entry — reached via `chainAt` from the end of the reminder
+    // loop: back from Mes Rappels THROUGH File Management (the normal path),
+    // the treated dossier's own row is highlighted to reopen it.
+    {
+      anchor: 'dos-row',
+      title: 'Rouvrez le dossier traité',
+      body:
+        'Le dossier de votre rappel est ici, dans la liste — sa ligne est entourée.\nCliquez dessus pour le rouvrir et voir vos modifications sur le vrai dossier.',
+      side: 'top',
+      dynamic: true,
+      interact: 'click',
+      anchorPick: (els) => {
+        try {
+          const id = window.localStorage.getItem(treatedDossierKey());
+          return id ? els.find((el) => el.dataset.dossierId === id) : undefined;
+        } catch {
+          return undefined;
+        }
+      },
+      chain: 'dossier-detail',
+      chainAt: 'Vos modifications sont publiées',
     },
   ],
   // Ends on the click that creates and opens the dossier — the guide (and
