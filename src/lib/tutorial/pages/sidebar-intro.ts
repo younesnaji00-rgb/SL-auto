@@ -1,9 +1,11 @@
 import type { PageTutorial } from '../types';
 
 /**
- * App-wide intro: explains the sidebar rows in the order a FILE actually
- * travels, then hands off to the File Management walkthrough. Started by
- * the welcome lightbox and the sidebar "?" button (not route-matched).
+ * App-wide intro: walks the sidebar TOP TO BOTTOM, exactly in the order the
+ * rows appear on screen — except Gestion des dossiers, kept for last because
+ * the hand-off click into its walkthrough ends the intro. Rows absent for
+ * the current role are auto-skipped (anchor presence filter). Started by the
+ * welcome lightbox and the "?" button (not route-matched).
  */
 export const sidebarIntroTutorial: PageTutorial = {
   key: 'sidebar-intro',
@@ -14,31 +16,8 @@ export const sidebarIntroTutorial: PageTutorial = {
   steps: [
     {
       title: 'Bienvenue !',
-      body: "Faisons le tour du menu, dans l'ordre de vie d'un dossier. 1 minute, promis.",
-    },
-    {
-      anchor: 'nav-/dossiers',
-      title: 'Gestion des dossiers — le cœur',
-      body: "Tous les dossiers vivent ici, de la création à la facture. Tout le reste s'y rattache.",
-      side: 'right',
-    },
-    {
-      anchor: 'nav-/assignations-atg',
-      title: 'Ensuite : les photos',
-      body: 'Les missions photo des agents sur le terrain (avant, pendant, après réparations).',
-      side: 'right',
-    },
-    {
-      anchor: 'nav-/assignations-chiffrage',
-      title: 'Puis : le chiffrage',
-      body: 'Les devis des garages, à vérifier par vos chiffreurs.',
-      side: 'right',
-    },
-    {
-      anchor: 'nav-/mes-rappels',
-      title: 'Les rappels',
-      body: "Les demandes échangées entre collègues sur un dossier.",
-      side: 'right',
+      body:
+        "Faisons le tour du menu, de haut en bas — en gardant le meilleur pour la fin. 1 minute, promis.",
     },
     {
       anchor: 'nav-/dashboard',
@@ -53,9 +32,33 @@ export const sidebarIntroTutorial: PageTutorial = {
       side: 'right',
     },
     {
+      anchor: 'nav-/mes-rappels',
+      title: 'Les rappels',
+      body: "Les demandes échangées entre collègues sur un dossier.",
+      side: 'right',
+    },
+    {
       anchor: 'nav-/consultation',
       title: 'La recherche',
       body: 'Retrouver un dossier en lecture seule, sans risque.',
+      side: 'right',
+    },
+    {
+      anchor: 'nav-/compagnies',
+      title: 'Les compagnies',
+      body: "Les compagnies d'assurance avec lesquelles vous travaillez, et leurs dossiers.",
+      side: 'right',
+    },
+    {
+      anchor: 'nav-/assignations-chiffrage',
+      title: 'Les chiffrages',
+      body: 'Les devis des garages, à vérifier par vos chiffreurs.',
+      side: 'right',
+    },
+    {
+      anchor: 'nav-/assignations-atg',
+      title: 'Le terrain',
+      body: 'Les missions photo des agents sur le terrain (avant, pendant, après réparations).',
       side: 'right',
     },
     {
@@ -66,14 +69,14 @@ export const sidebarIntroTutorial: PageTutorial = {
     },
     {
       anchor: 'nav-/dossiers',
-      title: 'À vous de jouer',
-      body: 'Cliquez sur « Gestion des dossiers » pour continuer la visite là-bas.',
+      title: 'Gestion des dossiers — le cœur',
+      body:
+        "Tous les dossiers vivent ici, de la création à la facture — le meilleur pour la fin.\nCliquez sur « Gestion des dossiers » pour continuer la visite là-bas.",
       side: 'right',
       interact: 'click',
       // The launchers pre-write the pending flag too (for their same-page
       // fallbacks); declaring the chain here as well lets the engine's
-      // Next/Done button perform the hand-off click instead of stranding
-      // the guided journey on the dashboard.
+      // hand-off machinery write the flags when the user clicks.
       chain: 'dossiers',
     },
   ],

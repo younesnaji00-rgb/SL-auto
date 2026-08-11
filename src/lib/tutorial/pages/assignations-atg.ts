@@ -12,7 +12,8 @@ export const assignationsAtgTutorial: PageTutorial = {
   steps: [
     {
       title: 'Mes missions terrain',
-      body: 'Vos rendez-vous photos : Avant, En cours et Après réparation.',
+      body:
+        "Vos rendez-vous photos : Avant, En cours et Après réparation.\nSur ordinateur, « Vue téléphone » (en haut) affiche l'interface exacte que l'agent voit sur son téléphone.",
     },
     {
       anchor: 'atg-gps',

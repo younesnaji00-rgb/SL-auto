@@ -8,6 +8,23 @@ import type { PageTutorial, TourStep } from './types';
 
 let active: Driver | null = null;
 
+// Tours that belong to the chained guided journey. Only these share the
+// journey-wide CONTINUOUS step numbering (page 2 starts at 33, not at 1) —
+// standalone tours (login) keep their own local count.
+export const JOURNEY_KEYS = [
+  'sidebar-intro',
+  'dossiers',
+  'mes-rappels',
+  'dossier-detail',
+  'assignations-atg',
+  'atg-detail',
+  'assignations-chiffrage',
+  'chiffrage-detail',
+  'devis-editor',
+];
+
+const journeyBaseKey = () => `${BRAND.storagePrefix}.tour.journeyBase`;
+
 /**
  * Shared closing step appended to EVERY page tour: the product's strong
  * points, the customization pitch, and the pointer to per-page tutorials.
@@ -76,6 +93,9 @@ function writeResumeIndex(key: string, index: number | null): void {
  */
 export function resetTourProgress(keys: string[]): void {
   for (const k of keys) writeResumeIndex(k, null);
+  try {
+    window.localStorage.removeItem(journeyBaseKey());
+  } catch { /* non-fatal */ }
 }
 
 // Read a `value@@path`-scoped marker; null when absent or for another page.
@@ -155,6 +175,17 @@ export function startTutorial(
   // Every tour ends on the shared strong-points/customization step —
   // except chaining tours (sidebar intro), which end on a hand-off click.
   if (!tut.noClosing) steps.push(CLOSING_STEP);
+  // Journey-wide continuous numbering: this page's steps continue the count
+  // of everything already walked (hand-offs bump the stored base). A fresh
+  // lab start resets to zero; non-journey tours always count locally.
+  const isJourneyTour = JOURNEY_KEYS.includes(tut.key);
+  let journeyBase = 0;
+  try {
+    if (opts?.fresh) window.localStorage.setItem(journeyBaseKey(), '0');
+    else if (isJourneyTour) {
+      journeyBase = parseInt(window.localStorage.getItem(journeyBaseKey()) ?? '0', 10) || 0;
+    }
+  } catch { /* non-fatal */ }
   // eslint-disable-next-line no-console
   console.debug('[tour] start', tut.key, 'steps', steps.length);
   // Manual starts (the "?" buttons) always begin at the very first step —
@@ -293,6 +324,10 @@ export function startTutorial(
     if (!s.chain) return;
     try {
       window.localStorage.setItem(`${BRAND.storagePrefix}.tour.pending`, s.chain);
+      // The next page continues the count right after this hand-off step.
+      if (isJourneyTour) {
+        window.localStorage.setItem(journeyBaseKey(), String(journeyBase + i + 1));
+      }
       // Optional: enter the target tour at a specific step. Written from
       // THIS page for the target page → wildcard path scope.
       if (s.chainAt) window.localStorage.setItem(posTitleKey(s.chain), `${s.chainAt}@@*`);
@@ -412,11 +447,51 @@ export function startTutorial(
   // document.body and the resulting re-highlight silently clears the step's
   // interact listeners — the tour stalls with no way forward. The step's own
   // advance (moveTo) re-highlights properly instead.
+  // Animated pointer aimed at the highlighted area — the visual companion of
+  // the contour highlight (there is no dark overlay anymore, so the cursor
+  // is what pulls the eye to the right spot). Positioned above the element
+  // pointing down, or below pointing up when the element hugs the top edge.
+  let cursorEl: HTMLDivElement | null = null;
+  const ensureCursor = (): HTMLDivElement => {
+    if (cursorEl && cursorEl.isConnected) return cursorEl;
+    cursorEl = document.createElement('div');
+    cursorEl.className = 'sl-tour-cursor';
+    cursorEl.innerHTML =
+      '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true">' +
+      '<path d="M12 22 L4.5 11 H9 V2.5 H15 V11 H19.5 Z" fill="#0f766e" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="round"/>' +
+      '</svg>';
+    document.body.appendChild(cursorEl);
+    return cursorEl;
+  };
+  const positionCursor = () => {
+    if (active !== d) return;
+    const el = document.querySelector<HTMLElement>('.driver-active-element');
+    const c = ensureCursor();
+    if (!el || el === document.body) {
+      c.style.display = 'none';
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    if ((r.width === 0 && r.height === 0) || r.bottom < 0 || r.top > window.innerHeight) {
+      c.style.display = 'none';
+      return;
+    }
+    const below = r.top < 84;
+    const x = Math.min(Math.max(r.left + r.width / 2, 20), window.innerWidth - 20);
+    const y = below
+      ? Math.min(r.bottom + 8, window.innerHeight - 40)
+      : Math.max(r.top - 40, 6);
+    c.classList.toggle('sl-tour-cursor-up', below);
+    c.style.display = 'block';
+    c.style.left = `${x}px`;
+    c.style.top = `${y}px`;
+  };
   const safeRefresh = () => {
     try {
       if (active !== d) return;
       if (!document.querySelector('.driver-active-element')) return;
       d.refresh();
+      positionCursor();
     } catch { /* torn down */ }
   };
   // While the tour dims the page, wheel events land on the OVERLAY — whose
@@ -454,6 +529,7 @@ export function startTutorial(
     scrollRaf = window.requestAnimationFrame(() => {
       scrollRaf = 0;
       safeRefresh();
+      positionCursor();
     });
   };
   // Dialogs/sheets ANIMATE into place: driver captures their rect mid-
@@ -567,7 +643,11 @@ export function startTutorial(
 
   const d = driver({
     showProgress: true,
-    overlayOpacity: 0.55,
+    // No darkened backdrop: the highlight is a colored CONTOUR around the
+    // target (see .driver-active-element in globals.css) plus the animated
+    // cursor. The overlay stays — fully transparent — so clicks outside the
+    // highlighted area are still blocked while scrolling remains possible.
+    overlayOpacity: 0,
     stagePadding: 6,
     stageRadius: 10,
     // Glide between highlighted sections instead of teleporting — the user
@@ -656,6 +736,8 @@ export function startTutorial(
       // eslint-disable-next-line no-console
       console.debug('[tour] destroyed', tut.key, 'at', d.getActiveIndex(), 'completed', completed);
       cleanupInteract();
+      cursorEl?.remove();
+      cursorEl = null;
       window.removeEventListener('scroll', onAnyScroll, true);
       window.removeEventListener('wheel', onWheel, true);
       document.removeEventListener('pointerdown', trackPointer, true);
@@ -740,19 +822,25 @@ export function startTutorial(
         popover.description.innerHTML = describe(cur);
       }
       const prog = popover?.progress;
+      // Journey-wide numbering: page 2 continues at 33, not at 1.
+      if (prog && !prog.querySelector('input')) {
+        prog.textContent = `${journeyBase + (d.getActiveIndex() ?? 0) + 1} / ${journeyBase + steps.length}`;
+      }
       if (!prog || prog.dataset.jumpWired) return;
       prog.dataset.jumpWired = '1';
       prog.style.cursor = 'pointer';
       prog.title = t('Cliquez pour aller directement à une étape');
       prog.addEventListener('click', () => {
         if (active !== d || prog.querySelector('input')) return;
-        const current = (d.getActiveIndex() ?? 0) + 1;
+        // Global (journey-wide) numbers; jumps are clamped to the steps that
+        // live on THIS page.
+        const current = journeyBase + (d.getActiveIndex() ?? 0) + 1;
         const restore = prog.textContent;
         prog.textContent = '';
         const inp = document.createElement('input');
         inp.type = 'number';
-        inp.min = '1';
-        inp.max = String(steps.length);
+        inp.min = String(journeyBase + 1);
+        inp.max = String(journeyBase + steps.length);
         inp.value = String(current);
         inp.className = 'sl-tour-jump';
         inp.setAttribute('aria-label', t('Numéro d’étape'));
@@ -763,19 +851,21 @@ export function startTutorial(
           prog.textContent = restore;
           if (target != null && target !== current && active === d) {
             cleanupInteract();
-            prepare(target - 1, () => {
+            prepare(target - journeyBase - 1, () => {
               try {
-                d.moveTo(target - 1);
+                d.moveTo(target - journeyBase - 1);
               } catch { /* torn down */ }
             });
           }
         };
+        const clampGlobal = (n: number) =>
+          Math.max(journeyBase + 1, Math.min(journeyBase + steps.length, n));
         inp.addEventListener('keydown', (e) => {
           e.stopPropagation();
           if (e.key === 'Enter') {
             e.preventDefault();
             const n = parseInt(inp.value, 10);
-            finish(Number.isFinite(n) ? Math.max(1, Math.min(steps.length, n)) : null);
+            finish(Number.isFinite(n) ? clampGlobal(n) : null);
           } else if (e.key === 'Escape') {
             e.preventDefault();
           }
@@ -788,7 +878,7 @@ export function startTutorial(
         });
         inp.addEventListener('blur', () => {
           const n = parseInt(inp.value, 10);
-          finish(Number.isFinite(n) ? Math.max(1, Math.min(steps.length, n)) : null);
+          finish(Number.isFinite(n) ? clampGlobal(n) : null);
         });
         prog.appendChild(inp);
         inp.focus();
@@ -813,6 +903,7 @@ export function startTutorial(
         : undefined,
       onHighlighted: (el?: Element) => {
         clearStickyBars(el as HTMLElement | undefined);
+        positionCursor();
         // Track the furthest step ever reached (by title, path-scoped) so
         // chain returns never send the user backwards.
         try {
@@ -841,8 +932,14 @@ export function startTutorial(
         if (s.chain && s.chainEager) writeChainFlags(s, i);
       },
       popover: {
-        // Interactive steps keep their Next button too — the copy invites
-        // the real action, but nobody is ever forced to complete it.
+        // Interactive steps have NO Next button: the step advances only
+        // when the user actually performs the action (the until-predicate
+        // or the real click). The popover's prefill/download buttons remain
+        // as legitimate ways to complete it; the clickable step counter
+        // stays as the escape hatch.
+        showButtons: s.interact
+          ? (['previous', 'close'] as ('previous' | 'close')[])
+          : undefined,
         // Extra classes let styling/tests target hands-on steps and let CSS
         // scope per-step rules (e.g. keep the table scrollbar usable).
         popoverClass:

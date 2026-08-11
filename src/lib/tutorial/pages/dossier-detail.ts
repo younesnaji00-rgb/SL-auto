@@ -387,6 +387,23 @@ export const dossierDetailTutorial: PageTutorial = {
       ],
     },
     {
+      anchor: 'dosd-step-11',
+      title: 'Les accords suivants',
+      body: 'Cliquez sur « 2ème accord et + ».',
+      side: 'bottom',
+      interact: 'click',
+    },
+    {
+      anchor: 'dosd-accord2',
+      click: 'dosd-step-11',
+      delay: 600,
+      title: 'La sérialisation des accords',
+      body:
+        "Un désaccord après le 1er accord ? Le bouton « + » sur une carte crée le devis 2ème accord — puis 3ème, et ainsi de suite : chaque itération est numérotée et archivée.\nC'est une nouvelle itération de l'accord (ou de la proposition) du chiffreur : son tableau reste le MÊME d'une version à l'autre, il reprend exactement là où il s'était arrêté.\nRien à faire ici pour la démo — c'est le circuit des désaccords.",
+      side: 'top',
+      dynamic: true,
+    },
+    {
       anchor: 'dosd-step-10',
       title: 'Après réparation',
       body: 'Cliquez sur « Planification après ».',

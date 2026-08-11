@@ -275,6 +275,46 @@ export const DEMO_KIT_EN: Record<string, string> = {
   "L'accord enregistré arrive tout seul dans le dossier.\nCliquez sur l'onglet du dossier en haut : la visite y reprend.":
     'The saved agreement lands in the file by itself.\nClick the file’s tab at the top: the tour resumes there.',
 
+  // ── Sidebar intro (visual order, File Management last) ──
+  'Faisons le tour du menu, de haut en bas — en gardant le meilleur pour la fin. 1 minute, promis.':
+    'Let’s tour the menu, top to bottom — saving the best for last. One minute, promise.',
+  'Les compagnies': 'The insurers',
+  "Les compagnies d'assurance avec lesquelles vous travaillez, et leurs dossiers.":
+    'The insurance companies you work with, and their files.',
+  'Les chiffrages': 'Estimating',
+  'Le terrain': 'The field',
+  "Tous les dossiers vivent ici, de la création à la facture — le meilleur pour la fin.\nCliquez sur « Gestion des dossiers » pour continuer la visite là-bas.":
+    'Every file lives here, from creation to invoice — the best for last.\nClick “File Management” to continue the tour there.',
+
+  // ── 2ème accord et + (cardinal serialization) ──
+  'Les accords suivants': 'The follow-up agreements',
+  'Cliquez sur « 2ème accord et + ».': 'Click “2nd agreement and up”.',
+  'La sérialisation des accords': 'How agreements are serialized',
+  "Un désaccord après le 1er accord ? Le bouton « + » sur une carte crée le devis 2ème accord — puis 3ème, et ainsi de suite : chaque itération est numérotée et archivée.\nC'est une nouvelle itération de l'accord (ou de la proposition) du chiffreur : son tableau reste le MÊME d'une version à l'autre, il reprend exactement là où il s'était arrêté.\nRien à faire ici pour la démo — c'est le circuit des désaccords.":
+    'A dispute after the 1st agreement? The “+” button on a card creates the 2nd-agreement estimate — then 3rd, and so on: every iteration is numbered and archived.\nIt is a new iteration of the estimator’s agreement (or proposal): their table stays the SAME from one version to the next — they pick up exactly where they left off.\nNothing to do here for the demo — this is the dispute circuit.',
+  'Devis 1er accord': 'Estimate — 1st agreement',
+  'Facture 1er accord': 'Invoice — 1st agreement',
+  'Devis 2ème accord': 'Estimate — 2nd agreement',
+  'Facture 2ème accord': 'Invoice — 2nd agreement',
+  'Devis 3ème accord': 'Estimate — 3rd agreement',
+  'Facture 3ème accord': 'Invoice — 3rd agreement',
+  'Devis 4ème accord': 'Estimate — 4th agreement',
+  'Facture 4ème accord': 'Invoice — 4th agreement',
+  "1ère proposition d'accord (devis)": '1st proposed agreement (estimate)',
+  "1ère proposition d'accord (facture)": '1st proposed agreement (invoice)',
+  "2ème proposition d'accord (devis)": '2nd proposed agreement (estimate)',
+  "2ème proposition d'accord (facture)": '2nd proposed agreement (invoice)',
+  "3ème proposition d'accord (devis)": '3rd proposed agreement (estimate)',
+  "3ème proposition d'accord (facture)": '3rd proposed agreement (invoice)',
+  'En attente de chiffrage : remplissez ce slot avant de créer le suivant.':
+    'Awaiting estimating: fill this slot before creating the next one.',
+
+  // ── ATG phone-view toggle ──
+  'Vue téléphone': 'Phone view',
+  'Vue bureau': 'Desktop view',
+  "Vos rendez-vous photos : Avant, En cours et Après réparation.\nSur ordinateur, « Vue téléphone » (en haut) affiche l'interface exacte que l'agent voit sur son téléphone.":
+    'Your photo appointments: Before, In progress and After repairs.\nOn a computer, “Phone view” (at the top) shows the exact interface the agent sees on their phone.',
+
   // ── Seeded history entries (dossiers/{id}/historique details) ──
   // Fixed strings written by scripts/seed-demo.mjs; the interpolated ones the
   // app writes at runtime are handled by src/lib/audit-rules.ts instead.

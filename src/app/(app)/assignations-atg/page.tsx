@@ -9,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { UserCheck, Calendar, MapPin, X, ChevronDown, Clock, CheckCircle2, Users, List, SlidersHorizontal, Navigation } from 'lucide-react';
+import { UserCheck, Calendar, MapPin, X, ChevronDown, Clock, CheckCircle2, Users, List, SlidersHorizontal, Navigation, Smartphone, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
@@ -24,6 +24,7 @@ import {
 import { format, startOfDay, addDays } from 'date-fns';
 import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
+import { BRAND } from '@/lib/brand';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
@@ -761,10 +762,36 @@ export default function AssignationsATGPage() {
   const effectiveViewMode = 'list' as 'by-zone' | 'list';
   const isMobile = useIsMobile();
 
-  if (isMobile) {
+  // Demo: prospects sit at a PC but should still SEE the agent's phone UI —
+  // a header button flips this page into the mobile layout (framed like a
+  // phone) and back. Persisted so the choice survives navigation.
+  const [phoneView, setPhoneView] = useState(false);
+  useEffect(() => {
+    try {
+      setPhoneView(window.localStorage.getItem(`${BRAND.storagePrefix}.atgPhoneView`) === '1');
+    } catch { /* non-fatal */ }
+  }, []);
+  const togglePhoneView = () => {
+    setPhoneView((v) => {
+      const next = !v;
+      try {
+        window.localStorage.setItem(`${BRAND.storagePrefix}.atgPhoneView`, next ? '1' : '');
+      } catch { /* non-fatal */ }
+      return next;
+    });
+  };
+  const effectiveMobile = isMobile || (BRAND.id === 'demo' && phoneView);
+
+  if (effectiveMobile) {
     return (
-      <div>
+      <div className={cn(!isMobile && 'mx-auto w-full max-w-[430px] border-x bg-background shadow-xl min-h-screen')}>
         <header className="sticky top-0 z-30 h-14 flex items-center gap-3 px-4 border-b bg-card">
+          {!isMobile && (
+            <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={togglePhoneView}>
+              <Monitor className="h-3.5 w-3.5" />
+              {t('Vue bureau')}
+            </Button>
+          )}
           <UserCheck className="h-5 w-5 text-primary" />
           <h1 className="text-base font-bold flex-1">{t('Mes missions')}</h1>
           <Badge variant="secondary">
@@ -1156,6 +1183,18 @@ export default function AssignationsATGPage() {
           </Badge>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {BRAND.id === 'demo' && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 gap-1.5 text-xs"
+              onClick={togglePhoneView}
+              data-tour="atg-phone-toggle"
+            >
+              <Smartphone className="h-3.5 w-3.5" />
+              {t('Vue téléphone')}
+            </Button>
+          )}
           {canUseAtFlows && (
             <div data-tour="atg-scan" className="flex items-center">
               <AtScanPlaqueFlow />

@@ -421,7 +421,11 @@ export default function DossierDetailPage({
             ),
             11: (
               <>
-                <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" />
+                {/* data-tour: the guided tour explains the cardinal-accord
+                    serialization on this wrapper. */}
+                <div data-tour="dosd-accord2">
+                  <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" />
+                </div>
                 <div className="mt-4">
                   <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="2ème accord ou +" />
                 </div>
