@@ -20,6 +20,34 @@ export function activeTourKey(): string | null {
   return active ? activeKey : null;
 }
 
+// ── "Tour running" signal ───────────────────────────────────────────────
+// Components that expose journey-only affordances (self-addressed rappels,
+// HTML mission import, gallery photo import…) subscribe to this so those
+// affordances exist ONLY while a guided tour is on screen — see
+// use-tutorial-mode.ts. The demo brand shows them unconditionally.
+const tourListeners = new Set<() => void>();
+function notifyTourListeners(): void {
+  for (const fn of tourListeners) fn();
+}
+export function subscribeTourActive(fn: () => void): () => void {
+  tourListeners.add(fn);
+  return () => {
+    tourListeners.delete(fn);
+  };
+}
+/**
+ * True while a page tour is running, or while a chained hand-off is pending
+ * (the next page's tour auto-starts once its anchors exist).
+ */
+export function isTourRunning(): boolean {
+  if (active && activeKey) return true;
+  try {
+    return !!window.localStorage.getItem(`${BRAND.storagePrefix}.tour.pending`);
+  } catch {
+    return false;
+  }
+}
+
 export { treatedDossierKey };
 
 // Tours that belong to the chained guided journey. Only these share the
@@ -143,6 +171,19 @@ export function destroyActiveTour(): void {
     // Already destroyed.
   }
   active = null;
+  notifyTourListeners();
+}
+
+// Example values quoted in step bodies that depend on the brand's market
+// (the demo kit is Canadian, the firm works in Morocco). Bodies carry
+// {addr1} / {addr2} tokens; translations keep them verbatim.
+const EXAMPLE_ADDRESSES: Record<string, [string, string]> = {
+  MA: ['219 Bd Mohamed Zerktouni, Maarif, Casablanca', '182 Bd Al Massira, Maarif, Casablanca'],
+  CA: ['455 boul. René-Lévesque O, Montréal, QC', '1000 rue De La Gauchetière O, Montréal, QC'],
+};
+function substituteExamples(text: string): string {
+  const [a1, a2] = EXAMPLE_ADDRESSES[BRAND.market] ?? EXAMPLE_ADDRESSES.CA;
+  return text.replace(/\{addr1\}/g, a1).replace(/\{addr2\}/g, a2);
 }
 
 function escapeHtml(s: string): string {
@@ -705,7 +746,7 @@ export function startTutorial(
         )}</div>`
       : '';
     return (
-      escapeHtml(t(body)).replace(/\n/g, '<br/>') +
+      escapeHtml(substituteExamples(t(body))).replace(/\n/g, '<br/>') +
       (linksHtml ? `<div class="sl-tour-links">${linksHtml}</div>${hint}` : '') +
       (prefillHtml ? `<div class="sl-tour-links">${prefillHtml}</div>` : '')
     );
@@ -821,6 +862,7 @@ export function startTutorial(
       if (scrollRaf) window.cancelAnimationFrame(scrollRaf);
       if (refreshIv) window.clearInterval(refreshIv);
       if (active === d) active = null;
+      notifyTourListeners();
       if (completed) opts?.onComplete?.();
     },
     onNextClick: () => {
@@ -1041,6 +1083,7 @@ export function startTutorial(
 
   active = d;
   activeKey = tut.key;
+  notifyTourListeners();
   window.addEventListener('scroll', onAnyScroll, { capture: true, passive: true });
   window.addEventListener('wheel', onWheel, { capture: true, passive: false });
   document.addEventListener('pointerdown', trackPointer, true);

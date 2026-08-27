@@ -28,7 +28,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useDossierTabs } from '@/hooks/use-dossier-tabs';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/lib/status-colors';
-import { BRAND } from '@/lib/brand';
+import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -74,6 +74,7 @@ export default function DossiersClientPage() {
   const auth = useAuth();
   const db = useFirestore();
   const { profile, canWrite, canDelete } = useCurrentUser();
+  const tutorialMode = useTutorialMode();
   const canEditDossiers = canWrite('dossiers');
   const { openTab } = useDossierTabs();
 
@@ -364,16 +365,16 @@ export default function DossiersClientPage() {
           nom: (d.data() as any).nom || '',
           prenom: (d.data() as any).prenom || '',
         }));
-        // Demo brand: a prospect explores alone, so let them address a rappel
+        // Tutorial mode: the user explores alone, so let them address a rappel
         // to THEMSELVES and play both sender and recipient in one browser.
-        if (BRAND.id === 'demo' && profile?.uid && !list.some((g) => g.uid === profile.uid)) {
+        if (tutorialMode && profile?.uid && !list.some((g) => g.uid === profile.uid)) {
           list.unshift({ uid: profile.uid, nom: profile.nom || '', prenom: profile.prenom || '' });
         }
         setGestionnaires(list);
       })
       .catch((err) => console.warn('[mes-rappels] fetch gestionnaires failed', err))
       .finally(() => setGestLoading(false));
-  }, [isSendToOpen, db, profile?.uid, profile?.nom, profile?.prenom]);
+  }, [isSendToOpen, db, profile?.uid, profile?.nom, profile?.prenom, tutorialMode]);
 
   const handleSendRappel = async () => {
     if (!db || !profile || selectedRows.size === 0 || selectedGestUids.size === 0) return;

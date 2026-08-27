@@ -59,3 +59,25 @@ writing/maintaining them.
 - Every step's `anchor`/`click` value must exist in the page's JSX (grep it).
 - Every French string in your steps must have an EN entry in your dictionary
   file (or already exist in another dictionary — grep before adding).
+
+## Who sees the tutorials (brand gating)
+
+- `BRAND.showTutorials` turns the whole feature on/off per brand.
+- `BRAND.tutorialRoles` (array or `null`) restricts it to given roles. The
+  firm brand (`slaoui`) ships `['Admin']`: only administrators get the "?"
+  launcher and the post-login prompt; the login page shows nothing (role
+  unknown). The demo brand ships `null` (everyone). Helper:
+  `tutorialsEnabledFor(role)` in `src/lib/tutorial/access.ts`.
+- Language follows the brand: the firm brand is locked to French, so only the
+  French (source-key) texts ever render there.
+- Journey-only affordances (self-addressed rappels, HTML mission import, the
+  gallery "Importer des photos" button on a mission, the user's own position
+  standing in for the agent's GPS) are gated by `useTutorialMode()`
+  (`src/lib/tutorial/use-tutorial-mode.ts`): always on for the demo brand,
+  otherwise only for an allowed role WHILE a tour is running (or a chained
+  hand-off is pending). Outside a tour the firm's app is unchanged.
+- Step bodies may quote `{addr1}` / `{addr2}`: `tour.ts` substitutes
+  market-specific example addresses (`BRAND.market`) at render time.
+- NOTE for the firm brand: the hands-on lab creates a REAL dossier in the
+  production Firestore (mission import, planifications, chiffrage…) — it is
+  not sandboxed. Admins should delete the tutorial dossier afterwards.

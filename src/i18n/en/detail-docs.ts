@@ -220,7 +220,9 @@ export const DETAIL_DOCS_EN: Record<string, string> = {
   'Retard de': 'Late by',
   'sur le RDV.': 'for the appointment.',
   'arrivée prévue à': 'expected arrival at',
-  '30 min sur place à': '30 min on site at',
+  'sur place à': 'on site at',
+  'même adresse :': 'same address:',
+  'sur place pour le véhicule précédent.': 'on site for the previous vehicle.',
 
   // ── Télécharger modal ──
   'Rapport PDF exporté avec succès.': 'Report PDF exported successfully.',

@@ -43,6 +43,7 @@ import { MapPin } from 'lucide-react';
 import { apiFetch } from '@/lib/api-fetch';
 import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 import { BRAND } from '@/lib/brand';
+import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 
 /** Narrows a free-form typeMission string to the canonical tri-state, or null. */
 function normalizeTypeMission(
@@ -88,10 +89,12 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   const { toast } = useToast();
   const { profile } = useCurrentUser();
   const isCurrentUserAT = profile?.role === 'Agent de Terrain';
-  // Demo brand: the demo user's own browser position plays the field
+  // Tutorial mode (demo brand, or a guided tour running for an allowed
+  // role): the user's own browser position plays the field
   // agent's live GPS (disclosed in the UI) — the demo agents have no
   // connected phone, and the feature deserves to be SEEN.
-  const demoSelfAsAgent = BRAND.id === 'demo' && !isCurrentUserAT;
+  const tutorialMode = useTutorialMode();
+  const demoSelfAsAgent = tutorialMode && !isCurrentUserAT;
   const [loading, setLoading] = useState(false);
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
   const [selfLocation, setSelfLocation] = useState<{ lat: number; lng: number; updatedAtMs: number } | null>(null);
@@ -797,7 +800,11 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                       ) : (
                         <>
                           {t('RDV')} {c.toLabel} : {t('arrivée prévue à')} <strong>{format(new Date(c.arrivalMs), 'HH:mm')}</strong>
-                          {' '}— {t('30 min sur place à')} {c.fromAddress} + {formatDurationFr(c.travelSeconds)} {t('de trajet.')}
+                          {c.sameStop ? (
+                            <>{' '}— {t('même adresse :')} {formatDurationFr(c.serviceSeconds)} {t('sur place pour le véhicule précédent.')}</>
+                          ) : (
+                            <>{' '}— {formatDurationFr(c.serviceSeconds)} {t('sur place à')} {c.fromAddress} + {formatDurationFr(c.travelSeconds)} {t('de trajet.')}</>
+                          )}
                           {' '}{t('Retard de')} {formatDurationFr(c.shortfallSeconds)} {t('sur le RDV.')}
                         </>
                       )}

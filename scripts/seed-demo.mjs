@@ -392,7 +392,7 @@ function buildDossier(uids, d) {
     intermediaireNom: '',
     intermediaireEmail: '',
     experts: {
-      '1er': { nom: 'J. Tremblay', telephone: '+1 (514) 555-0100', email: 'j.tremblay@appraisio.app', compagnie: 'Appraisio Auto Appraisal' },
+      '1er': { nom: 'J. Tremblay', telephone: '+1 (514) 555-0100', email: 'j.tremblay@lionheart.app', compagnie: 'Lionheart Appraisal' },
       '2eme': emptyExpert(),
       arbitre: emptyExpert(),
     },

@@ -6,7 +6,7 @@
  * The active brand is selected at build time via NEXT_PUBLIC_BRAND:
  *
  *   - unset / 'slaoui'  → the original SL Auto Expertise deployment
- *   - 'demo'            → the Canadian showcase deployment (Appraisio)
+ *   - 'demo'            → the Canadian showcase deployment (Lionheart)
  *
  * To onboard a new client, add a BrandConfig entry and deploy with
  * NEXT_PUBLIC_BRAND=<id> plus their NEXT_PUBLIC_FIREBASE_* project vars.
@@ -83,6 +83,12 @@ export interface BrandConfig {
   /** Show the per-page guided tutorials ("?" launcher). */
   showTutorials: boolean;
   /**
+   * Roles allowed to see the tutorials, or null for everyone. Ignored when
+   * showTutorials is false. Pages where the role is unknown (login) hide
+   * the launcher entirely when this list is set.
+   */
+  tutorialRoles: ReadonlyArray<string> | null;
+  /**
    * Account-based free trial length in days, or null for no trial. The clock
    * starts at the account's FIRST login (`trialStartedAt` on the user doc);
    * accounts flagged `trialExempt: true` never expire. See src/lib/trial.ts.
@@ -125,32 +131,36 @@ const SLAOUI: BrandConfig = {
   iconsPath: '/icons',
   storagePrefix: 'sl-auto',
 
-  // The firm's app stays exactly as it always was — no switcher, no tours.
+  // No language switcher (French only). The guided tutorials are reserved
+  // for administrators — every other role keeps the app exactly as before.
   showLanguageSwitcher: false,
-  showTutorials: false,
+  showTutorials: true,
+  tutorialRoles: ['Admin'],
   trialDays: null,
 };
 
 const DEMO: BrandConfig = {
   id: 'demo',
-  productName: 'Appraisio',
-  shortName: 'Appraisio',
+  productName: 'Lionheart Appraisal',
+  shortName: 'Lionheart',
   appDescription: 'Claims management and appraisal workflow platform for independent auto appraisal firms.',
 
-  companyName: 'APPRAISIO AUTO APPRAISAL',
+  companyName: 'LIONHEART APPRAISAL',
   companyAddress: '1250 René-Lévesque Blvd W, Suite 2200, Montréal, QC H3B 4W8',
   companyTel: '+1 (514) 555-0142',
-  companyEmail: 'contact@appraisio-demo.ca',
+  companyEmail: 'contact@lionheart-demo.ca',
   companyAddressFooter: '1250 René-Lévesque Blvd W, Suite 2200, Montréal, QC H3B 4W8, Canada',
-  companyContactFooter: 'Tel: +1 (514) 555-0142  Email: contact@appraisio-demo.ca',
+  companyContactFooter: 'Tel: +1 (514) 555-0142  Email: contact@lionheart-demo.ca',
   expertName: 'J. TREMBLAY',
-  cabinetName: 'APPRAISIO AUTO APPRAISAL',
+  cabinetName: 'LIONHEART APPRAISAL',
   companyCity: 'MONTRÉAL',
 
+  // Kept as-is: existing demo Firebase Auth accounts were created under this
+  // domain — changing it would break every current login.
   authEmailDomain: 'demo.appraisio.app',
 
-  emailSubjectTag: '[APPRAISIO]',
-  emailSignature: 'The Appraisio Team',
+  emailSubjectTag: '[LIONHEART]',
+  emailSignature: 'The Lionheart Appraisal Team',
 
   currencyCode: 'CAD',
   currencyLabel: 'CAD',
@@ -166,6 +176,7 @@ const DEMO: BrandConfig = {
 
   showLanguageSwitcher: true,
   showTutorials: true,
+  tutorialRoles: null,
   trialDays: 7,
 };
 

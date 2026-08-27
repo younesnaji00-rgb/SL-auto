@@ -14,6 +14,8 @@ import {
   JOURNEY_KEYS,
 } from '@/lib/tutorial/tour';
 import { BRAND } from '@/lib/brand';
+import { tutorialsEnabledFor } from '@/lib/tutorial/access';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
@@ -30,6 +32,11 @@ export function TutorialLauncher() {
   const pathname = usePathname();
   const t = useT();
   const tut = useMemo(() => tutorialForPath(pathname ?? ''), [pathname]);
+  // Role gate: some brands reserve the tutorials for given roles. Outside the
+  // (app) layout (login) there is no provider, so the role is unknown there
+  // and a role-restricted brand shows nothing.
+  const { profile } = useCurrentUser();
+  const allowed = tutorialsEnabledFor(profile?.role);
   const [seen, setSeen] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showPointer, setShowPointer] = useState(false);
@@ -42,7 +49,7 @@ export function TutorialLauncher() {
     destroyActiveTour();
     setShowWelcome(false);
     setShowPointer(false);
-    if (!tut || !storageKey) return;
+    if (!allowed || !tut || !storageKey) return;
     let welcomed = '1';
     let pageSeen = '1';
     let pointerShown = '1';
@@ -144,7 +151,7 @@ export function TutorialLauncher() {
       }, 900);
       return () => window.clearTimeout(timer);
     }
-  }, [tut, storageKey, flag, pathname]);
+  }, [tut, storageKey, flag, pathname, allowed]);
 
   // The pointer is a driver.js spotlight — the same dim-everything-except-
   // the-target overlay the tutorials use, aimed at the "?" button.
@@ -162,7 +169,7 @@ export function TutorialLauncher() {
     [],
   );
 
-  if (!BRAND.showTutorials || !tut) return null;
+  if (!allowed || !tut) return null;
 
   const markWelcomed = () => {
     try {

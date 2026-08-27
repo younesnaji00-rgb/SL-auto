@@ -48,7 +48,7 @@ import { deriveStatus, isPlanificationStatus } from '@/lib/status-machine';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
 import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-grid';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { BRAND } from '@/lib/brand';
+import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -119,6 +119,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const auth = useAuth();
   const { toast } = useToast();
   const { canWrite, canDelete, profile } = useCurrentUser();
+  const tutorialMode = useTutorialMode();
   const isMobile = useIsMobile();
   const canEdit = canWrite('assignations-atg');
   const isATG = profile?.role === 'Agent de Terrain';
@@ -756,7 +757,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                       {isUploading ? t('Upload en cours...') : t('Prendre des photos')}
                     </Button>
                   )}
-                  {canEdit && BRAND.id === 'demo' && (
+                  {canEdit && tutorialMode && (
                     <>
                       <Button
                         data-tour="atgd-import"

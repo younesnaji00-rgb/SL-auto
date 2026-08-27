@@ -32,7 +32,7 @@ import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-histor
 import { useDossierDocWrite } from '@/app/(app)/dossiers/[id]/rappel-draft';
 import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
-import { BRAND } from '@/lib/brand';
+import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 
 export interface Step1ImportProps {
   dossierId: string;
@@ -134,6 +134,7 @@ export default function Step1Import({
   const storage = useStorage();
   const auth = useAuth();
   const { canWrite, canDelete, profile } = useCurrentUser();
+  const tutorialMode = useTutorialMode();
   const { toast } = useToast();
   const t = useT();
 
@@ -565,10 +566,10 @@ export default function Step1Import({
                 className="hidden"
                 multiple
                 accept={
-                  // Demo kit ships an electronic (HTML) mission order whose
+                  // The tutorial kit ships an electronic (HTML) mission order whose
                   // field table is extracted without any AI call.
                   '.pdf,.jpg,.jpeg,.png,.gif,.webp,.bmp' +
-                  (BRAND.id === 'demo' ? ',.html,.htm' : '')
+                  (tutorialMode ? ',.html,.htm' : '')
                 }
                 onChange={onFileInputChange}
               />

@@ -1,8 +1,8 @@
-// One-shot generator for the DEMO brand (Appraisio) PWA icons.
+// One-shot generator for the DEMO brand (Lionheart) PWA icons.
 // Run: npx --yes -p jimp node scripts/generate-demo-icons.mjs
 //
 // Outputs (public/icons/demo/): icon-192.png, icon-512.png,
-// icon-maskable-512.png, apple-touch-icon.png — teal tile with a white "A"
+// icon-maskable-512.png, apple-touch-icon.png — teal tile with a white "L"
 // monogram (falls back to a plain two-tone tile if the bundled font fails).
 
 import { Jimp, JimpMime, loadFont, HorizontalAlign, VerticalAlign } from 'jimp';
@@ -39,7 +39,7 @@ async function makeIcon(size) {
       font,
       x: 0,
       y: 0,
-      text: { text: 'A', alignmentX: HorizontalAlign.CENTER, alignmentY: VerticalAlign.MIDDLE },
+      text: { text: 'L', alignmentX: HorizontalAlign.CENTER, alignmentY: VerticalAlign.MIDDLE },
       maxWidth: 160,
       maxHeight: 140,
     });

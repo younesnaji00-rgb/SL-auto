@@ -254,7 +254,7 @@ export const dossierDetailTutorial: PageTutorial = {
       anchor: 'plan-adresse',
       title: "L'adresse complète",
       body:
-        "Tapez l'adresse du rendez-vous — par exemple « 455 boul. René-Lévesque O, Montréal, QC ».\nC'est elle qui alimente l'itinéraire Google Maps de l'agent.",
+        "Tapez l'adresse du rendez-vous — par exemple « {addr1} ».\nC'est elle qui alimente l'itinéraire Google Maps de l'agent.",
       side: 'right',
       dynamic: true,
       interact: 'until',
@@ -303,7 +303,7 @@ export const dossierDetailTutorial: PageTutorial = {
       anchor: 'plan-dialog',
       title: 'La 2ème mission',
       body:
-        "Même agent, date d'aujourd'hui — mais une AUTRE adresse : tapez par exemple « 1000 rue De La Gauchetière O, Montréal, QC ».",
+        "Même agent, date d'aujourd'hui — mais une AUTRE adresse : tapez par exemple « {addr2} ».",
       side: 'left',
       dynamic: true,
       interact: 'until',

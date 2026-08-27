@@ -170,8 +170,8 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Enregistrez': 'Save',
   "La mission apparaît instantanément chez l'agent.": 'The mission appears on the agent’s side instantly.',
   "L'adresse complète": 'The full address',
-  "Tapez l'adresse du rendez-vous — par exemple « 455 boul. René-Lévesque O, Montréal, QC ».\nC'est elle qui alimente l'itinéraire Google Maps de l'agent.":
-    'Type the appointment address — for example “455 boul. René-Lévesque O, Montréal, QC”.\nIt is what feeds the agent’s Google Maps route.',
+  "Tapez l'adresse du rendez-vous — par exemple « {addr1} ».\nC'est elle qui alimente l'itinéraire Google Maps de l'agent.":
+    'Type the appointment address — for example “{addr1}”.\nIt is what feeds the agent’s Google Maps route.',
   "Les consignes pour l'agent": 'Instructions for the agent',
   "Une observation type (menu) ou personnalisée (champ en dessous) : l'agent la voit sur sa mission.":
     'A preset remark (menu) or a custom one (field below): the agent sees it on their mission.',
@@ -182,8 +182,8 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Les agents enchaînent plusieurs visites par jour.\nCliquez encore sur « Nouvelle planification » pour créer une seconde mission.':
     'Agents chain several visits a day.\nClick “New schedule” again to create a second mission.',
   'La 2ème mission': 'The 2nd mission',
-  "Même agent, date d'aujourd'hui — mais une AUTRE adresse : tapez par exemple « 1000 rue De La Gauchetière O, Montréal, QC ».":
-    'Same agent, today’s date — but a DIFFERENT address: type for example “1000 rue De La Gauchetière O, Montréal, QC”.',
+  "Même agent, date d'aujourd'hui — mais une AUTRE adresse : tapez par exemple « {addr2} ».":
+    'Same agent, today’s date — but a DIFFERENT address: type for example “{addr2}”.',
   'Enregistrez la 2ème mission': 'Save the 2nd mission',
   "Cliquez sur « Enregistrer ».\nCôté agent, « Start » enchaînera toutes les adresses du jour dans UN itinéraire Google Maps ordonné.":
     'Click “Save”.\nOn the agent’s side, “Start” will chain all of the day’s addresses into ONE ordered Google Maps route.',

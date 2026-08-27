@@ -177,7 +177,9 @@ export function useAtgFeasibility({
           return;
         }
 
-        const legSecs = data.legs.map((l) => l.durationSeconds);
+        // Legs Google could not route are passed as NaN so evaluateChain skips
+        // them instead of mistaking a failed lookup for a 0-minute drive.
+        const legSecs = data.legs.map((l) => (l.status === 'OK' ? l.durationSeconds : NaN));
         setConflicts(evaluateChain(chain, legSecs));
         setLoading(false);
       } catch (err: any) {
