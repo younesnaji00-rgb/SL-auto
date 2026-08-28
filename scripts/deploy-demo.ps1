@@ -22,6 +22,12 @@ $envProd = Join-Path $repo '.env.production'
 Copy-Item (Join-Path $repo '.env.demo') $envProd -Force
 Write-Host '.env.production staged from .env.demo'
 
+# Contact form (/api/site-contact) needs SMTP creds. Create the secrets once:
+#   echo -n "user@gmail.com" | gcloud secrets create SMTP_USER --data-file=- --project appraisio-demo-ca
+#   echo -n "<app password>"  | gcloud secrets create SMTP_PASS --data-file=- --project appraisio-demo-ca
+# then extend --set-secrets below with:
+#   ,SMTP_USER=SMTP_USER:latest,SMTP_PASS=SMTP_PASS:latest
+# Until then the contact page renders a direct-email card instead of the form.
 try {
   gcloud run deploy appraisio-demo `
     --source . `
@@ -33,12 +39,6 @@ try {
     --min-instances 0 `
     --max-instances 2 `
     --set-secrets "GOOGLE_GENAI_API_KEY=GOOGLE_GENAI_API_KEY:latest" `
-    # Contact form (/api/site-contact) needs SMTP creds. Create the secrets once:
-    #   echo -n "user@gmail.com" | gcloud secrets create SMTP_USER --data-file=- --project appraisio-demo-ca
-    #   echo -n "<app password>"  | gcloud secrets create SMTP_PASS --data-file=- --project appraisio-demo-ca
-    # then change the line above to:
-    #   --set-secrets "GOOGLE_GENAI_API_KEY=GOOGLE_GENAI_API_KEY:latest,SMTP_USER=SMTP_USER:latest,SMTP_PASS=SMTP_PASS:latest" `
-    # Until then the contact page renders a direct-email card instead of the form.
     --quiet
   if ($LASTEXITCODE -ne 0) { throw "gcloud run deploy failed ($LASTEXITCODE)" }
 } finally {
