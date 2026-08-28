@@ -9,6 +9,7 @@ export const metadata = siteMetadata({
   path: '/site/fr',
   locale: 'fr_CA',
   languages: { en: '/site', fr: '/site/fr' },
+  absoluteTitle: true,
 });
 
 export default function SitePageFr() {

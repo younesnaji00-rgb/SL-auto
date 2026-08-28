@@ -15,6 +15,8 @@ export function siteMetadata(opts: {
   locale?: 'en_CA' | 'fr_CA';
   /** hreflang alternates, as site-relative paths keyed by language. */
   languages?: Partial<Record<'en' | 'fr', string>>;
+  /** Use the title verbatim (skip the "%s · Site" template) — for home pages that already carry the site name. */
+  absoluteTitle?: boolean;
 }): Metadata {
   const url = absoluteUrl(opts.path);
   const languages = opts.languages
@@ -24,7 +26,7 @@ export function siteMetadata(opts: {
       }
     : undefined;
   return {
-    title: opts.title,
+    title: opts.absoluteTitle ? { absolute: opts.title } : opts.title,
     description: opts.description,
     alternates: { canonical: url, languages },
     robots: opts.noindex ? { index: false, follow: false } : undefined,

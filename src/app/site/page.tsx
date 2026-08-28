@@ -8,6 +8,7 @@ export const metadata = siteMetadata({
     'Claims management for independent auto appraisal firms: AI document pre-fill, field agent app, estimates, agreements and expert reports in one file. Try the live demo, no account needed.',
   path: '/site',
   languages: { en: '/site', fr: '/site/fr' },
+  absoluteTitle: true,
 });
 
 // Content and markup live in _components/home.tsx; the FR twin is /site/fr.
