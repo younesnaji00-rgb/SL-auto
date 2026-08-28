@@ -40,6 +40,13 @@ const Breadcrumb = () => {
   const segments = rawSegments.filter((s) => !isIdSegment(s));
   const rootHref = landingPathFor(profile?.role);
 
+  // Unique document title per app screen (the pages are client components and
+  // cannot export Next metadata themselves). Mirrors the last breadcrumb label.
+  const lastLabel = segments.length ? t(humanize(segments[segments.length - 1])) : null;
+  React.useEffect(() => {
+    document.title = lastLabel ? `${lastLabel} · ${BRAND.productName}` : BRAND.productName;
+  }, [lastLabel]);
+
   return (
     <nav aria-label="breadcrumb" className="flex">
       <ol className="flex items-center gap-2 text-sm text-muted-foreground">

@@ -12,11 +12,12 @@
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "audit:security": "npm audit --audit-level=high",
     "cap:sync": "cap sync android",
-    "cap:open": "cap open android"
+    "cap:open": "cap open android",
+    "test:rules": "node tests/rules/firestore-rules.test.mjs"
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.2.20",
@@ -85,6 +86,8 @@
     "@types/nodemailer": "^8.0.0",
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.2.1",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.9",
     "genkit-cli": "^1.28.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",

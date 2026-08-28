@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
+import { createMailTransport, MAIL_FROM } from '@/lib/mailer';
 import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 
 interface InboundAttachment {
@@ -65,18 +65,10 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+    const transporter = createMailTransport();
 
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      from: MAIL_FROM(),
       to,
       subject,
       ...(htmlBody ? { html: htmlBody } : {}),

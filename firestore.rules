@@ -1,11 +1,61 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // ── Role helpers ────────────────────────────────────────────────────
+    // Roles live on users/{uid}.role (free string; canonical list in
+    // src/lib/dossiers-data.ts `roles`). Every helper costs one get() per
+    // evaluation, same as before this rewrite.
+    function signedIn() {
+      return request.auth != null;
+    }
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
     function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      return userDoc().data.role;
+    }
+    function hasRole(list) {
+      return signedIn() && list.hasAny([userRole()]);
     }
     function isAdmin() {
-      return request.auth != null && userRole() == 'Admin';
+      return hasRole(['Admin']);
+    }
+    // Directeur family: consultation, validation, holidays, deletes.
+    function isDirector() {
+      return hasRole(['Directeur', 'Directeur des opérations', 'Directeur technique']);
+    }
+    // Desk roles that run /dossiers, /mes-rappels, options, reminders.
+    function isManager() {
+      return hasRole(['Admin', 'Responsable d\'équipe', 'Gestionnaire']);
+    }
+    function isChiffreur() {
+      return hasRole(['Chiffreur']);
+    }
+    function isAgentTerrain() {
+      return hasRole(['Agent de Terrain']);
+    }
+    // Any recognised firm role. Unknown/custom role strings get read-only
+    // access to shared data and no writes — add new roles here on purpose.
+    function isStaff() {
+      return hasRole([
+        'Admin', 'Directeur', 'Directeur des opérations', 'Directeur technique',
+        'Responsable technique', 'Responsable d\'équipe', 'Gestionnaire',
+        'Chiffreur', 'Agent de Terrain'
+      ]);
+    }
+    // Mirrors ROLES_THAT_CAN_DELETE in src/lib/dossiers-data.ts
+    function canDeleteDossier() {
+      return isAdmin() || isDirector();
+    }
+    // task #42: writer must be Admin or Directeur des opérations
+    function canValidateDossier() {
+      return hasRole(['Admin', 'Directeur des opérations']);
+    }
+    function canAssign() {
+      return hasRole(['Admin', 'Gestionnaire', 'Directeur', 'Directeur des opérations', 'Directeur technique']);
+    }
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
     }
 
     // task #42: canonical statuts list (mirrors CANONICAL_STATUTS in src/lib/dossiers-data.ts)
@@ -26,6 +76,7 @@ service cloud.firestore {
         '3ème accord',
         "3ème proposition d'accord",
         'Accord envoyé',
+        'Réforme',
       ];
     }
     // task #42: true if s is one of the canonical statuts. Also accepts
@@ -35,158 +86,181 @@ service cloud.firestore {
       return canonicalStatuts().hasAny([s])
         || s.matches("^[0-9]+ème (accord|proposition d'accord)$");
     }
-    // task #42: writer must be Admin or Directeur des opérations
-    function canValidateDossier() {
-      return request.auth != null
-        && (userRole() == 'Admin' || userRole() == 'Directeur des opérations');
-    }
-    function canAssign() {
-      return request.auth != null && (
-        userRole() == 'Admin'
-        || userRole() == 'Gestionnaire'
-        || userRole() == 'Directeur'
-        || userRole() == 'Directeur des opérations'
-        || userRole() == 'Directeur technique'
-      );
+    function changed(field) {
+      return field in request.resource.data.diff(resource.data).affectedKeys();
     }
 
-    // Dropdown and Configuration Collections (signed-in users only)
-    match /options_natures/{docId} { allow read, write: if request.auth != null; }
-    match /options_statuts/{docId} { allow read, write: if request.auth != null; }
-    match /options_types_mission/{docId} { allow read, write: if request.auth != null; }
-    match /options_types_documents/{docId} { allow read, write: if request.auth != null; }
-    match /options_roles/{docId} { allow read, write: if request.auth != null; }
-    match /options_agents/{docId} { allow read, write: if request.auth != null; }
-    match /options_types_dossier/{docId} { allow read, write: if request.auth != null; }
-    match /options_rapport_operations/{docId} { allow read, write: if request.auth != null; }
-    match /options_rapport_types_pieces/{docId} { allow read, write: if request.auth != null; }
-    match /options_reparateur_types/{docId} { allow read, write: if request.auth != null; }
-    match /options_mdo_types/{docId} { allow read, write: if request.auth != null; }
-    match /compagnies/{docId} { allow read, write: if request.auth != null; }
+    // ── Reference data: options_* dropdowns ─────────────────────────────
+    // Read by every screen; edited through the gear-icon OptionsManager by
+    // desk roles, seeded on first boot by whoever boots first (an admin).
+    match /options_natures/{docId} { allow read: if signedIn(); allow write: if isManager(); }
+    match /options_statuts/{docId} { allow read: if signedIn(); allow write: if isManager(); }
+    match /options_types_mission/{docId} { allow read: if signedIn(); allow write: if isManager(); }
+    match /options_types_documents/{docId} { allow read: if signedIn(); allow write: if isManager(); }
+    match /options_roles/{docId} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /options_agents/{docId} { allow read: if signedIn(); allow write: if isAdmin() || isManager(); }
+    match /options_types_dossier/{docId} { allow read: if signedIn(); allow write: if isManager(); }
+    match /options_rapport_operations/{docId} { allow read: if signedIn(); allow write: if isManager(); }
+    match /options_rapport_types_pieces/{docId} { allow read: if signedIn(); allow write: if isManager(); }
+    match /options_reparateur_types/{docId} { allow read: if signedIn(); allow write: if isManager(); }
+    match /options_mdo_types/{docId} { allow read: if signedIn(); allow write: if isManager(); }
+    match /options_types_rdv/{docId} { allow read: if signedIn(); allow write: if isManager(); }
+    match /options_sites/{docId} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /options_zones/{docId} { allow read: if signedIn(); allow write: if isAdmin(); }
+    // Observation presets are added from the field app and the chiffrage screen too.
+    match /options_observations/{docId} { allow read: if signedIn(); allow write: if isStaff(); }
+    // Holidays: /jours-feries is Admin + Directeur family; read by every scheduler.
+    match /options_holidays/{docId} { allow read: if signedIn(); allow write: if isAdmin() || isDirector(); }
+    match /compagnies/{docId} { allow read: if signedIn(); allow write: if isManager(); }
 
-    // Seed lock collection
+    // Seed lock collection (written by the first-boot seeder)
     match /_seeds/{docId} {
-      allow read, write: if request.auth != null;
+      allow read: if signedIn();
+      allow write: if isManager() || isDirector();
     }
 
+    // ── Dossiers ────────────────────────────────────────────────────────
     match /dossiers/{dossierId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow delete: if request.auth != null;
-      // task #42: statut must be in canonical list
-      // task #42: directorValidated writes restricted to Admin / Directeur des opérations
-      allow update: if request.auth != null
-        && (
-          !('statut' in request.resource.data.diff(resource.data).affectedKeys())
-          || isValidStatut(request.resource.data.statut)
-        )
-        && (
-          !('directorValidated' in request.resource.data.diff(resource.data).affectedKeys())
-          || canValidateDossier()
-        );
-      // Planifications: assigning a mission requires Gestionnaire/Admin/Directeur
+      // Every role lists dossiers (field app plate-scan, workload counts,
+      // chiffrage queue); client-side scoping by compagnie is a UI concern.
+      allow read: if signedIn();
+      allow create: if isManager();
+      allow delete: if canDeleteDossier();
+      // Desk, chiffreur and field roles all update the parent doc (statut
+      // transitions, photos counters, agreements). Field constraints:
+      //   task #42: statut must be in canonical list
+      //   task #42: directorValidated writes restricted to Admin / Directeur des opérations
+      allow update: if isStaff()
+        && (!changed('statut') || isValidStatut(request.resource.data.statut))
+        && (!changed('directorValidated') || canValidateDossier());
+
+      // Planifications: assigning a mission requires Gestionnaire/Admin/Directeur;
+      // the assigned field agent updates it on site.
       match /planifications/{pid} {
-        allow read: if request.auth != null;
+        allow read: if signedIn();
         allow create: if canAssign();
-        allow update, delete: if request.auth != null;
+        allow update: if canAssign() || isManager() || isAgentTerrain();
+        allow delete: if canAssign() || isManager();
       }
-      // All other subcollections (and nested docs under planifications):
-      // auth-only, preserving existing behavior.
-      match /{subColl}/{doc=**} {
-        allow read: if request.auth != null;
-        allow write, delete: if request.auth != null && subColl != 'planifications';
+      // Field evidence and logs: written by every firm role.
+      match /documents/{doc=**} { allow read: if signedIn(); allow write: if isStaff(); }
+      match /photos/{doc=**} { allow read: if signedIn(); allow write: if isStaff(); }
+      match /observations/{doc=**} { allow read: if signedIn(); allow write: if isStaff(); }
+      match /historique/{doc=**} { allow read: if signedIn(); allow write: if isStaff(); }
+      match /workflow/{doc=**} { allow read: if signedIn(); allow write: if isStaff(); }
+      // Desk-only subcollections.
+      match /commentaires/{doc=**} { allow read: if signedIn(); allow write: if isManager(); }
+      match /_pending_attachments/{doc=**} { allow read: if signedIn(); allow write: if isManager(); }
+      match /missions/{doc=**} { allow read: if signedIn(); allow write: if isManager(); }
+      match /reclamations/{doc=**} { allow read: if signedIn(); allow write: if isManager(); }
+      match /planificationHistory/{doc=**} { allow read: if signedIn(); allow write: if isManager() || canAssign(); }
+      match /rapport_pieces/{doc=**} { allow read: if signedIn(); allow write: if isManager(); }
+      // Legacy per-dossier chiffrage docs: read for PDF generation, deleted on cascade.
+      match /chiffrage/{doc=**} {
+        allow read: if signedIn();
+        allow write: if isManager() || isChiffreur() || canDeleteDossier();
       }
     }
+
+    // ── Reminders (rappels) ─────────────────────────────────────────────
+    // Sent from /dossiers by desk roles, answered on /mes-rappels by the
+    // recipient (a desk role). Queries filter by recipientUid/senderUid/
+    // dossierId, so the rule is role-scoped rather than owner-scoped.
+    match /rappels/{rappelId} {
+      allow read, write: if isManager();
+      match /snapshots/{snap} {
+        allow read, write: if isManager();
+      }
+    }
+
+    // ── Bug reports: one thread per user, Admin inbox ───────────────────
+    match /bugReports/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create, update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
+      match /messages/{msgId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) || isAdmin();
+        allow update, delete: if isAdmin();
+      }
+    }
+
     match /location_requests/{requestId} {
-      allow read: if request.auth != null
+      allow read: if signedIn()
         && (resource.data.agentUid == request.auth.uid || canAssign());
       allow create: if canAssign()
         && request.resource.data.agentUid is string;
       allow update, delete: if isAdmin();
     }
     match /chiffreurs/{id} {
-      allow read, write: if request.auth != null;
+      allow read: if signedIn();
+      allow write: if isManager();
     }
     match /chiffrages/{id} {
-      allow read, write: if request.auth != null;
+      allow read: if signedIn();
+      allow create, update: if isManager() || isChiffreur();
+      allow delete: if isManager() || canDeleteDossier();
     }
+
+    // ── Users ───────────────────────────────────────────────────────────
     match /users/{userId} {
       // Reads: public. The login page queries `users` by nomLowercase BEFORE
       // the caller authenticates, to look up the email for name-based login.
       // Requiring auth here breaks that pre-auth lookup and locks every user
-      // out. Public read is the historical behavior; the genuinely sensitive
-      // change in this rule block is the write restrictions below (no
-      // self-promote to Admin, owner-only updates, Admin-only delete).
-      // FOLLOW-UP: migrate the login lookup to a callable Cloud Function so
-      // we can tighten reads back to `request.auth != null` without breaking
-      // the login UX.
+      // out. FOLLOW-UP: migrate the login lookup to a callable Cloud Function
+      // (and stop storing `password` on the doc) so this can become
+      // `signedIn()`.
       allow read: if true;
-      // Create: self-signup only, and the new doc must NOT contain a role
-      // field (admins assign roles via update; self-signup cannot self-promote).
-      allow create: if request.auth != null
-        && request.auth.uid == userId
-        && !('role' in request.resource.data.keys());
+      // Create: self-signup without a role (no self-promotion), or an Admin
+      // provisioning an account with its role from /utilisateurs.
+      allow create: if isAdmin()
+        || (isOwner(userId) && !('role' in request.resource.data.keys()));
       // Update: Admin can change anything; otherwise the user can update their
-      // own doc as long as the role field is not modified (allows updates that
-      // simply don't touch role: displayName, fcmTokens, currentSessionId, ...).
+      // own doc as long as the role and permission grants are not modified
+      // (displayName, fcmTokens, currentSessionId, currentLocation, ...).
       allow update: if isAdmin()
         || (
-          request.auth != null
-          && request.auth.uid == userId
-          && !('role' in request.resource.data.diff(resource.data).affectedKeys())
+          isOwner(userId)
+          && !changed('role')
+          && !changed('grantedNavItems')
+          && !changed('deniedNavItems')
+          && !changed('compagnies')
+          && !changed('assignedStampIds')
         );
       // Delete: Admin only.
       allow delete: if isAdmin();
 
       // Session metadata (device + IP for the admin "Session / Appareil" card).
-      // Deliberately kept OUT of the world-readable parent user doc so the
-      // client IP (PII) is NOT exposed to the anonymous pre-auth login lookup
-      // (the parent's `allow read: if true`). The session owner writes their own
-      // meta on claim; an Admin clears it on force-disconnect.
-      // CAVEAT: the recursive catch-all at the bottom of this file
-      // (`match /{document=**}`) still grants read to ANY authenticated user, so
-      // this isAdmin() gate is not yet fully effective — it only restricts reads
-      // to admins once that catch-all is scoped. Intent is admin-only; the gate
-      // is kept so it takes effect the moment the catch-all is tightened.
+      // Kept OUT of the world-readable parent doc so the client IP (PII) is
+      // not exposed to the anonymous pre-auth login lookup. The session owner
+      // writes their own meta on claim; an Admin clears it on force-disconnect.
       match /session_meta/{docId} {
-        allow read: if isAdmin();
-        allow write: if isAdmin()
-          || (request.auth != null && request.auth.uid == userId);
+        allow read: if isAdmin() || isOwner(userId);
+        allow write: if isAdmin() || isOwner(userId);
       }
     }
-    // Stamps: per-account import + delete; admin oversight via the
-    // /parametres/tampons page (admin can read+modify all). Reads stay open
-    // so the admin page's listing query works; the picker UI filters
-    // client-side to the user's own stamps via useStamps({ mineOnly: true }).
+
+    // Stamps: per-account import + delete; admin oversight via /tampons.
+    // Reads stay open: the picker filters client-side to the user's own stamps.
     match /stamps/{stampId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
+      allow read: if signedIn();
+      allow create: if signedIn()
         && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if request.auth != null
+      allow update, delete: if signedIn()
         && (resource.data.createdBy == request.auth.uid || isAdmin());
     }
-    // Collection-group rules. Subcollection rules above grant access for
-    // direct-path reads (dossiers/X/planifications/Y), but a `collectionGroup`
-    // query is evaluated against a separate "collection group" rule at the
-    // collection-id level — without these, queries like
-    // `collectionGroup(db, 'planifications')` come back permission-denied even
-    // for the same auth user that can read the docs via their parent path.
-    // Read-only is enough: writes still flow through the subcollection rules.
-    match /{path=**}/planifications/{pid} {
-      allow read: if request.auth != null;
-    }
-    match /{path=**}/workflow/{wid} {
-      allow read: if request.auth != null;
-    }
-    match /{path=**}/history/{hid} {
-      allow read: if request.auth != null;
-    }
-    match /{path=**}/historique/{hid} {
-      allow read: if request.auth != null;
-    }
 
-    match /{document=**} {
-      allow read, write: if request.auth != null;
-    }
+    // ── Collection-group reads ──────────────────────────────────────────
+    // Subcollection rules above cover direct-path reads; `collectionGroup`
+    // queries are evaluated against these collection-id rules instead.
+    // Read-only: writes still flow through the subcollection rules.
+    match /{path=**}/planifications/{pid} { allow read: if signedIn(); }
+    match /{path=**}/workflow/{wid} { allow read: if signedIn(); }
+    match /{path=**}/historique/{hid} { allow read: if signedIn(); }
+    // `history` is queried by the admin user-detail page but never written;
+    // keeping it readable returns an empty result instead of permission-denied.
+    match /{path=**}/history/{hid} { allow read: if isAdmin(); }
+
+    // No catch-all. Anything not matched above is denied.
   }
 }
