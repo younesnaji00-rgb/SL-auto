@@ -143,7 +143,7 @@ export function renderDevisPdf(
       const raw = `: ${value || ''}`;
       const split = pdf.splitTextToSize(raw, valueMaxW) as string[];
       const maxLines = 2;
-      let lines = split.slice(0, maxLines);
+      const lines = split.slice(0, maxLines);
       if (split.length > maxLines && lines.length > 0) {
         const last = lines[lines.length - 1];
         let truncated = last;

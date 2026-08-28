@@ -50,9 +50,6 @@ export function OptionsManagerModal({
   const { toast } = useToast();
   const db = useFirestore();
 
-  // Only admins can manage options
-  if (!isAdmin) return null;
-
   const [newOption, setNewOption] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
@@ -61,6 +58,10 @@ export function OptionsManagerModal({
   const [isSyncing, setIsSyncing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
+
+  // Only admins can manage options. Placed after the hooks: React hooks must
+  // run unconditionally on every render.
+  if (!isAdmin) return null;
 
   const handleAdd = async () => {
     if (!newOption.trim()) return;

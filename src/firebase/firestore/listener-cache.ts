@@ -28,7 +28,7 @@ export function subscribe<T>(
   onError: (error: Error) => void
 ): { unsubscribe: () => void; cachedData: T | undefined; hasCache: boolean } {
   const id = Symbol();
-  let entry = cache.get(key);
+  const entry = cache.get(key);
 
   if (entry) {
     // Reuse existing listener

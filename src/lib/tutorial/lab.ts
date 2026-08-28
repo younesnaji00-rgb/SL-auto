@@ -110,7 +110,7 @@ export function startLab(tut: PageTutorial): void {
     const ch = card.offsetHeight || 160;
     let top = r.bottom + 14;
     if (top + ch > window.innerHeight - 12) top = Math.max(12, r.top - ch - 14);
-    let left = Math.min(Math.max(12, r.left), window.innerWidth - cw - 12);
+    const left = Math.min(Math.max(12, r.left), window.innerWidth - cw - 12);
     card.style.transform = `translate(${left}px, ${top}px)`;
   };
 
