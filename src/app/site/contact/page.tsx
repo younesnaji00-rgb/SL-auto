@@ -7,8 +7,8 @@ import { breadcrumbJsonLd, JsonLd, siteMetadata } from '../_components/seo';
 import { ContactForm } from './contact-form';
 
 export const metadata = siteMetadata({
-  title: 'Contact',
-  description: 'Book a walkthrough of Lionheart Appraisal with your own mission letter, or ask a question. A real appraiser answers within one business day.',
+  title: 'Contact — Book an appraisal software walkthrough',
+  description: 'Book a walkthrough of Lionheart Appraisal with one of your own insurer assignments, or ask a question. A real auto damage appraiser answers within one business day.',
   path: '/site/contact',
 });
 

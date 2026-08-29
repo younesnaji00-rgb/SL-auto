@@ -5,9 +5,9 @@ import { SubpageHero } from '../_components/chrome';
 import { breadcrumbJsonLd, JsonLd, siteMetadata } from '../_components/seo';
 
 export const metadata = siteMetadata({
-  title: 'About',
+  title: 'About — Built with independent auto damage appraisers',
   description:
-    'Lionheart Appraisal is claims management software built with independent auto appraisal firms: one file per claim, from mission letter to expert report.',
+    'Lionheart Appraisal is appraisal management software built with independent auto damage appraisal firms in Canada: one claim file from insurer assignment to appraisal report.',
   path: '/site/about',
 });
 

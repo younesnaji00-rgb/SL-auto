@@ -27,9 +27,9 @@ export interface FaqCopy {
 
 export const FAQ_EN: FaqCopy = {
   locale: 'en',
-  title: 'FAQ',
+  title: 'FAQ — Auto damage appraisal software questions',
   description:
-    'Answers about the Lionheart Appraisal demo, data isolation, field agents, bilingual reports, pricing and onboarding for auto appraisal firms.',
+    'Does it replace CCC, Audatex or Mitchell? How are supplements and total loss handled? Data isolation, field appraiser app, bilingual appraisal reports, pricing and onboarding for independent auto damage appraisal firms.',
   path: '/site/faq',
   crumb: 'FAQ',
   eyebrow: 'Frequently asked questions',
@@ -65,6 +65,14 @@ export const FAQ_EN: FaqCopy = {
       group: 'How it works',
       id: 'how-it-works',
       items: [
+        {
+          q: 'Is this auto damage appraisal software or estimating software? Does it replace CCC ONE, Audatex or Mitchell?',
+          a: 'It is appraisal management software, not an estimating system. CCC, Audatex and Mitchell write the line-level damage estimate; Lionheart manages everything around it for an independent appraisal firm: insurer assignments, field appraiser dispatch, photo documentation, supplements, agreements, the appraisal report and the fee note. Estimates and reports from your estimating system attach to the claim file as documents.',
+        },
+        {
+          q: 'How are supplements, reinspections and total loss handled?',
+          a: 'A supplement is a first-class step on the claim: new damage found mid-repair triggers a new agreement round (second, third, counter-proposal), each logged with who changed what. Reinspection visits are scheduled like any inspection and their photos land in the "during" or "after" phase. Total loss claims follow the same seven-step timeline with a reform status and the appraisal report generated from the file.',
+        },
         {
           q: 'What does the AI pre-fill actually read?',
           a: 'Mission letters, accident reports, insurer documents and vehicle registrations. The extracted fields are mapped onto the claim file and shown side by side with the source document so you can verify every value before saving.',
@@ -106,6 +114,10 @@ export const FAQ_EN: FaqCopy = {
       id: 'getting-started',
       items: [
         {
+          q: 'Is it built for independent appraisal firms in Canada?',
+          a: 'Yes. The demo runs on sample Canadian claims, amounts are in CAD, the interface and every appraisal report exist in English and French, and each firm is deployed in its own isolated cloud project in the Canadian region. It fits a firm of two appraisers as well as a multi-region network with desk and field roles.',
+        },
+        {
           q: 'How long does onboarding take?',
           a: 'A typical firm is live within two weeks: we provision the isolated deployment, load your insurers and rate tables, create your users, and walk each role through their first real claim.',
         },
@@ -120,9 +132,9 @@ export const FAQ_EN: FaqCopy = {
 
 export const FAQ_FR: FaqCopy = {
   locale: 'fr',
-  title: 'FAQ',
+  title: "FAQ — Logiciel d'expertise automobile pour estimateurs",
   description:
-    "Réponses sur la démo Lionheart Appraisal, l'isolement des données, les agents terrain, les rapports bilingues, la tarification et l'intégration pour les cabinets d'évaluation automobile.",
+    "Remplace-t-il Audatex, CCC ou Mitchell? Comment gérer suppléments et perte totale? Isolement des données, application estimateur terrain, rapports d'expertise bilingues, tarification et intégration pour cabinets d'estimateurs en dommages automobiles indépendants.",
   path: '/site/fr/faq',
   crumb: 'FAQ',
   eyebrow: 'Foire aux questions',
@@ -158,6 +170,18 @@ export const FAQ_FR: FaqCopy = {
       group: 'Comment ça marche',
       id: 'comment-ca-marche',
       items: [
+        {
+          q: "Est-ce un logiciel d'estimation? Remplace-t-il Audatex, CCC ONE ou Mitchell?",
+          a: "Non : c'est un logiciel de gestion des dossiers d'expertise, pas un système d'estimation. Audatex, CCC et Mitchell produisent l'estimation des dommages ligne par ligne; Lionheart gère tout ce qui l'entoure pour un cabinet d'estimateurs indépendant : mandats d'assureurs, dépêche des estimateurs terrain, photos, suppléments, ententes, rapport d'expertise et note d'honoraires. Les estimations de votre logiciel se rattachent au dossier comme documents.",
+        },
+        {
+          q: 'Comment sont gérés les suppléments, les réinspections et la perte totale?',
+          a: "Le supplément est une étape à part entière du dossier : de nouveaux dommages découverts en cours de réparation déclenchent une nouvelle ronde d'entente (deuxième, troisième, contre-proposition), chacune consignée avec qui a changé quoi. Les réinspections se planifient comme toute inspection et leurs photos se classent en phase « pendant » ou « après ». La perte totale suit la même chronologie en sept étapes avec un statut de réforme et le rapport d'expertise généré à partir du dossier.",
+        },
+        {
+          q: 'Est-ce adapté aux estimateurs qualifiés par le GAA au Québec?',
+          a: "Oui. Le produit est conçu pour les cabinets d'estimateurs en dommages automobiles indépendants : mandats d'assureurs, inspections terrain, rapports d'expertise bilingues, montants en CAD, et un déploiement isolé par cabinet dans la région canadienne. La qualification GAA reste celle de vos estimateurs; Lionheart gère les dossiers.",
+        },
         {
           q: "Que lit vraiment le préremplissage IA?",
           a: "Lettres de mission, constats d'accident, documents d'assureur et certificats d'immatriculation. Les champs extraits sont reportés dans le dossier et affichés côte à côte avec le document source pour que vous vérifiiez chaque valeur avant d'enregistrer.",

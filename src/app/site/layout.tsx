@@ -8,15 +8,15 @@ import { SiteShell } from './_components/chrome';
 
 export const metadata: Metadata = {
   ...siteMetadata({
-    title: `${SITE_NAME} — Auto appraisal claims, closed on time`,
+    title: `Auto Damage Appraisal Software for Independent Appraisers | ${SITE_NAME}`,
     description:
-      'Claims management for independent auto appraisal firms: AI document pre-fill, field agent app, estimates, agreements and expert reports in one file. Try the live demo, no account needed.',
+      'Appraisal management software for independent auto damage appraisal firms in Canada: insurer assignments, field appraiser app, photo documentation, supplements, total loss and appraisal reports in one claim file. Free live demo, no account.',
     path: '/site',
   }),
   metadataBase: new URL(SITE_URL),
   // Must come after the spread: sub-pages set a plain string title and rely on this template.
   title: {
-    default: `${SITE_NAME} — Auto appraisal claims, closed on time`,
+    default: `Auto Damage Appraisal Software for Independent Appraisers | ${SITE_NAME}`,
     template: `%s · ${SITE_NAME}`,
   },
 };
