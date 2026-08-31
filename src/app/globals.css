@@ -6,9 +6,10 @@
   Colour system — three roles, proportioned 60 / 30 / 10 (NN/g; the
   interior-design heuristic adopted for UI):
     60  cream canvas + paper cards         (--background, --card, --surface-*)
-    30  slate-navy "ink" family            (--ink, --ink-2/3/4, --ink-solid)
-        text at four emphasis levels (Apple HIG label → quaternaryLabel) and
-        ONE featured navy surface per page at most (Stripe "featured tier")
+    30  slate-navy "ink" family            (--ink, --ink-2/3/4)
+        text at four emphasis levels (Apple HIG label → quaternaryLabel);
+        terracotta (--tertiary) is the sparse warm third colour (featured
+        card, next-visit tile, medallions, warm chart series)
     10  teal accent                        (--primary) — primary button, active
         nav item, links, focus ring. Nothing else.
   Surfaces are tonal steps (Material 3 surface-container ladder): structure
@@ -38,7 +39,7 @@
     --ink-2: 215 20% 32%;              /* secondaryLabel   */
     --ink-3: 215 15% 42%;              /* tertiaryLabel — ≥ 4.5:1 on surface-1…3 */
     --ink-4: 215 12% 66%;              /* quaternaryLabel — disabled / decorative only */
-    --ink-solid: 215 42% 17%;          /* featured surface */
+    --ink-solid: 215 42% 17%;          /* functional dark backdrop (lightbox) */
     --on-ink: 42 30% 96%;
     --foreground: 215 38% 14%;
     --muted: 40 20% 93.5%;
@@ -54,6 +55,16 @@
     --ring: 178 55% 28%;
     --focus: 178 55% 28%;
 
+    /* Third colour — terracotta (user-picked; complementary to the teal
+       accent, warm sibling of the cream canvas). Used sparingly INSIDE
+       pages: the one featured surface, the next-visit date block, ordinal
+       medallions, the warm chart series. Never on actions (teal), never on
+       destructive/status contexts (it sits near red). */
+    --tertiary: 16 50% 44%;            /* solid fill        */
+    --tertiary-foreground: 45 30% 98%; /* text on the fill  */
+    --tertiary-deep: 16 60% 36%;       /* text-capable on cream/tint */
+    --tertiary-bg: 18 60% 92%;         /* quiet tint        */
+
     --destructive: 0 65% 50%;
     --destructive-foreground: 45 30% 98%;
     --radius: 0.5rem;
@@ -61,12 +72,11 @@
     --chart-1: 215 42% 28%;
     --chart-2: 178 45% 42%;
     --chart-3: 215 14% 62%;
-    --chart-4: 28 75% 58%;
+    --chart-4: 16 55% 52%;
     --chart-5: 172 30% 72%;
 
-    /* Navigation sits on the cream ladder (user ruling: the navy third
-       colour lives INSIDE pages — featured surfaces, group header bands —
-       not on the sidebar). Active item = teal bar + icon. */
+    /* Navigation sits on the cream ladder (user ruling: the third colour
+       lives INSIDE pages, never on the nav). Active item = teal bar + icon. */
     --sidebar-background: 42 26% 94%;
     --sidebar-foreground: 215 38% 14%;
     --sidebar-muted: 215 15% 42%;
@@ -125,13 +135,18 @@
     --ring: 172 50% 55%;
     --focus: 172 50% 55%;
 
+    --tertiary: 16 45% 40%;
+    --tertiary-foreground: 40 15% 94%;
+    --tertiary-deep: 16 70% 70%;
+    --tertiary-bg: 16 40% 16%;
+
     --destructive: 0 55% 48%;
     --destructive-foreground: 40 15% 92%;
 
     --chart-1: 215 55% 68%;
     --chart-2: 172 50% 55%;
     --chart-3: 218 10% 55%;
-    --chart-4: 28 75% 58%;
+    --chart-4: 16 55% 52%;
     --chart-5: 172 30% 40%;
 
     --sidebar-background: 218 13% 9%;
@@ -241,9 +256,9 @@
   .paper {
     @apply rounded-xl bg-card text-card-foreground shadow-card dark:ring-1 dark:ring-hairline;
   }
-  /* The one navy surface a page may use (Stripe featured tier). */
+  /* The one terracotta surface a page may use (Stripe featured tier). */
   .paper-featured {
-    @apply rounded-xl bg-ink-solid text-on-ink shadow-raised;
+    @apply rounded-xl bg-tertiary text-tertiary-foreground shadow-raised;
   }
 }
 

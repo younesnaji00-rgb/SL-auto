@@ -37,7 +37,7 @@ const TYPE_CHIP: Record<string, string> = {
  * Planifications as a calendar-style list (date block · details), newest
  * first. Every row carries its FULL details inline — no dialog. The NEXT
  * upcoming visit's date block is this tab's single navy element
- * (DESIGN.md §10: one `bg-ink-solid` surface for the thing the view is about).
+ * (the upcoming visit's date block is the tab's one terracotta element).
  */
 export default function PlanificationTab({
   dossierId,
@@ -125,7 +125,7 @@ export default function PlanificationTab({
                 <div
                   className={cn(
                     'flex w-14 shrink-0 flex-col items-center justify-center rounded-md py-1.5 text-center tabular-nums',
-                    upcoming ? 'bg-ink-solid text-on-ink' : 'bg-surface-2 text-ink-3',
+                    upcoming ? 'bg-tertiary text-tertiary-foreground' : 'bg-surface-2 text-ink-3',
                   )}
                 >
                   <span className="text-[11px] font-medium uppercase leading-none">{rdv ? format(rdv, 'MMM', { locale: fr }).replace('.', '') : '—'}</span>

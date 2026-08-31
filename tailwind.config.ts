@@ -62,6 +62,13 @@ export default {
           solid: 'hsl(var(--ink-solid))',
         },
         'on-ink': 'hsl(var(--on-ink))',
+        // Third colour: terracotta (see globals.css for the usage contract).
+        tertiary: {
+          DEFAULT: 'hsl(var(--tertiary))',
+          foreground: 'hsl(var(--tertiary-foreground))',
+          deep: 'hsl(var(--tertiary-deep))',
+          bg: 'hsl(var(--tertiary-bg))',
+        },
         'heading-bg': 'hsl(var(--heading-bg))',
         'heading-fg': 'hsl(var(--heading-fg))',
         // Neutral ladder (Radix-style): page → surface-1 (card) → surface-2 (hover/header)

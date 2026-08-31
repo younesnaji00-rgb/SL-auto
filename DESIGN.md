@@ -88,16 +88,16 @@ Registry: `hooks/use-hotkeys.ts` (single keys and `g`-chords; ignored inside inp
 Sources: NN/g "Using Color to Enhance Your Design" (three colours, 60-30-10), Material 3 tone-based surfaces (surface-container ladder), Apple HIG label → quaternaryLabel text hierarchy, Refactoring UI (emphasise by de-emphasising; weight and colour before size; fewer borders; labels are secondary), Stripe (deep-navy ink as the universal text colour + one featured navy surface), IBM Carbon / Linear (few type sizes, 8-pt spacing).
 
 ### Colour roles
-Why navy is the third colour: teal (≈178°) and navy (≈215°) are **analogous** (adjacent hues, harmonious by construction), and navy sits opposite the warm cream canvas (≈42°) — a **complementary** warm/cool pair. The two other harmony candidates collide with semantics: teal's complement (coral, ≈0°) reads as `danger`, its split-complements (amber ≈28°, rose ≈330°) read as `warning`. Precedents: Stripe (navy ink + one accent), the 60-30-10 dashboard canon (light content 60 / dark navy navigation 30 / one accent 10).
+The third colour is **terracotta** (≈16°) — teal's warm complement and the cream canvas's deepened sibling; the user chose it over plum/ochre after navy surfaces were rejected. Slate navy survives only as the ink hue of text. Keep terracotta rare enough that it never competes with the red status pair.
 
 | Share | Role | Tokens | Where |
 |---|---|---|---|
 | 60 % | Canvas & paper (warm cream) | `background`, `card`, `surface-1…4`, `hairline` | page, cards, table headers, hovers |
-| 30 % | Slate navy | `ink`, `ink-2`, `ink-3`, `ink-4`, `ink-solid` + `on-ink` | all text and icons, and IN-PAGE navy surfaces only: featured cards, document group/family header bands, the next-visit date block — never the sidebar |
+| 30 % | Slate-navy ink + terracotta | `ink`, `ink-2`, `ink-3`, `ink-4`; `tertiary(-deep/-bg/-foreground)` | ink: all text and icons. terracotta: the few in-page warm elements listed below — never the sidebar, never header bands |
 | 10 % | Accent (teal) | `primary`, `accent`, `ring` | primary button, active nav, links, focus, selected step |
 
 - **Ink ladder = emphasis, not colour picking**: `ink` values & titles · `ink-2` secondary text, inactive step titles · `ink-3` labels, helper, meta, icons · `ink-4` disabled / decorative only (below 4.5:1 — never for information). Retire `text-foreground/90`, `text-muted-foreground/60`, `opacity-70/80` on text.
-- **Navy in-page surfaces** (the third colour, always `bg-ink-solid text-on-ink`): (a) at most ONE featured card per page (`<Card variant="featured">` / `.paper-featured`) for the thing the page is about; (b) document group / family header BANDS in the documents surfaces (secondary text `text-on-ink/70`, pills `bg-on-ink/15`); (c) the next-visit date block in Planifications. Never on the sidebar, never for decoration.
+- **Terracotta** (`tertiary` tokens — the third colour, user-picked): (a) at most ONE featured card per page (`<Card variant="featured">` / `.paper-featured`); (b) the next-visit date block in Planifications; (c) ordinal medallions on accord families; (d) the warm chart series (`chart-4`). Solid fill = `bg-tertiary text-tertiary-foreground`; on cream use `text-tertiary-deep` / tint `bg-tertiary-bg`. NEVER on actions (teal's job), never near destructive/status UI (it sits close to red), never as header bands, never on the sidebar. Navy (`ink-solid`) is retired to functional dark backdrops only (lightbox media area).
 - Semantic status pairs stay separate from the accent; teal never carries meaning.
 
 ### Surfaces (tone before borders)

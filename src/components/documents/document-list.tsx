@@ -92,17 +92,17 @@ export function DocumentGroup({ title, subtitle, received, total, summary, actio
   return (
     <section aria-label={title} className={className}>
       {/* Navy band — the page's third colour lives on the group headers. */}
-      <header className="flex min-h-10 items-center gap-3 bg-ink-solid px-4 py-1.5">
+      <header className="flex min-h-10 items-center gap-3 bg-surface-2 px-4 py-1.5">
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
-          <h4 className="t-heading truncate text-on-ink" title={title}>{title}</h4>
-          {subtitle && <span className="t-caption hidden truncate text-on-ink/70 sm:inline">{subtitle}</span>}
+          <h4 className="t-heading truncate" title={title}>{title}</h4>
+          {subtitle && <span className="t-caption hidden truncate sm:inline">{subtitle}</span>}
         </div>
         {pillText && (
-          <span className="inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-full bg-on-ink/15 px-2 text-[11px] font-medium tabular-nums text-on-ink">
+          <span className="inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-full bg-surface-3 px-2 text-[11px] font-medium tabular-nums text-ink-2">
             {pillText}
           </span>
         )}
-        {actions && <div className="flex shrink-0 items-center gap-1 text-on-ink/70">{actions}</div>}
+        {actions && <div className="flex shrink-0 items-center gap-1 text-ink-3">{actions}</div>}
       </header>
       <ul role="list" className="divide-y divide-hairline">
         {children}

@@ -128,7 +128,7 @@ export function FamilyRow({
     >
       {/* Navy header band — the page's third colour. Whole band toggles the
           collapse; `topAction` sits outside the toggle button. */}
-      <div className="flex min-h-10 items-center gap-2 rounded-lg bg-ink-solid pr-2 text-on-ink">
+      <div className="flex min-h-10 items-center gap-2 rounded-lg bg-surface-2 pr-2 text-ink">
         <button
           type="button"
           onClick={toggleCollapsed}
@@ -138,25 +138,25 @@ export function FamilyRow({
         >
           <ChevronDown
             className={cn(
-              'h-4 w-4 shrink-0 text-on-ink/70 transition-transform duration-150',
+              'h-4 w-4 shrink-0 text-ink-3 transition-transform duration-150',
               collapsed && '-rotate-90',
             )}
             aria-hidden
           />
-          <h3 className="min-w-0 truncate text-[13px] font-semibold text-on-ink" title={group.parent}>
+          <h3 className="min-w-0 truncate text-[13px] font-semibold text-ink" title={group.parent}>
             {group.parent}
           </h3>
           {/* Ordinal medallion — extra garages carry their round number. */}
           {group.parentOrdinal >= 2 && (
             <span
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-on-ink/15 text-[11px] font-semibold tabular-nums text-on-ink"
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-tertiary-bg text-[11px] font-semibold tabular-nums text-tertiary-deep"
               title={`Garage ${group.parentOrdinal}`}
               aria-label={`Garage numéro ${group.parentOrdinal}`}
             >
               {group.parentOrdinal}
             </span>
           )}
-          <span className="shrink-0 rounded-full bg-on-ink/15 px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums text-on-ink">
+          <span className="shrink-0 rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums text-ink-2">
             {receivedCount}/{visibleSlots.length} reçu{receivedCount > 1 ? 's' : ''}
           </span>
         </button>

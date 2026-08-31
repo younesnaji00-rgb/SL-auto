@@ -18,7 +18,7 @@ const CARD_VARIANT: Record<CardVariant, string> = {
   tonal: 'rounded-xl bg-card text-card-foreground shadow-card dark:ring-1 dark:ring-hairline',
   outline: 'rounded-lg border border-hairline bg-card text-card-foreground',
   flat: 'rounded-lg bg-surface-2 text-card-foreground',
-  featured: 'rounded-xl bg-ink-solid text-on-ink shadow-raised',
+  featured: 'rounded-xl bg-tertiary text-tertiary-foreground shadow-raised',
 }
 
 const Card = React.forwardRef<
