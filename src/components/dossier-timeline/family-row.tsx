@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { ChevronDown } from 'lucide-react';
 import {
   SlotCard,
   type ExtraSlotKind,
@@ -8,6 +9,7 @@ import {
 } from './slot-card';
 import type { DocFamily } from '@/lib/doc-family';
 import { parseAccordDocType } from '@/lib/docType-accorde';
+import { cn } from '@/lib/utils';
 
 interface FamilyRowProps {
   /** The family group (parent + ordered slot labels) to render as a row. */
@@ -28,8 +30,8 @@ interface FamilyRowProps {
   onPreview: (d: TypedDoc) => void;
   /**
    * Optional action rendered inline at the right end of the family header
-   * row (next to the name + count pill). Used on the chiffreur side for the
-   * "Éditer web" button.
+   * band (next to the name + pill). Used on the chiffreur side for the
+   * "Éditer web" button. Lives OUTSIDE the collapse toggle button.
    */
   topAction?: React.ReactNode;
   /**
@@ -55,14 +57,17 @@ interface FamilyRowProps {
    * structured editor scoped to that specific slot.
    */
   onEditSlot?: (slot: string) => void;
+  /** Scopes the per-family collapse persistence (sessionStorage). */
+  dossierId?: string;
 }
 
 /**
  * Renders a single family (one garage + its accord/proposition variants) as
- * a header row (name · ordinal medallion for extra garages · "n/m reçus"
- * pill · optional `topAction`) followed by a responsive grid of inventory
- * slot sockets. No outer box: families are separated by a hairline +
- * vertical spacing when they follow another section.
+ * a collapsible navy header band (chevron · name · ordinal medallion for
+ * extra garages · "n/m reçus" pill · optional `topAction`) followed by a
+ * responsive grid of inventory slot sockets. Collapsing hides the grid and
+ * keeps the band; the state persists per `dossier:family` in sessionStorage
+ * (default expanded).
  */
 export function FamilyRow({
   group,
@@ -85,7 +90,21 @@ export function FamilyRow({
   hideExtraSlotPlus,
   cardinalFilter = 'all',
   onEditSlot,
+  dossierId,
 }: FamilyRowProps) {
+  const storageKey = `docfam-collapsed:${dossierId ?? 'dossier'}:${group.parent}`;
+  const [collapsed, setCollapsed] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try { return window.sessionStorage.getItem(storageKey) === 'true'; } catch { return false; }
+  });
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try { window.sessionStorage.setItem(storageKey, String(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
+  };
+
   const visibleSlots = cardinalFilter === 'all'
     ? group.slots
     : group.slots.filter((s) => {
@@ -107,54 +126,76 @@ export function FamilyRow({
       className="space-y-3 border-t border-hairline pt-5 first:border-t-0 first:pt-0"
       aria-label={group.parent}
     >
-      <div className="flex min-h-8 items-center gap-2">
-        <h3 className="min-w-0 truncate text-[13px] font-semibold text-ink" title={group.parent}>
-          {group.parent}
-        </h3>
-        {/* Ordinal medallion — extra garages carry their round number. */}
-        {group.parentOrdinal >= 2 && (
-          <span
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[11px] font-semibold tabular-nums text-ink-2"
-            title={`Garage ${group.parentOrdinal}`}
-            aria-label={`Garage numéro ${group.parentOrdinal}`}
-          >
-            {group.parentOrdinal}
+      {/* Navy header band — the page's third colour. Whole band toggles the
+          collapse; `topAction` sits outside the toggle button. */}
+      <div className="flex min-h-10 items-center gap-2 rounded-lg bg-ink-solid pr-2 text-on-ink">
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-label={`${collapsed ? 'Développer' : 'Réduire'} ${group.parent}`}
+          className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        >
+          <ChevronDown
+            className={cn(
+              'h-4 w-4 shrink-0 text-on-ink/70 transition-transform duration-150',
+              collapsed && '-rotate-90',
+            )}
+            aria-hidden
+          />
+          <h3 className="min-w-0 truncate text-[13px] font-semibold text-on-ink" title={group.parent}>
+            {group.parent}
+          </h3>
+          {/* Ordinal medallion — extra garages carry their round number. */}
+          {group.parentOrdinal >= 2 && (
+            <span
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-on-ink/15 text-[11px] font-semibold tabular-nums text-on-ink"
+              title={`Garage ${group.parentOrdinal}`}
+              aria-label={`Garage numéro ${group.parentOrdinal}`}
+            >
+              {group.parentOrdinal}
+            </span>
+          )}
+          <span className="shrink-0 rounded-full bg-on-ink/15 px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums text-on-ink">
+            {receivedCount}/{visibleSlots.length} reçu{receivedCount > 1 ? 's' : ''}
           </span>
-        )}
-        <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums text-ink-2">
-          {receivedCount}/{visibleSlots.length} reçu{receivedCount > 1 ? 's' : ''}
-        </span>
+        </button>
         {topAction && (
-          <div className="ml-auto flex shrink-0 items-center">
+          <div
+            className="ml-auto flex shrink-0 items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
             {topAction}
           </div>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        {visibleSlots.map((slot) => (
-          <SlotCard
-            key={slot}
-            slot={slot}
-            docs={docsByType[slot] || []}
-            canEdit={canEdit}
-            canDeleteDoc={canDeleteDoc}
-            userRole={userRole}
-            isUploading={isUploading(slot)}
-            deletingId={deletingId}
-            extraSlotKind={extraSlotKindForSlot(slot)}
-            canManageExtraSlots={canManageExtraSlots}
-            onUpload={(files) => onUpload(slot, files)}
-            onDelete={onDelete}
-            onCreateNextCardinal={() => onCreateNextCardinal(slot)}
-            onCreateExtraSlot={onCreateExtraSlot}
-            onRenameExtraSlot={() => onRenameExtraSlot(slot)}
-            onPreview={onPreview}
-            hideCardinalPlus={hideCardinalPlus}
-            hideExtraSlotPlus={hideExtraSlotPlus}
-            onEdit={onEditSlot ? () => onEditSlot(slot) : undefined}
-          />
-        ))}
-      </div>
+      {!collapsed && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {visibleSlots.map((slot) => (
+            <SlotCard
+              key={slot}
+              slot={slot}
+              docs={docsByType[slot] || []}
+              canEdit={canEdit}
+              canDeleteDoc={canDeleteDoc}
+              userRole={userRole}
+              isUploading={isUploading(slot)}
+              deletingId={deletingId}
+              extraSlotKind={extraSlotKindForSlot(slot)}
+              canManageExtraSlots={canManageExtraSlots}
+              onUpload={(files) => onUpload(slot, files)}
+              onDelete={onDelete}
+              onCreateNextCardinal={() => onCreateNextCardinal(slot)}
+              onCreateExtraSlot={onCreateExtraSlot}
+              onRenameExtraSlot={() => onRenameExtraSlot(slot)}
+              onPreview={onPreview}
+              hideCardinalPlus={hideCardinalPlus}
+              hideExtraSlotPlus={hideExtraSlotPlus}
+              onEdit={onEditSlot ? () => onEditSlot(slot) : undefined}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }

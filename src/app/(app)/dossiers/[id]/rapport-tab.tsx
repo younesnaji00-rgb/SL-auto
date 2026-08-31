@@ -31,6 +31,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import * as TabsPrimitive from '@radix-ui/react-tabs';
 import { generateRapportReformePDF } from '@/lib/generate-rapport-reforme-pdf';
 import { generateRapportFinalPDF } from '@/lib/generate-rapport-final-pdf';
 import { generateRapportEstimatifPDF } from '@/lib/generate-rapport-estimatif-pdf';
@@ -51,6 +52,10 @@ import { ValiderDossierButton } from '@/components/dossiers/valider-dossier-butt
 import CarSvgTop from '@/components/car-svg-top';
 import CarSvgBottom from '@/components/car-svg-bottom';
 import { apiFetch } from '@/lib/api-fetch';
+
+// Underline tab trigger, styled to match components/dossier-timeline/step-tabs.tsx.
+const DIAGRAM_TAB_TRIGGER =
+  'relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-[13px] font-medium text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card data-[state=active]:border-primary data-[state=active]:text-ink';
 
 export default function RapportTab({ dossierId }: { dossierId: string }) {
   const db = useFirestore();
@@ -347,11 +352,26 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
       {/* POINTS DE CHOC */}
       <Card>
         <CardHeader className="border-b border-hairline"><CardTitle>Points de choc</CardTitle></CardHeader>
-        <CardContent className="space-y-10 p-5">
+        <CardContent className="p-5">
+          {/* Vue dessus / dessous as underline tabs (styled like step-tabs).
+              Zone-selection state lives in THIS component (pointsChoc /
+              pointsChocDessous), so switching tabs unmounts only the SVG —
+              nothing is lost and no forceMount is needed. PDF generation
+              reads state + Firestore, not the DOM. */}
+          <TabsPrimitive.Root defaultValue="dessus" className="w-full">
+            <TabsPrimitive.List
+              aria-label="Vue du diagramme"
+              className="-mx-1 flex items-end gap-1 overflow-x-auto border-b border-hairline px-1 scrollbar-thin"
+            >
+              <TabsPrimitive.Trigger value="dessus" className={DIAGRAM_TAB_TRIGGER}>
+                Vue dessus <ChangeBadge status={pointsChocStatus} />
+              </TabsPrimitive.Trigger>
+              <TabsPrimitive.Trigger value="dessous" className={DIAGRAM_TAB_TRIGGER}>
+                Vue dessous <ChangeBadge status={pointsChocDessousStatus} />
+              </TabsPrimitive.Trigger>
+            </TabsPrimitive.List>
+            <TabsPrimitive.Content value="dessus" className="pt-5 focus-visible:outline-none">
           <div className={cn("space-y-4 rounded-md", highlightClass(pointsChocStatus) && `${highlightClass(pointsChocStatus)} p-3`)}>
-            <h3 className="t-label flex items-center gap-2">
-              Vue de dessus <ChangeBadge status={pointsChocStatus} />
-            </h3>
             <div className={cn("grid items-center gap-10", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "mx-auto max-w-md grid-cols-1")}>
               <div className={cn("mx-auto", !canEditDossiers && "pointer-events-none")}>
                 <CarSvgTop zones={pointsChoc} onToggleZone={canEditDossiers ? (zone) => handleToggleZone(zone) : () => {}} />
@@ -368,10 +388,9 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
               )}
             </div>
           </div>
-          <div className={cn("space-y-4 rounded-md border-t border-hairline pt-10", highlightClass(pointsChocDessousStatus) && `${highlightClass(pointsChocDessousStatus)} p-3`)}>
-            <h3 className="t-label flex items-center gap-2">
-              Vue de dessous <ChangeBadge status={pointsChocDessousStatus} />
-            </h3>
+            </TabsPrimitive.Content>
+            <TabsPrimitive.Content value="dessous" className="pt-5 focus-visible:outline-none">
+          <div className={cn("space-y-4 rounded-md", highlightClass(pointsChocDessousStatus) && `${highlightClass(pointsChocDessousStatus)} p-3`)}>
             <div className={cn("grid items-center gap-10", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "mx-auto max-w-md grid-cols-1")}>
               <div className={cn("mx-auto", !canEditDossiers && "pointer-events-none")}>
                 <CarSvgBottom zones={pointsChocDessous} onToggleZone={canEditDossiers ? (zone) => handleToggleZone(zone, true) : () => {}} />
@@ -388,6 +407,8 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
               )}
             </div>
           </div>
+            </TabsPrimitive.Content>
+          </TabsPrimitive.Root>
         </CardContent>
       </Card>
     </div>

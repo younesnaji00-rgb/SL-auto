@@ -19,35 +19,35 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { Download, Eye, FileText, Loader2, Trash2, Upload } from 'lucide-react';
+import { Check, Clock, Download, Eye, FileText, Loader2, Trash2, Upload, X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
 import { cn } from '@/lib/utils';
-import { isImage } from './typed-doc';
+import { isImage, isPdf } from './typed-doc';
 
-// ── Status chip (GOV.UK tag) ─────────────────────────────────────────────────
+// ── Status marker (tick / cross — no chips) ──────────────────────────────────
 
 export type SlotStatus = 'received' | 'pending' | 'missing' | 'optional';
 
-const STATUS_CHIP: Record<SlotStatus, { label: string; className: string }> = {
-  received: { label: 'Reçu', className: 'bg-status-success-bg text-status-success-fg' },
-  pending: { label: 'En attente', className: 'bg-status-warning-bg text-status-warning-fg' },
-  missing: { label: 'À déposer', className: 'border border-dashed border-hairline-strong text-ink-3' },
-  optional: { label: 'Optionnel', className: 'border border-dashed border-hairline text-ink-3' },
+const STATUS_MARKER: Record<SlotStatus, { label: string; className: string; Icon: typeof Check }> = {
+  received: { label: 'Reçu', className: 'text-status-success-fg', Icon: Check },
+  pending: { label: 'En attente', className: 'text-status-warning-fg', Icon: Clock },
+  missing: { label: 'Manquant', className: 'text-status-danger-fg', Icon: X },
+  optional: { label: 'Manquant (optionnel)', className: 'text-ink-4', Icon: X },
 };
 
-export function SlotStatusChip({ status, className }: { status: SlotStatus; className?: string }) {
-  const c = STATUS_CHIP[status];
+export function SlotStatusIcon({ status, className }: { status: SlotStatus; className?: string }) {
+  const m = STATUS_MARKER[status];
   return (
     <span
-      className={cn(
-        'inline-flex h-5 w-[5.75rem] shrink-0 items-center justify-center whitespace-nowrap rounded-full px-2 text-[11px] font-medium leading-4',
-        c.className,
-        className,
-      )}
+      role="img"
+      aria-label={m.label}
+      title={m.label}
+      className={cn('inline-flex h-5 w-5 shrink-0 items-center justify-center', m.className, className)}
     >
-      {c.label}
+      <m.Icon className="h-4 w-4" strokeWidth={2.5} aria-hidden />
     </span>
   );
 }
@@ -91,17 +91,18 @@ export function DocumentGroup({ title, subtitle, received, total, summary, actio
       : null);
   return (
     <section aria-label={title} className={className}>
-      <header className="flex min-h-10 items-center gap-3 bg-surface-2 px-4 py-1.5">
+      {/* Navy band — the page's third colour lives on the group headers. */}
+      <header className="flex min-h-10 items-center gap-3 bg-ink-solid px-4 py-1.5">
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
-          <h4 className="t-heading truncate" title={title}>{title}</h4>
-          {subtitle && <span className="t-caption hidden truncate sm:inline">{subtitle}</span>}
+          <h4 className="t-heading truncate text-on-ink" title={title}>{title}</h4>
+          {subtitle && <span className="t-caption hidden truncate text-on-ink/70 sm:inline">{subtitle}</span>}
         </div>
         {pillText && (
-          <span className="inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-full bg-surface-3 px-2 text-[11px] font-medium tabular-nums text-ink-2">
+          <span className="inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-full bg-on-ink/15 px-2 text-[11px] font-medium tabular-nums text-on-ink">
             {pillText}
           </span>
         )}
-        {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+        {actions && <div className="flex shrink-0 items-center gap-1 text-on-ink/70">{actions}</div>}
       </header>
       <ul role="list" className="divide-y divide-hairline">
         {children}
@@ -215,7 +216,7 @@ export function SlotRow({
     <li
       id={id}
       tabIndex={0}
-      aria-label={ariaLabel ?? `${label} — ${STATUS_CHIP[status].label}`}
+      aria-label={ariaLabel ?? `${label} — ${STATUS_MARKER[status].label}`}
       onKeyDown={handleKeyDown}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -225,22 +226,23 @@ export function SlotRow({
         'group/row relative flex min-h-11 flex-col gap-1.5 px-4 py-2 transition-colors',
         '[[data-density=compact]_&]:min-h-9 [[data-density=compact]_&]:py-1',
         'sm:flex-row sm:items-start sm:gap-4',
+        'hover:bg-surface-2',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
         dragOver && 'bg-accent/30 ring-1 ring-inset ring-primary/40',
         className,
       )}
     >
       {/* Status + label column */}
-      <div className="flex min-w-0 items-center gap-3 pr-24 sm:w-[18.5rem] sm:shrink-0 sm:self-center sm:pr-0">
-        <SlotStatusChip status={status} />
+      <div className="flex min-w-0 items-center gap-3 pr-24 sm:w-[16rem] sm:shrink-0 sm:self-center sm:pr-0">
+        <SlotStatusIcon status={status} />
         <div className="min-w-0">
-          <p className="t-body-sm truncate font-medium" title={title ?? label}>{label}</p>
+          <p className="t-body-sm truncate font-medium leading-tight" title={title ?? label}>{label}</p>
           {hint && <p className="t-caption truncate" title={hint}>{hint}</p>}
         </div>
       </div>
 
       {/* Documents of the slot (stack vertically; the row grows) */}
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5 pl-[6.5rem] sm:self-center sm:pl-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5 pl-8 sm:self-center sm:pl-0">
         {hasItems ? items : (
           emptyText ? <p className="t-caption flex min-h-7 items-center">{emptyText}</p> : null
         )}
@@ -346,7 +348,7 @@ export function DocumentItem({
   const actionable = !!url && !pending;
   const thumb = !!url && isImage(name);
   return (
-    <div className={cn('-mx-1.5 flex min-h-8 items-center gap-2.5 rounded-md px-1.5 py-0.5', className)}>
+    <div className={cn('-mx-1.5 flex min-h-10 items-center gap-2.5 rounded-md px-1.5 py-0.5', className)}>
       {selectable && (
         <Checkbox
           checked={!!selected}
@@ -358,10 +360,12 @@ export function DocumentItem({
       )}
       {thumb ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={url!} alt="" loading="lazy" decoding="async" className="h-7 w-7 shrink-0 rounded-md bg-surface-2 object-cover" />
+        <img src={url!} alt="" loading="lazy" decoding="async" className="h-9 w-9 shrink-0 rounded-md bg-surface-2 object-cover" />
+      ) : url && !pending && isPdf(name) ? (
+        <PdfThumbnail url={url} width={72} className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-surface-2" />
       ) : (
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface-2 text-ink-3" aria-hidden>
-          <FileText className="h-3.5 w-3.5" />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-surface-2 text-ink-3" aria-hidden>
+          <FileText className="h-4 w-4" />
         </span>
       )}
       <div className="min-w-0 flex-1">

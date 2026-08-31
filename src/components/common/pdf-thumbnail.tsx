@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -20,12 +20,51 @@ function loadPdfJs(): Promise<any> {
   return pdfJsPromise;
 }
 
-export function PdfThumbnail({ url, className, width = 96 }: { url: string; className?: string; width?: number }) {
+/**
+ * First-page PDF thumbnail. `lazy` (default true) defers the fetch + render
+ * until the placeholder scrolls near the viewport (IntersectionObserver,
+ * 200 px margin) so long document lists don't download every PDF up front.
+ * Cached results render immediately regardless.
+ */
+export function PdfThumbnail({
+  url,
+  className,
+  width = 96,
+  lazy = true,
+}: {
+  url: string;
+  className?: string;
+  width?: number;
+  lazy?: boolean;
+}) {
   const [dataUrl, setDataUrl] = useState<string | null>(thumbnailCache.get(url) || null);
   const [errored, setErrored] = useState(false);
+  const [inView, setInView] = useState(!lazy);
+  const holderRef = useRef<HTMLDivElement>(null);
+
+  // Lazy gate: start the (expensive) fetch + pdfjs render only near viewport.
+  useEffect(() => {
+    if (!lazy || inView || dataUrl) return;
+    const el = holderRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setInView(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setInView(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: '200px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [lazy, inView, dataUrl]);
 
   useEffect(() => {
-    if (dataUrl || errored || !url) return;
+    if (!inView || dataUrl || errored || !url) return;
     let cancelled = false;
     (async () => {
       try {
@@ -53,7 +92,7 @@ export function PdfThumbnail({ url, className, width = 96 }: { url: string; clas
       }
     })();
     return () => { cancelled = true; };
-  }, [url, width, dataUrl, errored]);
+  }, [url, width, dataUrl, errored, inView]);
 
   if (errored || !url) {
     return (
@@ -64,7 +103,7 @@ export function PdfThumbnail({ url, className, width = 96 }: { url: string; clas
   }
   if (!dataUrl) {
     return (
-      <div className={cn('flex items-center justify-center bg-muted', className)}>
+      <div ref={holderRef} className={cn('flex items-center justify-center bg-muted', className)}>
         <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/50" />
       </div>
     );

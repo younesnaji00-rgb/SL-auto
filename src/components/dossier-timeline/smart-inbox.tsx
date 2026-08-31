@@ -23,8 +23,6 @@ import {
   ImageIcon,
   Loader2,
   ScanSearch,
-  Sparkles,
-  Upload,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -104,7 +102,7 @@ async function runPool<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
   );
 }
 
-export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, prefilling, className, title, description }: SmartInboxProps) {
+export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, prefilling, className }: SmartInboxProps) {
   const db = useFirestore();
   const storage = useStorage();
   const auth = useAuth();
@@ -379,28 +377,22 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
 
   return (
     <section className={cn('space-y-4', className)} aria-label="Boîte de dépôt des documents">
-      {/* Drop strip — compact (one row): a small button that is also a drop
-          target. The whole strip lights up while dragging files over it. */}
-      <div
-        onDragOver={(e) => { e.preventDefault(); if (!draggingItemId) setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onZoneDrop}
-        className={cn(
-          'relative flex min-h-[48px] items-center gap-3 rounded-lg border border-dashed px-3 py-2 transition-colors',
-          dragging ? 'border-primary bg-accent/40' : 'border-hairline-strong bg-surface-2/60',
-        )}
-      >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="t-body-sm font-medium">{title ?? 'Déposez vos fichiers ici'}</p>
-          <p className="t-caption hidden truncate sm:block" title={description ?? undefined}>
-            {description ?? "L'IA reconnaît chaque document, le classe au bon endroit et apprend de vos corrections."}
-          </p>
-        </div>
-        <Button type="button" variant="outline" size="sm" className="h-8 shrink-0" disabled={busy} onClick={() => inputRef.current?.click()}>
-          <Upload className="mr-1.5 h-3.5 w-3.5" /> Choisir des fichiers
+      {/* File picker — a plain button (user ruling: no banner, no icon, no
+          copy). Still a drop target: dragging files over it lights it up. */}
+      <div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={cn('h-8', dragging && 'ring-2 ring-primary/50 bg-accent/40')}
+          disabled={busy}
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); if (!draggingItemId) setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onZoneDrop}
+        >
+          {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+          {busy ? 'Analyse en cours…' : 'Choisir des fichiers'}
         </Button>
         <input
           ref={inputRef}

@@ -718,6 +718,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           {!hideAccordSlots && devisFamilies.map((group) => (
             <FamilyRow
               key={group.parent}
+              dossierId={dossierId}
               group={group}
               docsByType={docsByType}
               canEdit={canEdit}
@@ -743,6 +744,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           {!hideAccordSlots && factureFamilies.map((group) => (
             <FamilyRow
               key={group.parent}
+              dossierId={dossierId}
               group={group}
               docsByType={docsByType}
               canEdit={canEdit}

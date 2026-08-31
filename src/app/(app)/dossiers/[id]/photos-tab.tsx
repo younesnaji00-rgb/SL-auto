@@ -11,6 +11,7 @@ import {
   X,
   Check,
   Eye,
+  CalendarDays,
   Camera,
   ImageIcon,
   ChevronLeft,
@@ -23,13 +24,6 @@ import {
 } from 'lucide-react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   collection,
   addDoc,
@@ -117,6 +111,9 @@ export const MAX_PHOTOS_WITH_REFORME = 60;
 
 export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: { dossierId: string; initialCategory?: PhotoCategory; onlyCategory?: PhotoCategory }) {
   const visibleCategories = onlyCategory ? CATEGORIES.filter((c) => c.id === onlyCategory) : CATEGORIES;
+  // Mounted inside a step facet tab (`onlyCategory` set): the photos already
+  // have their own tab, so date/location groups open EXPANDED by default.
+  const defaultGroupsOpen = Boolean(onlyCategory);
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -524,34 +521,6 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                   </span>
                 </h3>
                 <div className="flex items-center gap-2">
-                  {/* Partition-mode selector: choose between per-date grouping
-                      (existing) and per-location grouping. Same control on
-                      every category — the active mode is shared. */}
-                  <Select
-                    value={partitionMode}
-                    onValueChange={(v) => setPartitionMode(v as PartitionMode)}
-                  >
-                    <SelectTrigger
-                      className="h-8 w-[170px] text-xs"
-                      aria-label="Mode de regroupement des photos"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="date">
-                        <span className="inline-flex items-center gap-2">
-                          <ChevronDown className="h-3.5 w-3.5" />
-                          Par date
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="location">
-                        <span className="inline-flex items-center gap-2">
-                          <MapPin className="h-3.5 w-3.5" />
-                          Par localisation
-                        </span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
                   <input
                     type="file"
                     accept="image/*"
@@ -580,6 +549,38 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                   )}
                 </div>
               </div>
+
+              {/* Grouping mode as underline tabs (styled like step-tabs.tsx) —
+                  replaces the previous Select. Both modes show every photo, so
+                  there is no separate "Toutes" (no-filter) state here. */}
+              {catPhotos.length > 0 && (
+                <div
+                  role="tablist"
+                  aria-label="Mode de regroupement des photos"
+                  className="-mx-1 mb-4 flex items-end gap-1 overflow-x-auto border-b border-hairline px-1 scrollbar-thin"
+                >
+                  {([
+                    ['date', 'Par date', CalendarDays],
+                    ['location', 'Par localisation', MapPin],
+                  ] as const).map(([mode, label, Icon]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      role="tab"
+                      aria-selected={partitionMode === mode}
+                      onClick={() => setPartitionMode(mode)}
+                      className={cn(
+                        'relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-[13px] font-medium text-ink-3',
+                        'transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+                        partitionMode === mode && 'border-primary text-ink',
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* Photo grid or empty state */}
               {catPhotos.length === 0 ? (
@@ -620,13 +621,14 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                 <PhotosByLocation
                   photos={catPhotos}
                   renderPhoto={renderPhotoCard}
+                  defaultExpanded={defaultGroupsOpen}
                 />
               ) : (
                 <CollapsedByDayList
                   items={catPhotos}
                   getDate={(photo) => (photo.uploadedAt?.toDate ? photo.uploadedAt.toDate() : null)}
                   keyOf={(photo) => photo.id}
-                  defaultExpanded={false}
+                  defaultExpanded={defaultGroupsOpen}
                   gridItems
                   groupLabel={(day, count) =>
                     `${dateFormat(day, 'd MMMM yyyy', { locale: fr })} — ${count} photo${count > 1 ? 's' : ''}`
@@ -786,9 +788,12 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
 function PhotosByLocation({
   photos,
   renderPhoto,
+  defaultExpanded = false,
 }: {
   photos: Photo[];
   renderPhoto: (photo: Photo) => React.ReactNode;
+  /** Groups open by default (used when the photos live in their own step tab). */
+  defaultExpanded?: boolean;
 }) {
   const groups = React.useMemo(() => {
     const map = new Map<string, { key: string; label: string; items: Photo[] }>();
@@ -813,11 +818,11 @@ function PhotosByLocation({
   }, [photos]);
 
   const [expanded, setExpanded] = useState<Map<string, boolean>>(new Map());
-  const isExpanded = (key: string) => expanded.get(key) ?? false;
+  const isExpanded = (key: string) => expanded.get(key) ?? defaultExpanded;
   const toggle = (key: string) => {
     setExpanded((prev) => {
       const next = new Map(prev);
-      next.set(key, !(prev.get(key) ?? false));
+      next.set(key, !(prev.get(key) ?? defaultExpanded));
       return next;
     });
   };

@@ -163,6 +163,9 @@ export default function ObservationsTab({
   // Collapsible variant defaults to CLOSED so observations don't dominate the
   // step's vertical space. Unread count below acts as the notification.
   const [isOpen, setIsOpen] = useState(false);
+  // Per-message collapse: keyed by observation id; unset = default state
+  // (the NEWEST observation open, the rest collapsed). Local only.
+  const [openObs, setOpenObs] = useState<Record<string, boolean>>({});
 
   // Persist the timestamp of the last time this user opened the observations
   // panel for this dossier+section, so a count of new observations since that
@@ -697,7 +700,7 @@ export default function ObservationsTab({
       ) : (
         // Rows on hairlines: the surrounding step / card is the surface.
         <div className="divide-y divide-hairline">
-          {observations.map((obs) => {
+          {observations.map((obs, obsIndex) => {
             const isValidated = !!obs.traitementValideAt;
             const proofs = obs.traitementProofs || [];
             // [observations] view-stamps — sort viewers by viewedAt ascending
@@ -715,38 +718,62 @@ export default function ObservationsTab({
             const firstViewers = viewerEntries.slice(0, 3);
             const extraViewers = Math.max(0, viewerEntries.length - 3);
             const replayStatus = hl.statusForEntry('observations', obs.id);
+            // Newest (index 0 — list is sorted desc) open by default.
+            const rowOpen = openObs[obs.id] ?? obsIndex === 0;
+            const firstLine = (obs.text || '').split('\n')[0];
             return (
-              <div key={obs.id} className={cn('flex gap-3 py-3 first:pt-0', replayStatus && 'rounded-md px-2', highlightClass(replayStatus))}>
+              <Collapsible
+                key={obs.id}
+                open={rowOpen}
+                onOpenChange={(o) => setOpenObs((prev) => ({ ...prev, [obs.id]: o }))}
+                className={cn('py-3 first:pt-0', replayStatus && 'rounded-md px-2', highlightClass(replayStatus))}
+              >
+              <div className="flex gap-3">
                 <Avatar className="mt-0.5 h-8 w-8 shrink-0">
                   <AvatarFallback className="bg-surface-3 text-xs font-semibold text-ink-2">
                     {(obs.author || '?')[0].toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="truncate text-sm font-semibold text-ink">{obs.author || 'Inconnu'}</span>
-                    <Badge variant="outline" className={cn('px-1.5 py-0 text-[11px] font-medium', ROLE_BADGE_CLASS)}>
+                  <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      'flex w-full items-center gap-1.5 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      rowOpen ? 'flex-wrap' : 'overflow-hidden',
+                    )}
+                  >
+                    {rowOpen
+                      ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden />
+                      : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden />}
+                    <span className="shrink-0 truncate text-sm font-semibold text-ink">{obs.author || 'Inconnu'}</span>
+                    <Badge variant="outline" className={cn('shrink-0 px-1.5 py-0 text-[11px] font-medium', ROLE_BADGE_CLASS)}>
                       {obs.authorRole || 'N/A'}
                     </Badge>
-                    <Badge className={cn('border-0 px-1.5 py-0 text-[11px] font-medium', TYPE_BADGE_STYLES[obs.type] || TYPE_BADGE_STYLES['Général'])}>
+                    <Badge className={cn('shrink-0 border-0 px-1.5 py-0 text-[11px] font-medium', TYPE_BADGE_STYLES[obs.type] || TYPE_BADGE_STYLES['Général'])}>
                       {obs.type}
                     </Badge>
                     {replayStatus && <ChangeBadge status={replayStatus} />}
                     {(obs as any).accordSlot && (
                       <Badge
                         variant="outline"
-                        className="border-hairline-strong px-1.5 py-0 text-[11px] font-medium text-ink-2"
+                        className="shrink-0 border-hairline-strong px-1.5 py-0 text-[11px] font-medium text-ink-2"
                         title="À propos de"
                       >
                         {(obs as any).accordSlot}
                       </Badge>
+                    )}
+                    {!rowOpen && firstLine && (
+                      <span className="min-w-0 flex-1 truncate text-sm text-ink-2">{firstLine}</span>
                     )}
                     {obs.createdAt?.toDate && (
                       <span className="t-caption ml-auto shrink-0 tabular-nums">
                         {format(obs.createdAt.toDate(), 'dd MMM yyyy à HH:mm', { locale: fr })}
                       </span>
                     )}
-                  </div>
+                  </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-1">
                   <p className="whitespace-pre-wrap break-words text-sm text-ink">{obs.text}</p>
 
                   {/* Item 014 — gestionnaire-only "Valider le traitement" button.
@@ -844,8 +871,10 @@ export default function ObservationsTab({
                       {extraViewers > 0 && `, +${extraViewers} autre${extraViewers > 1 ? 's' : ''}`}
                     </p>
                   )}
+                  </CollapsibleContent>
                 </div>
               </div>
+              </Collapsible>
             );
           })}
         </div>

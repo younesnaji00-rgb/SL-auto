@@ -4,12 +4,6 @@ import React, { useEffect, useState } from 'react';
 import { Pencil, Calendar as CalendarIcon, User, MapPin, Plus, Info, Clock, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { useFirestore } from '@/firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -40,8 +34,10 @@ const TYPE_CHIP: Record<string, string> = {
 };
 
 /**
- * Planifications as a calendar-style list (date block · who/where · action),
- * newest first. The latest one is emphasised; older ones read as history.
+ * Planifications as a calendar-style list (date block · details), newest
+ * first. Every row carries its FULL details inline — no dialog. The NEXT
+ * upcoming visit's date block is this tab's single navy element
+ * (DESIGN.md §10: one `bg-ink-solid` surface for the thing the view is about).
  */
 export default function PlanificationTab({
   dossierId,
@@ -52,7 +48,6 @@ export default function PlanificationTab({
   const db = useFirestore();
   const [plans, setPlans] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expandedPlan, setExpandedPlan] = useState<any>(null);
   // Inert on the live page; tints planifications added/modified by the
   // gestionnaire in the rappel treatment replica.
   const hl = useReplayHighlight();
@@ -109,28 +104,28 @@ export default function PlanificationTab({
           action={<Button size="sm" onClick={() => onNewPlanification(typeFilter)}>Programmer une visite</Button>}
         />
       ) : (
-        // Rows on hairlines (the step itself is the paper) — the latest visit
-        // is emphasised by tone + ink, older ones step down to ink-2/ink-3.
+        // Rows on hairlines; each row is self-contained — all details inline.
         <ol className="divide-y divide-hairline">
           {visiblePlans.map((plan: any, index: number) => {
             const replayStatus = hl.statusForEntry('planifications', plan.id);
             const rdv = toDate(plan.dateRDV);
             const latest = index === 0;
             const past = rdv ? isPast(rdv) : false;
+            const upcoming = latest && !past;
             return (
               <li
                 key={plan.id}
                 className={cn(
-                  'group -mx-2 flex cursor-pointer items-stretch gap-4 rounded-md px-2 py-3 transition-colors hover:bg-surface-2',
+                  'flex items-start gap-4 py-4 first:pt-0',
+                  replayStatus && '-mx-2 rounded-md px-2',
                   highlightClass(replayStatus),
                 )}
-                onClick={() => setExpandedPlan(plan)}
               >
-                {/* Date block */}
+                {/* Date block — the next upcoming visit gets the navy surface. */}
                 <div
                   className={cn(
                     'flex w-14 shrink-0 flex-col items-center justify-center rounded-md py-1.5 text-center tabular-nums',
-                    latest && !past ? 'bg-surface-4 text-ink' : 'bg-surface-2 text-ink-3',
+                    upcoming ? 'bg-ink-solid text-on-ink' : 'bg-surface-2 text-ink-3',
                   )}
                 >
                   <span className="text-[11px] font-medium uppercase leading-none">{rdv ? format(rdv, 'MMM', { locale: fr }).replace('.', '') : '—'}</span>
@@ -138,110 +133,73 @@ export default function PlanificationTab({
                   <span className="text-[11px] leading-none">{rdv ? format(rdv, 'HH:mm') : ''}</span>
                 </div>
 
-                {/* Body */}
-                <div className="min-w-0 flex-1 py-0.5">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className={cn('inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium', TYPE_CHIP[plan.typeMission] ?? 'bg-surface-3 text-ink-2')}>
-                      Visite {plan.typeMission ? String(plan.typeMission).toLowerCase() : '—'}
-                    </span>
-                    {latest && <Badge variant="outline" className="h-5 text-[11px] font-medium text-ink-2">Dernière</Badge>}
-                    {rdv && <span className="t-caption">{format(rdv, 'EEEE d MMMM yyyy', { locale: fr })}</span>}
-                    <ChangeBadge status={replayStatus} />
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-sm">
-                    <span className="inline-flex items-center gap-1.5">
-                      <User className="h-3.5 w-3.5 text-ink-3" />
-                      {plan.agentTerrain ? <span className={cn('font-medium', latest ? 'text-ink' : 'text-ink-2')}>{plan.agentTerrain}</span> : <span className="text-ink-3">Agent non assigné</span>}
-                    </span>
-                    {(plan.zone || plan.adresse) && (
-                      <span className="inline-flex min-w-0 items-center gap-1.5 text-ink-3">
-                        <MapPin className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">{[plan.zone, plan.adresse].filter(Boolean).join(' · ')}</span>
+                {/* Body — everything the details dialog used to show, in the row. */}
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className={cn('inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium', TYPE_CHIP[plan.typeMission] ?? 'bg-surface-3 text-ink-2')}>
+                        Visite {plan.typeMission ? String(plan.typeMission).toLowerCase() : '—'}
                       </span>
-                    )}
+                      {latest && <Badge variant="outline" className="h-5 text-[11px] font-medium text-ink-2">Dernière</Badge>}
+                      {rdv && <span className={cn('text-sm', upcoming ? 'font-medium text-ink' : 'text-ink-3')}>{format(rdv, 'EEEE d MMMM yyyy', { locale: fr })}</span>}
+                      <ChangeBadge status={replayStatus} />
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-8 shrink-0 gap-1.5 text-xs text-ink-3 hover:text-ink" onClick={() => onEditPlanification(plan)}>
+                      <Pencil className="h-3 w-3" /> Modifier
+                    </Button>
                   </div>
-                  {plan.observation && <p className="t-caption mt-1 line-clamp-1">{plan.observation}</p>}
-                </div>
 
-                <div className="flex shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-ink-3 hover:text-ink" onClick={() => onEditPlanification(plan)}>
-                    <Pencil className="h-3 w-3" /> Modifier
-                  </Button>
+                  <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+                    <div>
+                      <dt className="t-label">Agent de terrain</dt>
+                      <dd className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-ink">
+                        <User className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                        {plan.agentTerrain || <span className="font-normal text-ink-3">Non assigné</span>}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="t-label">Zone d&apos;intervention</dt>
+                      <dd className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-ink">
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                        {plan.zone || <span className="font-normal text-ink-3">—</span>}
+                      </dd>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <dt className="t-label">Adresse complète</dt>
+                      <dd className="mt-0.5 text-sm text-ink">{plan.adresse || <span className="text-ink-3">—</span>}</dd>
+                    </div>
+                    {plan.telephone && (
+                      <div>
+                        <dt className="t-label">Téléphone</dt>
+                        <dd className="mt-0.5 flex items-center gap-1.5 text-sm tabular-nums text-ink">
+                          <Phone className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                          <a href={`tel:${plan.telephone}`} className="hover:underline">{plan.telephone}</a>
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+
+                  {plan.observation && (
+                    <div className="rounded-md bg-surface-2 px-3 py-2">
+                      <p className="t-label flex items-center gap-1"><Info className="h-3 w-3" /> Observation</p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">{plan.observation}</p>
+                    </div>
+                  )}
+
+                  {(plan.createdAt || plan.modifiedByName) && (
+                    <p className="t-caption flex flex-wrap items-center gap-1 tabular-nums">
+                      <Clock className="h-3 w-3 shrink-0" />
+                      {plan.createdAt ? <>Créée le {formatTimestamp(plan.createdAt)}</> : null}
+                      {plan.createdAt && plan.modifiedByName ? <span aria-hidden>·</span> : null}
+                      {plan.modifiedByName ? <>modifiée par {plan.modifiedByName}</> : null}
+                    </p>
+                  )}
                 </div>
               </li>
             );
           })}
         </ol>
       )}
-
-      {/* Details dialog */}
-      <Dialog open={!!expandedPlan} onOpenChange={(open) => { if (!open) setExpandedPlan(null); }}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-ink-3" />
-              Détails de la planification
-            </DialogTitle>
-          </DialogHeader>
-          {expandedPlan && (
-            <div className="space-y-4 py-1">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className={cn('inline-flex h-6 items-center rounded-full px-2.5 text-xs font-medium', TYPE_CHIP[expandedPlan.typeMission] ?? 'bg-surface-3 text-ink-2')}>
-                  Visite {expandedPlan.typeMission ? String(expandedPlan.typeMission).toLowerCase() : '—'}
-                </span>
-                {expandedPlan.createdAt && (
-                  <span className="t-caption flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    Créée le {formatTimestamp(expandedPlan.createdAt)}
-                  </span>
-                )}
-              </div>
-
-              <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-                <div>
-                  <dt className="t-label">Date & heure du RDV</dt>
-                  <dd className="mt-1 flex items-center gap-2 text-sm font-medium text-ink"><CalendarIcon className="h-4 w-4 text-ink-3" />{formatTimestamp(expandedPlan.dateRDV)}</dd>
-                </div>
-                <div>
-                  <dt className="t-label">Agent de terrain</dt>
-                  <dd className="mt-1 flex items-center gap-2 text-sm font-medium text-ink"><User className="h-4 w-4 text-ink-3" />{expandedPlan.agentTerrain || 'Non assigné'}</dd>
-                </div>
-                <div>
-                  <dt className="t-label">Zone d&apos;intervention</dt>
-                  <dd className="mt-1 flex items-center gap-2 text-sm font-medium text-ink"><MapPin className="h-4 w-4 text-ink-3" />{expandedPlan.zone || '—'}</dd>
-                </div>
-                <div>
-                  <dt className="t-label">Modifié par</dt>
-                  <dd className="mt-1 text-sm font-medium text-ink">{expandedPlan.modifiedByName || '—'}</dd>
-                </div>
-                <div className="sm:col-span-2">
-                  <dt className="t-label">Adresse complète</dt>
-                  <dd className="mt-1 text-sm text-ink">{expandedPlan.adresse || '—'}</dd>
-                </div>
-                {expandedPlan.telephone && (
-                  <div>
-                    <dt className="t-label">Téléphone</dt>
-                    <dd className="mt-1 flex items-center gap-2 text-sm tabular-nums text-ink"><Phone className="h-4 w-4 text-ink-3" />{expandedPlan.telephone}</dd>
-                  </div>
-                )}
-              </dl>
-
-              {expandedPlan.observation && (
-                <div className="rounded-md bg-surface-2 px-3 py-2">
-                  <p className="t-label flex items-center gap-1"><Info className="h-3 w-3" /> Observation</p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">{expandedPlan.observation}</p>
-                </div>
-              )}
-
-              <div className="flex justify-end pt-1">
-                <Button variant="outline" size="sm" onClick={() => { setExpandedPlan(null); onEditPlanification(expandedPlan); }}>
-                  <Pencil className="mr-1.5 h-3.5 w-3.5" /> Modifier cette planification
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

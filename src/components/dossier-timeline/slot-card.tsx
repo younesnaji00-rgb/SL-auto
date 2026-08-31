@@ -28,11 +28,13 @@ import { Button } from '@/components/ui/button';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from './replay-highlight';
+import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
 import {
   docDisplayName,
   docMetaLine,
   downloadFileFromUrl,
   isImage,
+  isPdf,
   type ExtraSlotKind,
   type TypedDoc,
 } from '@/components/documents/typed-doc';
@@ -333,11 +335,13 @@ export function SlotCard({
           {controls}
         </div>
 
-        {/* Item visual — thumbnail cover or large glyph; overlay actions */}
-        <div className="relative mx-2.5 h-14 shrink-0 overflow-hidden rounded-md bg-surface-2">
+        {/* Item visual — image cover, first PDF page, or large glyph; overlay actions */}
+        <div className="relative mx-2.5 h-20 shrink-0 overflow-hidden rounded-md bg-surface-2">
           {primary.url && isImage(primaryName) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={primary.url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+          ) : primary.url && isPdf(primaryName) ? (
+            <PdfThumbnail url={primary.url} width={320} className="h-full w-full" />
           ) : (
             <div className="flex h-full items-center justify-center text-ink-3" aria-hidden>
               <FileText className="h-6 w-6" />

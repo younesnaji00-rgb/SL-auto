@@ -72,7 +72,7 @@ const AppSidebar = () => {
           isCollapsed ? 'flex-col items-center gap-2 py-3' : 'h-14 flex-row items-center justify-between',
         )}
       >
-        <Logo collapsed={isCollapsed} onDark />
+        <Logo collapsed={isCollapsed} />
         {!isCollapsed && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -110,7 +110,7 @@ const AppSidebar = () => {
                         </NextLink>
                       </SidebarMenuButton>
                       {item.href === '/mes-rappels' && unreadRappelsCount > 0 && (
-                        <SidebarMenuBadge className="bg-sidebar-primary font-semibold text-sidebar-primary-foreground peer-hover/menu-button:text-sidebar-primary-foreground peer-data-[active=true]/menu-button:text-sidebar-primary-foreground">
+                        <SidebarMenuBadge className="bg-status-info-bg font-semibold text-status-info-fg peer-hover/menu-button:text-status-info-fg peer-data-[active=true]/menu-button:text-status-info-fg">
                           {unreadRappelsCount > 99 ? '99+' : unreadRappelsCount}
                         </SidebarMenuBadge>
                       )}

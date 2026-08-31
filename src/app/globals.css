@@ -64,19 +64,19 @@
     --chart-4: 28 75% 58%;
     --chart-5: 172 30% 72%;
 
-    /* Navigation = the 30 % surface: slate navy (analogous to the teal
-       accent, complementary to the cream canvas). Active item = light teal
-       bar + icon; hover/pressed walk the navy ladder, never the accent. */
-    --sidebar-background: 215 42% 15%;
-    --sidebar-foreground: 42 25% 93%;
-    --sidebar-muted: 215 16% 71%;      /* ≥ 4.5:1 on sidebar-active */
-    --sidebar-primary: 172 50% 58%;
-    --sidebar-primary-foreground: 215 42% 12%;
-    --sidebar-accent: 215 34% 22%;
-    --sidebar-accent-foreground: 42 25% 96%;
-    --sidebar-active: 215 36% 27%;
-    --sidebar-border: 215 30% 22%;
-    --sidebar-ring: 172 50% 58%;
+    /* Navigation sits on the cream ladder (user ruling: the navy third
+       colour lives INSIDE pages — featured surfaces, group header bands —
+       not on the sidebar). Active item = teal bar + icon. */
+    --sidebar-background: 42 26% 94%;
+    --sidebar-foreground: 215 38% 14%;
+    --sidebar-muted: 215 15% 42%;
+    --sidebar-primary: 178 55% 28%;
+    --sidebar-primary-foreground: 45 30% 98%;
+    --sidebar-accent: 40 18% 90%;
+    --sidebar-accent-foreground: 215 38% 14%;
+    --sidebar-active: 40 16% 87%;
+    --sidebar-border: 40 16% 86%;
+    --sidebar-ring: 178 55% 28%;
     --heading-bg: 40 20% 93.5%;
     --heading-fg: 215 38% 14%;
 
