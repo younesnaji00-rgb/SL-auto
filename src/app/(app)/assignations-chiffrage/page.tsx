@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { collection, onSnapshot, query, orderBy, doc } from 'firebase/firestore';
@@ -247,13 +248,12 @@ export default function AssignationsChiffragePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <Calculator className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Assignations au Chiffrage</h1>
-          <Badge variant="secondary" className="ml-2">{filteredChiffrages.length}</Badge>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
+      <PageHeader
+        title="Assignations au chiffrage"
+        icon={<Calculator />}
+        count={filteredChiffrages.length}
+        filters={
+        <>
           <div className="relative">
             <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
               <SelectTrigger className="w-[180px] h-9 text-xs">
@@ -311,8 +311,9 @@ export default function AssignationsChiffragePage() {
             )}
           </div>
           <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
-        </div>
-      </div>
+        </>
+        }
+      />
 
       <Card className="shadow-sm overflow-hidden">
         <CardContent className="p-0">
@@ -373,7 +374,7 @@ export default function AssignationsChiffragePage() {
                             {c.dossierNom || 'Sans ref.'}
                           </Link>
                           {today && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary animate-pulse">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary animate-pulse">
                               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                               aujourd&apos;hui
                             </span>
@@ -406,7 +407,7 @@ export default function AssignationsChiffragePage() {
                             <>
                               {truncated}
                               {count > 1 && (
-                                <span className="ml-1 text-[10px] text-muted-foreground">({count})</span>
+                                <span className="ml-1 text-[11px] text-muted-foreground">({count})</span>
                               )}
                             </>
                           );

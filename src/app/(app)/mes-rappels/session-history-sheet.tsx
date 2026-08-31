@@ -193,7 +193,7 @@ function TimelineCard({ entry }: { entry: Entry }) {
           <div className="px-4 py-2 text-sm font-semibold bg-amber-50 text-amber-800 border-b border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/40 flex items-center gap-2">
             <MessageSquare className="h-3.5 w-3.5" /> Observation
             {raw.type && (
-              <span className="ml-auto text-[10px] font-normal uppercase tracking-wide opacity-70">
+              <span className="ml-auto text-[11px] font-normal uppercase tracking-wide opacity-70">
                 {String(raw.type)}
               </span>
             )}
@@ -232,7 +232,7 @@ function TimelineCard({ entry }: { entry: Entry }) {
             <ClipboardList className="h-3.5 w-3.5" />
             <span>{raw.action || raw.type || 'Modification'}</span>
             {raw.type && !isStatut && (
-              <span className="ml-auto text-[10px] font-normal uppercase tracking-wide opacity-70">
+              <span className="ml-auto text-[11px] font-normal uppercase tracking-wide opacity-70">
                 {String(raw.type)}
               </span>
             )}

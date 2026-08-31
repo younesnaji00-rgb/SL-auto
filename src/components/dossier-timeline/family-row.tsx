@@ -115,7 +115,7 @@ export function FamilyRow({
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {group.parent}
         </h3>
-        <span className="text-[10px] text-muted-foreground font-medium">
+        <span className="text-[11px] text-muted-foreground font-medium">
           {totalDocs} doc{totalDocs === 1 ? '' : 's'}
         </span>
       </div>

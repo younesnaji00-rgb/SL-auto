@@ -129,7 +129,7 @@ export default function PlanificationTab({
                                         <TableCell className="font-mono text-xs font-bold text-primary">
                                             {visiblePlans.length - index}
                                             {index === 0 && (
-                                                <Badge variant="default" className="ml-2 text-[9px] px-1 h-4">Dernière</Badge>
+                                                <Badge variant="default" className="ml-2 text-[11px] px-1 h-4">Dernière</Badge>
                                             )}
                                             <ChangeBadge status={replayStatus} className="ml-1 align-middle" />
                                         </TableCell>
@@ -189,7 +189,7 @@ export default function PlanificationTab({
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-1 p-3 rounded-lg bg-muted/30 border">
-                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Date & Heure RDV</p>
+                                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Date & Heure RDV</p>
                                     <p className="font-semibold text-sm flex items-center gap-2">
                                         <CalendarIcon className="h-4 w-4 text-primary" />
                                         {formatTimestamp(expandedPlan.dateRDV)}
@@ -197,7 +197,7 @@ export default function PlanificationTab({
                                 </div>
 
                                 <div className="space-y-1 p-3 rounded-lg bg-muted/30 border">
-                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Agent de Terrain</p>
+                                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Agent de Terrain</p>
                                     <p className="font-semibold text-sm flex items-center gap-2">
                                         <User className="h-4 w-4 text-primary" />
                                         {expandedPlan.agentTerrain || 'Non assigné'}
@@ -205,7 +205,7 @@ export default function PlanificationTab({
                                 </div>
 
                                 <div className="space-y-1 p-3 rounded-lg bg-muted/30 border">
-                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Zone d'intervention</p>
+                                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Zone d'intervention</p>
                                     <p className="font-semibold text-sm flex items-center gap-2">
                                         <MapPin className="h-4 w-4 text-primary" />
                                         {expandedPlan.zone || 'N/A'}
@@ -213,7 +213,7 @@ export default function PlanificationTab({
                                 </div>
 
                                 <div className="space-y-1 p-3 rounded-lg bg-muted/30 border">
-                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Modifié par</p>
+                                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Modifié par</p>
                                     <p className="font-semibold text-sm flex items-center gap-2">
                                         <User className="h-4 w-4 text-muted-foreground" />
                                         {expandedPlan.modifiedByName || 'N/A'}
@@ -222,13 +222,13 @@ export default function PlanificationTab({
                             </div>
 
                             <div className="space-y-1 p-3 rounded-lg bg-muted/30 border">
-                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Adresse complète</p>
+                                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Adresse complète</p>
                                 <p className="font-medium text-sm">{expandedPlan.adresse || 'N/A'}</p>
                             </div>
 
                             {expandedPlan.observation && (
                                 <div className="space-y-1 p-3 rounded-lg bg-muted/30 border border-dashed">
-                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                                         <Info className="h-3 w-3" /> Observation / Notes
                                     </p>
                                     <p className="text-sm italic text-muted-foreground leading-relaxed whitespace-pre-wrap">

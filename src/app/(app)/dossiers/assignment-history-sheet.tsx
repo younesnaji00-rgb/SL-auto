@@ -86,7 +86,7 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
             Historique des assignations chiffrage et planification.
           </SheetDescription>
         </SheetHeader>
-        <div className="py-6 pr-4 space-y-6 overflow-y-auto max-h-[calc(100vh-150px)]">
+        <div className="py-6 pr-4 space-y-6 overflow-y-auto max-h-[calc(100dvh-150px)]">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -134,7 +134,7 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
                       <div key={entry.id} className="p-3 rounded-lg border bg-card space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">Agent : {entry.agent}</span>
-                          {entry.mission && <Badge variant="outline" className="text-[10px]">{entry.mission}</Badge>}
+                          {entry.mission && <Badge variant="outline" className="text-[11px]">{entry.mission}</Badge>}
                         </div>
                         {entry.zone && (
                           <p className="text-xs text-muted-foreground">Zone : {entry.zone}</p>

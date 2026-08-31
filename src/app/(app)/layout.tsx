@@ -8,16 +8,19 @@ import Header from '@/components/layout/header';
 import { OfflineIndicator } from '@/components/offline-indicator';
 import { GpsPublisherHost } from '@/components/gps-publisher-host';
 import { CurrentUserProvider, useCurrentUser } from '@/hooks/use-current-user';
-import { DossierTabsProvider } from '@/hooks/use-dossier-tabs';
-import { ChiffrageTabsProvider } from '@/hooks/use-chiffrage-tabs';
-import DossierTabsBar from '@/components/layout/dossier-tabs-bar';
-import ChiffrageTabsBar from '@/components/layout/chiffrage-tabs-bar';
+import { WorkspaceTabsProvider } from '@/hooks/use-workspace-tabs';
+import { PageChromeProvider, SkipToContent } from '@/components/layout/page-chrome';
+import { ShellUiProvider } from '@/components/layout/shell-ui';
+import WorkspaceTabs from '@/components/layout/workspace-tabs';
+import MobileNav from '@/components/layout/mobile-nav';
 import { useRouter, usePathname } from 'next/navigation';
 import { PageLoader } from '@/components/ui/page-loader';
 import { cn } from '@/lib/utils';
 
 /** Routes that want to use the full inset width (no padding, no max-w cap). */
 const FULL_WIDTH_ROUTES = ['/devis-editor'];
+/** Record pages own their padding (sticky record bar must span the inset). */
+const FLUSH_ROUTE_PATTERNS = [/^\/dossiers\/[^/]+$/];
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { firebaseUser, loading } = useCurrentUser();
@@ -46,25 +49,30 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
-  const fullWidth = FULL_WIDTH_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`));
-  const showDossierTabs = pathname === '/dossiers' || pathname.startsWith('/dossiers/');
-  const showChiffrageTabs = pathname === '/assignations-chiffrage' || pathname.startsWith('/assignations-chiffrage/');
+  const fullWidth =
+    FULL_WIDTH_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`)) ||
+    FLUSH_ROUTE_PATTERNS.some((re) => re.test(pathname));
 
   return (
     <div className="relative flex h-svh w-full overflow-hidden">
+      <SkipToContent />
       <CompagnieLogosPreload />
       <AppSidebar />
-      <SidebarInset className="flex flex-col h-svh transition-all duration-300 ease-in-out overflow-hidden">
+      <SidebarInset className="flex h-svh flex-col overflow-hidden transition-[margin,width] duration-200 ease-out motion-reduce:transition-none">
         <Header />
         <OfflineIndicator />
         <GpsPublisherHost />
-        {showDossierTabs && <DossierTabsBar />}
-        {showChiffrageTabs && <ChiffrageTabsBar />}
-        <main className="flex-1 min-h-0 overflow-y-auto bg-background/50">
-          <div className={cn(fullWidth ? 'w-full' : 'p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto')}>
+        <WorkspaceTabs />
+        <main
+          id="main-content"
+          className="min-h-0 flex-1 overflow-y-auto bg-background/50 pb-[calc(60px+env(safe-area-inset-bottom))] lg:pb-0"
+          tabIndex={-1}
+        >
+          <div className={cn(fullWidth ? 'w-full' : 'mx-auto max-w-[1600px] p-4 md:p-6 lg:p-8')}>
             {children}
           </div>
         </main>
+        <MobileNav />
       </SidebarInset>
     </div>
   );
@@ -78,13 +86,15 @@ export default function AppLayout({
   return (
     <CurrentUserProvider>
       <AuthGuard>
-        <SidebarProvider>
-          <DossierTabsProvider>
-            <ChiffrageTabsProvider>
-              <AppShell>{children}</AppShell>
-            </ChiffrageTabsProvider>
-          </DossierTabsProvider>
-        </SidebarProvider>
+        <PageChromeProvider>
+          <WorkspaceTabsProvider>
+            <SidebarProvider>
+              <ShellUiProvider>
+                <AppShell>{children}</AppShell>
+              </ShellUiProvider>
+            </SidebarProvider>
+          </WorkspaceTabsProvider>
+        </PageChromeProvider>
       </AuthGuard>
     </CurrentUserProvider>
   );

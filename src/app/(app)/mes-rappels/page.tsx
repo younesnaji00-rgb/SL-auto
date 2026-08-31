@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bell, Inbox, Loader2, ChevronDown, ChevronRight, Send, ScrollText, CheckCircle2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -272,10 +273,7 @@ export default function MesRappelsPage() {
 
   return (
     <div className="space-y-4">
-      <header className="flex items-center gap-2">
-        <Bell className="h-5 w-5 text-primary" />
-        <h1 className="text-xl font-bold">Mes rappels</h1>
-      </header>
+      <PageHeader title="Mes rappels" icon={<Bell />} />
 
       <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList>

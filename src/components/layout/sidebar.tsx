@@ -1,8 +1,16 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import { useTheme } from 'next-themes';
+/**
+ * Product navigation. Quiet by design (Linear: "don't compete for attention
+ * you haven't earned"): tinted active row, hairline border, no shadow, no
+ * editing inside the nav. Universal actions (search, create, account, theme)
+ * live in the header; help lives in the footer menu.
+ */
+
+import React from 'react';
+import { usePathname } from 'next/navigation';
+import NextLink from 'next/link';
+import { Calculator, FolderOpen, HelpCircle, Keyboard, PanelLeft } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -14,235 +22,121 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-  SidebarMenuSubButton,
-  SidebarTrigger,
+  SidebarMenuBadge,
   useSidebar,
 } from '@/components/ui/sidebar';
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  Moon,
-  Sun,
-  Plus,
-  X,
-  LogOut,
-  ChevronDown,
-} from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import Logo from '@/components/logo';
-import { useCompagnies } from '@/hooks/use-compagnies';
-import { useCurrentUser } from '@/hooks/use-current-user';
 import { useRappels } from '@/hooks/use-rappels';
-import NextLink from 'next/link';
+import { useVisibleNav } from '@/hooks/use-visible-nav';
+import { useWorkspaceStore, TAB_KINDS } from '@/hooks/use-workspace-tabs';
+import { useShellUi } from '@/components/layout/shell-ui';
+import { formatKeys } from '@/hooks/use-hotkeys';
 import { cn } from '@/lib/utils';
-import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
-import { hasPermission } from '@/lib/permissions';
 
 const AppSidebar = () => {
   const pathname = usePathname();
-  const router = useRouter();
-  const { state } = useSidebar();
-  const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  const { compagnies, addCompagnie, deleteCompagnie } = useCompagnies();
-  const { profile, signOut } = useCurrentUser();
-
-  const [showAddInput, setShowAddInput] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string } | null>(null);
-  const [logoErrors, setLogoErrors] = useState<Set<string>>(new Set());
-  const markLogoFailed = (id: string) =>
-    setLogoErrors((prev) => {
-      if (prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-
+  const { state, toggleSidebar, isMobile, setOpenMobile } = useSidebar();
   const isCollapsed = state === 'collapsed';
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
+  const { navGroups, footerItems, isVisible } = useVisibleNav();
   const { rappels } = useRappels();
-  const unreadRappelsCount = rappels.filter((r) => !r.read).length;
+  const { recents } = useWorkspaceStore();
+  const { openShortcuts } = useShellUi();
 
-  // Per-user overrides: applied AROUND the role gate. The toggle UI on
-  // /utilisateurs/[uid] writes hrefs to deny (revoke) into
-  // `users/{uid}.deniedNavItems` and hrefs to grant (extra privilege) into
-  // `grantedNavItems`. Precedence (top-down):
-  //   1. "Signaler un bug" — always visible.
-  //   2. grantedNavItems — explicit grant overrides everything else.
-  //   3. deniedNavItems — explicit deny hides even if the role allows.
-  //   4. Role gate — the baseline.
-  // The admin UI writes clean lists (an href is never in both), but if it
-  // ever happens, grant wins per the order above.
-  const deniedNavItems = profile?.deniedNavItems ?? [];
-  const grantedNavItems = profile?.grantedNavItems ?? [];
-  const visibleGroups = NAV_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => {
-      if (item.href === '/signaler-bug') return true;
-      if (grantedNavItems.includes(item.href)) return true;
-      if (deniedNavItems.includes(item.href)) return false;
-      return isItemVisibleToRole(item, profile?.role);
-    }),
-  })).filter((group) => group.items.length > 0);
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.push('/login');
+  const unreadRappelsCount = rappels.filter((r) => !r.read && !r.resolvedAt).length;
+  const closeOnMobile = () => {
+    if (isMobile) setOpenMobile(false);
   };
 
-  const confirmDeleteCompagnie = async () => {
-    if (!deleteTarget) return;
-    await deleteCompagnie(deleteTarget.id);
-    setDeleteTarget(null);
-  };
+  const visibleRecents = recents.filter((r) =>
+    r.kind === 'dossier' ? isVisible('/dossiers') : isVisible('/assignations-chiffrage'),
+  ).slice(0, 5);
 
-  const userInitials = profile
-    ? (profile.prenom ? profile.prenom[0] : '') + (profile.nom ? profile.nom[0] : '')
-    : 'U';
-
-  const displayName = profile?.nom || 'Utilisateur';
-  const displayRole = profile?.role || '';
+  const toggleKeys = formatKeys('mod+b').join(' ');
 
   return (
-    <Sidebar collapsible="icon" className="shadow-xl z-50">
-      <SidebarHeader className={cn("flex shrink-0 bg-background px-4", isCollapsed ? "flex-col items-center gap-2 py-3" : "flex-row items-center justify-between h-14")}>
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+      <SidebarHeader
+        className={cn(
+          'flex shrink-0 bg-sidebar px-3',
+          isCollapsed ? 'flex-col items-center gap-2 py-3' : 'h-14 flex-row items-center justify-between',
+        )}
+      >
         <Logo collapsed={isCollapsed} />
-        <SidebarTrigger className="h-8 w-8 shrink-0" />
+        {!isCollapsed && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={toggleSidebar}
+                aria-label="Réduire la barre latérale"
+              >
+                <PanelLeft className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Réduire · {toggleKeys}</TooltipContent>
+          </Tooltip>
+        )}
       </SidebarHeader>
 
-      <SidebarContent className="bg-background/50">
-        {visibleGroups.map((group) => (
+      <SidebarContent className="bg-sidebar">
+        {navGroups.map((group) => (
           <SidebarGroup key={group.label}>
-            {!isCollapsed && (
-              <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-                {group.label}
-              </SidebarGroupLabel>
-            )}
+            {!isCollapsed && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => {
-                  const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                  const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(`${item.href}/`)) || (item.href !== '/dashboard' && pathname === item.href);
                   const Icon = item.icon;
-
-                  if (item.label === 'Compagnies') {
-                    return (
-                      <Collapsible key={item.href} className="group/collapsible">
-                        <SidebarMenuItem>
-                          <CollapsibleTrigger asChild>
-                            <SidebarMenuButton
-                              isActive={isActive}
-                              tooltip={item.label}
-                              className="transition-all duration-200"
-                            >
-                              <Icon />
-                              <span>{item.label}</span>
-                              {!isCollapsed && <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
-                            </SidebarMenuButton>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent>
-                            <SidebarMenuSub className="ml-4 mr-2">
-                              {compagnies
-                                .filter((c) => hasPermission(profile, `/compagnies#${c.id}`, true))
-                                .map((c) => (
-                                <SidebarMenuSubItem key={c.id}>
-                                  <SidebarMenuSubButton asChild isActive={pathname.includes(`selected=${c.id}`)}>
-                                    <NextLink href={`/compagnies?selected=${c.id}`} className="group flex items-center gap-2">
-                                      {c.logoUrl && !logoErrors.has(c.id) ? (
-                                        <img
-                                          src={c.logoUrl}
-                                          alt=""
-                                          className="h-8 w-8 rounded-sm object-contain shrink-0"
-                                          onError={() => markLogoFailed(c.id)}
-                                        />
-                                      ) : (
-                                        <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: c.couleur }} />
-                                      )}
-                                      <span className="flex-1 truncate">{c.nom}</span>
-                                      {!isCollapsed && (
-                                        <button
-                                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget({ id: c.id, nom: c.nom }); }}
-                                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
-                                        >
-                                          <X className="h-3 w-3" />
-                                        </button>
-                                      )}
-                                    </NextLink>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              ))}
-
-                              {!isCollapsed && (
-                                <SidebarMenuSubItem>
-                                  {showAddInput ? (
-                                    <div className="flex items-center gap-1 px-2 mt-1">
-                                      <Input
-                                        autoFocus
-                                        value={newName}
-                                        onChange={(e) => setNewName(e.target.value)}
-                                        onKeyDown={async (e) => {
-                                          if (e.key === 'Enter' && newName.trim()) {
-                                            await addCompagnie(newName.trim());
-                                            setNewName('');
-                                            setShowAddInput(false);
-                                          }
-                                          if (e.key === 'Escape') {
-                                            setShowAddInput(false);
-                                            setNewName('');
-                                          }
-                                        }}
-                                        placeholder="Nom de la compagnie..."
-                                        className="h-8 text-xs"
-                                      />
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => setShowAddInput(true)}
-                                      className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-primary transition-colors w-full"
-                                    >
-                                      <Plus className="h-3 w-3" /> Ajouter
-                                    </button>
-                                  )}
-                                </SidebarMenuSubItem>
-                              )}
-                            </SidebarMenuSub>
-                          </CollapsibleContent>
-                        </SidebarMenuItem>
-                      </Collapsible>
-                    );
-                  }
-
+                  const tooltip = item.hotkey ? `${item.label} · ${formatKeys(item.hotkey).join(' puis ')}` : item.label;
                   return (
                     <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
-                        <NextLink href={item.href}>
+                      <SidebarMenuButton asChild isActive={isActive} tooltip={tooltip}>
+                        <NextLink href={item.href} onClick={closeOnMobile} aria-current={isActive ? 'page' : undefined}>
                           <Icon />
                           <span>{item.label}</span>
-                          {item.href === '/mes-rappels' && unreadRappelsCount > 0 && (
-                            <span className="ml-auto text-[10px] font-bold border border-primary text-primary bg-background rounded-full px-1.5 min-w-[1.25rem] text-center leading-tight py-0.5">
-                              +{unreadRappelsCount}
-                            </span>
-                          )}
+                        </NextLink>
+                      </SidebarMenuButton>
+                      {item.href === '/mes-rappels' && unreadRappelsCount > 0 && (
+                        <SidebarMenuBadge className="bg-primary text-[11px] font-semibold tabular-nums text-primary-foreground">
+                          {unreadRappelsCount > 99 ? '99+' : unreadRappelsCount}
+                        </SidebarMenuBadge>
+                      )}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+
+        {visibleRecents.length > 0 && (
+          <SidebarGroup>
+            {!isCollapsed && <SidebarGroupLabel>Récents</SidebarGroupLabel>}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleRecents.map((r) => {
+                  const href = TAB_KINDS[r.kind].detailHref(r.id);
+                  const Icon = r.kind === 'dossier' ? FolderOpen : Calculator;
+                  const isActive = pathname === href;
+                  return (
+                    <SidebarMenuItem key={`${r.kind}:${r.id}`}>
+                      <SidebarMenuButton asChild isActive={isActive} tooltip={r.label} size="sm" className="text-sidebar-foreground/80">
+                        <NextLink href={href} onClick={closeOnMobile}>
+                          <Icon className="opacity-60" />
+                          <span>{r.label}</span>
                         </NextLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -251,65 +145,62 @@ const AppSidebar = () => {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        ))}
+        )}
       </SidebarContent>
 
-      <SidebarFooter className="bg-muted/20 shrink-0 p-2 gap-2">
-        {mounted && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn("w-full justify-start gap-2 text-muted-foreground hover:text-foreground", isCollapsed && "px-0 justify-center")}
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          >
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            {!isCollapsed && <span>{theme === 'dark' ? 'Mode clair' : 'Mode sombre'}</span>}
-          </Button>
-        )}
-
-        <div className={cn("flex items-center gap-3 p-2 rounded-lg bg-primary/5 overflow-hidden transition-all duration-300", isCollapsed && "p-1 justify-center")}>
-          {!isCollapsed ? (
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-xs font-semibold truncate">{displayName}</span>
-              <span className="text-[10px] text-muted-foreground truncate uppercase tracking-[0.08em] font-semibold">{displayRole}</span>
-            </div>
-          ) : (
-            <span className="text-[10px] font-bold">{userInitials.toUpperCase()}</span>
+      <SidebarFooter className={cn('shrink-0 border-t border-sidebar-border bg-sidebar p-2', isCollapsed && 'items-center')}>
+        <div className={cn('flex gap-1', isCollapsed ? 'flex-col' : 'flex-row items-center')}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size={isCollapsed ? 'icon' : 'sm'}
+                className={cn('text-muted-foreground hover:text-foreground', isCollapsed ? 'h-8 w-8' : 'h-8 flex-1 justify-start gap-2 px-2')}
+                aria-label="Aide"
+              >
+                <HelpCircle className="h-4 w-4" />
+                {!isCollapsed && <span>Aide</span>}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start" className="w-56">
+              <DropdownMenuLabel>Aide</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => openShortcuts()}>
+                <Keyboard className="mr-2 h-4 w-4" />
+                Raccourcis clavier
+                <DropdownMenuShortcut>?</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              {footerItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <DropdownMenuItem key={item.href} asChild>
+                    <NextLink href={item.href} onClick={closeOnMobile}>
+                      <Icon className="mr-2 h-4 w-4" />
+                      {item.label}
+                    </NextLink>
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {isCollapsed && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  onClick={toggleSidebar}
+                  aria-label="Agrandir la barre latérale"
+                >
+                  <PanelLeft className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Agrandir · {toggleKeys}</TooltipContent>
+            </Tooltip>
           )}
         </div>
-
-        <div className={cn("flex gap-1", isCollapsed ? "flex-col" : "flex-row")}>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-full justify-center text-muted-foreground hover:text-destructive"
-            title="Déconnexion"
-            onClick={handleSignOut}
-          >
-            <LogOut className="h-4 w-4" />
-          </Button>
-        </div>
       </SidebarFooter>
-
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer {deleteTarget?.nom} ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action est irréversible. Les dossiers liés à cette compagnie ne seront pas supprimés.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={confirmDeleteCompagnie}
-            >
-              Supprimer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Sidebar>
   );
 };

@@ -273,7 +273,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
               {expandedGroups.has(groupKey) ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
               {group.icon === 'photo' ? <ImageIcon className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-4 w-4 text-muted-foreground" />}
               <span className="text-sm font-bold flex-1">{group.label}</span>
-              <Badge variant="secondary" className="text-[10px] font-mono">{group.files.length}</Badge>
+              <Badge variant="secondary" className="text-[11px] font-mono">{group.files.length}</Badge>
             </button>
             {expandedGroups.has(groupKey) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
@@ -292,7 +292,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
                       ) : (
                         <div className="flex flex-col items-center gap-1">
                           <FileType className="h-6 w-6 text-muted-foreground opacity-40" />
-                          <span className="text-[8px] uppercase font-black text-muted-foreground">{file.type}</span>
+                          <span className="text-[10px] uppercase font-black text-muted-foreground">{file.type}</span>
                         </div>
                       )}
                       <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
@@ -306,7 +306,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
                         <StatusBadge status={file.status} hasAnnotations={!!file.annotations?.length} />
                       </div>
 
-                      <div className="bg-muted/30 p-2 rounded text-[10px] text-muted-foreground italic line-clamp-2 leading-relaxed">
+                      <div className="bg-muted/30 p-2 rounded text-[11px] text-muted-foreground italic line-clamp-2 leading-relaxed">
                         Mode Correcteur : Ajoutez vos annotations, barrez les prix et modifiez les valeurs directement sur l'image.
                       </div>
 
@@ -370,7 +370,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
 
 function StatusBadge({ status, hasAnnotations }: { status: string; hasAnnotations: boolean }) {
   if (hasAnnotations) {
-    return <Badge variant="expertise" className="text-[9px] py-0 h-4 uppercase font-black">CORRIGÉ</Badge>;
+    return <Badge variant="expertise" className="text-[11px] py-0 h-4 uppercase font-black">CORRIGÉ</Badge>;
   }
-  return <Badge variant="secondary" className="text-[9px] py-0 h-4 uppercase font-black">EN ATTENTE</Badge>;
+  return <Badge variant="secondary" className="text-[11px] py-0 h-4 uppercase font-black">EN ATTENTE</Badge>;
 }

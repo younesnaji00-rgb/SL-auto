@@ -470,7 +470,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                       <div>
                         {fam.accords.length > 0 && (
                           <>
-                            <div className="pl-12 pr-4 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/30">
+                            <div className="pl-12 pr-4 py-1.5 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/30">
                               Accords
                             </div>
                             {fam.accords.map((row) => {
@@ -508,7 +508,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                         )}
                         {fam.propositions.length > 0 && (
                           <>
-                            <div className="pl-12 pr-4 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/30">
+                            <div className="pl-12 pr-4 py-1.5 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/30">
                               Propositions
                             </div>
                             {fam.propositions.map((row) => {
@@ -613,7 +613,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                       ) : (
                         <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
                           <FileIcon className={cn('h-12 w-12', isPdfFile && 'text-red-500')} />
-                          <span className="text-[9px] uppercase font-black tracking-wider">{fileExt(name)}</span>
+                          <span className="text-[11px] uppercase font-black tracking-wider">{fileExt(name)}</span>
                         </div>
                       )}
 
@@ -685,7 +685,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                       </div>
 
                       {item.pendingUpload && (
-                        <Badge variant="outline" className="absolute top-1 left-1 text-amber-700 bg-amber-50 border-amber-300 text-[9px] py-0 px-1.5">
+                        <Badge variant="outline" className="absolute top-1 left-1 text-amber-700 bg-amber-50 border-amber-300 text-[11px] py-0 px-1.5">
                           En attente
                         </Badge>
                       )}
@@ -694,11 +694,11 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                     {/* Footer info */}
                     <div className="p-2 space-y-1 border-t">
                       <p className="text-[11px] font-semibold truncate" title={name}>{name}</p>
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                         <span>{formatSize(item.taille || item.fileSize)}</span>
                         <span className="truncate ml-1">{formatDate(item.dateUpload || item.uploadedAt)}</span>
                       </div>
-                      <p className="text-[9px] text-muted-foreground truncate" title={item.uploadePar || item.uploadedBy}>
+                      <p className="text-[11px] text-muted-foreground truncate" title={item.uploadePar || item.uploadedBy}>
                         {item.uploadePar || item.uploadedBy || '—'}
                       </p>
                     </div>

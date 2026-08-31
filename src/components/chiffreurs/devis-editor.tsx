@@ -1009,7 +1009,7 @@ export function DevisEditor({
               <span className="truncate">Nouveau {typeLabel.lower} — sera ajouté aux pièces jointes du dossier.</span>
             ) : devisFileNames.length > 0 ? (
               <>
-                <Badge variant="outline" className="text-[10px]">{devisFileNames.length}</Badge>
+                <Badge variant="outline" className="text-[11px]">{devisFileNames.length}</Badge>
                 <span className="truncate">{typeLabel.lower}(s) fusionne(s) : {devisFileNames.join(' · ')}</span>
               </>
             ) : `Aucun ${typeLabel.lower} dans cette assignation`}
@@ -1080,7 +1080,7 @@ export function DevisEditor({
             isOpen={comparisonOpen}
             onClose={() => setComparisonOpen(false)}
             initialDocType={docType}
-            className="sticky top-4 self-start h-[calc(100vh-7rem)] w-1/2 min-w-[320px] max-w-[640px] border rounded-xl overflow-hidden"
+            className="sticky top-4 self-start h-[calc(100dvh-7rem)] w-1/2 min-w-[320px] max-w-[640px] border rounded-xl overflow-hidden"
           />
         )}
         <div className={cn(comparisonOpen ? 'flex-1 min-w-0 space-y-4' : 'space-y-4')}>
@@ -1541,7 +1541,7 @@ export function DevisEditor({
                           showSteppers
                         />
                         {vetusteMissing && (
-                          <span className="absolute -top-1 -right-1 text-red-500 text-[10px] leading-none pointer-events-none">*</span>
+                          <span className="absolute -top-1 -right-1 text-red-500 text-[11px] leading-none pointer-events-none">*</span>
                         )}
                       </div>
                     </td>
@@ -1582,7 +1582,7 @@ export function DevisEditor({
                                 }}
                               />
                               {isAccordOverCap && (
-                                <p className="text-[10px] text-destructive mt-0.5 px-1.5 leading-tight">
+                                <p className="text-[11px] text-destructive mt-0.5 px-1.5 leading-tight">
                                   Doit être ≤ P.U.H.T
                                 </p>
                               )}

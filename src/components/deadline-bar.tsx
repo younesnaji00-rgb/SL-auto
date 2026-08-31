@@ -39,10 +39,10 @@ export function DeadlineBar({ percent, overdue, lateness, className }: DeadlineB
   return (
     <div className={cn('flex flex-col gap-1 min-w-[120px]', className)}>
       <div className="flex items-center justify-between">
-        <span className={cn('text-[10px] font-semibold tabular-nums', overdue ? 'text-destructive' : getTextColor(rounded))}>
+        <span className={cn('text-[11px] font-semibold tabular-nums', overdue ? 'text-destructive' : getTextColor(rounded))}>
           {overdue ? (lateness ? `En retard ${lateness}` : 'En retard') : `${rounded}%`}
         </span>
-        <span className="text-[9px] text-muted-foreground font-medium tabular-nums">{label}</span>
+        <span className="text-[11px] text-muted-foreground font-medium tabular-nums">{label}</span>
       </div>
       <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
         <div

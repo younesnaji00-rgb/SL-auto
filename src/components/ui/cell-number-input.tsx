@@ -117,7 +117,7 @@ export function CellNumberInput({
       />
       {suffix && (
         <span className={cn(
-          "absolute top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none",
+          "absolute top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground pointer-events-none",
           showSteppers ? 'right-5' : 'right-1.5',
         )}>
           {suffix}

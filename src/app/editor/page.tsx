@@ -812,7 +812,7 @@ export default function EditorPage() {
             {filteredFileIndices.map((i) => (
               <SelectItem key={i} value={String(i)}>
                 <span className="flex items-center gap-1.5 truncate">
-                  {allFiles[i].source === 'dossier' && <span className="text-[9px] bg-muted px-1 rounded font-semibold text-muted-foreground shrink-0">Dossier</span>}
+                  {allFiles[i].source === 'dossier' && <span className="text-[11px] bg-muted px-1 rounded font-semibold text-muted-foreground shrink-0">Dossier</span>}
                   {allFiles[i].name}
                 </span>
               </SelectItem>
@@ -820,7 +820,7 @@ export default function EditorPage() {
           </SelectContent>
         </Select>
         {pageCount > 0 && (
-          <span className="text-[10px] text-muted-foreground whitespace-nowrap">({pageCount} p.)</span>
+          <span className="text-[11px] text-muted-foreground whitespace-nowrap">({pageCount} p.)</span>
         )}
 
         <div className="h-5 w-px bg-border" />
@@ -886,12 +886,12 @@ export default function EditorPage() {
                       >
                         <img src={s.dataUrl} alt={s.name} className="max-w-full max-h-full object-contain" draggable={false} />
                         <button
-                          className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                          className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center text-[11px] opacity-0 group-hover:opacity-100 transition-opacity shadow"
                           onClick={(e) => { e.stopPropagation(); handleDeleteStamp(s.id); }}
                         >
                           <X className="h-2.5 w-2.5" />
                         </button>
-                        <span className="absolute bottom-0 inset-x-0 text-[8px] text-center truncate px-0.5 text-muted-foreground">{s.name}</span>
+                        <span className="absolute bottom-0 inset-x-0 text-[10px] text-center truncate px-0.5 text-muted-foreground">{s.name}</span>
                       </div>
                     ))}
                   </div>
@@ -956,7 +956,7 @@ export default function EditorPage() {
             step={1}
             className="w-20"
           />
-          <span className="text-[10px] font-mono text-muted-foreground w-5 text-right">
+          <span className="text-[11px] font-mono text-muted-foreground w-5 text-right">
             {selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize}
           </span>
         </div>
@@ -977,7 +977,7 @@ export default function EditorPage() {
             step={1}
             className="w-14"
           />
-          <span className="text-[10px] font-mono text-muted-foreground w-3">
+          <span className="text-[11px] font-mono text-muted-foreground w-3">
             {selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness}
           </span>
         </div>
@@ -999,7 +999,7 @@ export default function EditorPage() {
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.max(0.3, z - 0.1))}>
             <ZoomOut className="h-3 w-3" />
           </Button>
-          <span className="text-[10px] font-bold w-8 text-center">{Math.round(zoom * 100)}%</span>
+          <span className="text-[11px] font-bold w-8 text-center">{Math.round(zoom * 100)}%</span>
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.min(3, z + 0.1))}>
             <ZoomIn className="h-3 w-3" />
           </Button>
@@ -1012,7 +1012,7 @@ export default function EditorPage() {
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRotation(r => (r - 90 + 360) % 360)} title="Rotation -90°">
             <RotateCcw className="h-3 w-3" />
           </Button>
-          <span className="text-[10px] font-bold w-6 text-center">{rotation}°</span>
+          <span className="text-[11px] font-bold w-6 text-center">{rotation}°</span>
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRotation(r => (r + 90) % 360)} title="Rotation +90°">
             <RotateCw className="h-3 w-3" />
           </Button>
@@ -1100,7 +1100,7 @@ export default function EditorPage() {
                 style={{ display: 'block' }}
               />
               {/* Page number label */}
-              <div className="absolute bottom-2 right-3 text-[10px] text-slate-400 font-mono pointer-events-none">
+              <div className="absolute bottom-2 right-3 text-[11px] text-slate-400 font-mono pointer-events-none">
                 Page {i + 1} / {pageCount}
               </div>
             </PageWrapper>
@@ -1109,7 +1109,7 @@ export default function EditorPage() {
       </div>
 
       {/* ── Status bar ──────────────────────────────────────────────────────── */}
-      <div className="bg-card border-t px-4 py-1.5 flex items-center justify-between text-[10px] text-muted-foreground shrink-0">
+      <div className="bg-card border-t px-4 py-1.5 flex items-center justify-between text-[11px] text-muted-foreground shrink-0">
         <div className="flex items-center gap-4">
           <span>{annotations.length} élément{annotations.length !== 1 ? 's' : ''}</span>
           {selectedId && <span className="text-primary font-semibold">1 sélectionné — glissez pour déplacer</span>}

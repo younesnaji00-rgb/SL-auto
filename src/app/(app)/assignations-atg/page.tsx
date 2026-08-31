@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { collectionGroup, onSnapshot, query, orderBy, limit, doc, getDoc, getDocs, collection } from 'firebase/firestore';
@@ -185,20 +186,20 @@ function DeadlineBadge({
   const lateness = expired ? formatBusinessLateness(elapsedHours - DEADLINE_HOURS) : '';
   if (pending) {
     return (
-      <Badge variant="outline" className="text-[10px] font-medium whitespace-nowrap">
+      <Badge variant="outline" className="text-[11px] font-medium whitespace-nowrap">
         En attente
       </Badge>
     );
   }
   if (expired) {
     return (
-      <Badge variant="destructive" className="text-[10px] font-semibold whitespace-nowrap">
+      <Badge variant="destructive" className="text-[11px] font-semibold whitespace-nowrap">
         {lateness ? `En retard ${lateness}` : 'En retard'}
       </Badge>
     );
   }
   return (
-    <Badge variant="outline" className="text-[10px] font-medium whitespace-nowrap text-muted-foreground">
+    <Badge variant="outline" className="text-[11px] font-medium whitespace-nowrap text-muted-foreground">
       {remaining}
     </Badge>
   );
@@ -290,7 +291,7 @@ function DeadlineBar({
         {completedStatus && (
           <Badge
             variant="outline"
-            className="text-[10px] font-semibold border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800/60 dark:text-emerald-200 whitespace-nowrap"
+            className="text-[11px] font-semibold border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800/60 dark:text-emerald-200 whitespace-nowrap"
           >
             {completedStatus}
           </Badge>
@@ -316,7 +317,7 @@ function DeadlineBar({
     return (
       <div className="flex items-center gap-1.5 min-w-[140px]">
         <Clock className="h-3 w-3 text-muted-foreground" />
-        <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">En attente</span>
+        <span className="text-[11px] font-bold text-muted-foreground whitespace-nowrap">En attente</span>
       </div>
     );
   }
@@ -329,7 +330,7 @@ function DeadlineBar({
           style={{ width: `${percent}%` }}
         />
       </div>
-      <span className={cn('text-[10px] font-semibold tabular-nums whitespace-nowrap', expired ? 'text-destructive' : getTextColor(percent))}>
+      <span className={cn('text-[11px] font-semibold tabular-nums whitespace-nowrap', expired ? 'text-destructive' : getTextColor(percent))}>
         {expired ? (lateness ? `En retard ${lateness}` : 'En retard') : `${percent}%`}
       </span>
     </div>
@@ -890,7 +891,7 @@ export default function AssignationsATGPage() {
                   <span>{tab.label}</span>
                   <span
                     className={cn(
-                      'inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded text-[10px] font-mono',
+                      'inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded text-[11px] font-mono',
                       isActive
                         ? 'bg-primary-foreground/20 text-primary-foreground'
                         : 'bg-muted text-muted-foreground'
@@ -986,7 +987,7 @@ export default function AssignationsATGPage() {
                           <div className="mt-1 flex items-center justify-between gap-2">
                             <span className="text-sm font-medium truncate">{p.assureNom || '-'}</span>
                             {p.compagnie && (
-                              <Badge variant="outline" className="text-[10px] shrink-0">{p.compagnie}</Badge>
+                              <Badge variant="outline" className="text-[11px] shrink-0">{p.compagnie}</Badge>
                             )}
                           </div>
                           {p.zone && (
@@ -1066,11 +1067,11 @@ export default function AssignationsATGPage() {
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <MapPin className="h-4 w-4 shrink-0" />
                           <span className="text-sm font-bold truncate">{zone}</span>
-                          <Badge variant="secondary" className="text-[10px] font-mono h-5 min-w-[20px] justify-center shrink-0">
+                          <Badge variant="secondary" className="text-[11px] font-mono h-5 min-w-[20px] justify-center shrink-0">
                             {agents.length}
                           </Badge>
                           {totalWorkload > 0 && (
-                            <Badge variant="outline" className="text-[10px] h-5 gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200 shrink-0">
+                            <Badge variant="outline" className="text-[11px] h-5 gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200 shrink-0">
                               <Clock className="h-3 w-3" /> {totalWorkload}
                             </Badge>
                           )}
@@ -1102,12 +1103,12 @@ export default function AssignationsATGPage() {
                                   {active > 0 ? (
                                     <Badge
                                       variant="outline"
-                                      className="text-[10px] gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200"
+                                      className="text-[11px] gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200"
                                     >
                                       <Clock className="h-3 w-3" /> {active}
                                     </Badge>
                                   ) : (
-                                    <span className="text-[10px] text-muted-foreground">0</span>
+                                    <span className="text-[11px] text-muted-foreground">0</span>
                                   )}
                                   <ChevronDown className="h-4 w-4 text-muted-foreground -rotate-90" />
                                 </div>
@@ -1128,18 +1129,15 @@ export default function AssignationsATGPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <UserCheck className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Assignations Agent de Terrain</h1>
-          <Badge variant="secondary" className="ml-2">
-            {effectiveViewMode === 'by-zone'
-              ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
-              : filteredPlanifications.length}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {canUseAtFlows && <AtScanPlaqueFlow />}
+      <PageHeader
+        title="Missions terrain"
+        icon={<UserCheck />}
+        count={effectiveViewMode === 'by-zone'
+          ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
+          : filteredPlanifications.length}
+        actions={canUseAtFlows ? <AtScanPlaqueFlow /> : undefined}
+        filters={
+        <>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -1193,8 +1191,9 @@ export default function AssignationsATGPage() {
             </div>
           )}
           <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
-        </div>
-      </div>
+        </>
+        }
+      />
 
       {/* Mission type tabs — only relevant for the flat list view; hidden
           in the zone-grouped view because that one pivots on agents. */}
@@ -1217,7 +1216,7 @@ export default function AssignationsATGPage() {
                   {tab.label}
                   <Badge
                     variant={isActive ? 'default' : 'secondary'}
-                    className="text-[10px] font-mono ml-1 h-5 min-w-[20px] justify-center"
+                    className="text-[11px] font-mono ml-1 h-5 min-w-[20px] justify-center"
                   >
                     {countByType[tab.id] || 0}
                   </Badge>
@@ -1262,11 +1261,11 @@ export default function AssignationsATGPage() {
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 shrink-0" />
                         <span className="text-sm font-bold">{zone}</span>
-                        <Badge variant="secondary" className="text-[10px] font-mono h-5 min-w-[20px] justify-center">
+                        <Badge variant="secondary" className="text-[11px] font-mono h-5 min-w-[20px] justify-center">
                           {agents.length}
                         </Badge>
                         {totalWorkload > 0 && (
-                          <Badge variant="outline" className="text-[10px] h-5 gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200">
+                          <Badge variant="outline" className="text-[11px] h-5 gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200">
                             <Clock className="h-3 w-3" /> {totalWorkload} actif{totalWorkload > 1 ? 's' : ''}
                           </Badge>
                         )}
@@ -1305,11 +1304,11 @@ export default function AssignationsATGPage() {
                                     {/* Subtle zone badge — redundant within the group but useful
                                         when skimming a single row out of context. */}
                                     {agent.zone?.trim() ? (
-                                      <Badge variant="outline" className="text-[10px] gap-1 font-normal">
+                                      <Badge variant="outline" className="text-[11px] gap-1 font-normal">
                                         <MapPin className="h-3 w-3" /> {agent.zone.trim()}
                                       </Badge>
                                     ) : (
-                                      <Badge variant="outline" className="text-[10px] font-normal italic text-muted-foreground">
+                                      <Badge variant="outline" className="text-[11px] font-normal italic text-muted-foreground">
                                         Non définie
                                       </Badge>
                                     )}
@@ -1318,7 +1317,7 @@ export default function AssignationsATGPage() {
                                     {active > 0 ? (
                                       <Badge
                                         variant="outline"
-                                        className="text-[10px] gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200"
+                                        className="text-[11px] gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200"
                                       >
                                         <Clock className="h-3 w-3" /> {active}
                                       </Badge>
@@ -1423,7 +1422,7 @@ export default function AssignationsATGPage() {
                     <>
                       <span>{p.createdByName}</span>
                       {p.createdByRole && (
-                        <span className="ml-1 text-[10px] opacity-70">({p.createdByRole})</span>
+                        <span className="ml-1 text-[11px] opacity-70">({p.createdByRole})</span>
                       )}
                     </>
                   ) : '—'}
@@ -1445,7 +1444,7 @@ export default function AssignationsATGPage() {
                     <CollapsibleTrigger className="flex-1 flex items-center justify-between px-4 py-3">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold">{group.label}</span>
-                        <Badge variant="secondary" className="text-[10px] font-mono h-5 min-w-[20px] justify-center">
+                        <Badge variant="secondary" className="text-[11px] font-mono h-5 min-w-[20px] justify-center">
                           {group.items.length}
                         </Badge>
                       </div>

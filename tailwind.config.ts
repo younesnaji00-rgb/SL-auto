@@ -12,9 +12,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['var(--font-outfit)', 'sans-serif'],
-        headline: ['var(--font-outfit)', 'sans-serif'],
-        code: ['monospace'],
+        body: ['var(--font-inter)', 'var(--font-outfit)', 'system-ui', 'sans-serif'],
+        headline: ['var(--font-outfit)', 'var(--font-inter)', 'system-ui', 'sans-serif'],
+        code: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -49,6 +49,27 @@ export default {
         },
         'heading-bg': 'hsl(var(--heading-bg))',
         'heading-fg': 'hsl(var(--heading-fg))',
+        // Neutral ladder (Radix-style): page → surface-1 (card) → surface-2 (hover/header)
+        surface: {
+          '1': 'hsl(var(--surface-1))',
+          '2': 'hsl(var(--surface-2))',
+          '3': 'hsl(var(--surface-3))',
+        },
+        hairline: {
+          DEFAULT: 'hsl(var(--hairline))',
+          strong: 'hsl(var(--hairline-strong))',
+        },
+        // Semantic status pairs (bg + fg), light and dark, ≥ 4.5:1
+        status: {
+          'success-bg': 'hsl(var(--status-success-bg))',
+          'success-fg': 'hsl(var(--status-success-fg))',
+          'warning-bg': 'hsl(var(--status-warning-bg))',
+          'warning-fg': 'hsl(var(--status-warning-fg))',
+          'danger-bg': 'hsl(var(--status-danger-bg))',
+          'danger-fg': 'hsl(var(--status-danger-fg))',
+          'info-bg': 'hsl(var(--status-info-bg))',
+          'info-fg': 'hsl(var(--status-info-fg))',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

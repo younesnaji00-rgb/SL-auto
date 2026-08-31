@@ -188,7 +188,7 @@ function ReferencePane({
     <div className="flex flex-col flex-1 min-h-0">
       {/* Pane mini-header: label (if any) + listOpen toggle */}
       <div className="flex items-center justify-between px-3 py-1 border-b bg-muted/30 shrink-0">
-        <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+        <span className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">
           {label ?? ''}
         </span>
         <Button
@@ -287,7 +287,7 @@ function ReferencePane({
               <div className="min-w-max">
                 {Object.entries(groups).map(([type, items]) => (
                   <div key={type}>
-                    <div className="px-3 py-1 bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <div className="px-3 py-1 bg-muted/30 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                       {type} ({items.length})
                     </div>
                     {items.map((d: any) => (
@@ -450,7 +450,7 @@ function PhotoThumb({
       {url ? (
         <img src={url} alt={photo.name || 'Photo'} className="w-full h-full object-cover" />
       ) : (
-        <div className="flex items-center justify-center w-full h-full text-[10px] text-muted-foreground">…</div>
+        <div className="flex items-center justify-center w-full h-full text-[11px] text-muted-foreground">…</div>
       )}
     </button>
   );

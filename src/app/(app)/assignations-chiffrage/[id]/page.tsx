@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useEffect, useState, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -417,16 +418,14 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" asChild>
-          <Link href="/assignations-chiffrage"><ArrowLeft className="h-4 w-4" /></Link>
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold">{chiffrage.dossierNom || 'Sans ref.'}</h1>
-          <p className="text-sm text-muted-foreground">
-            Correcteur : <span className="font-bold text-foreground">{chiffrage.assignedChiffreurNom}</span>
-          </p>
-        </div>
+      <PageHeader
+        size="compact"
+        backHref="/assignations-chiffrage"
+        backLabel="Assignations au chiffrage"
+        title={chiffrage.dossierNom || 'Sans réf.'}
+        subtitle={<>Correcteur : <span className="font-semibold text-foreground">{chiffrage.assignedChiffreurNom}</span></>}
+        actions={
+        <>
         {canSendMail && chiffrage.dossierId && (
           <Button
             variant="default"
@@ -452,7 +451,9 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         <Badge variant="outline" className={cn("gap-1.5 py-1 px-3 rounded-full border font-semibold", getStatusBadgeStyles(dossierStatut))}>
           {dossierStatut}
         </Badge>
-      </div>
+        </>
+        }
+      />
 
       {/* Observations section */}
       <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />

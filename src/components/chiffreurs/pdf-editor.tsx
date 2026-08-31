@@ -292,7 +292,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
                 <Palette className="h-5 w-5 text-primary" />
                 Correcteur Professionnel
               </DialogTitle>
-              <Badge variant="outline" className="font-mono text-[10px]">{fileName}</Badge>
+              <Badge variant="outline" className="font-mono text-[11px]">{fileName}</Badge>
             </div>
 
             <div className="flex items-center gap-4 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
@@ -339,7 +339,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
                 <Button
                   variant={hasBorder ? 'default' : 'outline'}
                   size="sm"
-                  className="h-7 text-[10px] px-2"
+                  className="h-7 text-[11px] px-2"
                   onClick={() => setHasBorder(!hasBorder)}
                 >
                   <Square className={cn("h-3 w-3 mr-1", !hasBorder && "opacity-30")} />
@@ -360,7 +360,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
             <div className="flex items-center gap-2">
               <div className="flex items-center bg-slate-50 border rounded-lg px-2 mr-2">
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}><ZoomOut className="h-3.5 w-3.5" /></Button>
-                <span className="text-[10px] font-bold w-10 text-center">{Math.round(zoom * 100)}%</span>
+                <span className="text-[11px] font-bold w-10 text-center">{Math.round(zoom * 100)}%</span>
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(Math.min(2, zoom + 0.1))}><ZoomIn className="h-3.5 w-3.5" /></Button>
               </div>
               <Button variant="outline" size="sm" onClick={handleSave} disabled={isSaving}>
@@ -477,11 +477,11 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
 
         <DialogFooter className="px-6 py-2 border-t bg-card shrink-0">
           <div className="flex items-center justify-between w-full">
-            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest opacity-40">
+            <p className="text-[11px] text-muted-foreground uppercase font-black tracking-widest opacity-40">
               DashFlow Canvas Engine — Mode "Correction Native" Manuel
             </p>
             <div className="flex gap-4">
-              <span className="text-[10px] text-muted-foreground italic">
+              <span className="text-[11px] text-muted-foreground italic">
                 Cliquez pour modifier un texte. Utilisez l'outil "Barre" pour corriger les prix originaux.
               </span>
               <Button variant="ghost" size="sm" onClick={onClose} className="font-bold text-xs h-7">Fermer</Button>

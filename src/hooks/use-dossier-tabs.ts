@@ -1,21 +1,20 @@
 'use client';
 
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { useParams, usePathname } from 'next/navigation';
+/**
+ * Backward-compatible facade over the generic workspace-tabs store.
+ * New code should use `useWorkspaceTabs('dossier')` directly.
+ */
 
-export const LIST_TAB_ID = '__list__';
+import React, { useMemo } from 'react';
+import { LIST_TAB_ID, useWorkspaceTabs } from './use-workspace-tabs';
+
+export { LIST_TAB_ID };
 
 export interface DossierTab {
   dossierId: string;
   label: string;
+  preview?: boolean;
+  pinned?: boolean;
 }
 
 interface DossierTabsContextValue {
@@ -23,159 +22,28 @@ interface DossierTabsContextValue {
   displayTabs: DossierTab[];
   activeDossierId: string | null;
   activeTabId: string | null;
-  openTab: (dossierId: string, label?: string) => void;
+  openTab: (dossierId: string, label?: string, opts?: { preview?: boolean }) => void;
   closeTab: (dossierId: string) => string | null;
   refreshTabLabel: (dossierId: string, label: string) => void;
 }
 
-const STORAGE_KEY = 'sl-auto:dossier-tabs';
-
-const DossierTabsContext = createContext<DossierTabsContextValue | null>(null);
-
-function shortId(id: string): string {
-  return id.length <= 6 ? id : id.slice(0, 6);
-}
-
-function defaultLabel(dossierId: string): string {
-  return `Dossier ${shortId(dossierId)}`;
-}
-
-function readFromStorage(): DossierTab[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter(
-        (t): t is DossierTab =>
-          !!t &&
-          typeof t === 'object' &&
-          typeof (t as DossierTab).dossierId === 'string' &&
-          typeof (t as DossierTab).label === 'string'
-      )
-      .map((t) => ({ dossierId: t.dossierId, label: t.label }));
-  } catch {
-    return [];
-  }
-}
-
-function writeToStorage(tabs: DossierTab[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(tabs));
-  } catch {
-    // ignore quota / privacy errors
-  }
-}
-
+/** No-op wrapper kept so existing layouts don't break; the real provider is WorkspaceTabsProvider. */
 export function DossierTabsProvider({ children }: { children: React.ReactNode }) {
-  const [tabs, setTabs] = useState<DossierTab[]>([]);
-  const hydrated = useRef(false);
-
-  // Hydrate from sessionStorage on mount
-  useEffect(() => {
-    if (hydrated.current) return;
-    hydrated.current = true;
-    const stored = readFromStorage();
-    if (stored.length > 0) setTabs(stored);
-  }, []);
-
-  // Mirror to sessionStorage on each change (after hydration)
-  useEffect(() => {
-    if (!hydrated.current) return;
-    writeToStorage(tabs);
-  }, [tabs]);
-
-  const pathname = usePathname() || '';
-  const params = useParams();
-  const rawId = params && (params as Record<string, string | string[] | undefined>).id;
-  const idFromParams = Array.isArray(rawId) ? rawId[0] : rawId;
-  const activeDossierId = useMemo<string | null>(() => {
-    if (idFromParams && typeof idFromParams === 'string' && pathname.startsWith('/dossiers/')) {
-      return idFromParams;
-    }
-    return null;
-  }, [idFromParams, pathname]);
-
-  const openTab = useCallback((dossierId: string, label?: string) => {
-    if (!dossierId) return;
-    // The list tab is always present and is not stored in `tabs`; opening it is a no-op.
-    if (dossierId === LIST_TAB_ID) return;
-    const hasExplicitLabel = !!label && label.trim().length > 0;
-    const safeLabel = hasExplicitLabel ? label!.trim() : defaultLabel(dossierId);
-    setTabs((prev) => {
-      const existing = prev.find((t) => t.dossierId === dossierId);
-      if (existing) {
-        // Caller passed a real label: always overwrite (handles stale labels
-        // persisted in sessionStorage from prior sessions). No-op if equal.
-        if (hasExplicitLabel && existing.label !== safeLabel) {
-          return prev.map((t) => (t.dossierId === dossierId ? { ...t, label: safeLabel } : t));
-        }
-        return prev;
-      }
-      return [...prev, { dossierId, label: safeLabel }];
-    });
-  }, []);
-
-  const refreshTabLabel = useCallback((dossierId: string, label: string) => {
-    if (!dossierId || !label || label.trim().length === 0) return;
-    const trimmed = label.trim();
-    setTabs((prev) => {
-      const idx = prev.findIndex((t) => t.dossierId === dossierId);
-      if (idx === -1) return prev;
-      if (prev[idx].label === trimmed) return prev;
-      const next = prev.slice();
-      next[idx] = { ...next[idx], label: trimmed };
-      return next;
-    });
-  }, []);
-
-  const closeTab = useCallback(
-    (dossierId: string): string | null => {
-      // The list tab is persistent and cannot be closed.
-      if (dossierId === LIST_TAB_ID) return null;
-      let nextId: string | null = null;
-      setTabs((prev) => {
-        const idx = prev.findIndex((t) => t.dossierId === dossierId);
-        if (idx === -1) return prev;
-        const isActive = dossierId === activeDossierId;
-        if (isActive) {
-          const neighbor = prev[idx + 1] ?? prev[idx - 1] ?? null;
-          nextId = neighbor ? neighbor.dossierId : null;
-        } else {
-          nextId = activeDossierId;
-        }
-        return prev.filter((t) => t.dossierId !== dossierId);
-      });
-      return nextId;
-    },
-    [activeDossierId]
-  );
-
-  const displayTabs = useMemo<DossierTab[]>(
-    () => [{ dossierId: LIST_TAB_ID, label: 'Dossiers' }, ...tabs],
-    [tabs]
-  );
-
-  const activeTabId = useMemo<string | null>(() => {
-    if (pathname === '/dossiers') return LIST_TAB_ID;
-    return activeDossierId;
-  }, [pathname, activeDossierId]);
-
-  const value = useMemo<DossierTabsContextValue>(
-    () => ({ tabs, displayTabs, activeDossierId, activeTabId, openTab, closeTab, refreshTabLabel }),
-    [tabs, displayTabs, activeDossierId, activeTabId, openTab, closeTab, refreshTabLabel]
-  );
-
-  return React.createElement(DossierTabsContext.Provider, { value }, children);
+  return React.createElement(React.Fragment, null, children);
 }
 
 export function useDossierTabs(): DossierTabsContextValue {
-  const ctx = useContext(DossierTabsContext);
-  if (!ctx) {
-    throw new Error('useDossierTabs must be used within a DossierTabsProvider');
-  }
-  return ctx;
+  const api = useWorkspaceTabs('dossier');
+  return useMemo(
+    () => ({
+      tabs: api.tabs.map((t) => ({ dossierId: t.id, label: t.label, preview: t.preview, pinned: t.pinned })),
+      displayTabs: api.displayTabs.map((t) => ({ dossierId: t.id, label: t.label, preview: t.preview, pinned: t.pinned })),
+      activeDossierId: api.activeId,
+      activeTabId: api.activeTabId,
+      openTab: api.openTab,
+      closeTab: api.closeTab,
+      refreshTabLabel: api.refreshTabLabel,
+    }),
+    [api],
+  );
 }

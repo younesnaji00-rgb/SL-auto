@@ -225,7 +225,7 @@ export function SlotCard({
                 <Pencil className="h-3 w-3" />
               </Button>
             )}
-            <span className="text-[10px] font-normal text-muted-foreground">
+            <span className="text-[11px] font-normal text-muted-foreground">
               {visibleDocs.length}
             </span>
           </span>
@@ -300,11 +300,11 @@ export function SlotCard({
                       <ChangeBadge status={replayStatus} className="shrink-0" />
                     </p>
                     {d.pendingUpload && (
-                      <p className="text-[10px] text-amber-700">En attente…</p>
+                      <p className="text-[11px] text-amber-700">En attente…</p>
                     )}
                     {chiffreurName && (
                       <p
-                        className="text-[10px] text-muted-foreground truncate"
+                        className="text-[11px] text-muted-foreground truncate"
                         title={`Chiffré par ${chiffreurName}`}
                       >
                         Chiffré par {chiffreurName}

@@ -27,6 +27,17 @@ import ObservationHistorySheet from './observation-history-sheet';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useDossierTabs } from '@/hooks/use-dossier-tabs';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
+import { PageHeader } from '@/components/layout/page-header';
+import { SavedViews } from '@/components/ui/saved-views';
+import { dossierLabel } from '@/lib/dossier-label';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ChevronRight as RowChevron, MoreHorizontal, ExternalLink } from 'lucide-react';
 import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -75,17 +86,11 @@ export default function DossiersClientPage() {
   const canEditDossiers = canWrite('dossiers');
   const { openTab } = useDossierTabs();
 
-  const openDossier = useCallback((d: { id: string; refExpert?: string; numero?: string; assure?: any }) => {
-    const a = d.assure;
-    let label = '';
-    if (typeof a === 'string') {
-      label = a.trim();
-    } else if (a && typeof a === 'object') {
-      label = `${a.prenom || ''} ${a.nom || ''}`.trim();
-    }
-    if (!label) label = 'Sans nom';
-    openTab(d.id, label);
-    router.push(`/dossiers/${d.id}`);
+  // Single click = preview tab (replaced by the next preview); "Ouvrir dans un
+  // onglet" / double-click = permanent tab (VS Code preview-tab semantics).
+  const openDossier = useCallback((d: { id: string; refExpert?: string; numero?: string; assure?: any }, opts?: { preview?: boolean; navigate?: boolean }) => {
+    openTab(d.id, dossierLabel(d), { preview: opts?.preview ?? true });
+    if (opts?.navigate !== false) router.push(`/dossiers/${d.id}`);
   }, [openTab, router]);
 
   const { options: dbCompagnies } = useOptions('compagnies');
@@ -453,6 +458,27 @@ export default function DossiersClientPage() {
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        title="Dossiers"
+        subtitle="Gérer et suivre tous les dossiers de sinistres"
+        count={loading ? undefined : dossierList.length}
+        actions={
+          exportMode ? undefined : (
+            <>
+              <Button variant="outline" size="sm" className="h-9" onClick={() => setExportMode(true)}>
+                <Bell className="mr-2 h-4 w-4" />
+                Rappeler
+              </Button>
+              {canEditDossiers && (
+                <Button size="sm" className="h-9" onClick={handleOpenCreate} title="Nouveau dossier (C)">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nouveau dossier
+                </Button>
+              )}
+            </>
+          )
+        }
+      />
       {fetchError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -466,11 +492,12 @@ export default function DossiersClientPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Rechercher..."
+            placeholder="Rechercher (réf, assuré, plaque…)"
             value={filters.search}
             onChange={e => setFilters({ search: e.target.value })}
           />
         </div>
+        <SavedViews storageKey="dossiers" current={filters} onApply={(f) => { setFilters(() => f); setPage(1); }} />
         
         {/* Per-attribute filters (nature, statut, compagnie, observation) moved
             into their respective column headers below. The top bar keeps only
@@ -681,22 +708,9 @@ export default function DossiersClientPage() {
             </Button>
           </div>
         </div>
-      ) : (
-        <div className="flex justify-end gap-2">
-          {canEditDossiers && (
-            <Button size="sm" onClick={handleOpenCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              Création de mission
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => setExportMode(true)}>
-            <Bell className="mr-2 h-4 w-4" />
-            Rappeler
-          </Button>
-        </div>
-      )}
+      ) : null}
 
-      <Card className="overflow-x-scroll overflow-y-auto border rounded-lg max-h-[calc(100vh-280px)] [&>div]:overflow-visible">
+      <Card className="overflow-x-scroll overflow-y-auto border rounded-lg max-h-[calc(100dvh-280px)] [&>div]:overflow-visible">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="bg-muted/50">
@@ -1075,6 +1089,8 @@ export default function DossiersClientPage() {
                     d.lastObservation?.text && 'bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-50/70 dark:hover:bg-amber-950/30'
                   )}
                   onClick={() => exportMode ? handleToggleRow(d.id) : openDossier(d)}
+                  onDoubleClick={() => { if (!exportMode) openDossier(d, { preview: false }); }}
+                  onAuxClick={(e) => { if (!exportMode && e.button === 1) { e.preventDefault(); openDossier(d, { preview: false, navigate: false }); } }}
                 >
                   {exportMode && (
                     <TableCell onClick={e => e.stopPropagation()}>
@@ -1084,7 +1100,7 @@ export default function DossiersClientPage() {
                       />
                     </TableCell>
                   )}
-                  <TableCell className="font-mono text-sm font-semibold text-primary tabular-nums">{d.refExpert}</TableCell>
+                  <TableCell className="font-mono text-[13px] font-semibold tabular-nums text-foreground">{d.refExpert || <span className="font-sans font-normal text-muted-foreground">Sans réf.</span>}</TableCell>
                   <TableCell>{renderAssure(d.assure)}</TableCell>
                   <TableCell>{d.compagnie || '-'}</TableCell>
                   <TableCell>{d.referenceCompagnie || ''}</TableCell>
@@ -1132,46 +1148,50 @@ export default function DossiersClientPage() {
                       onClick={e => e.stopPropagation()}
                       className="text-right sticky right-0 bg-card z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] group-hover:bg-muted/50"
                     >
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Gérer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openDossier(d);
-                          }}
-                        >
-                          <Eye className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Workflow"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setWorkflowDossier(d);
-                          }}
-                        >
-                          <History className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
-                        </Button>
-                        {canDelete && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Supprimer"
-                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/5"
-                            loading={deletingId === d.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteTarget({ id: d.id, refExpert: (d as any).refExpert || d.id });
-                            }}
-                          >
-                            {deletingId === d.id ? null : <Trash2 className="h-4 w-4" />}
-                          </Button>
-                        )}
+                      <div className="flex items-center justify-end gap-0.5">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground opacity-60 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                              aria-label={`Actions pour ${d.refExpert || 'ce dossier'}`}
+                              loading={deletingId === d.id}
+                            >
+                              {deletingId === d.id ? null : <MoreHorizontal className="h-4 w-4" />}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuItem onSelect={() => openDossier(d, { preview: false })}>
+                              <Eye className="mr-2 h-4 w-4" /> Ouvrir
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => openDossier(d, { preview: false, navigate: false })}>
+                              <ExternalLink className="mr-2 h-4 w-4" /> Ouvrir dans un onglet
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onSelect={() => setWorkflowDossier(d)}>
+                              <History className="mr-2 h-4 w-4" /> Workflow
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setStatusHistoryDossier(d)}>
+                              <History className="mr-2 h-4 w-4" /> Historique des statuts
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setObservationHistoryDossier(d)}>
+                              <History className="mr-2 h-4 w-4" /> Historique des observations
+                            </DropdownMenuItem>
+                            {canDelete && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onSelect={() => setDeleteTarget({ id: d.id, refExpert: (d as any).refExpert || d.id })}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <RowChevron className="h-4 w-4 text-muted-foreground/60 group-hover:text-foreground" aria-hidden />
                       </div>
                     </TableCell>
                   )}

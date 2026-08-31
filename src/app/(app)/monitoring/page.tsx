@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import { useEffect, useMemo, useState } from 'react';
 import {
   collection,
@@ -357,14 +358,11 @@ export default function MonitoringPage() {
   };
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <header className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="font-headline text-2xl font-semibold tracking-tight">Suivi d'équipe</h1>
-          <p className="text-sm text-muted-foreground">
-            Funnel des étapes — combien de dossiers ont franchi chaque étape.
-          </p>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Suivi d'équipe"
+        subtitle="Funnel des étapes — combien de dossiers ont franchi chaque étape."
+        actions={
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex items-center gap-1 rounded-md border p-0.5 self-end h-10">
             <Button
@@ -413,7 +411,8 @@ export default function MonitoringPage() {
             Réinitialiser
           </Button>
         </div>
-      </header>
+        }
+      />
 
       <Tabs defaultValue="global" className="space-y-4">
         <TabsList>
@@ -680,7 +679,7 @@ function KpiBarRow({
   onClick: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2 text-[10px]">
+    <div className="flex items-center gap-2 text-[11px]">
       <span className={`flex w-20 shrink-0 items-center gap-1 ${textClass}`}>
         <span className={`inline-block h-2 w-2 rounded-sm ${swatchClass}`} />
         <span>{label}</span>

@@ -24,7 +24,10 @@ import { useDossierTabs } from '@/hooks/use-dossier-tabs';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 
 // ── Timeline ─────────────────────────────────────────────────────────────────
-import { Timeline, DOSSIER_TIMELINE_STEPS } from '@/components/dossier-timeline/timeline';
+import { Timeline } from '@/components/dossier-timeline/timeline';
+import { getStepStatuses } from '@/lib/dossier-steps';
+import { RecordBar, RECORD_BAR_HEIGHT } from '@/components/dossiers/record-bar';
+import { DossierContextPanel } from '@/components/dossiers/dossier-context-panel';
 import { useLastStep } from '@/hooks/use-last-step';
 import Step1Import from '@/components/dossier-timeline/step-1-import';
 import Step2Information from '@/components/dossier-timeline/step-2-information';
@@ -58,7 +61,6 @@ export default function DossierDetailPage({
   const { data: dossier, loading } = useDoc(dossierRef);
   const { canWrite, profile } = useCurrentUser();
   const readOnly = !canWrite('dossiers');
-  const { openTab, refreshTabLabel } = useDossierTabs();
   const { toast } = useToast();
 
   // Active rappel-treatment session for this dossier (recipient-only).
@@ -206,27 +208,12 @@ export default function DossierDetailPage({
     }
   };
 
-  // Register this dossier as an open tab (handles deep links) and keep the label in sync.
-  useEffect(() => {
-    if (!id) return;
-    openTab(id);
-  }, [id, openTab]);
-
-  useEffect(() => {
-    if (!id || !dossier) return;
-    const d = dossier as { assure?: any };
-    const a = d.assure;
-    let label = '';
-    if (typeof a === 'string') {
-      label = a.trim();
-    } else if (a && typeof a === 'object') {
-      label = `${a.prenom || ''} ${a.nom || ''}`.trim();
-    }
-    if (!label) label = 'Sans nom';
-    refreshTabLabel(id, label);
-  }, [id, dossier, refreshTabLabel]);
-
+  // Tab registration + label sync live in <RecordBar> (one label everywhere).
   const [activeStep, setActiveStep] = useLastStep(id);
+
+  // Per-step status computed from dossier data — drives the stepper, the
+  // section chips and the record bar's primary action.
+  const stepStates = useMemo(() => getStepStatuses(effectiveDossier ?? dossier), [effectiveDossier, dossier]);
 
   // Modal states
   const [isPlanificationModalOpen, setPlanificationModalOpen] = useState(false);
@@ -280,99 +267,45 @@ export default function DossierDetailPage({
 
   return (
     <RappelDraftContext.Provider value={draftStore}>
-    <div className="flex flex-col min-h-screen bg-background">
-      {/* TOP HEADER */}
-      <div className="bg-card px-6 py-4 border-b">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <Link href="/dossiers">
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-lg font-bold leading-tight">
-                Dossier : <span className="text-primary">{viewDossier.refExpert || 'Sans Ref.'}</span>
-              </h1>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {renderAssure(viewDossier.assure)} &bull; {viewDossier.compagnie || 'N/A'} &bull; {viewDossier.matricule || 'N/A'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {viewDossier.lastObservation?.text && (
-              <Badge className="bg-amber-50 text-amber-800 hover:bg-amber-50 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/50">
-                {viewDossier.lastObservation.text}
-              </Badge>
-            )}
-            <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(viewDossier.statut || 'Nouveau'))}>
-              {viewDossier.statut || 'Nouveau'}
-            </Badge>
-          </div>
-        </div>
-      </div>
+    <div className="flex min-h-full flex-col bg-background">
+      {/* RECORD BAR — the only sticky row above the stepper */}
+      <RecordBar
+        dossierId={id}
+        dossier={viewDossier}
+        steps={stepStates}
+        readOnly={readOnly}
+        activeStepId={activeStep}
+        rappel={
+          activeRappel
+            ? {
+                active: true,
+                pendingCount: draftStore.pendingCount,
+                validating,
+                onSave: handleValiderTraitement,
+                onDiscard: () => {
+                  if (window.confirm('Abandonner les modifications non sauvegardées de cette session de rappel ?')) {
+                    draftStore.discard();
+                  }
+                },
+              }
+            : undefined
+        }
+        onEmail={() => setEmailDialogOpen(true)}
+        onHistorique={() => setHistoriqueOpen(true)}
+        onPlanifier={(type) => handleNewPlanification(type)}
+        onChiffrage={() => setChiffrageModalOpen(true)}
+        onGoToStep={(stepId) => {
+          setActiveStep(stepId);
+          document.getElementById(`step-${stepId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }}
+      />
 
-      {/* RAPPEL SESSION BANNER — sticky, only when treating a rappel */}
-      {activeRappel && (
-        <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 flex flex-wrap gap-3 items-center sticky top-0 z-50 dark:bg-amber-900/25 dark:border-amber-800/50">
-          <Bell className="h-4 w-4 text-amber-700 dark:text-amber-200" />
-          <p className="text-sm font-medium text-amber-900 dark:text-amber-100 flex-1">
-            Vous traitez un rappel pour ce dossier — vos modifications restent locales jusqu&apos;à « Sauvegarder ».
-            {draftStore.pendingCount > 0 && (
-              <span className="ml-2 inline-flex items-center rounded-full bg-amber-200/80 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-800/60 dark:text-amber-100">
-                {draftStore.pendingCount} modification{draftStore.pendingCount > 1 ? 's' : ''} en attente
-              </span>
-            )}
-          </p>
-          {draftStore.pendingCount > 0 && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                if (window.confirm('Abandonner les modifications non sauvegardées de cette session de rappel ?')) {
-                  draftStore.discard();
-                }
-              }}
-              className="h-8 text-xs text-amber-800 hover:text-amber-900 dark:text-amber-200"
-            >
-              Annuler les modifs
-            </Button>
-          )}
-          <Button
-            size="sm"
-            onClick={handleValiderTraitement}
-            disabled={validating}
-            className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            <Save className="h-3.5 w-3.5" />
-            {validating ? 'Enregistrement…' : 'Sauvegarder'}
-          </Button>
-        </div>
-      )}
-
-      {/* ACTION BUTTONS ROW */}
-      {!readOnly && (
-      <div
-        className={cn(
-          'bg-card border-b px-6 py-2 flex flex-wrap gap-2 items-center sticky z-40',
-          activeRappel ? 'top-[44px]' : 'top-0',
-        )}
-      >
-        <div className="flex-1" />
-        <Button variant="outline" size="sm" onClick={() => setEmailDialogOpen(true)} className="h-8 text-xs gap-1.5">
-          <Mail className="h-3.5 w-3.5" /> Envoyer un email
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => setHistoriqueOpen(true)} className="h-8 text-xs gap-1.5">
-          <History className="h-3.5 w-3.5" /> Historique
-        </Button>
-      </div>
-      )}
-
-      {/* TIMELINE CONTENT */}
-      <div className="flex-1">
+      {/* TIMELINE CONTENT (+ context column on wide screens) */}
+      <div className="flex-1 xl:grid xl:grid-cols-[minmax(0,1fr)_280px] xl:gap-6 xl:pr-5">
         <Timeline
           dossierId={id}
-          steps={DOSSIER_TIMELINE_STEPS}
+          stickyTop={RECORD_BAR_HEIGHT}
+          steps={stepStates}
           sections={{
             1: (
               <>
@@ -441,6 +374,15 @@ export default function DossierDetailPage({
           }}
           activeStep={activeStep}
           onActiveStepChange={setActiveStep}
+        />
+        <DossierContextPanel
+          dossierId={id}
+          onOpenHistorique={() => setHistoriqueOpen(true)}
+          onGoToStep={(stepId) => {
+            setActiveStep(stepId);
+            document.getElementById(`step-${stepId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+          className="hidden xl:flex xl:sticky xl:top-[60px] xl:max-h-[calc(100svh-7rem)] xl:self-start xl:overflow-y-auto xl:pt-4"
         />
       </div>
 

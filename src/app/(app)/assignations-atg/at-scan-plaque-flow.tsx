@@ -203,7 +203,7 @@ export default function AtScanPlaqueFlow() {
                 )}
                 <div className="mt-1.5 flex items-baseline justify-between gap-2">
                   <span className="font-semibold text-sm">{chosen.refExpert || chosen.id}</span>
-                  <span className="text-[10px]">{chosen.compagnie || '—'}</span>
+                  <span className="text-[11px]">{chosen.compagnie || '—'}</span>
                 </div>
                 <div className="mt-0.5 flex items-baseline justify-between gap-2">
                   <span>{assureLabel(chosen)}</span>
@@ -211,7 +211,7 @@ export default function AtScanPlaqueFlow() {
                     {chosen.matricule || chosen.vehicule?.immatriculation || '—'}
                   </span>
                 </div>
-                <div className="mt-0.5 text-[10px] opacity-80">
+                <div className="mt-0.5 text-[11px] opacity-80">
                   Statut : {chosen.statut || 'Nouveau'}
                 </div>
               </div>
@@ -268,7 +268,7 @@ export default function AtScanPlaqueFlow() {
                 <div className="max-h-[280px] overflow-y-auto rounded border border-border/40">
                   <ul>
                     {scan && scan.matches.length === 0 && scan.fuzzy.length > 0 && (
-                      <li className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-amber-700 bg-amber-50 border-b border-border/20">
+                      <li className="px-3 py-1.5 text-[11px] uppercase tracking-wide text-amber-700 bg-amber-50 border-b border-border/20">
                         Correspondances possibles
                       </li>
                     )}
@@ -283,7 +283,7 @@ export default function AtScanPlaqueFlow() {
                             <span className="font-semibold text-primary tabular-nums">
                               {d.refExpert || d.id}
                             </span>
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-[11px] text-muted-foreground">
                               {d.compagnie || '—'}
                             </span>
                           </div>

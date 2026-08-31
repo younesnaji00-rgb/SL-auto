@@ -61,7 +61,7 @@ export function getStatusBadgeStyles(status: string): string {
 }
 
 /** Standard className for a colored status pill badge */
-export const STATUS_BADGE_CLASS = 'text-[10px] py-0.5 px-2.5 rounded-full border font-semibold';
+export const STATUS_BADGE_CLASS = 'text-[11px] py-0.5 px-2.5 rounded-full border font-semibold';
 
 /**
  * Saturated, solid header bar (white text) variant. Same family classification

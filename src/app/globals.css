@@ -39,6 +39,22 @@
     --sidebar-ring: 178 55% 28%;
     --heading-bg: 40 20% 88%;
     --heading-fg: 178 50% 22%;
+    /* Neutral ladder */
+    --surface-1: 45 25% 99%;
+    --surface-2: 40 18% 94%;
+    --surface-3: 40 15% 90%;
+    --hairline: 40 15% 85%;
+    --hairline-strong: 40 12% 72%;
+    /* Semantic status pairs (tinted bg + deep fg) */
+    --status-success-bg: 150 45% 92%;
+    --status-success-fg: 152 60% 24%;
+    --status-warning-bg: 42 90% 90%;
+    --status-warning-fg: 30 80% 26%;
+    --status-danger-bg: 0 80% 94%;
+    --status-danger-fg: 0 65% 34%;
+    --status-info-bg: 214 70% 93%;
+    --status-info-fg: 216 60% 32%;
+    --focus: 178 55% 28%;
   }
   .dark {
     --background: 30 10% 6%;
@@ -75,6 +91,20 @@
     --sidebar-ring: 172 50% 55%;
     --heading-bg: 30 10% 14%;
     --heading-fg: 172 40% 70%;
+    --surface-1: 30 10% 8%;
+    --surface-2: 30 9% 12%;
+    --surface-3: 30 8% 16%;
+    --hairline: 30 8% 18%;
+    --hairline-strong: 30 8% 28%;
+    --status-success-bg: 152 40% 14%;
+    --status-success-fg: 150 55% 72%;
+    --status-warning-bg: 38 55% 15%;
+    --status-warning-fg: 42 85% 72%;
+    --status-danger-bg: 0 45% 16%;
+    --status-danger-fg: 0 80% 78%;
+    --status-info-bg: 216 45% 16%;
+    --status-info-fg: 214 75% 78%;
+    --focus: 172 50% 55%;
   }
 }
 
@@ -85,11 +115,26 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Accent budget: headings are ink, not accent. Teal is reserved for the
+     primary button, the active nav item, the focus ring and links. */
   h1, h2, h3, h4, h5, h6 {
-    @apply text-heading-fg;
+    @apply text-foreground;
   }
   h1, h2, h3 {
     text-wrap: balance;
+  }
+  /* Tabular figures wherever digits line up (tables, KPIs, badges). */
+  td, th, .tabular, [data-tabular] {
+    font-variant-numeric: tabular-nums;
+  }
+  /* List density (Profil → Affichage). */
+  :root[data-density="compact"] td {
+    height: 2.25rem;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+  :root[data-density="compact"] th {
+    height: 2.25rem;
   }
   p {
     text-wrap: pretty;
@@ -97,11 +142,14 @@
   .dark {
     color-scheme: dark;
   }
-  html {
-    scroll-behavior: smooth;
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
   *:focus-visible {
-    @apply outline-2 outline-offset-2 outline-ring;
+    outline: 2px solid hsl(var(--focus));
+    outline-offset: 2px;
   }
   /* Fix native date/time inputs in dark mode */
   .dark input[type="date"],

@@ -468,13 +468,13 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
           ) : (
             <>
               <p
-                className="text-[10px] text-muted-foreground font-medium truncate"
+                className="text-[11px] text-muted-foreground font-medium truncate"
                 title={photo.name}
               >
                 {photo.name}
               </p>
               {photo.uploadedAt?.toDate && (
-                <p className="text-[9px] text-muted-foreground/70 mt-0.5">
+                <p className="text-[11px] text-muted-foreground/70 mt-0.5">
                   {dateFormat(photo.uploadedAt.toDate(), 'd MMM HH:mm', { locale: fr })}
                 </p>
               )}
@@ -504,7 +504,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               <TabsTrigger key={cat.id} value={cat.id} className="gap-2">
                 <Camera className="h-3.5 w-3.5" />
                 {cat.label}
-                <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5 min-w-[20px]">
+                <Badge variant="secondary" className="font-mono text-[11px] px-1.5 h-5 min-w-[20px]">
                   {count}/{photoCap}
                 </Badge>
               </TabsTrigger>
@@ -520,7 +520,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold">{cat.fullLabel}</h3>
-                  <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5 min-w-[20px]">
+                  <Badge variant="secondary" className="font-mono text-[11px] px-1.5 h-5 min-w-[20px]">
                     {catPhotos.length}/{photoCap}
                   </Badge>
                 </div>

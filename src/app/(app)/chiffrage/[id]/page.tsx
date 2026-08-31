@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useEffect, useState, use, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -115,22 +116,18 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" asChild>
-          <Link href="/dashboard"><ArrowLeft className="h-4 w-4" /></Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{chiffrage.dossierNom}</h1>
-          <p className="text-muted-foreground text-sm">
-            Correcteur assigné : {chiffrage.assignedChiffreurNom}
-          </p>
-        </div>
-        <div className="ml-auto">
+      <PageHeader
+        size="compact"
+        backHref="/assignations-chiffrage"
+        backLabel="Assignations au chiffrage"
+        title={chiffrage.dossierNom || 'Sans réf.'}
+        subtitle={<>Correcteur assigné : {chiffrage.assignedChiffreurNom}</>}
+        meta={
           <Badge variant={chiffrage.status === 'done' ? 'success' : 'secondary'} className="gap-1.5 py-1 px-3">
             {chiffrage.status === 'done' ? 'Terminé' : 'En cours'}
           </Badge>
-        </div>
-      </div>
+        }
+      />
 
       <div className="grid gap-4">
         {chiffrage.files.length === 0 && (
@@ -158,7 +155,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
               ) : (
                 <div className="flex flex-col items-center gap-1">
                   <FileType className="h-8 w-8 text-muted-foreground opacity-40" />
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground">{file.type === 'photo' ? 'Image' : 'PDF/Doc'}</span>
+                  <span className="text-[11px] uppercase font-bold text-muted-foreground">{file.type === 'photo' ? 'Image' : 'PDF/Doc'}</span>
                 </div>
               )}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">

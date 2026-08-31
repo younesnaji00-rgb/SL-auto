@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -248,14 +249,11 @@ export default function JoursFeriesSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <CalendarDays className="h-6 w-6 text-primary" /> Jours fériés
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Dates pendant lesquelles les délais ne sont pas comptés (compteur hors délai). Format YYYY-MM-DD.
-        </p>
-      </div>
+      <PageHeader
+        title="Jours fériés"
+        icon={<CalendarDays />}
+        subtitle="Dates pendant lesquelles les délais ne sont pas comptés (compteur hors délai). Format YYYY-MM-DD."
+      />
 
       <Card>
         <CardHeader>
@@ -350,7 +348,7 @@ export default function JoursFeriesSettingsPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             Liste actuelle
-            <Badge variant="secondary" className="text-[10px] font-mono">{options.length}</Badge>
+            <Badge variant="secondary" className="text-[11px] font-mono">{options.length}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>

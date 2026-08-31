@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Bug,
@@ -95,13 +96,11 @@ export default function SignalerBugPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Bug className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold">Signaler un bug</h1>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Décrivez le problème rencontré. Vous pouvez envoyer des messages, joindre des fichiers ou enregistrer un message vocal.
-      </p>
+      <PageHeader
+        title="Signaler un bug"
+        icon={<Bug />}
+        subtitle="Décrivez le problème rencontré. Vous pouvez envoyer des messages, joindre des fichiers ou enregistrer un message vocal."
+      />
       <ChatThread
         conversationUid={firebaseUser.uid}
         currentUser={firebaseUser}
@@ -142,13 +141,9 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Bug className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold">Signaler un bug</h1>
-        <Badge variant="secondary">{conversations?.length || 0} conversations</Badge>
-      </div>
+      <PageHeader title="Signaler un bug" icon={<Bug />} count={conversations?.length || 0} subtitle="Conversations des utilisateurs" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 min-h-[calc(100vh-200px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 min-h-[calc(100dvh-200px)]">
         {/* Conversations list */}
         <Card className="overflow-hidden">
           <CardContent className="p-0">
@@ -184,19 +179,19 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-sm font-semibold truncate">{c.recipientNom}</span>
-                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                          <span className="text-[11px] text-muted-foreground whitespace-nowrap">
                             {formatDate(c.lastMessageAt)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-xs text-muted-foreground truncate">{c.lastMessage || 'Message vocal'}</p>
                           {c.unreadByAdmin > 0 && (
-                            <Badge className="h-5 min-w-[20px] justify-center text-[10px] bg-primary">
+                            <Badge className="h-5 min-w-[20px] justify-center text-[11px] bg-primary">
                               {c.unreadByAdmin}
                             </Badge>
                           )}
                         </div>
-                        <Badge variant="outline" className="text-[9px] px-1 py-0 mt-1">{c.recipientRole}</Badge>
+                        <Badge variant="outline" className="text-[11px] px-1 py-0 mt-1">{c.recipientRole}</Badge>
                       </div>
                     </div>
                   </button>
@@ -226,7 +221,7 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
                 </Avatar>
                 <div>
                   <p className="text-sm font-semibold">{selected?.recipientNom}</p>
-                  <p className="text-[10px] text-muted-foreground">{selected?.recipientEmail}</p>
+                  <p className="text-[11px] text-muted-foreground">{selected?.recipientEmail}</p>
                 </div>
               </div>
               <ChatThread
@@ -418,7 +413,7 @@ function ChatThread({
       />
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-340px)]">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100dvh-340px)]">
         {loading ? (
           <div className="flex justify-center py-10">
             <InlineLoader label="Chargement…" size="md" />
@@ -445,9 +440,9 @@ function ChatThread({
                   <div className={cn('flex items-center gap-2 flex-wrap', isOwn && 'flex-row-reverse')}>
                     <span className="text-xs font-semibold">{msg.auteurNom}</span>
                     {msg.auteurRole && (
-                      <Badge variant="outline" className="text-[9px] px-1 py-0">{msg.auteurRole}</Badge>
+                      <Badge variant="outline" className="text-[11px] px-1 py-0">{msg.auteurRole}</Badge>
                     )}
-                    <span className="text-[10px] text-muted-foreground">{formatDate(msg.date)}</span>
+                    <span className="text-[11px] text-muted-foreground">{formatDate(msg.date)}</span>
                   </div>
 
                   {/* Voice message */}

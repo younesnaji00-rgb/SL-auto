@@ -140,7 +140,7 @@ export default function ModalPlanificationHistory({ open, onOpenChange, dossierI
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <User className="h-3 w-3" />
                         {entry.modifiedByName || 'Utilisateur inconnu'}
-                        <Badge variant="outline" className="text-[10px] h-4 py-0">
+                        <Badge variant="outline" className="text-[11px] h-4 py-0">
                           {entry.action || 'Modification'}
                         </Badge>
                       </div>
@@ -166,28 +166,28 @@ export default function ModalPlanificationHistory({ open, onOpenChange, dossierI
                   {expandedId === entry.id && (
                     <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-x-4 gap-y-3 text-sm animate-in fade-in-0 duration-300">
                       <div className="space-y-1">
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Date RDV</p>
+                        <p className="text-[11px] uppercase font-bold text-muted-foreground">Date RDV</p>
                         <p className="flex items-center gap-2"><Calendar className="h-3 w-3" /> {formatTimestamp(entry.dateRDV)}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Type de RDV</p>
+                        <p className="text-[11px] uppercase font-bold text-muted-foreground">Type de RDV</p>
                         <p className="capitalize">{entry.typeMission}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Agent</p>
+                        <p className="text-[11px] uppercase font-bold text-muted-foreground">Agent</p>
                         <p>{entry.agentTerrain}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Zone</p>
+                        <p className="text-[11px] uppercase font-bold text-muted-foreground">Zone</p>
                         <p className="flex items-center gap-2"><MapPin className="h-3 w-3" /> {entry.zone}</p>
                       </div>
                       <div className="col-span-2 space-y-1">
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Adresse</p>
+                        <p className="text-[11px] uppercase font-bold text-muted-foreground">Adresse</p>
                         <p>{entry.adresse}</p>
                       </div>
                       {entry.observation && (
                         <div className="col-span-2 bg-muted/30 p-3 rounded-md italic text-xs">
-                          <p className="not-italic font-bold text-[10px] uppercase mb-1 opacity-60">Observation:</p>
+                          <p className="not-italic font-bold text-[11px] uppercase mb-1 opacity-60">Observation:</p>
                           "{entry.observation}"
                         </div>
                       )}

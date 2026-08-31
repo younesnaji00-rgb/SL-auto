@@ -113,7 +113,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
                     <span>{c.nom}</span>
                     {count > 0 && (
                       <span
-                        className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-semibold tabular-nums dark:bg-amber-900/30 dark:text-amber-200"
+                        className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-semibold tabular-nums dark:bg-amber-900/30 dark:text-amber-200"
                         title={`${count} dossier(s) en cours`}
                       >
                         {count}

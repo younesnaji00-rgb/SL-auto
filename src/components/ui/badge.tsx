@@ -18,8 +18,8 @@ const badgeVariants = cva(
         creation: "border-transparent bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200",
         chiffrage: "border-transparent bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200",
         validation: "border-transparent bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200",
-        expertise: "border-transparent bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200",
-        success: "border-transparent bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200",
+        expertise: "border-transparent bg-status-success-bg text-status-success-fg",
+        success: "border-transparent bg-status-success-bg text-status-success-fg",
       },
     },
     defaultVariants: {

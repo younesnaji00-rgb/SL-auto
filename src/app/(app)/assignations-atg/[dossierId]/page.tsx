@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { use, useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -597,17 +598,19 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" asChild>
-          <Link href="/assignations-atg"><ArrowLeft className="h-4 w-4" /></Link>
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">{dossier?.refExpert || dossierId}</h1>
+      <div className="flex items-start gap-4">
+        <div className="flex-1 space-y-1">
+          <PageHeader
+            size="compact"
+            backHref="/assignations-atg"
+            backLabel="Missions terrain"
+            title={dossier?.refExpert || dossierId}
+          />
           <div className="text-sm text-muted-foreground flex items-center gap-1 flex-wrap">
             {assureNom && <span>{assureNom}</span>}
             {dossier?.compagnie && <span> — {dossier.compagnie}</span>}
             {dossier?.expertRank && (
-              <Badge variant="outline" className="ml-2 text-[10px]">{dossier.expertRank}</Badge>
+              <Badge variant="outline" className="ml-2 text-[11px]">{dossier.expertRank}</Badge>
             )}
           </div>
           <div className="mt-1 text-sm flex items-center gap-1 flex-wrap">
@@ -698,7 +701,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           <ImageIcon className={cn('h-5 w-5 shrink-0', isPhotosOpen ? 'text-primary' : 'text-muted-foreground')} />
           <div className="flex-1">
             <span className={cn('text-sm font-bold', isPhotosOpen && 'text-primary')}>Photos</span>
-            <Badge variant="secondary" className="text-[10px] font-mono ml-2">{photos.length}</Badge>
+            <Badge variant="secondary" className="text-[11px] font-mono ml-2">{photos.length}</Badge>
           </div>
         </button>
 
@@ -716,7 +719,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           <FileText className={cn('h-5 w-5 shrink-0', isDocsOpen ? 'text-primary' : 'text-muted-foreground')} />
           <div className="flex-1">
             <span className={cn('text-sm font-bold', isDocsOpen && 'text-primary')}>Documents</span>
-            <Badge variant="secondary" className="text-[10px] font-mono ml-2">{documents.length}</Badge>
+            <Badge variant="secondary" className="text-[11px] font-mono ml-2">{documents.length}</Badge>
           </div>
         </button>
       </div>
@@ -731,7 +734,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                 <h3 className="text-sm font-bold flex items-center gap-2 flex-wrap">
                   <ImageIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                   Photos — {activeTab}
-                  <Badge variant="secondary" className="text-[10px] font-mono">{filteredPhotos.length}/{photoCap}</Badge>
+                  <Badge variant="secondary" className="text-[11px] font-mono">{filteredPhotos.length}/{photoCap}</Badge>
                 </h3>
                 <div className="flex items-center gap-2 flex-wrap">
                   {canEdit && (
@@ -826,7 +829,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                         </button>
                       )}
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1.5">
-                        <p className="text-[10px] text-white truncate">{photo.name}</p>
+                        <p className="text-[11px] text-white truncate">{photo.name}</p>
                       </div>
                     </div>
                   )}

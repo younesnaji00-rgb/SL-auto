@@ -207,7 +207,7 @@ export default function Step2Information({
           {informationContent}
         </div>
         <aside className="hidden lg:block">
-          <div className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-hidden flex flex-col gap-3 rounded-md border bg-card p-3">
+          <div className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-hidden flex flex-col gap-3 rounded-md border bg-card p-3">
             <Select
               value={selectedScanId ?? undefined}
               onValueChange={(v) => setSelectedScanId(v)}

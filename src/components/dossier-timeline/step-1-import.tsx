@@ -591,7 +591,7 @@ export default function Step1Import({
               Document source du pré-remplissage
             </h3>
             {hasImportDoc && (
-              <Badge variant="secondary" className="text-[10px]">
+              <Badge variant="secondary" className="text-[11px]">
                 1
               </Badge>
             )}
@@ -647,7 +647,7 @@ export default function Step1Import({
                     {d.pendingUpload && (
                       <Badge
                         variant="outline"
-                        className="shrink-0 border-amber-300 bg-amber-50 text-[9px] text-amber-700"
+                        className="shrink-0 border-amber-300 bg-amber-50 text-[11px] text-amber-700"
                       >
                         En attente
                       </Badge>

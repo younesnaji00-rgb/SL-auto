@@ -310,7 +310,7 @@ export default function ViewerPage() {
             {filteredFileIndices.map((i) => (
               <SelectItem key={i} value={String(i)}>
                 <span className="flex items-center gap-1.5 truncate">
-                  {allFiles[i].source === 'dossier' && <span className="text-[9px] bg-muted px-1 rounded font-semibold text-muted-foreground shrink-0">Dossier</span>}
+                  {allFiles[i].source === 'dossier' && <span className="text-[11px] bg-muted px-1 rounded font-semibold text-muted-foreground shrink-0">Dossier</span>}
                   {allFiles[i].name}
                 </span>
               </SelectItem>
@@ -318,7 +318,7 @@ export default function ViewerPage() {
           </SelectContent>
         </Select>
         {pageCount > 0 && (
-          <span className="text-[10px] text-muted-foreground whitespace-nowrap">({pageCount} p.)</span>
+          <span className="text-[11px] text-muted-foreground whitespace-nowrap">({pageCount} p.)</span>
         )}
 
         <div className="h-5 w-px bg-border" />
@@ -343,7 +343,7 @@ export default function ViewerPage() {
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.max(0.5, z - 0.25))} disabled={zoom <= 0.5}>
             <ZoomOut className="h-3 w-3" />
           </Button>
-          <span className="text-[10px] font-mono w-8 text-center">{Math.round(zoom * 100)}%</span>
+          <span className="text-[11px] font-mono w-8 text-center">{Math.round(zoom * 100)}%</span>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.min(2, z + 0.25))} disabled={zoom >= 2}>
             <ZoomIn className="h-3 w-3" />
           </Button>
@@ -360,7 +360,7 @@ export default function ViewerPage() {
         </Button>
 
         {/* Read-only indicator */}
-        <div className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-300 font-semibold bg-amber-50/80 dark:bg-amber-900/30 px-2 py-1 rounded">
+        <div className="flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-300 font-semibold bg-amber-50/80 dark:bg-amber-900/30 px-2 py-1 rounded">
           <Eye className="h-3 w-3" /> Lecture seule
         </div>
       </div>
@@ -421,7 +421,7 @@ export default function ViewerPage() {
                 ref={el => { if (el) pageCanvasRefs.current.set(i, el); }}
                 style={{ display: 'block' }}
               />
-              <div className="absolute bottom-2 right-3 text-[10px] text-slate-400 font-mono pointer-events-none">
+              <div className="absolute bottom-2 right-3 text-[11px] text-slate-400 font-mono pointer-events-none">
                 Page {i + 1} / {pageCount}
               </div>
             </ReadOnlyPageWrapper>
@@ -430,7 +430,7 @@ export default function ViewerPage() {
       </div>
 
       {/* Status bar */}
-      <div className="bg-card border-t px-4 py-1.5 flex items-center justify-between text-[10px] text-muted-foreground shrink-0">
+      <div className="bg-card border-t px-4 py-1.5 flex items-center justify-between text-[11px] text-muted-foreground shrink-0">
         <div className="flex items-center gap-4">
           <span>{annotations.length} annotation{annotations.length !== 1 ? 's' : ''}</span>
           <span>{fileName}</span>

@@ -75,7 +75,7 @@ export default function ObservationHistorySheet({ open, onOpenChange, dossier }:
                     <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
                       <div className="px-4 py-2 text-sm font-semibold bg-amber-50/60 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 flex items-center justify-between gap-2">
                         <span className="truncate">{e.author || '—'}</span>
-                        {e.authorRole && <span className="text-[10px] uppercase tracking-wide opacity-70">{e.authorRole}</span>}
+                        {e.authorRole && <span className="text-[11px] uppercase tracking-wide opacity-70">{e.authorRole}</span>}
                       </div>
                       <div className="p-4 space-y-1.5 text-sm">
                         <p className="whitespace-pre-wrap break-words">{e.text || '—'}</p>

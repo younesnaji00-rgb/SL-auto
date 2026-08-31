@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -530,23 +531,21 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" asChild>
-            <Link href="/utilisateurs"><ArrowLeft className="h-4 w-4" /></Link>
-          </Button>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">
-              {formData.prenom} {formData.nom}
-            </h1>
+      <PageHeader
+        size="compact"
+        backHref="/utilisateurs"
+        backLabel="Utilisateurs"
+        title={`${formData.prenom ?? ''} ${formData.nom ?? ''}`.trim() || 'Utilisateur'}
+        meta={
+          <>
             <Badge variant="secondary">{formData.role}</Badge>
             <Badge variant={formData.statut === 'Actif' ? 'success' : 'destructive'} className="flex gap-1 items-center">
-              <span className={`w-1.5 h-1.5 rounded-full ${formData.statut === 'Actif' ? 'bg-emerald-500' : 'bg-destructive'} animate-pulse`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${formData.statut === 'Actif' ? 'bg-emerald-500' : 'bg-destructive'}`} />
               {formData.statut}
             </Badge>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -821,7 +820,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                 {isOverride && (
                                   <span
                                     className={cn(
-                                      'text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
+                                      'text-[11px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
                                       allowed
                                         ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
                                         : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
@@ -833,7 +832,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                 )}
                                 {!item.roleDefault && !isOverride && (
                                   <span
-                                    className="text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px bg-muted text-muted-foreground"
+                                    className="text-[11px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px bg-muted text-muted-foreground"
                                     title="Non inclus dans le rôle par défaut"
                                   >
                                     Hors rôle
@@ -845,7 +844,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                           </button>
                           <div className="flex items-center gap-2 shrink-0">
                             {saving && (
-                              <span className="text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
+                              <span className="text-[11px] text-muted-foreground uppercase tracking-[0.08em]">
                                 Enregistrement…
                               </span>
                             )}
@@ -883,7 +882,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                       {cIsOverride && (
                                         <span
                                           className={cn(
-                                            'text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
+                                            'text-[11px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
                                             cAllowed
                                               ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
                                               : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
@@ -893,11 +892,11 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground font-mono">{child.id}</p>
+                                    <p className="text-[11px] text-muted-foreground font-mono">{child.id}</p>
                                   </div>
                                   <div className="flex items-center gap-2 shrink-0">
                                     {cSaving && (
-                                      <span className="text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
+                                      <span className="text-[11px] text-muted-foreground uppercase tracking-[0.08em]">
                                         Enregistrement…
                                       </span>
                                     )}

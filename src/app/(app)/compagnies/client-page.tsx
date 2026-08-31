@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -134,10 +135,7 @@ export default function CompagniesClientPage() {
   if (!selectedCompagnie) {
     return (
       <div className="space-y-8">
-        <div>
-          <h1 className="text-4xl font-semibold tracking-tight">Compagnies</h1>
-          <p className="text-muted-foreground mt-1">Sélectionnez une compagnie partenaire pour consulter ses indicateurs et dossiers.</p>
-        </div>
+        <PageHeader title="Compagnies" subtitle="Sélectionnez une compagnie partenaire pour consulter ses indicateurs et dossiers." />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {compagnies.map((c) => (
@@ -238,15 +236,14 @@ export default function CompagniesClientPage() {
               <Upload className="h-4 w-4 text-white" />
             </div>
           </div>
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="h-8 w-1 rounded-full shrink-0" style={{ backgroundColor: selectedCompagnie.couleur }} />
-              <h1 className="text-4xl font-semibold tracking-tight">
-                {selectedCompagnie.nom}
-              </h1>
-            </div>
-            <p className="text-muted-foreground">Tableau de bord opérationnel</p>
-          </div>
+          <PageHeader
+            size="compact"
+            backHref="/compagnies"
+            backLabel="Compagnies"
+            title={selectedCompagnie.nom}
+            icon={<span className="block h-6 w-1 rounded-full" style={{ backgroundColor: selectedCompagnie.couleur }} aria-hidden />}
+            subtitle="Tableau de bord opérationnel"
+          />
         </div>
         <div className="flex gap-3">
           <Button variant="outline" asChild>

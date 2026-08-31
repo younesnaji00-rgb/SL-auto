@@ -228,7 +228,7 @@ export function OptionsManagerModal({
         </div>
 
         <DialogFooter className="flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <p className="text-[10px] text-muted-foreground italic flex-1">Les modifications sont appliquées instantanément partout dans l&apos;application.</p>
+          <p className="text-[11px] text-muted-foreground italic flex-1">Les modifications sont appliquées instantanément partout dans l&apos;application.</p>
           {collectionName !== 'options_statuts' && !!getDefaultsFor(collectionName)?.length && (
             <Button
               type="button"

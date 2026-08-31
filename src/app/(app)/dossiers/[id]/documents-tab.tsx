@@ -464,7 +464,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-muted-foreground">
             {selectedType === ALL_TYPES_KEY ? 'Tous les documents' : selectedType}
-            <Badge variant="secondary" className="ml-2 text-[10px]">{visibleDocs.length}</Badge>
+            <Badge variant="secondary" className="ml-2 text-[11px]">{visibleDocs.length}</Badge>
           </h3>
         </div>
         <div className="flex items-center gap-2">
@@ -626,7 +626,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                       className="h-8 text-xs"
                       disabled={isUploading}
                     />
-                    <div className="text-[10px] text-muted-foreground">
+                    <div className="text-[11px] text-muted-foreground">
                       Devient le nom de la colonne rouge (ex: "1er accord", "Expert arbitre").
                     </div>
                   </div>

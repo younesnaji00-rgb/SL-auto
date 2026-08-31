@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -261,12 +262,7 @@ export default function TamponsSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Tampons</h1>
-        <p className="text-muted-foreground">
-          Gérez les tampons utilisés pour signer les devis et documents générés.
-        </p>
-      </div>
+      <PageHeader title="Tampons" subtitle="Gérez les tampons utilisés pour signer les devis et documents générés." />
 
       <Card className="border shadow-sm rounded-lg">
         <CardHeader>

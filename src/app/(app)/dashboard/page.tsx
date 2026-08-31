@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -391,12 +392,12 @@ function DashboardPageInner() {
     userFilter: string, setUserFilter: (v: string) => void,
     natureFilter: string, setNatureFilter: (v: string) => void,
   ) => (
-    <Card className="shadow-sm border h-fit hover:shadow-md transition-shadow rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: panelKey === '1' ? '100ms' : '200ms' }}>
+    <Card className="shadow-sm border h-fit rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: panelKey === '1' ? '100ms' : '200ms' }}>
       <CardHeader className="py-4">
         <CardTitle className="text-sm flex items-center gap-2">
           <Activity className="h-4 w-4 text-primary" />
           <span>Changements récents <span className="text-muted-foreground font-normal">/ {actionFilterLabels[actionFilter]}</span></span>
-          <Badge variant="secondary" className="ml-1 text-[10px] tabular-nums">{logs.length}</Badge>
+          <Badge variant="secondary" className="ml-1 text-[11px] tabular-nums">{logs.length}</Badge>
         </CardTitle>
       </CardHeader>
       <div className="px-3 pt-0 pb-2 bg-muted/10">
@@ -458,7 +459,7 @@ function DashboardPageInner() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 text-[10px] px-2"
+              className="h-6 text-[11px] px-2"
               onClick={() => {
                 setDateFilter('');
                 setUserFilter('all');
@@ -506,20 +507,20 @@ function DashboardPageInner() {
                         )}
                         {log.action}
                       </p>
-                      <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap ml-2 bg-muted px-1.5 py-0.5 rounded tabular-nums">
+                      <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap ml-2 bg-muted px-1.5 py-0.5 rounded tabular-nums">
                         {formatDate(log.date)}
                       </span>
                     </div>
                     {dossierLabel && (
-                      <div className="flex items-center gap-1.5 text-[10px] text-primary">
+                      <div className="flex items-center gap-1.5 text-[11px] text-primary">
                         <FolderOpen className="h-2.5 w-2.5" />
                         <span className="font-semibold">{dossierLabel}</span>
                       </div>
                     )}
                     {log.details && (
-                      <p className="text-[10px] text-muted-foreground italic leading-snug">{log.details}</p>
+                      <p className="text-[11px] text-muted-foreground italic leading-snug">{log.details}</p>
                     )}
-                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                       <UserIcon className="h-2.5 w-2.5" />
                       <span>par <span className="font-semibold text-foreground">{log.user || 'Admin'}</span></span>
                     </div>
@@ -541,7 +542,7 @@ function DashboardPageInner() {
   const filteredCount = filteredDossiers.length;
 
   const filterCard = (
-    <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg overflow-hidden">
+    <Card className="shadow-sm h-fit border rounded-lg overflow-hidden">
       <CardHeader className="py-4 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base text-primary">Dossier Par État</CardTitle>
         <div className="relative w-[180px] max-w-full">
@@ -593,7 +594,7 @@ function DashboardPageInner() {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Du</label>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Du</label>
             <DatePicker
               value={dateFromFilter ?? null}
               onChange={(d) => setDateFromFilter(d ?? undefined)}
@@ -602,7 +603,7 @@ function DashboardPageInner() {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Au</label>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Au</label>
             <DatePicker
               value={dateToFilter ?? null}
               onChange={(d) => setDateToFilter(d ?? undefined)}
@@ -661,7 +662,7 @@ function DashboardPageInner() {
   );
 
   const pieCard = (
-    <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg">
+    <Card className="shadow-sm h-fit border rounded-lg">
       <CardHeader className="py-4">
         <CardTitle className="text-base">Volume par Statut</CardTitle>
       </CardHeader>
@@ -722,7 +723,7 @@ function DashboardPageInner() {
             </ChartContainer>
             <div className="flex flex-wrap justify-center gap-2 mt-4">
               {statusChartData.map((item) => (
-                <div key={item.name} className="flex items-center gap-1.5 text-[10px]">
+                <div key={item.name} className="flex items-center gap-1.5 text-[11px]">
                   <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
                   <span className="text-muted-foreground">{item.name}</span>
                   <span className="font-semibold tabular-nums">{item.value}</span>
@@ -736,7 +737,7 @@ function DashboardPageInner() {
   );
 
   const filteredTableCard = (
-    <Card className="shadow-sm overflow-hidden h-fit hover:shadow-md transition-shadow border rounded-lg">
+    <Card className="shadow-sm overflow-hidden h-fit border rounded-lg">
       <CardHeader className="py-4 flex flex-row items-center justify-between">
         <CardTitle className="text-base">
           Dossiers — <span className="text-primary">{selectedStatus}</span>
@@ -780,15 +781,15 @@ function DashboardPageInner() {
                       </Link>
                     </TableCell>
                     <TableCell className="max-w-[120px] truncate text-xs font-medium">{renderAssure(dossier.assure)}</TableCell>
-                    <TableCell className="text-[10px] text-muted-foreground">{dossier.compagnie || '-'}</TableCell>
-                    <TableCell className="text-[10px] text-muted-foreground">{dossier.nature || '-'}</TableCell>
-                    <TableCell className="font-mono text-[10px] text-muted-foreground tabular-nums">{dossier.matricule || '-'}</TableCell>
+                    <TableCell className="text-[11px] text-muted-foreground">{dossier.compagnie || '-'}</TableCell>
+                    <TableCell className="text-[11px] text-muted-foreground">{dossier.nature || '-'}</TableCell>
+                    <TableCell className="font-mono text-[11px] text-muted-foreground tabular-nums">{dossier.matricule || '-'}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={cn('text-[10px] py-0.5 px-2 rounded-full border font-semibold', getStatusBadgeStyles(dossier.statut))}>
+                      <Badge variant="outline" className={cn('text-[11px] py-0.5 px-2 rounded-full border font-semibold', getStatusBadgeStyles(dossier.statut))}>
                         {!dossier.statut || dossier.statut === 'Création dossier' ? 'Création de mission' : dossier.statut}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right text-[10px] text-muted-foreground font-medium tabular-nums">
+                    <TableCell className="text-right text-[11px] text-muted-foreground font-medium tabular-nums">
                       {formatDate(dossier.createdAt)}
                     </TableCell>
                   </TableRow>
@@ -803,6 +804,7 @@ function DashboardPageInner() {
 
   return (
     <div className="flex-1 space-y-6">
+      <PageHeader title="Tableau de bord" size="compact" />
       {/* Top row: conditional layout — depends on whether a status is selected */}
       {selectedStatus === null ? (
         <div className="grid gap-6 lg:grid-cols-2 items-start">
@@ -836,7 +838,7 @@ function DashboardPageInner() {
         )}
         {/* Right column: Répartition par Compagnie (always) + Volume par Statut (only when a status is selected, i.e. the pie had to leave its top-row slot) */}
         <div className="space-y-6">
-          <Card className="shadow-sm h-fit hover:shadow-md transition-shadow border rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '300ms' }}>
+          <Card className="shadow-sm h-fit border rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '300ms' }}>
             <CardHeader className="py-4">
               <CardTitle className="text-base">Répartition par Compagnie</CardTitle>
             </CardHeader>

@@ -1,76 +1,90 @@
 'use client';
 
+/**
+ * Location breadcrumb (NN/g: hierarchy, not history).
+ *
+ * - Labels come from `NAV_GROUPS` / `EXTRA_ROUTES` — never hand-written here.
+ * - No app-name root crumb: the sidebar is the home link.
+ * - Top-level pages render nothing (the H1 is the location).
+ * - Id-like segments are replaced by the title the page registered through
+ *   <PageHeader> / the record bar (e.g. "SL-2026-0106 · Roy"), never shown raw.
+ */
+
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
-import { useCurrentUser } from '@/hooks/use-current-user';
-import { landingPathFor } from '@/lib/role-landing';
+import { EXTRA_ROUTES, labelForRoute } from '@/lib/nav-groups';
+import { usePageChrome } from '@/components/layout/page-chrome';
 
-const ROUTE_LABELS: Record<string, string> = {
-  dashboard: 'Tableau de bord',
-  dossiers: 'Gestion des dossiers',
-  consultation: 'Consultation',
-  'assignations-chiffrage': 'Assignations Chiffrage',
-  'assignations-atg': 'Assignations Agent de Terrain',
-  utilisateurs: 'Utilisateurs',
-  compagnies: 'Compagnies',
-  'signaler-bug': 'Signaler un bug',
-  chiffrage: 'Chiffrage',
-  'devis-editor': 'Éditeur de devis',
-  editor: 'Éditeur PDF',
-  viewer: 'Aperçu',
-};
-
-/** Detect Firestore-id-like segments (16+ alphanumeric chars) so we can skip them. */
+/** Firestore-id-like segments (16+ alphanumeric chars) or `[uid]`-style ids. */
 const isIdSegment = (segment: string): boolean => /^[A-Za-z0-9_-]{16,}$/.test(segment);
 
-const humanize = (segment: string): string => {
-  if (ROUTE_LABELS[segment]) return ROUTE_LABELS[segment];
-  return segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, ' ');
-};
+export interface Crumb {
+  href: string;
+  label: string;
+  isCurrent: boolean;
+}
+
+export function useCrumbs(): Crumb[] {
+  const pathname = usePathname() || '/';
+  const { registeredTitle } = usePageChrome();
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length === 0) return [];
+
+  const crumbs: Crumb[] = [];
+  const root = `/${segments[0]}`;
+  const extra = EXTRA_ROUTES[root];
+  if (extra?.parent) {
+    const parentLabel = labelForRoute(extra.parent);
+    if (parentLabel) crumbs.push({ href: extra.parent, label: parentLabel, isCurrent: false });
+  }
+  const rootLabel = labelForRoute(root) ?? segments[0].charAt(0).toUpperCase() + segments[0].slice(1).replace(/-/g, ' ');
+  crumbs.push({ href: root, label: rootLabel, isCurrent: segments.length === 1 });
+
+  for (let i = 1; i < segments.length; i++) {
+    const seg = segments[i];
+    const href = '/' + segments.slice(0, i + 1).join('/');
+    const isLast = i === segments.length - 1;
+    let label: string;
+    if (isIdSegment(seg)) {
+      label = isLast && registeredTitle ? registeredTitle : '…';
+    } else {
+      label = labelForRoute(href) ?? seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, ' ');
+    }
+    crumbs.push({ href, label, isCurrent: isLast });
+  }
+  return crumbs;
+}
 
 const Breadcrumb = () => {
-  const pathname = usePathname();
-  const { profile } = useCurrentUser();
-  const rawSegments = pathname.split('/').filter(Boolean);
-  const segments = rawSegments.filter((s) => !isIdSegment(s));
-  const rootHref = landingPathFor(profile?.role);
+  const crumbs = useCrumbs();
+  // Top-level pages: the H1 is the location; a one-item breadcrumb is noise.
+  if (crumbs.length <= 1) return null;
 
   return (
-    <nav aria-label="breadcrumb" className="flex">
-      <ol className="flex items-center gap-2 text-sm text-muted-foreground">
-        <li>
-          <Link href={rootHref} className="font-semibold text-foreground hover:text-primary transition-colors">
-            SL-auto
-          </Link>
-        </li>
-        {segments.map((segment, index) => {
-          const href = '/' + segments.slice(0, index + 1).join('/');
-          const isLast = index === segments.length - 1;
-          const label = humanize(segment);
-
-          return (
-            <React.Fragment key={href}>
-              <li>
-                <ChevronRight className="h-4 w-4" />
+    <nav aria-label="Fil d'Ariane" className="flex min-w-0">
+      <ol className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+        {crumbs.map((c, index) => (
+          <React.Fragment key={c.href}>
+            {index > 0 && (
+              <li aria-hidden="true" className="shrink-0">
+                <ChevronRight className="h-3.5 w-3.5" />
               </li>
-              <li>
-                <Link
-                  href={href}
-                  className={
-                    isLast
-                      ? 'font-medium text-foreground'
-                      : 'hover:text-foreground'
-                  }
-                  aria-current={isLast ? 'page' : undefined}
-                >
-                  {label}
+            )}
+            <li className="min-w-0">
+              {c.isCurrent ? (
+                <span className="block truncate font-medium text-foreground" aria-current="page">
+                  {c.label}
+                </span>
+              ) : (
+                <Link href={c.href} className="block truncate transition-colors hover:text-foreground">
+                  {c.label}
                 </Link>
-              </li>
-            </React.Fragment>
-          );
-        })}
+              )}
+            </li>
+          </React.Fragment>
+        ))}
       </ol>
     </nav>
   );

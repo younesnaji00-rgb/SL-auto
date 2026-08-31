@@ -1,268 +1,238 @@
 'use client';
 
+/**
+ * Dossier timeline — one long scrollable page of workflow sections (NN/g:
+ * preferred over tabs when users need most sections in a session), with a
+ * sticky stepper that scroll-spies the active section via IntersectionObserver
+ * (USWDS in-page navigation). Clicking a step scrolls to the section and moves
+ * focus to its heading.
+ */
+
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { ChevronDown } from 'lucide-react';
-import { collection, orderBy, query } from 'firebase/firestore';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { TimelineBar, type TimelineStep } from './timeline-bar';
+import { Button } from '@/components/ui/button';
+import { TimelineBar, StepStamp, StepStatusChip } from './timeline-bar';
 import { useCollapsedSteps } from '@/hooks/use-collapsed-steps';
-import { useCollection, useFirestore } from '@/firebase';
-import { UserNameLink } from '@/components/user-name-link';
+import { DOSSIER_STEP_DEFS, type StepState } from '@/lib/dossier-steps';
 
 export interface TimelineSectionProps {
-  id: number;
+  step: StepState;
   position: number;
-  label: string;
   children: React.ReactNode;
   collapsed: boolean;
   onToggle: () => void;
-  /** Latest workflow entry that matched this step's keyword, or null. */
-  stamp: { date: Date; user: string; userNom?: string } | null;
 }
 
-function TimelineSection({ id, position, label, children, collapsed, onToggle, stamp }: TimelineSectionProps) {
+function TimelineSection({ step, position, children, collapsed, onToggle }: TimelineSectionProps) {
+  const headingId = `step-${step.id}-heading`;
+  const blocked = step.status === 'blocked';
   return (
     <section
-      id={`step-${id}`}
-      data-timeline-step={id}
-      className="scroll-mt-24 py-6 border-b last:border-b-0"
+      id={`step-${step.id}`}
+      data-timeline-step={step.id}
+      data-status={step.status}
+      aria-labelledby={headingId}
+      className="scroll-mt-[112px] border-b py-5 last:border-b-0 2xl:scroll-mt-[64px]"
     >
-      <button
-        type="button"
-        onClick={onToggle}
-        className="mb-4 flex items-baseline gap-2 w-full text-left hover:bg-accent/40 rounded px-2 -mx-2 py-1 transition-colors"
-        aria-expanded={!collapsed}
-      >
-        <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold">
-          {position}
-        </span>
-        <div className="flex-1 flex flex-col items-start min-w-0">
-          <h2 className="text-lg font-bold leading-tight">{label}</h2>
-          <span className="text-xs text-muted-foreground mt-0.5 truncate max-w-full">
-            {stamp ? (
-              <>
-                {format(stamp.date, 'dd/MM/yyyy HH:mm', { locale: fr })} —{' '}
-                <UserNameLink
-                  entry={{ userNom: stamp.userNom, user: stamp.user }}
-                  className="text-muted-foreground"
-                />
-              </>
-            ) : (
-              '—'
+      <div className="mb-4 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={!collapsed}
+          aria-controls={`step-${step.id}-content`}
+          className="-mx-2 flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1 text-left transition-colors hover:bg-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span
+            className={cn(
+              'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums',
+              step.status === 'done' && 'bg-status-success-bg text-status-success-fg',
+              step.status === 'in_progress' && 'bg-primary/10 text-primary',
+              (step.status === 'todo' || blocked) && 'bg-muted text-muted-foreground',
             )}
+          >
+            {position}
           </span>
-        </div>
-        <ChevronDown
-          className={cn(
-            'h-4 w-4 text-muted-foreground transition-transform',
-            collapsed && '-rotate-90'
-          )}
-        />
-      </button>
-      {!collapsed && children}
+          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+            <h2 id={headingId} tabIndex={-1} className="font-headline text-lg font-semibold leading-tight text-foreground outline-none">
+              {step.longLabel}
+            </h2>
+            <StepStatusChip status={step.status} label={step.statusLabel} />
+            {step.doneAt && <StepStamp step={step} />}
+            {blocked && step.blockedReason && <span className="text-xs text-muted-foreground">{step.blockedReason}</span>}
+          </span>
+          <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none', collapsed && '-rotate-90')} />
+        </button>
+      </div>
+      <div id={`step-${step.id}-content`} hidden={collapsed} className="space-y-4">
+        {!collapsed && children}
+      </div>
     </section>
   );
-}
-
-// Keyword heuristic: for each step id, the (lowercased) action substring(s) that
-// indicate that step. Order in `keywords` doesn't matter — a match is a match.
-// Sourced from the task spec; aligns with the strings used by existing
-// `logWorkflow` callers (e.g. "Création de planification", "Dossier envoyé vers
-// chiffrage", "Rapport mis à jour", "Nouveau document ajouté", etc.).
-const STEP_KEYWORDS: Record<number, string[]> = {
-  1: ['import', 'information'],
-  4: ['planification'],
-  6: ['chiffrage'],
-  7: ['rapport'],
-};
-
-function matchStepId(action: string): number | null {
-  const lower = (action ?? '').toLowerCase();
-  for (const [idStr, kws] of Object.entries(STEP_KEYWORDS)) {
-    if (kws.some((k) => lower.includes(k))) return Number(idStr);
-  }
-  return null;
 }
 
 export interface TimelineProps {
   /** Dossier ID — used to scope per-step localStorage keys for collapse state. */
   dossierId: string;
-  steps: TimelineStep[];
+  /** Steps with computed status (see lib/dossier-steps.ts). */
+  steps: StepState[];
   /** Mapping of step id → rendered content for that section. */
   sections: Record<number, React.ReactNode>;
   /** The currently-focused step (controlled). */
   activeStep: number;
   /** Called when the user clicks a step in the bar OR when scroll auto-detects a new active section. */
   onActiveStepChange: (stepId: number) => void;
+  /** Sticky offset of the horizontal bar (px from the top of the scroll container). */
+  stickyTop?: number;
 }
 
-// Just below the sticky bars (action bar ~52px + timeline bar ~56px = 108px) + small buffer.
-const ACTIVE_THRESHOLD = 120;
-
 /**
- * Walk up the DOM to find the nearest scrollable ancestor. Needed because this
- * app's main scroll container is `<main className="overflow-y-auto">` in the
- * (app) layout, not `window`.
+ * Walk up the DOM to find the nearest scrollable ancestor. The app's scroll
+ * container is `<main className="overflow-y-auto">`, not `window`.
  */
-function findScrollContainer(el: HTMLElement | null): HTMLElement | Window {
+function findScrollContainer(el: HTMLElement | null): HTMLElement | null {
   let node: HTMLElement | null = el?.parentElement ?? null;
   while (node) {
     const style = window.getComputedStyle(node);
     const overflowY = style.overflowY;
-    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
-      return node;
-    }
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node;
     node = node.parentElement;
   }
-  return window;
+  return null;
 }
 
-function pickActiveStep(steps: TimelineStep[], thresholdTop: number): number | null {
-  let best: { id: number; top: number } | null = null;
-  for (const s of steps) {
-    const el = document.getElementById(`step-${s.id}`);
-    if (!el) continue;
-    const top = el.getBoundingClientRect().top; // relative to viewport
-    if (top <= thresholdTop) {
-      // Candidate — we want the largest top among those ≤ threshold (the last
-      // section whose top has crossed below the sticky bars).
-      if (!best || top > best.top) best = { id: s.id, top };
-    }
-  }
-  return best?.id ?? steps[0]?.id ?? null;
-}
-
-export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepChange }: TimelineProps) {
+export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepChange, stickyTop = 48 }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const suppressScrollRef = useRef(false);
+  const suppressRef = useRef(false);
+  const stepIds = useMemo(() => steps.map((s) => s.id), [steps]);
+  const { isCollapsed, toggle, setAll, collapsedCount, total } = useCollapsedSteps(dossierId, stepIds);
 
-  const orderedSteps = useMemo(() => [...steps], [steps]);
-  const stepIds = useMemo(() => orderedSteps.map((s) => s.id), [orderedSteps]);
-  const { isCollapsed, toggle } = useCollapsedSteps(dossierId, stepIds);
-
-  // Subscribe once to dossiers/{dossierId}/workflow, ordered newest first, then
-  // pick the latest entry whose `action` matches each step's keyword. Single
-  // pass — see STEP_KEYWORDS above.
-  const db = useFirestore();
-  const workflowQuery = useMemo(() => {
-    if (!db || !dossierId) return null;
-    return query(
-      collection(db, 'dossiers', dossierId, 'workflow'),
-      orderBy('date', 'desc')
-    );
-  }, [db, dossierId]);
-  const { data: workflowEntries } = useCollection<any>(workflowQuery);
-  const stampByStep = useMemo(() => {
-    const map = new Map<number, { date: Date; user: string; userNom?: string }>();
-    if (!workflowEntries) return map;
-    // workflowEntries is ordered date desc, so the first match for a step id
-    // wins (latest entry for that step).
-    for (const entry of workflowEntries) {
-      if (!entry?.action || !entry?.date?.toDate) continue;
-      const stepId = matchStepId(entry.action);
-      if (stepId == null || map.has(stepId)) continue;
-      map.set(stepId, {
-        date: entry.date.toDate(),
-        user: entry.user || 'Admin',
-        userNom: entry.userNom,
-      });
-    }
-    return map;
-  }, [workflowEntries]);
-
-  // Smooth-scroll to a step when the bar is clicked.
-  const handleStepClick = useCallback(
-    (stepId: number) => {
-      suppressScrollRef.current = true;
-      onActiveStepChange(stepId);
+  const scrollToStep = useCallback(
+    (stepId: number, behavior: ScrollBehavior) => {
       const el = document.getElementById(`step-${stepId}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      // Re-enable scroll listener after scroll settles.
-      window.setTimeout(() => { suppressScrollRef.current = false; }, 700);
+      if (!el) return;
+      suppressRef.current = true;
+      el.scrollIntoView({ behavior, block: 'start' });
+      const heading = document.getElementById(`step-${stepId}-heading`);
+      window.setTimeout(() => {
+        heading?.focus({ preventScroll: true });
+        suppressRef.current = false;
+      }, behavior === 'smooth' ? 600 : 80);
     },
-    [onActiveStepChange]
+    [],
   );
 
-  // Track active step via a scroll listener on whichever ancestor actually scrolls.
+  const handleStepClick = useCallback(
+    (stepId: number) => {
+      onActiveStepChange(stepId);
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      scrollToStep(stepId, reduce ? 'auto' : 'smooth');
+    },
+    [onActiveStepChange, scrollToStep],
+  );
+
+  // Scroll-spy: the active step is the last section whose top has passed the
+  // sticky bars. IntersectionObserver with a top rootMargin equal to the sticky
+  // stack keeps this cheap and layout-safe.
   useEffect(() => {
     if (steps.length === 0) return;
-
-    // Resolve the scroll target from a known step element. If none exist yet,
-    // fall back to window — we'll re-run this effect once steps render.
-    const firstStepEl = document.getElementById(`step-${steps[0].id}`);
-    const scrollTarget = findScrollContainer(firstStepEl);
-
-    let frame = 0;
-    const onScroll = () => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        if (suppressScrollRef.current) return;
-        const id = pickActiveStep(steps, ACTIVE_THRESHOLD);
-        if (id != null && id !== activeStep) onActiveStepChange(id);
-      });
-    };
-
-    scrollTarget.addEventListener('scroll', onScroll, { passive: true });
-    // Also listen on window so our programmatic dispatchEvent from the collapse
-    // toggle reaches us even when the true scroll container is an ancestor.
-    if (scrollTarget !== window) {
-      window.addEventListener('scroll', onScroll, { passive: true });
+    const first = document.getElementById(`step-${steps[0].id}`);
+    const root = findScrollContainer(first);
+    const tops = new Map<number, number>();
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (suppressRef.current) return;
+        for (const e of entries) {
+          const id = Number((e.target as HTMLElement).dataset.timelineStep);
+          tops.set(id, e.boundingClientRect.top);
+        }
+        // Pick the section with the greatest top that is still above the threshold.
+        const rootTop = root ? root.getBoundingClientRect().top : 0;
+        const threshold = rootTop + stickyTop + 24;
+        let best: { id: number; top: number } | null = null;
+        for (const s of steps) {
+          const el = document.getElementById(`step-${s.id}`);
+          if (!el) continue;
+          const top = el.getBoundingClientRect().top;
+          if (top <= threshold && (!best || top > best.top)) best = { id: s.id, top };
+        }
+        const id = best?.id ?? steps[0].id;
+        if (id !== activeStep) onActiveStepChange(id);
+      },
+      { root, rootMargin: `-${stickyTop}px 0px 0px 0px`, threshold: [0, 0.1, 0.5, 1] },
+    );
+    for (const s of steps) {
+      const el = document.getElementById(`step-${s.id}`);
+      if (el) io.observe(el);
     }
-    onScroll(); // run once on mount
-    return () => {
-      scrollTarget.removeEventListener('scroll', onScroll);
-      if (scrollTarget !== window) {
-        window.removeEventListener('scroll', onScroll);
-      }
-      if (frame) cancelAnimationFrame(frame);
-    };
-  }, [steps, activeStep, onActiveStepChange]);
+    return () => io.disconnect();
+  }, [steps, activeStep, onActiveStepChange, stickyTop]);
 
-  // Scroll to the active step on mount (restore position on return).
+  // Restore the last viewed step on mount.
   const didInitialScrollRef = useRef(false);
   useEffect(() => {
     if (didInitialScrollRef.current) return;
     const el = document.getElementById(`step-${activeStep}`);
     if (el) {
       didInitialScrollRef.current = true;
-      suppressScrollRef.current = true;
+      suppressRef.current = true;
       el.scrollIntoView({ behavior: 'auto', block: 'start' });
-      window.setTimeout(() => { suppressScrollRef.current = false; }, 500);
+      window.setTimeout(() => { suppressRef.current = false; }, 300);
     }
   }, [activeStep]);
 
+  const allCollapsed = collapsedCount === total && total > 0;
+
   return (
     <div ref={containerRef} className="w-full">
-      <TimelineBar steps={orderedSteps} activeId={activeStep} onStepClick={handleStepClick} stamps={stampByStep} />
-      <div className="px-3 sm:px-6 max-w-screen-xl mx-auto">
-        {orderedSteps.map((step, idx) => (
-          <TimelineSection
-            key={step.id}
-            id={step.id}
-            position={idx + 1}
-            label={step.label}
-            collapsed={isCollapsed(step.id)}
-            onToggle={() => toggle(step.id)}
-            stamp={stampByStep.get(step.id) ?? null}
+      {/* Horizontal stepper: sticky under the record bar (hidden on 2xl where the rail takes over). */}
+      <div
+        className="sticky z-30 flex items-center border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 2xl:hidden"
+        style={{ top: stickyTop }}
+      >
+        <TimelineBar steps={steps} activeId={activeStep} onStepClick={handleStepClick} className="min-w-0 flex-1" />
+        <div className="shrink-0 border-l px-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+            onClick={() => setAll(!allCollapsed)}
+            title={allCollapsed ? 'Tout déplier' : 'Tout replier'}
           >
-            {sections[step.id] ?? null}
-          </TimelineSection>
-        ))}
+            {allCollapsed ? <ChevronsUpDown className="h-3.5 w-3.5" /> : <ChevronsDownUp className="h-3.5 w-3.5" />}
+            <span className="hidden md:inline">{allCollapsed ? 'Tout déplier' : 'Tout replier'}</span>
+          </Button>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-screen-xl px-3 sm:px-6 2xl:grid 2xl:max-w-none 2xl:grid-cols-[240px_minmax(0,1fr)] 2xl:gap-8">
+        {/* Vertical rail on very wide screens: never clips, never scrolls. */}
+        <aside className="hidden 2xl:block">
+          <div className="sticky pt-4" style={{ top: stickyTop + 8 }}>
+            <TimelineBar steps={steps} activeId={activeStep} onStepClick={handleStepClick} orientation="vertical" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-3 h-7 w-full justify-start gap-1 px-2 text-xs text-muted-foreground"
+              onClick={() => setAll(!allCollapsed)}
+            >
+              {allCollapsed ? <ChevronsUpDown className="h-3.5 w-3.5" /> : <ChevronsDownUp className="h-3.5 w-3.5" />}
+              {allCollapsed ? 'Tout déplier' : 'Tout replier'}
+            </Button>
+          </div>
+        </aside>
+
+        <div className="min-w-0">
+          {steps.map((step, idx) => (
+            <TimelineSection key={step.id} step={step} position={idx + 1} collapsed={isCollapsed(step.id)} onToggle={() => toggle(step.id)}>
+              {sections[step.id] ?? null}
+            </TimelineSection>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-export const DOSSIER_TIMELINE_STEPS: TimelineStep[] = [
-  { id: 1, label: 'Création de mission' },
-  { id: 4, label: 'Planification avant' },
-  { id: 6, label: 'Accord' },
-  { id: 9, label: 'Planification en cours' },
-  { id: 11, label: '2ème accord et +' },
-  { id: 10, label: 'Planification après' },
-  { id: 7, label: 'Rapport' },
-  { id: 8, label: "Note d'honoraire" },
-];
+/** @deprecated Use DOSSIER_STEP_DEFS / getStepStatuses from lib/dossier-steps. */
+export const DOSSIER_TIMELINE_STEPS = DOSSIER_STEP_DEFS.map(({ id, label, longLabel }) => ({ id, label: longLabel, shortLabel: label }));

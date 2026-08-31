@@ -725,24 +725,24 @@ export default function ObservationsTab({
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center flex-wrap gap-1.5">
                     <span className="text-sm font-semibold truncate">{obs.author || 'Inconnu'}</span>
-                    <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0', ROLE_BADGE_STYLES[obs.authorRole] || '')}>
+                    <Badge variant="outline" className={cn('text-[11px] px-1.5 py-0', ROLE_BADGE_STYLES[obs.authorRole] || '')}>
                       {obs.authorRole || 'N/A'}
                     </Badge>
-                    <Badge className={cn('text-[10px] px-1.5 py-0 border-0', TYPE_BADGE_STYLES[obs.type] || TYPE_BADGE_STYLES['Général'])}>
+                    <Badge className={cn('text-[11px] px-1.5 py-0 border-0', TYPE_BADGE_STYLES[obs.type] || TYPE_BADGE_STYLES['Général'])}>
                       {obs.type}
                     </Badge>
                     {replayStatus && <ChangeBadge status={replayStatus} />}
                     {(obs as any).accordSlot && (
                       <Badge
                         variant="outline"
-                        className="text-[10px] px-1.5 py-0 border-primary/40 text-primary"
+                        className="text-[11px] px-1.5 py-0 border-primary/40 text-primary"
                         title="À propos de"
                       >
                         {(obs as any).accordSlot}
                       </Badge>
                     )}
                     {obs.createdAt?.toDate && (
-                      <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                      <span className="text-[11px] text-muted-foreground ml-auto shrink-0">
                         {format(obs.createdAt.toDate(), 'dd MMM yyyy à HH:mm', { locale: fr })}
                       </span>
                     )}
@@ -786,7 +786,7 @@ export default function ObservationsTab({
                           href={p.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-background hover:bg-accent transition-colors"
+                          className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border bg-background hover:bg-accent transition-colors"
                           title={`${p.name} — ${p.uploadedByNom || p.uploadedBy}${p.uploadedAt?.toDate ? ` (${format(p.uploadedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: fr })})` : ''}`}
                         >
                           <Paperclip className="h-3 w-3" />
@@ -813,7 +813,7 @@ export default function ObservationsTab({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 text-[10px] gap-1.5 px-2"
+                        className="h-7 text-[11px] gap-1.5 px-2"
                         disabled={uploadingProofFor === obs.id}
                         onClick={() => proofInputRefs.current[obs.id]?.click()}
                       >
@@ -827,7 +827,7 @@ export default function ObservationsTab({
                       viewed this observation and when. Hidden entirely when
                       no one has viewed yet. */}
                   {firstViewers.length > 0 && (
-                    <p className="mt-1.5 text-[10px] text-muted-foreground">
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
                       Vu par{' '}
                       {firstViewers.map((v, i) => {
                         const d = v.viewedAt?.toDate ? v.viewedAt.toDate() : null;
@@ -864,12 +864,12 @@ export default function ObservationsTab({
                 <Eye className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-semibold">Observations</span>
                 {observations.length > 0 && (
-                  <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
+                  <Badge variant="secondary" className="text-[11px] h-5 px-1.5">
                     {observations.length}
                   </Badge>
                 )}
                 {unseenCount > 0 && (
-                  <Badge className="text-[10px] h-5 px-1.5 bg-red-500 text-white hover:bg-red-500" aria-label={`${unseenCount} nouvelles observations`}>
+                  <Badge className="text-[11px] h-5 px-1.5 bg-red-500 text-white hover:bg-red-500" aria-label={`${unseenCount} nouvelles observations`}>
                     {unseenCount} nouvelle{unseenCount > 1 ? 's' : ''}
                   </Badge>
                 )}

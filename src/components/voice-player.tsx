@@ -72,7 +72,7 @@ export default function VoicePlayer({ url, duree }: VoicePlayerProps) {
           style={{ width: `${progress}%` }}
         />
       </div>
-      <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap">
+      <span className="text-[11px] font-mono text-muted-foreground whitespace-nowrap">
         {formatTime(duree)}
       </span>
     </div>

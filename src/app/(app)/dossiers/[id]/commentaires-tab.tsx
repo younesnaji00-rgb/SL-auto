@@ -369,13 +369,13 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-sm">{comment.auteurNom || comment.auteur || comment.authorName}</span>
                       {comment.auteurRole && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium">{comment.auteurRole}</Badge>
+                        <Badge variant="outline" className="text-[11px] px-1.5 py-0 font-medium">{comment.auteurRole}</Badge>
                       )}
                       <span className="text-xs text-muted-foreground">•</span>
                       <span className="text-xs text-muted-foreground">{formatDate(comment.date || comment.createdAt)}</span>
                     </div>
                     {comment.auteurNom && comment.auteur && comment.auteurNom !== comment.auteur && (
-                      <div className="text-[10px] text-muted-foreground">{comment.auteur}</div>
+                      <div className="text-[11px] text-muted-foreground">{comment.auteur}</div>
                     )}
                   </div>
                   
@@ -429,7 +429,7 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
                   <div className="bg-accent/30 rounded-2xl rounded-tl-none p-4 text-sm text-foreground/90 whitespace-pre-wrap relative">
                     {comment.contenu || comment.text}
                     {comment.editedAt && (
-                      <div className="mt-2 text-[10px] text-muted-foreground italic">
+                      <div className="mt-2 text-[11px] text-muted-foreground italic">
                         Modifié le {formatDate(comment.editedAt)}
                       </div>
                     )}
