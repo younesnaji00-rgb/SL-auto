@@ -32,6 +32,7 @@ import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-histor
 import { useDossierDocWrite } from '@/app/(app)/dossiers/[id]/rappel-draft';
 import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
+import SmartInbox from './smart-inbox';
 
 export interface Step1ImportProps {
   dossierId: string;
@@ -379,197 +380,22 @@ export default function Step1Import({
     }
   }, [db, dossierId, dossierRef, importDocRef, toast, auth, writeDossierDoc, buffered, draft, profile?.nom]);
 
-  const handleFiles = useCallback(
-    async (files: File[]) => {
-      if (!canEdit || files.length === 0) return;
-      if (!db || !storage) {
-        toast({
-          variant: 'destructive',
-          title: 'Erreur',
-          description: 'Services Firebase non disponibles.',
-        });
-        return;
-      }
-      const userEmail = auth?.currentUser?.email || 'Admin';
-      const userId = auth?.currentUser?.uid || 'unknown';
-
-      setIsUploading(true);
-      // The id of the FIRST successfully-uploaded doc becomes the scan source.
-      // Step 1 shows a single source document; additional files (rare in this
-      // step, but possible via multi-select) will simply land in the
-      // dossier's documents collection and be visible from Step 4.
-      let firstDocId: string | undefined;
-      try {
-        for (const file of files) {
-          const timestamp = Date.now();
-          const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${file.name}`;
-          const result = await uploadFileWithOfflineSupport({
-            storage,
-            db,
-            file,
-            fileName: file.name,
-            storagePath,
-            firestoreDocPath: `dossiers/${dossierId}/documents`,
-            firestoreMetadata: {
-              nom: file.name,
-              type: 'Import',
-              taille: file.size,
-              uploadePar: userEmail,
-              storagePath,
-              _localCreatedAt: timestamp,
-            },
-          });
-          if (!firstDocId && result.docId) firstDocId = result.docId;
-          await logHistorique(
-            db,
-            dossierId,
-            'Upload document',
-            userEmail,
-            `Document "${file.name}" importé via l'étape 1.`,
-            'document',
-            profile?.nom,
-          );
-          await logWorkflow(
-            db,
-            dossierId,
-            'Import document',
-            userEmail,
-            userId,
-            'done',
-            { details: `Document "${file.name}" ajouté` },
-            profile?.nom,
-          );
-        }
-
-        toast({
-          title:
-            files.length === 1
-              ? 'Document importé'
-              : `${files.length} documents importés`,
-        });
-
-        // Scan all uploaded files in one go. Pass the first uploaded doc id
-        // so the merge step can stamp it as Step 1's source document.
-        await runScanAndMerge(files, userEmail, firstDocId);
-      } catch (err: any) {
-        console.error('[Step1Import] upload error:', err);
-        toast({
-          variant: 'destructive',
-          title: "Erreur lors de l'import",
-          description: err?.message || 'Une erreur inconnue est survenue.',
-        });
-      } finally {
-        setIsUploading(false);
-      }
-    },
-    [auth, canEdit, db, dossierId, runScanAndMerge, storage, toast]
-  );
-
-  const onDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-      if (!canEdit) return;
-      const files = Array.from(e.dataTransfer?.files || []);
-      if (files.length > 0) void handleFiles(files);
-    },
-    [canEdit, handleFiles]
-  );
-
-  const onDragOver = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (canEdit) setIsDragging(true);
-    },
-    [canEdit]
-  );
-
-  const onDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  }, []);
-
-  const onFileInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files || []);
-      if (files.length > 0) void handleFiles(files);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    },
-    [handleFiles]
-  );
-
   const busy = isUploading || isScanning;
   const hasImportDoc = Boolean(importDocId);
-  // Drop zone is shown only when the user hasn't yet scanned a document.
-  // After the first successful scan, Step 1 becomes a display-only panel
-  // (attachments are managed in Step 4).
-  const showDropZone = canEdit && !hasImportDoc;
 
   return (
     <div className="space-y-4">
-      {showDropZone && (
-        <Card className="border-dashed">
-          <CardContent className="p-0">
-            <div
-              onDrop={onDrop}
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              className={cn(
-                'flex flex-col items-center justify-center gap-3 rounded-lg p-8 text-center transition-colors',
-                isDragging
-                  ? 'bg-primary/5 border-primary'
-                  : 'bg-muted/20 hover:bg-muted/30',
-                busy && 'opacity-60 pointer-events-none'
-              )}
-            >
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                {isScanning ? (
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                ) : isUploading ? (
-                  <Upload className="h-6 w-6 text-primary animate-pulse" />
-                ) : (
-                  <ScanSearch className="h-6 w-6 text-primary" />
-                )}
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-semibold">
-                  {isScanning
-                    ? "Analyse du document par l'IA..."
-                    : isUploading
-                    ? 'Import en cours...'
-                    : 'Déposez un document à importer'}
-                </p>
-                <p className="text-xs text-muted-foreground max-w-md">
-                  Lettre de mission, constat, capture de portail assurance,
-                  carte grise, etc. PDF ou image. L&apos;IA pré-remplira
-                  l&apos;étape Information.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="mr-2 h-4 w-4" /> Choisir un fichier
-                </Button>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                multiple
-                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.bmp"
-                onChange={onFileInputChange}
-              />
-            </div>
-          </CardContent>
-        </Card>
+      {canEdit && (
+        <SmartInbox
+          dossierId={dossierId}
+          dossier={dossier}
+          readOnly={readOnly}
+          prefilling={isScanning}
+          onPrefill={async (files, sourceDocId) => {
+            const userEmail = auth?.currentUser?.email || 'Admin';
+            await runScanAndMerge(files, userEmail, sourceDocId);
+          }}
+        />
       )}
 
       {lastFilledCount !== null && lastFilledCount > 0 && (

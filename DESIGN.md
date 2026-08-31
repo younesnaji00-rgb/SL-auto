@@ -72,3 +72,11 @@ Registry: `hooks/use-hotkeys.ts` (single keys and `g`-chords; ignored inside inp
 3. Add `loading.tsx`.
 4. Tables via `components/ui/table.tsx`; row menu for actions; filters through `usePersistedFilters`.
 5. No new hexes — use tokens. No text under 11 px. No `transition-all`.
+
+## 9. Dossier content patterns (added with the documents / information redesign)
+
+- **Read-only forms** (Informations): `Section` (hairline header with icon + 14 px/600 title) containing definition lists — label 11 px uppercase muted over value 14 px/500; empty = `—` muted. No beige bands, no cell borders. Edit mode swaps the value for the control in place.
+- **Document board**: families as hairline-separated blocks with a 13 px/600 name + count pill; slots in a responsive grid (`sm:2 xl:3 2xl:4`), never a horizontal scroller. Slot header carries a status chip (Reçu / En attente / À déposer); document rows are 36 px with hover-revealed delete; "Ajouter un document" is a dashed full-width button.
+- **Planifications**: calendar-style list rows (date block · type chip · agent · zone/adresse · Modifier), newest first and emphasised; details in a dialog.
+- **Boîte de dépôt** (`components/dossier-timeline/smart-inbox.tsx`): the single entry point for files. Upload → `/api/classify-document` (Gemini + retrieval of user-validated examples from `ai_examples`) → filed under the matching slot type → same post-processing as a manual upload. Corrections (select or drag onto a class chip) and confirmations post to `/api/classify-feedback`; InformationTab posts field diffs after an AI pre-fill to `/api/extract-feedback`, which `/api/scan-document` reads back as guidance. Classes live in `lib/doc-classes.ts`; the retrieval layer in `lib/ai-memory.ts` (server-only, Admin SDK). Vector search needs the `ai_examples.embedding` index in `firestore.indexes.json` (`firebase deploy --only firestore:indexes`); until then retrieval falls back to recent examples.
+- **Car diagrams**: `car-svg-top.tsx` / `car-svg-bottom.tsx` are the single source of geometry; `lib/rapport-car-pdf.tsx` and `lib/rapport-car.ts` must stay faithful ports (same viewBox, zone ids and highlight colour) so the PDF matches the editor.

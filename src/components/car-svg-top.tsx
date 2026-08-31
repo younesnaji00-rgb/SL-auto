@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { cn } from '@/lib/utils';
 
 interface CarSvgTopProps {
   zones: Record<string, boolean>;
@@ -9,215 +10,259 @@ interface CarSvgTopProps {
 }
 
 /**
- * Detailed car top-view SVG — technical illustration style.
- * Zones: AV, AR, AVG, AVD, ARG, ARD, LATG, LATD, Toit
+ * Car top (plan) view — technical line-art of a modern sedan.
+ *
+ * Front of the car is at the TOP of the drawing (AV), rear at the bottom (AR).
+ * Left of the drawing = left of the vehicle (AVG / LATG / ARG, small x).
+ *
+ * viewBox 0 0 300 620 — the PDF port (`lib/rapport-car-pdf.tsx`) and the raster
+ * fallback (`lib/rapport-car.ts`) mirror this geometry exactly; change all three
+ * together.
+ *
+ * Zone ids: AV, AR, AVG, AVD, ARG, ARD, LATG, LATD, Toit
  */
+
+const HILITE = '#dc2626';
+
+// ── Geometry (all coordinates absolute, right side = mirror of left about x=150) ──
+
+/** Outer silhouette: 1.85 m × 4.6 m sedan → x 38–262, y 30–600 (wheel-arch bulges at y≈142 / 486). */
+const BODY =
+  'M 150 30 L 200 31 C 228 32, 246 38, 250 56 C 254 72, 256 88, 257 102 C 259 115, 262 128, 262 142 ' +
+  'C 262 156, 259 172, 258 188 C 259 260, 259 360, 258 438 C 259 452, 262 468, 262 486 C 262 502, 259 518, 256 532 ' +
+  'C 254 550, 251 566, 246 580 C 242 594, 226 599, 200 600 L 100 600 C 74 599, 58 594, 54 580 C 49 566, 46 550, 44 532 ' +
+  'C 41 518, 38 502, 38 486 C 38 468, 41 452, 42 438 C 41 360, 41 260, 42 188 C 41 172, 38 156, 38 142 ' +
+  'C 38 128, 41 115, 43 102 C 44 88, 46 72, 50 56 C 54 38, 72 32, 100 31 Z';
+
+/** Glazing (drawn with a faint tint so the greenhouse reads). */
+const GLASS: string[] = [
+  // windshield
+  'M 66 156 C 110 152, 190 152, 234 156 L 218 218 C 190 215, 110 215, 82 218 Z',
+  // rear window
+  'M 82 402 C 110 405, 190 405, 218 402 L 234 462 C 190 466, 110 466, 66 462 Z',
+  // side windows (front / rear, left then right)
+  'M 58 164 L 76 222 L 76 318 L 57 318 Z',
+  'M 57 318 L 76 318 L 76 400 L 58 458 Z',
+  'M 242 164 L 224 222 L 224 318 L 243 318 Z',
+  'M 243 318 L 224 318 L 224 400 L 242 458 Z',
+];
+
+/** Wing mirrors (protrude beyond the silhouette at the A-pillar base). */
+const MIRRORS: string[] = [
+  'M 42 172 C 32 170, 25 174, 25 182 L 25 190 C 25 197, 32 199, 42 195 Z',
+  'M 258 172 C 268 170, 275 174, 275 182 L 275 190 C 275 197, 268 199, 258 195 Z',
+];
+
+/** Secondary panel lines — 1px. */
+const LINES_1: string[] = [
+  // headlights (swept back along the wings) + taillights
+  'M 102 42 C 80 40, 62 42, 54 52 C 48 62, 46 74, 48 84 L 60 82 C 64 70, 74 60, 94 54 Z',
+  'M 198 42 C 220 40, 238 42, 246 52 C 252 62, 254 74, 252 84 L 240 82 C 236 70, 226 60, 206 54 Z',
+  'M 102 552 C 78 550, 60 552, 54 560 C 51 566, 52 574, 56 580 L 68 578 C 70 568, 80 560, 100 560 Z',
+  'M 198 552 C 222 550, 240 552, 246 560 C 249 566, 248 574, 244 580 L 232 578 C 230 568, 220 560, 200 560 Z',
+  // hood leading edge, cowl (hood / windshield shut line)
+  'M 104 58 C 120 55, 180 55, 196 58',
+  'M 64 152 C 100 148, 200 148, 236 152',
+  // hood ↔ wing shut lines
+  'M 60 84 C 64 110, 66 130, 64 152',
+  'M 240 84 C 236 110, 234 130, 236 152',
+  // roof panel
+  'M 82 218 C 110 215, 190 215, 218 218 L 224 222 L 224 400 L 218 402 C 190 405, 110 405, 82 402 L 76 400 L 76 222 Z',
+  // A-pillars (outer / inner edge), C-pillars
+  'M 58 164 L 76 222', 'M 66 156 L 82 218',
+  'M 242 164 L 224 222', 'M 234 156 L 218 218',
+  'M 76 400 L 58 458', 'M 82 402 L 66 462',
+  'M 224 400 L 242 458', 'M 218 402 L 234 462',
+  // belt lines (window sills seen from above)
+  'M 58 164 C 57 260, 57 360, 58 458',
+  'M 242 164 C 243 260, 243 360, 242 458',
+  // B-pillars
+  'M 58 318 L 76 318', 'M 242 318 L 224 318',
+  // door shut lines (front edge / B-pillar / rear edge) across the shoulder
+  'M 42 190 L 58 190', 'M 41 318 L 58 318', 'M 42 442 L 60 442',
+  'M 258 190 L 242 190', 'M 259 318 L 242 318', 'M 258 442 L 240 442',
+  // wheel-arch creases
+  'M 44 104 C 50 118, 52 162, 46 186', 'M 256 104 C 250 118, 248 162, 254 186',
+  'M 44 448 C 50 462, 52 508, 46 530', 'M 256 448 C 250 462, 248 508, 254 530',
+  // trunk lid shut lines + trunk rear edge + rear bumper top edge
+  'M 62 466 C 58 500, 56 530, 60 548', 'M 238 466 C 242 500, 244 530, 240 548',
+  'M 60 548 C 100 552, 200 552, 240 548',
+  'M 58 584 C 100 588, 200 588, 242 584',
+];
+
+/** Fine details — 0.75px. */
+const LINES_075: string[] = [
+  // hood centre crease + power-dome creases
+  'M 150 66 L 150 146',
+  'M 118 66 C 116 100, 116 130, 120 148', 'M 182 66 C 184 100, 184 130, 180 148',
+  // lamp inner details
+  'M 58 74 C 62 64, 70 58, 84 54', 'M 242 74 C 238 64, 230 58, 216 54',
+  'M 58 570 C 62 564, 70 560, 84 558', 'M 242 570 C 238 564, 230 560, 216 558',
+  // grille slats
+  'M 114 41 L 186 41', 'M 114 45 L 186 45',
+  // wipers
+  'M 100 161 L 142 158', 'M 200 161 L 158 158',
+  // mirror glass
+  'M 30 178 L 30 192', 'M 270 178 L 270 192',
+  // door handles
+  'M 46 300 L 54 300', 'M 46 425 L 54 425', 'M 254 300 L 246 300', 'M 254 425 L 246 425',
+];
+
+interface ZoneDef {
+  id: string;
+  d: string;
+  label: string;
+  x: number;
+  y: number;
+  rotate?: number;
+}
+
+/** Closed zone paths tile the real body regions (no overlaps). */
+const ZONES: ZoneDef[] = [
+  {
+    id: 'AV',
+    d: 'M 100 31 L 200 31 L 200 50 C 224 56, 236 68, 240 84 L 240 100 C 200 94, 100 94, 60 100 L 60 84 C 64 68, 76 56, 100 50 Z',
+    label: 'AV', x: 150, y: 80,
+  },
+  {
+    id: 'AVG',
+    d: 'M 100 31 C 72 32, 54 38, 50 56 C 46 72, 44 88, 43 102 C 41 115, 38 128, 38 142 C 38 156, 41 172, 42 190 L 62 190 L 64 152 C 66 130, 64 110, 60 84 C 64 68, 76 56, 100 50 Z',
+    label: 'AVG', x: 51, y: 130, rotate: -90,
+  },
+  {
+    id: 'AVD',
+    d: 'M 200 31 C 228 32, 246 38, 250 56 C 254 72, 256 88, 257 102 C 259 115, 262 128, 262 142 C 262 156, 259 172, 258 190 L 238 190 L 236 152 C 234 130, 236 110, 240 84 C 236 68, 224 56, 200 50 Z',
+    label: 'AVD', x: 249, y: 130, rotate: 90,
+  },
+  {
+    id: 'LATG',
+    d: 'M 42 190 L 60 190 L 76 222 L 76 400 L 63 442 L 42 442 C 41 360, 41 260, 42 190 Z',
+    label: 'LATG', x: 50, y: 254, rotate: -90,
+  },
+  {
+    id: 'LATD',
+    d: 'M 258 190 L 240 190 L 224 222 L 224 400 L 237 442 L 258 442 C 259 360, 259 260, 258 190 Z',
+    label: 'LATD', x: 250, y: 254, rotate: 90,
+  },
+  {
+    id: 'Toit',
+    d: 'M 82 218 C 110 215, 190 215, 218 218 L 224 222 L 224 400 L 218 402 C 190 405, 110 405, 82 402 L 76 400 L 76 222 Z',
+    label: 'TOIT', x: 150, y: 314,
+  },
+  {
+    id: 'ARG',
+    d: 'M 42 442 L 63 442 L 58 458 L 62 466 C 58 500, 56 530, 60 548 L 68 580 L 100 600 C 74 599, 58 594, 54 580 C 49 566, 46 550, 44 532 C 41 518, 38 502, 38 486 C 38 468, 41 452, 42 442 Z',
+    label: 'ARG', x: 51, y: 500, rotate: -90,
+  },
+  {
+    id: 'ARD',
+    d: 'M 258 442 L 237 442 L 242 458 L 238 466 C 242 500, 244 530, 240 548 L 232 580 L 200 600 C 226 599, 242 594, 246 580 C 251 566, 254 550, 256 532 C 259 518, 262 502, 262 486 C 262 468, 259 452, 258 442 Z',
+    label: 'ARD', x: 249, y: 500, rotate: 90,
+  },
+  {
+    id: 'AR',
+    d: 'M 66 462 C 110 466, 190 466, 234 462 L 238 466 C 242 500, 244 530, 240 548 L 232 580 L 200 600 L 100 600 L 68 580 L 60 548 C 56 530, 58 500, 62 466 Z',
+    label: 'AR', x: 150, y: 512,
+  },
+];
+
 export default function CarSvgTop({ zones, onToggleZone, className }: CarSvgTopProps) {
-  const zoneColor = (zone: string) => zones[zone] ? '#dc2626' : 'transparent';
-  const zoneOpacity = (zone: string) => zones[zone] ? 0.35 : 0;
-  const S = '#1e293b'; // stroke color
+  const stroke = {
+    stroke: 'currentColor',
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  };
 
   return (
     <svg
       viewBox="0 0 300 620"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={className}
+      role="img"
+      aria-label="Vue de dessus du véhicule — points de choc"
+      className={cn('text-foreground', className)}
       style={{ width: '100%', maxWidth: 280, height: 'auto' }}
     >
-      {/* ── BODY OUTLINE ───────────────────────────────────────── */}
-      <path
-        d={`
-          M 95 52
-          Q 95 28, 115 20 L 185 20 Q 205 28, 205 52
-          L 210 75
-          Q 218 95, 224 120
-          L 228 155
-          Q 232 185, 232 220
-          L 232 310
-          Q 232 400, 228 440
-          L 224 475
-          Q 218 500, 210 520
-          L 205 548
-          Q 205 572, 185 580 L 115 580 Q 95 572, 95 548
-          L 90 520
-          Q 82 500, 76 475
-          L 72 440
-          Q 68 400, 68 310
-          L 68 220
-          Q 68 185, 72 155
-          L 76 120
-          Q 82 95, 90 75
-          Z
-        `}
-        stroke={S}
-        strokeWidth="2.5"
-        fill="none"
-      />
+      {/* ── Body ── */}
+      <path d={BODY} {...stroke} strokeWidth={2} fill="hsl(var(--muted))" fillOpacity={0.4} vectorEffect="non-scaling-stroke" />
+      {MIRRORS.map((d) => (
+        <path key={d} d={d} {...stroke} strokeWidth={1.5} fill="hsl(var(--muted))" fillOpacity={0.4} />
+      ))}
 
-      {/* ── FRONT BUMPER DETAIL ────────────────────────────────── */}
-      <path d="M 105 30 Q 100 30, 97 35 L 95 45" stroke={S} strokeWidth="1.2" />
-      <path d="M 195 30 Q 200 30, 203 35 L 205 45" stroke={S} strokeWidth="1.2" />
-      {/* Bumper lower edge */}
-      <path d="M 100 22 Q 150 14, 200 22" stroke={S} strokeWidth="1" />
-      {/* Grille suggestion */}
-      <path d="M 120 26 L 180 26" stroke={S} strokeWidth="0.8" />
-      <path d="M 125 30 L 175 30" stroke={S} strokeWidth="0.6" />
+      {/* ── Glazing ── */}
+      {GLASS.map((d) => (
+        <path key={d} d={d} fill="currentColor" fillOpacity={0.06} />
+      ))}
 
-      {/* ── HEADLIGHTS ─────────────────────────────────────────── */}
-      <path d="M 82 55 Q 78 42, 95 38 L 105 35 Q 108 48, 95 55 Z" stroke={S} strokeWidth="1.5" fill="none" />
-      <path d="M 218 55 Q 222 42, 205 38 L 195 35 Q 192 48, 205 55 Z" stroke={S} strokeWidth="1.5" fill="none" />
-      {/* Inner headlight detail */}
-      <path d="M 88 48 Q 92 43, 100 41" stroke={S} strokeWidth="0.6" />
-      <path d="M 212 48 Q 208 43, 200 41" stroke={S} strokeWidth="0.6" />
+      {/* ── Grille, plate recess, antenna ── */}
+      <rect x={110} y={36} width={80} height={14} rx={4} {...stroke} strokeWidth={1} />
+      <rect x={128} y={587} width={44} height={9} rx={1.5} {...stroke} strokeWidth={0.75} />
+      <ellipse cx={150} cy={390} rx={3} ry={7} {...stroke} strokeWidth={0.75} fill="currentColor" fillOpacity={0.08} />
 
-      {/* ── HOOD LINES ─────────────────────────────────────────── */}
-      <path d="M 120 55 Q 150 50, 180 55" stroke={S} strokeWidth="0.8" />
-      <line x1="150" y1="50" x2="150" y2="95" stroke={S} strokeWidth="0.6" />
-      {/* Hood edge */}
-      <path d="M 85 95 Q 150 88, 215 95" stroke={S} strokeWidth="1" />
+      {/* ── Panel lines ── */}
+      {LINES_1.map((d) => (
+        <path key={d} d={d} {...stroke} strokeWidth={1} />
+      ))}
+      {LINES_075.map((d) => (
+        <path key={d} d={d} {...stroke} strokeWidth={0.75} />
+      ))}
 
-      {/* ── WINDSHIELD ─────────────────────────────────────────── */}
-      <path
-        d="M 90 100 Q 92 92, 110 88 L 190 88 Q 208 92, 210 100 L 210 145 Q 208 150, 200 152 L 100 152 Q 92 150, 90 145 Z"
-        stroke={S}
-        strokeWidth="1.8"
-        fill="none"
-      />
-      {/* A-pillar left */}
-      <path d="M 82 100 L 90 100 L 90 152 L 78 155" stroke={S} strokeWidth="1.2" fill="none" />
-      {/* A-pillar right */}
-      <path d="M 218 100 L 210 100 L 210 152 L 222 155" stroke={S} strokeWidth="1.2" fill="none" />
-      {/* Windshield center bar (rearview mirror area) */}
-      <ellipse cx="150" cy="100" rx="6" ry="3" stroke={S} strokeWidth="0.8" fill="none" />
+      {/* ── Clickable zones (above the line art) ── */}
+      {ZONES.map(({ id, d }) => {
+        const on = !!zones[id];
+        return (
+          <path
+            key={id}
+            d={d}
+            role="button"
+            tabIndex={0}
+            aria-pressed={on}
+            aria-label={`Zone ${id}`}
+            className={cn(
+              'cursor-pointer outline-none transition-[fill] focus-visible:stroke-primary',
+              !on && 'hover:fill-primary/10',
+            )}
+            fill={on ? HILITE : 'transparent'}
+            fillOpacity={on ? 0.35 : 1}
+            stroke={on ? HILITE : 'none'}
+            strokeWidth={1.5}
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="all"
+            onClick={() => onToggleZone(id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onToggleZone(id);
+              }
+            }}
+          />
+        );
+      })}
 
-      {/* ── ROOF ───────────────────────────────────────────────── */}
-      <path d="M 88 155 L 88 430 L 212 430 L 212 155 Z" stroke={S} strokeWidth="0.8" strokeDasharray="5 3" fill="none" />
-      {/* Roof rails */}
-      <line x1="92" y1="165" x2="92" y2="420" stroke={S} strokeWidth="0.5" />
-      <line x1="208" y1="165" x2="208" y2="420" stroke={S} strokeWidth="0.5" />
-
-      {/* ── B-PILLAR ───────────────────────────────────────────── */}
-      <line x1="78" y1="248" x2="92" y2="248" stroke={S} strokeWidth="1.5" />
-      <line x1="208" y1="248" x2="222" y2="248" stroke={S} strokeWidth="1.5" />
-
-      {/* ── SIDE WINDOWS (left) ────────────────────────────────── */}
-      <path d="M 78 158 L 88 155 L 88 245 L 75 245" stroke={S} strokeWidth="1.2" fill="none" />
-      <path d="M 75 252 L 88 252 L 88 425 L 80 422" stroke={S} strokeWidth="1.2" fill="none" />
-      {/* ── SIDE WINDOWS (right) ───────────────────────────────── */}
-      <path d="M 222 158 L 212 155 L 212 245 L 225 245" stroke={S} strokeWidth="1.2" fill="none" />
-      <path d="M 225 252 L 212 252 L 212 425 L 220 422" stroke={S} strokeWidth="1.2" fill="none" />
-
-      {/* ── REAR WINDOW ────────────────────────────────────────── */}
-      <path
-        d="M 92 435 Q 92 430, 100 428 L 200 428 Q 208 430, 208 435 L 208 478 Q 208 488, 195 492 L 105 492 Q 92 488, 92 478 Z"
-        stroke={S}
-        strokeWidth="1.8"
-        fill="none"
-      />
-      {/* C-pillar left */}
-      <path d="M 80 425 L 88 430 L 92 435 L 78 440" stroke={S} strokeWidth="1.2" fill="none" />
-      {/* C-pillar right */}
-      <path d="M 220 425 L 212 430 L 208 435 L 222 440" stroke={S} strokeWidth="1.2" fill="none" />
-
-      {/* ── TRUNK LID ──────────────────────────────────────────── */}
-      <path d="M 85 498 Q 150 492, 215 498" stroke={S} strokeWidth="1" />
-      <line x1="150" y1="495" x2="150" y2="540" stroke={S} strokeWidth="0.6" />
-
-      {/* ── TAILLIGHTS ─────────────────────────────────────────── */}
-      <path d="M 78 540 Q 75 555, 95 560 L 105 562 Q 108 548, 95 542 Z" stroke={S} strokeWidth="1.5" fill="none" />
-      <path d="M 222 540 Q 225 555, 205 560 L 195 562 Q 192 548, 205 542 Z" stroke={S} strokeWidth="1.5" fill="none" />
-      {/* Inner taillight detail */}
-      <path d="M 84 548 Q 88 552, 100 555" stroke={S} strokeWidth="0.6" />
-      <path d="M 216 548 Q 212 552, 200 555" stroke={S} strokeWidth="0.6" />
-
-      {/* ── REAR BUMPER ────────────────────────────────────────── */}
-      <path d="M 100 575 Q 150 582, 200 575" stroke={S} strokeWidth="1" />
-      <path d="M 105 570 Q 150 576, 195 570" stroke={S} strokeWidth="0.6" />
-
-      {/* ── SIDE MIRRORS ───────────────────────────────────────── */}
-      <path d="M 68 130 Q 56 128, 54 138 L 54 150 Q 56 158, 64 156 L 68 152" stroke={S} strokeWidth="1.8" fill="none" />
-      <path d="M 232 130 Q 244 128, 246 138 L 246 150 Q 244 158, 236 156 L 232 152" stroke={S} strokeWidth="1.8" fill="none" />
-      {/* Mirror glass */}
-      <line x1="56" y1="135" x2="56" y2="152" stroke={S} strokeWidth="0.6" />
-      <line x1="244" y1="135" x2="244" y2="152" stroke={S} strokeWidth="0.6" />
-
-      {/* ── DOOR HANDLES ───────────────────────────────────────── */}
-      <rect x="64" y="200" width="8" height="3" rx="1.5" stroke={S} strokeWidth="0.8" fill="none" />
-      <rect x="64" y="310" width="8" height="3" rx="1.5" stroke={S} strokeWidth="0.8" fill="none" />
-      <rect x="228" y="200" width="8" height="3" rx="1.5" stroke={S} strokeWidth="0.8" fill="none" />
-      <rect x="228" y="310" width="8" height="3" rx="1.5" stroke={S} strokeWidth="0.8" fill="none" />
-
-      {/* ── FRONT DOOR LINES ───────────────────────────────────── */}
-      <path d="M 72 120 Q 70 155, 70 190 L 70 245" stroke={S} strokeWidth="1" />
-      <path d="M 228 120 Q 230 155, 230 190 L 230 245" stroke={S} strokeWidth="1" />
-
-      {/* ── REAR DOOR LINES ────────────────────────────────────── */}
-      <path d="M 70 252 L 70 380 Q 70 420, 76 445" stroke={S} strokeWidth="1" />
-      <path d="M 230 252 L 230 380 Q 230 420, 224 445" stroke={S} strokeWidth="1" />
-
-      {/* ── WHEEL ARCHES ───────────────────────────────────────── */}
-      {/* Front left */}
-      <path d="M 68 80 Q 55 80, 52 100 L 52 125 Q 55 140, 68 140" stroke={S} strokeWidth="1.5" fill="none" />
-      <path d="M 56 88 L 56 130" stroke={S} strokeWidth="0.6" />
-      {/* Front right */}
-      <path d="M 232 80 Q 245 80, 248 100 L 248 125 Q 245 140, 232 140" stroke={S} strokeWidth="1.5" fill="none" />
-      <path d="M 244 88 L 244 130" stroke={S} strokeWidth="0.6" />
-      {/* Rear left */}
-      <path d="M 68 450 Q 55 450, 52 470 L 52 495 Q 55 510, 68 510" stroke={S} strokeWidth="1.5" fill="none" />
-      <path d="M 56 458 L 56 502" stroke={S} strokeWidth="0.6" />
-      {/* Rear right */}
-      <path d="M 232 450 Q 245 450, 248 470 L 248 495 Q 245 510, 232 510" stroke={S} strokeWidth="1.5" fill="none" />
-      <path d="M 244 458 L 244 502" stroke={S} strokeWidth="0.6" />
-
-      {/* ── CLICKABLE ZONE OVERLAYS ────────────────────────────── */}
-      {/* AV — Front */}
-      <rect x="80" y="16" width="140" height="75" rx="10"
-        fill={zoneColor('AV')} fillOpacity={zoneOpacity('AV')}
-        onClick={() => onToggleZone('AV')} cursor="pointer" />
-      {/* AR — Rear */}
-      <rect x="80" y="520" width="140" height="60" rx="10"
-        fill={zoneColor('AR')} fillOpacity={zoneOpacity('AR')}
-        onClick={() => onToggleZone('AR')} cursor="pointer" />
-      {/* AVG — Front left */}
-      <rect x="50" y="55" width="35" height="95" rx="6"
-        fill={zoneColor('AVG')} fillOpacity={zoneOpacity('AVG')}
-        onClick={() => onToggleZone('AVG')} cursor="pointer" />
-      {/* AVD — Front right */}
-      <rect x="215" y="55" width="35" height="95" rx="6"
-        fill={zoneColor('AVD')} fillOpacity={zoneOpacity('AVD')}
-        onClick={() => onToggleZone('AVD')} cursor="pointer" />
-      {/* ARG — Rear left */}
-      <rect x="50" y="440" width="35" height="90" rx="6"
-        fill={zoneColor('ARG')} fillOpacity={zoneOpacity('ARG')}
-        onClick={() => onToggleZone('ARG')} cursor="pointer" />
-      {/* ARD — Rear right */}
-      <rect x="215" y="440" width="35" height="90" rx="6"
-        fill={zoneColor('ARD')} fillOpacity={zoneOpacity('ARD')}
-        onClick={() => onToggleZone('ARD')} cursor="pointer" />
-      {/* LATG — Left side */}
-      <rect x="50" y="150" width="30" height="290" rx="5"
-        fill={zoneColor('LATG')} fillOpacity={zoneOpacity('LATG')}
-        onClick={() => onToggleZone('LATG')} cursor="pointer" />
-      {/* LATD — Right side */}
-      <rect x="220" y="150" width="30" height="290" rx="5"
-        fill={zoneColor('LATD')} fillOpacity={zoneOpacity('LATD')}
-        onClick={() => onToggleZone('LATD')} cursor="pointer" />
-      {/* Toit — Roof */}
-      <rect x="88" y="155" width="124" height="275" rx="6"
-        fill={zoneColor('Toit')} fillOpacity={zoneOpacity('Toit')}
-        onClick={() => onToggleZone('Toit')} cursor="pointer" />
-
-      {/* ── ZONE LABELS ────────────────────────────────────────── */}
-      <text x="150" y="62" textAnchor="middle" fontSize="13" fontWeight="800" fill={S} className="pointer-events-none select-none">AV</text>
-      <text x="150" y="558" textAnchor="middle" fontSize="13" fontWeight="800" fill={S} className="pointer-events-none select-none">AR</text>
-      <text x="63" y="105" textAnchor="middle" fontSize="11" fontWeight="800" fill={S} className="pointer-events-none select-none">AVG</text>
-      <text x="237" y="105" textAnchor="middle" fontSize="11" fontWeight="800" fill={S} className="pointer-events-none select-none">AVD</text>
-      <text x="63" y="490" textAnchor="middle" fontSize="11" fontWeight="800" fill={S} className="pointer-events-none select-none">ARG</text>
-      <text x="237" y="490" textAnchor="middle" fontSize="11" fontWeight="800" fill={S} className="pointer-events-none select-none">ARD</text>
-      <text x="58" y="300" textAnchor="middle" fontSize="10" fontWeight="800" fill={S} className="pointer-events-none select-none" transform="rotate(-90 58 300)">LATG</text>
-      <text x="242" y="300" textAnchor="middle" fontSize="10" fontWeight="800" fill={S} className="pointer-events-none select-none" transform="rotate(90 242 300)">LATD</text>
-      <text x="150" y="298" textAnchor="middle" fontSize="13" fontWeight="800" fill={S} className="pointer-events-none select-none">TOIT</text>
+      {/* ── Labels ── */}
+      {ZONES.map(({ id, label, x, y, rotate }) => (
+        <text
+          key={id}
+          x={x}
+          y={y}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={10}
+          fontWeight={700}
+          letterSpacing={0.5}
+          fill="currentColor"
+          opacity={0.7}
+          stroke="hsl(var(--background))"
+          strokeWidth={3}
+          strokeLinejoin="round"
+          paintOrder="stroke"
+          transform={rotate ? `rotate(${rotate} ${x} ${y})` : undefined}
+          className="pointer-events-none select-none uppercase"
+        >
+          {label}
+        </text>
+      ))}
     </svg>
   );
 }

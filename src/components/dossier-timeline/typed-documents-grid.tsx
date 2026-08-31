@@ -77,6 +77,14 @@ export const REQUIRED_SOURCE_SLOTS = [
  */
 export const GARAGE_DOC_SLOTS = ['Devis Garage', 'Facture Garage'] as const;
 
+// Layout classes shared by the standalone sections (Devis et Facture, Rapport,
+// Réforme, Autres documents) so they read like the family rows: hairline +
+// 20 px padding when following another block, 12 px uppercase muted label,
+// same responsive card grid as `FamilyRow` (no horizontal scrolling).
+const SECTION_CLASS = 'space-y-3 border-t border-border/70 pt-5 first:border-t-0 first:pt-0';
+const SECTION_HEADING_CLASS = 'text-xs font-medium uppercase tracking-wider text-muted-foreground';
+const SECTION_GRID_CLASS = 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4';
+
 interface TypedDocumentsGridProps {
   dossierId: string;
   hideAccordSlots?: boolean;
@@ -707,8 +715,8 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
       ) : showOnlyNoteHonoraire ? (
         <div className="space-y-6">
           {/* Note d'honoraire — final-step invoice slot, listed like accord docs. */}
-          <section className="space-y-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <section className="space-y-3">
+            <div className={SECTION_GRID_CLASS}>
               {noteHonoraireSlots.map((slot) => renderSlotCard(slot))}
             </div>
           </section>
@@ -719,9 +727,9 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               Pinned at the top (above family rows / autres) so step 1's primary
               upload affordance is the first thing the gestionnaire sees. */}
           {showBaseGarageSlots && (
-            <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">Devis et Facture</h4>
-              <div className="grid grid-cols-2 gap-3">
+            <section className={SECTION_CLASS}>
+              <h4 className={SECTION_HEADING_CLASS}>Devis et Facture</h4>
+              <div className={SECTION_GRID_CLASS}>
                 {(['Devis Garage', 'Facture Garage'] as const).map((slot) => (
                   <SlotCard
                     key={slot}
@@ -802,9 +810,9 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               (step 1 Création de mission). Hidden under the default flow to
               preserve the legacy render order on other timeline steps. */}
           {showAllNonAccordSlots && cardinalFilter !== '2-plus' && !showOnlyAccordSlots && rapportSlots.length > 0 && (
-            <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">Rapport</h4>
-              <div className="grid grid-cols-2 gap-3">
+            <section className={SECTION_CLASS}>
+              <h4 className={SECTION_HEADING_CLASS}>Rapport</h4>
+              <div className={SECTION_GRID_CLASS}>
                 {rapportSlots.map((slot) => renderSlotCard(slot))}
               </div>
             </section>
@@ -815,9 +823,9 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               Accord step can surface the deposited réforme as its own row. */}
           {!hideReformeSlots && cardinalFilter !== '2-plus' && reformeSlots.length > 0 &&
             (showReformeSlots || ((showAllNonAccordSlots || !hideAccordSlots) && !showOnlyAccordSlots)) && (
-            <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">Réforme</h4>
-              <div className="grid grid-cols-2 gap-3">
+            <section className={SECTION_CLASS}>
+              <h4 className={SECTION_HEADING_CLASS}>Réforme</h4>
+              <div className={SECTION_GRID_CLASS}>
                 {reformeSlots.map((slot) => renderSlotCard(slot))}
               </div>
             </section>
@@ -825,9 +833,9 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
 
           {/* Autres documents — PV, Carte grise, Attestation, etc. */}
           {(showAllNonAccordSlots || !hideOtherSlots) && !showOnlyAccordSlots && otherSlots.length > 0 && (
-            <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">Autres documents</h4>
-              <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
+            <section className={SECTION_CLASS}>
+              <h4 className={SECTION_HEADING_CLASS}>Autres documents</h4>
+              <div className={SECTION_GRID_CLASS}>
                 {otherSlots.map((slot) => renderSlotCard(slot))}
               </div>
             </section>

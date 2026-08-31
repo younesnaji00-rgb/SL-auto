@@ -3,10 +3,8 @@
 import React, { useRef } from 'react';
 import { FileText, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { cn } from '@/lib/utils';
-import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
 import { useReplayHighlight, highlightClass, ChangeBadge } from './replay-highlight';
 
 export type ExtraSlotKind = 'devis' | 'facture';
@@ -74,6 +72,15 @@ export interface SlotCardProps {
    */
   onEdit?: () => void;
 }
+
+// 24 px ghost icon control used in the card header (rename pencil, cardinal
+// `+`, extra-slot `+`). Plain <button> rather than <Button> so the `title`
+// tooltip still shows on the disabled cardinal `+` (shadcn's Button disables
+// pointer events, which suppresses the native tooltip).
+const HEADER_ICON_BUTTON_CLASS =
+  'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors ' +
+  'hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
+  'disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground';
 
 export function SlotCard({
   slot,
@@ -160,6 +167,15 @@ export function SlotCard({
   // Drop accepted only when the upload UI itself is allowed for this slot.
   const dropEnabled = canEdit && !hideUploadForAccord && !isFilledExtraSlot;
 
+  // Header status chip, derived from the same state that drives the body:
+  // received / awaiting the chiffreur (no manual upload) / to be dropped.
+  const hasDocs = visibleDocs.length > 0;
+  const statusChip = hasDocs
+    ? { label: 'Reçu', className: 'bg-status-success-bg text-status-success-fg' }
+    : hideUploadForAccord
+      ? { label: 'En attente', className: 'bg-muted text-muted-foreground' }
+      : { label: 'À déposer', className: 'bg-status-warning-bg text-status-warning-fg' };
+
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     if (!dropEnabled) return;
     if (!e.dataTransfer.types.includes('Files')) return;
@@ -198,43 +214,87 @@ export function SlotCard({
   };
 
   return (
-    <Card
+    <div
       className={cn(
-        'relative shadow-sm border rounded-lg overflow-visible flex flex-col transition-colors',
-        isDragOver && 'border-2 border-dashed border-primary bg-primary/5',
+        'relative flex flex-col rounded-lg border border-border/80 bg-card transition-colors',
+        isDragOver && 'ring-2 ring-primary/40 bg-primary/5',
       )}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <CardHeader className="py-2.5 px-3 border-b">
-        <CardTitle className="font-semibold text-sm flex items-center justify-between gap-2">
-          <span className="truncate" title={slot}>{slot}</span>
-          <span className="flex items-center gap-1 shrink-0">
-            {showRenameButton && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                onClick={onRenameExtraSlot}
-                title="Renommer"
-                aria-label="Renommer le slot"
-              >
-                <Pencil className="h-3 w-3" />
-              </Button>
-            )}
-            <span className="text-[11px] font-normal text-muted-foreground">
-              {visibleDocs.length}
-            </span>
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-2 space-y-1.5 flex-1">
+      {/* Header: label · status chip · header controls */}
+      <div className="flex min-h-10 items-center gap-2 border-b border-border/70 px-3 py-2">
+        <h4 className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground" title={slot}>
+          {slot}
+        </h4>
+        <span
+          className={cn(
+            'shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium leading-4',
+            statusChip.className,
+          )}
+        >
+          {statusChip.label}
+        </span>
+
+        {showRenameButton && (
+          <button
+            type="button"
+            className={HEADER_ICON_BUTTON_CLASS}
+            onClick={onRenameExtraSlot}
+            title="Renommer"
+            aria-label="Renommer le slot"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {showCardinalPimple && canEdit && !hideCardinalPlus && (
+          <button
+            type="button"
+            onClick={onCreateNextCardinal}
+            disabled={cardinalPimpleDisabled}
+            className={HEADER_ICON_BUTTON_CLASS}
+            title={
+              cardinalPimpleDisabled
+                ? "En attente de chiffrage : remplissez ce slot avant de créer le suivant."
+                : "Créer le cardinal suivant"
+            }
+            aria-label="Créer le cardinal suivant"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {showExtraSlotPimple && baseExtraKind && (
+          <>
+            <input
+              ref={extraSlotInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              multiple
+              className="hidden"
+              onChange={handleExtraSlotPick}
+            />
+            <button
+              type="button"
+              onClick={() => extraSlotInputRef.current?.click()}
+              className={HEADER_ICON_BUTTON_CLASS}
+              title={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
+              aria-label={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Body: document rows / empty state, then the upload affordance */}
+      <div className="flex flex-1 flex-col gap-2 p-2">
         {visibleDocs.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-3">
-            <p className="text-xs italic text-muted-foreground text-center">
+            <p className="text-center text-xs text-muted-foreground">
               {(parsedAccord || isReformeSlot) ? 'En attente de chiffrage' : 'Aucun document'}
             </p>
             {/* Round 9 item 004 — per-slot Éditer button on pending
@@ -245,7 +305,7 @@ export function SlotCard({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-7 text-xs gap-1.5"
+                className="h-7 gap-1.5 text-xs"
                 onClick={onEdit}
               >
                 <Pencil className="h-3 w-3" />
@@ -254,11 +314,10 @@ export function SlotCard({
             )}
           </div>
         ) : (
-          <ul className="space-y-1">
+          <ul className="flex flex-col gap-0.5">
             {visibleDocs.map((d) => {
               const name = d.nom || d.fileName || 'document';
               const img = d.url && isImage(name);
-              const pdf = d.url && !img && isPdf(name);
               const clickable = !!d.url && !d.pendingUpload;
               // Chiffreur attribution: only on accord/proposition-accord slots
               // (i.e. true chiffrage outputs). Non-chiffrage docs (carte grise,
@@ -270,41 +329,40 @@ export function SlotCard({
                   ? d.uploadedByName.trim()
                   : '';
               const replayStatus = hl.statusForEntry('documents', d.id);
+              const isDeleting = deletingId === d.id;
               return (
                 <li
                   key={d.id}
                   className={cn(
-                    'flex items-center gap-2 rounded-md border bg-card px-2 py-1.5 hover:bg-accent/40 transition-colors',
+                    'group flex min-h-9 items-center gap-2.5 rounded-md px-1.5 py-1 transition-colors hover:bg-muted/60',
                     clickable && 'cursor-pointer',
                     highlightClass(replayStatus),
                   )}
                   onClick={() => clickable && onPreview(d)}
                 >
-                  <div className="h-8 w-8 shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden">
-                    {img ? (
-                      <img
-                        src={d.url!}
-                        alt={name}
-                        className="object-cover w-full h-full"
-                        loading="lazy"
-                      />
-                    ) : pdf ? (
-                      <PdfThumbnail url={d.url!} className="w-full h-full" width={64} />
-                    ) : (
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate flex items-center gap-1.5" title={name}>
+                  {img ? (
+                    <img
+                      src={d.url!}
+                      alt={name}
+                      className="h-7 w-7 shrink-0 rounded object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
+                      <FileText className="h-3.5 w-3.5" />
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="flex items-center gap-1.5 text-[13px] leading-5 text-foreground" title={name}>
                       <span className="truncate">{name}</span>
                       <ChangeBadge status={replayStatus} className="shrink-0" />
                     </p>
                     {d.pendingUpload && (
-                      <p className="text-[11px] text-amber-700">En attente…</p>
+                      <p className="text-[11px] leading-4 text-status-warning-fg">En attente…</p>
                     )}
                     {chiffreurName && (
                       <p
-                        className="text-[11px] text-muted-foreground truncate"
+                        className="truncate text-[11px] leading-4 text-muted-foreground"
                         title={`Chiffré par ${chiffreurName}`}
                       >
                         Chiffré par {chiffreurName}
@@ -316,15 +374,19 @@ export function SlotCard({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
+                      className={cn(
+                        'h-7 w-7 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100',
+                        isDeleting && 'opacity-100',
+                      )}
                       onClick={(e) => {
                         e.stopPropagation();
                         onDelete(d);
                       }}
-                      disabled={deletingId === d.id || !!d.pendingUpload}
+                      disabled={isDeleting || !!d.pendingUpload}
                       title="Supprimer"
+                      aria-label="Supprimer"
                     >
-                      {deletingId === d.id ? (
+                      {isDeleting ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <Trash2 className="h-3.5 w-3.5" />
@@ -347,73 +409,31 @@ export function SlotCard({
               className="hidden"
               onChange={handlePick}
             />
-            <Button
+            <button
               type="button"
-              variant="outline"
-              size="sm"
-              className="w-full border-dashed"
+              className={cn(
+                'flex h-9 w-full items-center justify-center gap-2 rounded-md border border-dashed border-border text-xs font-medium text-muted-foreground transition-colors',
+                'hover:border-primary/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border disabled:hover:text-muted-foreground',
+              )}
               onClick={() => inputRef.current?.click()}
               disabled={isUploading}
             >
               {isUploading ? (
                 <>
-                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   Envoi…
                 </>
               ) : (
                 <>
-                  <Plus className="mr-2 h-3.5 w-3.5" />
-                  Ajouter
+                  <Plus className="h-3.5 w-3.5" />
+                  Ajouter un document
                 </>
               )}
-            </Button>
+            </button>
           </>
         )}
-      </CardContent>
-
-      {showCardinalPimple && canEdit && !hideCardinalPlus && (
-        <button
-          type="button"
-          onClick={onCreateNextCardinal}
-          disabled={cardinalPimpleDisabled}
-          className={cn(
-            "absolute -right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm shadow transition z-10",
-            cardinalPimpleDisabled
-              ? "opacity-40 cursor-not-allowed"
-              : "hover:scale-110",
-          )}
-          title={
-            cardinalPimpleDisabled
-              ? "En attente de chiffrage : remplissez ce slot avant de créer le suivant."
-              : "Créer le cardinal suivant"
-          }
-          aria-label="Créer le cardinal suivant"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-      )}
-
-      {showExtraSlotPimple && baseExtraKind && (
-        <>
-          <input
-            ref={extraSlotInputRef}
-            type="file"
-            accept="image/*,.pdf"
-            multiple
-            className="hidden"
-            onChange={handleExtraSlotPick}
-          />
-          <button
-            type="button"
-            onClick={() => extraSlotInputRef.current?.click()}
-            className="absolute -right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm shadow hover:scale-110 transition z-10"
-            title={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
-            aria-label={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        </>
-      )}
-    </Card>
+      </div>
+    </div>
   );
 }

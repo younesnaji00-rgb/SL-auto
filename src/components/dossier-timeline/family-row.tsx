@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@/lib/utils';
 import {
   SlotCard,
   type ExtraSlotKind,
@@ -28,9 +27,9 @@ interface FamilyRowProps {
   onRenameExtraSlot: (slot: string) => void;
   onPreview: (d: TypedDoc) => void;
   /**
-   * Optional action rendered as a floating element absolutely positioned at
-   * the top-right of the family row, overlapping (bleeding into) the slot
-   * cards below. Used on the chiffreur side for the "Éditer web" button.
+   * Optional action rendered inline at the right end of the family header
+   * row (next to the name + count pill). Used on the chiffreur side for the
+   * "Éditer web" button.
    */
   topAction?: React.ReactNode;
   /**
@@ -60,11 +59,9 @@ interface FamilyRowProps {
 
 /**
  * Renders a single family (one garage + its accord/proposition variants) as
- * a horizontal row with `overflow-x-auto` so children scroll when they
- * outgrow the container.
- *
- * `topAction`, if provided, is rendered as an absolutely-positioned floating
- * element at the top-right of the row container, overlapping the slot cards.
+ * a header row (name · count pill · optional `topAction`) followed by a
+ * responsive grid of slot cards. No outer box: families are separated by a
+ * hairline + vertical spacing when they follow another section.
  */
 export function FamilyRow({
   group,
@@ -105,51 +102,48 @@ export function FamilyRow({
   );
 
   return (
-    <div className="relative border rounded-lg bg-muted/10 p-2">
-      {topAction && (
-        <div className="absolute top-3 right-3 z-30 drop-shadow-md">
-          {topAction}
-        </div>
-      )}
-      <div className="flex items-center justify-between px-1 pb-2 pr-32">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <section
+      className="space-y-3 border-t border-border/70 pt-5 first:border-t-0 first:pt-0"
+      aria-label={group.parent}
+    >
+      <div className="flex min-h-8 items-center gap-2">
+        <h3 className="min-w-0 truncate text-[13px] font-semibold text-foreground" title={group.parent}>
           {group.parent}
         </h3>
-        <span className="text-[11px] text-muted-foreground font-medium">
-          {totalDocs} doc{totalDocs === 1 ? '' : 's'}
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium leading-4 text-muted-foreground tabular-nums">
+          {totalDocs} document{totalDocs > 1 ? 's' : ''}
         </span>
-      </div>
-      <div className="flex gap-3 overflow-x-auto scroll-smooth pb-1 snap-x snap-mandatory">
-        {visibleSlots.map((slot) => (
-          <div
-            key={slot}
-            className={cn(
-              'min-w-[300px] w-[300px] shrink-0 snap-start',
-            )}
-          >
-            <SlotCard
-              slot={slot}
-              docs={docsByType[slot] || []}
-              canEdit={canEdit}
-              canDeleteDoc={canDeleteDoc}
-              userRole={userRole}
-              isUploading={isUploading(slot)}
-              deletingId={deletingId}
-              extraSlotKind={extraSlotKindForSlot(slot)}
-              canManageExtraSlots={canManageExtraSlots}
-              onUpload={(files) => onUpload(slot, files)}
-              onDelete={onDelete}
-              onCreateNextCardinal={() => onCreateNextCardinal(slot)}
-              onCreateExtraSlot={onCreateExtraSlot}
-              onRenameExtraSlot={() => onRenameExtraSlot(slot)}
-              onPreview={onPreview}
-              hideCardinalPlus={hideCardinalPlus}
-              hideExtraSlotPlus={hideExtraSlotPlus}
-              onEdit={onEditSlot ? () => onEditSlot(slot) : undefined}
-            />
+        {topAction && (
+          <div className="ml-auto flex shrink-0 items-center">
+            {topAction}
           </div>
+        )}
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        {visibleSlots.map((slot) => (
+          <SlotCard
+            key={slot}
+            slot={slot}
+            docs={docsByType[slot] || []}
+            canEdit={canEdit}
+            canDeleteDoc={canDeleteDoc}
+            userRole={userRole}
+            isUploading={isUploading(slot)}
+            deletingId={deletingId}
+            extraSlotKind={extraSlotKindForSlot(slot)}
+            canManageExtraSlots={canManageExtraSlots}
+            onUpload={(files) => onUpload(slot, files)}
+            onDelete={onDelete}
+            onCreateNextCardinal={() => onCreateNextCardinal(slot)}
+            onCreateExtraSlot={onCreateExtraSlot}
+            onRenameExtraSlot={() => onRenameExtraSlot(slot)}
+            onPreview={onPreview}
+            hideCardinalPlus={hideCardinalPlus}
+            hideExtraSlotPlus={hideExtraSlotPlus}
+            onEdit={onEditSlot ? () => onEditSlot(slot) : undefined}
+          />
         ))}
       </div>
-    </div>
+    </section>
   );
 }

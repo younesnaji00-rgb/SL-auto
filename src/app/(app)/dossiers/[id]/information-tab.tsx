@@ -20,6 +20,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api-fetch';
 import { getStatusDotColor } from '@/lib/status-colors';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
@@ -57,33 +58,73 @@ type FieldDef = {
 
 const FieldRow = ({ fields, editing }: { fields: FieldDef[]; editing: boolean }) => {
   const hl = useReplayHighlight();
-  const colClass = fields.length <= 2
-    ? 'grid-cols-1 md:grid-cols-2'
-    : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4';
   return (
-    <>
-      <div className={cn('grid', colClass)}>
-        {fields.map((f, i) => (
-          <div key={i} className={cn("px-6 py-2 flex items-center justify-between bg-card", i < fields.length - 1 && "border-r border-border/10")}>
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{f.label}</span>
-            {editing && f.modal}
+    <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+      {fields.map((f, i) => {
+        const status = !editing && f.path ? hl.statusForPath(f.path) : null;
+        const empty = !editing && !f.value;
+        return (
+          <div key={i} className={cn('min-w-0 rounded-md', highlightClass(status))}>
+            <dt className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <span className="truncate">{f.label}</span>
+              {editing && f.modal}
+              {status && <ChangeBadge status={status} className="ml-auto" />}
+            </dt>
+            <dd className="mt-1 min-h-[24px] text-sm">
+              {editing && f.edit ? (
+                <div className="w-full">{f.edit}</div>
+              ) : (
+                <span className={cn('break-words', empty ? 'text-muted-foreground/60' : 'font-medium text-foreground')}>{f.value || '—'}</span>
+              )}
+            </dd>
           </div>
-        ))}
-      </div>
-      <div className={cn('grid border-b border-border/10', colClass)}>
-        {fields.map((f, i) => {
-          const status = !editing && f.path ? hl.statusForPath(f.path) : null;
-          return (
-            <div key={i} className={cn("px-6 py-3 min-h-[44px] flex items-center justify-between gap-2 bg-card", i < fields.length - 1 && "border-r border-border/10", highlightClass(status))}>
-              {editing && f.edit ? <div className="w-full">{f.edit}</div> : <span className="text-sm font-medium">{f.value || '-'}</span>}
-              {status && <ChangeBadge status={status} />}
-            </div>
-          );
-        })}
-      </div>
-    </>
+        );
+      })}
+    </dl>
   );
 };
+
+/** Quiet section: hairline header (icon + title) and a padded body. */
+const Section = ({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) => (
+  <section className="rounded-lg border bg-card" aria-label={title}>
+    <header className="flex items-center gap-2 border-b px-5 py-2.5">
+      {icon && <span className="text-muted-foreground [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+    </header>
+    <div className="space-y-5 px-5 py-4">{children}</div>
+  </section>
+);
+
+// ── AI learning loop ──
+// Fields the AI pre-fill can write (see step-1-import FIELD_MAP). When the
+// dossier was pre-filled and the user changes one of them, the diff is sent to
+// /api/extract-feedback so the next extraction for this compagnie is told.
+const FEEDBACK_PATHS = [
+  'compagnie', 'typeDossier', 'nature', 'refExpert', 'referenceCompagnie', 'matricule', 'policeNumber',
+  'dateSinistre', 'dateRequete', 'assure.nom', 'assure.telephone', 'assure.adresse',
+  'vehicule.marque', 'vehicule.modele', 'vehicule.immatriculation', 'vehicule.serie', 'vehicule.energie',
+  'vehicule.puissance', 'vehicule.mec', 'vehicule.km', 'vehicule.immatriculationAnterieur',
+  'intermediaireNom', 'intermediaireEmail', 'adverseNom', 'adverseMatricule', 'adverseCompagnie',
+];
+function feedbackNorm(v: any): string | null {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString().slice(0, 10);
+  if (typeof v?.toDate === 'function') return v.toDate().toISOString().slice(0, 10);
+  const s = String(v).trim();
+  return s.length ? s : null;
+}
+function feedbackGet(o: any, path: string): any {
+  return path.split('.').reduce((acc, k) => (acc == null ? undefined : acc[k]), o);
+}
+function diffForFeedback(dossier: any, form: any): { field: string; before: string | null; after: string | null }[] {
+  const out: { field: string; before: string | null; after: string | null }[] = [];
+  for (const p of FEEDBACK_PATHS) {
+    const before = feedbackNorm(feedbackGet(dossier, p));
+    const after = feedbackNorm(feedbackGet(form, p));
+    if (before !== after) out.push({ field: p, before, after });
+  }
+  return out;
+}
 
 export default function InformationTab({ dossier, dossierRef, dossierId }: InformationTabProps) {
   const db = useFirestore();
@@ -255,6 +296,16 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
 
     try {
       await writeDossierDoc(payload);
+      if (dossier?.importDocId) {
+        const corrections = diffForFeedback(dossier, form);
+        if (corrections.length > 0) {
+          apiFetch('/api/extract-feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dossierId, compagnie: form.compagnie || dossier.compagnie || null, corrections }),
+          }).catch(() => { /* learning is best-effort */ });
+        }
+      }
       const ref = dossier.refExpert || dossierId;
       const statutChanged = form.statut !== dossier.statut;
       if (buffered) {
@@ -338,31 +389,24 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
       {canEdit && (
         <div className="flex justify-end gap-2">
           {!editing ? (
-            <button type="button" onClick={() => setEditing(true)}
-              className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold">
-              <Pencil className="h-3.5 w-3.5 text-primary" /> Modifier
-            </button>
+            <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => setEditing(true)}>
+              <Pencil className="h-3.5 w-3.5" /> Modifier
+            </Button>
           ) : (
             <>
-              <button type="button" onClick={handleSave} disabled={saving}
-                className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-colors font-semibold shadow-sm">
-                {saving ? <Check className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />} Enregistrer
-              </button>
-              <button type="button" onClick={handleCancel}
-                className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold">
-                <X className="h-3.5 w-3.5 text-muted-foreground" /> Annuler
-              </button>
+              <Button type="button" size="sm" className="h-8 gap-1.5" onClick={handleSave} disabled={saving}>
+                <Check className="h-3.5 w-3.5" /> {saving ? 'Enregistrement…' : 'Enregistrer'}
+              </Button>
+              <Button type="button" size="sm" variant="ghost" className="h-8 gap-1.5" onClick={handleCancel}>
+                <X className="h-3.5 w-3.5" /> Annuler
+              </Button>
             </>
           )}
         </div>
       )}
 
       {/* ── DOSSIER ── */}
-      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
-        <CardHeader className="bg-heading-bg py-3">
-          <CardTitle className="text-sm font-bold uppercase tracking-wider">Informations Dossier</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+      <Section title="Informations Dossier">
           <FieldRow fields={[
             {
               label: 'Compagnie', value: form.compagnie, path: 'compagnie',
@@ -415,17 +459,10 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             { label: 'Date Sinistre', value: formatDateDisplay(form.dateSinistre), path: 'dateSinistre', edit: <DatePicker value={form.dateSinistre} onChange={(d) => handleChange('dateSinistre', d)} /> },
             { label: 'Date Requête', value: formatDateDisplay(form.dateRequete), path: 'dateRequete', edit: <DatePicker value={form.dateRequete} onChange={(d) => handleChange('dateRequete', d)} /> },
           ]} editing={editing} />
-        </CardContent>
-      </Card>
+        </Section>
 
       {/* ── EXPERTS ── */}
-      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
-        <CardHeader className="bg-heading-bg py-3">
-          <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" /> Experts
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+      <Section title="Experts" icon={<Users />}>
           <FieldRow fields={[
             {
               label: 'Rôle du dossier', value: EXPERT_ROLE_LABELS[form.expertRank as ExpertRole] || '-', path: 'expertRank',
@@ -442,8 +479,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             },
           ]} editing={editing} />
           {visibleExpertRoles((form.expertRank as ExpertRole) || '1er').map((role) => (
-            <div key={role} className="border-t border-border/10">
-              <div className="px-6 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/30">
+            <div key={role} className="space-y-3 border-t border-border/70 pt-4">
+              <div className="text-xs font-semibold text-foreground/80">
                 {EXPERT_ROLE_LABELS[role]}
               </div>
               <FieldRow fields={[
@@ -454,17 +491,10 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
               ]} editing={editing} />
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </Section>
 
       {/* ── ASSURÉ ── */}
-      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
-        <CardHeader className="bg-heading-bg py-3">
-          <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <User className="h-4 w-4 text-primary" /> Informations Assuré
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+      <Section title="Informations Assuré" icon={<User />}>
           <FieldRow fields={[
             { label: 'Nom complet', value: form.assure.nom, path: 'assure.nom', edit: <Input className="h-9" value={form.assure.nom} onChange={(e) => handleNestedChange('assure', 'nom', e.target.value)} /> },
             { label: 'Téléphone', value: form.assure.telephone, path: 'assure.telephone', edit: <Input className="h-9" value={form.assure.telephone} onChange={(e) => handleNestedChange('assure', 'telephone', e.target.value)} /> },
@@ -476,17 +506,10 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             { label: 'Adresse', value: form.assure.adresse, path: 'assure.adresse', edit: <Input className="h-9" value={form.assure.adresse} onChange={(e) => handleNestedChange('assure', 'adresse', e.target.value)} /> },
             { label: 'CIN', value: form.assure.cin, path: 'assure.cin', edit: <Input className="h-9" value={form.assure.cin} onChange={(e) => handleNestedChange('assure', 'cin', e.target.value)} /> },
           ]} editing={editing} />
-        </CardContent>
-      </Card>
+        </Section>
 
       {/* ── VÉHICULE ── */}
-      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
-        <CardHeader className="bg-heading-bg py-3">
-          <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <Car className="h-4 w-4 text-primary" /> Véhicule
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+      <Section title="Véhicule" icon={<Car />}>
           <FieldRow fields={[
             { label: 'Marque', value: form.vehicule.marque, path: 'vehicule.marque', edit: <Input className="h-9" value={form.vehicule.marque} onChange={(e) => handleNestedChange('vehicule', 'marque', e.target.value)} /> },
             { label: 'Modèle', value: form.vehicule.modele, path: 'vehicule.modele', edit: <Input className="h-9" value={form.vehicule.modele} onChange={(e) => handleNestedChange('vehicule', 'modele', e.target.value)} /> },
@@ -502,17 +525,10 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
           <FieldRow fields={[
             { label: 'Immatriculation antérieure', value: form.vehicule.immatriculationAnterieur, path: 'vehicule.immatriculationAnterieur', edit: <Input className="h-9" value={form.vehicule.immatriculationAnterieur} onChange={(e) => handleNestedChange('vehicule', 'immatriculationAnterieur', e.target.value)} /> },
           ]} editing={editing} />
-        </CardContent>
-      </Card>
+        </Section>
 
       {/* ── INTERMÉDIAIRE ── */}
-      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
-        <CardHeader className="bg-heading-bg py-3">
-          <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <PenLine className="h-4 w-4 text-primary" /> Intermédiaire
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+      <Section title="Intermédiaire" icon={<PenLine />}>
           <FieldRow fields={[
             { label: 'Nom / Raison sociale', value: form.intermediaireNom, path: 'intermediaireNom', edit: <Input className="h-9" value={form.intermediaireNom} onChange={(e) => handleChange('intermediaireNom', e.target.value)} /> },
             { label: 'Prénom', value: form.intermediairePrenom, path: 'intermediairePrenom', edit: <Input className="h-9" value={form.intermediairePrenom} onChange={(e) => handleChange('intermediairePrenom', e.target.value)} /> },
@@ -530,17 +546,10 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             { label: 'Email', value: form.intermediaireEmail, path: 'intermediaireEmail', edit: <Input className="h-9" value={form.intermediaireEmail} onChange={(e) => handleChange('intermediaireEmail', e.target.value)} /> },
             { label: 'Adresse', value: form.intermediaireAdresse, path: 'intermediaireAdresse', edit: <Input className="h-9" value={form.intermediaireAdresse} onChange={(e) => handleChange('intermediaireAdresse', e.target.value)} /> },
           ]} editing={editing} />
-        </CardContent>
-      </Card>
+        </Section>
 
       {/* ── PARTIE ADVERSE ── */}
-      <Card className="shadow-sm overflow-hidden border-0 rounded-xl">
-        <CardHeader className="bg-heading-bg py-3">
-          <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" /> Partie Adverse
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+      <Section title="Partie Adverse" icon={<Users />}>
           <FieldRow fields={[
             { label: 'Nom', value: form.adverseNom, path: 'adverseNom', edit: <Input className="h-9" value={form.adverseNom} onChange={(e) => handleChange('adverseNom', e.target.value)} /> },
             { label: 'Prénom', value: form.adversePrenom, path: 'adversePrenom', edit: <Input className="h-9" value={form.adversePrenom} onChange={(e) => handleChange('adversePrenom', e.target.value)} /> },
@@ -558,8 +567,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId }: Infor
             { label: 'Matricule', value: form.adverseMatricule, path: 'adverseMatricule', edit: <Input className="h-9" value={form.adverseMatricule} onChange={(e) => handleChange('adverseMatricule', e.target.value)} /> },
             { label: 'N° Permis', value: form.adversePermis, path: 'adversePermis', edit: <Input className="h-9" value={form.adversePermis} onChange={(e) => handleChange('adversePermis', e.target.value)} /> },
           ]} editing={editing} />
-        </CardContent>
-      </Card>
+        </Section>
 
     </div>
   );

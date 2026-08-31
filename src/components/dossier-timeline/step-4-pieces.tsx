@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { useAuth, useCollection, useFirestore } from '@/firebase';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { materializeMissing2emeSlots } from '@/lib/cardinal-materialize';
+import SmartInbox from './smart-inbox';
 
 export interface Step4PiecesProps {
   dossierId: string;
@@ -79,7 +80,7 @@ function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolea
   return [open, setOpen];
 }
 
-export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, requireFirstAccordFilled, showReformeSlots }: Step4PiecesProps) {
+export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, requireFirstAccordFilled, showReformeSlots }: Step4PiecesProps) {
   const [docsOpen, setDocsOpen] = useSectionOpen(dossierId, 'documents');
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
@@ -206,6 +207,15 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
 
   return (
     <div className="space-y-8">
+      {!readOnly && (
+        <SmartInbox
+          dossierId={dossierId}
+          dossier={dossier}
+          readOnly={readOnly}
+          title="Déposez vos pièces ici"
+          description="Devis, factures, PV, carte grise, attestation, photos… chaque fichier est reconnu par l'IA et rangé dans la bonne case ci-dessous."
+        />
+      )}
       <Collapsible open={docsOpen} onOpenChange={setDocsOpen}>
         <CollapsibleTrigger asChild>
           <button type="button" className="flex items-center gap-2 mb-3 w-full">
