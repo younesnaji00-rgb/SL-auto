@@ -135,13 +135,13 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
               className={cn(
                 'group relative flex h-8 min-w-0 max-w-[220px] shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-t-md border border-b-0 px-2.5 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 isActive
-                  ? 'border-border bg-background font-medium text-foreground shadow-[0_1px_0_0_hsl(var(--background))]'
-                  : 'border-transparent text-muted-foreground hover:bg-background/60 hover:text-foreground',
+                  ? 'border-hairline bg-background font-medium text-ink shadow-[0_1px_0_0_hsl(var(--background))]'
+                  : 'border-transparent text-ink-3 hover:bg-background/60 hover:text-ink',
                 tab.preview && 'italic',
               )}
             >
-              {isList && <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />}
-              {tab.pinned && !isList && <Pin className="h-3 w-3 shrink-0 opacity-60" aria-label="Épinglé" />}
+              {isList && <Icon className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden />}
+              {tab.pinned && !isList && <Pin className="h-3 w-3 shrink-0 text-ink-4" aria-label="Épinglé" />}
               <span className="truncate">{tab.label}</span>
               {dirty && (
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label="Modifications non enregistrées" title="Modifications non enregistrées" />
@@ -152,7 +152,7 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
                   aria-label={`Fermer ${tab.label}`}
                   onClick={(e) => { e.stopPropagation(); close(tab.id); }}
                   className={cn(
-                    'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                    'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink focus:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                     !isActive && 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
                   )}
                 >
@@ -166,13 +166,13 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
       {(overflowing || tabs.length > 1) && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="mb-0.5 h-7 shrink-0 gap-1 self-end px-1.5 text-xs text-muted-foreground" aria-label="Tous les onglets">
+            <Button variant="ghost" size="sm" className="mb-0.5 h-7 shrink-0 gap-1 self-end px-1.5 text-xs text-ink-3" aria-label="Tous les onglets">
               <ChevronDown className="h-3.5 w-3.5" />
               {overflowing && <span className="tabular-nums">{tabs.length}</span>}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel className="text-xs">{tabs.length} onglet{tabs.length > 1 ? 's' : ''}</DropdownMenuLabel>
+            <DropdownMenuLabel className="t-label">{tabs.length} onglet{tabs.length > 1 ? 's' : ''}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {tabs.map((t: WorkspaceTab) => (
               <DropdownMenuItem key={t.id} onSelect={() => goTo(t.id)} className={cn('gap-2', t.id === api.activeId && 'font-medium')}>
@@ -182,7 +182,7 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
                   type="button"
                   aria-label={`Fermer ${t.label}`}
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); close(t.id); }}
-                  className="rounded-sm p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="rounded-sm p-0.5 text-ink-3 hover:bg-surface-3 hover:text-ink"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -217,12 +217,12 @@ export default function WorkspaceTabs() {
   if (kinds.length === 0) return null;
 
   return (
-    <div className="flex h-9 w-full min-w-0 items-stretch gap-2 border-b bg-muted/30" data-workspace-tabs>
+    <div className="flex h-9 w-full min-w-0 items-stretch gap-2 border-b border-hairline bg-surface-2" data-workspace-tabs>
       {kinds.map((api, i) => {
         const active = pathname === api.config.listHref || pathname.startsWith(`${api.config.listHref}/`);
         return (
           <React.Fragment key={api.kind}>
-            {i > 0 && <div className="my-1.5 w-px shrink-0 bg-border" aria-hidden />}
+            {i > 0 && <div className="my-1.5 w-px shrink-0 bg-hairline-strong" aria-hidden />}
             <KindStrip api={api} active={active} />
           </React.Fragment>
         );

@@ -288,18 +288,18 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       }
     }
 
-    const aiTextStyle = isAiFilled ? 'text-muted-foreground/70 italic' : '';
+    const aiTextStyle = isAiFilled ? 'text-ink-3 italic' : 'text-ink';
     const inlineInputClass =
       'h-6 px-1.5 text-sm rounded border border-input bg-background ' +
       'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring tabular-nums';
     // Subtle hover-only affordance — no underline so the `--/--` / `—`
     // glyphs aren't visually doubled.
     const dashedClickable =
-      'cursor-pointer rounded px-1 hover:bg-muted hover:text-foreground transition-colors';
+      'cursor-pointer rounded px-1 hover:bg-surface-2 hover:text-ink transition-colors';
 
     return (
-      <div className="flex justify-between items-center text-sm py-1.5 border-b border-border/30 last:border-0">
-        <span className="text-muted-foreground">{row.label}</span>
+      <div className="flex items-center justify-between border-b border-hairline py-1.5 text-sm last:border-0">
+        <span className="text-ink-3">{row.label}</span>
         <span
           ref={inEdit ? editRowRef : undefined}
           className={`flex items-center gap-1.5 font-medium tabular-nums ${aiTextStyle}`}
@@ -424,14 +424,14 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="space-y-1">
-        <h2 className="text-xl font-bold">État du dossier</h2>
-        <p className="text-sm text-muted-foreground">Suivez la progression du dossier étape par étape.</p>
+        <h2 className="t-title">État du dossier</h2>
+        <p className="text-sm text-ink-3">Suivez la progression du dossier étape par étape.</p>
       </div>
 
       {/* DATES CLÉS */}
       <Card>
-        <CardContent className="p-6 space-y-3">
-          <h3 className="font-semibold text-base">Dates clés</h3>
+        <CardContent className="space-y-4 p-5">
+          <h3 className="t-heading">Dates clés</h3>
           {/* Top block: single-column rows (no left/right pairing). */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             {[
@@ -472,33 +472,35 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
 
       {/* SINISTRE DOUTEUX APPROVAL BANNER */}
       {dossier?.sinistreDouteux?.active && (
-        <Card className="border-red-200 bg-red-50 dark:bg-red-900/10 dark:border-red-800">
-          <CardContent className="p-6">
+        // Danger pair on a flat surface: one primary (approve) + one destructive (reject).
+        <Card variant="flat" className="bg-status-danger-bg" role="alert">
+          <CardContent className="p-5">
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full text-red-600">
+              <div className="rounded-full bg-card/70 p-2 text-status-danger-fg">
                 <AlertTriangle className="h-6 w-6" />
               </div>
               <div className="flex-1 space-y-1">
-                <h3 className="font-bold text-red-800 dark:text-red-400">Sinistre Douteux - En attente de validation</h3>
-                <p className="text-sm text-muted-foreground">
-                  Demandé par <span className="font-semibold">{dossier.sinistreDouteux.demandePar || 'N/A'}</span> le {formatDate(dossier.sinistreDouteux.dateDemande)}
+                <h3 className="t-heading text-status-danger-fg">Sinistre Douteux - En attente de validation</h3>
+                <p className="text-sm text-ink-2">
+                  Demandé par <span className="font-semibold text-ink">{dossier.sinistreDouteux.demandePar || 'N/A'}</span> le {formatDate(dossier.sinistreDouteux.dateDemande)}
                 </p>
                 {dossier.sinistreDouteux.motif && (
-                  <p className="text-sm italic mt-2 bg-white/50 dark:bg-black/20 p-2 rounded border border-red-100 dark:border-red-900/50">
+                  <p className="mt-2 rounded-md bg-card/70 p-2 text-sm italic text-ink-2">
                     &quot;{dossier.sinistreDouteux.motif}&quot;
                   </p>
                 )}
-                <div className="flex gap-3 mt-4">
-                  <Button 
-                    onClick={handleApprove} 
-                    className="bg-green-600 hover:bg-green-700 text-white gap-2"
+                <div className="mt-4 flex gap-3">
+                  <Button
+                    onClick={handleApprove}
+                    className="gap-2"
                     size="sm"
                   >
                     <CheckCircle className="h-4 w-4" /> Approuver
                   </Button>
-                  <Button 
-                    onClick={handleReject} 
-                    className="bg-red-600 hover:bg-red-700 text-white gap-2"
+                  <Button
+                    onClick={handleReject}
+                    variant="destructive"
+                    className="gap-2"
                     size="sm"
                   >
                     <XCircle className="h-4 w-4" /> Rejeter
@@ -517,27 +519,28 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       {(() => {
         const statusEntries = entries.filter((e) => e.type === 'statut' || e.type === 'sinistre_douteux' || e.type === 'document');
         return statusEntries.length === 0 ? (
-          <div className="text-center py-20 text-muted-foreground italic">
-            Aucun changement de statut enregistré pour ce dossier.
+          <div className="py-16 text-center">
+            <p className="t-heading">Aucun changement de statut</p>
+            <p className="t-caption mt-1">Aucun changement de statut enregistré pour ce dossier.</p>
           </div>
         ) : (
           <div className="relative pl-8 pt-4">
             {/* Vertical line */}
-            <div className="absolute left-[5px] top-0 bottom-0 w-0.5 bg-border" />
+            <div className="absolute bottom-0 left-[5px] top-0 w-0.5 bg-hairline-strong" />
 
-            <div className="space-y-10">
+            <div className="space-y-8">
               {statusEntries.map((entry) => (
                 <div key={entry.id} className="relative">
                   {/* Bullet */}
-                  <div className="absolute -left-[27px] top-1.5 w-3 h-3 rounded-full bg-muted-foreground border-2 border-background z-10" />
+                  <div className="absolute -left-[27px] top-1.5 z-10 h-3 w-3 rounded-full border-2 border-background bg-ink-3" />
 
                   <div className="space-y-1">
-                    <p className="font-semibold text-base">{entry.action}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatDate(entry.date)} par <UserNameLink entry={entry} className="font-bold" />
+                    <p className="t-heading">{entry.action}</p>
+                    <p className="t-caption">
+                      {formatDate(entry.date)} par <UserNameLink entry={entry} className="font-medium text-ink-2" />
                     </p>
                     {entry.details && (
-                      <div className="mt-2 pl-4 border-l-2 border-primary/40 text-sm italic text-muted-foreground bg-muted/50 py-2 rounded-r-md">
+                      <div className="mt-2 border-l-2 border-hairline-strong py-0.5 pl-4 text-sm italic text-ink-2">
                         &quot;{entry.details}&quot;
                       </div>
                     )}

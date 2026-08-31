@@ -540,7 +540,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
           <>
             <Badge variant="secondary">{formData.role}</Badge>
             <Badge variant={formData.statut === 'Actif' ? 'success' : 'destructive'} className="flex gap-1 items-center">
-              <span className={`w-1.5 h-1.5 rounded-full ${formData.statut === 'Actif' ? 'bg-emerald-500' : 'bg-destructive'}`} />
+              <span className={`h-1.5 w-1.5 rounded-full ${formData.statut === 'Actif' ? 'bg-status-success-fg' : 'bg-destructive'}`} />
               {formData.statut}
             </Badge>
           </>
@@ -552,7 +552,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <UserIcon className="h-5 w-5 text-primary" />
+                <UserIcon className="h-5 w-5 text-ink-3" />
                 Informations personnelles
               </CardTitle>
               <CardDescription>Gérez les coordonnées et les accès de l'utilisateur.</CardDescription>
@@ -602,7 +602,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                       type={showPassword ? 'text' : 'password'}
                       value={formData.password}
                       readOnly
-                      className="pr-10 bg-muted/50 font-mono"
+                      className="bg-surface-2 pr-10 font-mono"
                     />
                     <Button
                       type="button"
@@ -762,7 +762,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="flex justify-end bg-muted/30 pt-6">
+            <CardFooter className="flex justify-end border-t border-hairline pt-5">
               <Button onClick={handleSave} loading={isSaving}>
                 {isSaving ? 'Enregistrement...' : <><Save className="mr-2 h-4 w-4" /> Sauvegarder</>}
               </Button>
@@ -772,7 +772,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-primary" />
+                <ShieldCheck className="h-5 w-5 text-ink-3" />
                 Permissions
               </CardTitle>
               <CardDescription>
@@ -802,14 +802,14 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                             onClick={() => hasChildren && toggleExpand(item.id)}
                             className={cn(
                               'flex items-center gap-2 min-w-0 flex-1 text-left',
-                              hasChildren && 'hover:opacity-80 transition-opacity',
+                              hasChildren && 'transition-colors hover:text-ink-2',
                             )}
                           >
                             {hasChildren ? (
                               isExpanded ? (
-                                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <ChevronDown className="h-4 w-4 shrink-0 text-ink-3" />
                               ) : (
-                                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" />
                               )
                             ) : (
                               <span className="w-4 shrink-0" aria-hidden />
@@ -822,8 +822,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                     className={cn(
                                       'text-[11px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
                                       allowed
-                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                                        : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                                        ? 'bg-status-success-bg text-status-success-fg'
+                                        : 'bg-status-warning-bg text-status-warning-fg',
                                     )}
                                     title={allowed ? 'Accordé en plus du rôle' : 'Retiré du rôle'}
                                   >
@@ -832,19 +832,19 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                 )}
                                 {!item.roleDefault && !isOverride && (
                                   <span
-                                    className="text-[11px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px bg-muted text-muted-foreground"
+                                    className="rounded-sm bg-surface-2 px-1.5 py-px text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3"
                                     title="Non inclus dans le rôle par défaut"
                                   >
                                     Hors rôle
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[11px] text-muted-foreground font-mono">{item.id}</p>
+                              <p className="font-mono text-[11px] text-ink-3">{item.id}</p>
                             </div>
                           </button>
                           <div className="flex items-center gap-2 shrink-0">
                             {saving && (
-                              <span className="text-[11px] text-muted-foreground uppercase tracking-[0.08em]">
+                              <span className="t-label">
                                 Enregistrement…
                               </span>
                             )}
@@ -865,7 +865,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                           </div>
                         </div>
                         {hasChildren && isExpanded && (
-                          <ul className="bg-muted/20 border-t">
+                          <ul className="border-t border-hairline bg-surface-2/60">
                             {item.children!.map((child) => {
                               const cAllowed = effectiveAllowed(child.id, child.roleDefault);
                               const cIsOverride =
@@ -884,19 +884,19 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                           className={cn(
                                             'text-[11px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
                                             cAllowed
-                                              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                                              : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                                              ? 'bg-status-success-bg text-status-success-fg'
+                                              : 'bg-status-warning-bg text-status-warning-fg',
                                           )}
                                         >
                                           {cAllowed ? 'Accordé' : 'Retiré'}
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-[11px] text-muted-foreground font-mono">{child.id}</p>
+                                    <p className="font-mono text-[11px] text-ink-3">{child.id}</p>
                                   </div>
                                   <div className="flex items-center gap-2 shrink-0">
                                     {cSaving && (
-                                      <span className="text-[11px] text-muted-foreground uppercase tracking-[0.08em]">
+                                      <span className="t-label">
                                         Enregistrement…
                                       </span>
                                     )}
@@ -953,8 +953,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                       {assignedDossiers.map((d: any) => {
                         const assureName = typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim() || 'N/A';
                         return (
-                          <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/dossiers/${d.id}`)}>
-                            <TableCell className="font-mono text-xs font-semibold text-primary tabular-nums">{d.refExpert || '-'}</TableCell>
+                          <TableRow key={d.id} className="cursor-pointer" onClick={() => router.push(`/dossiers/${d.id}`)}>
+                            <TableCell className="t-mono font-semibold">{d.refExpert || '-'}</TableCell>
                             <TableCell>{assureName}</TableCell>
                             <TableCell>{d.nature || '-'}</TableCell>
                             <TableCell>
@@ -979,8 +979,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Clock className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-ink-3" />
                 Historique d'activité
               </CardTitle>
             </CardHeader>
@@ -1004,7 +1004,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                         <p className="text-xs text-muted-foreground">{formatTimestamp(entry.changedAt)}</p>
                         <p className="text-sm font-medium">{entry.action}</p>
                         {entry.newStatut && (
-                          <p className="text-xs bg-muted px-2 py-1 rounded inline-block">
+                          <p className="inline-block rounded bg-surface-2 px-2 py-1 text-xs">
                             → {entry.newStatut}
                           </p>
                         )}
@@ -1027,8 +1027,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             return (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Smartphone className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="flex items-center gap-2">
+                  <Smartphone className="h-4 w-4 text-ink-3" />
                   Session / Appareil
                 </CardTitle>
                 <CardDescription>
@@ -1042,13 +1042,13 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                     className={cn(
                       'w-2 h-2 rounded-full',
                       sessionActive
-                        ? 'bg-emerald-500 animate-pulse'
+                        ? 'bg-status-success-fg'
                         : sessionStale
-                          ? 'bg-amber-500'
-                          : 'bg-muted-foreground/40',
+                          ? 'bg-status-warning-fg'
+                          : 'bg-ink-4',
                     )}
                   />
-                  <span className={cn(!sessionActive && 'text-muted-foreground')}>
+                  <span className={cn(!sessionActive && 'text-ink-3')}>
                     {sessionActive
                       ? 'Connecté sur un appareil'
                       : sessionStale
@@ -1057,7 +1057,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   </span>
                 </div>
                 {userData.currentSessionId && (
-                  <div className="rounded-md border bg-muted/20 px-3 py-2 space-y-1.5 text-xs">
+                  <div className="space-y-1.5 rounded-md bg-surface-2 px-3 py-2 text-xs">
                     <div className="flex items-center justify-between gap-3">
                       <span className="flex items-center gap-1.5 text-muted-foreground">
                         <Smartphone className="h-3.5 w-3.5" />
@@ -1107,7 +1107,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
           {canDelete && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Supprimer cet utilisateur</CardTitle>
+                <CardTitle>Supprimer cet utilisateur</CardTitle>
                 <CardDescription>
                   L&apos;utilisateur sera retiré du système. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
                 </CardDescription>

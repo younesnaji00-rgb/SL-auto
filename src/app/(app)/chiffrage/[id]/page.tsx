@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, FileType, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { SkeletonCard } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import Link from 'next/link';
 
@@ -96,18 +96,25 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
 
   if (!pageReady || !chiffrage) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      <div className="mx-auto max-w-4xl space-y-8" aria-busy="true">
         <div className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-lg animate-pulse bg-muted" />
-          <div className="space-y-2 flex-1">
-            <div className="h-6 w-48 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-64 animate-pulse rounded bg-muted" />
+          <Skeleton className="h-10 w-10 rounded-lg" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-64" />
           </div>
-          <div className="h-10 w-40 animate-pulse rounded-lg bg-muted" />
+          <Skeleton className="h-10 w-40 rounded-lg" />
         </div>
-        <div className="grid gap-4">
+        <div className="grid gap-6">
           {Array.from({ length: 3 }).map((_, i) => (
-            <SkeletonCard key={i} />
+            <div key={i} className="paper flex items-start gap-4 p-5">
+              <Skeleton className="h-28 w-28 shrink-0 rounded-lg" />
+              <div className="flex-1 space-y-3">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-8 w-32" />
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -115,7 +122,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+    <div className="mx-auto max-w-4xl space-y-8">
       <PageHeader
         size="compact"
         backHref="/assignations-chiffrage"
@@ -129,7 +136,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
         }
       />
 
-      <div className="grid gap-4">
+      <div className="grid gap-6">
         {chiffrage.files.length === 0 && (
           <EmptyState
             icon={<FileType />}
@@ -140,10 +147,10 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
         {chiffrage.files.map((file, i) => (
           <div
             key={`${file.storagePath}-${i}`}
-            className="border rounded-lg p-4 flex flex-col sm:flex-row gap-4 items-start bg-card shadow-sm hover:shadow-md transition-all group cursor-pointer"
+            className="paper group flex cursor-pointer flex-col items-start gap-4 p-5 transition-shadow hover:shadow-raised sm:flex-row"
             onClick={() => router.push(`/viewer?chiffrageId=${id}&dossierId=${chiffrage.dossierId}&fileIndex=${i}`)}
           >
-            <div className="w-28 h-28 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden border shadow-inner relative">
+            <div className="relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2 ring-1 ring-hairline">
               {downloadUrls[i] && (file.type === "photo" || file.name.match(/\.(jpg|jpeg|png)$/i)) ? (
                 <img
                   src={downloadUrls[i]}
@@ -154,8 +161,8 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
                 />
               ) : (
                 <div className="flex flex-col items-center gap-1">
-                  <FileType className="h-8 w-8 text-muted-foreground opacity-40" />
-                  <span className="text-[11px] uppercase font-bold text-muted-foreground">{file.type === 'photo' ? 'Image' : 'PDF/Doc'}</span>
+                  <FileType className="h-8 w-8 text-ink-4" />
+                  <span className="t-label">{file.type === 'photo' ? 'Image' : 'PDF/Doc'}</span>
                 </div>
               )}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -165,11 +172,11 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
 
             <div className="flex-1 space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-bold text-sm">{file.name}</span>
+                <span className="t-heading">{file.name}</span>
                 <StatusBadge status={file.status} hasAnnotations={!!file.annotations?.length} />
               </div>
 
-              <p className="text-xs text-muted-foreground line-clamp-2 italic bg-muted/30 p-2 rounded">
+              <p className="t-caption line-clamp-2 rounded bg-surface-2 p-2">
                 Mode "Correction Native" : Utilisez l'éditeur pour barrer les erreurs et ajouter vos corrections directement sur le document.
               </p>
 

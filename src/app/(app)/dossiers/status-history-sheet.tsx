@@ -64,50 +64,50 @@ export default function StatusHistorySheet({ open, onOpenChange, dossier }: Stat
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="text-primary">États Du Dossier</SheetTitle>
+          <SheetTitle>États du dossier</SheetTitle>
           <SheetDescription>
-            {dossier.refExpert ? <>Dossier <span className="font-semibold text-foreground">{dossier.refExpert}</span></> : 'Historique des changements de statut'}
+            {dossier.refExpert ? <>Dossier <span className="font-mono font-semibold tabular-nums text-ink">{dossier.refExpert}</span></> : 'Historique des changements de statut'}
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6">
           {loading ? (
             <div className="flex justify-center py-10">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
             </div>
           ) : !sortedEntries || sortedEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-              <Inbox className="h-10 w-10 mb-3 opacity-20" />
+            <div className="flex flex-col items-center justify-center py-10 text-ink-3">
+              <Inbox className="mb-3 h-10 w-10 text-ink-4" />
               <p className="text-sm">Aucun changement de statut.</p>
             </div>
           ) : (
             <div className="relative pl-8">
               {/* Vertical rail */}
-              <div className="absolute left-3 top-2 bottom-2 w-px bg-indigo-200 dark:bg-indigo-900" />
+              <div className="absolute bottom-2 left-3 top-2 w-px bg-hairline-strong" />
 
               <div className="space-y-4">
                 {sortedEntries.map((e: any) => (
                   <div key={e.id} className="relative">
                     {/* Dot on the rail */}
-                    <div className="absolute -left-[22px] top-3 h-3 w-3 rounded-full bg-indigo-500 ring-4 ring-background" />
+                    <div className="absolute -left-[22px] top-3 h-3 w-3 rounded-full bg-ink-3 ring-4 ring-background" />
 
-                    <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
+                    <div className="overflow-hidden rounded-lg border border-hairline bg-card">
                       <div className={cn('px-4 py-2 text-sm font-semibold', getStatusHeaderStyles(e.action))}>
                         {e.action}
                       </div>
                       <div className="p-4 space-y-1.5 text-sm">
                         <div>
                           <span className="font-semibold">Nom :</span>{' '}
-                          <span className="text-muted-foreground">{e.user || '—'}</span>
+                          <span className="text-ink-2">{e.user || '—'}</span>
                         </div>
                         <div>
                           <span className="font-semibold">Date :</span>{' '}
-                          <span className="text-muted-foreground">{formatDate(e.date)}</span>
+                          <span className="text-ink-2">{formatDate(e.date)}</span>
                         </div>
                         {e.details && (
                           <div>
                             <span className="font-semibold">Message :</span>{' '}
-                            <span className="text-muted-foreground whitespace-pre-wrap">{e.details}</span>
+                            <span className="whitespace-pre-wrap text-ink-2">{e.details}</span>
                           </div>
                         )}
                       </div>

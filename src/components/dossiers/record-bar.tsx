@@ -97,12 +97,12 @@ export function RecordBar({
 
   return (
     <div
-      className="sticky top-0 z-40 flex min-h-[48px] items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:px-5"
+      className="sticky top-0 z-40 flex min-h-[48px] items-center gap-2 border-b border-hairline bg-background/95 px-3 backdrop-blur sm:px-5"
       data-record-bar
     >
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground" asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink" asChild>
             <Link href="/dossiers" aria-label="Retour aux dossiers">
               <ArrowLeft className="h-4 w-4" />
             </Link>
@@ -112,15 +112,16 @@ export function RecordBar({
       </Tooltip>
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
-        <h1 className="min-w-0 truncate font-mono text-[15px] font-semibold tracking-tight text-foreground" title={dossier?.refExpert || undefined}>
+        {/* Reading order: ref (mono, ink) → assuré (ink) → compagnie / plaque (ink-3) → statut. */}
+        <h1 className="t-mono min-w-0 truncate font-semibold tracking-tight" title={dossier?.refExpert || undefined}>
           {dossier?.refExpert || 'Sans réf.'}
         </h1>
         {assureName(dossier?.assure) && (
-          <span className="min-w-0 truncate text-sm font-medium text-foreground/90">{assureName(dossier?.assure)}</span>
+          <span className="t-body min-w-0 truncate font-medium">{assureName(dossier?.assure)}</span>
         )}
-        {dossier?.compagnie && <span className="hidden truncate text-sm text-muted-foreground md:inline">{dossier.compagnie}</span>}
+        {dossier?.compagnie && <span className="hidden truncate text-sm text-ink-3 md:inline">{dossier.compagnie}</span>}
         {dossier?.matricule && (
-          <span className="hidden font-mono text-xs text-muted-foreground lg:inline">{dossier.matricule}</span>
+          <span className="t-mono hidden text-ink-3 lg:inline">{dossier.matricule}</span>
         )}
         <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut), 'shrink-0')}>
           {statut}
@@ -175,7 +176,7 @@ export function RecordBar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
-          <DropdownMenuLabel className="truncate text-xs font-normal text-muted-foreground">{label}</DropdownMenuLabel>
+          <DropdownMenuLabel className="t-caption truncate font-normal">{label}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {showPrimary && (
             <DropdownMenuItem onSelect={runPrimary} className="md:hidden">

@@ -43,7 +43,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
-import { SkeletonCard, SkeletonChart } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { collection, onSnapshot, query, orderBy, collectionGroup } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { format, startOfDay, endOfDay, isWithinInterval, startOfToday, startOfWeek, startOfMonth } from 'date-fns';
@@ -370,15 +370,29 @@ function DashboardPageInner() {
 
   if (loading) {
     return (
-      <div className="flex-1 space-y-6">
-        <div className="grid gap-6 lg:grid-cols-5">
-          <SkeletonChart className="lg:col-span-2" />
-          <SkeletonChart className="lg:col-span-3" />
+      <div className="flex-1 space-y-8" aria-busy="true">
+        <PageHeader title="Tableau de bord" size="compact" />
+        <div className="paper-featured p-5">
+          <div className="grid gap-6 sm:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="space-y-3">
+                <Skeleton className="h-3 w-24 bg-on-ink/15" />
+                <Skeleton className="h-8 w-20 bg-on-ink/15" />
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="grid gap-6 lg:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="paper p-5 space-y-4">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="mx-auto h-[240px] w-[240px] rounded-full" />
+          </div>
+          <div className="paper p-5 space-y-3">
+            <Skeleton className="h-4 w-40" />
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-full" />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -392,16 +406,16 @@ function DashboardPageInner() {
     userFilter: string, setUserFilter: (v: string) => void,
     natureFilter: string, setNatureFilter: (v: string) => void,
   ) => (
-    <Card className="shadow-sm border h-fit rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: panelKey === '1' ? '100ms' : '200ms' }}>
-      <CardHeader className="py-4">
-        <CardTitle className="text-sm flex items-center gap-2">
-          <Activity className="h-4 w-4 text-primary" />
-          <span>Changements récents <span className="text-muted-foreground font-normal">/ {actionFilterLabels[actionFilter]}</span></span>
+    <Card className="h-fit">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-ink-3" aria-hidden />
+          <span>Changements récents <span className="font-normal text-ink-3">/ {actionFilterLabels[actionFilter]}</span></span>
           <Badge variant="secondary" className="ml-1 text-[11px] tabular-nums">{logs.length}</Badge>
         </CardTitle>
       </CardHeader>
-      <div className="px-3 pt-0 pb-2 bg-muted/10">
-        <div className="grid grid-cols-4 gap-1.5">
+      <div className="mx-5 rounded-lg bg-surface-2 p-3">
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
           <DatePicker
             value={dateFilter ? new Date(dateFilter) : null}
             onChange={(date) => {
@@ -455,11 +469,11 @@ function DashboardPageInner() {
           </Select>
         </div>
         {(dateFilter || userFilter !== 'all' || actionFilter !== 'all' || natureFilter !== 'all') && (
-          <div className="flex justify-end mt-1.5">
+          <div className="mt-2 flex justify-end">
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 text-[11px] px-2"
+              className="h-6 px-2 text-[11px]"
               onClick={() => {
                 setDateFilter('');
                 setUserFilter('all');
@@ -467,13 +481,13 @@ function DashboardPageInner() {
                 setNatureFilter('all');
               }}
             >
-              <X className="h-3 w-3 mr-1" /> Réinitialiser
+              <X className="mr-1 h-3 w-3" /> Réinitialiser
             </Button>
           </div>
         )}
       </div>
-      <CardContent className="pt-3">
-        <div className="space-y-5 max-h-[500px] overflow-y-auto pr-1">
+      <CardContent className="pt-4">
+        <div className="max-h-[500px] space-y-5 overflow-y-auto pr-1">
           {logs.length === 0 ? (
             <EmptyState
               icon={<Inbox />}
@@ -483,46 +497,46 @@ function DashboardPageInner() {
               className="border-0 bg-transparent py-6"
             />
           ) : (
-            logs.map((log: any, logIndex: number) => {
+            logs.map((log: any) => {
               const dossier = dossierMap[log._dossierId];
               const dossierLabel = log.dossierRef || dossier?.refExpert || '';
               const isNew = isNewLog(log);
               return (
                 <div key={`${panelKey}-${log.id}`} className={cn(
-                  "relative pl-5 pb-5 last:pb-0 border-l border-muted ml-2 opacity-0 animate-slide-in-down [animation-fill-mode:forwards]",
-                  isNew && "bg-[hsl(var(--primary)/0.05)] rounded-lg p-2 -ml-0.5 border-l-[hsl(var(--primary))]"
-                )} style={{ animationDelay: `${logIndex * 40}ms` }}>
+                  "relative ml-2 border-l border-hairline pl-5 pb-5 last:pb-0",
+                  isNew && "-ml-0.5 rounded-lg border-l-primary bg-accent/40 p-2 pl-5"
+                )}>
                   <div className={cn(
-                    "absolute top-1 w-3 h-3 rounded-full ring-4 ring-background",
+                    "absolute top-1 h-3 w-3 rounded-full ring-4 ring-card",
                     isNew ? "-left-1" : "-left-1.5",
-                    log.status === 'done' ? "bg-emerald-500" : "bg-amber-500"
+                    log.status === 'done' ? "bg-status-success-fg" : "bg-status-warning-fg"
                   )} />
                   <div className="flex flex-col gap-1">
-                    <div className="flex justify-between items-start">
-                      <p className="text-xs font-semibold leading-tight flex items-center gap-1.5">
+                    <div className="flex items-start justify-between">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold leading-tight text-ink">
                         {isNew && (
-                          <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary text-primary-foreground shrink-0">
+                          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                             <Plus className="h-2.5 w-2.5" strokeWidth={3} />
                           </span>
                         )}
                         {log.action}
                       </p>
-                      <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap ml-2 bg-muted px-1.5 py-0.5 rounded tabular-nums">
+                      <span className="ml-2 whitespace-nowrap rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-ink-3">
                         {formatDate(log.date)}
                       </span>
                     </div>
                     {dossierLabel && (
-                      <div className="flex items-center gap-1.5 text-[11px] text-primary">
-                        <FolderOpen className="h-2.5 w-2.5" />
-                        <span className="font-semibold">{dossierLabel}</span>
+                      <div className="flex items-center gap-1.5 text-[11px] text-ink-2">
+                        <FolderOpen className="h-2.5 w-2.5 text-ink-3" />
+                        <span className="font-mono font-semibold tabular-nums text-ink">{dossierLabel}</span>
                       </div>
                     )}
                     {log.details && (
-                      <p className="text-[11px] text-muted-foreground italic leading-snug">{log.details}</p>
+                      <p className="text-[11px] italic leading-snug text-ink-3">{log.details}</p>
                     )}
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <div className="flex items-center gap-1.5 text-[11px] text-ink-3">
                       <UserIcon className="h-2.5 w-2.5" />
-                      <span>par <span className="font-semibold text-foreground">{log.user || 'Admin'}</span></span>
+                      <span>par <span className="font-semibold text-ink-2">{log.user || 'Admin'}</span></span>
                     </div>
                   </div>
                 </div>
@@ -540,93 +554,128 @@ function DashboardPageInner() {
   );
 
   const filteredCount = filteredDossiers.length;
+  const rangeLabel = (!dateFromFilter && !dateToFilter)
+    ? 'au total'
+    : `du ${dateFromFilter ? format(dateFromFilter, 'dd/MM/yyyy', { locale: fr }) : '—'} au ${dateToFilter ? format(dateToFilter, 'dd/MM/yyyy', { locale: fr }) : '—'}`;
+
+  // The ONE featured (navy) surface on this page: the headline figures for
+  // the selected period. Everything below reads against it.
+  const headlineCard = (
+    <Card variant="featured">
+      <CardContent className="p-5">
+        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div className="grid flex-1 grid-cols-1 gap-5 sm:grid-cols-3 sm:divide-x sm:divide-on-ink/15">
+            <div className="sm:pr-6">
+              <p className="t-label text-on-ink/70">Dossiers créés</p>
+              <p className="t-display mt-1 text-on-ink tabular-nums">{filteredCount}</p>
+              <p className="t-caption mt-1 text-on-ink/70">{rangeLabel}</p>
+            </div>
+            <div className="sm:px-6">
+              <p className="t-label text-on-ink/70">Statuts actifs</p>
+              <p className="t-title mt-1 text-on-ink tabular-nums">{statusChartData.length}</p>
+              <p className="t-caption mt-1 text-on-ink/70">sur {statusBarData.length} statuts</p>
+            </div>
+            <div className="sm:pl-6">
+              <p className="t-label text-on-ink/70">Compagnies</p>
+              <p className="t-title mt-1 text-on-ink tabular-nums">{compagnieData.length}</p>
+              <p className="t-caption mt-1 text-on-ink/70">
+                {compagnieData[0] ? `${compagnieData[0].name} en tête` : 'aucune donnée'}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-end gap-2">
+            <div className="flex items-center gap-1 rounded-md bg-on-ink/10 p-0.5">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-8 text-on-ink hover:bg-on-ink/15 hover:text-on-ink"
+                onClick={() => {
+                  const today = startOfToday();
+                  setDateFromFilter(today);
+                  setDateToFilter(today);
+                }}
+              >
+                Aujourd'hui
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-8 text-on-ink hover:bg-on-ink/15 hover:text-on-ink"
+                onClick={() => {
+                  setDateFromFilter(startOfWeek(new Date(), { locale: fr }));
+                  setDateToFilter(startOfToday());
+                }}
+              >
+                Semaine
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-8 text-on-ink hover:bg-on-ink/15 hover:text-on-ink"
+                onClick={() => {
+                  setDateFromFilter(startOfMonth(new Date()));
+                  setDateToFilter(startOfToday());
+                }}
+              >
+                Mois
+              </Button>
+            </div>
+            <div className="space-y-1">
+              <label className="t-label text-on-ink/70">Du</label>
+              <DatePicker
+                value={dateFromFilter ?? null}
+                onChange={(d) => setDateFromFilter(d ?? undefined)}
+                placeholder="Date de début"
+                className="h-8 w-36 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="t-label text-on-ink/70">Au</label>
+              <DatePicker
+                value={dateToFilter ?? null}
+                onChange={(d) => setDateToFilter(d ?? undefined)}
+                placeholder="Date de fin"
+                className="h-8 w-36 text-xs"
+              />
+            </div>
+            {(dateFromFilter || dateToFilter) && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-8 text-on-ink/80 hover:bg-on-ink/15 hover:text-on-ink"
+                onClick={() => {
+                  setDateFromFilter(undefined);
+                  setDateToFilter(undefined);
+                }}
+              >
+                <X className="mr-1 h-3.5 w-3.5" /> Effacer
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   const filterCard = (
-    <Card className="shadow-sm h-fit border rounded-lg overflow-hidden">
-      <CardHeader className="py-4 flex flex-row items-center justify-between gap-2">
-        <CardTitle className="text-base text-primary">Dossier Par État</CardTitle>
+    <Card className="h-fit overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle>Dossiers par état</CardTitle>
         <div className="relative w-[180px] max-w-full">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" />
           <Input
             placeholder="Rechercher..."
             value={statusFilterSearch}
             onChange={(e) => setStatusFilterSearch(e.target.value)}
-            className="h-8 pl-7 text-xs border-0 border-b rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
+            className="h-8 rounded-none border-0 border-b bg-transparent pl-7 text-xs focus-visible:border-primary focus-visible:ring-0"
           />
         </div>
       </CardHeader>
-      <div className="px-4 pb-3 pt-0 bg-muted/10 border-b">
-        <div className="flex gap-2 mb-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              const today = startOfToday();
-              setDateFromFilter(today);
-              setDateToFilter(today);
-            }}
-          >
-            Aujourd'hui
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setDateFromFilter(startOfWeek(new Date(), { locale: fr }));
-              setDateToFilter(startOfToday());
-            }}
-          >
-            Semaine
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setDateFromFilter(startOfMonth(new Date()));
-              setDateToFilter(startOfToday());
-            }}
-          >
-            Mois
-          </Button>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Du</label>
-            <DatePicker
-              value={dateFromFilter ?? null}
-              onChange={(d) => setDateFromFilter(d ?? undefined)}
-              placeholder="Date de début"
-              className="h-8 text-xs"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Au</label>
-            <DatePicker
-              value={dateToFilter ?? null}
-              onChange={(d) => setDateToFilter(d ?? undefined)}
-              placeholder="Date de fin"
-              className="h-8 text-xs"
-            />
-          </div>
-        </div>
-        <p className="text-[11px] text-muted-foreground mt-2 tabular-nums">
-          <span className="font-semibold text-foreground">{filteredCount}</span> dossier{filteredCount === 1 ? '' : 's'} créé{filteredCount === 1 ? '' : 's'}{' '}
-          {(!dateFromFilter && !dateToFilter) ? (
-            'au total'
-          ) : (
-            <>
-              entre{' '}
-              <span className="font-semibold text-foreground">{dateFromFilter ? format(dateFromFilter, 'dd/MM/yyyy', { locale: fr }) : '—'}</span>{' '}
-              et{' '}
-              <span className="font-semibold text-foreground">{dateToFilter ? format(dateToFilter, 'dd/MM/yyyy', { locale: fr }) : '—'}</span>
-            </>
-          )}
-        </p>
-      </div>
-      <CardContent className="p-0 max-h-[520px] overflow-y-auto">
+      <CardContent className="max-h-[520px] overflow-y-auto p-0">
         {filteredStatusRows.length === 0 ? (
           <EmptyState
             icon={<Search />}
@@ -636,37 +685,44 @@ function DashboardPageInner() {
             className="border-0 bg-transparent py-8"
           />
         ) : (
-          filteredStatusRows.map((item, idx) => {
-            const isSelected = selectedStatus === item.name;
-            return (
-              <button
-                key={item.name}
-                onClick={() => setSelectedStatus((prev) => (prev === item.name ? null : item.name))}
-                className={cn(
-                  'flex items-center justify-between w-full px-4 py-3 text-sm transition-colors text-left',
-                  idx !== filteredStatusRows.length - 1 && 'border-b',
-                  isSelected ? 'bg-accent border-l-2 border-l-primary' : 'hover:bg-accent/50',
-                  item.value === 0 && 'opacity-60',
-                )}
-              >
-                <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{item.name}</span>
-                <span className={cn('text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 tabular-nums', getStatusHeaderStyles(item.name))}>
-                  {item.value}
-                </span>
-              </button>
-            );
-          })
+          <ul className="divide-y divide-hairline">
+            {filteredStatusRows.map((item) => {
+              const isSelected = selectedStatus === item.name;
+              const isEmpty = item.value === 0;
+              return (
+                <li key={item.name}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStatus((prev) => (prev === item.name ? null : item.name))}
+                    aria-pressed={isSelected}
+                    className={cn(
+                      'flex w-full items-center justify-between px-5 py-2.5 text-left text-sm transition-colors',
+                      isSelected ? 'border-l-2 border-l-primary bg-accent/50' : 'border-l-2 border-l-transparent hover:bg-surface-2',
+                    )}
+                  >
+                    <span className={cn('truncate', isSelected ? 'font-semibold text-ink' : isEmpty ? 'text-ink-3' : 'text-ink-2')}>{item.name}</span>
+                    <span className={cn(
+                      'shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums',
+                      isEmpty ? 'bg-surface-2 text-ink-3' : getStatusHeaderStyles(item.name),
+                    )}>
+                      {item.value}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </CardContent>
     </Card>
   );
 
   const pieCard = (
-    <Card className="shadow-sm h-fit border rounded-lg">
-      <CardHeader className="py-4">
-        <CardTitle className="text-base">Volume par Statut</CardTitle>
+    <Card className="h-fit">
+      <CardHeader>
+        <CardTitle>Volume par statut</CardTitle>
       </CardHeader>
-      <CardContent className="pt-2">
+      <CardContent>
         {statusChartData.length === 0 ? (
           <EmptyState
             icon={<PieChartIcon />}
@@ -687,33 +743,35 @@ function DashboardPageInner() {
                   cx="50%"
                   cy="50%"
                   outerRadius={100}
-                  paddingAngle={0}
-                  strokeWidth={0}
+                  paddingAngle={1}
+                  stroke="hsl(var(--card))"
+                  strokeWidth={2}
                   isAnimationActive={true}
                   animationBegin={100}
-                  animationDuration={800}
+                  animationDuration={600}
                   animationEasing="ease-out"
-                  label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
+                  label={({ cx, cy, midAngle, outerRadius, percent }) => {
                     const RADIAN = Math.PI / 180;
                     const pct = `${(percent * 100).toFixed(0)}%`;
-                    const radius = statusChartData.length > 4 ? outerRadius + 24 : outerRadius * 0.55;
+                    const outside = statusChartData.length > 4;
+                    const radius = outside ? outerRadius + 24 : outerRadius * 0.55;
                     const x = cx + radius * Math.cos(-midAngle * RADIAN);
                     const y = cy + radius * Math.sin(-midAngle * RADIAN);
                     return (
                       <text
                         x={x}
                         y={y}
-                        fill={statusChartData.length > 4 ? statusChartData[index].fill : '#fff'}
+                        fill={outside ? 'hsl(var(--ink-2))' : 'hsl(var(--card))'}
                         textAnchor="middle"
                         dominantBaseline="central"
-                        fontSize={12}
+                        fontSize={11}
                         fontWeight={600}
                       >
                         {pct}
                       </text>
                     );
                   }}
-                  labelLine={statusChartData.length > 4}
+                  labelLine={statusChartData.length > 4 ? { stroke: 'hsl(var(--hairline-strong))' } : false}
                 >
                   {statusChartData.map((entry, index) => (
                     <Cell key={`cell-status-${index}`} fill={entry.fill} />
@@ -721,15 +779,15 @@ function DashboardPageInner() {
                 </Pie>
               </PieChart>
             </ChartContainer>
-            <div className="flex flex-wrap justify-center gap-2 mt-4">
+            <ul className="mt-4 flex flex-wrap justify-center gap-x-3 gap-y-1.5">
               {statusChartData.map((item) => (
-                <div key={item.name} className="flex items-center gap-1.5 text-[11px]">
-                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
-                  <span className="text-muted-foreground">{item.name}</span>
-                  <span className="font-semibold tabular-nums">{item.value}</span>
-                </div>
+                <li key={item.name} className="t-caption flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.fill }} aria-hidden />
+                  <span>{item.name}</span>
+                  <span className="font-semibold tabular-nums text-ink">{item.value}</span>
+                </li>
               ))}
-            </div>
+            </ul>
           </>
         )}
       </CardContent>
@@ -737,27 +795,33 @@ function DashboardPageInner() {
   );
 
   const filteredTableCard = (
-    <Card className="shadow-sm overflow-hidden h-fit border rounded-lg">
-      <CardHeader className="py-4 flex flex-row items-center justify-between">
-        <CardTitle className="text-base">
-          Dossiers — <span className="text-primary">{selectedStatus}</span>
+    <Card className="h-fit overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle className="flex items-center gap-2">
+          <span>Dossiers</span>
+          {selectedStatus && (
+            <Badge variant="outline" className={cn('rounded-full border px-2 py-0.5 text-[11px] font-semibold', getStatusBadgeStyles(selectedStatus))}>
+              {selectedStatus}
+            </Badge>
+          )}
+          <span className="t-caption tabular-nums">{dossiersByStatus.length}</span>
         </CardTitle>
         <Button variant="ghost" size="sm" onClick={() => setSelectedStatus(null)}>
-          <X className="h-4 w-4 mr-1" /> Fermer
+          <X className="mr-1 h-4 w-4" /> Fermer
         </Button>
       </CardHeader>
-      <CardContent className="p-4 pt-0">
-        <div className="rounded-lg overflow-hidden max-h-[560px] overflow-y-auto bg-muted/10">
+      <CardContent className="p-0">
+        <div className="max-h-[560px] overflow-y-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/30 border-0">
-                <TableHead className="font-semibold text-xs">Ref.</TableHead>
-                <TableHead className="font-semibold text-xs">Assuré</TableHead>
-                <TableHead className="font-semibold text-xs">Compagnie</TableHead>
-                <TableHead className="font-semibold text-xs">Nature du dossier</TableHead>
-                <TableHead className="font-semibold text-xs">Matricule</TableHead>
-                <TableHead className="font-semibold text-xs">Statut</TableHead>
-                <TableHead className="text-right font-semibold text-xs">Date</TableHead>
+              <TableRow>
+                <TableHead>Réf.</TableHead>
+                <TableHead>Assuré</TableHead>
+                <TableHead>Compagnie</TableHead>
+                <TableHead>Nature du dossier</TableHead>
+                <TableHead>Matricule</TableHead>
+                <TableHead>Statut</TableHead>
+                <TableHead className="text-right">Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -773,23 +837,23 @@ function DashboardPageInner() {
                   </TableCell>
                 </TableRow>
               ) : (
-                dossiersByStatus.map((dossier, i) => (
-                  <TableRow key={dossier.id} className="group hover:bg-muted/50 transition-colors opacity-0 animate-row-fade [animation-fill-mode:forwards]" style={{ animationDelay: `${i * 30}ms` }}>
+                dossiersByStatus.map((dossier) => (
+                  <TableRow key={dossier.id} className="group">
                     <TableCell>
-                      <Link href={`/dossiers/${dossier.id}`} className="font-mono text-xs font-semibold text-primary hover:underline">
+                      <Link href={`/dossiers/${dossier.id}`} className="t-mono font-semibold hover:underline">
                         {dossier.refExpert || 'N/A'}
                       </Link>
                     </TableCell>
-                    <TableCell className="max-w-[120px] truncate text-xs font-medium">{renderAssure(dossier.assure)}</TableCell>
-                    <TableCell className="text-[11px] text-muted-foreground">{dossier.compagnie || '-'}</TableCell>
-                    <TableCell className="text-[11px] text-muted-foreground">{dossier.nature || '-'}</TableCell>
-                    <TableCell className="font-mono text-[11px] text-muted-foreground tabular-nums">{dossier.matricule || '-'}</TableCell>
+                    <TableCell className="max-w-[160px] truncate font-medium text-ink">{renderAssure(dossier.assure)}</TableCell>
+                    <TableCell className="text-ink-2">{dossier.compagnie || '-'}</TableCell>
+                    <TableCell className="text-ink-2">{dossier.nature || '-'}</TableCell>
+                    <TableCell className="font-mono text-ink-2">{dossier.matricule || '-'}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={cn('text-[11px] py-0.5 px-2 rounded-full border font-semibold', getStatusBadgeStyles(dossier.statut))}>
+                      <Badge variant="outline" className={cn('rounded-full border px-2 py-0.5 text-[11px] font-semibold', getStatusBadgeStyles(dossier.statut))}>
                         {!dossier.statut || dossier.statut === 'Création dossier' ? 'Création de mission' : dossier.statut}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right text-[11px] text-muted-foreground font-medium tabular-nums">
+                    <TableCell className="text-right text-ink-3">
                       {formatDate(dossier.createdAt)}
                     </TableCell>
                   </TableRow>
@@ -803,24 +867,27 @@ function DashboardPageInner() {
   );
 
   return (
-    <div className="flex-1 space-y-6">
+    <div className="flex-1 space-y-8 animate-fade-in motion-reduce:animate-none">
       <PageHeader title="Tableau de bord" size="compact" />
-      {/* Top row: conditional layout — depends on whether a status is selected */}
+
+      {/* 1 — the featured surface: headline figures + period */}
+      {headlineCard}
+
+      {/* 2 — primary block: status list + (pie | dossiers for the selected status) */}
       {selectedStatus === null ? (
-        <div className="grid gap-6 lg:grid-cols-2 items-start">
-          <div className="opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '100ms' }}>{pieCard}</div>
-          <div className="opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '200ms' }}>{filterCard}</div>
+        <div className="grid items-start gap-6 lg:grid-cols-2">
+          {pieCard}
+          {filterCard}
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-3 items-start">
-          <div className="lg:col-span-1 opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '100ms' }}>{filterCard}</div>
-          <div className="lg:col-span-2 opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '200ms' }}>{filteredTableCard}</div>
+        <div className="grid items-start gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-1">{filterCard}</div>
+          <div className="lg:col-span-2">{filteredTableCard}</div>
         </div>
       )}
 
-      {/* CHANGEMENTS RECENTS (2 panels) + Repartition par Compagnie (+ Volume par Statut stacked when a status is selected) */}
-      <div className="grid gap-6 lg:grid-cols-3 items-start mb-10">
-        {/* Panel 1 */}
+      {/* 3 — secondary: activity feeds + compagnie split (+ pie when it left the top row) */}
+      <div className="grid items-start gap-6 lg:grid-cols-3">
         {renderChangementsPanel(
           '1', filteredLogs1,
           changements1ActionFilter, setChangements1ActionFilter,
@@ -828,7 +895,6 @@ function DashboardPageInner() {
           changements1UserFilter, setChangements1UserFilter,
           changements1NatureFilter, setChangements1NatureFilter,
         )}
-        {/* Panel 2 */}
         {renderChangementsPanel(
           '2', filteredLogs2,
           changements2ActionFilter, setChangements2ActionFilter,
@@ -836,13 +902,12 @@ function DashboardPageInner() {
           changements2UserFilter, setChangements2UserFilter,
           changements2NatureFilter, setChangements2NatureFilter,
         )}
-        {/* Right column: Répartition par Compagnie (always) + Volume par Statut (only when a status is selected, i.e. the pie had to leave its top-row slot) */}
         <div className="space-y-6">
-          <Card className="shadow-sm h-fit border rounded-lg opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '300ms' }}>
-            <CardHeader className="py-4">
-              <CardTitle className="text-base">Répartition par Compagnie</CardTitle>
+          <Card className="h-fit">
+            <CardHeader>
+              <CardTitle>Répartition par compagnie</CardTitle>
             </CardHeader>
-            <CardContent className="pt-2">
+            <CardContent>
               {compagnieData.length === 0 ? (
                 <EmptyState
                   icon={<BarChart3 />}
@@ -858,27 +923,26 @@ function DashboardPageInner() {
                     data={compagnieData}
                     layout="vertical"
                     barCategoryGap={8}
-                    margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                    margin={{ top: 4, right: 24, left: 8, bottom: 4 }}
                   >
-                    <CartesianGrid horizontal={false} strokeDasharray="3 3" opacity={0.3} />
+                    <CartesianGrid horizontal={false} stroke="hsl(var(--hairline))" strokeDasharray="3 3" />
                     <YAxis
                       dataKey="name"
                       type="category"
                       tickLine={false}
                       axisLine={false}
-                      fontSize={10}
-                      fontWeight={600}
-                      width={100}
+                      tick={{ fontSize: 11, fill: 'hsl(var(--ink-2))' }}
+                      width={104}
                     />
                     <XAxis
                       type="number"
                       axisLine={false}
                       tickLine={false}
-                      fontSize={10}
+                      tick={{ fontSize: 11, fill: 'hsl(var(--ink-3))' }}
                       allowDecimals={false}
                     />
                     <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
-                    <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24} isAnimationActive={true} animationBegin={200} animationDuration={700} animationEasing="ease-out">
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={22} isAnimationActive={true} animationBegin={100} animationDuration={600} animationEasing="ease-out">
                       {compagnieData.map((entry, index) => (
                         <Cell key={`cell-comp-${index}`} fill={entry.fill} />
                       ))}
@@ -888,11 +952,7 @@ function DashboardPageInner() {
               )}
             </CardContent>
           </Card>
-          {selectedStatus !== null && (
-            <div className="opacity-0 animate-fade-in-up [animation-fill-mode:forwards]" style={{ animationDelay: '350ms' }}>
-              {pieCard}
-            </div>
-          )}
+          {selectedStatus !== null && pieCard}
         </div>
       </div>
     </div>

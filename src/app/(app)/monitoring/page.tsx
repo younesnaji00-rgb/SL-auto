@@ -46,7 +46,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { EmptyState } from '@/components/ui/empty-state';
-import { SkeletonCard, SkeletonChart } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -79,13 +79,14 @@ import { DossierDrawer } from './dossier-drawer';
 const tabular = { fontVariantNumeric: 'tabular-nums' as const };
 
 /**
- * Heat-map background for numeric cells. Higher value within a column = greener.
+ * Heat-map background for numeric cells. Higher value within a column = deeper
+ * ink tint (chart-1, the navy of the ink family — no hand-picked hue).
  */
 const heatStyle = (value: number, max: number): React.CSSProperties | undefined => {
   if (!value || value <= 0 || max <= 0) return undefined;
   const intensity = Math.min(value / max, 1);
-  const alpha = 0.08 + intensity * intensity * 0.42;
-  return { backgroundColor: `hsla(150, 55%, 45%, ${alpha})` };
+  const alpha = 0.06 + intensity * intensity * 0.3;
+  return { backgroundColor: `hsl(var(--chart-1) / ${alpha})` };
 };
 
 interface UserLookup {
@@ -358,13 +359,13 @@ export default function MonitoringPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title="Suivi d'équipe"
         subtitle="Funnel des étapes — combien de dossiers ont franchi chaque étape."
-        actions={
+        filters={
         <div className="flex flex-wrap items-end gap-2">
-          <div className="flex items-center gap-1 rounded-md border p-0.5 self-end h-10">
+          <div className="flex h-10 items-center gap-1 self-end rounded-md bg-surface-2 p-0.5">
             <Button
               size="sm"
               variant={activePreset === 'jour' ? 'default' : 'ghost'}
@@ -399,11 +400,11 @@ export default function MonitoringPage() {
             </Button>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Du</label>
+            <label className="t-label">Du</label>
             <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Date de début" className="w-44" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Au</label>
+            <label className="t-label">Au</label>
             <DatePicker value={dateTo} onChange={setDateTo} placeholder="Date de fin" className="w-44" />
           </div>
           <Button variant="outline" size="sm" onClick={resetRange} className="h-10">
@@ -414,7 +415,7 @@ export default function MonitoringPage() {
         }
       />
 
-      <Tabs defaultValue="global" className="space-y-4">
+      <Tabs defaultValue="global" className="space-y-6">
         <TabsList>
           <TabsTrigger value="global" className="gap-2">
             <Gauge className="h-4 w-4" />
@@ -430,12 +431,19 @@ export default function MonitoringPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="global" className="space-y-4">
+        <TabsContent value="global" className="space-y-6">
           {loading ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {Array.from({ length: STEP_KEYS.length }).map((_, i) => (
-                <SkeletonCard key={i} />
-              ))}
+            <div className="paper-featured p-5" aria-busy="true">
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {Array.from({ length: STEP_KEYS.length }).map((_, i) => (
+                  <div key={i} className="space-y-3">
+                    <Skeleton className="h-3 w-24 bg-on-ink/15" />
+                    <Skeleton className="h-7 w-16 bg-on-ink/15" />
+                    <Skeleton className="h-2 w-full bg-on-ink/15" />
+                    <Skeleton className="h-2 w-full bg-on-ink/15" />
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             <GlobalView
@@ -449,14 +457,14 @@ export default function MonitoringPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="compagnie" className="space-y-4">
+        <TabsContent value="compagnie" className="space-y-6">
           <CompagnieView rows={perCompagnie} loading={loading} />
         </TabsContent>
 
-        <TabsContent value="user" className="space-y-4">
+        <TabsContent value="user" className="space-y-6">
           <div className="flex flex-wrap items-end gap-2">
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Rôle</label>
+              <label className="t-label">Rôle</label>
               <Select value={roleFilter} onValueChange={setRoleFilter}>
                 <SelectTrigger className="h-10 w-56">
                   <SelectValue />
@@ -472,9 +480,9 @@ export default function MonitoringPage() {
               </Select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Utilisateur</label>
+              <label className="t-label">Utilisateur</label>
               <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
                 <Input
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
@@ -521,7 +529,7 @@ function GlobalView({
   }));
 
   const chartConfig = {
-    value: { label: 'Dossiers', color: 'hsl(var(--chart-5))' },
+    value: { label: 'Dossiers', color: 'hsl(var(--chart-1))' },
   };
 
   if (totalDossiers === 0 && !loading) {
@@ -536,7 +544,8 @@ function GlobalView({
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <Card variant="featured">
+        <CardContent className="grid gap-x-0 gap-y-6 p-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-y-0 lg:divide-x lg:divide-on-ink/15">
         {STEP_KEYS.map((key, idx) => {
           const realiseEnDelai = counts[key];
           const horsDelai = horsDelaiCounts[key] ?? 0;
@@ -558,11 +567,12 @@ function GlobalView({
             />
           );
         })}
-      </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Volume par étape</CardTitle>
+          <CardTitle>Volume par étape</CardTitle>
         </CardHeader>
         <CardContent>
           {chartData.every((d) => d.value === 0) ? (
@@ -573,9 +583,9 @@ function GlobalView({
           ) : (
             <ChartContainer config={chartConfig} className="h-72 w-full">
               <BarChart data={chartData} margin={{ top: 8, right: 16, left: -8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="step" tickLine={false} axisLine={false} fontSize={12} />
-                <YAxis tickLine={false} axisLine={false} fontSize={12} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--hairline))" />
+                <XAxis dataKey="step" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--ink-3))' }} allowDecimals={false} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Bar dataKey="value" fill="var(--color-value)" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -614,35 +624,33 @@ function KpiCard({
   const pctNonRealise = nonRealise != null ? (nonRealise / denominator) * 100 : 0;
 
   return (
-    <Card className="overflow-hidden transition hover:border-primary/40 hover:shadow-sm">
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <span
-            className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary"
-            style={tabular}
-          >
-            {index}
-          </span>
-          <CardTitle className="text-sm font-semibold">{label}</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-1.5 pb-3">
+    <div className="min-w-0 lg:px-5 lg:first:pl-0 lg:last:pr-0">
+      <div className="flex items-center gap-2">
+        <span
+          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-on-ink/15 text-[11px] font-semibold text-on-ink"
+          style={tabular}
+        >
+          {index}
+        </span>
+        <p className="t-label truncate text-on-ink/70">{label}</p>
+      </div>
+      <p className="t-title mt-2 text-on-ink" style={tabular}>
+        {realiseEnDelai}
+        <span className="t-caption ml-1.5 text-on-ink/70">en délai</span>
+      </p>
+      <div className="mt-3 space-y-1.5">
         <KpiBarRow
           label="en délai"
           count={realiseEnDelai}
           pct={pctEnDelai}
-          fillClass="bg-emerald-500"
-          textClass="text-emerald-700 dark:text-emerald-300"
-          swatchClass="bg-emerald-500"
+          fillClass="bg-status-success-bg dark:bg-status-success-fg"
           onClick={onSelectRealise}
         />
         <KpiBarRow
           label="hors délai"
           count={horsDelai}
           pct={pctHorsDelai}
-          fillClass="bg-amber-500"
-          textClass="text-amber-700 dark:text-amber-300"
-          swatchClass="bg-amber-500"
+          fillClass="bg-status-warning-bg dark:bg-status-warning-fg"
           onClick={onSelectHorsDelai}
         />
         {nonRealise != null && (
@@ -650,14 +658,12 @@ function KpiCard({
             label="non réalisé"
             count={nonRealise}
             pct={pctNonRealise}
-            fillClass="bg-muted-foreground/30"
-            textClass="text-muted-foreground"
-            swatchClass="bg-muted-foreground/30"
+            fillClass="bg-on-ink/40"
             onClick={onSelectNonRealise}
           />
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -666,36 +672,32 @@ function KpiBarRow({
   count,
   pct,
   fillClass,
-  textClass,
-  swatchClass,
   onClick,
 }: {
   label: string;
   count: number;
   pct: number;
   fillClass: string;
-  textClass: string;
-  swatchClass: string;
   onClick: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2 text-[11px]">
-      <span className={`flex w-20 shrink-0 items-center gap-1 ${textClass}`}>
-        <span className={`inline-block h-2 w-2 rounded-sm ${swatchClass}`} />
-        <span>{label}</span>
+    <div className="flex items-center gap-2 text-[11px] text-on-ink/80">
+      <span className="flex w-20 shrink-0 items-center gap-1.5">
+        <span className={`inline-block h-2 w-2 shrink-0 rounded-sm ${fillClass}`} aria-hidden />
+        <span className="truncate">{label}</span>
       </span>
-      <div className="relative h-3 flex-1 overflow-hidden rounded-md border border-border/40 bg-muted">
+      <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-on-ink/15">
         {pct > 0 && (
           <button
             type="button"
             onClick={onClick}
-            className={`absolute inset-y-0 left-0 ${fillClass} transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+            className={`absolute inset-y-0 left-0 rounded-full ${fillClass} transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-ink`}
             style={{ width: `${pct}%` }}
             title={`${label} : ${count}`}
           />
         )}
       </div>
-      <span className="w-6 shrink-0 text-right font-semibold tabular-nums text-foreground">
+      <span className="w-6 shrink-0 text-right font-semibold tabular-nums text-on-ink">
         {count}
       </span>
     </div>
@@ -722,7 +724,7 @@ function CompagnieView({
     return max;
   }, [rows]);
 
-  if (loading) return <SkeletonChart />;
+  if (loading) return <TablePaperSkeleton />;
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -736,7 +738,7 @@ function CompagnieView({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Répartition par compagnie</CardTitle>
+        <CardTitle>Répartition par compagnie</CardTitle>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
         <Table>
@@ -752,7 +754,7 @@ function CompagnieView({
           </TableHeader>
           <TableBody>
             {rows.map(({ compagnie, counts }) => (
-              <TableRow key={compagnie} className="hover:bg-accent/30">
+              <TableRow key={compagnie}>
                 <TableCell className="font-medium">{compagnie}</TableCell>
                 {STEP_KEYS.map((key) => {
                   const v = counts[key];
@@ -762,7 +764,7 @@ function CompagnieView({
                       className="text-center font-semibold"
                       style={{ ...tabular, ...heatStyle(v, columnMax[key]) }}
                     >
-                      {v || <span className="font-normal text-muted-foreground/50">—</span>}
+                      {v || <span className="font-normal text-ink-4">—</span>}
                     </TableCell>
                   );
                 })}
@@ -803,7 +805,7 @@ function UserView({
     return { realise: realiseMax, total: totalMax };
   }, [rows]);
 
-  if (loading) return <SkeletonChart />;
+  if (loading) return <TablePaperSkeleton />;
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -817,7 +819,7 @@ function UserView({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Activité par utilisateur</CardTitle>
+        <CardTitle>Activité par utilisateur</CardTitle>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
         <Table>
@@ -836,7 +838,7 @@ function UserView({
             {rows.map((r) => {
               const displayName = resolveUserName(r.user, userLookup);
               return (
-                <TableRow key={r.user} className="hover:bg-accent/30">
+                <TableRow key={r.user}>
                   <TableCell className="font-medium">{displayName}</TableCell>
                   {STEP_KEYS.map((key) => {
                     const v = r.realise[key];
@@ -846,7 +848,7 @@ function UserView({
                         className="text-center"
                         style={{ ...tabular, ...heatStyle(v, columnMax.realise[key]) }}
                       >
-                        {v || <span className="text-muted-foreground/50">—</span>}
+                        {v || <span className="text-ink-4">—</span>}
                       </TableCell>
                     );
                   })}
@@ -863,5 +865,23 @@ function UserView({
         </Table>
       </CardContent>
     </Card>
+  );
+}
+
+/** Paper-shaped table placeholder (tonal, no border) used while a tab loads. */
+function TablePaperSkeleton() {
+  return (
+    <div className="paper p-5" aria-busy="true">
+      <Skeleton className="mb-4 h-4 w-44" />
+      <div className="space-y-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-4 flex-1" />
+            <Skeleton className="h-4 w-12" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

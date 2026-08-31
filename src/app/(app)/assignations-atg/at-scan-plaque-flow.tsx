@@ -140,19 +140,19 @@ export default function AtScanPlaqueFlow() {
   const scanBanner = () => {
     if (!scan || chosen) return null;
     const uncertain = scan.confidence === 'low' ? ' (lecture incertaine — vérifiez)' : '';
-    let tone = 'border-emerald-300 bg-emerald-50 text-emerald-900';
+    let tone = 'bg-status-success-bg text-status-success-fg';
     let msg: string;
     if (scan.matches.length > 1) {
       msg = `${scan.matches.length} dossiers portent cette plaque${uncertain}. Sélectionnez le bon ci-dessous.`;
     } else if (scan.fuzzy.length > 0) {
-      tone = 'border-amber-300 bg-amber-50 text-amber-900';
+      tone = 'bg-status-warning-bg text-status-warning-fg';
       msg = `Aucune correspondance exacte${uncertain}. Vérifiez les correspondances possibles ci-dessous, ou reprenez la photo.`;
     } else {
-      tone = 'border-red-300 bg-red-50 text-red-900';
+      tone = 'bg-status-danger-bg text-status-danger-fg';
       msg = `Aucun dossier ne correspond à cette plaque${uncertain}. Le dossier n'existe peut-être pas encore — reprenez la photo ou contactez votre gestionnaire.`;
     }
     return (
-      <div className={`rounded border px-3 py-2 text-xs ${tone}`}>
+      <div className={`rounded-md px-3 py-2 text-xs ${tone}`}>
         <span className="font-semibold font-mono">Plaque détectée : {scan.plate}</span>
         <p className="mt-0.5">{msg}</p>
       </div>
@@ -190,14 +190,14 @@ export default function AtScanPlaqueFlow() {
           </DialogHeader>
 
           {busy ? (
-            <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+            <div className="flex items-center justify-center gap-2 py-6 text-sm text-ink-3">
               <Loader2 className="h-4 w-4 animate-spin" />
               {scanning ? 'Lecture de la plaque...' : 'Chargement des dossiers...'}
             </div>
           ) : chosen ? (
             <>
               {/* Action stage — dossier identified */}
-              <div className="rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+              <div className="rounded-md bg-status-success-bg px-3 py-2 text-xs text-status-success-fg">
                 {scan && (
                   <span className="font-semibold font-mono">Plaque détectée : {scan.plate}</span>
                 )}
@@ -211,7 +211,7 @@ export default function AtScanPlaqueFlow() {
                     {chosen.matricule || chosen.vehicule?.immatriculation || '—'}
                   </span>
                 </div>
-                <div className="mt-0.5 text-[11px] opacity-80">
+                <div className="mt-0.5 text-[11px]">
                   Statut : {chosen.statut || 'Nouveau'}
                 </div>
               </div>
@@ -265,10 +265,10 @@ export default function AtScanPlaqueFlow() {
               {scanBanner()}
 
               {displayed.length > 0 && (
-                <div className="max-h-[280px] overflow-y-auto rounded border border-border/40">
+                <div className="max-h-[280px] overflow-y-auto rounded-md border border-hairline">
                   <ul>
                     {scan && scan.matches.length === 0 && scan.fuzzy.length > 0 && (
-                      <li className="px-3 py-1.5 text-[11px] uppercase tracking-wide text-amber-700 bg-amber-50 border-b border-border/20">
+                      <li className="t-label border-b border-hairline bg-status-warning-bg px-3 py-1.5 text-status-warning-fg">
                         Correspondances possibles
                       </li>
                     )}
@@ -277,17 +277,17 @@ export default function AtScanPlaqueFlow() {
                         <button
                           type="button"
                           onClick={() => setChosen(d)}
-                          className="w-full text-left px-3 py-2 text-xs hover:bg-muted/50 focus:bg-muted/50 focus:outline-none border-b border-border/20 last:border-b-0"
+                          className="w-full border-b border-hairline px-3 py-2 text-left text-xs last:border-b-0 hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
                         >
                           <div className="flex items-baseline justify-between gap-2">
-                            <span className="font-semibold text-primary tabular-nums">
+                            <span className="font-mono font-semibold tabular-nums text-ink">
                               {d.refExpert || d.id}
                             </span>
-                            <span className="text-[11px] text-muted-foreground">
+                            <span className="text-[11px] text-ink-3">
                               {d.compagnie || '—'}
                             </span>
                           </div>
-                          <div className="mt-0.5 flex items-baseline justify-between gap-2 text-muted-foreground">
+                          <div className="mt-0.5 flex items-baseline justify-between gap-2 text-ink-2">
                             <span>{assureLabel(d)}</span>
                             <span className="font-mono">
                               {d.matricule || d.vehicule?.immatriculation || '—'}

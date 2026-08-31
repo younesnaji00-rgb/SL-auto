@@ -19,21 +19,26 @@ import { UserNameLink } from '@/components/user-name-link';
 import { toDate } from '@/lib/dossier-steps';
 import { cn } from '@/lib/utils';
 
-function Card({ title, icon, action, children }: { title: string; icon: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
+/**
+ * Flat context block (DESIGN.md §10): no card, no border — a `t-label`
+ * header and hairline-separated rows; blocks are separated by spacing so the
+ * column reads as one quiet aside next to the paper steps.
+ */
+function Block({ title, icon, action, children }: { title: string; icon: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border bg-card">
-      <header className="flex items-center gap-2 border-b px-3 py-2">
-        <span className="text-muted-foreground [&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
-        <h3 className="flex-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
+    <section className="space-y-2">
+      <header className="flex h-6 items-center gap-2">
+        <span className="text-ink-3 [&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
+        <h3 className="t-label flex-1">{title}</h3>
         {action}
       </header>
-      <div className="px-3 py-2 text-sm">{children}</div>
+      <div className="text-sm">{children}</div>
     </section>
   );
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="py-1 text-xs text-muted-foreground">{children}</p>;
+  return <p className="t-caption py-1">{children}</p>;
 }
 
 export function DossierContextPanel({
@@ -73,12 +78,12 @@ export function DossierContextPanel({
   const openRappels = (rappels || []).filter((r: any) => !r.resolvedAt);
 
   return (
-    <aside className={cn('flex flex-col gap-3', className)} aria-label="Contexte du dossier">
-      <Card
+    <aside className={cn('flex flex-col gap-8', className)} aria-label="Contexte du dossier">
+      <Block
         title="Observations"
         icon={<MessageSquare />}
         action={
-          <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[11px]" onClick={() => onGoToStep(4)}>
+          <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[11px] text-ink-3 hover:text-ink" onClick={() => onGoToStep(4)}>
             Voir
           </Button>
         }
@@ -86,13 +91,13 @@ export function DossierContextPanel({
         {!observations || observations.length === 0 ? (
           <Empty>Aucune observation.</Empty>
         ) : (
-          <ul className="space-y-2">
+          <ul className="divide-y divide-hairline">
             {observations.map((o: any) => {
               const d = toDate(o.createdAt);
               return (
-                <li key={o.id} className="min-w-0">
-                  <p className="line-clamp-2 text-[13px] leading-snug text-foreground/90">{o.text || o.observation || '—'}</p>
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                <li key={o.id} className="min-w-0 py-2 first:pt-0 last:pb-0">
+                  <p className="t-body-sm line-clamp-2 text-ink-2">{o.text || o.observation || '—'}</p>
+                  <p className="t-caption mt-0.5 truncate">
                     {o.userName || o.userNom || o.user || ''}
                     {d && <> · {formatDistanceToNow(d, { locale: fr, addSuffix: true })}</>}
                   </p>
@@ -101,32 +106,32 @@ export function DossierContextPanel({
             })}
           </ul>
         )}
-      </Card>
+      </Block>
 
-      <Card title="Rappels" icon={<Bell />}>
+      <Block title="Rappels" icon={<Bell />}>
         {openRappels.length === 0 ? (
           <Empty>Aucun rappel actif pour vous sur ce dossier.</Empty>
         ) : (
-          <ul className="space-y-1.5">
+          <ul className="divide-y divide-hairline">
             {openRappels.slice(0, 3).map((r: any) => {
               const d = toDate(r.createdAt);
               return (
-                <li key={r.id} className="min-w-0 text-[13px]">
-                  <span className="font-medium">{r.senderNom || 'Rappel'}</span>
-                  {r.observation && <span className="text-muted-foreground"> — {r.observation}</span>}
-                  {d && <span className="block text-[11px] text-muted-foreground">{format(d, 'dd/MM/yyyy HH:mm', { locale: fr })}</span>}
+                <li key={r.id} className="t-body-sm min-w-0 py-2 first:pt-0 last:pb-0">
+                  <span className="font-medium text-ink">{r.senderNom || 'Rappel'}</span>
+                  {r.observation && <span className="text-ink-3"> — {r.observation}</span>}
+                  {d && <span className="t-caption block">{format(d, 'dd/MM/yyyy HH:mm', { locale: fr })}</span>}
                 </li>
               );
             })}
           </ul>
         )}
-      </Card>
+      </Block>
 
-      <Card
+      <Block
         title="Historique"
         icon={<History />}
         action={
-          <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[11px]" onClick={onOpenHistorique}>
+          <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[11px] text-ink-3 hover:text-ink" onClick={onOpenHistorique}>
             Tout voir
           </Button>
         }
@@ -134,18 +139,18 @@ export function DossierContextPanel({
         {!historique || historique.length === 0 ? (
           <Empty>Aucune entrée.</Empty>
         ) : (
-          <ul className="space-y-1.5">
+          <ul className="divide-y divide-hairline">
             {historique.map((h: any) => {
               const d = toDate(h.date);
               return (
-                <li key={h.id} className="min-w-0 text-[13px]">
-                  <p className="truncate">{h.action || '—'}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
+                <li key={h.id} className="min-w-0 py-2 first:pt-0 last:pb-0">
+                  <p className="t-body-sm truncate text-ink-2">{h.action || '—'}</p>
+                  <p className="t-caption truncate">
                     {d && format(d, 'dd/MM/yyyy HH:mm', { locale: fr })}
                     {h.user && (
                       <>
                         {' · '}
-                        <UserNameLink entry={{ userNom: h.userNom, user: h.user }} className="text-muted-foreground" />
+                        <UserNameLink entry={{ userNom: h.userNom, user: h.user }} className="text-ink-3" />
                       </>
                     )}
                   </p>
@@ -154,7 +159,7 @@ export function DossierContextPanel({
             })}
           </ul>
         )}
-      </Card>
+      </Block>
     </aside>
   );
 }

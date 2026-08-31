@@ -38,7 +38,7 @@ import { fr } from 'date-fns/locale';
 import Link from 'next/link';
 import { PageLoader } from '@/components/ui/page-loader';
 import { EmptyState } from '@/components/ui/empty-state';
-import { SkeletonCard, SkeletonRow } from '@/components/ui/skeleton';
+import { SkeletonRow } from '@/components/ui/skeleton';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { isClosedStatus } from '@/lib/status-machine';
 import { cn } from '@/lib/utils';
@@ -141,17 +141,17 @@ export default function CompagniesClientPage() {
           {compagnies.map((c) => (
             <Card
               key={c.id}
-              className="hover:shadow-lg transition-all cursor-pointer group border-l-4 overflow-hidden relative"
+              className="group relative cursor-pointer overflow-hidden border-l-4 transition-shadow hover:shadow-raised"
               style={{ borderLeftColor: c.couleur }}
               onClick={() => router.push(`/compagnies?selected=${c.id}`)}
             >
-              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+              <div className="absolute right-0 top-0 p-4 text-ink-4 opacity-20 transition-opacity group-hover:opacity-40" aria-hidden>
                 <Building2 className="h-20 w-20" />
               </div>
               <CardHeader className="pb-4">
                 <div className="flex justify-between items-center">
                   <div
-                    className="relative p-2.5 rounded-lg bg-muted group-hover:bg-primary/10 transition-colors overflow-hidden"
+                    className="relative overflow-hidden rounded-lg bg-surface-2 p-2.5 transition-colors group-hover:bg-surface-3"
                     onClick={(e) => {
                       e.stopPropagation();
                       const input = document.createElement('input');
@@ -173,19 +173,19 @@ export default function CompagniesClientPage() {
                         onError={() => markLogoFailed(c.id)}
                       />
                     ) : (
-                      <Building2 className="h-6 w-6 text-muted-foreground group-hover:text-primary" />
+                      <Building2 className="h-6 w-6 text-ink-3" />
                     )}
                     <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
                       <Upload className="h-3.5 w-3.5 text-white" />
                     </div>
                   </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground transform group-hover:translate-x-1 transition-all" />
+                  <ChevronRight className="h-5 w-5 text-ink-4 transition-transform group-hover:translate-x-1 group-hover:text-ink" />
                 </div>
-                <CardTitle className="text-xl pt-4 group-hover:text-primary transition-colors">{c.nom}</CardTitle>
+                <CardTitle className="pt-4 font-headline text-xl">{c.nom}</CardTitle>
                 <CardDescription>Visualiser l&apos;activité globale</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground bg-muted/40 px-3 py-1.5 rounded-full w-fit">
+                <div className="t-caption flex w-fit items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 font-medium">
                   <FileText className="h-3 w-3" />
                   Gérer les sinistres
                 </div>
@@ -197,19 +197,20 @@ export default function CompagniesClientPage() {
     );
   }
 
+  // First entry is the headline → the page's single featured (navy) surface.
   const statCards = [
-    { label: 'Total Dossiers', val: stats.total, bgClass: 'bg-muted/30', numberClass: 'text-foreground' },
-    { label: 'Nouveaux', val: stats.nouveau, bgClass: 'bg-violet-50 dark:bg-violet-900/20', numberClass: 'text-violet-700 dark:text-violet-200' },
-    { label: 'En cours', val: stats.enCours, bgClass: 'bg-amber-50 dark:bg-amber-900/20', numberClass: 'text-amber-700 dark:text-amber-200' },
-    { label: 'Terminés', val: stats.clos, bgClass: 'bg-emerald-50 dark:bg-emerald-900/20', numberClass: 'text-emerald-700 dark:text-emerald-200' },
+    { label: 'Total dossiers', val: stats.total, featured: true },
+    { label: 'Nouveaux', val: stats.nouveau, featured: false },
+    { label: 'En cours', val: stats.enCours, featured: false },
+    { label: 'Terminés', val: stats.clos, featured: false },
   ];
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b pb-6">
+    <div className="space-y-8 animate-fade-in motion-reduce:animate-none">
+      <div className="flex flex-col justify-between gap-6 border-b border-hairline pb-6 md:flex-row md:items-center">
         <div className="flex items-center gap-5">
           <div
-            className="relative h-28 w-28 rounded-lg bg-muted flex items-center justify-center overflow-hidden cursor-pointer border hover:border-primary/30 transition-colors shrink-0"
+            className="relative flex h-28 w-28 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-surface-2 ring-1 ring-hairline transition-shadow hover:ring-hairline-strong"
             onClick={() => {
               const input = document.createElement('input');
               input.type = 'file';
@@ -230,7 +231,7 @@ export default function CompagniesClientPage() {
                 onError={() => markLogoFailed(selectedCompagnie.id)}
               />
             ) : (
-              <Building2 className="h-14 w-14 text-muted-foreground" />
+              <Building2 className="h-14 w-14 text-ink-4" />
             )}
             <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
               <Upload className="h-4 w-4 text-white" />
@@ -249,7 +250,7 @@ export default function CompagniesClientPage() {
           <Button variant="outline" asChild>
             <Link href="/dossiers">Tous les dossiers</Link>
           </Button>
-          <Button className="shadow-lg shadow-primary/20" onClick={() => setCreateOpen(true)}>
+          <Button onClick={() => setCreateOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Nouveau dossier
           </Button>
@@ -258,24 +259,20 @@ export default function CompagniesClientPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat, i) => (
-          <Card key={i} className={cn('border shadow-sm', stat.bgClass)}>
-            <CardHeader className="py-4">
-              <CardTitle className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                {stat.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={cn('text-4xl font-semibold tabular-nums', stat.numberClass)}>{stat.val}</div>
+          <Card key={i} variant={stat.featured ? 'featured' : 'tonal'}>
+            <CardContent className="p-5">
+              <p className={cn('t-label', stat.featured && 'text-on-ink/70')}>{stat.label}</p>
+              <p className={cn('mt-1 tabular-nums', stat.featured ? 't-display text-on-ink' : 't-title')}>{stat.val}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <Card className="shadow-md overflow-hidden border">
-        <CardHeader className="border-b py-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-hairline">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-lg">Portefeuille Dossiers</CardTitle>
+              <CardTitle>Portefeuille dossiers</CardTitle>
               <CardDescription>Extraction en temps réel des missions {selectedCompagnie.nom}.</CardDescription>
             </div>
             <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
@@ -284,13 +281,13 @@ export default function CompagniesClientPage() {
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/10 hover:bg-muted/10">
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">Réf Expert</TableHead>
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">Assuré</TableHead>
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">Matricule</TableHead>
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">Statut</TableHead>
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">Création</TableHead>
-                <TableHead className="text-right font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">Gérer</TableHead>
+              <TableRow>
+                <TableHead>Réf. expert</TableHead>
+                <TableHead>Assuré</TableHead>
+                <TableHead>Matricule</TableHead>
+                <TableHead>Statut</TableHead>
+                <TableHead>Création</TableHead>
+                <TableHead className="text-right">Gérer</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -316,13 +313,13 @@ export default function CompagniesClientPage() {
                 </TableRow>
               ) : (
                 dossiers.map((d) => (
-                  <TableRow key={d.id} className="group hover:bg-muted/50 transition-colors border-b">
-                    <TableCell className="font-mono font-semibold text-primary text-sm tabular-nums">{d.refExpert}</TableCell>
+                  <TableRow key={d.id} className="group">
+                    <TableCell className="t-mono font-semibold">{d.refExpert}</TableCell>
                     <TableCell className="font-medium text-sm">
                       {typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim()}
                     </TableCell>
                     <TableCell>
-                      <span className="font-mono text-xs bg-muted/50 px-2 py-0.5 rounded inline-block tabular-nums">
+                      <span className="t-mono inline-block rounded bg-surface-2 px-2 py-0.5">
                         {d.matricule}
                       </span>
                     </TableCell>
@@ -331,11 +328,11 @@ export default function CompagniesClientPage() {
                         {d.statut || 'Nouveau'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground tabular-nums">
+                    <TableCell className="text-ink-3">
                       {d.dateRequete ? format(d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete), 'dd MMM yyyy', { locale: fr }) : '-'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                         <Link href={`/dossiers/${d.id}`} title="Ouvrir le dossier">
                           <ExternalLink className="h-4 w-4" />
                         </Link>

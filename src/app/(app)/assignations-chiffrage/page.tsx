@@ -315,23 +315,23 @@ export default function AssignationsChiffragePage() {
         }
       />
 
-      <Card className="shadow-sm overflow-hidden">
+      <Card className="overflow-hidden">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/30">
-                <TableHead className="font-bold text-xs">Dossier</TableHead>
-                <TableHead className="font-bold text-xs">Nom d&apos;assuré</TableHead>
-                <TableHead className="font-bold text-xs">Immatriculation</TableHead>
-                {showChiffreurColumn && <TableHead className="font-bold text-xs">Chiffreur</TableHead>}
-                <TableHead className="font-bold text-xs">Nature du dossier</TableHead>
-                <TableHead className="font-bold text-xs">Statut</TableHead>
-                <TableHead className="font-bold text-xs">Assigné par</TableHead>
-                <TableHead className="font-bold text-xs">Observations</TableHead>
-                <TableHead className="font-bold text-xs w-[160px]">
+              <TableRow>
+                <TableHead>Dossier</TableHead>
+                <TableHead>Nom d&apos;assuré</TableHead>
+                <TableHead>Immatriculation</TableHead>
+                {showChiffreurColumn && <TableHead>Chiffreur</TableHead>}
+                <TableHead>Nature du dossier</TableHead>
+                <TableHead>Statut</TableHead>
+                <TableHead>Assigné par</TableHead>
+                <TableHead>Observations</TableHead>
+                <TableHead className="w-[160px]">
                   <SortableHeader label="Délai" sort={deadlineSort} onChange={setDeadlineSort} />
                 </TableHead>
-                <TableHead className="font-bold text-xs text-right">Date</TableHead>
+                <TableHead className="text-right">Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -363,34 +363,34 @@ export default function AssignationsChiffragePage() {
                   const deadline = getDeadlineInfo(c.createdAt, nature);
 
                   return (
-                    <TableRow key={c.id} className={cn('hover:bg-muted/50 transition-colors align-top', today && 'bg-[hsl(var(--primary)/0.06)]')}>
+                    <TableRow key={c.id} className={cn('align-top', today && 'bg-accent/30')}>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Link
                             href={`/assignations-chiffrage/${c.id}`}
                             onClick={() => openTab(c.id, c.dossierNom || `Chiffrage ${c.id.slice(0, 6)}`)}
-                            className="font-bold text-sm text-primary hover:underline"
+                            className="t-mono font-semibold hover:underline"
                           >
                             {c.dossierNom || 'Sans ref.'}
                           </Link>
                           {today && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary animate-pulse">
-                              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-status-info-fg">
+                              <span className="h-1.5 w-1.5 rounded-full bg-status-info-fg" />
                               aujourd&apos;hui
                             </span>
                           )}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">{renderAssure(dossierAssure[c.dossierId])}</TableCell>
-                      <TableCell className="font-mono text-xs tabular-nums">{dossierMatricule[c.dossierId] || '-'}</TableCell>
+                      <TableCell className="t-mono">{dossierMatricule[c.dossierId] || '-'}</TableCell>
                       {showChiffreurColumn && <TableCell className="text-sm">{c.assignedChiffreurNom || '-'}</TableCell>}
-                      <TableCell className="text-xs">{nature || '-'}</TableCell>
+                      <TableCell className="text-ink-2">{nature || '-'}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut))}>{statut}</Badge>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{c.sentByNom || c.sentByEmail || '-'}</TableCell>
+                      <TableCell className="text-ink-2">{c.sentByNom || c.sentByEmail || '-'}</TableCell>
                       <TableCell
-                        className="text-xs cursor-pointer hover:bg-muted/40 transition-colors"
+                        className="cursor-pointer text-xs text-ink-2 hover:bg-surface-3 transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
                           setObsHistoryDossier({ id: c.dossierId, refExpert: c.dossierNom });
@@ -407,7 +407,7 @@ export default function AssignationsChiffragePage() {
                             <>
                               {truncated}
                               {count > 1 && (
-                                <span className="ml-1 text-[11px] text-muted-foreground">({count})</span>
+                                <span className="ml-1 text-[11px] text-ink-3">({count})</span>
                               )}
                             </>
                           );
@@ -415,7 +415,7 @@ export default function AssignationsChiffragePage() {
                       </TableCell>
                       <TableCell>
                         {c.completedAt ? (
-                          <div className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-400">
+                          <div className="flex items-center gap-1.5 text-sm text-status-success-fg">
                             <CheckCircle2 className="h-4 w-4 shrink-0" />
                             <span className="truncate">
                               Chiffré le {format(c.completedAt?.toDate ? c.completedAt.toDate() : new Date(c.completedAt), "dd/MM/yyyy HH:mm")}
@@ -429,7 +429,7 @@ export default function AssignationsChiffragePage() {
                           />
                         )}
                       </TableCell>
-                      <TableCell className="text-right text-xs text-muted-foreground">
+                      <TableCell className="text-right text-ink-3">
                         {formatDate(c.createdAt)}
                       </TableCell>
                     </TableRow>

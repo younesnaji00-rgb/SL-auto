@@ -6,7 +6,7 @@ function Skeleton({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("animate-pulse rounded-md bg-muted", className)}
+      className={cn("animate-pulse rounded-md bg-surface-3", className)}
       {...props}
     />
   )
@@ -15,7 +15,7 @@ function Skeleton({
 function SkeletonRow({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex h-12 w-full items-center gap-4 border-b border-border/60 px-4", className)}
+      className={cn("flex h-12 w-full items-center gap-4 border-b border-hairline px-4", className)}
       {...props}
     >
       <Skeleton className="h-4 w-24" />
@@ -29,7 +29,7 @@ function SkeletonRow({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
 function SkeletonCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex flex-col gap-3 rounded-lg border bg-card p-5 shadow-sm", className)}
+      className={cn("paper flex flex-col gap-3 p-5", className)}
       {...props}
     >
       <Skeleton className="h-5 w-40" />
@@ -43,7 +43,7 @@ function SkeletonChart({ className, ...props }: React.HTMLAttributes<HTMLDivElem
   const heights = ["40%", "70%", "55%", "85%", "60%"]
   return (
     <div
-      className={cn("flex h-48 w-full items-end gap-3 rounded-lg border bg-card p-4 shadow-sm", className)}
+      className={cn("paper flex h-48 w-full items-end gap-3 p-5", className)}
       {...props}
     >
       {heights.map((h, i) => (

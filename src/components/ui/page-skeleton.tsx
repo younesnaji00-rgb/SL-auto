@@ -16,7 +16,7 @@ export function PageSkeleton({
   action?: boolean;
 }) {
   return (
-    <div className="space-y-6" aria-busy="true" aria-live="polite">
+    <div className="space-y-8" aria-busy="true" aria-live="polite">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
           <Skeleton className="h-8 w-48" />
@@ -35,8 +35,8 @@ export function PageSkeleton({
       )}
 
       {variant === 'list' && (
-        <div className="overflow-hidden rounded-lg border bg-card">
-          <div className="flex items-center gap-4 border-b bg-muted/30 px-4 py-3">
+        <div className="paper overflow-hidden">
+          <div className="flex items-center gap-4 border-b border-hairline bg-surface-2 px-4 py-3">
             <Skeleton className="h-4 w-24" />
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-4 w-28" />
@@ -52,28 +52,28 @@ export function PageSkeleton({
       {variant === 'cards' && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-32 rounded-lg" />
+            <Skeleton key={i} className="h-32 rounded-xl" />
           ))}
         </div>
       )}
 
       {variant === 'detail' && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="space-y-4 lg:col-span-2">
-            <Skeleton className="h-40 rounded-lg" />
-            <Skeleton className="h-64 rounded-lg" />
+          <div className="space-y-6 lg:col-span-2">
+            <Skeleton className="h-40 rounded-xl" />
+            <Skeleton className="h-64 rounded-xl" />
           </div>
-          <div className="space-y-4">
-            <Skeleton className="h-28 rounded-lg" />
-            <Skeleton className="h-40 rounded-lg" />
+          <div className="space-y-6">
+            <Skeleton className="h-28 rounded-xl" />
+            <Skeleton className="h-40 rounded-xl" />
           </div>
         </div>
       )}
 
       {variant === 'form' && (
-        <div className="max-w-3xl space-y-4">
-          <Skeleton className="h-36 rounded-lg" />
-          <Skeleton className="h-64 rounded-lg" />
+        <div className="max-w-3xl space-y-6">
+          <Skeleton className="h-36 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
         </div>
       )}
     </div>

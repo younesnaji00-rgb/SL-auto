@@ -15,6 +15,12 @@ export default {
         body: ['var(--font-inter)', 'var(--font-outfit)', 'system-ui', 'sans-serif'],
         headline: ['var(--font-outfit)', 'var(--font-inter)', 'system-ui', 'sans-serif'],
         code: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+      },
+      // Elevation (Stripe levels 1–2): tonal cards get level 1, popovers level 2.
+      boxShadow: {
+        card: '0 1px 2px hsl(var(--shadow-color) / 0.05), 0 1px 3px hsl(var(--shadow-color) / 0.06)',
+        raised: '0 8px 24px hsl(var(--shadow-color) / 0.10), 0 2px 6px hsl(var(--shadow-color) / 0.05)',
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -47,6 +53,15 @@ export default {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
         },
+        // Ink ladder (Apple HIG label → quaternaryLabel), slate-navy hue.
+        ink: {
+          DEFAULT: 'hsl(var(--ink))',
+          '2': 'hsl(var(--ink-2))',
+          '3': 'hsl(var(--ink-3))',
+          '4': 'hsl(var(--ink-4))',
+          solid: 'hsl(var(--ink-solid))',
+        },
+        'on-ink': 'hsl(var(--on-ink))',
         'heading-bg': 'hsl(var(--heading-bg))',
         'heading-fg': 'hsl(var(--heading-fg))',
         // Neutral ladder (Radix-style): page → surface-1 (card) → surface-2 (hover/header)
@@ -54,6 +69,7 @@ export default {
           '1': 'hsl(var(--surface-1))',
           '2': 'hsl(var(--surface-2))',
           '3': 'hsl(var(--surface-3))',
+          '4': 'hsl(var(--surface-4))',
         },
         hairline: {
           DEFAULT: 'hsl(var(--hairline))',
@@ -87,6 +103,8 @@ export default {
           'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
           accent: 'hsl(var(--sidebar-accent))',
           'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
+          muted: 'hsl(var(--sidebar-muted))',
+          active: 'hsl(var(--sidebar-active))',
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },

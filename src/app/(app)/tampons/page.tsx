@@ -261,10 +261,10 @@ export default function TamponsSettingsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader title="Tampons" subtitle="Gérez les tampons utilisés pour signer les devis et documents générés." />
 
-      <Card className="border shadow-sm rounded-lg">
+      <Card>
         <CardHeader>
           <CardTitle>Importer des tampons</CardTitle>
           <CardDescription>
@@ -306,7 +306,7 @@ export default function TamponsSettingsPage() {
             )}
           </div>
           {queued.length > 0 && (
-            <ul className="mt-4 divide-y border rounded-md">
+            <ul className="mt-4 divide-y divide-hairline rounded-md border border-hairline">
               {queued.map((q) => (
                 <li key={q.id} className="flex flex-wrap items-center gap-3 px-3 py-2">
                   <span className="text-xs text-muted-foreground truncate min-w-0 flex-1 basis-40">
@@ -335,7 +335,7 @@ export default function TamponsSettingsPage() {
       </Card>
 
       <div>
-        <Card className="border shadow-sm rounded-lg">
+        <Card>
           <CardHeader>
             <CardTitle>Tampons enregistrés</CardTitle>
             <CardDescription>
@@ -361,7 +361,7 @@ export default function TamponsSettingsPage() {
                 <ul className="divide-y">
                   {stamps.map((stamp) => (
                     <li key={stamp.id} className="flex items-center gap-4 py-3">
-                      <div className="h-16 w-16 shrink-0 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden">
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-2 ring-1 ring-hairline">
                         {stamp.url ? (
                           <img
                             src={stamp.url}
@@ -430,7 +430,7 @@ export default function TamponsSettingsPage() {
           </Card>
       </div>
 
-      <Card className="border shadow-sm rounded-lg">
+      <Card>
         <CardHeader>
           <CardTitle>Assignation par chiffreur</CardTitle>
           <CardDescription>
@@ -477,7 +477,7 @@ export default function TamponsSettingsPage() {
                     className="flex flex-wrap items-center gap-3 py-3"
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0 basis-60">
-                      <div className="h-10 w-10 shrink-0 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-2 ring-1 ring-hairline">
                         {previewStamp?.url ? (
                           <img
                             src={previewStamp.url}

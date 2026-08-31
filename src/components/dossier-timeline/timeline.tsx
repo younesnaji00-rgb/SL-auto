@@ -22,9 +22,11 @@ export interface TimelineSectionProps {
   children: React.ReactNode;
   collapsed: boolean;
   onToggle: () => void;
+  /** The step currently in view — rendered as the only elevated card. */
+  active?: boolean;
 }
 
-function TimelineSection({ step, position, children, collapsed, onToggle }: TimelineSectionProps) {
+function TimelineSection({ step, position, children, collapsed, onToggle, active = false }: TimelineSectionProps) {
   const headingId = `step-${step.id}-heading`;
   const blocked = step.status === 'blocked';
   return (
@@ -33,9 +35,13 @@ function TimelineSection({ step, position, children, collapsed, onToggle }: Time
       data-timeline-step={step.id}
       data-status={step.status}
       aria-labelledby={headingId}
-      className="scroll-mt-[112px] border-b py-5 last:border-b-0 2xl:scroll-mt-[64px]"
+      data-active={active || undefined}
+      // Every step is one paper card on the cream canvas (uniform — the
+      // stepper, not a background change, says which step is current).
+      // Separation between steps = spacing; separation inside a step = tabs.
+      className="paper scroll-mt-[112px] px-5 py-4 2xl:scroll-mt-[64px]"
     >
-      <div className="mb-4 flex items-center gap-3">
+      <div className={cn('flex items-center gap-3', collapsed ? 'mb-0' : 'mb-4')}>
         <button
           type="button"
           onClick={onToggle}
@@ -54,7 +60,7 @@ function TimelineSection({ step, position, children, collapsed, onToggle }: Time
             {position}
           </span>
           <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-            <h2 id={headingId} tabIndex={-1} className="font-headline text-lg font-semibold leading-tight text-foreground outline-none">
+            <h2 id={headingId} tabIndex={-1} className={cn('outline-none', step.status === 'in_progress' || active ? 't-title' : 't-title text-ink-2')}>
               {step.longLabel}
             </h2>
             <StepStatusChip status={step.status} label={step.statusLabel} />
@@ -222,9 +228,9 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
           </div>
         </aside>
 
-        <div className="min-w-0">
+        <div className="min-w-0 space-y-4 py-4">
           {steps.map((step, idx) => (
-            <TimelineSection key={step.id} step={step} position={idx + 1} collapsed={isCollapsed(step.id)} onToggle={() => toggle(step.id)}>
+            <TimelineSection key={step.id} step={step} position={idx + 1} collapsed={isCollapsed(step.id)} onToggle={() => toggle(step.id)} active={step.id === activeStep}>
               {sections[step.id] ?? null}
             </TimelineSection>
           ))}

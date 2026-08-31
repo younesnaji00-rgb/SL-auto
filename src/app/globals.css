@@ -2,49 +2,84 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  Colour system — three roles, proportioned 60 / 30 / 10 (NN/g; the
+  interior-design heuristic adopted for UI):
+    60  cream canvas + paper cards         (--background, --card, --surface-*)
+    30  slate-navy "ink" family            (--ink, --ink-2/3/4, --ink-solid)
+        text at four emphasis levels (Apple HIG label → quaternaryLabel) and
+        ONE featured navy surface per page at most (Stripe "featured tier")
+    10  teal accent                        (--primary) — primary button, active
+        nav item, links, focus ring. Nothing else.
+  Surfaces are tonal steps (Material 3 surface-container ladder): structure
+  comes from tone + spacing; hairlines are the fallback (Refactoring UI:
+  fewer borders). Semantic status pairs are separate from the accent.
+*/
 @layer base {
   :root {
-    --background: 45 30% 97%;
-    --foreground: 30 12% 12%;
-    --card: 45 25% 99%;
-    --card-foreground: 30 12% 12%;
-    --popover: 45 25% 99%;
-    --popover-foreground: 30 12% 12%;
+    /* 60 — canvas & paper */
+    --background: 42 28% 96%;          /* surface-container-low    */
+    --card: 45 30% 99.4%;              /* surface-container-lowest */
+    --card-foreground: 215 38% 14%;
+    --popover: 45 30% 99.4%;
+    --popover-foreground: 215 38% 14%;
+    --surface-1: 45 30% 99.4%;         /* card                                  */
+    --surface-2: 40 20% 93.5%;         /* section header / table header / nav   */
+    --surface-3: 40 18% 90%;           /* hover                                 */
+    --surface-4: 40 16% 87%;           /* pressed / selected                    */
+    --hairline: 40 16% 88%;
+    --hairline-strong: 40 12% 74%;
+    --border: 40 16% 88%;
+    --input: 40 16% 82%;
+    --shadow-color: 215 45% 20%;
+
+    /* 30 — ink (slate navy) */
+    --ink: 215 38% 14%;                /* label            */
+    --ink-2: 215 20% 32%;              /* secondaryLabel   */
+    --ink-3: 215 15% 42%;              /* tertiaryLabel — ≥ 4.5:1 on surface-1…3 */
+    --ink-4: 215 12% 66%;              /* quaternaryLabel — disabled / decorative only */
+    --ink-solid: 215 42% 17%;          /* featured surface */
+    --on-ink: 42 30% 96%;
+    --foreground: 215 38% 14%;
+    --muted: 40 20% 93.5%;
+    --muted-foreground: 215 15% 42%;
+    --secondary: 40 20% 93.5%;
+    --secondary-foreground: 215 38% 14%;
+
+    /* 10 — accent */
     --primary: 178 55% 28%;
     --primary-foreground: 45 30% 98%;
-    --secondary: 40 15% 92%;
-    --secondary-foreground: 30 12% 12%;
-    --muted: 40 15% 92%;
-    --muted-foreground: 30 8% 40%;
-    --accent: 172 45% 85%;
+    --accent: 172 45% 86%;
     --accent-foreground: 178 55% 18%;
-    --destructive: 0 65% 55%;
-    --destructive-foreground: 45 30% 98%;
-    --border: 40 15% 85%;
-    --input: 40 15% 88%;
     --ring: 178 55% 28%;
+    --focus: 178 55% 28%;
+
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 45 30% 98%;
     --radius: 0.5rem;
-    --chart-1: 222 45% 30%;
-    --chart-2: 210 55% 75%;
-    --chart-3: 0 0% 12%;
+
+    --chart-1: 215 42% 28%;
+    --chart-2: 178 45% 42%;
+    --chart-3: 215 14% 62%;
     --chart-4: 28 75% 58%;
-    --chart-5: 178 35% 50%;
-    --sidebar-background: 45 35% 95%;
-    --sidebar-foreground: 30 12% 12%;
-    --sidebar-primary: 178 55% 28%;
-    --sidebar-primary-foreground: 45 30% 98%;
-    --sidebar-accent: 172 45% 88%;
-    --sidebar-accent-foreground: 178 55% 18%;
-    --sidebar-border: 40 15% 82%;
-    --sidebar-ring: 178 55% 28%;
-    --heading-bg: 40 20% 88%;
-    --heading-fg: 178 50% 22%;
-    /* Neutral ladder */
-    --surface-1: 45 25% 99%;
-    --surface-2: 40 18% 94%;
-    --surface-3: 40 15% 90%;
-    --hairline: 40 15% 85%;
-    --hairline-strong: 40 12% 72%;
+    --chart-5: 172 30% 72%;
+
+    /* Navigation = the 30 % surface: slate navy (analogous to the teal
+       accent, complementary to the cream canvas). Active item = light teal
+       bar + icon; hover/pressed walk the navy ladder, never the accent. */
+    --sidebar-background: 215 42% 15%;
+    --sidebar-foreground: 42 25% 93%;
+    --sidebar-muted: 215 16% 71%;      /* ≥ 4.5:1 on sidebar-active */
+    --sidebar-primary: 172 50% 58%;
+    --sidebar-primary-foreground: 215 42% 12%;
+    --sidebar-accent: 215 34% 22%;
+    --sidebar-accent-foreground: 42 25% 96%;
+    --sidebar-active: 215 36% 27%;
+    --sidebar-border: 215 30% 22%;
+    --sidebar-ring: 172 50% 58%;
+    --heading-bg: 40 20% 93.5%;
+    --heading-fg: 215 38% 14%;
+
     /* Semantic status pairs (tinted bg + deep fg) */
     --status-success-bg: 150 45% 92%;
     --status-success-fg: 152 60% 24%;
@@ -54,48 +89,64 @@
     --status-danger-fg: 0 65% 34%;
     --status-info-bg: 214 70% 93%;
     --status-info-fg: 216 60% 32%;
-    --focus: 178 55% 28%;
   }
   .dark {
-    --background: 30 10% 6%;
-    --foreground: 40 15% 92%;
-    --card: 30 10% 8%;
+    --background: 218 14% 7%;
+    --card: 218 13% 10%;
     --card-foreground: 40 15% 92%;
-    --popover: 30 10% 8%;
+    --popover: 218 13% 10%;
     --popover-foreground: 40 15% 92%;
-    --primary: 172 50% 55%;
-    --primary-foreground: 30 10% 6%;
-    --secondary: 30 8% 14%;
+    --surface-1: 218 13% 10%;
+    --surface-2: 218 12% 13%;
+    --surface-3: 218 11% 17%;
+    --surface-4: 218 10% 21%;
+    --hairline: 218 10% 18%;
+    --hairline-strong: 218 9% 30%;
+    --border: 218 10% 18%;
+    --input: 218 10% 22%;
+    --shadow-color: 218 40% 2%;
+
+    --ink: 40 15% 92%;
+    --ink-2: 218 10% 74%;
+    --ink-3: 218 8% 60%;
+    --ink-4: 218 8% 40%;
+    --ink-solid: 215 36% 20%;
+    --on-ink: 40 15% 94%;
+    --foreground: 40 15% 92%;
+    --muted: 218 12% 13%;
+    --muted-foreground: 218 8% 62%;
+    --secondary: 218 12% 13%;
     --secondary-foreground: 40 15% 92%;
-    --muted: 30 8% 14%;
-    --muted-foreground: 30 10% 65%;
-    --accent: 178 35% 22%;
+
+    --primary: 172 50% 55%;
+    --primary-foreground: 218 14% 7%;
+    --accent: 178 35% 20%;
     --accent-foreground: 172 50% 75%;
-    --destructive: 0 55% 45%;
-    --destructive-foreground: 40 15% 92%;
-    --border: 30 8% 18%;
-    --input: 30 8% 16%;
     --ring: 172 50% 55%;
-    --chart-1: 222 45% 60%;
-    --chart-2: 210 55% 75%;
-    --chart-3: 0 0% 82%;
+    --focus: 172 50% 55%;
+
+    --destructive: 0 55% 48%;
+    --destructive-foreground: 40 15% 92%;
+
+    --chart-1: 215 55% 68%;
+    --chart-2: 172 50% 55%;
+    --chart-3: 218 10% 55%;
     --chart-4: 28 75% 58%;
-    --chart-5: 178 35% 60%;
-    --sidebar-background: 30 10% 8%;
+    --chart-5: 172 30% 40%;
+
+    --sidebar-background: 218 13% 9%;
     --sidebar-foreground: 40 15% 92%;
+    --sidebar-muted: 218 8% 60%;
     --sidebar-primary: 172 50% 55%;
-    --sidebar-primary-foreground: 30 10% 6%;
-    --sidebar-accent: 178 35% 22%;
-    --sidebar-accent-foreground: 172 50% 75%;
-    --sidebar-border: 30 8% 18%;
+    --sidebar-primary-foreground: 218 14% 7%;
+    --sidebar-accent: 218 12% 14%;
+    --sidebar-accent-foreground: 40 15% 94%;
+    --sidebar-active: 218 11% 18%;
+    --sidebar-border: 218 10% 16%;
     --sidebar-ring: 172 50% 55%;
-    --heading-bg: 30 10% 14%;
-    --heading-fg: 172 40% 70%;
-    --surface-1: 30 10% 8%;
-    --surface-2: 30 9% 12%;
-    --surface-3: 30 8% 16%;
-    --hairline: 30 8% 18%;
-    --hairline-strong: 30 8% 28%;
+    --heading-bg: 218 12% 13%;
+    --heading-fg: 40 15% 92%;
+
     --status-success-bg: 152 40% 14%;
     --status-success-fg: 150 55% 72%;
     --status-warning-bg: 38 55% 15%;
@@ -104,7 +155,6 @@
     --status-danger-fg: 0 80% 78%;
     --status-info-bg: 216 45% 16%;
     --status-info-fg: 214 75% 78%;
-    --focus: 172 50% 55%;
   }
 }
 
@@ -139,6 +189,10 @@
   p {
     text-wrap: pretty;
   }
+  ::placeholder {
+    color: hsl(var(--ink-3));
+    opacity: 1;
+  }
   .dark {
     color-scheme: dark;
   }
@@ -156,6 +210,40 @@
   .dark input[type="time"],
   .dark input[type="datetime-local"] {
     color-scheme: dark;
+  }
+}
+
+/*
+  Type roles (Carbon / Linear: few sizes; hierarchy through weight and ink
+  level rather than size — Refactoring UI). Use these instead of ad-hoc
+  text-[…] stacks.
+    t-display  page title                 28/600 Outfit  ink
+    t-title    section / card title       20/600 Outfit  ink
+    t-heading  block title                15/600 Inter   ink
+    t-body     default                    14/400         ink
+    t-body-sm  dense lists                13/400         ink
+    t-caption  helper / meta              12/400         ink-3
+    t-label    field labels, column heads 11/500 caps +0.06em  ink-3
+    t-mono     refs, plates               13 mono tabular ink
+*/
+@layer components {
+  .t-display { @apply font-headline text-[28px] font-semibold leading-[1.2] tracking-[-0.02em] text-ink; }
+  .t-title   { @apply font-headline text-xl font-semibold leading-[1.25] tracking-[-0.015em] text-ink; }
+  .t-heading { @apply text-[15px] font-semibold leading-[1.35] text-ink; }
+  .t-body    { @apply text-sm leading-[1.5] text-ink; }
+  .t-body-sm { @apply text-[13px] leading-[1.45] text-ink; }
+  .t-caption { @apply text-xs leading-[1.4] text-ink-3; }
+  .t-label   { @apply text-[11px] font-medium uppercase leading-[1.3] tracking-[0.06em] text-ink-3; }
+  .t-mono    { @apply font-mono text-[13px] tabular-nums text-ink; }
+
+  /* Tonal paper surface (card without a border). Dark mode keeps a hairline
+     ring because tone steps alone are too weak on near-black. */
+  .paper {
+    @apply rounded-xl bg-card text-card-foreground shadow-card dark:ring-1 dark:ring-hairline;
+  }
+  /* The one navy surface a page may use (Stripe featured tier). */
+  .paper-featured {
+    @apply rounded-xl bg-ink-solid text-on-ink shadow-raised;
   }
 }
 

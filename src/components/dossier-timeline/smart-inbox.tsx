@@ -379,30 +379,29 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
 
   return (
     <section className={cn('space-y-4', className)} aria-label="Boîte de dépôt des documents">
-      {/* Drop zone */}
+      {/* Drop strip — compact (one row): a small button that is also a drop
+          target. The whole strip lights up while dragging files over it. */}
       <div
         onDragOver={(e) => { e.preventDefault(); if (!draggingItemId) setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={onZoneDrop}
         className={cn(
-          'relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors',
-          dragging ? 'border-primary bg-primary/5' : 'border-border bg-muted/20 hover:border-hairline-strong',
+          'relative flex min-h-[48px] items-center gap-3 rounded-lg border border-dashed px-3 py-2 transition-colors',
+          dragging ? 'border-primary bg-accent/40' : 'border-hairline-strong bg-surface-2/60',
         )}
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-          {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : <Sparkles className="h-6 w-6" />}
-        </div>
-        <div className="space-y-1">
-          <p className="text-base font-semibold">{title ?? 'Déposez tous les fichiers du dossier ici'}</p>
-          <p className="mx-auto max-w-md text-sm text-muted-foreground">
-            {description ?? "Lettre de mission, PV, carte grise, attestation, devis, factures, photos… L'IA reconnaît chaque document, le classe au bon endroit et apprend de vos corrections."}
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="t-body-sm font-medium">{title ?? 'Déposez vos fichiers ici'}</p>
+          <p className="t-caption hidden truncate sm:block" title={description ?? undefined}>
+            {description ?? "L'IA reconnaît chaque document, le classe au bon endroit et apprend de vos corrections."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => inputRef.current?.click()}>
-            <Upload className="mr-2 h-4 w-4" /> Choisir des fichiers
-          </Button>
-        </div>
+        <Button type="button" variant="outline" size="sm" className="h-8 shrink-0" disabled={busy} onClick={() => inputRef.current?.click()}>
+          <Upload className="mr-1.5 h-3.5 w-3.5" /> Choisir des fichiers
+        </Button>
         <input
           ref={inputRef}
           type="file"
@@ -417,9 +416,12 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
         />
       </div>
 
-      {/* Class chips — drop targets for corrections and manual labelling */}
+      {/* Class chips — drop targets for corrections and manual labelling.
+          Only shown while there is something to classify (keeps the idle
+          footprint to the single strip above). */}
+      {(items.length > 0 || draggingItemId) && (
       <div className="flex flex-wrap items-center gap-1.5" aria-label="Classes de documents">
-        <span className="mr-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="t-label mr-1">
           {draggingItemId ? 'Déposez sur la bonne classe' : 'Glissez un fichier sur une classe pour le classer vous-même'}
         </span>
         {DOC_CLASSES.map((c) => (
@@ -441,6 +443,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           </button>
         ))}
       </div>
+      )}
 
       {/* Queue */}
       {items.length > 0 && (

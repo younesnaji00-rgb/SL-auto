@@ -1,0 +1,93 @@
+'use client';
+
+import * as React from 'react';
+import * as TabsPrimitive from '@radix-ui/react-tabs';
+import { cn } from '@/lib/utils';
+
+export interface StepTab {
+  value: string;
+  label: string;
+  icon?: React.ReactNode;
+  /** Optional count pill (documents, photos, observations…). */
+  count?: number;
+  content: React.ReactNode;
+}
+
+interface StepTabsProps {
+  tabs: StepTab[];
+  defaultValue?: string;
+  /** Persist the selected tab per step (sessionStorage) so a reload lands on the same view. */
+  storageKey?: string;
+  className?: string;
+}
+
+/**
+ * Underline tabs used INSIDE a dossier step to switch between its facets
+ * (Informations | Documents, Planification | Photos | Observations).
+ *
+ * Pattern: Material 3 "primary tabs" / Carbon "line tabs" — content
+ * switching within one surface, labels always visible, active = ink text +
+ * 2 px accent underline (the accent budget's "active state"). Replaces the
+ * previous collapsibles whose small chevrons were easy to miss.
+ */
+export function StepTabs({ tabs, defaultValue, storageKey, className }: StepTabsProps) {
+  const first = tabs[0]?.value;
+  const [value, setValue] = React.useState<string>(() => {
+    if (storageKey && typeof window !== 'undefined') {
+      try {
+        const saved = window.sessionStorage.getItem(storageKey);
+        if (saved && tabs.some((t) => t.value === saved)) return saved;
+      } catch {
+        /* storage unavailable */
+      }
+    }
+    return defaultValue ?? first;
+  });
+
+  const onChange = (v: string) => {
+    setValue(v);
+    if (storageKey) {
+      try {
+        window.sessionStorage.setItem(storageKey, v);
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
+  if (tabs.length === 0) return null;
+
+  return (
+    <TabsPrimitive.Root value={value} onValueChange={onChange} className={cn('w-full', className)}>
+      <TabsPrimitive.List
+        aria-label="Sections de l'étape"
+        className="-mx-1 flex items-end gap-1 overflow-x-auto border-b border-hairline px-1 scrollbar-thin"
+      >
+        {tabs.map((t) => (
+          <TabsPrimitive.Trigger
+            key={t.value}
+            value={t.value}
+            className={cn(
+              'relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-[13px] font-medium text-ink-3',
+              'transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+              'data-[state=active]:border-primary data-[state=active]:text-ink',
+            )}
+          >
+            {t.icon && <span className="inline-flex text-ink-3 [&>svg]:h-4 [&>svg]:w-4 group-data-[state=active]:text-ink">{t.icon}</span>}
+            {t.label}
+            {typeof t.count === 'number' && t.count > 0 && (
+              <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
+                {t.count}
+              </span>
+            )}
+          </TabsPrimitive.Trigger>
+        ))}
+      </TabsPrimitive.List>
+      {tabs.map((t) => (
+        <TabsPrimitive.Content key={t.value} value={t.value} className="pt-5 focus-visible:outline-none">
+          {t.content}
+        </TabsPrimitive.Content>
+      ))}
+    </TabsPrimitive.Root>
+  );
+}

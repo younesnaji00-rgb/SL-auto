@@ -606,7 +606,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             backLabel="Missions terrain"
             title={dossier?.refExpert || dossierId}
           />
-          <div className="text-sm text-muted-foreground flex items-center gap-1 flex-wrap">
+          <div className="flex flex-wrap items-center gap-1 text-sm text-ink-2">
             {assureNom && <span>{assureNom}</span>}
             {dossier?.compagnie && <span> — {dossier.compagnie}</span>}
             {dossier?.expertRank && (
@@ -622,7 +622,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                 {assureTelephoneRaw}
               </a>
             ) : (
-              <span className="text-muted-foreground">—</span>
+              <span className="text-ink-4">—</span>
             )}
           </div>
           {filteredPlans.length > 0 && (
@@ -667,8 +667,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         {/* Zone of the active mission's first planification — sits on the
             right of the title row, independent of the rest. */}
         {filteredPlans[0]?.zone && (
-          <div className="text-sm font-semibold text-foreground flex items-center gap-1 shrink-0">
-            <MapPin className="h-4 w-4 text-primary" />
+          <div className="flex shrink-0 items-center gap-1 text-sm font-semibold text-ink">
+            <MapPin className="h-4 w-4 text-ink-3" />
             {filteredPlans[0].zone}
           </div>
         )}
@@ -690,17 +690,16 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         {/* Photos toggle */}
         <button
           onClick={() => { setIsPhotosOpen((v) => !v); setIsDocsOpen(false); }}
+          aria-expanded={isPhotosOpen}
           className={cn(
-            'flex items-center gap-3 px-5 py-4 rounded-xl border shadow-sm transition-all text-left',
-            isPhotosOpen
-              ? 'bg-primary/5 border-primary/30 ring-1 ring-primary/20'
-              : 'bg-card hover:bg-muted/50'
+            'paper flex items-center gap-3 px-5 py-4 text-left transition-colors',
+            isPhotosOpen ? 'ring-2 ring-primary' : 'hover:bg-surface-2'
           )}
         >
-          {isPhotosOpen ? <ChevronDown className="h-5 w-5 text-primary shrink-0" /> : <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />}
-          <ImageIcon className={cn('h-5 w-5 shrink-0', isPhotosOpen ? 'text-primary' : 'text-muted-foreground')} />
+          {isPhotosOpen ? <ChevronDown className="h-5 w-5 shrink-0 text-ink" /> : <ChevronRight className="h-5 w-5 shrink-0 text-ink-3" />}
+          <ImageIcon className={cn('h-5 w-5 shrink-0', isPhotosOpen ? 'text-ink' : 'text-ink-3')} />
           <div className="flex-1">
-            <span className={cn('text-sm font-bold', isPhotosOpen && 'text-primary')}>Photos</span>
+            <span className="text-sm font-semibold text-ink">Photos</span>
             <Badge variant="secondary" className="text-[11px] font-mono ml-2">{photos.length}</Badge>
           </div>
         </button>
@@ -708,17 +707,16 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         {/* Documents toggle */}
         <button
           onClick={() => { setIsDocsOpen((v) => !v); setIsPhotosOpen(false); }}
+          aria-expanded={isDocsOpen}
           className={cn(
-            'flex items-center gap-3 px-5 py-4 rounded-xl border shadow-sm transition-all text-left',
-            isDocsOpen
-              ? 'bg-primary/5 border-primary/30 ring-1 ring-primary/20'
-              : 'bg-card hover:bg-muted/50'
+            'paper flex items-center gap-3 px-5 py-4 text-left transition-colors',
+            isDocsOpen ? 'ring-2 ring-primary' : 'hover:bg-surface-2'
           )}
         >
-          {isDocsOpen ? <ChevronDown className="h-5 w-5 text-primary shrink-0" /> : <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />}
-          <FileText className={cn('h-5 w-5 shrink-0', isDocsOpen ? 'text-primary' : 'text-muted-foreground')} />
+          {isDocsOpen ? <ChevronDown className="h-5 w-5 shrink-0 text-ink" /> : <ChevronRight className="h-5 w-5 shrink-0 text-ink-3" />}
+          <FileText className={cn('h-5 w-5 shrink-0', isDocsOpen ? 'text-ink' : 'text-ink-3')} />
           <div className="flex-1">
-            <span className={cn('text-sm font-bold', isDocsOpen && 'text-primary')}>Documents</span>
+            <span className="text-sm font-semibold text-ink">Documents</span>
             <Badge variant="secondary" className="text-[11px] font-mono ml-2">{documents.length}</Badge>
           </div>
         </button>
@@ -728,11 +726,11 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       {isPhotosOpen && (
         <>
           {/* Photo upload section */}
-          <Card className="shadow-sm">
+          <Card>
             <CardContent className="pt-5 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <h3 className="text-sm font-bold flex items-center gap-2 flex-wrap">
-                  <ImageIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                <h3 className="t-heading flex flex-wrap items-center gap-2">
+                  <ImageIcon className="h-4 w-4 shrink-0 text-ink-3" />
                   Photos — {activeTab}
                   <Badge variant="secondary" className="text-[11px] font-mono">{filteredPhotos.length}/{photoCap}</Badge>
                 </h3>
@@ -783,8 +781,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               </div>
 
               {filteredPhotos.length === 0 ? (
-                <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
-                  <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                <div className="rounded-lg bg-surface-2 p-8 text-center text-ink-3">
+                  <ImageIcon className="mx-auto mb-2 h-8 w-8 text-ink-4" />
                   <p className="text-sm">Aucune photo {activeTab.toLowerCase()} pour le moment.</p>
                   <p className="text-xs mt-1">Utilisez le bouton &quot;Prendre une photo&quot; pour capturer.</p>
                 </div>
@@ -800,7 +798,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                   }
                   renderItem={(photo) => (
                     <div
-                      className="group relative aspect-square rounded-lg overflow-hidden border bg-muted cursor-pointer"
+                      className="group relative aspect-square cursor-pointer overflow-hidden rounded-lg bg-surface-2 ring-1 ring-hairline"
                       onClick={() => setPreviewPhoto(photo)}
                     >
                       <img
@@ -820,7 +818,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                             if (window.confirm('Supprimer cette photo ?')) handleDeletePhoto(photo);
                           }}
                           disabled={isDeletingPhoto === photo.id}
-                          className="absolute top-1 right-1 bg-red-600/85 hover:bg-red-600 rounded-full p-1 z-10 shadow"
+                          className="absolute right-1 top-1 z-10 rounded-full bg-destructive/85 p-1 shadow hover:bg-destructive"
                           aria-label="Supprimer la photo"
                         >
                           {isDeletingPhoto === photo.id
@@ -842,12 +840,12 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
 
       {/* Documents section (revealed when toggled) */}
       {isDocsOpen && (
-        <Card className="shadow-sm">
+        <Card>
           <CardContent className="pt-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold flex items-center gap-2">
-                <FileText className="h-4 w-4 text-muted-foreground" />
-                Pieces jointes
+              <h3 className="t-heading flex items-center gap-2">
+                <FileText className="h-4 w-4 text-ink-3" />
+                Pièces jointes
               </h3>
             </div>
 
@@ -867,7 +865,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       {previewPhoto && (
         <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
           <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
-            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
+            <div className="flex-1 overflow-hidden bg-ink-solid flex items-center justify-center">
               <img src={previewPhoto.url} className="max-w-full max-h-full object-contain" alt={previewPhoto.name} />
             </div>
           </DialogContent>
@@ -878,7 +876,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       {previewPreuvePhotos && (
         <Dialog open onOpenChange={() => setPreviewPreuvePhotos(null)}>
           <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
-            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center relative">
+            <div className="flex-1 overflow-hidden bg-ink-solid flex items-center justify-center relative">
               <img
                 src={previewPreuvePhotos.urls[previewPreuvePhotos.index]}
                 className="max-w-full max-h-full object-contain"
@@ -886,13 +884,13 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               />
             </div>
             {previewPreuvePhotos.urls.length > 1 && (
-              <div className="flex items-center justify-center gap-2 p-3 bg-background border-t">
+              <div className="flex items-center justify-center gap-2 border-t border-hairline bg-background p-3">
                 {previewPreuvePhotos.urls.map((url, idx) => (
                   <button
                     key={idx}
                     onClick={() => setPreviewPreuvePhotos({ ...previewPreuvePhotos, index: idx })}
                     className={cn(
-                      "w-14 h-14 rounded border-2 overflow-hidden transition-all",
+                      "h-14 w-14 overflow-hidden rounded border-2 transition-opacity",
                       idx === previewPreuvePhotos.index ? "border-primary ring-2 ring-primary/30" : "border-muted opacity-60 hover:opacity-100"
                     )}
                   >

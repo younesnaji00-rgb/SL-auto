@@ -95,20 +95,18 @@ type Observation = {
   viewedBy?: Record<string, { name: string; role?: string; viewedAt: any }>;
 };
 
+// Observation type → semantic status pair (DESIGN.md §10). 'Général' is
+// neutral; nothing here uses the accent.
 const TYPE_BADGE_STYLES: Record<string, string> = {
-  'Planification':      'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200',
-  'Décision de statut': 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
-  'Expert':             'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
-  'Général':            'bg-secondary text-secondary-foreground',
+  'Planification':      'bg-status-info-bg text-status-info-fg',
+  'Décision de statut': 'bg-status-warning-bg text-status-warning-fg',
+  'Expert':             'bg-status-success-bg text-status-success-fg',
+  'Général':            'bg-surface-3 text-ink-2',
 };
 
-const ROLE_BADGE_STYLES: Record<string, string> = {
-  'Admin':                'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-200',
-  'Responsable d\'équipe':'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200',
-  'Gestionnaire':         'bg-cyan-50 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-200',
-  'Agent de Terrain':     'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
-  'Chiffreur':            'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
-};
+// Roles are identity, not state — one quiet outline chip for every role
+// rather than a hand-picked hue per role.
+const ROLE_BADGE_CLASS = 'border-hairline-strong text-ink-2';
 
 type PhaseATG = 'Avant' | 'En cours' | 'Après';
 type AccordSlot = '1er accord' | '2ème accord ou +';
@@ -555,7 +553,7 @@ export default function ObservationsTab({
                   aria-label="Effacer la sélection"
                   onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedPreset(''); }}
-                  className="absolute right-9 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-sm z-10"
+                  className="absolute right-9 top-1/2 z-10 -translate-y-1/2 rounded-sm p-0.5 text-ink-3 hover:text-ink"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -618,7 +616,7 @@ export default function ObservationsTab({
                 className="h-8 w-[160px] text-xs"
                 aria-label="Visibilité de l'observation"
               >
-                <Eye className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                <Eye className="mr-1 h-3.5 w-3.5 text-ink-3" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -653,7 +651,7 @@ export default function ObservationsTab({
               Attacher une preuve
             </Button>
             {pendingProofs.length > 0 && (
-              <span className="text-[11px] text-muted-foreground">
+              <span className="t-caption">
                 {pendingProofs.length} fichier{pendingProofs.length > 1 ? 's' : ''} à joindre
               </span>
             )}
@@ -662,7 +660,7 @@ export default function ObservationsTab({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-7 text-[11px] gap-1 text-muted-foreground hover:text-destructive"
+                className="h-7 gap-1 text-[11px] text-ink-3 hover:text-destructive"
                 onClick={() => setPendingProofs([])}
                 disabled={isSubmitting}
               >
@@ -687,16 +685,18 @@ export default function ObservationsTab({
 
       {/* List */}
       {loading ? (
-        <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
-          <Loader2 className="h-4 w-4 animate-spin mr-2" /> Chargement...
+        <div className="flex items-center justify-center py-8 text-sm text-ink-3">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Chargement...
         </div>
       ) : observations.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-          <Eye className="h-8 w-8 mb-2 opacity-40" />
-          <p className="text-sm">Aucune observation pour le moment.</p>
+        <div className="flex flex-col items-center justify-center gap-1 py-12 text-center">
+          <Eye className="mb-1 h-8 w-8 text-ink-4" />
+          <p className="t-heading">Aucune observation pour le moment</p>
+          <p className="t-caption">Les observations ajoutées sur ce dossier apparaîtront ici.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        // Rows on hairlines: the surrounding step / card is the surface.
+        <div className="divide-y divide-hairline">
           {observations.map((obs) => {
             const isValidated = !!obs.traitementValideAt;
             const proofs = obs.traitementProofs || [];
@@ -716,46 +716,46 @@ export default function ObservationsTab({
             const extraViewers = Math.max(0, viewerEntries.length - 3);
             const replayStatus = hl.statusForEntry('observations', obs.id);
             return (
-              <div key={obs.id} className={cn('flex gap-3 p-3 rounded-lg border bg-card', highlightClass(replayStatus))}>
-                <Avatar className="h-8 w-8 shrink-0 mt-0.5">
-                  <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
+              <div key={obs.id} className={cn('flex gap-3 py-3 first:pt-0', replayStatus && 'rounded-md px-2', highlightClass(replayStatus))}>
+                <Avatar className="mt-0.5 h-8 w-8 shrink-0">
+                  <AvatarFallback className="bg-surface-3 text-xs font-semibold text-ink-2">
                     {(obs.author || '?')[0].toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center flex-wrap gap-1.5">
-                    <span className="text-sm font-semibold truncate">{obs.author || 'Inconnu'}</span>
-                    <Badge variant="outline" className={cn('text-[11px] px-1.5 py-0', ROLE_BADGE_STYLES[obs.authorRole] || '')}>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="truncate text-sm font-semibold text-ink">{obs.author || 'Inconnu'}</span>
+                    <Badge variant="outline" className={cn('px-1.5 py-0 text-[11px] font-medium', ROLE_BADGE_CLASS)}>
                       {obs.authorRole || 'N/A'}
                     </Badge>
-                    <Badge className={cn('text-[11px] px-1.5 py-0 border-0', TYPE_BADGE_STYLES[obs.type] || TYPE_BADGE_STYLES['Général'])}>
+                    <Badge className={cn('border-0 px-1.5 py-0 text-[11px] font-medium', TYPE_BADGE_STYLES[obs.type] || TYPE_BADGE_STYLES['Général'])}>
                       {obs.type}
                     </Badge>
                     {replayStatus && <ChangeBadge status={replayStatus} />}
                     {(obs as any).accordSlot && (
                       <Badge
                         variant="outline"
-                        className="text-[11px] px-1.5 py-0 border-primary/40 text-primary"
+                        className="border-hairline-strong px-1.5 py-0 text-[11px] font-medium text-ink-2"
                         title="À propos de"
                       >
                         {(obs as any).accordSlot}
                       </Badge>
                     )}
                     {obs.createdAt?.toDate && (
-                      <span className="text-[11px] text-muted-foreground ml-auto shrink-0">
+                      <span className="t-caption ml-auto shrink-0 tabular-nums">
                         {format(obs.createdAt.toDate(), 'dd MMM yyyy à HH:mm', { locale: fr })}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-foreground/90 whitespace-pre-wrap break-words">{obs.text}</p>
+                  <p className="whitespace-pre-wrap break-words text-sm text-ink">{obs.text}</p>
 
                   {/* Item 014 — gestionnaire-only "Valider le traitement" button.
                       Once flipped, item 015/016 show a green badge + proof
                       upload affordance for everyone with canAdd on the section. */}
                   {isValidated ? (
-                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px]">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                      <span className="text-emerald-700 dark:text-emerald-300">
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-status-success-fg">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                      <span>
                         Traitement validé
                         {obs.traitementValideParNom ? ` par ${obs.traitementValideParNom}` : ''}
                         {obs.traitementValideAt?.toDate ? ` — ${format(obs.traitementValideAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: fr })}` : ''}
@@ -786,12 +786,12 @@ export default function ObservationsTab({
                           href={p.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border bg-background hover:bg-accent transition-colors"
+                          className="inline-flex items-center gap-1 rounded-md border border-hairline bg-card px-1.5 py-0.5 text-[11px] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
                           title={`${p.name} — ${p.uploadedByNom || p.uploadedBy}${p.uploadedAt?.toDate ? ` (${format(p.uploadedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: fr })})` : ''}`}
                         >
-                          <Paperclip className="h-3 w-3" />
-                          <span className="truncate max-w-[140px]">{p.name}</span>
-                          <ExternalLink className="h-3 w-3 opacity-50" />
+                          <Paperclip className="h-3 w-3 text-ink-3" />
+                          <span className="max-w-[140px] truncate">{p.name}</span>
+                          <ExternalLink className="h-3 w-3 text-ink-4" />
                         </a>
                       ))}
                     </div>
@@ -813,7 +813,7 @@ export default function ObservationsTab({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 text-[11px] gap-1.5 px-2"
+                        className="h-7 gap-1.5 px-2 text-[11px] text-ink-3 hover:text-ink"
                         disabled={uploadingProofFor === obs.id}
                         onClick={() => proofInputRefs.current[obs.id]?.click()}
                       >
@@ -827,7 +827,7 @@ export default function ObservationsTab({
                       viewed this observation and when. Hidden entirely when
                       no one has viewed yet. */}
                   {firstViewers.length > 0 && (
-                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    <p className="t-caption mt-1.5">
                       Vu par{' '}
                       {firstViewers.map((v, i) => {
                         const d = v.viewedAt?.toDate ? v.viewedAt.toDate() : null;
@@ -858,18 +858,18 @@ export default function ObservationsTab({
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <Card>
           <CollapsibleTrigger asChild>
-            <button className="flex items-center justify-between w-full px-4 py-3 text-left hover:bg-accent/50 transition-colors rounded-t-lg">
+            <button className="flex w-full items-center justify-between rounded-t-xl px-5 py-4 text-left transition-colors hover:bg-surface-2">
               <div className="flex items-center gap-2">
-                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                <Eye className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-semibold">Observations</span>
+                {isOpen ? <ChevronDown className="h-4 w-4 text-ink-3" /> : <ChevronRight className="h-4 w-4 text-ink-3" />}
+                <Eye className="h-4 w-4 text-ink-3" />
+                <span className="t-heading">Observations</span>
                 {observations.length > 0 && (
-                  <Badge variant="secondary" className="text-[11px] h-5 px-1.5">
+                  <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium tabular-nums text-ink-2">
                     {observations.length}
-                  </Badge>
+                  </span>
                 )}
                 {unseenCount > 0 && (
-                  <Badge className="text-[11px] h-5 px-1.5 bg-red-500 text-white hover:bg-red-500" aria-label={`${unseenCount} nouvelles observations`}>
+                  <Badge className="h-5 border-0 bg-status-danger-bg px-1.5 text-[11px] text-status-danger-fg hover:bg-status-danger-bg" aria-label={`${unseenCount} nouvelles observations`}>
                     {unseenCount} nouvelle{unseenCount > 1 ? 's' : ''}
                   </Badge>
                 )}
@@ -877,7 +877,7 @@ export default function ObservationsTab({
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <CardContent className="pt-0 pb-4">
+            <CardContent className="pb-5 pt-0">
               {content}
             </CardContent>
           </CollapsibleContent>

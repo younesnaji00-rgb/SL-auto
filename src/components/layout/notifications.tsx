@@ -86,23 +86,23 @@ function NotificationsInner() {
         <Button
           variant="ghost"
           size="icon"
-          className="relative h-9 w-9 text-muted-foreground hover:text-foreground"
+          className="relative h-9 w-9 text-ink-3 hover:text-ink"
           aria-label={count > 0 ? `Rappels : ${count} non lu${count > 1 ? 's' : ''}` : 'Rappels'}
           title="Rappels"
         >
           <Bell className="h-[18px] w-[18px]" />
           {count > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-semibold tabular-nums text-primary-foreground ring-2 ring-background">
+            <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-status-info-fg px-1 text-[11px] font-semibold tabular-nums text-status-info-bg ring-2 ring-background">
               {count > 99 ? '99+' : count}
             </span>
           )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[22rem] p-0">
-        <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+        <div className="flex items-center justify-between gap-2 border-b border-hairline px-4 py-3">
           <div>
-            <p className="text-sm font-semibold">Rappels</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="t-heading">Rappels</p>
+            <p className="t-caption">
               {loading ? 'Chargement…' : count > 0 ? `${count} non lu${count > 1 ? 's' : ''}` : 'Aucun rappel en attente'}
             </p>
           </div>
@@ -133,17 +133,17 @@ function NotificationsInner() {
                     type="button"
                     onClick={() => openRappel(r)}
                     className={cn(
-                      'grid w-full grid-cols-[10px_1fr_auto] items-start gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none',
+                      'grid w-full grid-cols-[10px_1fr_auto] items-start gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none',
                     )}
                   >
-                    <span className={cn('mt-1.5 h-2 w-2 rounded-full', isUnread ? 'bg-primary' : 'bg-muted-foreground/30')} aria-hidden />
+                    <span className={cn('mt-1.5 h-2 w-2 rounded-full', isUnread ? 'bg-status-info-fg' : 'bg-surface-4')} aria-hidden />
                     <span className="min-w-0">
-                      <span className={cn('block truncate text-sm', isUnread ? 'font-semibold' : 'font-medium')}>{rappelLabel(r)}</span>
-                      {r.observation && <span className="block truncate text-xs text-muted-foreground">{r.observation}</span>}
-                      {r.senderNom && <span className="block text-[11px] text-muted-foreground">De {r.senderNom}</span>}
+                      <span className={cn('block truncate text-sm', isUnread ? 'font-semibold text-ink' : 'font-medium text-ink-2')}>{rappelLabel(r)}</span>
+                      {r.observation && <span className="t-caption block truncate">{r.observation}</span>}
+                      {r.senderNom && <span className="t-caption block">De {r.senderNom}</span>}
                     </span>
                     {d && (
-                      <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                      <span className="t-caption shrink-0 tabular-nums">
                         {formatDistanceToNow(d, { locale: fr, addSuffix: false })}
                       </span>
                     )}
@@ -153,8 +153,8 @@ function NotificationsInner() {
             })}
           </ul>
         )}
-        <div className="border-t px-2 py-1.5">
-          <Button variant="ghost" size="sm" className="w-full justify-center text-xs" asChild>
+        <div className="border-t border-hairline px-2 py-1.5">
+          <Button variant="ghost" size="sm" className="w-full justify-center text-xs text-ink-2" asChild>
             <Link href="/mes-rappels" onClick={() => setOpen(false)}>Voir tous les rappels</Link>
           </Button>
         </div>

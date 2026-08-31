@@ -303,10 +303,10 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   return (
     <div className="space-y-8">
       {/* HEADER WITH GÉNÉRER LE RAPPORT BUTTON */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-semibold">Rapport</h2>
-          <p className="text-sm text-muted-foreground">Diagramme des points de choc et génération du PDF final.</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h2 className="t-title">Rapport</h2>
+          <p className="text-sm text-ink-3">Diagramme des points de choc et génération du PDF final.</p>
         </div>
         <div className="flex items-center gap-2">
           <ValiderDossierButton
@@ -345,43 +345,43 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
       />
 
       {/* POINTS DE CHOC */}
-      <Card className="border-primary/10 shadow-sm">
-        <CardHeader className="border-b bg-heading-bg"><CardTitle className="text-xl font-bold">Points de choc</CardTitle></CardHeader>
-        <CardContent className="p-6 space-y-12">
-          <div className={cn("space-y-6 rounded-md", highlightClass(pointsChocStatus) && `${highlightClass(pointsChocStatus)} p-3`)}>
-            <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-l-4 border-blue-500 pl-3 flex items-center gap-2">
+      <Card>
+        <CardHeader className="border-b border-hairline"><CardTitle>Points de choc</CardTitle></CardHeader>
+        <CardContent className="space-y-10 p-5">
+          <div className={cn("space-y-4 rounded-md", highlightClass(pointsChocStatus) && `${highlightClass(pointsChocStatus)} p-3`)}>
+            <h3 className="t-label flex items-center gap-2">
               Vue de dessus <ChangeBadge status={pointsChocStatus} />
             </h3>
-            <div className={cn("grid gap-12 items-center", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1 max-w-md mx-auto")}>
+            <div className={cn("grid items-center gap-10", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "mx-auto max-w-md grid-cols-1")}>
               <div className={cn("mx-auto", !canEditDossiers && "pointer-events-none")}>
                 <CarSvgTop zones={pointsChoc} onToggleZone={canEditDossiers ? (zone) => handleToggleZone(zone) : () => {}} />
               </div>
               {canEditDossiers && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   {Object.keys(pointsChoc).map(zone => (
-                    <div key={zone} className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-primary/20 transition-colors">
+                    <div key={zone} className="flex items-center space-x-3 rounded-md bg-surface-2 p-3 transition-colors hover:bg-surface-3">
                       <Checkbox id={`top-${zone}`} checked={pointsChoc[zone]} onCheckedChange={() => handleToggleZone(zone)} />
-                      <Label htmlFor={`top-${zone}`} className="text-xs font-bold cursor-pointer">{zone}</Label>
+                      <Label htmlFor={`top-${zone}`} className="cursor-pointer text-[13px] font-medium text-ink">{zone}</Label>
                     </div>
                   ))}
                 </div>
               )}
             </div>
           </div>
-          <div className={cn("space-y-6 pt-12 border-t border-dashed rounded-md", highlightClass(pointsChocDessousStatus) && `${highlightClass(pointsChocDessousStatus)} p-3`)}>
-            <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-l-4 border-blue-500 pl-3 flex items-center gap-2">
+          <div className={cn("space-y-4 rounded-md border-t border-hairline pt-10", highlightClass(pointsChocDessousStatus) && `${highlightClass(pointsChocDessousStatus)} p-3`)}>
+            <h3 className="t-label flex items-center gap-2">
               Vue de dessous <ChangeBadge status={pointsChocDessousStatus} />
             </h3>
-            <div className={cn("grid gap-12 items-center", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1 max-w-md mx-auto")}>
+            <div className={cn("grid items-center gap-10", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "mx-auto max-w-md grid-cols-1")}>
               <div className={cn("mx-auto", !canEditDossiers && "pointer-events-none")}>
                 <CarSvgBottom zones={pointsChocDessous} onToggleZone={canEditDossiers ? (zone) => handleToggleZone(zone, true) : () => {}} />
               </div>
               {canEditDossiers && (
                 <div className="grid grid-cols-1 gap-3">
                   {Object.keys(pointsChocDessous).map(zone => (
-                    <div key={zone} className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-primary/20 transition-colors">
+                    <div key={zone} className="flex items-center space-x-3 rounded-md bg-surface-2 p-3 transition-colors hover:bg-surface-3">
                       <Checkbox id={`bot-${zone}`} checked={pointsChocDessous[zone]} onCheckedChange={() => handleToggleZone(zone, true)} />
-                      <Label htmlFor={`bot-${zone}`} className="text-xs font-bold cursor-pointer capitalize">{zone.replace(/([A-Z])/g, ' $1')}</Label>
+                      <Label htmlFor={`bot-${zone}`} className="cursor-pointer text-[13px] font-medium capitalize text-ink">{zone.replace(/([A-Z])/g, ' $1')}</Label>
                     </div>
                   ))}
                 </div>

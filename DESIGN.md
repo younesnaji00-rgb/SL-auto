@@ -11,7 +11,7 @@ Adopted during the navigation / app-shell upgrade (see `UI-NAVIGATION-UPGRADE-PR
 
 ## 2. Shell anatomy
 
-- **Sidebar** = product navigation only. Tinted active row + 2 px accent bar (no solid fill), hairline border, no shadow, no editing inside the nav. Footer = help menu + collapse toggle (`⌘/Ctrl B`). A **Récents** group lists the last 5 opened records (from the workspace store).
+- **Sidebar** = product navigation only, on the **navy 30 % surface** (`sidebar-*` tokens — never `ink`/`surface` classes inside the nav). Active row = `sidebar-active` + 2 px light-teal bar and icon; hover = `sidebar-accent`; labels/icons `sidebar-muted`; no shadow, no editing inside the nav. Footer = help menu + collapse toggle (`⌘/Ctrl B`). A **Récents** group lists the last 5 opened records (from the workspace store).
 - **Header** = universal actions, in this order: search trigger (`⌘/Ctrl K`), **+ Nouveau** (role-aware), rappels bell, avatar menu (profil, thème, raccourcis, bug, déconnexion). Nothing page-specific goes here.
 - **PageHeader** (`components/layout/page-header.tsx`) owns the title (24–28 px / 600, Outfit), optional count pill, `meta`, one primary `actions` slot (at most one filled button), then `tabs`, then `filters`. It moves focus to the H1 on route change and announces the page (`aria-live`).
 - **Workspace tabs** (`components/layout/workspace-tabs.tsx`, store in `hooks/use-workspace-tabs.tsx`): hidden until a record is open; one strip per kind (dossier, chiffrage); preview tabs on single click, permanent on double-click / "Ouvrir dans un onglet" / edit; unsaved dot via `useTabDirty`; overflow menu; drag reorder; middle-click closes.
@@ -78,5 +78,39 @@ Registry: `hooks/use-hotkeys.ts` (single keys and `g`-chords; ignored inside inp
 - **Read-only forms** (Informations): `Section` (hairline header with icon + 14 px/600 title) containing definition lists — label 11 px uppercase muted over value 14 px/500; empty = `—` muted. No beige bands, no cell borders. Edit mode swaps the value for the control in place.
 - **Document board**: families as hairline-separated blocks with a 13 px/600 name + count pill; slots in a responsive grid (`sm:2 xl:3 2xl:4`), never a horizontal scroller. Slot header carries a status chip (Reçu / En attente / À déposer); document rows are 36 px with hover-revealed delete; "Ajouter un document" is a dashed full-width button.
 - **Planifications**: calendar-style list rows (date block · type chip · agent · zone/adresse · Modifier), newest first and emphasised; details in a dialog.
-- **Boîte de dépôt** (`components/dossier-timeline/smart-inbox.tsx`): the single entry point for files. Upload → `/api/classify-document` (Gemini + retrieval of user-validated examples from `ai_examples`) → filed under the matching slot type → same post-processing as a manual upload. Corrections (select or drag onto a class chip) and confirmations post to `/api/classify-feedback`; InformationTab posts field diffs after an AI pre-fill to `/api/extract-feedback`, which `/api/scan-document` reads back as guidance. Classes live in `lib/doc-classes.ts`; the retrieval layer in `lib/ai-memory.ts` (server-only, Admin SDK). Vector search needs the `ai_examples.embedding` index in `firestore.indexes.json` (`firebase deploy --only firestore:indexes`); until then retrieval falls back to recent examples.
+- **Step facets are underline tabs** (`components/dossier-timeline/step-tabs.tsx`, M3 primary tabs / Carbon line tabs): every dossier step is a uniform `.paper` card; inside it, facets switch via tabs (step 1 Informations | Documents — the AI pre-fill strip lives in Informations with the form it feeds; visit steps Planification | Photos | Observations; accord steps Documents | Observations). Selected tab is remembered per step (sessionStorage). Never collapsibles for step facets — their chevrons are invisible to first-time users.
+- **Boîte de dépôt** (`components/dossier-timeline/smart-inbox.tsx`): the single entry point for files, rendered as a COMPACT one-row strip (icon · one line of copy · « Choisir des fichiers » button, ~48 px) that is also the drop target; the class chips only appear while something is queued or being dragged. Never bring back the full-height dashed panel. Upload → `/api/classify-document` (Gemini + retrieval of user-validated examples from `ai_examples`) → filed under the matching slot type → same post-processing as a manual upload. Corrections (select or drag onto a class chip) and confirmations post to `/api/classify-feedback`; InformationTab posts field diffs after an AI pre-fill to `/api/extract-feedback`, which `/api/scan-document` reads back as guidance. Classes live in `lib/doc-classes.ts`; the retrieval layer in `lib/ai-memory.ts` (server-only, Admin SDK). Vector search needs the `ai_examples.embedding` index in `firestore.indexes.json` (`firebase deploy --only firestore:indexes`); until then retrieval falls back to recent examples.
+- **Lightbox** (`components/document-preview-lightbox.tsx`): the window follows the media's orientation at lg+ — portrait image/PDF (A4 default) → tall window (height leads, width from the natural ratio), landscape → wide window; below lg it stays the bottom-sheet dialog. Pass `hideCloseButton` — the header has its own controls.
 - **Car diagrams**: `car-svg-top.tsx` / `car-svg-bottom.tsx` are the single source of geometry; `lib/rapport-car-pdf.tsx` and `lib/rapport-car.ts` must stay faithful ports (same viewBox, zone ids and highlight colour) so the PDF matches the editor.
+
+## 10. Visual hierarchy system (60 / 30 / 10, tone, ink, type roles)
+
+Sources: NN/g "Using Color to Enhance Your Design" (three colours, 60-30-10), Material 3 tone-based surfaces (surface-container ladder), Apple HIG label → quaternaryLabel text hierarchy, Refactoring UI (emphasise by de-emphasising; weight and colour before size; fewer borders; labels are secondary), Stripe (deep-navy ink as the universal text colour + one featured navy surface), IBM Carbon / Linear (few type sizes, 8-pt spacing).
+
+### Colour roles
+Why navy is the third colour: teal (≈178°) and navy (≈215°) are **analogous** (adjacent hues, harmonious by construction), and navy sits opposite the warm cream canvas (≈42°) — a **complementary** warm/cool pair. The two other harmony candidates collide with semantics: teal's complement (coral, ≈0°) reads as `danger`, its split-complements (amber ≈28°, rose ≈330°) read as `warning`. Precedents: Stripe (navy ink + one accent), the 60-30-10 dashboard canon (light content 60 / dark navy navigation 30 / one accent 10).
+
+| Share | Role | Tokens | Where |
+|---|---|---|---|
+| 60 % | Canvas & paper (warm cream) | `background`, `card`, `surface-1…4`, `hairline` | page, cards, table headers, hovers |
+| 30 % | Slate navy | `sidebar-*` (navigation), `ink`, `ink-2`, `ink-3`, `ink-4`, `ink-solid` + `on-ink` | the sidebar, all text and icons, **one** featured surface per page |
+| 10 % | Accent (teal) | `primary`, `accent`, `ring` | primary button, active nav, links, focus, selected step |
+
+- **Ink ladder = emphasis, not colour picking**: `ink` values & titles · `ink-2` secondary text, inactive step titles · `ink-3` labels, helper, meta, icons · `ink-4` disabled / decorative only (below 4.5:1 — never for information). Retire `text-foreground/90`, `text-muted-foreground/60`, `opacity-70/80` on text.
+- **Featured surface** (`.paper-featured` / `<Card variant="featured">`): the navy fill is the third colour. At most one per page, for the thing the page is about (headline KPI, the active accord). Never for decoration.
+- Semantic status pairs stay separate from the accent; teal never carries meaning.
+
+### Surfaces (tone before borders)
+- Canvas `background` (M3 container-low) → paper `card` (container-lowest) → `surface-2` (container: section/table header, sidebar) → `surface-3` (hover) → `surface-4` (pressed/selected).
+- `<Card>` default `tonal`: paper + level-1 shadow, **no border** in light mode (hairline ring in dark). `outline` only for a card nested in paper (inner radius = outer − padding). `flat` = `surface-2` well. Never stack two tonal cards.
+- Hairlines separate rows inside a surface; spacing separates blocks. Remove a border before adding one.
+- Dossier page: the **active step is the only paper card**; other steps sit flat on the canvas with `t-heading text-ink-2` titles.
+
+### Type roles (`globals.css` → `.t-*`)
+`t-display` 28/600 Outfit (page title) · `t-title` 20/600 Outfit (active step, card group title, KPI value) · `t-heading` 15/600 (block title) · `t-body` 14 · `t-body-sm` 13 (dense lists) · `t-caption` 12 ink-3 · `t-label` 11/500 caps +0.06em ink-3 · `t-mono` 13 mono. Two families max on a page; hierarchy comes from weight and ink level, not from adding sizes. Body measure ≤ 65ch.
+
+### Spacing rhythm (8-pt)
+Page padding 24 (32 at ≥ xl) · between page sections 32 (`space-y-8`) · card padding 20 (`p-5`) · between blocks in a card 16 · label→value 4 · field grid `gap-x-6 gap-y-3`. Start with more space, then tighten; density mode shrinks rows, not padding.
+
+### Reading order (what to see first)
+1. Page title (`t-display`) + the single primary action. 2. The featured/active surface. 3. Paper cards in reading order. 4. Meta in `ink-3`. If two things compete, de-emphasise one (Refactoring UI) instead of enlarging the other.

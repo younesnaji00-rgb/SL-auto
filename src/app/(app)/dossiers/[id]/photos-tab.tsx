@@ -47,7 +47,6 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
@@ -360,17 +359,17 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
     const replayStatus = hl.statusForEntry('photos', photo.id);
     return (
       <div
-        className={cn("group relative bg-muted/30 rounded-md border border-border overflow-hidden transition-all hover:shadow-md", highlightClass(replayStatus))}
+        className={cn("group relative overflow-hidden rounded-md border border-hairline bg-surface-2 transition-shadow hover:shadow-card", highlightClass(replayStatus))}
       >
         {replayStatus && (
-          <div className="absolute top-1 left-1 z-10 rounded bg-background/90 px-1">
+          <div className="absolute left-1 top-1 z-10 rounded bg-card/90 px-1">
             <ChangeBadge status={replayStatus} />
           </div>
         )}
-        <div className="aspect-square w-full relative overflow-hidden bg-black/5">
+        <div className="relative aspect-square w-full overflow-hidden bg-surface-3">
           {photo.pendingUpload ? (
-            <div className="w-full h-full flex flex-col items-center justify-center text-amber-600 bg-amber-50 dark:bg-amber-950/30">
-              <Upload className="h-8 w-8 mb-2 opacity-60" />
+            <div className="flex h-full w-full flex-col items-center justify-center bg-status-warning-bg text-status-warning-fg">
+              <Upload className="mb-2 h-8 w-8" />
               <span className="text-xs font-medium">En attente</span>
             </div>
           ) : (
@@ -435,7 +434,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
           )}
         </div>
 
-        <div className="p-2 bg-background border-t border-border">
+        <div className="border-t border-hairline bg-card p-2">
           {isEditing ? (
             <div className="flex items-center gap-1">
               <Input
@@ -451,7 +450,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-7 w-7 text-green-600 hover:bg-green-50"
+                className="h-7 w-7 text-status-success-fg hover:bg-status-success-bg hover:text-status-success-fg"
                 onClick={() => handleRename(photo)}
               >
                 <Check className="h-4 w-4" />
@@ -459,7 +458,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-7 w-7 text-muted-foreground"
+                className="h-7 w-7 text-ink-3"
                 onClick={() => setEditingId(null)}
               >
                 <X className="h-4 w-4" />
@@ -468,13 +467,13 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
           ) : (
             <>
               <p
-                className="text-[11px] text-muted-foreground font-medium truncate"
+                className="t-caption truncate font-medium text-ink-2"
                 title={photo.name}
               >
                 {photo.name}
               </p>
               {photo.uploadedAt?.toDate && (
-                <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                <p className="t-caption mt-0.5 tabular-nums">
                   {dateFormat(photo.uploadedAt.toDate(), 'd MMM HH:mm', { locale: fr })}
                 </p>
               )}
@@ -487,8 +486,8 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex flex-col items-center justify-center gap-4 py-20 text-sm text-ink-3">
+        <Loader2 className="h-8 w-8 animate-spin" />
         <p>Chargement des photos...</p>
       </div>
     );
@@ -504,9 +503,9 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               <TabsTrigger key={cat.id} value={cat.id} className="gap-2">
                 <Camera className="h-3.5 w-3.5" />
                 {cat.label}
-                <Badge variant="secondary" className="font-mono text-[11px] px-1.5 h-5 min-w-[20px]">
+                <span className="rounded-full bg-surface-3 px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-2">
                   {count}/{photoCap}
-                </Badge>
+                </span>
               </TabsTrigger>
             );
           })}
@@ -518,12 +517,12 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
             <TabsContent key={cat.id} value={cat.id} className="mt-4">
               {/* Upload header */}
               <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold">{cat.fullLabel}</h3>
-                  <Badge variant="secondary" className="font-mono text-[11px] px-1.5 h-5 min-w-[20px]">
+                <h3 className="t-heading flex items-center gap-2">
+                  {cat.fullLabel}
+                  <span className="rounded-full bg-surface-3 px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-2">
                     {catPhotos.length}/{photoCap}
-                  </Badge>
-                </div>
+                  </span>
+                </h3>
                 <div className="flex items-center gap-2">
                   {/* Partition-mode selector: choose between per-date grouping
                       (existing) and per-location grouping. Same control on
@@ -586,13 +585,16 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               {catPhotos.length === 0 ? (
                 <div
                   className={cn(
-                    'flex flex-col items-center justify-center py-16 text-center gap-3 rounded-md border border-dashed border-border bg-muted/20',
-                    canEdit && 'cursor-pointer hover:bg-muted/40 transition-colors',
+                    'flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-hairline-strong py-16 text-center',
+                    canEdit && 'cursor-pointer transition-colors hover:bg-surface-2',
                   )}
                   onClick={() => canEdit && fileInputRefs.current[cat.id]?.click()}
                 >
-                  <ImageIcon className="h-12 w-12 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground italic">Aucune photo</p>
+                  <ImageIcon className="h-12 w-12 text-ink-4" />
+                  <div>
+                    <p className="t-heading">Aucune photo</p>
+                    {canEdit && <p className="t-caption mt-1">Déposez ou sélectionnez des photos pour cette section.</p>}
+                  </div>
                   {canEdit && (
                     <Button
                       type="button"
@@ -833,23 +835,23 @@ function PhotosByLocation({
             <button
               type="button"
               onClick={() => toggle(group.key)}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-accent text-left"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left transition-colors hover:bg-surface-2"
             >
               {open ? (
-                <ChevronDown className="h-4 w-4 shrink-0" />
+                <ChevronDown className="h-4 w-4 shrink-0 text-ink-3" />
               ) : (
-                <ChevronRight className="h-4 w-4 shrink-0" />
+                <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" />
               )}
               <MapPin
                 className={cn(
                   'h-4 w-4 shrink-0',
-                  isUnknown ? 'text-muted-foreground/50' : 'text-primary',
+                  isUnknown ? 'text-ink-4' : 'text-ink-3',
                 )}
               />
               <span
                 className={cn(
-                  'font-medium',
-                  isUnknown && 'italic text-muted-foreground',
+                  't-body-sm font-medium',
+                  isUnknown && 'italic text-ink-3',
                 )}
               >
                 {group.label} — {count} photo{count > 1 ? 's' : ''}

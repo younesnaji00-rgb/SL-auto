@@ -4,19 +4,16 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
-  "relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground",
+  // Semantic status pairs (DESIGN.md §10): tinted bg + deep fg, no borders.
+  "relative w-full rounded-lg p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-current",
   {
     variants: {
       variant: {
-        default: "bg-background text-foreground",
-        destructive:
-          "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
-        success:
-          "border-emerald-200/70 bg-emerald-50/60 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-200 [&>svg]:text-emerald-600 dark:[&>svg]:text-emerald-400",
-        warning:
-          "border-amber-200/70 bg-amber-50/60 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200 [&>svg]:text-amber-600 dark:[&>svg]:text-amber-400",
-        info:
-          "border-sky-200/70 bg-sky-50/60 text-sky-800 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-200 [&>svg]:text-sky-600 dark:[&>svg]:text-sky-400",
+        default: "border border-hairline bg-card text-ink [&>svg]:text-ink-3",
+        destructive: "bg-status-danger-bg text-status-danger-fg",
+        success: "bg-status-success-bg text-status-success-fg",
+        warning: "bg-status-warning-bg text-status-warning-fg",
+        info: "bg-status-info-bg text-status-info-fg",
       },
     },
     defaultVariants: {

@@ -64,21 +64,21 @@ const Breadcrumb = () => {
 
   return (
     <nav aria-label="Fil d'Ariane" className="flex min-w-0">
-      <ol className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+      <ol className="flex min-w-0 items-center gap-1.5 text-sm text-ink-3">
         {crumbs.map((c, index) => (
           <React.Fragment key={c.href}>
             {index > 0 && (
-              <li aria-hidden="true" className="shrink-0">
+              <li aria-hidden="true" className="shrink-0 text-ink-4">
                 <ChevronRight className="h-3.5 w-3.5" />
               </li>
             )}
             <li className="min-w-0">
               {c.isCurrent ? (
-                <span className="block truncate font-medium text-foreground" aria-current="page">
+                <span className="block truncate font-medium text-ink" aria-current="page">
                   {c.label}
                 </span>
               ) : (
-                <Link href={c.href} className="block truncate transition-colors hover:text-foreground">
+                <Link href={c.href} className="block truncate transition-colors hover:text-ink">
                   {c.label}
                 </Link>
               )}

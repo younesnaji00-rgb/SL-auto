@@ -248,7 +248,7 @@ export default function JoursFeriesSettingsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title="Jours fériés"
         icon={<CalendarDays />}
@@ -257,7 +257,7 @@ export default function JoursFeriesSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Ajouter une date</CardTitle>
+          <CardTitle>Ajouter une date</CardTitle>
         </CardHeader>
         <CardContent className="flex items-end gap-2">
           <div className="flex-1 space-y-1.5">
@@ -279,8 +279,8 @@ export default function JoursFeriesSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-ink-3" aria-hidden />
             Importer depuis une image (IA)
           </CardTitle>
           <CardDescription>
@@ -319,7 +319,7 @@ export default function JoursFeriesSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Importer des dates</CardTitle>
+          <CardTitle>Importer des dates</CardTitle>
           <CardDescription>
             Une date par ligne au format YYYY-MM-DD. Les doublons et formats invalides sont ignorés.
           </CardDescription>
@@ -346,7 +346,7 @@ export default function JoursFeriesSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2">
             Liste actuelle
             <Badge variant="secondary" className="text-[11px] font-mono">{options.length}</Badge>
           </CardTitle>

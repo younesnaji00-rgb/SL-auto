@@ -1,14 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Loader2, X, Download } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Loader2 } from 'lucide-react';
 import { useAuth, useCollection, useFirestore, useStorage } from '@/firebase';
 import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { deleteObject, ref } from 'firebase/storage';
@@ -16,20 +9,23 @@ import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { extractAndPersistChiffrageDevis, extractAndPersistDossierDoc } from '@/lib/devis-extract';
 import { scanAndPersistCarteGrise } from '@/lib/scan-carte-grise';
 import { isEditableDocType } from '@/lib/devis-schema';
-import { parseAccordDocType, mapToAccorde, parseAccordeParent } from '@/lib/docType-accorde';
-import { buildDocFamilies, collectFamilySlotLabels } from '@/lib/doc-family';
+import { parseAccordDocType, mapToAccorde } from '@/lib/docType-accorde';
+import { buildDocFamilies, type DocFamily } from '@/lib/doc-family';
+import { isRequiredSourceSlot, computeRequiredDocsStatus, requiredDocChip } from '@/lib/required-docs';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
-import { SlotCard, isImage, type ExtraSlotKind, type TypedDoc } from './slot-card';
+import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
+import { DocumentGroup, DocumentList, type SlotStatus } from '@/components/documents/document-list';
+import { TypedSlotRow } from '@/components/documents/typed-slot-row';
+import { downloadFileFromUrl, type ExtraSlotKind, type TypedDoc } from '@/components/documents/typed-doc';
 import { FamilyRow } from './family-row';
 
-// Slots shown in the typed-import grid. Photos (avant / en cours / après) are
+// Slots shown in the typed-import board. Photos (avant / en cours / après) are
 // intentionally omitted — they have their own dedicated Photos step.
-// Task #25 — the list is now dynamic: `BASE_DOC_SLOTS` is the canonical fixed
-// skeleton (always rendered), and `computedSlots` (inside the component)
-// appends cardinal-accord and proposition-accord variants found in the live
-// Firestore docs, contiguously after the matching source-accordé slot.
+// Task #25 — the list is dynamic: `BASE_DOC_SLOTS` is the canonical fixed
+// skeleton (always rendered), and the live Firestore docs contribute
+// cardinal-accord / proposition variants through `buildDocFamilies`.
 const BASE_DOC_SLOTS = [
   'Devis Garage',
   'Devis accordé',
@@ -54,52 +50,25 @@ const BASE_DOC_SLOTS = [
   'Autre',
 ];
 
-/**
- * Source documents the gestionnaire must import before the dossier can be
- * sent to chiffrage. The "Assigner au chiffrage" button on step 4 stays
- * disabled until ALL of these are populated. "Autre" is intentionally
- * NOT on this list — it's optional. Devis Garage and Facture Garage are
- * NOT here either — they're an either-or pair tracked by
- * {@link GARAGE_DOC_SLOTS} so the gestionnaire can send with just one of
- * the two filled. See item 023.
- */
-export const REQUIRED_SOURCE_SLOTS = [
-  'PV-Constat / Récépissé de police',
-  'Carte grise',
-  'Attestation d\'assurance',
-  'Kilométrage',
-  'Numéro de chassis',
-] as const;
-
-/**
- * Either-or garage doc slots. At least one of these must be filled before
- * the dossier can be sent to chiffrage.
- */
-export const GARAGE_DOC_SLOTS = ['Devis Garage', 'Facture Garage'] as const;
-
-// Layout classes shared by the standalone sections (Devis et Facture, Rapport,
-// Réforme, Autres documents) so they read like the family rows: hairline +
-// 20 px padding when following another block, 12 px uppercase muted label,
-// same responsive card grid as `FamilyRow` (no horizontal scrolling).
-const SECTION_CLASS = 'space-y-3 border-t border-border/70 pt-5 first:border-t-0 first:pt-0';
-const SECTION_HEADING_CLASS = 'text-xs font-medium uppercase tracking-wider text-muted-foreground';
-const SECTION_GRID_CLASS = 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4';
+// Required-slot gate (item 023) now lives in `@/lib/required-docs` so the
+// documents browser and the step gate share one predicate. Re-exported here
+// for backward compatibility with existing importers.
+export { REQUIRED_SOURCE_SLOTS, GARAGE_DOC_SLOTS } from '@/lib/required-docs';
 
 interface TypedDocumentsGridProps {
   dossierId: string;
   hideAccordSlots?: boolean;
   showOnlyAccordSlots?: boolean;
   /**
-   * When true, the cardinal `+` pimple button on devis/facture accord slots
-   * is not rendered. Forwarded down to every `SlotCard`. Used by step 6 to
-   * lock the cardinal chain to the current revision.
+   * When true, the "Ajouter un accord" header action on family groups is not
+   * rendered. Used by step 6 to lock the cardinal chain to the current
+   * revision.
    */
   hideCardinalPlus?: boolean;
   /**
-   * When true, the extra-slot `+` pimple (next to base `Devis Garage` /
-   * `Facture Garage`, spawns numbered variants) is not rendered. Forwarded
-   * down to every `SlotCard`. Used in views like assignations-atg where
-   * spawning new garage chains doesn't belong.
+   * When true, the "Nouveau devis / Nouvelle facture" header action (spawns
+   * numbered Devis/Facture Garage variants) is not rendered. Used in views
+   * like assignations-atg where spawning new garage chains doesn't belong.
    */
   hideExtraSlotPlus?: boolean;
   /**
@@ -109,48 +78,41 @@ interface TypedDocumentsGridProps {
    */
   cardinalFilter?: 'all' | '1-only' | '2-plus';
   /**
-   * When true, render an additional section showing two standalone base
-   * `Devis Garage` / `Facture Garage` SlotCards with no cardinal `+` and no
-   * extra-slot `+`. Used in step 1 (Création de mission) so gestionnaires
-   * can collect base garage docs without spawning accord/proposition or
-   * extra ordinals from there.
+   * When true, render an additional group with the two standalone base
+   * `Devis Garage` / `Facture Garage` rows, without cardinal / extra-slot
+   * header actions. Used by assignations-atg so agents can collect base
+   * garage docs without spawning accord chains from there.
    */
   showBaseGarageSlots?: boolean;
   /**
-   * When true, the "Autres documents" section (PV-Constat / Carte grise /
-   * Attestation / Kilométrage / Numéro de chassis) is not rendered. Used in
-   * step 1 (Création de mission) where only base Devis/Facture Garage slots
-   * should appear.
+   * When true, the "Autres documents" group (PV-Constat / Carte grise /
+   * Attestation / Kilométrage / Numéro de chassis) is not rendered.
    */
   hideOtherSlots?: boolean;
   /**
-   * When true, surface every non-accord document type as its own slot card:
+   * When true, surface every non-accord document type as its own row:
    * Rapport final, Réforme technique/économique, and the "Autres documents"
-   * section (PV-Constat / Carte grise / Attestation / Kilométrage / Numéro de
-   * chassis / Autre). Overrides `hideAccordSlots` / `hideOtherSlots` for those
-   * sections only — the accord/proposition family rows remain governed by
-   * `hideAccordSlots`. Used in step 1 (Création de mission) so the
-   * gestionnaire can collect every supporting document before chiffrage.
+   * group. Overrides `hideAccordSlots` / `hideOtherSlots` for those groups
+   * only — the accord/proposition family groups remain governed by
+   * `hideAccordSlots`.
    */
   showAllNonAccordSlots?: boolean;
   /**
-   * When true, the standalone Réforme technique / Réforme économique slot
-   * section is not rendered, regardless of viewer role. Used in
-   * assignations-atg where reform reports don't belong on the AT view.
+   * When true, the standalone Réforme technique / Réforme économique group
+   * is not rendered, regardless of viewer role. Used in assignations-atg
+   * where reform reports don't belong on the AT view.
    */
   hideReformeSlots?: boolean;
   /**
-   * When true, render the Réforme (technique + économique) slot section even in
-   * `showOnlyAccordSlots` mode, where it would otherwise be suppressed. Used by
-   * the Accord step (id 6) so the deposited réforme report surfaces as its own
-   * row alongside the accord documents.
+   * When true, render the Réforme group even in `showOnlyAccordSlots` mode,
+   * where it would otherwise be suppressed. Used by the Accord step (id 6) so
+   * the deposited réforme report surfaces alongside the accord documents.
    */
   showReformeSlots?: boolean;
   /**
-   * When true, render ONLY the "Note d'honoraire" invoice slot and nothing
-   * else (no families, rapport, réforme or other-doc sections). Used by the
-   * final Note d'honoraire timeline step (id 8) where the gestionnaire drops
-   * the fee note / invoice.
+   * When true, render ONLY the "Note d'honoraire" invoice row and nothing
+   * else (no families, rapport, réforme or other-doc groups). Used by the
+   * final Note d'honoraire timeline step (id 8).
    */
   showOnlyNoteHonoraire?: boolean;
 }
@@ -161,7 +123,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   const storage = useStorage();
   const { toast } = useToast();
   const { canWrite, canDelete, profile } = useCurrentUser();
-  // Gestionnaires / Admins edit via 'dossiers' section; ATG edits this same grid
+  // Gestionnaires / Admins edit via 'dossiers' section; ATG edits this same board
   // through their own assignation section. Upload is allowed for either.
   const canEdit = canWrite('dossiers') || canWrite('assignations-atg');
   const isATG = profile?.role === 'Agent de Terrain';
@@ -192,19 +154,16 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
 
   const { data: allDocs, loading } = useCollection<any>(collQuery);
 
-  // Group live docs into Devis / Facture families (one row each). Non-family
-  // slots are rendered in a separate grid above/below the family rows.
+  // Group live docs into Devis / Facture families (one group each). Non-family
+  // slots are rendered in labelled groups below the families.
   const families = useMemo(
     () => buildDocFamilies((allDocs as TypedDoc[]) || []),
     [allDocs],
   );
 
-  // Split non-family slots into three labelled sections:
+  // Split non-family slots into labelled groups:
   //   - rapportSlots:  every "Rapport *" type — base "Rapport final" plus any
-  //                    additional rapport variant observed on live docs
-  //                    (e.g. "Rapport préliminaire", "Rapport réforme") so the
-  //                    grid grows automatically as new rapport types are
-  //                    produced by the "Générer le rapport" flow.
+  //                    additional rapport variant observed on live docs.
   //   - reformeSlots:  'Réforme technique' + 'Réforme économique' together.
   //   - otherSlots:    PV / Carte grise / Attestation / etc.
   const FAMILY_BASE_SLOTS = new Set(['Devis Garage', 'Facture Garage']);
@@ -275,18 +234,6 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     return { extraDevisLabels: devis, extraFactureLabels: facture };
   }, [families]);
 
-  // Ordered slot list for the flat grid render: families first, then the
-  // standalone Rapport / Réforme / other-docs sections.
-  const computedSlots = useMemo<string[]>(() => {
-    const slots: string[] = [];
-    for (const fam of families) for (const s of fam.slots) slots.push(s);
-    for (const s of rapportSlots) slots.push(s);
-    for (const s of reformeSlots) slots.push(s);
-    for (const s of noteHonoraireSlots) slots.push(s);
-    for (const s of otherSlots) slots.push(s);
-    return slots;
-  }, [rapportSlots, reformeSlots, noteHonoraireSlots, otherSlots, families]);
-
   const docsByType = useMemo(() => {
     const map: Record<string, TypedDoc[]> = {};
     for (const slot of allSlotLabels) map[slot] = [];
@@ -309,6 +256,10 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     return map;
   }, [allDocs, allSlotLabels]);
 
+  // Required-slot awareness for the Reçu / À déposer / Optionnel chips —
+  // shared predicate with the step gate + step-1 browser.
+  const requiredStatus = useMemo(() => computeRequiredDocsStatus((allDocs as TypedDoc[]) ?? null), [allDocs]);
+
   const handleUpload = async (slot: string, files: File[], kindOverride?: ExtraSlotKind) => {
     if (!db || !storage || !auth) return;
     if (files.length === 0) return;
@@ -330,8 +281,8 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
 
       // Tag uploads with `extraSlot` when targeting a gestionnaire-managed
       // slot, so the slot stays detectable after the placeholder is gone.
-      // `kindOverride` lets the +pimple flow tag uploads when the family doesn't
-      // exist yet (so `extraSlotKindByLabel[slot]` is undefined).
+      // `kindOverride` lets the extra-slot flow tag uploads when the family
+      // doesn't exist yet (so `extraSlotKindByLabel[slot]` is undefined).
       const extraKind = kindOverride ?? extraSlotKindByLabel[slot];
 
       // Fire all uploads in parallel so a batch of N files completes in ~1 file's time
@@ -472,10 +423,10 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   // Create a fresh gestionnaire-managed slot (Devis Garage / Facture Garage
   // extras) atomically with the user's first file upload. Label is
   // `<Base> <N>` with N = existingExtrasMax+1 starting at 2 so the first
-  // extra is "… 2". The gestionnaire can then rename it via the pencil
-  // affordance. No empty placeholder is written if the user picks no files
-  // (the OS picker was cancelled) — the slot only materialises when the
-  // upload succeeds and Firestore has the tagged document(s).
+  // extra is "… 2". The gestionnaire can then rename it via the ⋯ menu.
+  // No empty placeholder is written if the user picks no files (the OS picker
+  // was cancelled) — the slot only materialises when the upload succeeds and
+  // Firestore has the tagged document(s).
   const handleCreateExtraSlot = async (kind: ExtraSlotKind, files: File[]) => {
     if (files.length === 0) return;
     const existing = kind === 'devis' ? extraDevisLabels : extraFactureLabels;
@@ -538,7 +489,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   };
 
   // Create the next cardinal accord slot by inserting a placeholder doc into
-  // Firestore. The dynamic slot logic picks it up and renders the fresh slot
+  // Firestore. The dynamic slot logic picks it up and renders the fresh row
   // contiguously. Uses `parsed.parent` so each parent family (base or extra)
   // produces its own accord chain. Dedup-guarded — clicking "+" multiple times
   // never piles up duplicate placeholders in the same cardinal slot
@@ -656,34 +607,55 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     }
   };
 
-  const renderSlotCard = (slot: string) => (
-    <SlotCard
+  /** One slot as a structured-list row (non-family groups). */
+  const renderSlotRow = (
+    slot: string,
+    opts?: { hint?: string; required?: boolean; emptyStatus?: SlotStatus },
+  ) => (
+    <TypedSlotRow
       key={slot}
       slot={slot}
+      hint={opts?.hint}
+      required={opts?.required}
+      emptyStatus={opts?.emptyStatus}
       docs={docsByType[slot] || []}
       canEdit={canEdit}
       canDeleteDoc={canDeleteDoc}
-      userRole={profile?.role}
       isUploading={uploadingSlot === slot}
       deletingId={deletingId}
       extraSlotKind={extraSlotKindByLabel[slot]}
       canManageExtraSlots={canWrite('dossiers')}
       onUpload={(files) => handleUpload(slot, files)}
       onDelete={handleDelete}
-      onCreateNextCardinal={() => handleCreateNextCardinal(slot)}
-      onCreateExtraSlot={handleCreateExtraSlot}
       onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
       onPreview={handlePreview}
-      hideCardinalPlus={hideCardinalPlus}
-      hideExtraSlotPlus={hideExtraSlotPlus}
     />
   );
+
+  /** Chip semantics for a required / garage / optional slot row. */
+  const slotRowOpts = (slot: string): { hint?: string; required?: boolean; emptyStatus?: SlotStatus } => {
+    if (isRequiredSourceSlot(slot)) return { hint: 'obligatoire', required: true, emptyStatus: 'missing' };
+    if (slot === 'Devis Garage' || slot === 'Facture Garage') {
+      const chip = requiredDocChip(slot, requiredStatus);
+      return {
+        hint: 'au moins un des deux',
+        required: chip === 'missing',
+        emptyStatus: chip === null ? 'optional' : 'missing',
+      };
+    }
+    if (slot === 'Autre') return { emptyStatus: 'optional' };
+    return {};
+  };
+
+  /** Filled-row count for a group's "n/m reçus" pill. */
+  const receivedIn = (slots: string[]) =>
+    slots.filter((s) => (docsByType[s] || []).some((d) => !!d.url && !d.pendingUpload)).length;
 
   // When rendering step 11 (cardinalFilter='2-plus'), synthesise 2ème slots on
   // a per-kind, per-family basis: only add 2ème accord if the family's 1er
   // accord is filled (real url, non-pending), and likewise for 2ème
   // proposition. If neither 1er is filled the family contributes no 2ème
-  // slots, FamilyRow's 2-plus filter strips the 1ers, and the row drops out.
+  // slots, FamilyRow's 2-plus filter strips the 1ers, and the group drops out.
   const familiesForRender = useMemo(() => {
     if (cardinalFilter !== '2-plus') return families;
     const docsArr = (allDocs as TypedDoc[] | undefined) ?? [];
@@ -703,192 +675,134 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     });
   }, [families, cardinalFilter, allDocs]);
 
-  const devisFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Devis Garage');
-  const factureFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Facture Garage');
+  // Mirror of FamilyRow's slot filter, so empty families never leave a blank
+  // group (or an empty outer list) behind.
+  const familyVisibleSlotCount = (f: DocFamily) => {
+    if (cardinalFilter === 'all') return f.slots.length;
+    return f.slots.filter((s) => {
+      const parsed = parseAccordDocType(s);
+      if (cardinalFilter === '1-only') return parsed == null || parsed.ordinal === 1;
+      return parsed != null && parsed.ordinal >= 2;
+    }).length;
+  };
+
+  const devisFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Devis Garage' && familyVisibleSlotCount(f) > 0);
+  const factureFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Facture Garage' && familyVisibleSlotCount(f) > 0);
+
+  const renderFamily = (group: DocFamily) => (
+    <FamilyRow
+      key={group.parent}
+      standalone={false}
+      group={group}
+      docsByType={docsByType}
+      canEdit={canEdit}
+      canDeleteDoc={canDeleteDoc}
+      userRole={profile?.role}
+      canManageExtraSlots={canWrite('dossiers')}
+      isUploading={(slot) => uploadingSlot === slot}
+      deletingId={deletingId}
+      extraSlotKindForSlot={(slot) => extraSlotKindByLabel[slot]}
+      onUpload={handleUpload}
+      onDelete={handleDelete}
+      onCreateNextCardinal={handleCreateNextCardinal}
+      onCreateExtraSlot={handleCreateExtraSlot}
+      onRenameExtraSlot={handleRenameExtraSlot}
+      onPreview={handlePreview}
+      hideCardinalPlus={hideCardinalPlus}
+      hideExtraSlotPlus={hideExtraSlotPlus}
+      cardinalFilter={cardinalFilter}
+    />
+  );
+
+  // ── Group visibility (same conditions as the former sections) ─────────────
+  const showGarageGroup = !!showBaseGarageSlots;
+  const showFamilies = !hideAccordSlots;
+  const showRapportGroup =
+    !!showAllNonAccordSlots && cardinalFilter !== '2-plus' && !showOnlyAccordSlots && rapportSlots.length > 0;
+  const showReformeGroup =
+    !hideReformeSlots && cardinalFilter !== '2-plus' && reformeSlots.length > 0 &&
+    (showReformeSlots || ((showAllNonAccordSlots || !hideAccordSlots) && !showOnlyAccordSlots));
+  const showOthersGroup =
+    (showAllNonAccordSlots || !hideOtherSlots) && !showOnlyAccordSlots && otherSlots.length > 0;
+
+  const hasAnyGroup =
+    showGarageGroup ||
+    (showFamilies && (devisFamilies.length > 0 || factureFamilies.length > 0)) ||
+    showRapportGroup || showReformeGroup || showOthersGroup;
 
   return (
     <div>
       {loading ? (
         <div className="flex items-center justify-center h-32">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <Loader2 className="h-5 w-5 animate-spin text-ink-3" />
         </div>
       ) : showOnlyNoteHonoraire ? (
-        <div className="space-y-6">
-          {/* Note d'honoraire — final-step invoice slot, listed like accord docs. */}
-          <section className="space-y-3">
-            <div className={SECTION_GRID_CLASS}>
-              {noteHonoraireSlots.map((slot) => renderSlotCard(slot))}
-            </div>
-          </section>
-        </div>
+        // Note d'honoraire — final-step invoice slot, one row.
+        <DocumentList>
+          <DocumentGroup
+            title="Note d'honoraire"
+            received={receivedIn(noteHonoraireSlots)}
+            total={noteHonoraireSlots.length}
+          >
+            {noteHonoraireSlots.map((slot) => renderSlotRow(slot, { required: true }))}
+          </DocumentGroup>
+        </DocumentList>
+      ) : !hasAnyGroup ? (
+        <p className="t-caption py-4">
+          {cardinalFilter === '2-plus'
+            ? "Aucun 2ème accord pour l'instant — le 1er accord doit d'abord être chiffré."
+            : 'Aucun document à afficher.'}
+        </p>
       ) : (
-        <div className="space-y-6">
-          {/* Base Devis Garage / Facture Garage — display-only, no pimples.
-              Pinned at the top (above family rows / autres) so step 1's primary
-              upload affordance is the first thing the gestionnaire sees. */}
-          {showBaseGarageSlots && (
-            <section className={SECTION_CLASS}>
-              <h4 className={SECTION_HEADING_CLASS}>Devis et Facture</h4>
-              <div className={SECTION_GRID_CLASS}>
-                {(['Devis Garage', 'Facture Garage'] as const).map((slot) => (
-                  <SlotCard
-                    key={slot}
-                    slot={slot}
-                    docs={docsByType[slot] || []}
-                    canEdit={canEdit}
-                    canDeleteDoc={canDeleteDoc}
-                    userRole={profile?.role}
-                    isUploading={uploadingSlot === slot}
-                    deletingId={deletingId}
-                    extraSlotKind={extraSlotKindByLabel[slot]}
-                    canManageExtraSlots={canWrite('dossiers')}
-                    onUpload={(files) => handleUpload(slot, files)}
-                    onDelete={handleDelete}
-                    onCreateNextCardinal={() => handleCreateNextCardinal(slot)}
-                    onCreateExtraSlot={handleCreateExtraSlot}
-                    onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
-                    onPreview={handlePreview}
-                    hideCardinalPlus
-                    hideExtraSlotPlus
-                  />
-                ))}
-              </div>
-            </section>
+        <DocumentList>
+          {/* Base Devis Garage / Facture Garage — display-only rows, no
+              cardinal / extra-slot header actions (assignations-atg). */}
+          {showGarageGroup && (
+            <DocumentGroup
+              title="Devis et Facture garage"
+              subtitle="au moins un des deux est requis"
+              received={receivedIn(['Devis Garage', 'Facture Garage'])}
+              total={2}
+            >
+              {(['Devis Garage', 'Facture Garage'] as const).map((slot) =>
+                renderSlotRow(slot, slotRowOpts(slot)),
+              )}
+            </DocumentGroup>
           )}
 
-          {/* Devis families: one horizontal row per parent */}
-          {!hideAccordSlots && devisFamilies.map((group) => (
-            <FamilyRow
-              key={group.parent}
-              group={group}
-              docsByType={docsByType}
-              canEdit={canEdit}
-              canDeleteDoc={canDeleteDoc}
-              userRole={profile?.role}
-              canManageExtraSlots={canWrite('dossiers')}
-              isUploading={(slot) => uploadingSlot === slot}
-              deletingId={deletingId}
-              extraSlotKindForSlot={(slot) => extraSlotKindByLabel[slot]}
-              onUpload={handleUpload}
-              onDelete={handleDelete}
-              onCreateNextCardinal={handleCreateNextCardinal}
-              onCreateExtraSlot={handleCreateExtraSlot}
-              onRenameExtraSlot={handleRenameExtraSlot}
-              onPreview={handlePreview}
-              hideCardinalPlus={hideCardinalPlus}
-              hideExtraSlotPlus={hideExtraSlotPlus}
-              cardinalFilter={cardinalFilter}
-            />
-          ))}
+          {/* Devis families, then Facture families: one group per parent. */}
+          {showFamilies && devisFamilies.map(renderFamily)}
+          {showFamilies && factureFamilies.map(renderFamily)}
 
-          {/* Facture families: same pattern */}
-          {!hideAccordSlots && factureFamilies.map((group) => (
-            <FamilyRow
-              key={group.parent}
-              group={group}
-              docsByType={docsByType}
-              canEdit={canEdit}
-              canDeleteDoc={canDeleteDoc}
-              userRole={profile?.role}
-              canManageExtraSlots={canWrite('dossiers')}
-              isUploading={(slot) => uploadingSlot === slot}
-              deletingId={deletingId}
-              extraSlotKindForSlot={(slot) => extraSlotKindByLabel[slot]}
-              onUpload={handleUpload}
-              onDelete={handleDelete}
-              onCreateNextCardinal={handleCreateNextCardinal}
-              onCreateExtraSlot={handleCreateExtraSlot}
-              onRenameExtraSlot={handleRenameExtraSlot}
-              onPreview={handlePreview}
-              hideCardinalPlus={hideCardinalPlus}
-              hideExtraSlotPlus={hideExtraSlotPlus}
-              cardinalFilter={cardinalFilter}
-            />
-          ))}
-
-          {/* Rapport final — own section. Surfaced when explicitly requested
-              (step 1 Création de mission). Hidden under the default flow to
-              preserve the legacy render order on other timeline steps. */}
-          {showAllNonAccordSlots && cardinalFilter !== '2-plus' && !showOnlyAccordSlots && rapportSlots.length > 0 && (
-            <section className={SECTION_CLASS}>
-              <h4 className={SECTION_HEADING_CLASS}>Rapport</h4>
-              <div className={SECTION_GRID_CLASS}>
-                {rapportSlots.map((slot) => renderSlotCard(slot))}
-              </div>
-            </section>
+          {/* Rapport — produced by the "Générer le rapport" flow. */}
+          {showRapportGroup && (
+            <DocumentGroup title="Rapport" received={receivedIn(rapportSlots)} total={rapportSlots.length}>
+              {rapportSlots.map((slot) => renderSlotRow(slot))}
+            </DocumentGroup>
           )}
 
-          {/* Réforme — technique + économique together. Normally hidden in
-              showOnlyAccordSlots mode; `showReformeSlots` opts it back in so the
-              Accord step can surface the deposited réforme as its own row. */}
-          {!hideReformeSlots && cardinalFilter !== '2-plus' && reformeSlots.length > 0 &&
-            (showReformeSlots || ((showAllNonAccordSlots || !hideAccordSlots) && !showOnlyAccordSlots)) && (
-            <section className={SECTION_CLASS}>
-              <h4 className={SECTION_HEADING_CLASS}>Réforme</h4>
-              <div className={SECTION_GRID_CLASS}>
-                {reformeSlots.map((slot) => renderSlotCard(slot))}
-              </div>
-            </section>
+          {/* Réforme — technique + économique together. */}
+          {showReformeGroup && (
+            <DocumentGroup title="Réforme" received={receivedIn(reformeSlots)} total={reformeSlots.length}>
+              {reformeSlots.map((slot) => renderSlotRow(slot))}
+            </DocumentGroup>
           )}
 
           {/* Autres documents — PV, Carte grise, Attestation, etc. */}
-          {(showAllNonAccordSlots || !hideOtherSlots) && !showOnlyAccordSlots && otherSlots.length > 0 && (
-            <section className={SECTION_CLASS}>
-              <h4 className={SECTION_HEADING_CLASS}>Autres documents</h4>
-              <div className={SECTION_GRID_CLASS}>
-                {otherSlots.map((slot) => renderSlotCard(slot))}
-              </div>
-            </section>
+          {showOthersGroup && (
+            <DocumentGroup title="Autres documents" received={receivedIn(otherSlots)} total={otherSlots.length}>
+              {otherSlots.map((slot) => renderSlotRow(slot, slotRowOpts(slot)))}
+            </DocumentGroup>
           )}
-        </div>
+        </DocumentList>
       )}
 
-      {/* Lightbox preview */}
-      {previewDoc && (
-        <Dialog open onOpenChange={() => setPreviewDoc(null)}>
-          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
-            <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2">
-              <DialogTitle className="text-sm truncate flex-1">{previewDoc.nom}</DialogTitle>
-              <a
-                href={previewDoc.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex"
-                title="Ouvrir / télécharger"
-              >
-                <Button variant="ghost" size="icon" className="h-7 w-7" type="button">
-                  <Download className="h-4 w-4" />
-                </Button>
-              </a>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setPreviewDoc(null)}
-                title="Fermer"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </DialogHeader>
-            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
-              {isImage(previewDoc.nom) ? (
-                <img
-                  src={previewDoc.url}
-                  className="max-w-full max-h-full object-contain"
-                  alt={previewDoc.nom}
-                />
-              ) : (
-                <iframe
-                  src={previewDoc.url}
-                  className="w-full h-full border-none"
-                  title={previewDoc.nom}
-                />
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Lightbox preview — shared component */}
+      <DocumentPreviewLightbox
+        doc={previewDoc}
+        onClose={() => setPreviewDoc(null)}
+        onDownload={(d) => downloadFileFromUrl(d.url, d.nom)}
+      />
     </div>
   );
 }
-

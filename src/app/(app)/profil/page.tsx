@@ -47,7 +47,7 @@ function SegmentedChoice<T extends string>({
             onClick={() => onChange(o.value)}
             className={cn(
               'inline-flex h-9 items-center gap-1.5 rounded-[5px] px-3 text-sm transition-colors',
-              active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+              active ? 'bg-primary text-primary-foreground' : 'text-ink-2 hover:bg-surface-3 hover:text-ink',
             )}
           >
             {o.icon}
@@ -90,7 +90,7 @@ export default function ProfilPage() {
       <Card>
         <CardContent className="flex items-center gap-4 pt-6">
           <Avatar className="h-14 w-14">
-            <AvatarFallback className="bg-primary/10 text-lg font-semibold text-primary">{userInitials(profile)}</AvatarFallback>
+            <AvatarFallback className="bg-ink-solid text-lg font-semibold text-on-ink">{userInitials(profile)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
             <p className="truncate text-base font-semibold">{displayName}</p>
@@ -102,7 +102,7 @@ export default function ProfilPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Affichage</CardTitle>
+          <CardTitle>Affichage</CardTitle>
           <CardDescription>Appliqué à cet appareil.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -145,7 +145,7 @@ export default function ProfilPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Aide</CardTitle>
+          <CardTitle>Aide</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           <Button variant="outline" className="gap-2" onClick={openShortcuts}>
@@ -167,7 +167,7 @@ export default function ProfilPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Appareil</CardTitle>
+          <CardTitle>Appareil</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center justify-between gap-3">
           <p className="flex items-center gap-2 text-sm text-muted-foreground">

@@ -116,7 +116,7 @@ export default function ConsultationClientPage() {
   const hasActiveFilters = filters.search || filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.dateFrom || filters.dateTo;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {fetchError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -127,7 +127,7 @@ export default function ConsultationClientPage() {
 
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-grow max-sm:w-full max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-3" />
           <Input
             className="pl-9"
             placeholder="Rechercher..."
@@ -170,7 +170,7 @@ export default function ConsultationClientPage() {
 
       {(filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.dateFrom || filters.dateTo) && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Filtres actifs</span>
+          <span className="t-label">Filtres actifs</span>
           {filters.nature !== 'Toutes' && (
             <Badge variant="outline" className="gap-1 pr-1">
               Nature : {filters.nature}
@@ -228,11 +228,11 @@ export default function ConsultationClientPage() {
         </div>
       )}
 
-      <Card className="overflow-hidden border rounded-lg">
+      <Card className="overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead>Ref Expert</TableHead>
+            <TableRow>
+              <TableHead>Réf. expert</TableHead>
               <TableHead>Assuré</TableHead>
               <TableHead>Compagnie</TableHead>
               <TableHead>Nature du dossier</TableHead>
@@ -265,14 +265,14 @@ export default function ConsultationClientPage() {
               </TableRow>
             ) : (
               dossierList.slice(0, rowsPerPage).map(d => (
-                <TableRow key={d.id} className="hover:bg-muted/50 transition-colors">
-                  <TableCell className="font-mono text-sm font-semibold text-primary tabular-nums">{d.refExpert}</TableCell>
+                <TableRow key={d.id}>
+                  <TableCell className="t-mono font-semibold">{d.refExpert}</TableCell>
                   <TableCell>{renderAssure(d.assure)}</TableCell>
-                  <TableCell className="text-xs">{d.compagnie || '-'}</TableCell>
+                  <TableCell className="text-ink-2">{d.compagnie || '-'}</TableCell>
                   <TableCell>{d.nature || '-'}</TableCell>
                   <TableCell>{d.typeDossier || '-'}</TableCell>
                   <TableCell><Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{d.statut || 'Nouveau'}</Badge></TableCell>
-                  <TableCell className="font-mono text-xs tabular-nums">{d.matricule || '-'}</TableCell>
+                  <TableCell className="t-mono">{d.matricule || '-'}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateRequete)}</TableCell>
                 </TableRow>
               ))
@@ -283,14 +283,14 @@ export default function ConsultationClientPage() {
 
       <div className="flex items-center justify-between px-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Afficher</span>
+          <span className="text-sm text-ink-3">Afficher</span>
           <Select value={String(rowsPerPage)} onValueChange={v => setFilters({ rowsPerPage: Number(v) })}>
             <SelectTrigger className="h-8 w-[70px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {[10, 25, 50, 100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
             </SelectContent>
           </Select>
-          <span className="text-sm text-muted-foreground ml-4 tabular-nums">Total: {dossierList.length} dossiers</span>
+          <span className="text-sm text-ink-3 ml-4 tabular-nums">Total: {dossierList.length} dossiers</span>
         </div>
       </div>
     </div>

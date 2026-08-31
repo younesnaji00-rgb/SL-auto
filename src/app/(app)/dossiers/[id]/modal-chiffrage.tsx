@@ -217,31 +217,31 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
           {/* File summary */}
           <div className="space-y-2">
             <Label>Fichiers à envoyer</Label>
-            <div className="border rounded-lg p-3 bg-muted/20 space-y-2">
+            <div className="space-y-2 rounded-lg bg-surface-2 p-3">
               {loadingFiles ? (
-                <div className="flex items-center justify-center py-4 gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center justify-center gap-2 py-4 text-sm text-ink-3">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Chargement des fichiers...
                 </div>
               ) : totalFileCount === 0 ? (
-                <p className="text-xs text-muted-foreground italic text-center py-4">
+                <p className="t-caption py-4 text-center">
                   Aucun fichier disponible dans ce dossier.
                 </p>
               ) : (
-                <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-4 text-sm text-ink">
                   {availablePhotos.length > 0 && (
                     <div className="flex items-center gap-1.5">
-                      <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                      <ImageIcon className="h-4 w-4 text-ink-3" />
                       <span>{availablePhotos.length} photo{availablePhotos.length > 1 ? 's' : ''}</span>
                     </div>
                   )}
                   {availableDocs.length > 0 && (
                     <div className="flex items-center gap-1.5">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <FileText className="h-4 w-4 text-ink-3" />
                       <span>{availableDocs.length} document{availableDocs.length > 1 ? 's' : ''}</span>
                     </div>
                   )}
-                  <span className="text-xs text-muted-foreground ml-auto">Tous les fichiers seront envoyés</span>
+                  <span className="t-caption ml-auto">Tous les fichiers seront envoyés</span>
                 </div>
               )}
             </div>

@@ -392,18 +392,18 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
 
   if (loading || !chiffrage) {
     return (
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="mx-auto max-w-5xl space-y-8" aria-busy="true">
         <div className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-lg animate-pulse bg-muted" />
-          <div className="space-y-2 flex-1">
+          <div className="h-10 w-10 animate-pulse rounded-lg bg-muted" />
+          <div className="flex-1 space-y-2">
             <div className="h-6 w-48 animate-pulse rounded bg-muted" />
             <div className="h-4 w-64 animate-pulse rounded bg-muted" />
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="border rounded-xl p-4 flex gap-4 items-start bg-card">
-              <div className="w-24 h-24 rounded-lg animate-pulse bg-muted shrink-0" />
+            <div key={i} className="paper flex items-start gap-4 p-5">
+              <div className="h-24 w-24 shrink-0 animate-pulse rounded-lg bg-muted" />
               <div className="flex-1 space-y-2">
                 <div className="h-4 w-32 animate-pulse rounded bg-muted" />
                 <div className="h-3 w-full animate-pulse rounded bg-muted" />
@@ -416,14 +416,14 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="mx-auto max-w-5xl space-y-8">
       {/* Header */}
       <PageHeader
         size="compact"
         backHref="/assignations-chiffrage"
         backLabel="Assignations au chiffrage"
         title={chiffrage.dossierNom || 'Sans réf.'}
-        subtitle={<>Correcteur : <span className="font-semibold text-foreground">{chiffrage.assignedChiffreurNom}</span></>}
+        subtitle={<>Correcteur : <span className="font-semibold text-ink">{chiffrage.assignedChiffreurNom}</span></>}
         actions={
         <>
         {canSendMail && chiffrage.dossierId && (
@@ -439,9 +439,9 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         )}
         {canEdit && chiffrage.dossierId && (
           <Button
-            variant="default"
+            variant="outline"
             size="sm"
-            className="gap-1.5 bg-purple-600 hover:bg-purple-700"
+            className="gap-1.5"
             onClick={() => setReformeOpen(true)}
           >
             <Scale className="h-3.5 w-3.5" />
@@ -464,8 +464,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           for that family's source. Mirrors the gestionnaire's step-4 layout
           in read-only mode. */}
       {(devisFamilies.length > 0 || factureFamilies.length > 0) && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        <section className="space-y-4">
+          <h2 className="t-heading text-ink-2">
             Devis &amp; Factures
           </h2>
           {devisFamilies.map((group) => (

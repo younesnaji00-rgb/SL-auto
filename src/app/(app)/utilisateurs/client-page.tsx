@@ -330,7 +330,7 @@ export default function UtilisateursClientPage() {
       <div className="md:col-span-1">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
-            <Card className="border shadow-sm rounded-lg">
+            <Card>
               <CardHeader>
                 <CardTitle>Ajouter un utilisateur</CardTitle>
                 <CardDescription>Créez un nouveau profil utilisateur.</CardDescription>
@@ -546,7 +546,7 @@ export default function UtilisateursClientPage() {
       </div>
 
       <div className="md:col-span-2">
-        <Card className="border shadow-sm rounded-lg">
+        <Card>
           <CardHeader>
             <CardTitle>Gérer les utilisateurs</CardTitle>
             <CardDescription>Modifiez ou supprimez des profils existants.</CardDescription>
@@ -574,7 +574,7 @@ export default function UtilisateursClientPage() {
             </div>
             {filters.role !== 'Tous' && (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Filtres actifs</span>
+                <span className="t-label">Filtres actifs</span>
                 <Badge variant="outline" className="gap-1 pr-1">
                   Rôle : {filters.role}
                   <button onClick={() => clearFilter('role')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre rôle">
@@ -583,10 +583,10 @@ export default function UtilisateursClientPage() {
                 </Badge>
               </div>
             )}
-            <div className="rounded-lg overflow-hidden bg-muted/10">
+            <div className="overflow-hidden rounded-lg border border-hairline">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/30 border-0">
+                  <TableRow>
                     <TableHead>Nom</TableHead>
                     <TableHead>Mot de passe</TableHead>
                     <TableHead>Rôle</TableHead>
@@ -621,7 +621,7 @@ export default function UtilisateursClientPage() {
                     filteredUsers.map((user: any) => (
                       <TableRow
                         key={user.id}
-                        className="cursor-pointer hover:bg-muted/50"
+                        className="cursor-pointer"
                         onClick={() => router.push(`/utilisateurs/${user.id}`)}
                       >
                         <TableCell className="font-medium">{user.prenom} {user.nom}</TableCell>
@@ -664,7 +664,7 @@ export default function UtilisateursClientPage() {
                           <div className="flex items-center justify-end gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                               <Link href={`/utilisateurs/${user.id}`} title="Modifier">
-                                <Pencil className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                                <Pencil className="h-4 w-4 text-ink-3" />
                               </Link>
                             </Button>
                             {canDelete && (

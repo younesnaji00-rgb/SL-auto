@@ -14,10 +14,11 @@ const badgeVariants = cva(
           "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive:
           "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "text-foreground",
-        creation: "border-transparent bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200",
-        chiffrage: "border-transparent bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200",
-        validation: "border-transparent bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200",
+        outline: "border-hairline-strong text-ink",
+        // Semantic pairs only (DESIGN.md §10) — no hand-picked hues.
+        creation: "border-transparent bg-surface-3 text-ink-2",
+        chiffrage: "border-transparent bg-status-info-bg text-status-info-fg",
+        validation: "border-transparent bg-status-warning-bg text-status-warning-fg",
         expertise: "border-transparent bg-status-success-bg text-status-success-fg",
         success: "border-transparent bg-status-success-bg text-status-success-fg",
       },

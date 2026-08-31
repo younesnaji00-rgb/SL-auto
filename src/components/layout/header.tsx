@@ -25,7 +25,7 @@ function SearchTrigger() {
       <Button
         variant="outline"
         onClick={() => openPalette()}
-        className="hidden h-9 w-56 justify-between gap-2 border-input bg-background/60 px-3 text-sm font-normal text-muted-foreground shadow-none hover:bg-muted hover:text-foreground md:flex lg:w-72"
+        className="hidden h-9 w-56 justify-between gap-2 border-input bg-card px-3 text-sm font-normal text-ink-3 shadow-none hover:bg-surface-2 hover:text-ink md:flex lg:w-72"
         aria-label="Rechercher (palette de commandes)"
         title={`Rechercher — ${keys.join(' ')}`}
       >
@@ -39,7 +39,7 @@ function SearchTrigger() {
         variant="ghost"
         size="icon"
         onClick={() => openPalette()}
-        className="h-9 w-9 text-muted-foreground hover:text-foreground md:hidden"
+        className="h-9 w-9 text-ink-3 hover:text-ink md:hidden"
         aria-label="Rechercher"
       >
         <Search className="h-[18px] w-[18px]" />
@@ -67,7 +67,7 @@ function MobileUpCrumb() {
   return (
     <Link
       href={parent.href}
-      className="flex min-w-0 items-center gap-0.5 text-sm text-muted-foreground hover:text-foreground md:hidden"
+      className="flex min-w-0 items-center gap-0.5 text-sm text-ink-3 hover:text-ink md:hidden"
     >
       <ChevronLeft className="h-4 w-4 shrink-0" />
       <span className="truncate">{parent.label}</span>
@@ -77,7 +77,7 @@ function MobileUpCrumb() {
 
 const Header = () => {
   return (
-    <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 border-b bg-background px-3 md:px-5">
+    <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 border-b border-hairline bg-background px-3 md:px-5">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <Link href="/" className="flex shrink-0 items-center lg:hidden" aria-label="Accueil">
           <img src="/images/logo.png" alt="" className="h-7 w-7 object-contain dark:invert" />

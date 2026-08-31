@@ -52,19 +52,19 @@ export default function UserMenu() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="h-9 gap-2 rounded-full px-1 pr-2 text-sm font-medium hover:bg-muted"
+          className="h-9 gap-2 rounded-full px-1 pr-2 text-sm font-medium text-ink hover:bg-surface-3"
           aria-label={`Compte : ${displayName}`}
         >
           <Avatar className="h-7 w-7">
-            <AvatarFallback className="bg-primary/10 text-[11px] font-semibold text-primary">{userInitials(profile)}</AvatarFallback>
+            <AvatarFallback className="bg-surface-4 text-[11px] font-semibold text-ink">{userInitials(profile)}</AvatarFallback>
           </Avatar>
           <span className="hidden max-w-[10rem] truncate lg:inline">{profile?.prenom || profile?.nom || ''}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuLabel className="font-normal">
-          <p className="truncate text-sm font-semibold">{displayName}</p>
-          {profile?.role && <p className="truncate text-xs text-muted-foreground">{profile.role}</p>}
+          <p className="truncate text-sm font-semibold text-ink">{displayName}</p>
+          {profile?.role && <p className="t-caption truncate">{profile.role}</p>}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>

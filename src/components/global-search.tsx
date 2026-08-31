@@ -87,20 +87,20 @@ function DossierResults({ query, onPick }: { query: string; onPick: (d: Dossier)
   return (
     <CommandGroup heading="Dossiers">
       {loading && results.length === 0 && (
-        <div className="px-2 py-1.5 text-xs text-muted-foreground">Recherche…</div>
+        <div className="t-caption px-2 py-1.5">Recherche…</div>
       )}
       {!loading && results.length === 0 && (
-        <div className="px-2 py-1.5 text-xs text-muted-foreground">Aucun dossier ne correspond à « {query.trim()} ».</div>
+        <div className="t-caption px-2 py-1.5">Aucun dossier ne correspond à « {query.trim()} ».</div>
       )}
       {results.map((d) => (
         <CommandItem key={d.id} value={`dossier:${d.id}`} onSelect={() => onPick(d)} className="gap-3">
-          <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <FolderOpen className="h-4 w-4 shrink-0 text-ink-3" />
           <span className="min-w-0 flex-1 truncate">
-            <span className="font-mono text-[13px] font-medium">{d.refExpert || 'Sans réf.'}</span>
-            {assureName(d.assure) && <span className="text-muted-foreground"> · {assureName(d.assure)}</span>}
-            {d.compagnie && <span className="text-muted-foreground"> · {d.compagnie}</span>}
+            <span className="t-mono font-medium">{d.refExpert || 'Sans réf.'}</span>
+            {assureName(d.assure) && <span className="text-ink-2"> · {assureName(d.assure)}</span>}
+            {d.compagnie && <span className="text-ink-3"> · {d.compagnie}</span>}
           </span>
-          {d.matricule && <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">{d.matricule}</span>}
+          {d.matricule && <span className="t-mono hidden text-ink-3 sm:inline">{d.matricule}</span>}
           {d.statut && (
             <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut), 'hidden shrink-0 sm:inline-flex')}>
               {d.statut}
@@ -193,7 +193,9 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="top-[12%] translate-y-0 overflow-hidden p-0 shadow-xl sm:max-w-xl" onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}>
         <DialogTitle className="sr-only">Rechercher et naviguer</DialogTitle>
-        <Command shouldFilter={false} loop className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground">
+        {/* Group headings = t-label (spelled out: `.t-*` are component classes,
+            so they can't be applied through an arbitrary variant). Rows = t-body-sm. */}
+        <Command shouldFilter={false} loop className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.06em] [&_[cmdk-group-heading]]:text-ink-3 [&_[cmdk-item]]:text-[13px] [&_[cmdk-item]]:text-ink">
           <CommandInput ref={inputRef} placeholder="Réf., plaque, assuré, page ou action…" value={query} onValueChange={setQuery} />
           <CommandList className="max-h-[60vh]">
             {nothing && q.length < 2 && <CommandEmpty>Aucun résultat.</CommandEmpty>}
@@ -202,16 +204,16 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
               <CommandGroup heading="Récents">
                 {openTabs.slice(0, 4).map((t) => (
                   <CommandItem key={`tab:${t.kind}:${t.id}`} value={`tab:${t.kind}:${t.id}`} onSelect={() => go(TAB_KINDS[t.kind].detailHref(t.id))} className="gap-3">
-                    {t.kind === 'dossier' ? <FolderOpen className="h-4 w-4 text-muted-foreground" /> : <Calculator className="h-4 w-4 text-muted-foreground" />}
+                    {t.kind === 'dossier' ? <FolderOpen className="h-4 w-4 text-ink-3" /> : <Calculator className="h-4 w-4 text-ink-3" />}
                     <span className="min-w-0 flex-1 truncate">{t.label}</span>
-                    <span className="text-[11px] text-muted-foreground">ouvert</span>
+                    <span className="t-caption">ouvert</span>
                   </CommandItem>
                 ))}
                 {recentEntries
                   .filter((r) => !openTabs.some((t) => t.kind === r.kind && t.id === r.id))
                   .map((r) => (
                     <CommandItem key={`recent:${r.kind}:${r.id}`} value={`recent:${r.kind}:${r.id}`} onSelect={() => go(TAB_KINDS[r.kind].detailHref(r.id))} className="gap-3">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <Clock className="h-4 w-4 text-ink-3" />
                       <span className="min-w-0 flex-1 truncate">{r.label}</span>
                     </CommandItem>
                   ))}
@@ -226,7 +228,7 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
                   const Icon = i.icon;
                   return (
                     <CommandItem key={i.href} value={`nav:${i.href}`} onSelect={() => go(i.href)} className="gap-3">
-                      <Icon className="h-4 w-4 text-muted-foreground" />
+                      <Icon className="h-4 w-4 text-ink-3" />
                       <span className="min-w-0 flex-1 truncate">{i.title ?? i.label}</span>
                       {i.hotkey && (
                         <span className="flex items-center gap-1">
@@ -247,7 +249,7 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
                   const Icon = a.icon;
                   return (
                     <CommandItem key={a.id} value={`action:${a.id}`} onSelect={a.run} className="gap-3">
-                      <Icon className="h-4 w-4 text-muted-foreground" />
+                      <Icon className="h-4 w-4 text-ink-3" />
                       <span className="min-w-0 flex-1 truncate">{a.label}</span>
                       {a.keys && (
                         <span className="flex items-center gap-1">
@@ -267,18 +269,18 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
                 <CommandSeparator />
                 <CommandGroup heading="Assistant">
                   <CommandItem value="ai:ask" onSelect={askAssistant} className="gap-3" disabled={aiLoading}>
-                    <Sparkles className="h-4 w-4 text-muted-foreground" />
+                    <Sparkles className="h-4 w-4 text-ink-3" />
                     <span className="min-w-0 flex-1 truncate">
                       {aiLoading ? 'Réflexion…' : <>Demander à l&apos;assistant : « {q} »</>}
                     </span>
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    <ArrowRight className="h-3.5 w-3.5 text-ink-3" />
                   </CommandItem>
-                  {aiAnswer && <p className="px-3 pb-2 pt-1 text-sm text-foreground/90">{aiAnswer}</p>}
+                  {aiAnswer && <p className="px-3 pb-2 pt-1 text-sm text-ink">{aiAnswer}</p>}
                 </CommandGroup>
               </>
             )}
           </CommandList>
-          <div className="flex items-center justify-between gap-3 border-t px-3 py-2 text-[11px] text-muted-foreground">
+          <div className="t-caption flex items-center justify-between gap-3 border-t border-hairline px-3 py-2">
             <span className="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> naviguer</span>
             <span className="flex items-center gap-1.5"><Kbd>↵</Kbd> ouvrir</span>
             <span className="flex items-center gap-1.5"><Kbd>Échap</Kbd> fermer</span>

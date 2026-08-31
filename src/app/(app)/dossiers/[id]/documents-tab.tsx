@@ -1,11 +1,37 @@
 'use client';
 
+/**
+ * Documents browser — the single Documents surface of the Pièces step,
+ * rebuilt on the structured document list (GOV.UK task list / Carbon
+ * structured list — see `@/components/documents/document-list`).
+ *
+ * Reading order, top → bottom:
+ *   1. Toolbar: t-heading "Documents" + count pill · search ·
+ *      Importer (outline) · Sélectionner (ghost) · types settings ·
+ *      the ONE filled primary passed by the caller.
+ *   2. "N pièces requises manquantes" summary line (links focus their row).
+ *   3. One outline card of hairline groups:
+ *        Pièces requises → Devis / Factures garage → Autres documents
+ *      Each slot is a 44 px row (status tag · label · files · Déposer /
+ *      Ajouter), a drop target for files, with a final quiet "Autre type…"
+ *      row that opens the existing typed upload dialog.
+ *
+ * Import paths: row "Déposer/Ajouter" and row drag-drop upload straight into
+ * that slot type; the toolbar "Importer" / "Autre type…" keep the typed
+ * dialog (with the Devis original / contre-devis variant flow).
+ */
+
 import React, { useState, useMemo, useRef } from 'react';
 import {
+  AlertTriangle,
+  Check,
+  CheckSquare,
   Download,
   Loader2,
-  X,
-  CheckSquare,
+  Plus,
+  Search,
+  Settings,
+  Upload,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,19 +52,12 @@ import {
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
 import { toOrdinalFr } from '@/lib/devis-schema';
 import { useFirestore, useAuth, useCollection, useStorage, useDoc } from '@/firebase';
-import {
-  collection,
-  deleteDoc,
-  doc,
-} from 'firebase/firestore';
-import {
-  ref,
-  deleteObject,
-} from 'firebase/storage';
+import { collection, deleteDoc, doc } from 'firebase/firestore';
+import { ref, deleteObject } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { useToast } from '@/hooks/use-toast';
 import { logHistorique, logWorkflow } from './log-historique';
@@ -57,18 +76,61 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { parseAccordeParent, parseAccordDocType } from '@/lib/docType-accorde';
 import {
-  DocumentsFilterPanel,
-  ALL_TYPES_KEY,
-  type DocumentsFilterPanelDoc,
-} from '@/components/chiffreurs/documents-filter-panel';
+  REQUIRED_SOURCE_SLOTS,
+  GARAGE_DOC_SLOTS,
+  GARAGE_PAIR_LABEL,
+  computeRequiredDocsStatus,
+  requiredDocChip,
+} from '@/lib/required-docs';
+import {
+  DocumentGroup,
+  DocumentItem,
+  DocumentList,
+  QuietRow,
+  SlotRow,
+  type SlotStatus,
+} from '@/components/documents/document-list';
+import {
+  accordRowLabel,
+  docDisplayName,
+  docMetaLine,
+  downloadFileFromUrl,
+  type TypedDoc,
+} from '@/components/documents/typed-doc';
 import JSZip from 'jszip';
 
 type DocumentsTabProps = {
   dossierId: string;
+  /** Toolbar title (t-heading). */
+  title?: string;
+  /**
+   * The ONE filled button of the toolbar (e.g. "Envoyer vers chiffrage").
+   * Hidden while selection mode is on — the batch well carries its own primary.
+   */
+  primaryAction?: React.ReactNode;
+  /** Required chips + "pièces requises manquantes" line. */
+  showRequirements?: boolean;
 };
 
-export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
+/** One slot row of the browser. */
+type BrowserRow = {
+  type: string;
+  label: string;
+  hint?: string;
+  status: SlotStatus;
+  docs: TypedDoc[];
+  canAdd: boolean;
+  required?: boolean;
+};
+
+// Broader accept than image/PDF — the typed dialog always allowed office docs.
+const ACCEPT_ATTR = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp';
+const acceptBrowserFile = (f: File) =>
+  f.type.startsWith('image/') || /\.(pdf|docx?|xlsx?)$/i.test(f.name);
+
+export default function DocumentsTab({ dossierId, title = 'Documents', primaryAction, showRequirements = true }: DocumentsTabProps) {
   const db = useFirestore();
   const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('dossiers');
@@ -82,10 +144,12 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
     [dbDocTypes]
   );
 
+  // Toolbar "Importer" / quiet row → typed dialog. Row "Déposer" → direct.
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const rowFileInputRef = useRef<HTMLInputElement>(null);
+  const rowTypeRef = useRef<string>('');
 
-  const [selectedType, setSelectedType] = useState<string>(ALL_TYPES_KEY);
-  const [typeSearch, setTypeSearch] = useState('');
+  const [search, setSearch] = useState('');
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
@@ -94,6 +158,8 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadType, setUploadType] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  /** Slot type currently receiving a direct (row) upload. */
+  const [uploadingType, setUploadingType] = useState<string | null>(null);
 
   // Devis-specific variant (only shown when uploadType === 'Devis')
   const [devisVariant, setDevisVariant] = useState<'original' | 'counter'>('original');
@@ -121,7 +187,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   }, [db, dossierId]);
   const { data: allPhotos } = useCollection<any>(photosQuery);
 
-  const sortedDocs = useMemo(() => {
+  const sortedDocs = useMemo<TypedDoc[]>(() => {
     if (!allDocuments) return [];
     return [...allDocuments].sort((a, b) => {
       const tsA = a.dateUpload || a.uploadedAt;
@@ -132,10 +198,136 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
     });
   }, [allDocuments]);
 
-  const visibleDocs = useMemo(() => {
-    if (selectedType === ALL_TYPES_KEY) return sortedDocs;
-    return sortedDocs.filter((d) => (d.type || d.typeDocument) === selectedType);
-  }, [sortedDocs, selectedType]);
+  /** Files grouped by their Firestore `type` label (newest first, inherited). */
+  const docsByType = useMemo(() => {
+    const map: Record<string, TypedDoc[]> = {};
+    for (const d of sortedDocs) {
+      const t = (d.type || d.typeDocument || 'Autre').toString();
+      (map[t] ||= []).push(d);
+    }
+    return map;
+  }, [sortedDocs]);
+
+  // Required-slot awareness (shared predicate with the step gate).
+  const requiredStatus = useMemo(() => computeRequiredDocsStatus(allDocuments ?? null), [allDocuments]);
+
+  // ── Row model ──────────────────────────────────────────────────────────────
+
+  const groups = useMemo(() => {
+    // 1. Pièces requises — always listed, even (especially) while empty.
+    const requiredRows: BrowserRow[] = REQUIRED_SOURCE_SLOTS.map((t) => {
+      const filled = requiredStatus.filledTypes.has(t);
+      return {
+        type: t,
+        label: t,
+        hint: showRequirements ? 'obligatoire' : undefined,
+        status: filled ? 'received' : (showRequirements ? 'missing' : 'optional'),
+        docs: docsByType[t] || [],
+        canAdd: canEdit,
+        required: showRequirements && !filled,
+      };
+    });
+
+    // 2. Devis / Factures garage — the either-or pair, then every garage
+    //    family type observed on live docs (extras, accords, propositions).
+    const garageRows: BrowserRow[] = GARAGE_DOC_SLOTS.map((t) => {
+      const chip = showRequirements
+        ? requiredDocChip(t, requiredStatus)
+        : ((docsByType[t]?.length || 0) > 0 ? 'received' : null);
+      return {
+        type: t,
+        label: t,
+        hint: showRequirements ? 'au moins un des deux' : undefined,
+        status: chip === 'received' ? 'received' : chip === 'missing' ? 'missing' : 'optional',
+        docs: docsByType[t] || [],
+        canAdd: canEdit,
+        required: chip === 'missing',
+      };
+    });
+    const famRows: (BrowserRow & { sort: number[] })[] = [];
+    for (const t of Object.keys(docsByType)) {
+      if ((GARAGE_DOC_SLOTS as ReadonlyArray<string>).includes(t)) continue;
+      const asParent = parseAccordeParent(t);
+      if (asParent && asParent.ordinal >= 2) {
+        famRows.push({
+          type: t, label: t, hint: 'garage supplémentaire', status: 'received',
+          docs: docsByType[t], canAdd: false,
+          sort: [asParent.sourceDocType === 'Devis Garage' ? 0 : 1, asParent.ordinal, -1, 0],
+        });
+        continue;
+      }
+      const parsed = parseAccordDocType(t);
+      if (parsed) {
+        famRows.push({
+          type: t,
+          label: parsed.parentOrdinal >= 2 ? `${accordRowLabel(parsed)} — ${parsed.parent}` : accordRowLabel(parsed),
+          hint: t,
+          status: 'received',
+          // Accord / proposition outputs are produced by the chiffrage flow —
+          // never uploaded manually from the browser.
+          docs: docsByType[t], canAdd: false,
+          sort: [parsed.sourceDocType === 'Devis Garage' ? 0 : 1, parsed.parentOrdinal, parsed.ordinal, parsed.kind === 'accord' ? 0 : 1],
+        });
+      }
+    }
+    famRows.sort((a, b) => a.sort[0] - b.sort[0] || a.sort[1] - b.sort[1] || a.sort[2] - b.sort[2] || a.sort[3] - b.sort[3]);
+
+    // 3. Autres documents — every other type that holds at least one file.
+    const handled = new Set<string>([
+      ...REQUIRED_SOURCE_SLOTS,
+      ...GARAGE_DOC_SLOTS,
+      ...famRows.map((r) => r.type),
+    ]);
+    const otherRows: BrowserRow[] = Object.keys(docsByType)
+      .filter((t) => !handled.has(t) && (docsByType[t]?.length || 0) > 0)
+      .map((t) => ({
+        type: t, label: t, status: 'received' as SlotStatus,
+        docs: docsByType[t], canAdd: canEdit,
+      }))
+      .sort((a, b) => b.docs.length - a.docs.length || a.label.localeCompare(b.label, 'fr'));
+
+    return { requiredRows, garageRows: [...garageRows, ...famRows], otherRows };
+  }, [docsByType, requiredStatus, canEdit, showRequirements]);
+
+  // ── Search (file name OR type) ─────────────────────────────────────────────
+
+  const q = search.trim().toLowerCase();
+  const isSearching = q.length > 0;
+  const filterRows = (rows: BrowserRow[]): Array<{ row: BrowserRow; docs: TypedDoc[] }> =>
+    rows
+      .map((r) => {
+        if (!q) return { row: r, docs: r.docs };
+        const typeMatch = r.label.toLowerCase().includes(q) || r.type.toLowerCase().includes(q);
+        if (typeMatch) return { row: r, docs: r.docs };
+        const matched = r.docs.filter((d) => docDisplayName(d).toLowerCase().includes(q));
+        return matched.length > 0 ? { row: r, docs: matched } : null;
+      })
+      .filter((x): x is { row: BrowserRow; docs: TypedDoc[] } => x !== null);
+
+  const visRequired = filterRows(groups.requiredRows);
+  const visGarage = filterRows(groups.garageRows);
+  const visOthers = filterRows(groups.otherRows);
+  const nothingMatches = isSearching && visRequired.length + visGarage.length + visOthers.length === 0;
+  const visibleDocsFlat = [...visRequired, ...visGarage, ...visOthers].flatMap((x) => x.docs);
+  const selectableVisible = visibleDocsFlat.filter((d) => d.url && !d.pendingUpload);
+
+  const countReceived = (rows: Array<{ row: BrowserRow }>) =>
+    rows.filter((x) => x.row.status === 'received').length;
+
+  // ── Upload ─────────────────────────────────────────────────────────────────
+
+  // Upload dialog type list: admin options ∪ required slots ∪ the preset so a
+  // slot type preselected from a row is always selectable.
+  const uploadTypeOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const labels: string[] = [];
+    const push = (l: string) => { if (l && !seen.has(l)) { seen.add(l); labels.push(l); } };
+    docTypes.forEach((t) => push(t.label));
+    REQUIRED_SOURCE_SLOTS.forEach(push);
+    GARAGE_DOC_SLOTS.forEach(push);
+    if (uploadType) push(uploadType);
+    return labels;
+  }, [docTypes, uploadType]);
 
   // Tally Devis-typed documents in this dossier by their variant.
   // Files missing `devisVariant` are treated as original (back-compat with older uploads).
@@ -156,6 +348,12 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
     setCounterRoundLabel(toOrdinalFr(devisStats.counters + 1) + ' accord');
   }, [uploadType, devisStats.counters, isUploadModalOpen]);
 
+  /** Open the native picker; the typed dialog follows with `type` preselected. */
+  const openImport = (type?: string) => {
+    setUploadType(type ?? '');
+    fileInputRef.current?.click();
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setSelectedFiles(Array.from(e.target.files));
@@ -166,39 +364,35 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
     }
   };
 
-  const handleUpload = async () => {
-    if (selectedFiles.length === 0 || !uploadType || !db || !storage || !auth) return;
+  /**
+   * The single upload routine (dialog + row paths): per-file offline-capable
+   * upload, historique + workflow logs, toast. Returns true on success.
+   */
+  const uploadFiles = async (
+    files: File[],
+    type: string,
+    opts?: { devisVariant?: 'original' | 'counter'; counterRoundLabel?: string },
+  ): Promise<boolean> => {
+    if (files.length === 0 || !type || !db || !storage || !auth) return false;
     const userEmail = auth.currentUser?.email || 'Admin';
     const userId = auth?.currentUser?.uid || 'unknown';
-    setIsUploading(true);
-
-    // Guard: counter variant requires an original already in this dossier.
-    if (uploadType === 'Devis' && devisVariant === 'counter' && !canSelectCounter) {
-      toast({
-        variant: 'destructive',
-        title: 'Devis original manquant',
-        description: "Uploadez d'abord un devis original avant d'ajouter un contre-devis.",
-      });
-      return;
-    }
-
+    setUploadingType(type);
     try {
-      for (let i = 0; i < selectedFiles.length; i++) {
-        const file = selectedFiles[i];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         const timestamp = Date.now();
         const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${file.name}`;
 
-        const isDevis = uploadType === 'Devis';
+        const isDevis = type === 'Devis';
         // When multiple counter files are selected at once, auto-increment the round label
         // so that "1er accord", "2ème accord", etc. don't collide on the same upload.
         const devisMetadata: Record<string, any> = {};
-        if (isDevis) {
-          devisMetadata.devisVariant = devisVariant;
-          if (devisVariant === 'counter') {
-            const baseLabel = counterRoundLabel.trim() || (toOrdinalFr(devisStats.counters + 1 + i) + ' accord');
-            // Only suffix if user didn't already set a custom label and this is a subsequent file.
-            const label = counterRoundLabel.trim() && i === 0
-              ? counterRoundLabel.trim()
+        if (isDevis && opts?.devisVariant) {
+          devisMetadata.devisVariant = opts.devisVariant;
+          if (opts.devisVariant === 'counter') {
+            // Only keep the custom label for the first file; subsequent files get the next ordinal.
+            const label = opts.counterRoundLabel?.trim() && i === 0
+              ? opts.counterRoundLabel.trim()
               : toOrdinalFr(devisStats.counters + 1 + i) + ' accord';
             devisMetadata.counterRoundLabel = label;
             devisMetadata.counterRoundOrder = devisStats.counters + 1 + i;
@@ -214,7 +408,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
           firestoreDocPath: `dossiers/${dossierId}/documents`,
           firestoreMetadata: {
             nom: file.name,
-            type: uploadType,
+            type,
             taille: file.size,
             uploadePar: userEmail,
             storagePath,
@@ -225,11 +419,8 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
         await logHistorique(db, dossierId, 'Upload document', userEmail, `Document "${file.name}" uploadé.`, 'document', profile?.nom);
         await logWorkflow(db, dossierId, 'Nouveau document ajouté', userEmail, userId, 'done', { details: `Document "${file.name}" ajouté (par gestionnaire)` }, profile?.nom);
       }
-
-      toast({ title: selectedFiles.length === 1 ? 'Document uploadé avec succès' : `${selectedFiles.length} documents uploadés` });
-      setUploadModalOpen(false);
-      setSelectedFiles([]);
-      setUploadType('');
+      toast({ title: files.length === 1 ? 'Document uploadé avec succès' : `${files.length} documents uploadés` });
+      return true;
     } catch (error: any) {
       console.error('Upload error:', error);
       toast({
@@ -237,10 +428,64 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
         title: "Erreur lors de l'upload",
         description: error.message || 'Une erreur inconnue est survenue.',
       });
+      return false;
     } finally {
-      setIsUploading(false);
+      setUploadingType(null);
     }
   };
+
+  /** Dialog confirm. */
+  const handleUpload = async () => {
+    if (selectedFiles.length === 0 || !uploadType) return;
+    // Guard: counter variant requires an original already in this dossier.
+    if (uploadType === 'Devis' && devisVariant === 'counter' && !canSelectCounter) {
+      toast({
+        variant: 'destructive',
+        title: 'Devis original manquant',
+        description: "Uploadez d'abord un devis original avant d'ajouter un contre-devis.",
+      });
+      return;
+    }
+    setIsUploading(true);
+    const ok = await uploadFiles(
+      selectedFiles,
+      uploadType,
+      uploadType === 'Devis' ? { devisVariant, counterRoundLabel } : undefined,
+    );
+    setIsUploading(false);
+    if (ok) {
+      setUploadModalOpen(false);
+      setSelectedFiles([]);
+      setUploadType('');
+    }
+  };
+
+  /** Row "Déposer / Ajouter" + row drop → straight into that slot type. */
+  const addFilesToType = (files: File[], type: string) => {
+    if (files.length === 0) return;
+    if (type === 'Devis') {
+      // The legacy Devis type needs the original / contre-devis variant choice.
+      setSelectedFiles(files);
+      setUploadType('Devis');
+      setUploadModalOpen(true);
+      return;
+    }
+    void uploadFiles(files, type);
+  };
+
+  const openRowPicker = (type: string) => {
+    rowTypeRef.current = type;
+    rowFileInputRef.current?.click();
+  };
+
+  const handleRowFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    const type = rowTypeRef.current;
+    if (files.length > 0 && type) addFilesToType(files, type);
+    if (rowFileInputRef.current) rowFileInputRef.current.value = '';
+  };
+
+  // ── Delete / download / preview ────────────────────────────────────────────
 
   const handleDelete = async (document: any) => {
     const userEmail = auth?.currentUser?.email || 'Admin';
@@ -271,23 +516,14 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
     }
   };
 
-  const handleDownload = async (url: string, fileName: string) => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (e) {
-      console.error('Download error:', e);
-      toast({ variant: 'destructive', title: 'Erreur lors du téléchargement' });
-    }
+  const openDoc = (d: TypedDoc) => {
+    if (!d.pendingUpload && d.url) setPreviewDoc({ url: d.url, nom: docDisplayName(d) });
   };
+  const downloadDoc = (d: TypedDoc) => {
+    if (!d.pendingUpload && d.url) void downloadFileFromUrl(d.url, docDisplayName(d));
+  };
+
+  // ── Selection / batch download ─────────────────────────────────────────────
 
   const toggleSelectDoc = (id: string) => {
     setSelectedIds((prev) => {
@@ -301,9 +537,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   const selectAllVisible = () => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      visibleDocs.forEach((d: any) => {
-        if (d.id && !d.pendingUpload && d.url) next.add(d.id);
-      });
+      selectableVisible.forEach((d) => { if (d.id) next.add(d.id); });
       return next;
     });
   };
@@ -311,7 +545,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   const deselectAllVisible = () => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      visibleDocs.forEach((d: any) => next.delete(d.id));
+      visibleDocsFlat.forEach((d) => next.delete(d.id));
       return next;
     });
   };
@@ -444,112 +678,261 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
   };
 
   const allVisibleSelected =
-    visibleDocs.length > 0 && visibleDocs.every((d: any) => selectedIds.has(d.id));
+    selectableVisible.length > 0 && selectableVisible.every((d) => selectedIds.has(d.id));
+  const selectedCount = selectedIds.size;
+  const missingCount = requiredStatus.missingLabels.length;
+  const showSummary = showRequirements && !loading && !!allDocuments;
 
-  const isImage = (name: string) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(name || '');
+  // ── Row focus (missing-summary links) ──────────────────────────────────────
+
+  const rowId = (t: string) => `docrow-${dossierId}-${t.replace(/[^a-zA-Z0-9]+/g, '-')}`;
+  const focusRow = (missingLabel: string) => {
+    const target = missingLabel === GARAGE_PAIR_LABEL ? GARAGE_DOC_SLOTS[0] : missingLabel;
+    if (search) setSearch('');
+    // Let a cleared search re-render the row first.
+    window.setTimeout(() => {
+      const el = document.getElementById(rowId(target));
+      if (!el) return;
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+      el.focus({ preventScroll: true });
+    }, 50);
+  };
+
+  // ── Rendering ──────────────────────────────────────────────────────────────
+
+  const renderBrowserRow = (row: BrowserRow, docs: TypedDoc[]) => (
+    <SlotRow
+      key={row.type}
+      id={rowId(row.type)}
+      label={row.label}
+      hint={row.hint}
+      title={row.type}
+      status={row.status}
+      emptyText="Aucun document"
+      onAdd={row.canAdd ? () => openRowPicker(row.type) : undefined}
+      addLabel={docs.length > 0 ? 'Ajouter' : 'Déposer'}
+      addVisible={row.required && docs.length === 0 ? 'always' : 'reveal'}
+      adding={uploadingType === row.type}
+      onFilesDropped={row.canAdd ? (files) => addFilesToType(files, row.type) : undefined}
+      acceptFile={acceptBrowserFile}
+    >
+      {docs.map((d) => (
+        <DocumentItem
+          key={d.id}
+          name={docDisplayName(d)}
+          url={d.url}
+          pending={!!d.pendingUpload}
+          meta={docMetaLine(d)}
+          onOpen={() => openDoc(d)}
+          onDownload={d.url ? () => downloadDoc(d) : undefined}
+          onDelete={canEdit ? () => setDeleteTarget(d) : undefined}
+          deleting={isDeleting === d.id}
+          selectable={selectionMode}
+          selected={selectedIds.has(d.id)}
+          onToggleSelect={() => toggleSelectDoc(d.id)}
+        />
+      ))}
+    </SlotRow>
+  );
+
+  const otherDocCount = visOthers.reduce((acc, x) => acc + x.docs.length, 0);
+  const showOthersGroup = visOthers.length > 0 || (canEdit && !isSearching);
 
   return (
     <div className="space-y-4">
+      {/* Toolbar "Importer" → typed dialog */}
       <input
         type="file"
         ref={fileInputRef}
         multiple
         className="hidden"
-        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
+        accept={ACCEPT_ATTR}
         onChange={handleFileSelect}
       />
+      {/* Row "Déposer / Ajouter" → straight into the row's slot */}
+      <input
+        type="file"
+        ref={rowFileInputRef}
+        multiple
+        className="hidden"
+        accept={ACCEPT_ATTR}
+        onChange={handleRowFileSelect}
+      />
 
-      {/* Top action bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">
-            {selectedType === ALL_TYPES_KEY ? 'Tous les documents' : selectedType}
-            <Badge variant="secondary" className="ml-2 text-[11px]">{visibleDocs.length}</Badge>
-          </h3>
+      {/* Toolbar: title · count · search ─ Importer · Sélectionner · types · primary */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <h3 className="t-heading">{title}</h3>
+          <span className="inline-flex h-5 min-w-[1.5rem] items-center justify-center rounded-full bg-surface-2 px-2 text-xs font-medium tabular-nums text-ink-2">
+            {sortedDocs.length}
+          </span>
         </div>
-        <div className="flex items-center gap-2">
-          {!selectionMode && (
-            <>
-              <OptionsManagerModal collectionName="options_types_documents" title="Types de documents" defaultValues={[...defaultDocTypes]} />
-              <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
-                <CheckSquare className="mr-2 h-4 w-4" />
-                Sélectionner
+        <div className="relative min-w-[11rem] flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher un fichier ou un type…"
+            aria-label="Rechercher un fichier ou un type de document"
+            className="h-9 border-hairline bg-card pl-8 md:text-[13px]"
+          />
+        </div>
+        {!selectionMode && (
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            {canEdit && (
+              <Button variant="outline" size="sm" onClick={() => openImport()}>
+                <Upload className="h-4 w-4" />
+                Importer
               </Button>
-            </>
-          )}
-        </div>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => setSelectionMode(true)}>
+              <CheckSquare className="h-4 w-4" />
+              Sélectionner
+            </Button>
+            <OptionsManagerModal
+              collectionName="options_types_documents"
+              title="Types de documents"
+              defaultValues={[...defaultDocTypes]}
+              trigger={(
+                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-ink-3 hover:text-ink" aria-label="Gérer les types de documents" title="Types de documents">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              )}
+            />
+            {primaryAction}
+          </div>
+        )}
       </div>
 
-      {/* Selection toolbar */}
+      {/* Batch-action well (replaces the toolbar actions while active) */}
       {selectionMode && (
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/50 border rounded-lg px-4 py-2">
-          <span className="text-sm font-medium">
-            {selectedIds.size} document(s) sélectionné(s)
+        <Card variant="flat" className="flex flex-wrap items-center justify-between gap-2 px-4 py-2" role="region" aria-label="Sélection de documents">
+          <span className="t-body font-medium tabular-nums">
+            {selectedCount} document{selectedCount > 1 ? 's' : ''} sélectionné{selectedCount > 1 ? 's' : ''}
           </span>
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={allVisibleSelected ? deselectAllVisible : selectAllVisible}
-              disabled={visibleDocs.length === 0}
+              disabled={selectableVisible.length === 0}
             >
               {allVisibleSelected ? 'Tout désélectionner' : 'Sélectionner tout'}
             </Button>
             <Button
               size="sm"
               onClick={() => handleDownloadSelected(false)}
-              disabled={selectedIds.size === 0 || !!isBatchDownloading}
+              disabled={selectedCount === 0 || !!isBatchDownloading}
             >
-              {isBatchDownloading === 'docs' ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-2 h-4 w-4" />
-              )}
-              Télécharger ({selectedIds.size})
+              {isBatchDownloading === 'docs' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Télécharger ({selectedCount})
             </Button>
             <Button
               size="sm"
-              variant="secondary"
+              variant="outline"
               onClick={() => handleDownloadSelected(true)}
-              disabled={selectedIds.size === 0 || !!isBatchDownloading}
+              disabled={selectedCount === 0 || !!isBatchDownloading}
               title="Inclure les photos avant / en cours / après dans le zip"
             >
-              {isBatchDownloading === 'docs+photos' ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-2 h-4 w-4" />
-              )}
-              Inclure photos ({selectedIds.size})
+              {isBatchDownloading === 'docs+photos' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Inclure photos ({selectedCount})
             </Button>
             <Button variant="ghost" size="sm" onClick={exitSelectionMode} disabled={!!isBatchDownloading}>
               Annuler
             </Button>
           </div>
+        </Card>
+      )}
+
+      {/* Missing-required summary — links focus their row. */}
+      {showSummary && (
+        <div
+          role="status"
+          className={cn(
+            't-caption flex items-start gap-2',
+            missingCount > 0 ? 'text-status-warning-fg' : 'text-status-success-fg',
+          )}
+        >
+          {missingCount > 0 ? (
+            <>
+              <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>
+                <span className="font-medium">
+                  {missingCount} pièce{missingCount > 1 ? 's' : ''} requise{missingCount > 1 ? 's' : ''} manquante{missingCount > 1 ? 's' : ''}
+                </span>
+                {' : '}
+                {requiredStatus.missingLabels.map((label, i) => (
+                  <React.Fragment key={label}>
+                    {i > 0 && ', '}
+                    <button
+                      type="button"
+                      onClick={() => focusRow(label)}
+                      className="rounded-sm underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+                    >
+                      {label}
+                    </button>
+                  </React.Fragment>
+                ))}
+              </span>
+            </>
+          ) : (
+            <>
+              <Check className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>Toutes les pièces requises sont déposées.</span>
+            </>
+          )}
         </div>
       )}
 
-      <DocumentsFilterPanel
-        documents={sortedDocs as DocumentsFilterPanelDoc[]}
-        docTypes={docTypes}
-        selectedType={selectedType}
-        onSelectedTypeChange={setSelectedType}
-        typeSearch={typeSearch}
-        onTypeSearchChange={setTypeSearch}
-        loading={loading}
-        canImport={canEdit}
-        canDelete={canEdit}
-        isDeleting={isDeleting}
-        selectionMode={selectionMode}
-        selectedIds={selectedIds}
-        onToggleSelect={toggleSelectDoc}
-        onOpenDocument={(d) => {
-          if (!d.pendingUpload && d.url) setPreviewDoc({ url: d.url, nom: d.nom || d.fileName || 'document' });
-        }}
-        onDownloadDocument={(d) => {
-          if (!d.pendingUpload && d.url) handleDownload(d.url, d.nom || d.fileName || 'document');
-        }}
-        onDeleteDocument={(d) => setDeleteTarget(d)}
-      />
+      {loading ? (
+        <div className="flex h-48 items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
+        </div>
+      ) : nothingMatches ? (
+        <p className="t-caption py-8 text-center">
+          Aucun document ni type ne correspond à «&nbsp;{search.trim()}&nbsp;».
+        </p>
+      ) : (
+        <DocumentList>
+          {visRequired.length > 0 && (
+            <DocumentGroup
+              title="Pièces requises"
+              received={countReceived(visRequired)}
+              total={visRequired.length}
+            >
+              {visRequired.map((x) => renderBrowserRow(x.row, x.docs))}
+            </DocumentGroup>
+          )}
+
+          {visGarage.length > 0 && (
+            <DocumentGroup
+              title="Devis / Factures garage"
+              subtitle={showRequirements ? 'au moins un des deux est requis' : undefined}
+              received={countReceived(visGarage)}
+              total={visGarage.length}
+            >
+              {visGarage.map((x) => renderBrowserRow(x.row, x.docs))}
+            </DocumentGroup>
+          )}
+
+          {showOthersGroup && (
+            <DocumentGroup
+              title="Autres documents"
+              summary={otherDocCount > 0 ? `${otherDocCount} document${otherDocCount > 1 ? 's' : ''}` : undefined}
+            >
+              {visOthers.map((x) => renderBrowserRow(x.row, x.docs))}
+              {canEdit && !isSearching && (
+                <QuietRow
+                  label="Autre type…"
+                  icon={<Plus className="h-4 w-4" aria-hidden />}
+                  onClick={() => openImport()}
+                />
+              )}
+            </DocumentGroup>
+          )}
+        </DocumentList>
+      )}
 
       {/* Upload modal */}
       <Dialog open={isUploadModalOpen} onOpenChange={setUploadModalOpen}>
@@ -558,9 +941,9 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
             <DialogTitle>Catégorie du document</DialogTitle>
             <DialogDescription>
               {selectedFiles.length === 1 ? (
-                <>Fichier: <span className="font-semibold text-foreground">{selectedFiles[0]?.name}</span></>
+                <>Fichier : <span className="font-semibold text-ink">{selectedFiles[0]?.name}</span></>
               ) : (
-                <><span className="font-semibold text-foreground">{selectedFiles.length} fichiers</span> seront uploadés avec ce type.</>
+                <><span className="font-semibold text-ink">{selectedFiles.length} fichiers</span> seront uploadés avec ce type.</>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -575,15 +958,15 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                   <SelectValue placeholder="Choisir une catégorie" />
                 </SelectTrigger>
                 <SelectContent>
-                  {docTypes.map((type) => (
-                    <SelectItem key={`type-${type.id}`} value={type.label}>{type.label}</SelectItem>
+                  {uploadTypeOptions.map((label) => (
+                    <SelectItem key={`type-${label}`} value={label}>{label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             {uploadType === 'Devis' && (
-              <div className="space-y-2 pt-1 border-t">
+              <div className="space-y-2 border-t border-hairline pt-1">
                 <Label className="text-xs font-semibold">Variante du devis</Label>
                 <RadioGroup
                   value={devisVariant}
@@ -591,23 +974,24 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                   className="gap-2"
                   disabled={isUploading}
                 >
-                  <label className="flex items-start gap-2 cursor-pointer">
+                  <label className="flex cursor-pointer items-start gap-2">
                     <RadioGroupItem value="original" id="dv-original" className="mt-0.5" />
                     <div className="flex-1">
                       <div className="text-sm font-medium">Devis original</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        Lignes et prix imprimés. Extraction complète par l'IA au moment du chiffrage.
+                      <div className="t-caption">
+                        Lignes et prix imprimés. Extraction complète par l&apos;IA au moment du chiffrage.
                       </div>
                     </div>
                   </label>
-                  <label className={cn('flex items-start gap-2', canSelectCounter ? 'cursor-pointer' : 'cursor-not-allowed opacity-50')}>
+                  <label className={cn('flex items-start gap-2', canSelectCounter ? 'cursor-pointer' : 'cursor-not-allowed')}>
                     <RadioGroupItem value="counter" id="dv-counter" className="mt-0.5" disabled={!canSelectCounter} />
                     <div className="flex-1">
-                      <div className="text-sm font-medium">
+                      <div className={cn('text-sm font-medium', !canSelectCounter && 'text-ink-3')}>
                         Contre-devis / accord
-                        <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-red-600 align-middle" />
+                        {/* Red dot = the red "contre-proposition" column added in chiffrage. */}
+                        <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-status-danger-fg align-middle" />
                       </div>
-                      <div className="text-[11px] text-muted-foreground">
+                      <div className="t-caption">
                         {canSelectCounter
                           ? "Prix de contre-proposition (annotés à la main ou en surimpression). Ajoute une colonne rouge au devis lors du chiffrage."
                           : "Vous devez d'abord uploader un devis original pour ce dossier."}
@@ -626,8 +1010,8 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
                       className="h-8 text-xs"
                       disabled={isUploading}
                     />
-                    <div className="text-[11px] text-muted-foreground">
-                      Devient le nom de la colonne rouge (ex: "1er accord", "Expert arbitre").
+                    <div className="t-caption">
+                      Devient le nom de la colonne rouge (ex : « 1er accord », « Expert arbitre »).
                     </div>
                   </div>
                 )}
@@ -672,7 +1056,7 @@ export default function DocumentsTab({ dossierId }: DocumentsTabProps) {
       <DocumentPreviewLightbox
         doc={previewDoc}
         onClose={() => setPreviewDoc(null)}
-        onDownload={(d) => handleDownload(d.url, d.nom)}
+        onDownload={(d) => downloadFileFromUrl(d.url, d.nom)}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !isDeleting && setDeleteTarget(null)}>

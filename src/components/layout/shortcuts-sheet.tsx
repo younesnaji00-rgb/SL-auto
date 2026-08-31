@@ -50,7 +50,7 @@ export function ShortcutsSheet({ open, onOpenChange }: { open: boolean; onOpenCh
           </SheetDescription>
         </SheetHeader>
         <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -60,18 +60,18 @@ export function ShortcutsSheet({ open, onOpenChange }: { open: boolean; onOpenCh
           />
         </div>
         <div className="-mx-6 flex-1 overflow-y-auto px-6">
-          {groups.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Aucun raccourci ne correspond.</p>}
+          {groups.length === 0 && <p className="py-8 text-center text-sm text-ink-3">Aucun raccourci ne correspond.</p>}
           {groups.map(([group, list]) => (
-            <section key={group} className="mb-6">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{group}</h3>
-              <ul className="divide-y divide-border rounded-lg border">
+            <section key={group} className="mb-8">
+              <h3 className="t-label mb-2">{group}</h3>
+              <ul className="divide-y divide-hairline">
                 {list.map((h) => (
-                  <li key={`${h.keys}-${h.label}`} className="flex items-center justify-between gap-4 px-3 py-2 text-sm">
+                  <li key={`${h.keys}-${h.label}`} className="flex items-center justify-between gap-4 py-2 text-sm text-ink">
                     <span className="min-w-0 flex-1 truncate">{h.label}</span>
                     <span className="flex shrink-0 items-center gap-1">
                       {formatKeys(h.keys).map((k, i) => (
                         <React.Fragment key={i}>
-                          {i > 0 && <span className="text-[11px] text-muted-foreground">puis</span>}
+                          {i > 0 && <span className="t-caption">puis</span>}
                           <Kbd>{k}</Kbd>
                         </React.Fragment>
                       ))}

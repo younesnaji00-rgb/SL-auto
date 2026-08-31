@@ -457,7 +457,7 @@ export default function DossiersClientPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader
         title="Dossiers"
         subtitle="Gérer et suivre tous les dossiers de sinistres"
@@ -489,7 +489,7 @@ export default function DossiersClientPage() {
 
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-grow max-sm:w-full max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-3" />
           <Input
             className="pl-9"
             placeholder="Rechercher (réf, assuré, plaque…)"
@@ -510,7 +510,7 @@ export default function DossiersClientPage() {
             (yyyy-MM-dd strings) the pipeline already consumes; `datePreset`
             tracks the active button purely for highlight, and is cleared by
             the iter-18 reset together with the date strings. */}
-        <div className="flex items-center gap-1 rounded-md border p-0.5 h-9">
+        <div className="flex h-9 items-center gap-1 rounded-md bg-surface-2 p-0.5">
           <Button
             size="sm"
             variant={filters.datePreset === 'jour' ? 'default' : 'ghost'}
@@ -613,7 +613,7 @@ export default function DossiersClientPage() {
       {/* Active filters strip */}
       {(filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.observation !== 'Toutes' || filters.creator !== 'Tous' || filters.dateFrom || filters.dateTo) && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Filtres actifs</span>
+          <span className="t-label">Filtres actifs</span>
           {filters.nature !== 'Toutes' && (
             <Badge variant="outline" className="gap-1 pr-1">
               Nature : {filters.nature}
@@ -691,7 +691,7 @@ export default function DossiersClientPage() {
 
       {/* Export toolbar */}
       {exportMode ? (
-        <div className="flex items-center justify-between bg-muted/50 border rounded-lg px-4 py-2">
+        <div className="flex items-center justify-between rounded-lg bg-surface-2 px-4 py-2">
           <span className="text-sm font-medium">
             {selectedRows.size} / {dossierList.length} dossier(s) sélectionné(s)
           </span>
@@ -710,10 +710,10 @@ export default function DossiersClientPage() {
         </div>
       ) : null}
 
-      <Card className="overflow-x-scroll overflow-y-auto border rounded-lg max-h-[calc(100dvh-280px)] [&>div]:overflow-visible">
+      <Card className="max-h-[calc(100dvh-280px)] overflow-x-scroll overflow-y-auto [&>div]:overflow-visible">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
-            <TableRow className="bg-muted/50">
+            <TableRow>
               {exportMode && (
                 <TableHead className="w-10">
                   <Checkbox
@@ -1042,7 +1042,7 @@ export default function DossiersClientPage() {
                 );
               })}
               {!exportMode && (
-                <TableHead className="text-right sticky right-0 bg-muted/50 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                <TableHead className="sticky right-0 z-10 bg-surface-2 text-right shadow-[-4px_0_6px_-2px_hsl(var(--shadow-color)/0.08)]">
                   Actions
                 </TableHead>
               )}
@@ -1083,10 +1083,10 @@ export default function DossiersClientPage() {
                 <TableRow
                   key={d.id}
                   className={cn(
-                    "group hover:bg-muted/50 transition-colors [&_td]:!py-2",
+                    "group [&_td]:!py-2",
                     !exportMode && "cursor-pointer",
-                    exportMode && selectedRows.has(d.id) && "bg-primary/5",
-                    d.lastObservation?.text && 'bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-50/70 dark:hover:bg-amber-950/30'
+                    exportMode && selectedRows.has(d.id) && "bg-accent/40",
+                    d.lastObservation?.text && 'bg-status-warning-bg/40'
                   )}
                   onClick={() => exportMode ? handleToggleRow(d.id) : openDossier(d)}
                   onDoubleClick={() => { if (!exportMode) openDossier(d, { preview: false }); }}
@@ -1100,7 +1100,7 @@ export default function DossiersClientPage() {
                       />
                     </TableCell>
                   )}
-                  <TableCell className="font-mono text-[13px] font-semibold tabular-nums text-foreground">{d.refExpert || <span className="font-sans font-normal text-muted-foreground">Sans réf.</span>}</TableCell>
+                  <TableCell className="t-mono font-semibold">{d.refExpert || <span className="font-sans font-normal text-ink-3">Sans réf.</span>}</TableCell>
                   <TableCell>{renderAssure(d.assure)}</TableCell>
                   <TableCell>{d.compagnie || '-'}</TableCell>
                   <TableCell>{d.referenceCompagnie || ''}</TableCell>
@@ -1112,7 +1112,7 @@ export default function DossiersClientPage() {
                       e.stopPropagation();
                       setStatusHistoryDossier(d);
                     }}
-                    className={cn("min-w-[200px]", !exportMode && "cursor-pointer hover:bg-muted/60 transition-colors")}
+                    className={cn("min-w-[200px]", !exportMode && "cursor-pointer hover:bg-surface-3 transition-colors")}
                     title={!exportMode ? "Voir l'historique des statuts" : undefined}
                   >
                     <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>
@@ -1124,29 +1124,29 @@ export default function DossiersClientPage() {
                       e.stopPropagation();
                       setObservationHistoryDossier(d);
                     }}
-                    className={cn(!exportMode && "cursor-pointer hover:bg-muted/60 transition-colors")}
+                    className={cn(!exportMode && "cursor-pointer hover:bg-surface-3 transition-colors")}
                     title={!exportMode ? "Voir l'historique des observations" : undefined}
                   >
                     {d.lastObservation?.text ? (
-                      <Badge className="bg-amber-50 text-amber-800 hover:bg-amber-50 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/50">
+                      <Badge className="border-transparent bg-status-warning-bg text-status-warning-fg hover:bg-status-warning-bg">
                         {d.lastObservation.text}
                       </Badge>
                     ) : (
-                      <span className="text-muted-foreground">-</span>
+                      <span className="text-ink-4">-</span>
                     )}
                   </TableCell>
-                  <TableCell className="font-mono text-xs tabular-nums">{d.matricule || '-'}</TableCell>
-                  <TableCell className="font-mono text-xs tabular-nums">{d.vehicule?.immatriculationAnterieur || '-'}</TableCell>
+                  <TableCell className="t-mono">{d.matricule || '-'}</TableCell>
+                  <TableCell className="t-mono">{d.vehicule?.immatriculationAnterieur || '-'}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateSinistre)}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(d.dateRequete)}</TableCell>
                   <TableCell>
-                    {resolveCreatorName(d) || <span className="text-muted-foreground">—</span>}
+                    {resolveCreatorName(d) || <span className="text-ink-4">—</span>}
                   </TableCell>
 
                   {!exportMode && (
                     <TableCell
                       onClick={e => e.stopPropagation()}
-                      className="text-right sticky right-0 bg-card z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] group-hover:bg-muted/50"
+                      className="sticky right-0 z-10 bg-card text-right shadow-[-4px_0_6px_-2px_hsl(var(--shadow-color)/0.08)] group-hover:bg-surface-2"
                     >
                       <div className="flex items-center justify-end gap-0.5">
                         <DropdownMenu>
@@ -1154,7 +1154,7 @@ export default function DossiersClientPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-muted-foreground opacity-60 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                              className="h-8 w-8 text-ink-3 opacity-60 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
                               aria-label={`Actions pour ${d.refExpert || 'ce dossier'}`}
                               loading={deletingId === d.id}
                             >
@@ -1191,7 +1191,7 @@ export default function DossiersClientPage() {
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
-                        <RowChevron className="h-4 w-4 text-muted-foreground/60 group-hover:text-foreground" aria-hidden />
+                        <RowChevron className="h-4 w-4 text-ink-4 group-hover:text-ink" aria-hidden />
                       </div>
                     </TableCell>
                   )}
@@ -1204,17 +1204,17 @@ export default function DossiersClientPage() {
 
       <div className="flex items-center justify-between px-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Afficher</span>
+          <span className="text-sm text-ink-3">Afficher</span>
           <Select value={String(rowsPerPage)} onValueChange={v => { setFilters({ rowsPerPage: Number(v) }); setPage(1); }}>
             <SelectTrigger className="h-8 w-[70px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {[10, 25, 50, 100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
             </SelectContent>
           </Select>
-          <span className="text-sm text-muted-foreground ml-4">Total: {dossierList.length} dossiers</span>
+          <span className="text-sm text-ink-3 ml-4">Total: {dossierList.length} dossiers</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground tabular-nums">
+          <span className="text-sm text-ink-3 tabular-nums">
             Page {page} / {totalPages}
           </span>
           <Button
@@ -1271,7 +1271,7 @@ export default function DossiersClientPage() {
           {gestLoading ? (
             <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
           ) : gestionnaires.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">Aucun gestionnaire disponible.</p>
+            <p className="text-sm text-ink-3 py-4">Aucun gestionnaire disponible.</p>
           ) : (
             <div className="space-y-1 max-h-[300px] overflow-y-auto py-2">
               {gestionnaires.map((g) => (

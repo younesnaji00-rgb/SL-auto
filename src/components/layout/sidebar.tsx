@@ -72,14 +72,14 @@ const AppSidebar = () => {
           isCollapsed ? 'flex-col items-center gap-2 py-3' : 'h-14 flex-row items-center justify-between',
         )}
       >
-        <Logo collapsed={isCollapsed} />
+        <Logo collapsed={isCollapsed} onDark />
         {!isCollapsed && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                className="h-8 w-8 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
                 onClick={toggleSidebar}
                 aria-label="Réduire la barre latérale"
               >
@@ -110,7 +110,7 @@ const AppSidebar = () => {
                         </NextLink>
                       </SidebarMenuButton>
                       {item.href === '/mes-rappels' && unreadRappelsCount > 0 && (
-                        <SidebarMenuBadge className="bg-primary text-[11px] font-semibold tabular-nums text-primary-foreground">
+                        <SidebarMenuBadge className="bg-sidebar-primary font-semibold text-sidebar-primary-foreground peer-hover/menu-button:text-sidebar-primary-foreground peer-data-[active=true]/menu-button:text-sidebar-primary-foreground">
                           {unreadRappelsCount > 99 ? '99+' : unreadRappelsCount}
                         </SidebarMenuBadge>
                       )}
@@ -133,9 +133,9 @@ const AppSidebar = () => {
                   const isActive = pathname === href;
                   return (
                     <SidebarMenuItem key={`${r.kind}:${r.id}`}>
-                      <SidebarMenuButton asChild isActive={isActive} tooltip={r.label} size="sm" className="text-sidebar-foreground/80">
+                      <SidebarMenuButton asChild isActive={isActive} tooltip={r.label} size="sm">
                         <NextLink href={href} onClick={closeOnMobile}>
-                          <Icon className="opacity-60" />
+                          <Icon className="text-sidebar-muted" />
                           <span>{r.label}</span>
                         </NextLink>
                       </SidebarMenuButton>
@@ -155,7 +155,7 @@ const AppSidebar = () => {
               <Button
                 variant="ghost"
                 size={isCollapsed ? 'icon' : 'sm'}
-                className={cn('text-muted-foreground hover:text-foreground', isCollapsed ? 'h-8 w-8' : 'h-8 flex-1 justify-start gap-2 px-2')}
+                className={cn('text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground', isCollapsed ? 'h-8 w-8' : 'h-8 flex-1 justify-start gap-2 px-2 text-[13px]')}
                 aria-label="Aide"
               >
                 <HelpCircle className="h-4 w-4" />
@@ -189,7 +189,7 @@ const AppSidebar = () => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  className="h-8 w-8 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
                   onClick={toggleSidebar}
                   aria-label="Agrandir la barre latérale"
                 >

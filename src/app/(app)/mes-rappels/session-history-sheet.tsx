@@ -143,10 +143,10 @@ export default function SessionHistorySheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="text-primary">Travail effectué</SheetTitle>
+          <SheetTitle>Travail effectué</SheetTitle>
           <SheetDescription>
             {dossierRef ? (
-              <>Session ouverte sur le dossier <span className="font-semibold text-foreground">{dossierRef}</span></>
+              <>Session ouverte sur le dossier <span className="font-mono font-semibold tabular-nums text-ink">{dossierRef}</span></>
             ) : (
               'Toutes les actions enregistrées pendant ce traitement de rappel.'
             )}
@@ -156,17 +156,17 @@ export default function SessionHistorySheet({
         <div className="mt-6">
           {loading ? (
             <div className="flex justify-center py-10">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
             </div>
           ) : merged.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-              <Inbox className="h-10 w-10 mb-3 opacity-20" />
+            <div className="flex flex-col items-center justify-center py-10 text-ink-3">
+              <Inbox className="mb-3 h-10 w-10 text-ink-4" />
               <p className="text-sm">Aucune action enregistrée pour cette session.</p>
             </div>
           ) : (
             <div className="relative pl-8">
               {/* Vertical rail */}
-              <div className="absolute left-3 top-2 bottom-2 w-px bg-primary/20" />
+              <div className="absolute bottom-2 left-3 top-2 w-px bg-hairline-strong" />
 
               <div className="space-y-4">
                 {merged.map((e) => (
@@ -188,12 +188,12 @@ function TimelineCard({ entry }: { entry: Entry }) {
     const author = raw.author || raw.authorEmail || 'Utilisateur inconnu';
     return (
       <div className="relative">
-        <div className="absolute -left-[22px] top-3 h-3 w-3 rounded-full bg-amber-500 ring-4 ring-background" />
-        <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
-          <div className="px-4 py-2 text-sm font-semibold bg-amber-50 text-amber-800 border-b border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/40 flex items-center gap-2">
+        <div className="absolute -left-[22px] top-3 h-3 w-3 rounded-full bg-status-warning-fg ring-4 ring-background" />
+        <div className="overflow-hidden rounded-lg border border-hairline bg-card">
+          <div className="flex items-center gap-2 bg-status-warning-bg px-4 py-2 text-sm font-semibold text-status-warning-fg">
             <MessageSquare className="h-3.5 w-3.5" /> Observation
             {raw.type && (
-              <span className="ml-auto text-[11px] font-normal uppercase tracking-wide opacity-70">
+              <span className="ml-auto text-[11px] font-medium uppercase tracking-[0.06em]">
                 {String(raw.type)}
               </span>
             )}
@@ -201,16 +201,16 @@ function TimelineCard({ entry }: { entry: Entry }) {
           <div className="p-4 space-y-1.5 text-sm">
             <div>
               <span className="font-semibold">Auteur :</span>{' '}
-              <span className="text-muted-foreground">{author}</span>
+              <span className="text-ink-2">{author}</span>
             </div>
             <div>
               <span className="font-semibold">Date :</span>{' '}
-              <span className="text-muted-foreground">{formatDate(raw.createdAt)}</span>
+              <span className="text-ink-2">{formatDate(raw.createdAt)}</span>
             </div>
             {raw.text && (
               <div>
                 <span className="font-semibold">Texte :</span>{' '}
-                <span className="text-muted-foreground whitespace-pre-wrap">{raw.text}</span>
+                <span className="whitespace-pre-wrap text-ink-2">{raw.text}</span>
               </div>
             )}
           </div>
@@ -223,16 +223,16 @@ function TimelineCard({ entry }: { entry: Entry }) {
     const isStatut = raw.type === 'statut';
     const headerClass = isStatut
       ? getStatusHeaderStyles(raw.action)
-      : 'bg-slate-50 text-slate-800 border-b border-slate-200 dark:bg-slate-900/40 dark:text-slate-100 dark:border-slate-700/50';
+      : 'bg-surface-2 text-ink';
     return (
       <div className="relative">
-        <div className="absolute -left-[22px] top-3 h-3 w-3 rounded-full bg-indigo-500 ring-4 ring-background" />
-        <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
+        <div className="absolute -left-[22px] top-3 h-3 w-3 rounded-full bg-ink-3 ring-4 ring-background" />
+        <div className="overflow-hidden rounded-lg border border-hairline bg-card">
           <div className={cn('px-4 py-2 text-sm font-semibold flex items-center gap-2', headerClass)}>
             <ClipboardList className="h-3.5 w-3.5" />
             <span>{raw.action || raw.type || 'Modification'}</span>
             {raw.type && !isStatut && (
-              <span className="ml-auto text-[11px] font-normal uppercase tracking-wide opacity-70">
+              <span className="ml-auto text-[11px] font-medium uppercase tracking-[0.06em]">
                 {String(raw.type)}
               </span>
             )}
@@ -240,16 +240,16 @@ function TimelineCard({ entry }: { entry: Entry }) {
           <div className="p-4 space-y-1.5 text-sm">
             <div>
               <span className="font-semibold">Par :</span>{' '}
-              <span className="text-muted-foreground">{raw.userNom || raw.user || '—'}</span>
+              <span className="text-ink-2">{raw.userNom || raw.user || '—'}</span>
             </div>
             <div>
               <span className="font-semibold">Date :</span>{' '}
-              <span className="text-muted-foreground">{formatDate(raw.date)}</span>
+              <span className="text-ink-2">{formatDate(raw.date)}</span>
             </div>
             {raw.details && (
               <div>
                 <span className="font-semibold">Détails :</span>{' '}
-                <span className="text-muted-foreground whitespace-pre-wrap">{raw.details}</span>
+                <span className="whitespace-pre-wrap text-ink-2">{raw.details}</span>
               </div>
             )}
           </div>
@@ -261,25 +261,25 @@ function TimelineCard({ entry }: { entry: Entry }) {
   // workflow
   return (
     <div className="relative">
-      <div className="absolute -left-[22px] top-3 h-3 w-3 rounded-full bg-emerald-500 ring-4 ring-background" />
-      <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
-        <div className="px-4 py-2 text-sm font-semibold bg-emerald-50 text-emerald-800 border-b border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-800/40 flex items-center gap-2">
+      <div className="absolute -left-[22px] top-3 h-3 w-3 rounded-full bg-status-success-fg ring-4 ring-background" />
+      <div className="overflow-hidden rounded-lg border border-hairline bg-card">
+        <div className="flex items-center gap-2 bg-status-success-bg px-4 py-2 text-sm font-semibold text-status-success-fg">
           <Workflow className="h-3.5 w-3.5" />
           <span>{raw.action || raw.status || 'Étape de workflow'}</span>
         </div>
         <div className="p-4 space-y-1.5 text-sm">
           <div>
             <span className="font-semibold">Par :</span>{' '}
-            <span className="text-muted-foreground">{raw.userNom || raw.user || '—'}</span>
+            <span className="text-ink-2">{raw.userNom || raw.user || '—'}</span>
           </div>
           <div>
             <span className="font-semibold">Date :</span>{' '}
-            <span className="text-muted-foreground">{formatDate(raw.date)}</span>
+            <span className="text-ink-2">{formatDate(raw.date)}</span>
           </div>
           {raw.status && raw.action && raw.status !== raw.action && (
             <div>
               <span className="font-semibold">Statut :</span>{' '}
-              <span className="text-muted-foreground">{String(raw.status)}</span>
+              <span className="text-ink-2">{String(raw.status)}</span>
             </div>
           )}
         </div>

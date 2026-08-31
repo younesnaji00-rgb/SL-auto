@@ -98,10 +98,7 @@ export function PageHeader({
               <h1
                 ref={h1Ref}
                 tabIndex={-1}
-                className={cn(
-                  'min-w-0 font-headline font-semibold tracking-tight text-foreground outline-none',
-                  compact ? 'text-xl leading-tight' : 'text-2xl leading-tight md:text-[28px]'
-                )}
+                className={cn('min-w-0 outline-none', compact ? 't-title' : 't-display')}
               >
                 {title}
               </h1>
@@ -113,7 +110,7 @@ export function PageHeader({
               {meta}
             </div>
             {subtitle && (
-              <p className={cn('mt-1 max-w-[70ch] text-muted-foreground', compact ? 'text-xs' : 'text-sm')}>{subtitle}</p>
+              <p className={cn('mt-1 max-w-[65ch] text-ink-3', compact ? 'text-xs' : 'text-sm')}>{subtitle}</p>
             )}
           </div>
         </div>

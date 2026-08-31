@@ -41,7 +41,7 @@ export default function MobileNav() {
   return (
     <nav
       aria-label="Navigation principale"
-      className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-hairline bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 lg:hidden"
       style={{ paddingBottom: 'max(6px, env(safe-area-inset-bottom))' }}
     >
       <ul className="grid auto-cols-fr grid-flow-col">
@@ -55,13 +55,13 @@ export default function MobileNav() {
                 aria-current={active ? 'page' : undefined}
                 className={cn(
                   'flex min-h-[56px] flex-col items-center justify-center gap-1 px-1 pt-2 text-[11.5px] font-medium leading-none transition-colors motion-safe:active:scale-[0.97]',
-                  active ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+                  active ? 'text-primary' : 'text-ink-3 hover:text-ink',
                 )}
               >
                 <span className={cn('relative flex h-8 w-14 items-center justify-center rounded-full transition-colors', active && 'bg-accent')}>
                   <Icon className="h-6 w-6" strokeWidth={active ? 2.25 : 1.75} />
                   {item.href === '/mes-rappels' && unread > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-semibold tabular-nums text-primary-foreground">
+                    <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-status-info-fg px-1 text-[11px] font-semibold tabular-nums text-status-info-bg ring-2 ring-background">
                       {unread > 99 ? '99+' : unread}
                     </span>
                   )}
@@ -77,7 +77,7 @@ export default function MobileNav() {
             aria-current={isActive('/profil') ? 'page' : undefined}
             className={cn(
               'flex min-h-[56px] flex-col items-center justify-center gap-1 px-1 pt-2 text-[11.5px] font-medium leading-none transition-colors motion-safe:active:scale-[0.97]',
-              isActive('/profil') ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+              isActive('/profil') ? 'text-primary' : 'text-ink-3 hover:text-ink',
             )}
           >
             <span className={cn('flex h-8 w-14 items-center justify-center rounded-full transition-colors', isActive('/profil') && 'bg-accent')}>

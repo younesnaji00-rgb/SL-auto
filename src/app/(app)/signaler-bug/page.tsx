@@ -95,7 +95,7 @@ export default function SignalerBugPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader
         title="Signaler un bug"
         icon={<Bug />}
@@ -140,10 +140,10 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader title="Signaler un bug" icon={<Bug />} count={conversations?.length || 0} subtitle="Conversations des utilisateurs" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 min-h-[calc(100dvh-200px)]">
+      <div className="grid min-h-[calc(100dvh-200px)] grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
         {/* Conversations list */}
         <Card className="overflow-hidden">
           <CardContent className="p-0">
@@ -160,33 +160,33 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
                 className="border-0 bg-transparent py-12"
               />
             ) : (
-              <div className="divide-y">
+              <div className="divide-y divide-hairline">
                 {conversations.map((c) => (
                   <button
                     key={c.id}
                     onClick={() => setSelectedUid(c.id)}
                     className={cn(
-                      'w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors',
-                      selectedUid === c.id && 'bg-primary/5'
+                      'w-full px-4 py-3 text-left transition-colors hover:bg-surface-2',
+                      selectedUid === c.id && 'bg-accent/50'
                     )}
                   >
                     <div className="flex items-center gap-3">
                       <Avatar className="h-9 w-9 shrink-0 border">
-                        <AvatarFallback className="bg-primary/5 text-primary text-xs">
+                        <AvatarFallback className="bg-surface-2 text-xs text-ink-2">
                           {(c.recipientNom || 'U').charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-sm font-semibold truncate">{c.recipientNom}</span>
-                          <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                          <span className="whitespace-nowrap text-[11px] text-ink-3">
                             {formatDate(c.lastMessageAt)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs text-muted-foreground truncate">{c.lastMessage || 'Message vocal'}</p>
+                          <p className="t-caption truncate">{c.lastMessage || 'Message vocal'}</p>
                           {c.unreadByAdmin > 0 && (
-                            <Badge className="h-5 min-w-[20px] justify-center text-[11px] bg-primary">
+                            <Badge className="h-5 min-w-[20px] justify-center bg-ink-solid text-[11px] text-on-ink hover:bg-ink-solid">
                               {c.unreadByAdmin}
                             </Badge>
                           )}
@@ -205,7 +205,7 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
         <Card className="overflow-hidden flex flex-col">
           {selectedUid ? (
             <>
-              <div className="flex items-center gap-3 px-4 py-3 border-b bg-muted/30">
+              <div className="flex items-center gap-3 border-b border-hairline bg-surface-2 px-4 py-3">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -215,13 +215,13 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <Avatar className="h-8 w-8 border">
-                  <AvatarFallback className="bg-primary/5 text-primary text-xs">
+                  <AvatarFallback className="bg-surface-2 text-xs text-ink-2">
                     {(selected?.recipientNom || 'U').charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <p className="text-sm font-semibold">{selected?.recipientNom}</p>
-                  <p className="text-[11px] text-muted-foreground">{selected?.recipientEmail}</p>
+                  <p className="t-caption">{selected?.recipientEmail}</p>
                 </div>
               </div>
               <ChatThread
@@ -231,8 +231,8 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
               />
             </>
           ) : (
-            <CardContent className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
-              <Bug className="h-12 w-12 mb-3 opacity-10" />
+            <CardContent className="flex flex-1 flex-col items-center justify-center text-ink-3">
+              <Bug className="mb-3 h-12 w-12 text-ink-4" />
               <p className="text-sm">Sélectionnez une conversation</p>
             </CardContent>
           )}
@@ -432,7 +432,7 @@ function ChatThread({
             return (
               <div key={msg.id} className={cn('flex gap-3', isOwn && 'flex-row-reverse')}>
                 <Avatar className="h-8 w-8 shrink-0 border">
-                  <AvatarFallback className={cn('text-xs', isOwn ? 'bg-primary/10 text-primary' : 'bg-muted')}>
+                  <AvatarFallback className={cn('text-xs', isOwn ? 'bg-ink-solid text-on-ink' : 'bg-surface-2 text-ink-2')}>
                     {(msg.auteurNom || 'U').charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
@@ -442,7 +442,7 @@ function ChatThread({
                     {msg.auteurRole && (
                       <Badge variant="outline" className="text-[11px] px-1 py-0">{msg.auteurRole}</Badge>
                     )}
-                    <span className="text-[11px] text-muted-foreground">{formatDate(msg.date)}</span>
+                    <span className="text-[11px] text-ink-3">{formatDate(msg.date)}</span>
                   </div>
 
                   {/* Voice message */}
@@ -457,8 +457,8 @@ function ChatThread({
                     <div className={cn(
                       'rounded-2xl p-3 text-sm whitespace-pre-wrap',
                       isOwn
-                        ? 'bg-primary text-primary-foreground rounded-tr-none'
-                        : 'bg-accent/50 rounded-tl-none'
+                        ? 'rounded-tr-none bg-accent text-accent-foreground'
+                        : 'rounded-tl-none bg-surface-2 text-ink'
                     )}>
                       {msg.contenu}
                     </div>
@@ -469,12 +469,12 @@ function ChatThread({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-8 text-[11px] gap-2 rounded-full border-primary/20 hover:bg-primary/5"
+                      className="h-8 gap-2 rounded-full text-[11px]"
                       onClick={() => handleDownload(msg.pieceJointe!.url, msg.pieceJointe!.nom)}
                     >
-                      <FileIcon className="h-3 w-3 text-primary" />
+                      <FileIcon className="h-3 w-3 text-ink-3" />
                       <span className="max-w-[120px] truncate">{msg.pieceJointe.nom}</span>
-                      <Download className="h-3 w-3 opacity-50" />
+                      <Download className="h-3 w-3 text-ink-4" />
                     </Button>
                   )}
                 </div>
@@ -534,7 +534,7 @@ function ChatThread({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground hover:text-primary"
+                  className="text-ink-3 hover:text-ink"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isSending}
                   title="Joindre un fichier"

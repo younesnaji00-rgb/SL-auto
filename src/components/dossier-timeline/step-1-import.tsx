@@ -399,9 +399,9 @@ export default function Step1Import({
       )}
 
       {lastFilledCount !== null && lastFilledCount > 0 && (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/20">
-          <ScanSearch className="h-4 w-4 shrink-0 text-amber-600" />
-          <span className="text-amber-700 dark:text-amber-400">
+        <div className="flex items-center gap-2 rounded-lg bg-status-warning-bg p-3 text-sm text-status-warning-fg">
+          <ScanSearch className="h-4 w-4 shrink-0" />
+          <span>
             <strong>{lastFilledCount} champ(s)</strong> pré-rempli(s) par
             l&apos;IA. Vérifiez à l&apos;étape <em>Information</em>.
           </span>
@@ -410,42 +410,42 @@ export default function Step1Import({
 
       {/* Summary card — Step 1 only shows the single AI-scan source document.
           All other attachments live in Step 4 (Pièces jointes). */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold">
+      {/* Step 1 lives inside the active-step paper (timeline.tsx), so this is
+          a hairline-separated block rather than a nested tonal card. */}
+      <Card variant="outline">
+        <CardContent className="p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="t-heading flex items-center gap-2">
               Document source du pré-remplissage
+              {hasImportDoc && (
+                <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium tabular-nums text-ink-2">1</span>
+              )}
             </h3>
-            {hasImportDoc && (
-              <Badge variant="secondary" className="text-[11px]">
-                1
-              </Badge>
-            )}
           </div>
 
           {!hasImportDoc ? (
             <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-              <FileText className="h-10 w-10 text-muted-foreground/30" />
-              <p className="text-sm italic text-muted-foreground">
-                Aucun document importé. Déposez votre lettre de mission,
-                constat ou document d&apos;assurance pour lancer le
-                pré-remplissage par l&apos;IA.
+              <FileText className="h-10 w-10 text-ink-4" />
+              <p className="t-heading">Aucun document importé</p>
+              <p className="t-caption max-w-[48ch]">
+                Déposez votre lettre de mission, constat ou document
+                d&apos;assurance pour lancer le pré-remplissage par l&apos;IA.
               </p>
             </div>
           ) : importDocLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <Loader2 className="h-5 w-5 animate-spin text-ink-3" />
             </div>
           ) : !importDoc ? (
             <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
-              <FileText className="h-8 w-8 text-muted-foreground/30" />
-              <p className="text-sm italic text-muted-foreground">
-                Le document source est introuvable (il a peut-être été
-                supprimé depuis l&apos;étape Pièces jointes).
+              <FileText className="h-8 w-8 text-ink-4" />
+              <p className="t-heading">Document source introuvable</p>
+              <p className="t-caption max-w-[48ch]">
+                Il a peut-être été supprimé depuis l&apos;étape Pièces jointes.
               </p>
             </div>
           ) : (
-            <ul className="divide-y rounded-md border">
+            <ul className="divide-y divide-hairline">
               {(() => {
                 const d: any = importDoc;
                 const name = d.nom || d.fileName || 'document';
@@ -457,15 +457,15 @@ export default function Step1Import({
                 return (
                   <li
                     key={d.id || importDocId}
-                    className={cn("flex items-center gap-3 px-3 py-2 text-sm", highlightClass(replayStatus))}
+                    className={cn("flex items-center gap-3 rounded-md px-1 py-2 text-sm", highlightClass(replayStatus))}
                   >
-                    <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <FileIcon className="h-4 w-4 shrink-0 text-ink-3" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium flex items-center gap-1.5" title={name}>
+                      <p className="flex items-center gap-1.5 truncate font-medium text-ink" title={name}>
                         <span className="truncate">{name}</span>
                         <ChangeBadge status={replayStatus} className="shrink-0" />
                       </p>
-                      <p className="truncate text-[11px] text-muted-foreground">
+                      <p className="t-caption truncate">
                         {by}
                         {when ? ` · ${when}` : ''}
                       </p>
@@ -473,7 +473,7 @@ export default function Step1Import({
                     {d.pendingUpload && (
                       <Badge
                         variant="outline"
-                        className="shrink-0 border-amber-300 bg-amber-50 text-[11px] text-amber-700"
+                        className="shrink-0 border-transparent bg-status-warning-bg text-[11px] text-status-warning-fg"
                       >
                         En attente
                       </Badge>
@@ -483,7 +483,7 @@ export default function Step1Import({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 shrink-0"
+                        className="h-7 w-7 shrink-0 text-ink-3 hover:text-ink"
                         onClick={() => setPreviewDoc({ url: url as string, nom: name })}
                         title="Aperçu"
                       >
@@ -514,7 +514,7 @@ export default function Step1Import({
           )}
 
           {hasImportDoc && (
-            <p className="mt-3 text-[11px] italic text-muted-foreground">
+            <p className="t-caption mt-4">
               Les autres pièces jointes sont gérées dans l&apos;étape 4
               « Pièces jointes ».
             </p>

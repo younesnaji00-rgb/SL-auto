@@ -25,6 +25,8 @@ import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 
 // ── Timeline ─────────────────────────────────────────────────────────────────
 import { Timeline } from '@/components/dossier-timeline/timeline';
+import { StepTabs } from '@/components/dossier-timeline/step-tabs';
+import { ClipboardList, FolderOpen, CalendarDays, Camera, MessageSquare } from 'lucide-react';
 import { getStepStatuses } from '@/lib/dossier-steps';
 import { RecordBar, RECORD_BAR_HEIGHT } from '@/components/dossiers/record-bar';
 import { DossierContextPanel } from '@/components/dossiers/dossier-context-panel';
@@ -308,64 +310,73 @@ export default function DossierDetailPage({
           steps={stepStates}
           sections={{
             1: (
-              <>
-                <Step1Import dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} />
-                <div className="mt-4">
-                  <Step2Information dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />
-                </div>
-                <div className="mt-4">
-                  <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos hideAccordSlots showBaseGarageSlots hideOtherSlots showAllNonAccordSlots />
-                </div>
-              </>
+              <StepTabs
+                storageKey={`dossier:${id}:step1`}
+                tabs={[
+                  {
+                    value: 'informations', label: 'Informations', icon: <ClipboardList />,
+                    content: (
+                      <div className="space-y-6">
+                        {/* AI pre-fill drop strip + source document — feeds the form below. */}
+                        <Step1Import dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} />
+                        <Step2Information dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />
+                      </div>
+                    ),
+                  },
+                  {
+                    value: 'documents', label: 'Documents', icon: <FolderOpen />,
+                    content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos hideAccordSlots showBaseGarageSlots hideOtherSlots showAllNonAccordSlots />,
+                  },
+                ]}
+              />
             ),
             4: (
-              <>
-                <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" />
-                <div className="mt-4">
-                  <PhotosTab dossierId={id} onlyCategory="avant" />
-                </div>
-                <div className="mt-4">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="Avant" />
-                </div>
-              </>
+              <StepTabs
+                storageKey={`dossier:${id}:step4`}
+                tabs={[
+                  { value: 'planification', label: 'Planification', icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" /> },
+                  { value: 'photos', label: 'Photos', icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="avant" /> },
+                  { value: 'observations', label: 'Observations', icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="Avant" /> },
+                ]}
+              />
             ),
             6: (
-              <>
-                <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots />
-                <div className="mt-4">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="1er accord" />
-                </div>
-              </>
+              <StepTabs
+                storageKey={`dossier:${id}:step6`}
+                tabs={[
+                  { value: 'documents', label: 'Documents', icon: <FolderOpen />, content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots /> },
+                  { value: 'observations', label: 'Observations', icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextAccord="1er accord" /> },
+                ]}
+              />
             ),
             9: (
-              <>
-                <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="En cours" />
-                <div className="mt-4">
-                  <PhotosTab dossierId={id} onlyCategory="en_cours" />
-                </div>
-                <div className="mt-4">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="En cours" />
-                </div>
-              </>
+              <StepTabs
+                storageKey={`dossier:${id}:step9`}
+                tabs={[
+                  { value: 'planification', label: 'Planification', icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="En cours" /> },
+                  { value: 'photos', label: 'Photos', icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="en_cours" /> },
+                  { value: 'observations', label: 'Observations', icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="En cours" /> },
+                ]}
+              />
             ),
             11: (
-              <>
-                <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" />
-                <div className="mt-4">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="2ème accord ou +" />
-                </div>
-              </>
+              <StepTabs
+                storageKey={`dossier:${id}:step11`}
+                tabs={[
+                  { value: 'documents', label: 'Documents', icon: <FolderOpen />, content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" /> },
+                  { value: 'observations', label: 'Observations', icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextAccord="2ème accord ou +" /> },
+                ]}
+              />
             ),
             10: (
-              <>
-                <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" />
-                <div className="mt-4">
-                  <PhotosTab dossierId={id} onlyCategory="apres" />
-                </div>
-                <div className="mt-4">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="Après" />
-                </div>
-              </>
+              <StepTabs
+                storageKey={`dossier:${id}:step10`}
+                tabs={[
+                  { value: 'planification', label: 'Planification', icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" /> },
+                  { value: 'photos', label: 'Photos', icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="apres" /> },
+                  { value: 'observations', label: 'Observations', icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="Après" /> },
+                ]}
+              />
             ),
             7: <Step6Rapport dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} />,
             8: (

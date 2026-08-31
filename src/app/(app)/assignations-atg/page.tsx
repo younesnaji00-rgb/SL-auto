@@ -287,11 +287,11 @@ function DeadlineBar({
   if (completed) {
     return (
       <div className="flex items-center gap-1.5 min-w-[140px]">
-        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+        <CheckCircle2 className="h-4 w-4 shrink-0 text-status-success-fg" />
         {completedStatus && (
           <Badge
             variant="outline"
-            className="text-[11px] font-semibold border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800/60 dark:text-emerald-200 whitespace-nowrap"
+            className="whitespace-nowrap border-transparent bg-status-success-bg text-[11px] font-semibold text-status-success-fg"
           >
             {completedStatus}
           </Badge>
@@ -300,33 +300,34 @@ function DeadlineBar({
     );
   }
 
-  // Semantic three-band: ≤50% teal (plenty of time), ≤80% amber (attention), >80% red (urgent).
+  // Semantic three-band (status pairs, never the accent): ≤50% success (plenty
+  // of time), ≤80% warning (attention), >80% danger (urgent).
   const getBarColor = (pct: number) => {
-    if (pct <= 50) return 'bg-primary';
-    if (pct <= 80) return 'bg-amber-500';
+    if (pct <= 50) return 'bg-status-success-fg';
+    if (pct <= 80) return 'bg-status-warning-fg';
     return 'bg-destructive';
   };
 
   const getTextColor = (pct: number) => {
-    if (pct <= 50) return 'text-primary';
-    if (pct <= 80) return 'text-amber-600 dark:text-amber-400';
+    if (pct <= 50) return 'text-status-success-fg';
+    if (pct <= 80) return 'text-status-warning-fg';
     return 'text-destructive';
   };
 
   if (pending) {
     return (
       <div className="flex items-center gap-1.5 min-w-[140px]">
-        <Clock className="h-3 w-3 text-muted-foreground" />
-        <span className="text-[11px] font-bold text-muted-foreground whitespace-nowrap">En attente</span>
+        <Clock className="h-3 w-3 text-ink-3" />
+        <span className="whitespace-nowrap text-[11px] font-semibold text-ink-3">En attente</span>
       </div>
     );
   }
 
   return (
     <div className="flex items-center gap-2 min-w-[140px]">
-      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-3">
         <div
-          className={cn('h-full rounded-full transition-all', expired ? 'bg-destructive animate-pulse' : getBarColor(percent))}
+          className={cn('h-full rounded-full transition-[width]', expired ? 'bg-destructive' : getBarColor(percent))}
           style={{ width: `${percent}%` }}
         />
       </div>
@@ -632,9 +633,9 @@ export default function AssignationsATGPage() {
     });
 
     return [
-      { key: 'today' as const, label: "Aujourd'hui", items: todayGroup, color: 'bg-[hsl(var(--primary)/0.12)] text-primary' },
-      { key: 'expired' as const, label: 'En retard', items: expiredGroup, color: 'bg-destructive/10 text-destructive' },
-      { key: 'future' as const, label: 'À venir', items: futureGroup, color: 'bg-muted text-muted-foreground' },
+      { key: 'today' as const, label: "Aujourd'hui", items: todayGroup, color: 'bg-accent/50 text-ink' },
+      { key: 'expired' as const, label: 'En retard', items: expiredGroup, color: 'bg-status-danger-bg text-status-danger-fg' },
+      { key: 'future' as const, label: 'À venir', items: futureGroup, color: 'bg-surface-2 text-ink-2' },
     ];
   }, [filteredPlanifications]);
 
@@ -750,9 +751,9 @@ export default function AssignationsATGPage() {
   if (isMobile) {
     return (
       <div>
-        <header className="sticky top-0 z-30 h-14 flex items-center gap-3 px-4 border-b bg-card">
-          <UserCheck className="h-5 w-5 text-primary" />
-          <h1 className="text-base font-bold flex-1">Mes missions</h1>
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-hairline bg-card px-4">
+          <UserCheck className="h-5 w-5 text-ink-3" />
+          <h1 className="t-heading flex-1">Mes missions</h1>
           <Badge variant="secondary">
             {effectiveViewMode === 'by-zone'
               ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
@@ -773,11 +774,11 @@ export default function AssignationsATGPage() {
               </SheetHeader>
               <div className="flex-1 px-4 py-4 space-y-4 overflow-y-auto">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <label className="t-label">
                     Recherche
                   </label>
                   <div className="relative">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
                     <Input
                       value={keyword}
                       onChange={(e) => setFilters({ keyword: e.target.value })}
@@ -787,7 +788,7 @@ export default function AssignationsATGPage() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <label className="t-label">
                     Compagnie
                   </label>
                   <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
@@ -804,7 +805,7 @@ export default function AssignationsATGPage() {
                 </div>
                 {canSeeNameFilter && (
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <label className="t-label">
                       Agent
                     </label>
                     <Select value={agentFilter} onValueChange={v => setFilters({ agentFilter: v })}>
@@ -821,7 +822,7 @@ export default function AssignationsATGPage() {
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <label className="t-label">
                     Période
                   </label>
                   <DateRangeFilter
@@ -884,8 +885,8 @@ export default function AssignationsATGPage() {
                   className={cn(
                     'flex items-center justify-center gap-1.5 h-11 rounded-md text-xs font-semibold transition-colors',
                     isActive
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'text-muted-foreground hover:bg-accent'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-ink-2 hover:bg-surface-3'
                   )}
                 >
                   <span>{tab.label}</span>
@@ -894,7 +895,7 @@ export default function AssignationsATGPage() {
                       'inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded text-[11px] font-mono',
                       isActive
                         ? 'bg-primary-foreground/20 text-primary-foreground'
-                        : 'bg-muted text-muted-foreground'
+                        : 'bg-surface-3 text-ink-3'
                     )}
                   >
                     {count}
@@ -932,7 +933,7 @@ export default function AssignationsATGPage() {
                   onOpenChange={(open) => setOpenSections(prev => ({ ...prev, [group.key]: open }))}
                 >
                   <div className="flex items-center gap-2 w-full">
-                    <CollapsibleTrigger className="flex-1 flex items-center justify-between h-9 px-1 text-xs font-bold tracking-wider uppercase text-muted-foreground hover:text-foreground transition-colors">
+                    <CollapsibleTrigger className="t-label flex h-9 flex-1 items-center justify-between px-1 transition-colors hover:text-ink">
                       <span>
                         {group.label} ({group.items.length})
                       </span>
@@ -976,11 +977,11 @@ export default function AssignationsATGPage() {
                               router.push(`/assignations-atg/${p.dossierId}?mission=${encodeURIComponent(activeTab)}`);
                             }
                           }}
-                          className="block w-full text-left bg-card border rounded-xl p-3 shadow-sm hover:bg-muted/40 transition-colors cursor-pointer"
+                          className="paper block w-full cursor-pointer p-3 text-left transition-colors hover:bg-surface-2"
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="font-bold text-sm text-primary truncate">{p.dossierNom || p.dossierId}</span>
-                            <span className="text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+                            <span className="t-mono truncate font-semibold">{p.dossierNom || p.dossierId}</span>
+                            <span className="t-caption whitespace-nowrap tabular-nums">
                               {rdv ? format(rdv, 'HH:mm') : '-'}
                             </span>
                           </div>
@@ -991,8 +992,8 @@ export default function AssignationsATGPage() {
                             )}
                           </div>
                           {p.zone && (
-                            <div className="mt-1 flex items-center gap-1 text-xs font-medium text-foreground truncate">
-                              <MapPin className="h-3 w-3 shrink-0 text-primary" />
+                            <div className="mt-1 flex items-center gap-1 truncate text-xs font-medium text-ink">
+                              <MapPin className="h-3 w-3 shrink-0 text-ink-3" />
                               <span className="truncate">{p.zone}</span>
                             </div>
                           )}
@@ -1057,21 +1058,19 @@ export default function AssignationsATGPage() {
                     open={zoneOpen(zone)}
                     onOpenChange={(open) => setOpenZoneSections(prev => ({ ...prev, [zone]: open }))}
                   >
-                    <div className="bg-card border rounded-xl overflow-hidden shadow-sm">
+                    <div className="paper overflow-hidden">
                       <CollapsibleTrigger className={cn(
-                        'flex items-center justify-between w-full px-3 py-2.5 transition-colors hover:opacity-80',
-                        isUnassigned
-                          ? 'bg-muted text-muted-foreground'
-                          : 'bg-[hsl(var(--primary)/0.12)] text-primary'
+                        'flex w-full items-center justify-between bg-surface-2 px-3 py-2.5 transition-colors hover:bg-surface-3',
+                        isUnassigned ? 'text-ink-3' : 'text-ink'
                       )}>
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
                           <MapPin className="h-4 w-4 shrink-0" />
-                          <span className="text-sm font-bold truncate">{zone}</span>
+                          <span className="truncate text-sm font-semibold">{zone}</span>
                           <Badge variant="secondary" className="text-[11px] font-mono h-5 min-w-[20px] justify-center shrink-0">
                             {agents.length}
                           </Badge>
                           {totalWorkload > 0 && (
-                            <Badge variant="outline" className="text-[11px] h-5 gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200 shrink-0">
+                            <Badge variant="outline" className="text-[11px] h-5 gap-1 border-transparent bg-status-warning-bg text-status-warning-fg shrink-0">
                               <Clock className="h-3 w-3" /> {totalWorkload}
                             </Badge>
                           )}
@@ -1094,7 +1093,7 @@ export default function AssignationsATGPage() {
                                   setFilters({ agentFilter: name });
                                   setViewMode('list');
                                 }}
-                                className="flex items-center justify-between w-full h-14 px-3 hover:bg-muted/40 transition-colors text-left"
+                                className="flex h-14 w-full items-center justify-between px-3 text-left transition-colors hover:bg-surface-2"
                               >
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
                                   <span className="text-sm font-medium truncate">{name || '-'}</span>
@@ -1103,7 +1102,7 @@ export default function AssignationsATGPage() {
                                   {active > 0 ? (
                                     <Badge
                                       variant="outline"
-                                      className="text-[11px] gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200"
+                                      className="text-[11px] gap-1 border-transparent bg-status-warning-bg text-status-warning-fg"
                                     >
                                       <Clock className="h-3 w-3" /> {active}
                                     </Badge>
@@ -1198,7 +1197,7 @@ export default function AssignationsATGPage() {
       {/* Mission type tabs — only relevant for the flat list view; hidden
           in the zone-grouped view because that one pivots on agents. */}
       {effectiveViewMode === 'list' && (
-        <div className="bg-card border rounded-xl shadow-sm sticky top-0 z-20">
+        <div className="paper sticky top-0 z-20">
           <div className="flex overflow-x-auto no-scrollbar">
             {MISSION_TABS.map((tab) => {
               const isActive = activeTab === tab.id;
@@ -1209,8 +1208,8 @@ export default function AssignationsATGPage() {
                   className={cn(
                     'flex items-center gap-2 px-6 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap',
                     isActive
-                      ? 'border-primary text-primary bg-primary/5'
-                      : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
+                      ? 'border-primary text-ink'
+                      : 'border-transparent text-ink-2 hover:bg-surface-2 hover:text-ink'
                   )}
                 >
                   {tab.label}
@@ -1229,7 +1228,7 @@ export default function AssignationsATGPage() {
 
       {effectiveViewMode === 'by-zone' ? (
         zoneGroups.length === 0 ? (
-          <Card className="shadow-sm overflow-hidden">
+          <Card className="overflow-hidden">
             <CardContent className="p-0">
               <EmptyState
                 icon={<Users />}
@@ -1251,21 +1250,19 @@ export default function AssignationsATGPage() {
                   open={zoneOpen(zone)}
                   onOpenChange={(open) => setOpenZoneSections(prev => ({ ...prev, [zone]: open }))}
                 >
-                  <Card className="shadow-sm overflow-hidden">
+                  <Card className="overflow-hidden">
                     <CollapsibleTrigger className={cn(
-                      'flex items-center justify-between w-full px-4 py-3 transition-colors hover:opacity-80',
-                      isUnassigned
-                        ? 'bg-muted text-muted-foreground'
-                        : 'bg-[hsl(var(--primary)/0.12)] text-primary'
+                      'flex w-full items-center justify-between bg-surface-2 px-4 py-3 transition-colors hover:bg-surface-3',
+                      isUnassigned ? 'text-ink-3' : 'text-ink'
                     )}>
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 shrink-0" />
-                        <span className="text-sm font-bold">{zone}</span>
+                        <span className="text-sm font-semibold">{zone}</span>
                         <Badge variant="secondary" className="text-[11px] font-mono h-5 min-w-[20px] justify-center">
                           {agents.length}
                         </Badge>
                         {totalWorkload > 0 && (
-                          <Badge variant="outline" className="text-[11px] h-5 gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200">
+                          <Badge variant="outline" className="text-[11px] h-5 gap-1 border-transparent bg-status-warning-bg text-status-warning-fg">
                             <Clock className="h-3 w-3" /> {totalWorkload} actif{totalWorkload > 1 ? 's' : ''}
                           </Badge>
                         )}
@@ -1279,11 +1276,11 @@ export default function AssignationsATGPage() {
                       <CardContent className="p-0">
                         <Table>
                           <TableHeader>
-                            <TableRow className="bg-muted/30">
-                              <TableHead className="font-bold text-xs">Agent</TableHead>
-                              <TableHead className="font-bold text-xs">Zone</TableHead>
-                              <TableHead className="font-bold text-xs">Planifications actives</TableHead>
-                              <TableHead className="font-bold text-xs text-right pr-4">Action</TableHead>
+                            <TableRow>
+                              <TableHead>Agent</TableHead>
+                              <TableHead>Zone</TableHead>
+                              <TableHead>Planifications actives</TableHead>
+                              <TableHead className="pr-4 text-right">Action</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -1293,7 +1290,7 @@ export default function AssignationsATGPage() {
                               return (
                                 <TableRow
                                   key={agent.id}
-                                  className="hover:bg-muted/50 transition-colors cursor-pointer"
+                                  className="cursor-pointer"
                                   onClick={() => {
                                     setFilters({ agentFilter: name });
                                     setViewMode('list');
@@ -1317,12 +1314,12 @@ export default function AssignationsATGPage() {
                                     {active > 0 ? (
                                       <Badge
                                         variant="outline"
-                                        className="text-[11px] gap-1 border-amber-200/70 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/60 dark:text-amber-200"
+                                        className="text-[11px] gap-1 border-transparent bg-status-warning-bg text-status-warning-fg"
                                       >
                                         <Clock className="h-3 w-3" /> {active}
                                       </Badge>
                                     ) : (
-                                      <span className="text-xs text-muted-foreground">0</span>
+                                      <span className="text-xs text-ink-4">0</span>
                                     )}
                                   </TableCell>
                                   <TableCell className="text-right pr-4">
@@ -1344,7 +1341,7 @@ export default function AssignationsATGPage() {
           </div>
         )
       ) : loading ? (
-        <Card className="shadow-sm overflow-hidden">
+        <Card className="overflow-hidden">
           <CardContent className="p-0">
             {Array.from({ length: 5 }).map((_, i) => (
               <SkeletonRow key={i} />
@@ -1352,7 +1349,7 @@ export default function AssignationsATGPage() {
           </CardContent>
         </Card>
       ) : filteredPlanifications.length === 0 ? (
-        <Card className="shadow-sm overflow-hidden">
+        <Card className="overflow-hidden">
           <CardContent className="p-0">
             <EmptyState
               icon={<Calendar />}
@@ -1368,36 +1365,36 @@ export default function AssignationsATGPage() {
           {(() => {
             const renderTableHeader = (groupKey: GroupKey) => (
               <TableHeader>
-                <TableRow className="bg-muted/30">
-                  <TableHead className="font-bold text-xs">Dossier</TableHead>
-                  <TableHead className="font-bold text-xs">Assuré</TableHead>
-                  <TableHead className="font-bold text-xs">Immat.</TableHead>
-                  <TableHead className="font-bold text-xs">Compagnie</TableHead>
-                  {showAgentColumn && <TableHead className="font-bold text-xs">Agent</TableHead>}
-                  <TableHead className="font-bold text-xs">Date RDV</TableHead>
-                  <TableHead className="font-bold text-xs">Zone</TableHead>
-                  <TableHead className="font-bold text-xs">Adresse</TableHead>
-                  <TableHead className="font-bold text-xs">Téléphone</TableHead>
-                  <TableHead className="font-bold text-xs">Créé le</TableHead>
-                  <TableHead className="font-bold text-xs">Créé par</TableHead>
-                  <TableHead className="font-bold text-xs">Assigné par</TableHead>
+                <TableRow>
+                  <TableHead>Dossier</TableHead>
+                  <TableHead>Assuré</TableHead>
+                  <TableHead>Immat.</TableHead>
+                  <TableHead>Compagnie</TableHead>
+                  {showAgentColumn && <TableHead>Agent</TableHead>}
+                  <TableHead>Date RDV</TableHead>
+                  <TableHead>Zone</TableHead>
+                  <TableHead>Adresse</TableHead>
+                  <TableHead>Téléphone</TableHead>
+                  <TableHead>Créé le</TableHead>
+                  <TableHead>Créé par</TableHead>
+                  <TableHead>Assigné par</TableHead>
                 </TableRow>
               </TableHeader>
             );
             const renderRow = (p: PlanificationItem) => (
               <TableRow
                 key={`${p.dossierId}-${p.id}`}
-                className="hover:bg-muted/50 transition-colors cursor-pointer"
+                className="cursor-pointer"
                 onClick={() => router.push(`/assignations-atg/${p.dossierId}?mission=${encodeURIComponent(activeTab)}`)}
               >
                 <TableCell>
-                  <span className="font-semibold text-sm text-primary">{p.dossierNom || p.dossierId}</span>
+                  <span className="t-mono font-semibold">{p.dossierNom || p.dossierId}</span>
                 </TableCell>
-                <TableCell className="text-xs">{p.assureNom || '-'}</TableCell>
-                <TableCell className="font-mono text-xs tabular-nums">{dossierLive[p.dossierId]?.matricule || '—'}</TableCell>
-                <TableCell className="text-xs">{p.compagnie || '-'}</TableCell>
+                <TableCell>{p.assureNom || '-'}</TableCell>
+                <TableCell className="t-mono">{dossierLive[p.dossierId]?.matricule || '—'}</TableCell>
+                <TableCell className="text-ink-2">{p.compagnie || '-'}</TableCell>
                 {showAgentColumn && <TableCell className="font-medium text-sm">{p.agentTerrain}</TableCell>}
-                <TableCell className="text-xs text-muted-foreground">{formatDate(p.dateRDV)}</TableCell>
+                <TableCell className="text-ink-3">{formatDate(p.dateRDV)}</TableCell>
                 <TableCell>
                   {p.zone ? (
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -1416,18 +1413,18 @@ export default function AssignationsATGPage() {
                     <DeadlineBadge dateRDV={p.dateRDV} createdAt={p.createdAt} />
                   </div>
                 </TableCell>
-                <TableCell className="text-xs text-muted-foreground">{formatDate(p.createdAt)}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">
+                <TableCell className="text-ink-3">{formatDate(p.createdAt)}</TableCell>
+                <TableCell className="text-ink-3">
                   {p.createdByName ? (
                     <>
                       <span>{p.createdByName}</span>
                       {p.createdByRole && (
-                        <span className="ml-1 text-[11px] opacity-70">({p.createdByRole})</span>
+                        <span className="ml-1 text-[11px] text-ink-4">({p.createdByRole})</span>
                       )}
                     </>
                   ) : '—'}
                 </TableCell>
-                <TableCell className="text-xs text-muted-foreground">{p.modifiedByName || '-'}</TableCell>
+                <TableCell className="text-ink-3">{p.modifiedByName || '-'}</TableCell>
               </TableRow>
             );
 
@@ -1439,11 +1436,11 @@ export default function AssignationsATGPage() {
                 open={openSections[group.key]}
                 onOpenChange={(open) => setOpenSections(prev => ({ ...prev, [group.key]: open }))}
               >
-                <Card className="shadow-sm overflow-hidden">
-                  <div className={cn('flex items-center w-full transition-colors hover:opacity-80', group.color)}>
-                    <CollapsibleTrigger className="flex-1 flex items-center justify-between px-4 py-3">
+                <Card className="overflow-hidden">
+                  <div className={cn('flex w-full items-center', group.color)}>
+                    <CollapsibleTrigger className="flex flex-1 items-center justify-between px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold">{group.label}</span>
+                        <span className="text-sm font-semibold">{group.label}</span>
                         <Badge variant="secondary" className="text-[11px] font-mono h-5 min-w-[20px] justify-center">
                           {group.items.length}
                         </Badge>

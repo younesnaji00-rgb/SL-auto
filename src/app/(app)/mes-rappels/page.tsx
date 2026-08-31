@@ -272,7 +272,7 @@ export default function MesRappelsPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader title="Mes rappels" icon={<Bell />} />
 
       <Tabs defaultValue={defaultTab} className="w-full">
@@ -282,22 +282,22 @@ export default function MesRappelsPage() {
         </TabsList>
 
         {recusVisible && (
-        <TabsContent value="recus" className="mt-4">
+        <TabsContent value="recus" className="mt-6">
           {loading ? (
             <div className="flex justify-center py-20">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
             </div>
           ) : rappels.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-              <Inbox className="h-10 w-10 mb-3 opacity-30" />
+            <div className="flex flex-col items-center justify-center py-20 text-ink-2">
+              <Inbox className="mb-3 h-10 w-10 text-ink-4" />
               <p className="text-sm">Aucun rappel pour le moment.</p>
-              <p className="text-xs mt-1 opacity-70">Les rappels envoyés depuis Gestion des dossiers apparaîtront ici.</p>
+              <p className="t-caption mt-1">Les rappels envoyés depuis Gestion des dossiers apparaîtront ici.</p>
             </div>
           ) : (
-            <Card className="overflow-x-auto border rounded-lg">
+            <Card className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/30">
+                  <TableRow>
                     <TableHead className="font-bold text-xs">Référence dossier</TableHead>
                     <TableHead className="font-bold text-xs">Envoyé par</TableHead>
                     <TableHead className="font-bold text-xs">Observation</TableHead>
@@ -312,7 +312,7 @@ export default function MesRappelsPage() {
                   {rappels.map((r) => (
                     <TableRow
                       key={r.id}
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      className="cursor-pointer"
                       onClick={async () => {
                         // F9.A: open a rappel "session" — generate sessionId on first
                         // click (and persist it on the doc), or re-stamp the existing
@@ -348,7 +348,7 @@ export default function MesRappelsPage() {
                         router.push(`/dossiers/${r.dossierId}`);
                       }}
                     >
-                      <TableCell className="font-mono text-sm font-semibold text-primary tabular-nums">
+                      <TableCell className="t-mono font-semibold">
                         {r.dossierRef || r.dossierId}
                       </TableCell>
                       <TableCell className="text-sm">{r.senderNom || '—'}</TableCell>
@@ -362,11 +362,11 @@ export default function MesRappelsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         {r.resolvedAt ? (
-                          <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-300">Traité</Badge>
+                          <Badge className="border-transparent bg-status-success-bg text-status-success-fg hover:bg-status-success-bg">Traité</Badge>
                         ) : r.read ? (
-                          <Badge variant="outline" className="text-muted-foreground border-muted-foreground/30">Lu</Badge>
+                          <Badge variant="outline" className="border-hairline-strong text-ink-3">Lu</Badge>
                         ) : (
-                          <Badge className="bg-primary/10 text-primary border border-primary/30">Nouveau</Badge>
+                          <Badge className="border-transparent bg-status-info-bg text-status-info-fg hover:bg-status-info-bg">Nouveau</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -419,22 +419,22 @@ export default function MesRappelsPage() {
         )}
 
         {envoyesVisible && (
-        <TabsContent value="envoyes" className="mt-4">
+        <TabsContent value="envoyes" className="mt-6">
           {sentLoading ? (
             <div className="flex justify-center py-20">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
             </div>
           ) : sentGroups.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-              <Send className="h-10 w-10 mb-3 opacity-30" />
+            <div className="flex flex-col items-center justify-center py-20 text-ink-2">
+              <Send className="mb-3 h-10 w-10 text-ink-4" />
               <p className="text-sm">Aucun rappel envoyé pour le moment.</p>
-              <p className="text-xs mt-1 opacity-70">Les rappels que vous envoyez depuis Gestion des dossiers apparaîtront ici.</p>
+              <p className="t-caption mt-1">Les rappels que vous envoyez depuis Gestion des dossiers apparaîtront ici.</p>
             </div>
           ) : (
-            <Card className="overflow-x-auto border rounded-lg">
+            <Card className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/30">
+                  <TableRow>
                     <TableHead className="font-bold text-xs w-8" />
                     <TableHead className="font-bold text-xs">Destinataire(s)</TableHead>
                     <TableHead className="font-bold text-xs">Dossiers</TableHead>
@@ -449,7 +449,7 @@ export default function MesRappelsPage() {
                     return (
                       <React.Fragment key={g.key}>
                         <TableRow
-                          className="cursor-pointer hover:bg-muted/50 transition-colors"
+                          className="cursor-pointer"
                           onClick={() => toggleExpand(g.key)}
                         >
                           <TableCell className="w-8">
@@ -472,7 +472,7 @@ export default function MesRappelsPage() {
                               <span
                                 className={cn(
                                   'font-medium',
-                                  g.newCount > 0 ? 'text-primary' : 'text-muted-foreground/50',
+                                  g.newCount > 0 ? 'text-status-info-fg' : 'text-ink-4',
                                 )}
                               >
                                 Nouveau {g.newCount}
@@ -480,7 +480,7 @@ export default function MesRappelsPage() {
                               <span
                                 className={cn(
                                   'font-medium',
-                                  g.readCount > 0 ? 'text-muted-foreground' : 'text-muted-foreground/50',
+                                  g.readCount > 0 ? 'text-ink-2' : 'text-ink-4',
                                 )}
                               >
                                 Lu {g.readCount}
@@ -488,11 +488,9 @@ export default function MesRappelsPage() {
                               <span
                                 className={cn(
                                   'font-medium',
-                                  g.treatedCount === total
-                                    ? 'text-emerald-600'
-                                    : g.treatedCount > 0
-                                      ? 'text-emerald-600/80'
-                                      : 'text-muted-foreground/50',
+                                  g.treatedCount > 0
+                                    ? 'text-status-success-fg'
+                                    : 'text-ink-4',
                                 )}
                               >
                                 Traité {g.treatedCount}
@@ -501,24 +499,24 @@ export default function MesRappelsPage() {
                           </TableCell>
                         </TableRow>
                         {isOpen && (
-                          <TableRow className="bg-muted/10">
+                          <TableRow className="bg-surface-2/60 hover:bg-surface-2/60">
                             <TableCell colSpan={5} className="p-0">
                               <div className="px-4 py-2">
                                 <Table>
                                   <TableHeader>
                                     <TableRow className="bg-transparent">
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Dossier</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Destinataire</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Date</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">Suivi</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground text-right py-1">Statut</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground text-right py-1">Travail effectué</TableHead>
+                                      <TableHead className="py-1">Dossier</TableHead>
+                                      <TableHead className="py-1">Destinataire</TableHead>
+                                      <TableHead className="py-1">Date</TableHead>
+                                      <TableHead className="py-1">Suivi</TableHead>
+                                      <TableHead className="py-1 text-right">Statut</TableHead>
+                                      <TableHead className="py-1 text-right">Travail effectué</TableHead>
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
                                     {g.rappels.map((r) => (
                                       <TableRow key={r.id} className="border-b last:border-b-0">
-                                        <TableCell className="font-mono text-sm font-semibold text-primary tabular-nums py-2">
+                                        <TableCell className="t-mono py-2 font-semibold">
                                           <Link
                                             href={`/dossiers/${r.dossierId}`}
                                             className="hover:underline"
@@ -528,22 +526,22 @@ export default function MesRappelsPage() {
                                         </TableCell>
                                         <TableCell className="text-sm py-2">{r.recipientNom || '—'}</TableCell>
                                         <TableCell className="text-sm tabular-nums py-2">{formatDate(r.createdAt)}</TableCell>
-                                        <TableCell className="text-xs text-muted-foreground tabular-nums py-2">
+                                        <TableCell className="py-2 text-xs text-ink-3">
                                           {r.resolvedAt ? (
-                                            <span className="text-emerald-700 dark:text-emerald-400">Sauvegardé le {formatDate(r.resolvedAt)}</span>
+                                            <span className="text-status-success-fg">Sauvegardé le {formatDate(r.resolvedAt)}</span>
                                           ) : (r.seenAt || r.read) ? (
                                             <span>Consulté{r.seenAt ? ` le ${formatDate(r.seenAt)}` : ''}</span>
                                           ) : (
-                                            <span className="opacity-60">Non consulté</span>
+                                            <span className="text-ink-4">Non consulté</span>
                                           )}
                                         </TableCell>
                                         <TableCell className="text-right py-2">
                                           {r.resolvedAt ? (
-                                            <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-300">Traité</Badge>
+                                            <Badge className="border-transparent bg-status-success-bg text-status-success-fg hover:bg-status-success-bg">Traité</Badge>
                                           ) : r.read ? (
-                                            <Badge variant="outline" className="text-muted-foreground border-muted-foreground/30">Lu</Badge>
+                                            <Badge variant="outline" className="border-hairline-strong text-ink-3">Lu</Badge>
                                           ) : (
-                                            <Badge className="bg-primary/10 text-primary border border-primary/30">Nouveau</Badge>
+                                            <Badge className="border-transparent bg-status-info-bg text-status-info-fg hover:bg-status-info-bg">Nouveau</Badge>
                                           )}
                                         </TableCell>
                                         <TableCell className="text-right py-2">

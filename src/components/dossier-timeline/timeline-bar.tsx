@@ -31,12 +31,12 @@ export interface TimelineBarProps {
 export function StepStamp({ step, className }: { step: StepState; className?: string }) {
   if (!step.doneAt) return null;
   return (
-    <span className={cn('inline-flex items-center gap-1 truncate text-[11px] tabular-nums text-muted-foreground', className)}>
+    <span className={cn('t-caption inline-flex items-center gap-1 truncate tabular-nums', className)}>
       {format(step.doneAt, 'dd/MM/yyyy HH:mm', { locale: fr })}
       {step.doneBy && (
         <>
           <span aria-hidden>·</span>
-          <UserNameLink entry={{ user: step.doneBy }} className="text-muted-foreground" />
+          <UserNameLink entry={{ user: step.doneBy }} className="text-ink-3" />
         </>
       )}
     </span>
@@ -47,11 +47,13 @@ export function StepStatusChip({ status, label }: { status: StepStatus; label: s
   return (
     <span
       className={cn(
+        // done = success pair · active = accent tint · todo = ink-3 outline ·
+        // blocked = dashed ink-4 (DESIGN.md §3 / §10).
         'inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium',
         status === 'done' && 'bg-status-success-bg text-status-success-fg',
-        status === 'in_progress' && 'bg-primary/10 text-primary',
-        status === 'todo' && 'bg-muted text-muted-foreground',
-        status === 'blocked' && 'bg-muted text-muted-foreground/70',
+        status === 'in_progress' && 'bg-accent text-accent-foreground',
+        status === 'todo' && 'border border-hairline-strong text-ink-3',
+        status === 'blocked' && 'border border-dashed border-hairline-strong text-ink-4',
       )}
     >
       {label}
@@ -70,15 +72,15 @@ function StepDot({ step, index, isActive }: { step: StepState; index: number; is
         </span>
       );
     case 'in_progress':
-      return <span className={cn(base, 'border-primary/60 bg-primary/10 text-primary')}>{index + 1}</span>;
+      return <span className={cn(base, 'border-primary/60 bg-accent text-accent-foreground')}>{index + 1}</span>;
     case 'blocked':
       return (
-        <span className={cn(base, 'border-dashed border-border bg-muted/60 text-muted-foreground/70')} aria-hidden>
+        <span className={cn(base, 'border-dashed border-hairline-strong bg-transparent text-ink-4')} aria-hidden>
           <Lock className="h-3 w-3" />
         </span>
       );
     default:
-      return <span className={cn(base, 'border-border bg-background text-muted-foreground')}>{index + 1}</span>;
+      return <span className={cn(base, 'border-hairline-strong bg-card text-ink-3')}>{index + 1}</span>;
   }
 }
 
@@ -95,7 +97,7 @@ export function TimelineBar({ steps, activeId, onStepClick, orientation = 'horiz
   if (orientation === 'vertical') {
     return (
       <nav aria-label="Étapes du dossier" className={cn('flex flex-col', className)}>
-        <ol className="relative flex flex-col gap-1 border-l border-border pl-0">
+        <ol className="relative flex flex-col gap-1 border-l border-hairline-strong pl-0">
           {steps.map((step, idx) => {
             const isActive = step.id === activeId;
             const blocked = step.status === 'blocked';
@@ -109,16 +111,21 @@ export function TimelineBar({ steps, activeId, onStepClick, orientation = 'horiz
                   aria-current={isActive ? 'step' : undefined}
                   className={cn(
                     'flex w-full items-start gap-3 rounded-r-md border-l-2 py-1.5 pl-3 pr-2 text-left transition-colors',
-                    isActive ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-muted/60',
-                    blocked && 'cursor-not-allowed opacity-70 hover:bg-transparent',
+                    isActive ? 'border-primary bg-accent/40' : 'border-transparent hover:bg-surface-2',
+                    blocked && 'cursor-not-allowed hover:bg-transparent',
                   )}
                 >
                   <StepDot step={step} index={idx} isActive={isActive} />
                   <span className="min-w-0 flex-1">
-                    <span className={cn('block truncate text-sm', isActive ? 'font-semibold text-foreground' : step.status === 'done' ? 'text-foreground/80' : 'text-muted-foreground')}>
+                    <span
+                      className={cn(
+                        'block truncate text-sm',
+                        isActive ? 'font-semibold text-ink' : step.status === 'done' ? 'text-ink-2' : blocked ? 'text-ink-4' : 'text-ink-3',
+                      )}
+                    >
                       {step.label}
                     </span>
-                    <span className="block truncate text-[11px] text-muted-foreground">
+                    <span className={cn('t-caption block truncate', blocked && 'text-ink-4')}>
                       {step.doneAt ? <StepStamp step={step} /> : blocked ? step.blockedReason : step.statusLabel}
                     </span>
                   </span>
@@ -150,7 +157,7 @@ export function TimelineBar({ steps, activeId, onStepClick, orientation = 'horiz
                 aria-current={isActive ? 'step' : undefined}
                 className={cn(
                   'flex shrink-0 items-center gap-2 rounded-md px-2 py-1 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  isActive ? 'bg-primary/5' : 'hover:bg-muted/60',
+                  isActive ? 'bg-accent/40' : 'hover:bg-surface-2',
                   blocked && 'cursor-not-allowed hover:bg-transparent',
                 )}
               >
@@ -159,7 +166,7 @@ export function TimelineBar({ steps, activeId, onStepClick, orientation = 'horiz
                   <span
                     className={cn(
                       'whitespace-nowrap text-xs',
-                      isActive ? 'font-semibold text-foreground' : step.status === 'done' ? 'text-foreground/80' : blocked ? 'text-muted-foreground/70' : 'text-muted-foreground',
+                      isActive ? 'font-semibold text-ink' : step.status === 'done' ? 'text-ink-2' : blocked ? 'text-ink-4' : 'text-ink-3',
                     )}
                   >
                     {step.label}
@@ -169,7 +176,7 @@ export function TimelineBar({ steps, activeId, onStepClick, orientation = 'horiz
               </button>
               {idx < steps.length - 1 && (
                 <span
-                  className={cn('my-auto h-px w-4 shrink-0 sm:w-6', step.status === 'done' ? 'bg-status-success-fg/50' : 'bg-border')}
+                  className={cn('my-auto h-px w-4 shrink-0 sm:w-6', step.status === 'done' ? 'bg-status-success-fg/50' : 'bg-hairline-strong')}
                   aria-hidden
                 />
               )}

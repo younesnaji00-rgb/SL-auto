@@ -89,13 +89,13 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
         <div className="py-6 pr-4 space-y-6 overflow-y-auto max-h-[calc(100dvh-150px)]">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground italic">Chargement...</p>
+              <Loader2 className="h-8 w-8 animate-spin text-ink-3" />
+              <p className="text-sm text-ink-3">Chargement...</p>
             </div>
           ) : !hasData ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 border-2 border-dashed rounded-xl bg-muted/20">
-              <Inbox className="h-10 w-10 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground italic px-6">
+            <div className="flex flex-col items-center justify-center space-y-4 rounded-xl bg-surface-2 py-20 text-center">
+              <Inbox className="h-10 w-10 text-ink-4" />
+              <p className="px-6 text-sm text-ink-3">
                 Aucune assignation pour ce dossier.
               </p>
             </div>
@@ -104,18 +104,18 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
               {/* Chiffrage assignments */}
               {assignmentEntries.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                  <h3 className="t-label mb-3 flex items-center gap-2">
                     <Send className="h-3.5 w-3.5" /> Chiffrage
                   </h3>
                   <div className="space-y-3">
                     {assignmentEntries.map((entry: any) => (
-                      <div key={entry.id} className="p-3 rounded-lg border bg-card space-y-1">
+                      <div key={entry.id} className="space-y-1 rounded-lg border border-hairline p-3">
                         <p className="text-sm font-medium">{entry.action}</p>
                         {entry.details && (
-                          <p className="text-xs text-muted-foreground">{entry.details}</p>
+                          <p className="t-caption">{entry.details}</p>
                         )}
-                        <p className="text-[11px] text-muted-foreground">
-                          {formatDate(entry.date)} par <span className="font-semibold text-primary">{entry.user}</span>
+                        <p className="t-caption">
+                          {formatDate(entry.date)} par <span className="font-semibold text-ink-2">{entry.user}</span>
                         </p>
                       </div>
                     ))}
@@ -126,21 +126,21 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
               {/* Planification assignments */}
               {planificationEntries.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                  <h3 className="t-label mb-3 flex items-center gap-2">
                     <MapPin className="h-3.5 w-3.5" /> Planification
                   </h3>
                   <div className="space-y-3">
                     {planificationEntries.map((entry: any) => (
-                      <div key={entry.id} className="p-3 rounded-lg border bg-card space-y-1">
+                      <div key={entry.id} className="space-y-1 rounded-lg border border-hairline p-3">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">Agent : {entry.agent}</span>
                           {entry.mission && <Badge variant="outline" className="text-[11px]">{entry.mission}</Badge>}
                         </div>
                         {entry.zone && (
-                          <p className="text-xs text-muted-foreground">Zone : {entry.zone}</p>
+                          <p className="t-caption">Zone : {entry.zone}</p>
                         )}
-                        <p className="text-[11px] text-muted-foreground">
-                          {formatDate(entry.date)} par <span className="font-semibold text-primary">{entry.modifiedBy}</span>
+                        <p className="t-caption">
+                          {formatDate(entry.date)} par <span className="font-semibold text-ink-2">{entry.modifiedBy}</span>
                         </p>
                       </div>
                     ))}

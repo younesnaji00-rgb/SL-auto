@@ -18,9 +18,9 @@
  * - Date sinistre              -> dossier.dateSinistre
  * - Date requete               -> dossier.dateRequete
  *
- * Editable inputs live in src/app/(app)/dossiers/[id]/information-tab.tsx
- * (frozen by task #18 — do not modify). This wrapper only surfaces the
- * warning banner; it does not add per-field asterisks.
+ * Editable inputs live in src/app/(app)/dossiers/[id]/information-tab.tsx.
+ * This wrapper only surfaces the warning banner and the optional side-by-side
+ * scan comparer; it does not add per-field asterisks.
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -30,6 +30,7 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
 import InformationTab from '@/app/(app)/dossiers/[id]/information-tab';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -141,17 +142,35 @@ export default function Step2Information({
     }
   }, [showCompare, scanDocs, selectedScanId]);
 
+  // One-line notice (state + reason); the labels wrap inline instead of a
+  // bullet list so the banner costs a single row.
   const banner = missing.length > 0 && (
-    <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm">
-      <div className="flex items-center gap-2 text-red-800 font-medium">
-        <AlertCircle className="h-4 w-4" /> Champs requis manquants
-      </div>
-      <ul className="mt-2 list-disc pl-5 text-red-700 text-xs">
-        {missing.map((label) => (
-          <li key={label}>{label}</li>
-        ))}
-      </ul>
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-lg border border-status-danger-fg/30 bg-status-danger-bg px-4 py-2.5 text-sm text-status-danger-fg">
+      <span className="flex items-center gap-2 font-medium">
+        <AlertCircle className="h-4 w-4 shrink-0" aria-hidden /> Champs requis manquants
+      </span>
+      <span className="min-w-0 text-[13px]">{missing.join(' · ')}</span>
     </div>
+  );
+
+  // The comparer toggle rides in the identity block header next to Modifier,
+  // so it no longer costs a row of its own.
+  const toggleButton = (
+    <Button
+      type="button"
+      variant={showCompare ? 'default' : 'outline'}
+      size="sm"
+      onClick={() => setShowCompare((v) => !v)}
+      className="h-7 gap-1.5 px-2.5 text-xs"
+    >
+      {showCompare ? (
+        <X className="h-3.5 w-3.5" />
+      ) : (
+        <Columns2 className="h-3.5 w-3.5" />
+      )}
+      <span className="hidden sm:inline">{showCompare ? 'Fermer la comparaison' : 'Comparer'}</span>
+      <span className="sm:hidden">{showCompare ? 'Fermer' : 'Comparer'}</span>
+    </Button>
   );
 
   const informationContent = (
@@ -161,31 +180,13 @@ export default function Step2Information({
       dossierId={dossierId}
       onEditPlanification={onEditPlanification}
       onNewPlanification={onNewPlanification}
+      headerActions={toggleButton}
     />
-  );
-
-  const toggleButton = (
-    <div className="flex justify-end">
-      <Button
-        variant={showCompare ? 'default' : 'outline'}
-        size="sm"
-        onClick={() => setShowCompare((v) => !v)}
-        className="gap-1.5"
-      >
-        {showCompare ? (
-          <X className="h-3.5 w-3.5" />
-        ) : (
-          <Columns2 className="h-3.5 w-3.5" />
-        )}
-        {showCompare ? 'Fermer la comparaison' : 'Comparer'}
-      </Button>
-    </div>
   );
 
   if (!showCompare) {
     return (
-      <div className="space-y-6">
-        {toggleButton}
+      <div className="space-y-4">
         {banner}
         {informationContent}
       </div>
@@ -199,77 +200,77 @@ export default function Step2Information({
   const isImage = /\.(jpe?g|png|gif|webp|bmp)$/i.test(selectedName);
 
   return (
-    <div className="space-y-6">
-      {toggleButton}
-      <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
-        <div className="space-y-6 min-w-0">
-          {banner}
-          {informationContent}
-        </div>
-        <aside className="hidden lg:block">
-          <div className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-hidden flex flex-col gap-3 rounded-md border bg-card p-3">
-            <Select
-              value={selectedScanId ?? undefined}
-              onValueChange={(v) => setSelectedScanId(v)}
-              disabled={scanDocs.length === 0}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue
-                  placeholder={
-                    scanDocs.length === 0
-                      ? 'Aucun scan disponible'
-                      : 'Sélectionner un scan'
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {scanDocs.map((d: any) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {(d.nom || d.fileName || d.id) as string}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex-1 min-h-0 rounded-md border bg-muted/30 overflow-hidden">
-              {selectedScan && selectedScan.url ? (
-                isImage ? (
-                  <TransformWrapper
-                    minScale={1}
-                    maxScale={5}
-                    doubleClick={{ mode: 'zoomIn', step: 0.7 }}
-                    wheel={{ step: 0.2 }}
-                  >
-                    <TransformComponent
-                      wrapperClass="!w-full !h-full"
-                      contentClass="!w-full !h-full flex items-center justify-center"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={selectedScan.url}
-                        alt={(selectedScan.nom || selectedScan.fileName || 'scan') as string}
-                        className="max-w-full max-h-full object-contain select-none"
-                        draggable={false}
-                      />
-                    </TransformComponent>
-                  </TransformWrapper>
-                ) : (
-                  <iframe
-                    src={selectedScan.url}
-                    title={(selectedScan.nom || selectedScan.fileName || 'scan') as string}
-                    className="w-full h-full border-0"
-                  />
-                )
-              ) : (
-                <div className="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground">
-                  {scanDocs.length === 0
-                    ? 'Aucun scan dans ce dossier.'
-                    : 'Sélectionnez un scan pour le visualiser.'}
-                </div>
-              )}
-            </div>
-          </div>
-        </aside>
+    <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
+      <div className="min-w-0 space-y-4">
+        {banner}
+        {informationContent}
       </div>
+      <aside className="hidden lg:block">
+        <Card
+          variant="outline"
+          className="sticky top-20 flex max-h-[calc(100dvh-6rem)] flex-col gap-3 overflow-hidden p-3"
+        >
+          <Select
+            value={selectedScanId ?? undefined}
+            onValueChange={(v) => setSelectedScanId(v)}
+            disabled={scanDocs.length === 0}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue
+                placeholder={
+                  scanDocs.length === 0
+                    ? 'Aucun scan disponible'
+                    : 'Sélectionner un scan'
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {scanDocs.map((d: any) => (
+                <SelectItem key={d.id} value={d.id}>
+                  {(d.nom || d.fileName || d.id) as string}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex-1 min-h-0 rounded-md border border-hairline bg-surface-2 overflow-hidden">
+            {selectedScan && selectedScan.url ? (
+              isImage ? (
+                <TransformWrapper
+                  minScale={1}
+                  maxScale={5}
+                  doubleClick={{ mode: 'zoomIn', step: 0.7 }}
+                  wheel={{ step: 0.2 }}
+                >
+                  <TransformComponent
+                    wrapperClass="!w-full !h-full"
+                    contentClass="!w-full !h-full flex items-center justify-center"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selectedScan.url}
+                      alt={(selectedScan.nom || selectedScan.fileName || 'scan') as string}
+                      className="max-w-full max-h-full object-contain select-none"
+                      draggable={false}
+                    />
+                  </TransformComponent>
+                </TransformWrapper>
+              ) : (
+                <iframe
+                  src={selectedScan.url}
+                  title={(selectedScan.nom || selectedScan.fileName || 'scan') as string}
+                  className="w-full h-full border-0"
+                />
+              )
+            ) : (
+              <div className="t-caption flex h-full items-center justify-center p-6 text-center">
+                {scanDocs.length === 0
+                  ? 'Aucun scan dans ce dossier.'
+                  : 'Sélectionnez un scan pour le visualiser.'}
+              </div>
+            )}
+          </div>
+        </Card>
+      </aside>
     </div>
   );
 }

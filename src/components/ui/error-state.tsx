@@ -28,18 +28,18 @@ const ErrorState = React.forwardRef<HTMLDivElement, ErrorStateProps>(
         ref={ref}
         role="alert"
         className={cn(
-          "flex flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-6 py-10 text-center",
+          "flex flex-col items-center justify-center gap-3 rounded-lg bg-status-danger-bg px-6 py-10 text-center",
           className
         )}
         {...props}
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-card/70 text-status-danger-fg">
           <AlertTriangle className="h-6 w-6" />
         </div>
-        <div className="flex flex-col gap-1">
-          <p className="text-sm font-semibold text-destructive">{title}</p>
+        <div className="flex max-w-[48ch] flex-col gap-1">
+          <p className="t-heading text-status-danger-fg">{title}</p>
           {description ? (
-            <p className="text-sm text-muted-foreground">{description}</p>
+            <p className="t-caption text-ink-2">{description}</p>
           ) : null}
         </div>
         {onRetry ? (

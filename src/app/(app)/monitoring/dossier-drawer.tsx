@@ -135,12 +135,12 @@ export function DossierDrawer({
                 key={dossier.id}
                 type="button"
                 onClick={() => navigate(dossier.id)}
-                className="group flex w-full items-center justify-between gap-3 rounded-md border border-transparent p-3 text-left transition hover:border-border hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="group flex w-full items-center justify-between gap-3 rounded-md p-3 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium">{dossierIdentifier(dossier)}</div>
+                  <div className="truncate font-medium text-ink">{dossierIdentifier(dossier)}</div>
                   {!isNonRealise && (
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <div className="t-caption mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span>par {resolveUserName(author, userLookup)}</span>
                       {doneAt && (
                         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -150,7 +150,7 @@ export function DossierDrawer({
                     </div>
                   )}
                 </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition group-hover:text-foreground" />
+                <ChevronRight className="h-4 w-4 shrink-0 text-ink-4 transition-colors group-hover:text-ink" />
               </button>
             ))
           )}
