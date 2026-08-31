@@ -82,9 +82,15 @@ export interface DocumentGroupProps {
   actions?: React.ReactNode;
   children?: React.ReactNode;
   className?: string;
+  /**
+   * 'list' (default) wraps children in a `role="list"` UL of hairline rows —
+   * for `SlotRow` children. 'plain' renders children in a bare div — for
+   * non-row bodies such as the accord matrix.
+   */
+  bodyAs?: 'list' | 'plain';
 }
 
-export function DocumentGroup({ title, subtitle, received, total, summary, actions, children, className }: DocumentGroupProps) {
+export function DocumentGroup({ title, subtitle, received, total, summary, actions, children, className, bodyAs = 'list' }: DocumentGroupProps) {
   const pillText =
     summary ?? (typeof received === 'number' && typeof total === 'number'
       ? `${received}/${total} reçu${received > 1 ? 's' : ''}`
@@ -103,9 +109,13 @@ export function DocumentGroup({ title, subtitle, received, total, summary, actio
         )}
         {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
       </header>
-      <ul role="list" className="divide-y divide-hairline">
-        {children}
-      </ul>
+      {bodyAs === 'plain' ? (
+        <div>{children}</div>
+      ) : (
+        <ul role="list" className="divide-y divide-hairline">
+          {children}
+        </ul>
+      )}
     </section>
   );
 }

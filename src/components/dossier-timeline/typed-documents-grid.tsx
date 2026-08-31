@@ -19,7 +19,12 @@ import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox'
 import { DocumentGroup, DocumentList, type SlotStatus } from '@/components/documents/document-list';
 import { TypedSlotRow } from '@/components/documents/typed-slot-row';
 import { downloadFileFromUrl, type ExtraSlotKind, type TypedDoc } from '@/components/documents/typed-doc';
-import { FamilyRow } from './family-row';
+import {
+  AccordMatrixGroup,
+  SlotMatrixGroup,
+  type GarageUnit,
+  type MatrixSlotHandlers,
+} from '@/components/documents/accord-matrix';
 
 // Slots shown in the typed-import board. Photos (avant / en cours / après) are
 // intentionally omitted — they have their own dedicated Photos step.
@@ -655,7 +660,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   // a per-kind, per-family basis: only add 2ème accord if the family's 1er
   // accord is filled (real url, non-pending), and likewise for 2ème
   // proposition. If neither 1er is filled the family contributes no 2ème
-  // slots, FamilyRow's 2-plus filter strips the 1ers, and the group drops out.
+  // slots, the matrix's 2-plus filter strips the 1ers, and the unit drops out.
   const familiesForRender = useMemo(() => {
     if (cardinalFilter !== '2-plus') return families;
     const docsArr = (allDocs as TypedDoc[] | undefined) ?? [];
@@ -675,8 +680,8 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     });
   }, [families, cardinalFilter, allDocs]);
 
-  // Mirror of FamilyRow's slot filter, so empty families never leave a blank
-  // group (or an empty outer list) behind.
+  // Mirror of the accord matrix's slot filter, so empty families never leave
+  // a blank group (or an empty outer list) behind.
   const familyVisibleSlotCount = (f: DocFamily) => {
     if (cardinalFilter === 'all') return f.slots.length;
     return f.slots.filter((s) => {
@@ -689,30 +694,31 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   const devisFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Devis Garage' && familyVisibleSlotCount(f) > 0);
   const factureFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Facture Garage' && familyVisibleSlotCount(f) > 0);
 
-  const renderFamily = (group: DocFamily) => (
-    <FamilyRow
-      key={group.parent}
-      standalone={false}
-      group={group}
-      docsByType={docsByType}
-      canEdit={canEdit}
-      canDeleteDoc={canDeleteDoc}
-      userRole={profile?.role}
-      canManageExtraSlots={canWrite('dossiers')}
-      isUploading={(slot) => uploadingSlot === slot}
-      deletingId={deletingId}
-      extraSlotKindForSlot={(slot) => extraSlotKindByLabel[slot]}
-      onUpload={handleUpload}
-      onDelete={handleDelete}
-      onCreateNextCardinal={handleCreateNextCardinal}
-      onCreateExtraSlot={handleCreateExtraSlot}
-      onRenameExtraSlot={handleRenameExtraSlot}
-      onPreview={handlePreview}
-      hideCardinalPlus={hideCardinalPlus}
-      hideExtraSlotPlus={hideExtraSlotPlus}
-      cardinalFilter={cardinalFilter}
-    />
-  );
+  // Pair each Devis family with its Facture counterpart (same parent ordinal)
+  // into one "garage unit" — the negotiation rounds are the same rounds, so
+  // they render as ONE matrix (Étape | Devis | Facture) instead of two stacks.
+  const unitMap = new Map<number, GarageUnit>();
+  for (const f of devisFamilies) unitMap.set(f.parentOrdinal, { key: `garage-${f.parentOrdinal}`, devis: f });
+  for (const f of factureFamilies) {
+    const existing = unitMap.get(f.parentOrdinal);
+    if (existing) existing.facture = f;
+    else unitMap.set(f.parentOrdinal, { key: `garage-${f.parentOrdinal}`, facture: f });
+  }
+  const garageUnits = [...unitMap.entries()].sort((a, b) => a[0] - b[0]).map(([, u]) => u);
+
+  const matrixHandlers: MatrixSlotHandlers = {
+    docsByType,
+    canEdit,
+    canDeleteDoc,
+    isUploading: (slot) => uploadingSlot === slot,
+    deletingId,
+    extraSlotKindForSlot: (slot) => extraSlotKindByLabel[slot],
+    canManageExtraSlots: canWrite('dossiers'),
+    onUpload: handleUpload,
+    onDelete: handleDelete,
+    onRenameExtraSlot: handleRenameExtraSlot,
+    onPreview: handlePreview,
+  };
 
   // ── Group visibility (same conditions as the former sections) ─────────────
   const showGarageGroup = !!showBaseGarageSlots;
@@ -770,9 +776,20 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
             </DocumentGroup>
           )}
 
-          {/* Devis families, then Facture families: one group per parent. */}
-          {showFamilies && devisFamilies.map(renderFamily)}
-          {showFamilies && factureFamilies.map(renderFamily)}
+          {/* Garage units — Devis & Facture negotiation rounds as one matrix
+              (SlotRow list fallback below md lives inside the component). */}
+          {showFamilies && garageUnits.map((unit) => (
+            <AccordMatrixGroup
+              key={unit.key}
+              unit={unit}
+              handlers={matrixHandlers}
+              hideCardinalPlus={hideCardinalPlus}
+              hideExtraSlotPlus={hideExtraSlotPlus}
+              cardinalFilter={cardinalFilter}
+              onCreateNextCardinal={handleCreateNextCardinal}
+              onCreateExtraSlot={handleCreateExtraSlot}
+            />
+          ))}
 
           {/* Rapport — produced by the "Générer le rapport" flow. */}
           {showRapportGroup && (
@@ -781,11 +798,11 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
             </DocumentGroup>
           )}
 
-          {/* Réforme — technique + économique together. */}
+          {/* Réforme — technique + économique as a single-column matrix
+              (no chips: the visible file, or the quiet waiting text, IS the
+              status; the group pill is the summary). */}
           {showReformeGroup && (
-            <DocumentGroup title="Réforme" received={receivedIn(reformeSlots)} total={reformeSlots.length}>
-              {reformeSlots.map((slot) => renderSlotRow(slot))}
-            </DocumentGroup>
+            <SlotMatrixGroup title="Réforme" slots={reformeSlots} handlers={matrixHandlers} />
           )}
 
           {/* Autres documents — PV, Carte grise, Attestation, etc. */}
