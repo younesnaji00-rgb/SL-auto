@@ -41,12 +41,12 @@ export function DatePicker({
           variant="outline"
           disabled={disabled}
           className={cn(
-            "w-full justify-start text-left font-normal h-10 px-3 min-w-0",
-            !value && "text-muted-foreground",
+            "h-10 w-full min-w-0 justify-start px-3 text-left font-normal",
+            !value && "text-ink-3",
             className
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4 text-primary shrink-0" />
+          <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-ink-3" />
           <span className="truncate">
             {value
               ? format(value, "dd MMMM yyyy", { locale: fr })
@@ -55,7 +55,8 @@ export function DatePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto p-0 shadow-lg border z-[9999]"
+        // PopoverContent already is `glass-strong` — no extra border/shadow.
+        className="z-[9999] w-auto p-0"
         align="start"
         sideOffset={8}
         onOpenAutoFocus={(e) => e.preventDefault()}

@@ -80,13 +80,16 @@ export function ValiderDossierButton({
   };
 
   return (
+    // Emphasis follows the job (blueprint §6): solid while the validation is
+    // undone, tonal once done.
     <Button
       onClick={handleClick}
       disabled={submitting || alreadyValidated}
+      loading={submitting}
       className={className}
-      variant={alreadyValidated ? 'outline' : 'default'}
+      variant={alreadyValidated ? 'tonal' : 'default'}
     >
-      <ShieldCheck className="h-4 w-4 mr-2" />
+      {!submitting && <ShieldCheck />}
       {alreadyValidated ? 'Dossier validé' : 'Valider le dossier'}
     </Button>
   );

@@ -55,41 +55,34 @@ function Calendar({
   }
 
   return (
-    <div className={cn("p-4 w-[280px]", className)}>
-      {/* Header: navigation + month label */}
-      <div className="flex items-center justify-between mb-3">
+    <div className={cn("w-[280px] p-4", className)}>
+      {/* Header: navigation + month label (ink, not accent) */}
+      <div className="mb-3 flex items-center justify-between">
         <button
           type="button"
           onClick={handlePrevMonth}
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "h-8 w-8 p-0 hover:bg-accent hover:text-accent-foreground transition-colors"
-          )}
+          aria-label="Mois précédent"
+          className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <span className="text-sm font-semibold capitalize">
+        <span className="text-sm font-semibold capitalize text-ink">
           {format(currentMonth, "MMMM yyyy", { locale: fr })}
         </span>
         <button
           type="button"
           onClick={handleNextMonth}
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "h-8 w-8 p-0 hover:bg-accent hover:text-accent-foreground transition-colors"
-          )}
+          aria-label="Mois suivant"
+          className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
         >
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
 
-      {/* Weekday headers */}
-      <div className="grid grid-cols-7 mb-1">
+      {/* Weekday headers — t-label, sentence case (never uppercase) */}
+      <div className="mb-1 grid grid-cols-7">
         {WEEKDAYS.map((day) => (
-          <div
-            key={day}
-            className="text-center text-xs font-medium text-muted-foreground uppercase tracking-wide py-2"
-          >
+          <div key={day} className="t-label py-2 text-center">
             {day}
           </div>
         ))}
@@ -110,14 +103,16 @@ function Calendar({
                 onClick={() => handleDayClick(day)}
                 disabled={isDisabled}
                 className={cn(
-                  "h-9 w-full rounded-md text-sm font-normal transition-colors",
-                  "hover:bg-accent hover:text-accent-foreground",
+                  // Day cells: selected = accent fill (+ rim), today = ring,
+                  // hover on the surface ladder. No palette colours.
+                  "h-9 w-full rounded-md text-sm font-normal tabular-nums transition-colors",
+                  "hover:bg-surface-3 hover:text-ink",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  !isCurrentMonth && "text-muted-foreground/40",
-                  isCurrentMonth && "text-foreground",
-                  isDayToday && !isSelected && "bg-accent text-accent-foreground font-semibold border border-primary/30",
-                  isSelected && "bg-primary text-primary-foreground font-semibold hover:bg-primary/90 hover:text-primary-foreground shadow-sm",
-                  isDisabled && "opacity-40 cursor-not-allowed hover:bg-transparent"
+                  !isCurrentMonth && "text-ink-4",
+                  isCurrentMonth && "text-ink",
+                  isDayToday && !isSelected && "font-semibold ring-1 ring-inset ring-primary",
+                  isSelected && "bg-primary font-semibold text-primary-foreground shadow-rim-filled hover:bg-primary hover:text-primary-foreground hover:brightness-[1.06]",
+                  isDisabled && "cursor-not-allowed opacity-40 hover:bg-transparent"
                 )}
               >
                 {format(day, "d")}

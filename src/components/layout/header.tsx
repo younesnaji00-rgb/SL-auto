@@ -25,12 +25,14 @@ function SearchTrigger() {
       <Button
         variant="outline"
         onClick={() => openPalette()}
-        className="hidden h-9 w-56 justify-between gap-2 border-input bg-card px-3 text-sm font-normal text-ink-3 shadow-none hover:bg-surface-2 hover:text-ink md:flex lg:w-72"
+        // Outline button (keeps the light rim — it is a button, not a field)
+        // with the shortcut as a <Kbd> at the right end.
+        className="hidden h-9 w-56 justify-between gap-2 px-3 text-sm font-normal text-ink-3 hover:text-ink md:flex lg:w-72"
         aria-label="Rechercher (palette de commandes)"
         title={`Rechercher — ${keys.join(' ')}`}
       >
         <span className="flex items-center gap-2">
-          <Search className="h-4 w-4" />
+          <Search className="h-4 w-4 text-ink-3" />
           Rechercher…
         </span>
         <Kbd>{keys.join(' ')}</Kbd>

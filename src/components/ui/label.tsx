@@ -6,8 +6,10 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+// Field labels are quiet (blueprint §2 `t-label`: 12 px / 400, sentence
+// case, ink-3 — never uppercase, never tracked); the value is the star.
 const labelVariants = cva(
-  "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+  "t-label normal-case tracking-normal peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
 )
 
 const Label = React.forwardRef<

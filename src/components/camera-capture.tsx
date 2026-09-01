@@ -168,13 +168,14 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
         )}
 
         {atCap && !error && (
-          <div className="absolute left-1/2 -translate-x-1/2 top-16 bg-red-600/90 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg pointer-events-none">
+          <div className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded-full bg-status-danger-bg px-3 py-1.5 text-xs font-semibold text-status-danger-fg">
             Limite de {maxCaptures} photos atteinte
           </div>
         )}
 
         {/* Top bar */}
-        <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 bg-gradient-to-b from-black/60 to-transparent">
+        {/* Camera chrome sits on a functional black backdrop (like the lightbox); flat scrim, no gradient. */}
+        <div className="absolute left-0 right-0 top-0 flex items-center justify-between bg-black/50 p-4">
           <Button variant="ghost" size="icon" onClick={handleClose} className="text-white hover:bg-white/20">
             <X className="h-6 w-6" />
           </Button>
@@ -196,10 +197,12 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
             <div key={c.id} className="relative shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 border-white/30">
               <img src={c.url} className="w-full h-full object-cover" alt="" />
               <button
+                type="button"
+                aria-label="Retirer la photo"
                 onClick={() => handleRemove(c.id)}
-                className="absolute top-0 right-0 bg-red-600 rounded-bl-lg p-0.5"
+                className="absolute right-0 top-0 rounded-bl-lg bg-status-danger-fg p-0.5 text-status-danger-bg"
               >
-                <X className="h-3 w-3 text-white" />
+                <X className="h-3 w-3" />
               </button>
             </div>
           ))}
@@ -237,7 +240,7 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
           className={cn(
             "text-sm font-semibold transition-colors",
             captures.length > 0
-              ? "text-green-400 hover:text-green-300 hover:bg-green-400/10"
+              ? "text-white hover:bg-white/10 hover:text-white"
               : "text-white/30"
           )}
         >

@@ -19,13 +19,13 @@ const InlineLoader = React.forwardRef<HTMLSpanElement, InlineLoaderProps>(
     return (
       <span
         ref={ref}
-        className={cn("inline-flex items-center gap-2 text-muted-foreground", className)}
+        className={cn("inline-flex items-center gap-2 text-ink-3", className)}
         aria-live="polite"
         aria-busy="true"
         {...props}
       >
-        <Loader2 className={cn("animate-spin", sizeClasses[size])} />
-        {label ? <span className="text-sm">{label}</span> : null}
+        <Loader2 className={cn("animate-spin motion-reduce:animate-none", sizeClasses[size])} />
+        {label ? <span className="text-[13px]">{label}</span> : null}
       </span>
     )
   }

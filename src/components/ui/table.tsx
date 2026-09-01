@@ -3,10 +3,13 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /**
- * Data-table primitives (NN/g / Carbon): row hairlines only, a quiet
- * `surface-2` header with `t-label` column heads, 44 px rows, no vertical
- * cell borders, `scope="col"` on every header cell, and a focusable labelled
- * scroll region so keyboard users can pan wide tables.
+ * Data-table primitives (NN/g / Carbon, blueprint §2/§4): row hairlines only,
+ * a sticky `bg-card` header with `t-label` column heads (12 px sentence case,
+ * ink-3 — never uppercase), 44 px rows (36 px under `data-density=compact`,
+ * see globals.css), tabular figures on every cell, no vertical cell borders
+ * and no zebra, hover = `surface-2`, selected row = accent tint,
+ * `scope="col"` on every header cell, and a focusable labelled scroll region
+ * so keyboard users can pan wide tables.
  */
 
 const Table = React.forwardRef<
@@ -32,7 +35,7 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("bg-surface-2 [&_tr]:border-b [&_tr]:border-hairline", className)} {...props} />
+  <thead ref={ref} className={cn("bg-card [&_tr]:border-b [&_tr]:border-hairline [&_tr]:hover:bg-transparent", className)} {...props} />
 ))
 TableHeader.displayName = "TableHeader"
 
@@ -55,7 +58,7 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     className={cn(
-      "border-t border-hairline bg-surface-2 font-medium [&>tr]:last:border-b-0",
+      "border-t border-hairline bg-card font-medium tabular-nums [&>tr]:last:border-b-0",
       className
     )}
     {...props}
@@ -70,7 +73,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "border-b border-hairline transition-colors hover:bg-surface-2 data-[state=selected]:bg-surface-3",
+      "border-b border-hairline transition-colors hover:bg-surface-2 data-[state=selected]:bg-accent/40",
       className
     )}
     {...props}
@@ -86,7 +89,8 @@ const TableHead = React.forwardRef<
     ref={ref}
     scope={scope}
     className={cn(
-      "t-label h-10 whitespace-nowrap px-3 text-left align-middle [&:has([role=checkbox])]:pr-0",
+      // Sticky inside the scroll region; solid card so rows scroll under it.
+      "t-label sticky top-0 z-[1] h-10 whitespace-nowrap bg-card px-3 text-left align-middle font-normal normal-case tracking-normal tabular-nums [&:has([role=checkbox])]:pr-0",
       className
     )}
     {...props}
@@ -100,7 +104,7 @@ const TableCell = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <td
     ref={ref}
-    className={cn("h-11 whitespace-nowrap px-3 py-2 align-middle text-ink [&:has([role=checkbox])]:pr-0", className)}
+    className={cn("h-11 whitespace-nowrap px-3 py-2 align-middle text-ink tabular-nums [&:has([role=checkbox])]:pr-0", className)}
     {...props}
   />
 ))

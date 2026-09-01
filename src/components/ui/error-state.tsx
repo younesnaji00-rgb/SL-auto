@@ -28,22 +28,24 @@ const ErrorState = React.forwardRef<HTMLDivElement, ErrorStateProps>(
         ref={ref}
         role="alert"
         className={cn(
-          "flex flex-col items-center justify-center gap-3 rounded-lg bg-status-danger-bg px-6 py-10 text-center",
+          // Quiet like EmptyState; the danger pair is spent on the icon chip
+          // only (blueprint §1: semantic colour is never decorative).
+          "flex flex-col items-center justify-center gap-3 rounded-xl border border-hairline bg-card px-6 py-10 text-center",
           className
         )}
         {...props}
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-card/70 text-status-danger-fg">
-          <AlertTriangle className="h-6 w-6" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-status-danger-bg text-status-danger-fg">
+          <AlertTriangle className="h-5 w-5" />
         </div>
         <div className="flex max-w-[48ch] flex-col gap-1">
-          <p className="t-heading text-status-danger-fg">{title}</p>
+          <p className="t-heading">{title}</p>
           {description ? (
-            <p className="t-caption text-ink-2">{description}</p>
+            <p className="t-caption">{description}</p>
           ) : null}
         </div>
         {onRetry ? (
-          <Button variant="outline" size="sm" onClick={onRetry}>
+          <Button variant="tonal" onClick={onRetry} className="mt-1">
             {retryLabel}
           </Button>
         ) : null}

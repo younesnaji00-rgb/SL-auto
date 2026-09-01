@@ -33,11 +33,11 @@ function DatePickerButton({ value, onChange, placeholder }: { value: string; onC
             variant="outline"
             className={cn(
               'h-9 justify-start text-left font-normal',
-              value ? 'w-[130px] rounded-r-none border-r-0' : 'w-[150px]',
-              !value && 'text-muted-foreground'
+              value ? 'w-[130px] rounded-r-none' : 'w-[150px]',
+              !value && 'text-ink-3'
             )}
           >
-            <CalendarIcon className="mr-2 h-3.5 w-3.5 shrink-0" />
+            <CalendarIcon className="mr-2 h-3.5 w-3.5 shrink-0 text-ink-3" />
             {value ? format(new Date(value), 'dd MMM yyyy', { locale: fr }) : <span>{placeholder}</span>}
           </Button>
         </PopoverTrigger>
@@ -64,7 +64,7 @@ function DatePickerButton({ value, onChange, placeholder }: { value: string; onC
           type="button"
           aria-label="Effacer la date"
           onClick={() => onChange('')}
-          className="flex h-9 w-7 shrink-0 items-center justify-center rounded-r-md border border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="flex h-9 w-7 shrink-0 items-center justify-center rounded-r-md bg-card text-ink-3 shadow-rim transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -76,9 +76,9 @@ function DatePickerButton({ value, onChange, placeholder }: { value: string; onC
 export function DateRangeFilter({ dateFrom, dateTo, onDateFromChange, onDateToChange }: DateRangeFilterProps) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm text-muted-foreground whitespace-nowrap">Du</span>
+      <span className="t-label whitespace-nowrap">Du</span>
       <DatePickerButton value={dateFrom} onChange={onDateFromChange} placeholder="Début" />
-      <span className="text-sm text-muted-foreground whitespace-nowrap">Au</span>
+      <span className="t-label whitespace-nowrap">Au</span>
       <DatePickerButton value={dateTo} onChange={onDateToChange} placeholder="Fin" />
     </div>
   );

@@ -3,24 +3,35 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Badge = 11 px / 500 pill. Every variant maps to a semantic status pair or
+ * the neutral surface step (blueprint §1: semantic colour is separate from
+ * the accent and never decorative). Legacy names stay as aliases.
+ */
+const STATUS_PAIR = {
+  success: "border-transparent bg-status-success-bg text-status-success-fg",
+  warning: "border-transparent bg-status-warning-bg text-status-warning-fg",
+  danger: "border-transparent bg-status-danger-bg text-status-danger-fg",
+  info: "border-transparent bg-status-info-bg text-status-info-fg",
+  neutral: "border-transparent bg-surface-3 text-ink-2",
+} as const
+
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
   {
     variants: {
       variant: {
-        default:
-          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-        secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        destructive:
-          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "border-hairline-strong text-ink",
-        // Semantic pairs only (DESIGN.md §10) — no hand-picked hues.
-        creation: "border-transparent bg-surface-3 text-ink-2",
-        chiffrage: "border-transparent bg-status-info-bg text-status-info-fg",
-        validation: "border-transparent bg-status-warning-bg text-status-warning-fg",
-        expertise: "border-transparent bg-status-success-bg text-status-success-fg",
-        success: "border-transparent bg-status-success-bg text-status-success-fg",
+        ...STATUS_PAIR,
+        // Filled accent chip — reserve for the one "current" marker.
+        default: "border-transparent bg-primary text-primary-foreground",
+        outline: "border-hairline-strong bg-transparent text-ink",
+        // Aliases (kept so existing call sites keep working).
+        secondary: STATUS_PAIR.neutral,
+        destructive: STATUS_PAIR.danger,
+        creation: STATUS_PAIR.neutral,
+        chiffrage: STATUS_PAIR.info,
+        validation: STATUS_PAIR.warning,
+        expertise: STATUS_PAIR.success,
       },
     },
     defaultVariants: {

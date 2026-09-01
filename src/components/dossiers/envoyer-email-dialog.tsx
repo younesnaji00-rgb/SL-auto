@@ -13,7 +13,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2, Mail } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 import { useFirestore } from '@/firebase';
 import { setDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
@@ -202,17 +202,15 @@ export function EnvoyerEmailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Mail className="h-4 w-4" />
-            Envoyer un email
-          </DialogTitle>
+          <DialogTitle>Envoyer un email</DialogTitle>
           <DialogDescription>
             Sélectionnez les documents à joindre puis rédigez votre message.
           </DialogDescription>
         </DialogHeader>
 
+        {/* Body: t-label labels over controls, 16 px between rows. */}
         <div className="space-y-4">
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <Label htmlFor="email-recipient">Destinataire</Label>
             <Input
               id="email-recipient"
@@ -223,7 +221,7 @@ export function EnvoyerEmailDialog({
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <Label htmlFor="email-subject">Objet</Label>
             <Input
               id="email-subject"
@@ -232,7 +230,7 @@ export function EnvoyerEmailDialog({
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <Label htmlFor="email-body">Message</Label>
             <Textarea
               id="email-body"
@@ -242,26 +240,27 @@ export function EnvoyerEmailDialog({
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label>Documents à joindre</Label>
             {loading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <div className="flex items-center gap-2 text-[13px] text-ink-3">
+                <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
                 Chargement des documents…
               </div>
             ) : sources.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">
+              <p className="t-caption">
                 Aucun accord ou proposition d'accord disponible pour ce dossier.
               </p>
             ) : (
-              <div className="space-y-1.5 rounded-md border p-3">
+              // Hairline-separated rows (no box-in-box inside the dialog).
+              <div className="divide-y divide-hairline">
                 {sources.map((s) => {
                   const id = `email-source-${s.sourceId}`;
                   return (
                     <label
                       key={s.sourceId}
                       htmlFor={id}
-                      className="flex items-start gap-2.5 cursor-pointer text-sm py-1"
+                      className="flex cursor-pointer items-start gap-2.5 py-2 text-sm text-ink"
                     >
                       <Checkbox
                         id={id}
@@ -270,8 +269,8 @@ export function EnvoyerEmailDialog({
                         className="mt-0.5"
                       />
                       <span className="leading-snug">
-                        {s.label} — {s.stage}{' '}
-                        <span className="text-muted-foreground">
+                        <span className="font-medium">{s.label} — {s.stage}</span>{' '}
+                        <span className="text-ink-3">
                           (dernier document mis à jour par le chiffreur)
                         </span>
                       </span>
@@ -283,23 +282,17 @@ export function EnvoyerEmailDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        {/* One solid primary, cancel ghost. */}
+        <DialogFooter className="gap-2 sm:gap-2">
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={isSubmitting}
           >
             Annuler
           </Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Envoi…
-              </>
-            ) : (
-              'Envoyer'
-            )}
+          <Button onClick={handleSubmit} disabled={!canSubmit} loading={isSubmitting}>
+            {isSubmitting ? 'Envoi…' : 'Envoyer'}
           </Button>
         </DialogFooter>
       </DialogContent>

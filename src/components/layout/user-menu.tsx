@@ -61,7 +61,8 @@ export default function UserMenu() {
           <span className="hidden max-w-[10rem] truncate lg:inline">{profile?.prenom || profile?.nom || ''}</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
+      {/* Menu rows: 13 px ink text, ink-2 icons (menu is already glass). */}
+      <DropdownMenuContent align="end" className="w-64 [&_[role=menuitem]]:text-[13px] [&_[role=menuitem]_svg]:text-ink-2">
         <DropdownMenuLabel className="font-normal">
           <p className="truncate text-sm font-semibold text-ink">{displayName}</p>
           {profile?.role && <p className="t-caption truncate">{profile.role}</p>}
@@ -95,7 +96,7 @@ export default function UserMenu() {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={handleSignOut} className="text-destructive focus:text-destructive">
+        <DropdownMenuItem onSelect={handleSignOut} className="text-status-danger-fg focus:text-status-danger-fg [&_svg]:!text-status-danger-fg">
           <LogOut className="mr-2 h-4 w-4" />
           Déconnexion
         </DropdownMenuItem>

@@ -191,11 +191,12 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="top-[12%] translate-y-0 overflow-hidden p-0 shadow-xl sm:max-w-xl" onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}>
+      <DialogContent className="top-[12%] translate-y-0 overflow-hidden p-0 sm:max-w-xl" onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}>
         <DialogTitle className="sr-only">Rechercher et naviguer</DialogTitle>
         {/* Group headings = t-label (spelled out: `.t-*` are component classes,
-            so they can't be applied through an arbitrary variant). Rows = t-body-sm. */}
-        <Command shouldFilter={false} loop className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.06em] [&_[cmdk-group-heading]]:text-ink-3 [&_[cmdk-item]]:text-[13px] [&_[cmdk-item]]:text-ink">
+            so they can't be applied through an arbitrary variant) — 12 px,
+            sentence case, ink-3, never uppercase. Rows = t-body-sm. */}
+        <Command shouldFilter={false} loop className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-normal [&_[cmdk-group-heading]]:normal-case [&_[cmdk-group-heading]]:tracking-normal [&_[cmdk-group-heading]]:text-ink-3 [&_[cmdk-item]]:text-[13px] [&_[cmdk-item]]:text-ink [&_[cmdk-item]_svg]:text-ink-2">
           <CommandInput ref={inputRef} placeholder="Réf., plaque, assuré, page ou action…" value={query} onValueChange={setQuery} />
           <CommandList className="max-h-[calc(60vh/var(--app-zoom))]">
             {nothing && q.length < 2 && <CommandEmpty>Aucun résultat.</CommandEmpty>}

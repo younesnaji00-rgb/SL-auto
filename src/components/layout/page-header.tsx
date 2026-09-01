@@ -29,7 +29,7 @@ export interface PageHeaderProps {
   icon?: React.ReactNode;
   /** Chips/badges rendered inline after the title (status, role…). */
   meta?: React.ReactNode;
-  /** Right slot — at most one filled primary button. */
+  /** Right slot — at most one filled primary button, placed LAST (right end). */
   actions?: React.ReactNode;
   /** Row under the title (Tabs / segmented controls). */
   tabs?: React.ReactNode;
@@ -82,11 +82,13 @@ export function PageHeader({
   const compact = size === 'compact';
 
   return (
+    // Title = t-display (28/600 Outfit), subtitle = t-caption; the page's
+    // `space-y-6` wrapper provides the 24 px below the header.
     <header className={cn('flex flex-col gap-3', className)} data-page-header>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           {backHref && (
-            <Button variant="outline" size="icon" asChild className="h-9 w-9 shrink-0 mt-0.5">
+            <Button variant="outline" size="icon" asChild className="mt-0.5 h-9 w-9 shrink-0">
               <Link href={backHref} aria-label={backLabel} title={backLabel}>
                 <ArrowLeft className="h-4 w-4" />
               </Link>
@@ -94,7 +96,7 @@ export function PageHeader({
           )}
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-              {icon && <span className="inline-flex shrink-0 text-muted-foreground [&>svg]:h-5 [&>svg]:w-5">{icon}</span>}
+              {icon && <span className="inline-flex shrink-0 text-ink-3 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>}
               <h1
                 ref={h1Ref}
                 tabIndex={-1}
@@ -103,18 +105,18 @@ export function PageHeader({
                 {title}
               </h1>
               {count !== undefined && count !== null && (
-                <span className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-muted px-2 text-xs font-medium tabular-nums text-muted-foreground">
+                <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
                   {count}
                 </span>
               )}
               {meta}
             </div>
             {subtitle && (
-              <p className={cn('mt-1 max-w-[65ch] text-ink-3', compact ? 'text-xs' : 'text-sm')}>{subtitle}</p>
+              <p className="t-caption mt-1 max-w-[65ch]">{subtitle}</p>
             )}
           </div>
         </div>
-        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+        {actions && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{actions}</div>}
       </div>
       {tabs && <div className="flex flex-wrap items-center gap-2">{tabs}</div>}
       {filters && <div className="flex flex-wrap items-center gap-2">{filters}</div>}

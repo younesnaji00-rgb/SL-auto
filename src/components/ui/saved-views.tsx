@@ -104,9 +104,9 @@ export function SavedViews<T extends Record<string, any>>({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
-        <DropdownMenuLabel className="text-xs">Vues enregistrées</DropdownMenuLabel>
+        <DropdownMenuLabel className="t-label">Vues enregistrées</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {views.length === 0 && <p className="px-2 py-1.5 text-xs text-muted-foreground">Aucune vue. Enregistrez vos filtres actuels pour les retrouver en un clic.</p>}
+        {views.length === 0 && <p className="t-caption px-2 py-1.5">Aucune vue. Enregistrez vos filtres actuels pour les retrouver en un clic.</p>}
         {views.map((v) => (
           <DropdownMenuItem key={v.id} onSelect={() => onApply(v.filters)} className="gap-2">
             <Check className={cn('h-3.5 w-3.5 shrink-0', active?.id === v.id ? 'opacity-100 text-primary' : 'opacity-0')} />
@@ -119,7 +119,7 @@ export function SavedViews<T extends Record<string, any>>({
                 e.stopPropagation();
                 remove(v.id);
               }}
-              className="rounded-sm p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+              className="rounded-sm p-0.5 text-ink-3 hover:bg-surface-3 hover:text-status-danger-fg"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>

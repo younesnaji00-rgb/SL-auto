@@ -4,16 +4,18 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
-  // Semantic status pairs (DESIGN.md §10): tinted bg + deep fg, no borders.
-  "relative w-full rounded-lg p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-current",
+  // Semantic status pairs (blueprint §1): tinted bg + deep fg, a hairline in
+  // the fg colour at 30 %, 10 px radius. No coloured left borders.
+  "relative w-full rounded-[10px] border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:text-current",
   {
     variants: {
       variant: {
-        default: "border border-hairline bg-card text-ink [&>svg]:text-ink-3",
-        destructive: "bg-status-danger-bg text-status-danger-fg",
-        success: "bg-status-success-bg text-status-success-fg",
-        warning: "bg-status-warning-bg text-status-warning-fg",
-        info: "bg-status-info-bg text-status-info-fg",
+        default: "border-hairline bg-card text-ink [&>svg]:text-ink-3",
+        destructive: "border-status-danger-fg/30 bg-status-danger-bg text-status-danger-fg",
+        danger: "border-status-danger-fg/30 bg-status-danger-bg text-status-danger-fg",
+        success: "border-status-success-fg/30 bg-status-success-bg text-status-success-fg",
+        warning: "border-status-warning-fg/30 bg-status-warning-bg text-status-warning-fg",
+        info: "border-status-info-fg/30 bg-status-info-bg text-status-info-fg",
       },
     },
     defaultVariants: {
@@ -41,7 +43,7 @@ const AlertTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <h5
     ref={ref}
-    className={cn("mb-1 font-medium leading-none tracking-tight", className)}
+    className={cn("mb-1 text-sm font-semibold leading-none", className)}
     {...props}
   />
 ))
@@ -53,7 +55,7 @@ const AlertDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("text-sm [&_p]:leading-relaxed", className)}
+    className={cn("text-[13px] leading-[1.45] [&_p]:leading-relaxed", className)}
     {...props}
   />
 ))

@@ -194,8 +194,9 @@ export function CreateDossierDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-5 py-2">
-          <div className="grid gap-2">
+        {/* Body: t-label labels over controls, 16 px between rows. */}
+        <div className="grid gap-4 py-2">
+          <div className="grid gap-1">
             <Label htmlFor="create-compagnie">Compagnie</Label>
             <Select
               value={compagnie}
@@ -216,7 +217,7 @@ export function CreateDossierDialog({
             </Select>
           </div>
 
-          <div className="grid gap-2">
+          <div className="grid gap-1">
             <Label>Rôle</Label>
             <RadioGroup
               value={expertRole}
@@ -228,24 +229,25 @@ export function CreateDossierDialog({
                 <label
                   key={role}
                   htmlFor={`role-${role}`}
-                  className="flex items-center gap-3 rounded-md border p-3 cursor-pointer hover:bg-accent/40"
+                  className="flex cursor-pointer items-center gap-3 rounded-md border border-hairline bg-card p-3 transition-colors hover:bg-surface-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-accent/40"
                 >
                   <RadioGroupItem value={role} id={`role-${role}`} />
-                  <span className="text-sm font-medium">{EXPERT_ROLE_LABELS[role]}</span>
+                  <span className="text-sm font-medium text-ink">{EXPERT_ROLE_LABELS[role]}</span>
                 </label>
               ))}
             </RadioGroup>
           </div>
 
           {rolesToRender.map((role) => (
-            <div
+            <section
               key={role}
-              className="grid gap-3 rounded-md border bg-muted/20 p-3"
+              aria-label={EXPERT_ROLE_LABELS[role]}
+              className="grid gap-4 rounded-lg bg-surface-2 p-4"
             >
-              <div className="text-sm font-semibold">{EXPERT_ROLE_LABELS[role]}</div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid gap-1.5">
-                  <Label htmlFor={`${role}-nom`} className="text-xs">Nom complet</Label>
+              <div className="text-[13px] font-semibold text-ink">{EXPERT_ROLE_LABELS[role]}</div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-1">
+                  <Label htmlFor={`${role}-nom`}>Nom complet</Label>
                   <Input
                     id={`${role}-nom`}
                     value={experts[role].nom}
@@ -253,8 +255,8 @@ export function CreateDossierDialog({
                     disabled={isCreating}
                   />
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor={`${role}-telephone`} className="text-xs">Téléphone</Label>
+                <div className="grid gap-1">
+                  <Label htmlFor={`${role}-telephone`}>Téléphone</Label>
                   <Input
                     id={`${role}-telephone`}
                     value={experts[role].telephone}
@@ -262,8 +264,8 @@ export function CreateDossierDialog({
                     disabled={isCreating}
                   />
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor={`${role}-email`} className="text-xs">Email</Label>
+                <div className="grid gap-1">
+                  <Label htmlFor={`${role}-email`}>Email</Label>
                   <Input
                     id={`${role}-email`}
                     type="email"
@@ -272,8 +274,8 @@ export function CreateDossierDialog({
                     disabled={isCreating}
                   />
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor={`${role}-compagnie`} className="text-xs">Compagnie</Label>
+                <div className="grid gap-1">
+                  <Label htmlFor={`${role}-compagnie`}>Compagnie</Label>
                   <Input
                     id={`${role}-compagnie`}
                     value={experts[role].compagnie}
@@ -282,12 +284,13 @@ export function CreateDossierDialog({
                   />
                 </div>
               </div>
-            </div>
+            </section>
           ))}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={handleCancel} disabled={isCreating}>
+        {/* One solid primary, cancel ghost. */}
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button variant="ghost" onClick={handleCancel} disabled={isCreating}>
             Annuler
           </Button>
           <Button onClick={handleConfirm} loading={isCreating}>

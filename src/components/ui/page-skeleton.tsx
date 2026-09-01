@@ -19,24 +19,27 @@ export function PageSkeleton({
     <div className="space-y-8" aria-busy="true" aria-live="polite">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
+          {/* t-display line (28 px) + t-caption line */}
           <Skeleton className="h-8 w-48" />
           {subtitle && <Skeleton className="h-4 w-72 max-w-full" />}
         </div>
-        {action && <Skeleton className="h-9 w-36 rounded-lg" />}
+        {/* one 40 px primary action */}
+        {action && <Skeleton className="h-10 w-36" />}
       </div>
 
       {filters && (variant === 'list' || variant === 'cards') && (
-        <div className="flex flex-wrap gap-3">
-          <Skeleton className="h-9 w-64 rounded-lg" />
-          <Skeleton className="h-9 w-32 rounded-lg" />
-          <Skeleton className="h-9 w-32 rounded-lg" />
-          <Skeleton className="h-9 w-32 rounded-lg" />
+        <div className="flex flex-wrap gap-2">
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-10 w-32" />
+          <Skeleton className="h-10 w-32" />
+          <Skeleton className="h-10 w-32" />
         </div>
       )}
 
       {variant === 'list' && (
-        <div className="paper overflow-hidden">
-          <div className="flex items-center gap-4 border-b border-hairline bg-surface-2 px-4 py-3">
+        // Solid paper frame (no glass on skeletons), header on card like Table.
+        <div className="overflow-hidden rounded-xl border border-hairline bg-card">
+          <div className="flex h-10 items-center gap-4 border-b border-hairline bg-card px-4">
             <Skeleton className="h-4 w-24" />
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-4 w-28" />

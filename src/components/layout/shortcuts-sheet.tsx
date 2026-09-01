@@ -66,7 +66,7 @@ export function ShortcutsSheet({ open, onOpenChange }: { open: boolean; onOpenCh
               <h3 className="t-label mb-2">{group}</h3>
               <ul className="divide-y divide-hairline">
                 {list.map((h) => (
-                  <li key={`${h.keys}-${h.label}`} className="flex items-center justify-between gap-4 py-2 text-sm text-ink">
+                  <li key={`${h.keys}-${h.label}`} className="flex items-center justify-between gap-4 py-2 text-[13px] text-ink">
                     <span className="min-w-0 flex-1 truncate">{h.label}</span>
                     <span className="flex shrink-0 items-center gap-1">
                       {formatKeys(h.keys).map((k, i) => (

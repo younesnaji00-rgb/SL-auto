@@ -138,7 +138,7 @@ function NotificationsInner() {
                   >
                     <span className={cn('mt-1.5 h-2 w-2 rounded-full', isUnread ? 'bg-status-info-fg' : 'bg-surface-4')} aria-hidden />
                     <span className="min-w-0">
-                      <span className={cn('block truncate text-sm', isUnread ? 'font-semibold text-ink' : 'font-medium text-ink-2')}>{rappelLabel(r)}</span>
+                      <span className={cn('block truncate text-[13px]', isUnread ? 'font-semibold text-ink' : 'font-medium text-ink-2')}>{rappelLabel(r)}</span>
                       {r.observation && <span className="t-caption block truncate">{r.observation}</span>}
                       {r.senderNom && <span className="t-caption block">De {r.senderNom}</span>}
                     </span>
