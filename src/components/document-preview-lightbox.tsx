@@ -19,7 +19,7 @@
 import * as React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Trash2, X } from 'lucide-react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +34,14 @@ interface DocumentPreviewLightboxProps {
   /** Optional. When set, shows a download button in the header. */
   onDownload?: (doc: DocumentPreviewLightboxDoc) => void;
   onDelete?: (doc: DocumentPreviewLightboxDoc) => void;
+  /**
+   * Multi-page documents (carte grise recto/verso, a devis photographed in
+   * two shots…): the sibling files of `doc`. Enables ‹ › paging, arrow keys
+   * and a "i / n" counter; `doc` must be one of them.
+   */
+  pages?: DocumentPreviewLightboxDoc[];
+  /** Called when the user pages; the host updates `doc`. */
+  onPageChange?: (doc: DocumentPreviewLightboxDoc, index: number) => void;
 }
 
 function isImageName(name: string): boolean {
@@ -45,7 +53,7 @@ const HEADER_H = 52;
 /** A4 portrait width/height — default for PDFs and unknown documents. */
 const A4_RATIO = 210 / 297;
 
-export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete }: DocumentPreviewLightboxProps) {
+export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pages, onPageChange }: DocumentPreviewLightboxProps) {
   const isImage = doc ? isImageName(doc.nom) : false;
   // width / height of the media; null until a raster image reports its
   // natural size. Non-images assume A4 portrait immediately.
@@ -53,6 +61,27 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete }: 
   React.useEffect(() => {
     setImgRatio(null);
   }, [doc?.url]);
+
+  // Paging across sibling files of the same document.
+  const pageList = pages && pages.length > 1 ? pages : null;
+  const pageIndex = pageList && doc ? Math.max(0, pageList.findIndex((p) => p.url === doc.url)) : 0;
+  const goTo = React.useCallback(
+    (i: number) => {
+      if (!pageList || !onPageChange) return;
+      const next = (i + pageList.length) % pageList.length;
+      onPageChange(pageList[next], next);
+    },
+    [pageList, onPageChange],
+  );
+  React.useEffect(() => {
+    if (!pageList || !doc) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') { e.preventDefault(); goTo(pageIndex + 1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(pageIndex - 1); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [pageList, doc, pageIndex, goTo]);
 
   if (!doc) return null;
 
@@ -80,6 +109,17 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete }: 
       >
         <DialogHeader className="flex shrink-0 flex-row items-center justify-between gap-2 border-b px-4 py-3">
           <DialogTitle className="flex-1 truncate text-sm">{doc.nom}</DialogTitle>
+          {pageList && (
+            <div className="flex shrink-0 items-center gap-1" aria-label="Pages du document">
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goTo(pageIndex - 1)} title="Page précédente" aria-label="Page précédente">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="t-caption tabular-nums" aria-live="polite">{pageIndex + 1} / {pageList.length}</span>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goTo(pageIndex + 1)} title="Page suivante" aria-label="Page suivante">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           {onDownload && (
             <Button
               variant="ghost"

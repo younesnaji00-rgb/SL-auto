@@ -8,6 +8,12 @@
  * Used by the accord board (families, réforme, rapport, note d'honoraire,
  * ATG) AND by the step-1 Pièces tab, so the dossier has one visual language.
  *
+ * The files of a slot are the PAGES of one document (a carte grise is shot
+ * recto then verso). A slot holding n ≥ 2 files renders a 2-up page strip,
+ * the slot title + "n pages · size · date · user" meta and a numbered pager
+ * (per-page Aperçu · Télécharger · Supprimer, "Ajouter une page"). Pages are
+ * ordered by upload time (oldest first). n = 1 keeps the single-item layout.
+ *
  * Three states:
  *  1. Filled ("item in slot") — raised paper tile, the document visual
  *     dominant (image cover / first PDF page), hover lift (`shadow-raised` +
@@ -30,6 +36,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Download, Eye, FileText, Loader2, Lock, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from './replay-highlight';
@@ -37,9 +50,11 @@ import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
 import {
   docDisplayName,
   docMetaLine,
+  docPagesMetaLine,
   downloadFileFromUrl,
   isImage,
   isPdf,
+  sortPagesAsc,
   type ExtraSlotKind,
   type TypedDoc,
 } from '@/components/documents/typed-doc';
@@ -64,7 +79,11 @@ export interface SlotCardProps {
   onCreateNextCardinal: () => void;
   onCreateExtraSlot: (kind: ExtraSlotKind, files: File[]) => void;
   onRenameExtraSlot: () => void;
-  onPreview: (d: TypedDoc) => void;
+  /**
+   * Open the lightbox on `d`. `pages` (upload order) is passed for multi-page
+   * slots so the host can enable ‹ › paging across the sibling files.
+   */
+  onPreview: (d: TypedDoc, pages?: TypedDoc[]) => void;
   /**
    * When true, the cardinal `+` pimple button (used to create the next
    * accord/proposition cardinal slot) is not rendered. The "extra slot"
@@ -96,7 +115,7 @@ export interface SlotCardProps {
   accept?: string;
   /** Drop filter matching `accept` (default images + PDF). */
   acceptFile?: (f: File) => boolean;
-  /** Selection mode: checkbox overlay on the filled tile. */
+  /** Selection mode: checkbox overlay on the filled tile (selects every page). */
   selectable?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
@@ -121,8 +140,40 @@ export const SOCKET_OPEN_CLASS =
   'group/socket border border-dashed border-hairline-strong transition-colors duration-150 ' +
   'hover:border-primary/50 hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
+// Raised item tile (filled state).
+const ITEM_TILE_CLASS =
+  'group relative flex min-h-[120px] flex-col overflow-hidden rounded-lg bg-card shadow-card dark:ring-1 dark:ring-hairline ' +
+  'transition-[transform,box-shadow] duration-150 hover:scale-[1.02] hover:shadow-raised motion-reduce:transform-none motion-reduce:hover:scale-100';
+
+// Numbered page pill (multi-page pager).
+const PAGE_PILL_CLASS =
+  'inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2 ' +
+  'transition-colors duration-150 hover:bg-surface-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+// Dashed "Ajouter une page" ghost.
+const ADD_PAGE_CLASS =
+  'inline-flex items-center gap-1 rounded-full border border-dashed border-hairline-strong text-[11px] font-medium text-ink-3 ' +
+  'transition-colors duration-150 hover:border-primary/50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait';
+
 const DEFAULT_ACCEPT = 'image/*,.pdf';
 const defaultAcceptFile = (f: File) => f.type.startsWith('image/') || /\.pdf$/i.test(f.name);
+
+/** One page's visual — image cover, first PDF page, or the file glyph. */
+function PageThumb({ doc }: { doc: TypedDoc }) {
+  const name = docDisplayName(doc);
+  if (doc.url && isImage(name)) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={doc.url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />;
+  }
+  if (doc.url && isPdf(name)) {
+    return <PdfThumbnail url={doc.url} width={320} className="h-full w-full" />;
+  }
+  return (
+    <div className="flex h-full w-full items-center justify-center text-ink-3" aria-hidden>
+      <FileText className="h-6 w-6" />
+    </div>
+  );
+}
 
 export function SlotCard({
   slot,
@@ -192,8 +243,9 @@ export function SlotCard({
     (parsedAccord.kind === 'accord' || parsedAccord.kind === 'proposition-accord');
   const cardinalPimpleDisabled = !docs.some((d) => !d.pendingUpload && !!d.url);
   // Hide placeholder docs (no url) — they are cardinal-slot bookkeeping, not
-  // files, and must not masquerade as documents.
-  const visibleDocs = docs.filter((d) => !!d.url);
+  // files, and must not masquerade as documents. What remains are the PAGES
+  // of this slot's document, in upload order.
+  const pages = sortPagesAsc(docs.filter((d) => !!d.url));
   // Base-slot pimple: next to `Devis Garage` / `Facture Garage`, lets the
   // gestionnaire spawn a new numbered slot (first = "… 2", then 3, etc.).
   const baseExtraKind: ExtraSlotKind | null =
@@ -210,7 +262,7 @@ export function SlotCard({
   const dropEnabled = canEdit && !hideUploadForAccord && !isFilledExtraSlot;
   const uploadAllowed = dropEnabled;
 
-  const filled = visibleDocs.length > 0;
+  const filled = pages.length > 0;
 
   // `animate-scale-in` only on the empty → filled transition ("item lands in
   // the socket"), never on initial mount — page load must stay still.
@@ -254,6 +306,13 @@ export function SlotCard({
     setIsDragOver(false);
     const files = Array.from(e.dataTransfer.files || []).filter(acceptFile);
     if (files.length > 0) onUpload(files);
+  };
+
+  const dragProps = {
+    onDragEnter: handleDragEnter,
+    onDragOver: handleDragOver,
+    onDragLeave: handleDragLeave,
+    onDrop: handleDrop,
   };
 
   // Slot controls (rename · cardinal + · extra +) — original placement rules.
@@ -331,10 +390,152 @@ export function SlotCard({
     />
   ) : null;
 
-  // ── State 1: filled ("item in slot") ───────────────────────────────────────
+  const selectionOverlay = (anySelectable: boolean) =>
+    selectable ? (
+      <div className="absolute left-1.5 top-1.5 z-10 rounded bg-card p-0.5 shadow-card">
+        <Checkbox
+          checked={!!selected}
+          onCheckedChange={onToggleSelect}
+          disabled={!anySelectable}
+          aria-label={`Sélectionner ${slot}`}
+        />
+      </div>
+    ) : null;
+
+  const tileClass = cn(
+    ITEM_TILE_CLASS,
+    justFilled && 'animate-scale-in',
+    isDragOver && 'bg-accent/40 ring-2 ring-primary/50',
+    selectable && selected && 'ring-2 ring-primary',
+  );
+
+  // ── State 1b: filled, multi-page (n ≥ 2) ──────────────────────────────────
+  if (pages.length >= 2) {
+    const n = pages.length;
+    const latest = pages[n - 1];
+    const meta = docPagesMetaLine(pages);
+    const anySelectable = pages.some((p) => !!p.url && !p.pendingUpload);
+    const chiffreurName =
+      parsedAccord && typeof latest.uploadedByName === 'string' ? latest.uploadedByName.trim() : '';
+
+    return (
+      <div id={id} className={tileClass} {...dragProps}>
+        {/* The only "received" signal — a 2 px success edge. No chip. */}
+        <div aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-status-success-fg/60" />
+        {uploadInput}
+
+        {/* Controls row (only when a control exists) */}
+        {controls ? (
+          <div className="flex items-center justify-end gap-1 px-2.5 pt-2">{controls}</div>
+        ) : (
+          <div className="pt-2" aria-hidden />
+        )}
+
+        {/* Page strip — the first two pages 2-up, "+n" on the second when more */}
+        <div className="relative mx-2.5 mt-1 h-20 shrink-0 overflow-hidden rounded-md bg-hairline">
+          <button
+            type="button"
+            onClick={() => onPreview(pages[0], pages)}
+            className="grid h-full w-full grid-cols-2 gap-px text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`Aperçu — ${slot} (${n} pages)`}
+          >
+            <span className="relative block h-full overflow-hidden bg-surface-2">
+              <PageThumb doc={pages[0]} />
+            </span>
+            <span className="relative block h-full overflow-hidden bg-surface-2">
+              <PageThumb doc={pages[1]} />
+              {n > 2 && (
+                <span className="absolute inset-0 flex items-center justify-center bg-ink-solid/60 text-[13px] font-semibold tabular-nums text-on-ink">
+                  +{n - 2}
+                </span>
+              )}
+            </span>
+          </button>
+          {selectionOverlay(anySelectable)}
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink-solid/60 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
+            <span className="inline-flex h-7 items-center gap-1.5 rounded-md bg-card px-2 text-xs font-medium text-ink">
+              <Eye className="h-3.5 w-3.5" aria-hidden />
+              Aperçu
+            </span>
+          </div>
+        </div>
+
+        {/* Document title + pages meta */}
+        <div className="min-w-0 px-2.5 pb-1 pt-1.5">
+          <p className="t-body-sm truncate font-medium" title={slot}>{slot}</p>
+          {meta && <p className="t-caption truncate tabular-nums">{meta}</p>}
+          {chiffreurName && (
+            <p className="t-caption truncate" title={`Chiffré par ${chiffreurName}`}>
+              Chiffré par {chiffreurName}
+            </p>
+          )}
+        </div>
+
+        {/* Pager — numbered pills with per-page actions, then "Ajouter une page" */}
+        <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2" aria-label="Pages">
+          {pages.map((p, i) => {
+            const name = docDisplayName(p);
+            const clickable = !!p.url && !p.pendingUpload;
+            const isDeleting = deletingId === p.id;
+            const replayStatus = hl.statusForEntry('documents', p.id);
+            return (
+              <DropdownMenu key={p.id}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(PAGE_PILL_CLASS, highlightClass(replayStatus))}
+                    aria-label={`Page ${i + 1} — ${name}`}
+                    title={name}
+                  >
+                    {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : i + 1}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem disabled={!clickable} onSelect={() => onPreview(p, pages)}>
+                    <Eye className="h-3.5 w-3.5" />
+                    Aperçu
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={!clickable} onSelect={() => { if (p.url) downloadFileFromUrl(p.url, name); }}>
+                    <Download className="h-3.5 w-3.5" />
+                    Télécharger
+                  </DropdownMenuItem>
+                  {canDeleteDoc(p) && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        disabled={isDeleting || !!p.pendingUpload}
+                        className="text-status-danger-fg focus:text-status-danger-fg"
+                        onSelect={() => onDelete(p)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Supprimer
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            );
+          })}
+          {uploadAllowed && (
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={isUploading}
+              className={cn(ADD_PAGE_CLASS, 'h-5 px-1.5')}
+              aria-label={`Ajouter une page — ${slot}`}
+            >
+              {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+              {isUploading ? 'Envoi…' : 'Ajouter une page'}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── State 1a: filled, single page ─────────────────────────────────────────
   if (filled) {
-    const primary = visibleDocs[0];
-    const rest = visibleDocs.slice(1);
+    const primary = pages[0];
     const primaryName = docDisplayName(primary);
     const primaryClickable = !!primary.url && !primary.pendingUpload;
     const primaryReplay = hl.statusForEntry('documents', primary.id);
@@ -346,20 +547,7 @@ export function SlotCard({
     const meta = docMetaLine(primary);
 
     return (
-      <div
-        id={id}
-        className={cn(
-          'group relative flex min-h-[120px] flex-col overflow-hidden rounded-lg bg-card shadow-card dark:ring-1 dark:ring-hairline',
-          'transition-[transform,box-shadow] duration-150 hover:scale-[1.02] hover:shadow-raised motion-reduce:transform-none motion-reduce:hover:scale-100',
-          justFilled && 'animate-scale-in',
-          isDragOver && 'bg-accent/40 ring-2 ring-primary/50',
-          selectable && selected && 'ring-2 ring-primary',
-        )}
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
+      <div id={id} className={tileClass} {...dragProps}>
         {/* The only "received" signal — a 2 px success edge. No chip. */}
         <div aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-status-success-fg/60" />
         {uploadInput}
@@ -372,33 +560,15 @@ export function SlotCard({
 
         {/* Item visual — image cover, first PDF page, or large glyph; overlay actions */}
         <div className="relative mx-2.5 h-20 shrink-0 overflow-hidden rounded-md bg-surface-2">
-          {primary.url && isImage(primaryName) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={primary.url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
-          ) : primary.url && isPdf(primaryName) ? (
-            <PdfThumbnail url={primary.url} width={320} className="h-full w-full" />
-          ) : (
-            <div className="flex h-full items-center justify-center text-ink-3" aria-hidden>
-              <FileText className="h-6 w-6" />
-            </div>
-          )}
-          {selectable && (
-            <div className="absolute left-1.5 top-1.5 z-10 rounded bg-card p-0.5 shadow-card">
-              <Checkbox
-                checked={!!selected}
-                onCheckedChange={onToggleSelect}
-                disabled={!primaryClickable}
-                aria-label={`Sélectionner ${slot}`}
-              />
-            </div>
-          )}
+          <PageThumb doc={primary} />
+          {selectionOverlay(primaryClickable)}
           <div className="absolute inset-0 flex items-center justify-center gap-1 bg-ink-solid/60 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
             <Button
               type="button"
               variant="secondary"
               size="icon"
               className="h-7 w-7"
-              onClick={() => primaryClickable && onPreview(primary)}
+              onClick={() => primaryClickable && onPreview(primary, pages)}
               disabled={!primaryClickable}
               title="Aperçu"
               aria-label={`Aperçu — ${primaryName}`}
@@ -438,7 +608,7 @@ export function SlotCard({
         <div className={cn('min-w-0 flex-1 rounded-md px-2.5 pb-2 pt-1.5', highlightClass(primaryReplay))}>
           <button
             type="button"
-            onClick={() => primaryClickable && onPreview(primary)}
+            onClick={() => primaryClickable && onPreview(primary, pages)}
             className="flex w-full min-w-0 items-center gap-1.5 text-left focus-visible:outline-none"
             title={primaryName}
           >
@@ -456,67 +626,17 @@ export function SlotCard({
           )}
         </div>
 
-        {/* Additional documents in the same slot — compact stacked rows */}
-        {rest.length > 0 && (
-          <ul className="mx-2.5 mb-2 space-y-0.5 border-t border-hairline pt-1.5">
-            {rest.map((d) => {
-              const name = docDisplayName(d);
-              const clickable = !!d.url && !d.pendingUpload;
-              const replayStatus = hl.statusForEntry('documents', d.id);
-              const isDeleting = deletingId === d.id;
-              return (
-                <li key={d.id} className={cn('flex h-6 min-w-0 items-center gap-1.5 rounded px-1', highlightClass(replayStatus))}>
-                  <FileText className="h-3 w-3 shrink-0 text-ink-3" aria-hidden />
-                  <button
-                    type="button"
-                    onClick={() => clickable && onPreview(d)}
-                    className="t-caption min-w-0 flex-1 truncate text-left text-ink-2 hover:text-ink focus-visible:underline focus-visible:outline-none"
-                    title={name}
-                  >
-                    {name}
-                  </button>
-                  <ChangeBadge status={replayStatus} className="shrink-0" />
-                  {canDeleteDoc(d) && (
-                    <button
-                      type="button"
-                      onClick={() => onDelete(d)}
-                      disabled={isDeleting || !!d.pendingUpload}
-                      className={cn(
-                        'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-3 transition-opacity duration-150 hover:text-status-danger-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                        '[@media(hover:hover)]:opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
-                        isDeleting && 'opacity-100',
-                      )}
-                      title="Supprimer"
-                      aria-label={`Supprimer — ${name}`}
-                    >
-                      {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        {/* Multi-doc sources keep an explicit add affordance */}
+        {/* Append a page (recto → verso…) — same upload path */}
         {uploadAllowed && (
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={isUploading}
-            className="mx-2.5 mb-2 flex h-7 items-center justify-center gap-1.5 rounded-md border border-dashed border-hairline text-[11px] font-medium text-ink-3 transition-colors duration-150 hover:border-primary/50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait"
+            className={cn(ADD_PAGE_CLASS, 'mx-2.5 mb-2 h-7 justify-center rounded-md px-2')}
+            aria-label={`Ajouter une page — ${slot}`}
           >
-            {isUploading ? (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Envoi…
-              </>
-            ) : (
-              <>
-                <Plus className="h-3 w-3" />
-                Ajouter
-              </>
-            )}
+            {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+            {isUploading ? 'Envoi…' : 'Ajouter une page'}
           </button>
         )}
       </div>
@@ -526,14 +646,7 @@ export function SlotCard({
   // ── State 2: empty uploadable ("open socket") ─────────────────────────────
   if (uploadAllowed) {
     return (
-      <div
-        id={id}
-        className="relative"
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
+      <div id={id} className="relative" {...dragProps}>
         {uploadInput}
         <button
           type="button"

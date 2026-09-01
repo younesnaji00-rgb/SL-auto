@@ -66,7 +66,7 @@ import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { cn } from '@/lib/utils';
-import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
+import { DocumentPreviewLightbox, type DocumentPreviewLightboxDoc } from '@/components/document-preview-lightbox';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -88,6 +88,7 @@ import { SlotCard, SOCKET_BASE_CLASS, SOCKET_OPEN_CLASS } from '@/components/dos
 import {
   docDisplayName,
   downloadFileFromUrl,
+  toLightboxDoc,
   type TypedDoc,
 } from '@/components/documents/typed-doc';
 import JSZip from 'jszip';
@@ -144,7 +145,8 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
-  const [previewDoc, setPreviewDoc] = useState<{ url: string; nom: string } | null>(null);
+  // Lightbox: the page being shown + every page of that slot (enables ‹ › paging).
+  const [preview, setPreview] = useState<{ doc: DocumentPreviewLightboxDoc; pages: DocumentPreviewLightboxDoc[] } | null>(null);
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadType, setUploadType] = useState<string>('');
@@ -446,8 +448,12 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
     }
   };
 
-  const openDoc = (d: TypedDoc) => {
-    if (!d.pendingUpload && d.url) setPreviewDoc({ url: d.url, nom: docDisplayName(d) });
+  const openDoc = (d: TypedDoc, pages?: TypedDoc[]) => {
+    if (d.pendingUpload || !d.url) return;
+    const list = (pages && pages.length > 0 ? pages : [d])
+      .filter((p) => !!p.url && !p.pendingUpload)
+      .map(toLightboxDoc);
+    setPreview({ doc: toLightboxDoc(d), pages: list });
   };
 
   // ── Selection / batch download ─────────────────────────────────────────────
@@ -963,8 +969,10 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
 
       {/* Lightbox preview — shared component */}
       <DocumentPreviewLightbox
-        doc={previewDoc}
-        onClose={() => setPreviewDoc(null)}
+        doc={preview?.doc ?? null}
+        pages={preview?.pages}
+        onPageChange={(d) => setPreview((p) => (p ? { ...p, doc: d } : p))}
+        onClose={() => setPreview(null)}
         onDownload={(d) => downloadFileFromUrl(d.url, d.nom)}
       />
 

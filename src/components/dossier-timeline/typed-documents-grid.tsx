@@ -14,8 +14,8 @@ import { buildDocFamilies } from '@/lib/doc-family';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
-import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
-import { downloadFileFromUrl } from '@/components/documents/typed-doc';
+import { DocumentPreviewLightbox, type DocumentPreviewLightboxDoc } from '@/components/document-preview-lightbox';
+import { downloadFileFromUrl, toLightboxDoc } from '@/components/documents/typed-doc';
 import { SlotCard, type ExtraSlotKind, type TypedDoc } from './slot-card';
 import { FamilyRow } from './family-row';
 
@@ -156,7 +156,8 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
 
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [previewDoc, setPreviewDoc] = useState<{ url: string; nom: string } | null>(null);
+  // Lightbox: the page being shown + every page of that slot (enables ‹ › paging).
+  const [preview, setPreview] = useState<{ doc: DocumentPreviewLightboxDoc; pages: DocumentPreviewLightboxDoc[] } | null>(null);
 
   const collQuery = useMemo(() => {
     if (!db) return null;
@@ -608,10 +609,12 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     }
   };
 
-  const handlePreview = (d: TypedDoc) => {
-    if (d.url && !d.pendingUpload) {
-      setPreviewDoc({ url: d.url, nom: d.nom || d.fileName || 'document' });
-    }
+  const handlePreview = (d: TypedDoc, pages?: TypedDoc[]) => {
+    if (!d.url || d.pendingUpload) return;
+    const list = (pages && pages.length > 0 ? pages : [d])
+      .filter((p) => !!p.url && !p.pendingUpload)
+      .map(toLightboxDoc);
+    setPreview({ doc: toLightboxDoc(d), pages: list });
   };
 
   const renderSlotCard = (slot: string) => (
@@ -805,8 +808,10 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
 
       {/* Lightbox preview — shared component */}
       <DocumentPreviewLightbox
-        doc={previewDoc}
-        onClose={() => setPreviewDoc(null)}
+        doc={preview?.doc ?? null}
+        pages={preview?.pages}
+        onPageChange={(d) => setPreview((p) => (p ? { ...p, doc: d } : p))}
+        onClose={() => setPreview(null)}
         onDownload={(d) => downloadFileFromUrl(d.url, d.nom)}
       />
     </div>

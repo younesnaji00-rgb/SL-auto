@@ -27,7 +27,8 @@ interface FamilyRowProps {
   onCreateNextCardinal: (slot: string) => void;
   onCreateExtraSlot: (kind: ExtraSlotKind, files: File[]) => void;
   onRenameExtraSlot: (slot: string) => void;
-  onPreview: (d: TypedDoc) => void;
+  /** Lightbox open; `pages` (upload order) lets the host enable paging across the slot's files. */
+  onPreview: (d: TypedDoc, pages?: TypedDoc[]) => void;
   /**
    * Optional action rendered inline at the right end of the family header
    * band (next to the name + pill). Used on the chiffreur side for the

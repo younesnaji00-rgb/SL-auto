@@ -39,7 +39,6 @@ import { getMissingRequiredFields } from '@/lib/required-fields';
 // Back-compat: callers that imported the helper from this module keep working.
 export { getMissingRequiredFields } from '@/lib/required-fields';
 
-const COMPARE_MEDIA_QUERY = '(min-width: 1024px)'; // Tailwind `lg`
 
 export interface Step2InformationProps {
   dossierId: string;
@@ -68,7 +67,6 @@ export default function Step2Information({
     return () => setFocusMode(false);
   }, [showCompare]);
   // Once the user toggles the pane by hand, stop auto-opening it.
-  const compareTouched = useRef(false);
   const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ url: string; nom: string } | null>(null);
   // Width of the source pane → render the PDF page at that width.
@@ -103,14 +101,8 @@ export default function Step2Information({
     }
   }, [showCompare, scanDocs, selectedScanId]);
 
-  // Comparison pane ON by default at ≥ lg as soon as a scanned source document
-  // resolves (verifying extracted fields against the source is simultaneous
-  // work). Below lg it stays closed; a manual toggle wins from then on.
-  useEffect(() => {
-    if (compareTouched.current || scanDocs.length === 0) return;
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    if (window.matchMedia(COMPARE_MEDIA_QUERY).matches) setShowCompare(true);
-  }, [scanDocs.length]);
+  // The comparison pane never opens on its own (user ruling): only the
+  // « Comparer » button opens it.
 
   // Track the pane width so the PDF page is rasterised at the right size.
   useEffect(() => {
@@ -129,7 +121,6 @@ export default function Step2Information({
   }, [showCompare]);
 
   const toggleCompare = () => {
-    compareTouched.current = true;
     setShowCompare((v) => !v);
   };
 

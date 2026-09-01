@@ -29,6 +29,8 @@ export type TypedDoc = {
   fileSize?: number;
   dateUpload?: unknown;
   uploadedAt?: unknown;
+  /** Client-side creation instant (ms) — set by the offline-capable upload path. */
+  _localCreatedAt?: number;
   // Marks a document as belonging to a gestionnaire-created extra slot
   // (rendered after "Devis Garage" / "Facture Garage"). The slot grouping
   // key is still the `type` string; this field is used only to detect
@@ -75,16 +77,60 @@ export function docUploaderLabel(d: Pick<TypedDoc, 'uploadedByName' | 'uploadePa
   return email.includes('@') ? email.split('@')[0] : email;
 }
 
+/** Upload instant in ms — Firestore Timestamp / Date / ISO / epoch, else the local creation stamp. */
+export function docTimestampMs(d: TypedDoc): number {
+  const raw = d.dateUpload ?? d.uploadedAt;
+  const anyTs = raw as { toDate?: () => Date; seconds?: number } | null | undefined;
+  if (anyTs && typeof anyTs.toDate === 'function') return anyTs.toDate().getTime();
+  if (anyTs && typeof anyTs.seconds === 'number') return anyTs.seconds * 1000;
+  if (raw) {
+    const t = new Date(raw as string | number | Date).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  return typeof d._localCreatedAt === 'number' ? d._localCreatedAt : 0;
+}
+
+/**
+ * The files of one slot are the PAGES of one document (carte grise recto then
+ * verso…): upload order, oldest first — the order the user shot them.
+ */
+export function sortPagesAsc<T extends TypedDoc>(docs: ReadonlyArray<T>): T[] {
+  return [...docs].sort(
+    (a, b) => docTimestampMs(a) - docTimestampMs(b) || docDisplayName(a).localeCompare(docDisplayName(b)),
+  );
+}
+
 /** `137 Ko · 10/06/2026 · younes` — empty parts are dropped. */
 export function docMetaLine(d: TypedDoc): string {
   return [
     formatFileSize(d.taille ?? d.fileSize),
-    formatDocDate(d.dateUpload ?? d.uploadedAt),
+    formatDocDate(docTimestampMs(d) || null),
     docUploaderLabel(d),
   ]
     .filter(Boolean)
     .join(' · ');
 }
+
+/** `2 pages · 137 Ko · 10/06/2026 · younes` — total size, latest upload. */
+export function docPagesMetaLine(pages: ReadonlyArray<TypedDoc>): string {
+  if (pages.length === 0) return '';
+  const total = pages.reduce((acc, p) => acc + (p.taille ?? p.fileSize ?? 0), 0);
+  const latest = pages.reduce((best, p) => (docTimestampMs(p) >= docTimestampMs(best) ? p : best), pages[0]);
+  return [
+    pages.length > 1 ? `${pages.length} pages` : '',
+    formatFileSize(total),
+    formatDocDate(docTimestampMs(latest) || null),
+    docUploaderLabel(latest),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/** Lightbox page descriptor for a doc (`{ url, nom }`). */
+export const toLightboxDoc = (d: Pick<TypedDoc, 'url' | 'nom' | 'fileName'>) => ({
+  url: d.url || '',
+  nom: docDisplayName(d),
+});
 
 /**
  * "1er accord" / "2ème proposition d'accord" — compact display label for an
