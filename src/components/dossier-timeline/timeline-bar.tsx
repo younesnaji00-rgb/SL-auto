@@ -3,14 +3,18 @@
 /**
  * Stepper with real status (GOV.UK task-list semantics on a Carbon-style
  * progress indicator): ✓ muted for done, filled accent for the active step,
- * outline for to-do, grey non-link for blocked. Whole step is the control;
- * helper text carries the "who · when" stamp.
+ * outline for to-do, grey non-link for blocked.
  *
- * Horizontal variant scrolls with fade edges and auto-centres the active step
- * (never clips). Vertical variant is a sticky left rail for very wide screens.
+ * Compact "dock" presentation (user decision): every step is a 28 px medallion
+ * so all of them fit in one row without scrolling; the active step keeps its
+ * label. Moving the pointer along the row magnifies the step under the
+ * cursor and, less, its neighbours — a distance-based fisheye like the macOS
+ * Dock — and the magnified step unfolds its label and "who · when" stamp.
+ * Keyboard focus unfolds the same way. Under prefers-reduced-motion nothing
+ * scales; hover/focus simply shows the label.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Check, Lock } from 'lucide-react';
@@ -24,6 +28,7 @@ export interface TimelineBarProps {
   steps: StepState[];
   activeId: number;
   onStepClick: (stepId: number) => void;
+  /** Kept for API compatibility; the bar is always horizontal now. */
   orientation?: 'horizontal' | 'vertical';
   className?: string;
 }
@@ -62,13 +67,13 @@ export function StepStatusChip({ status, label }: { status: StepStatus; label: s
 }
 
 function StepDot({ step, index, isActive }: { step: StepState; index: number; isActive: boolean }) {
-  const base = 'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold tabular-nums transition-colors';
+  const base = 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[12px] font-semibold tabular-nums transition-colors';
   if (isActive) return <span className={cn(base, 'border-primary bg-primary text-primary-foreground')}>{index + 1}</span>;
   switch (step.status) {
     case 'done':
       return (
         <span className={cn(base, 'border-status-success-fg/40 bg-status-success-bg text-status-success-fg')} aria-hidden>
-          <Check className="h-3.5 w-3.5" />
+          <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
         </span>
       );
     case 'in_progress':
@@ -84,99 +89,136 @@ function StepDot({ step, index, isActive }: { step: StepState; index: number; is
   }
 }
 
-export function TimelineBar({ steps, activeId, onStepClick, orientation = 'horizontal', className }: TimelineBarProps) {
-  const scrollerRef = useRef<HTMLDivElement>(null);
+/** Fisheye radius (px) and peak magnification of the Dock effect. */
+const DOCK_RADIUS = 96;
+const DOCK_BOOST = 0.3;
+/** Within this distance of a medallion's centre the step counts as hovered. */
+const HOVER_REACH = 44;
 
-  // Keep the active step centred in the horizontal scroller.
+export function TimelineBar({ steps, activeId, onStepClick, className }: TimelineBarProps) {
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  // Pointer X in viewport coordinates while over the bar; null otherwise.
+  const [pointerX, setPointerX] = useState<number | null>(null);
+  const [focusId, setFocusId] = useState<number | null>(null);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const frame = useRef<number>(0);
+
   useEffect(() => {
-    if (orientation !== 'horizontal') return;
-    const el = scrollerRef.current?.querySelector<HTMLElement>('[aria-current="step"]');
-    el?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' });
-  }, [activeId, orientation]);
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = () => setReduceMotion(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
-  if (orientation === 'vertical') {
-    return (
-      <nav aria-label="Étapes du dossier" className={cn('flex flex-col', className)}>
-        <ol className="relative flex flex-col gap-1 border-l border-hairline-strong pl-0">
-          {steps.map((step, idx) => {
-            const isActive = step.id === activeId;
-            const blocked = step.status === 'blocked';
-            return (
-              <li key={step.id} className="-ml-px">
-                <button
-                  type="button"
-                  disabled={blocked}
-                  title={blocked ? step.blockedReason : undefined}
-                  onClick={() => onStepClick(step.id)}
-                  aria-current={isActive ? 'step' : undefined}
-                  className={cn(
-                    'flex w-full items-start gap-3 rounded-r-md border-l-2 py-1.5 pl-3 pr-2 text-left transition-colors',
-                    isActive ? 'border-primary bg-accent/40' : 'border-transparent hover:bg-surface-2',
-                    blocked && 'cursor-not-allowed hover:bg-transparent',
-                  )}
-                >
-                  <StepDot step={step} index={idx} isActive={isActive} />
-                  <span className="min-w-0 flex-1">
-                    <span
-                      className={cn(
-                        'block truncate text-sm',
-                        isActive ? 'font-semibold text-ink' : step.status === 'done' ? 'text-ink-2' : blocked ? 'text-ink-4' : 'text-ink-3',
-                      )}
-                    >
-                      {step.label}
-                    </span>
-                    <span className={cn('t-caption block truncate', blocked && 'text-ink-4')}>
-                      {step.doneAt ? <StepStamp step={step} /> : blocked ? step.blockedReason : step.statusLabel}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
-    );
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType !== 'mouse') return; // touch: no fisheye, tap = click
+    const x = e.clientX;
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => setPointerX(x));
+  }, []);
+  const onPointerLeave = useCallback(() => {
+    cancelAnimationFrame(frame.current);
+    setPointerX(null);
+  }, []);
+
+  // Per-step magnification from the pointer's distance to the medallion centre.
+  const scaleFor = (idx: number): number => {
+    if (reduceMotion || pointerX === null) return 1;
+    const el = itemRefs.current[idx];
+    if (!el) return 1;
+    const dot = el.querySelector<HTMLElement>('[data-dot]') ?? el;
+    const r = dot.getBoundingClientRect();
+    const d = Math.abs(pointerX - (r.left + r.width / 2));
+    if (d >= DOCK_RADIUS) return 1;
+    const t = 1 - d / DOCK_RADIUS;
+    return 1 + DOCK_BOOST * t * t;
+  };
+  // The one step whose label unfolds: focused, else nearest to the pointer.
+  let hoveredId: number | null = focusId;
+  if (hoveredId === null && pointerX !== null) {
+    let best = Infinity;
+    steps.forEach((s, idx) => {
+      const el = itemRefs.current[idx];
+      if (!el) return;
+      const dot = el.querySelector<HTMLElement>('[data-dot]') ?? el;
+      const r = dot.getBoundingClientRect();
+      const d = Math.abs(pointerX - (r.left + r.width / 2));
+      if (d < best && d <= HOVER_REACH) {
+        best = d;
+        hoveredId = s.id;
+      }
+    });
   }
 
   return (
     <nav aria-label="Étapes du dossier" className={cn('relative w-full', className)}>
       <div
-        ref={scrollerRef}
-        className="flex items-stretch gap-1 overflow-x-auto px-3 py-1.5 [scrollbar-width:none] sm:px-5 [&::-webkit-scrollbar]:hidden"
+        onPointerMove={onPointerMove}
+        onPointerLeave={onPointerLeave}
+        className="flex h-12 items-center gap-0.5 overflow-x-auto px-3 [scrollbar-width:none] sm:px-5 [&::-webkit-scrollbar]:hidden"
       >
         {steps.map((step, idx) => {
           const isActive = step.id === activeId;
           const blocked = step.status === 'blocked';
+          const unfolded = isActive || hoveredId === step.id;
+          const scale = scaleFor(idx);
           return (
             <React.Fragment key={step.id}>
               <button
+                ref={(el) => {
+                  itemRefs.current[idx] = el;
+                }}
                 type="button"
                 disabled={blocked}
-                title={blocked ? step.blockedReason : step.doneAt ? `${step.longLabel} — ${step.statusLabel}` : step.longLabel}
+                title={blocked ? step.blockedReason : `${step.longLabel} — ${step.statusLabel}`}
+                aria-label={`Étape ${idx + 1} : ${step.longLabel} — ${step.statusLabel}`}
                 onClick={() => onStepClick(step.id)}
+                onFocus={() => setFocusId(step.id)}
+                onBlur={() => setFocusId((v) => (v === step.id ? null : v))}
                 aria-current={isActive ? 'step' : undefined}
+                style={{ transform: `scale(${scale.toFixed(3)})` }}
                 className={cn(
-                  'flex shrink-0 items-center gap-2 rounded-md px-2 py-1 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  isActive ? 'bg-accent/40' : 'hover:bg-surface-2',
-                  blocked && 'cursor-not-allowed hover:bg-transparent',
+                  // Width unfolds via the label's grid column; scale is the Dock
+                  // fisheye. Both on the shared standard curve; nothing under
+                  // reduced motion.
+                  'relative z-0 flex shrink-0 origin-center items-center rounded-full py-0.5 pl-0.5 pr-0.5 text-left',
+                  'transition-[transform,background-color,padding] duration-150 ease-standard motion-reduce:transition-none',
+                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  unfolded && 'z-10 pr-2.5',
+                  isActive ? 'bg-accent/50' : unfolded ? 'bg-surface-2 shadow-card' : 'bg-transparent',
+                  blocked && 'cursor-not-allowed',
                 )}
               >
-                <StepDot step={step} index={idx} isActive={isActive} />
-                <span className="flex min-w-0 flex-col leading-tight">
-                  <span
-                    className={cn(
-                      'whitespace-nowrap text-xs',
-                      isActive ? 'font-semibold text-ink' : step.status === 'done' ? 'text-ink-2' : blocked ? 'text-ink-4' : 'text-ink-3',
-                    )}
-                  >
-                    {step.label}
+                <span data-dot className="inline-flex">
+                  <StepDot step={step} index={idx} isActive={isActive} />
+                </span>
+                <span
+                  aria-hidden={!unfolded}
+                  className={cn(
+                    'grid min-w-0 transition-[grid-template-columns,opacity,margin] duration-150 ease-standard motion-reduce:transition-none',
+                    unfolded ? 'ml-2 grid-cols-[1fr] opacity-100' : 'ml-0 grid-cols-[0fr] opacity-0',
+                  )}
+                >
+                  <span className="flex min-w-0 flex-col overflow-hidden leading-tight">
+                    <span
+                      className={cn(
+                        'whitespace-nowrap text-xs',
+                        isActive ? 'font-semibold text-ink' : step.status === 'done' ? 'font-medium text-ink-2' : blocked ? 'text-ink-4' : 'font-medium text-ink-3',
+                      )}
+                    >
+                      {step.label}
+                    </span>
+                    <span className="whitespace-nowrap text-[11px] leading-[1.2] text-ink-3">
+                      {step.doneAt ? <StepStamp step={step} className="max-w-[180px]" /> : blocked ? step.blockedReason : step.statusLabel}
+                    </span>
                   </span>
-                  {step.doneAt && <StepStamp step={step} className="max-w-[160px]" />}
                 </span>
               </button>
               {idx < steps.length - 1 && (
                 <span
-                  className={cn('my-auto h-px w-4 shrink-0 sm:w-6', step.status === 'done' ? 'bg-status-success-fg/50' : 'bg-hairline-strong')}
+                  className={cn('h-px w-2.5 shrink-0 sm:w-4', step.status === 'done' ? 'bg-status-success-fg/50' : 'bg-hairline-strong')}
                   aria-hidden
                 />
               )}
@@ -184,8 +226,6 @@ export function TimelineBar({ steps, activeId, onStepClick, orientation = 'horiz
           );
         })}
       </div>
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-background to-transparent" aria-hidden />
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-background to-transparent" aria-hidden />
     </nav>
   );
 }
