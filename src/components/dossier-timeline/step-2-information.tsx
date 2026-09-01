@@ -177,24 +177,30 @@ export default function Step2Information({
   // outgoing first, then layout, then incoming).
   const { mounted: paneMounted, shown: paneShown } = usePresence(showCompare, 300);
 
-  // Gradual wheel zoom (Ctrl/⌘ + wheel; a plain wheel scrolls), anchored
-  // under the cursor: ~±10 % per notch via an exponential factor, clamped to
-  // 50–400 %. Native listener because React's wheel events are passive (no
+  // Wheel zoom (Ctrl/⌘ + wheel; a plain wheel scrolls the document), anchored
+  // under the cursor: one notch (≈100 px of deltaY, accumulated so multi-event
+  // wheels and trackpads count once) = ×1.3 / ÷1.3, clamped to 50–400 %.
+  // Native listener because React's wheel events are passive (no
   // preventDefault → the browser would zoom the whole page).
   useEffect(() => {
     if (!paneMounted) return;
     const el = paneRef.current;
     if (!el) return;
+    let acc = 0;
     const onWheel = (e: WheelEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
+      acc += e.deltaY;
+      if (Math.abs(acc) < 100) return;
+      const direction = acc < 0 ? 1 : -1;
+      acc = 0;
       const rect = el.getBoundingClientRect();
       const cx = e.clientX - rect.left;
       const cy = e.clientY - rect.top;
       const px = cx + el.scrollLeft;
       const py = cy + el.scrollTop;
       setZoom((prev) => {
-        const next = Math.min(4, Math.max(0.5, prev * Math.exp(-e.deltaY * 0.0015)));
+        const next = Math.min(4, Math.max(0.5, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3)));
         if (next === prev) return prev;
         const k = next / prev;
         requestAnimationFrame(() => {

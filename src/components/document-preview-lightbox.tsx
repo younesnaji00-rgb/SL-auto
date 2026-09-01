@@ -41,13 +41,13 @@ function ZoomControls() {
       aria-label="Zoom"
       title="Molette pour zoomer progressivement, double-clic pour agrandir"
     >
-      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomOut(0.25, 150)} aria-label="Zoom arrière" disabled={scale <= 1}>
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomOut(0.3, 150)} aria-label="Zoom arrière" disabled={scale <= 1}>
         <ZoomOut className="h-4 w-4" />
       </Button>
       <button type="button" className="t-caption min-w-[3.25rem] rounded px-1 text-center tabular-nums hover:bg-surface-2" onClick={() => resetTransform(150)} aria-label={`Zoom ${Math.round(scale * 100)} % — réinitialiser`}>
         {Math.round(scale * 100)} %
       </button>
-      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomIn(0.25, 150)} aria-label="Zoom avant" disabled={scale >= 8}>
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomIn(0.3, 150)} aria-label="Zoom avant" disabled={scale >= 8}>
         <ZoomIn className="h-4 w-4" />
       </Button>
     </div>
@@ -113,6 +113,28 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [pageList, doc, pageIndex, goTo]);
+
+  // Wheel notch gate: some mice and every trackpad emit several wheel events
+  // per physical notch/gesture. Let one event through per ~100 px of
+  // accumulated deltaY (one notch) and swallow the rest in the capture phase
+  // so the zoom library only ever sees one step at a time.
+  const mediaRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const el = mediaRef.current;
+    if (!el || !isImage) return;
+    let acc = 0;
+    const onWheel = (e: WheelEvent) => {
+      acc += Math.abs(e.deltaY);
+      if (acc >= 100) {
+        acc = 0;
+        return; // passes through to the zoom library
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    el.addEventListener('wheel', onWheel, { capture: true, passive: false });
+    return () => el.removeEventListener('wheel', onWheel, { capture: true } as EventListenerOptions);
+  }, [isImage, doc?.url]);
 
   if (!doc) return null;
 
@@ -184,6 +206,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
           </Button>
         </DialogHeader>
         <div
+          ref={mediaRef}
           className={cn(
             'relative flex max-w-full items-center justify-center overflow-hidden bg-ink-solid',
             ratio === null && 'flex-1',
@@ -197,9 +220,11 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
               minScale={1}
               maxScale={8}
               doubleClick={{ mode: 'zoomIn', step: 0.5, animationTime: 200 }}
-              // Gradual wheel zoom: ~5 % per notch (the default 0.2 jumped
-              // 20 % per notch). The toolbar buttons pass their own 25 % step.
-              wheel={{ step: 0.05 }}
+              // One wheel notch = +30 %. `smooth` MUST be off: with it on the
+              // library multiplies `step` by |deltaY| (≈100 per notch on a
+              // mouse), which is what made a single notch jump to 600 %.
+              smooth={false}
+              wheel={{ step: 0.3 }}
               pinch={{ step: 5 }}
               zoomAnimation={{ animationTime: 150 }}
               centerZoomedOut
