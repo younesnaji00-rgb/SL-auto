@@ -79,7 +79,7 @@ export interface SmartInboxProps {
    * while the tab's job is not done, `tonal` (teal tint) once it is.
    */
   emphasis?: 'primary' | 'tonal';
-  /** Leading icon (defaults to an upload arrow). */
+  /** Leading icon — defaults to an upload arrow; pass `null` for none. */
   icon?: React.ReactNode;
 }
 
@@ -402,7 +402,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           onDragLeave={() => setDragging(false)}
           onDrop={onZoneDrop}
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : (icon ?? <Upload className="h-4 w-4" />)}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : (icon === undefined ? <Upload className="h-4 w-4" /> : icon)}
           {busy ? 'Analyse en cours…' : buttonLabel}
         </Button>
         <input
