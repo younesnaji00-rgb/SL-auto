@@ -81,6 +81,13 @@ Rules
 - **No coloured surfaces for chrome.** Navy sidebars/headers were rejected
   outright; chrome stays on the cream ladder.
 - Semantic colour is separate from the accent and never used decoratively.
+- **One exception colour per dashboard** (Few, *Rules for using color*:
+  "bright colours only for highlighting"; dataviz: status colours are
+  reserved). Magnitude bars use the accent/`chart-1`, never status green — ten
+  green bars leave nothing to highlight. Amber (or red) appears only where
+  there *is* an exception; a zero is plain ink, never green ("all good" is
+  the absence of colour, not a red/green pair). Tables carry one colour
+  system: no heat-map behind a cell that also shows an amber count.
 
 ---
 
@@ -102,6 +109,13 @@ bold), Apple HIG label tiers.
 
 Rules: floor 11 px; tabular figures wherever digits align; one display face
 (Outfit here) + one UI face (Inter). Labels are quiet, values are the star.
+
+Figures (dataviz skill + Material 3 scale): a dashboard's summary row and its
+detail tiles are **two tiers** — headline stat tiles **36 px** (display-small),
+step/detail tiles **24 px** (headline-small), the page title stays 28. A single
+hero figure is ≥ 48 and there is exactly one per view (the Dashboard). Figures
+are always set in the UI sans with proportional digits — never in the display
+face (it reads as decoration); tabular digits only in columns.
 
 ---
 
@@ -149,6 +163,11 @@ surface** — not translucency, not gradients, not ambient meshes.
 ## 4. Layout, spacing, density
 
 - Card padding **24 px**; field rows **16 px** apart; section headers 48 px.
+- **Tile padding 16 px** (Carbon tile / M3 card) — stat tiles and KPI tiles in
+  a dense grid; content cards keep 24. Nothing at 20. Gutters 16, sections 32
+  (Carbon spacing-05/-07). Spacing comes from the parent `gap`, never from
+  per-element margins (Carbon Stack).
+- A tile grid ends on a **full row**: 10 tiles → 5 × 2 from `xl`, never 4 + 4 + 2.
 - Context column (right, ≥ xl, 280 px): flat blocks, `t-label` headers,
   hairline-separated rows, **hairline between blocks**, rows must never be
   wider than the column (bleed into its padding, clip x).
@@ -237,6 +256,20 @@ in-page nav, Salesforce/Jira record header, Linear.
   to the row height, 2-axis scroll beyond, cursor-anchored Ctrl+wheel zoom.
 - **Observations**: per-message collapsibles, newest open. **Photos**: groups
   expanded, "by date / by location" as underline tabs.
+- **Data tables** (Polaris / Carbon / NN/g): numbers right-aligned with
+  tabular digits, text left, **headers aligned with their data — never
+  centred**; column heads `t-label`; 44 px rows; when the table is wider than
+  the screen the first column is frozen (`sticky left-0 bg-card` + hairline)
+  and the header row sticks to the top; hover = `surface-2`, no zebra.
+- **Dashboard page anatomy** (Few: summary before detail; NN/g tabs: never make
+  the reader switch tabs to compare): filters → **headline row above the
+  tabs** → tabs switch only the detail below. Breakdown tabs are legitimate
+  when they are parallel views of the same measures with 1–2-word labels.
+- **Self-describing captions**: every period-bound number prints the real
+  range ("· 1–7 sept."), never an abstract "· période", so nothing needs to
+  stick while scrolling (NN/g sticky headers cost screen space on every page).
+- **Tab in the URL** (`?vue=…`): the selected tab survives reload/back and can
+  be linked from a notification; the default tab keeps a clean URL.
 
 ---
 
@@ -282,6 +315,14 @@ in-page nav, Salesforce/Jira record header, Linear.
 | Duplicated primary in a step's tab | → record bar only |
 | Decorative AI (sparkles) icon on a CTA | → text only |
 | Sidebar as the place for the "third colour" | → inside the page only |
+| Status green on every KPI tile's "good" bar | → accent hue for magnitude, amber only for the exception (Few) |
+| Green "0" on an exception tile | → plain ink; colour only when there is an exception |
+| Heat-map behind table cells that also carry an amber count | → one colour system per table |
+| Centred numeric columns | → right-aligned with their headers (Polaris / Carbon) |
+| Page title, headline values and detail values all at 28 px | → 36 / 24 tiers under a 28 title |
+| Tile padding 20 px | → 16 (tile) or 24 (card), nothing between |
+| "· période" in captions | → the real range printed |
+| Headline KPIs inside the first tab only | → above the tabs, shared by every view |
 
 ---
 

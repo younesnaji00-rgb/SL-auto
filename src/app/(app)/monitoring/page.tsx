@@ -106,15 +106,29 @@ import { DossierDrawer } from './dossier-drawer';
 
 const tabular = { fontVariantNumeric: 'tabular-nums' as const };
 
+type Vue = 'global' | 'compagnie' | 'user';
+const VUES: Vue[] = ['global', 'compagnie', 'user'];
+
 /**
- * Heat-map background for numeric cells. Higher value within a column = deeper
- * ink tint (chart-1, the navy of the ink family — no hand-picked hue).
+ * The selected period, printed in the captions ("· 1–7 sept.") so a number two
+ * screens below the filters still says which period it counts (NN/g sticky
+ * headers: persistence only pays when the element is needed constantly — a
+ * self-describing caption costs no screen space).
  */
-const heatStyle = (value: number, max: number): React.CSSProperties | undefined => {
-  if (!value || value <= 0 || max <= 0) return undefined;
-  const intensity = Math.min(value / max, 1);
-  const alpha = 0.06 + intensity * intensity * 0.3;
-  return { backgroundColor: `hsl(var(--chart-1) / ${alpha})` };
+const formatPeriodLabel = (from: Date | null, to: Date | null): string => {
+  const thisYear = new Date().getFullYear();
+  const day = (d: Date, withMonth: boolean) => {
+    const pattern = withMonth ? (d.getFullYear() === thisYear ? 'd MMM' : 'd MMM yyyy') : 'd';
+    return format(d, pattern, { locale: fr });
+  };
+  if (!from && !to) return 'toute la période';
+  if (from && to) {
+    if (isSameDay(from, to)) return day(from, true);
+    const sameMonth = from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear();
+    return sameMonth ? `${day(from, false)}–${day(to, true)}` : `${day(from, true)} – ${day(to, true)}`;
+  }
+  if (from) return `depuis le ${day(from, true)}`;
+  return `jusqu'au ${day(to as Date, true)}`;
 };
 
 /** Funnel step → dossier timeline section (`#step-N` anchors in dossier-timeline/timeline.tsx). */
@@ -127,6 +141,15 @@ const STEP_SECTION: Partial<Record<StepKey, number>> = {
 
 /** Cap for the exception list — beyond this the list is a report, not a to-do. */
 const AGING_LIST_CAP = 50;
+
+/**
+ * First column frozen while the 13-column tables pan sideways (NN/g data
+ * tables: freeze the header column when the table is wider than the screen).
+ * Solid card so rows slide under it; the hairline marks the frozen edge.
+ */
+const STICKY_HEAD = 'sticky left-0 z-[2] min-w-[12rem] border-r border-hairline bg-card';
+const STICKY_CELL =
+  'sticky left-0 z-[1] border-r border-hairline bg-card font-medium [tr:hover_&]:bg-surface-2';
 
 const emptyStepCounts = (): Record<StepKey, number> =>
   STEP_KEYS.reduce((acc, k) => {
@@ -212,6 +235,29 @@ export default function MonitoringPage() {
   const [selectedStepMode, setSelectedStepMode] = useState<DrawerMode>('realise');
   const [roleFilter, setRoleFilter] = useState<string>(ROLE_FILTER_ALL);
   const [userSearch, setUserSearch] = useState<string>('');
+  // The tab lives in the URL (`?vue=compagnie`) so it survives reload / back and
+  // can be linked from a notification (NN/g tabs: the selected tab is addressable).
+  const [vue, setVue] = useState<Vue>('global');
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get('vue');
+    if (v && (VUES as string[]).includes(v)) setVue(v as Vue);
+  }, []);
+  const changeVue = (next: Vue) => {
+    setVue(next);
+    const url = new URL(window.location.href);
+    if (next === 'global') url.searchParams.delete('vue');
+    else url.searchParams.set('vue', next);
+    window.history.replaceState(window.history.state, '', url);
+  };
+  // « En retard aujourd'hui » → the list, whichever tab is open.
+  const jumpToAging = () => {
+    changeVue('global');
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() =>
+        document.getElementById('a-traiter')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      ),
+    );
+  };
 
   const openDrawer = (step: StepKey, mode: DrawerMode) => {
     setSelectedStep(step);
@@ -483,6 +529,7 @@ export default function MonitoringPage() {
   }, [selectedStep, selectedStepMode, dossiers, workflowLogs, range, sla]);
 
   const totalDossiersInScope = dossiers.length;
+  const periodLabel = useMemo(() => formatPeriodLabel(dateFrom, dateTo), [dateFrom, dateTo]);
 
   const resetRange = () => {
     setDateFrom(startOfDay(new Date()));
@@ -546,7 +593,26 @@ export default function MonitoringPage() {
         }
       />
 
-      <Tabs defaultValue="global" className="space-y-6">
+      {/* Page summary (Few: summary before detail) — above the tabs so the four
+          numbers stay in view while a breakdown is compared against them
+          (NN/g tabs: never make the reader switch tabs to compare). */}
+      {loading ? (
+        <div aria-busy="true" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="paper space-y-3 p-4">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-9 w-16" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        totalDossiersInScope > 0 && (
+          <HeadlineRow headline={headline} periodLabel={periodLabel} onJumpToAging={jumpToAging} />
+        )
+      )}
+
+      <Tabs value={vue} onValueChange={(v) => changeVue(v as Vue)} className="space-y-6">
         <TabsList>
           <TabsTrigger value="global" className="gap-2">
             <Gauge className="h-4 w-4" />
@@ -565,19 +631,9 @@ export default function MonitoringPage() {
         <TabsContent value="global" className="space-y-6">
           {loading ? (
             <div aria-busy="true" className="space-y-6">
-              {/* Headline row (4 tiles) */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="paper space-y-3 p-5">
-                    <Skeleton className="h-3 w-28" />
-                    <Skeleton className="h-7 w-14" />
-                    <Skeleton className="h-3 w-32" />
-                  </div>
-                ))}
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
                 {Array.from({ length: STEP_KEYS.length }).map((_, i) => (
-                  <div key={i} className="paper space-y-3 p-5">
+                  <div key={i} className="paper space-y-3 p-4">
                     <Skeleton className="h-3 w-24" />
                     <Skeleton className="h-7 w-16" />
                     <Skeleton className="h-2 w-full" />
@@ -622,7 +678,7 @@ export default function MonitoringPage() {
               horsDelaiCounts={globalHorsDelaiCounts}
               realiseAllTimeCounts={globalRealiseAllTime}
               totalDossiers={totalDossiersInScope}
-              headline={headline}
+              periodLabel={periodLabel}
               aging={aging}
               cycleTimes={cycleTimes}
               trend={weeklyTrend}
@@ -633,7 +689,7 @@ export default function MonitoringPage() {
         </TabsContent>
 
         <TabsContent value="compagnie" className="space-y-6">
-          <CompagnieView rows={perCompagnie} loading={loading} />
+          <CompagnieView rows={perCompagnie} loading={loading} periodLabel={periodLabel} />
         </TabsContent>
 
         <TabsContent value="user" className="space-y-6">
@@ -667,7 +723,7 @@ export default function MonitoringPage() {
               </div>
             </div>
           </div>
-          <UserView rows={filteredPerUser} loading={loading} userLookup={userLookup} />
+          <UserView rows={filteredPerUser} loading={loading} userLookup={userLookup} periodLabel={periodLabel} />
         </TabsContent>
       </Tabs>
 
@@ -688,7 +744,7 @@ function GlobalView({
   horsDelaiCounts,
   realiseAllTimeCounts,
   totalDossiers,
-  headline,
+  periodLabel,
   aging,
   cycleTimes,
   trend,
@@ -699,7 +755,7 @@ function GlobalView({
   horsDelaiCounts: Record<StepKey, number>;
   realiseAllTimeCounts: Record<StepKey, number>;
   totalDossiers: number;
-  headline: Headline;
+  periodLabel: string;
   aging: AgingItem[];
   cycleTimes: CycleTimeRow[];
   trend: WeekPoint[];
@@ -727,12 +783,11 @@ function GlobalView({
 
   return (
     <>
-      <HeadlineRow headline={headline} />
-
       {/* KPI tiles: one paper card per step in a 16 px gutter grid (Carbon KPI tiles,
           Material cards) — the card edge is the separation (user ruling: a clear
-          separation on each card). Never the featured surface for a row of tiles. */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          separation on each card). Never the featured surface for a row of tiles.
+          Ten steps → 5 × 2 from xl so the grid ends on a full row. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
         {STEP_KEYS.map((key, idx) => {
           const realiseEnDelai = counts[key];
           const horsDelai = horsDelaiCounts[key] ?? 0;
@@ -760,6 +815,7 @@ function GlobalView({
       <Card>
         <CardHeader>
           <CardTitle>Volume par étape</CardTitle>
+          <p className="t-caption">Étapes franchies en délai · {periodLabel}</p>
         </CardHeader>
         <CardContent>
           {chartData.every((d) => d.value === 0) ? (
@@ -784,7 +840,7 @@ function GlobalView({
       {/* NN/g dashboards: exceptions (what is late now) sit above trends. */}
       <div className="grid gap-6 lg:grid-cols-3">
         <AgingCard items={aging} className="lg:col-span-2" />
-        <CycleTimeCard rows={cycleTimes} />
+        <CycleTimeCard rows={cycleTimes} periodLabel={periodLabel} />
       </div>
 
       <TrendCard points={trend} />
@@ -797,36 +853,43 @@ function GlobalView({
  * top-left carries the few numbers that matter (≤ 5–7 headline KPIs). Kanban flow
  * metrics: throughput (période), SLA compliance (période), WIP (now), age (now).
  */
-function HeadlineRow({ headline }: { headline: Headline }) {
-  const scrollToAging = () => {
-    document.getElementById('a-traiter')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+function HeadlineRow({
+  headline,
+  periodLabel,
+  onJumpToAging,
+}: {
+  headline: Headline;
+  periodLabel: string;
+  onJumpToAging: () => void;
+}) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <HeadlineTile label="Dossiers traités" value={headline.traites} caption="rapport déposé · période" />
+      <HeadlineTile label="Dossiers traités" value={headline.traites} caption={`rapport déposé · ${periodLabel}`} />
       <HeadlineTile
         label="Respect des délais"
         value={headline.respectPct == null ? '—' : `${headline.respectPct} %`}
+        title="Assignations chiffrage · terrain · création, 24 h ouvrées"
         caption={
           headline.respectPct == null
-            ? `aucune assignation décidée${headline.respectPending > 0 ? ` · ${headline.respectPending} en attente` : ''}`
-            : `${headline.respectOnTime} en délai · ${headline.respectLate} hors délai${headline.respectPending > 0 ? ` · ${headline.respectPending} en attente` : ''} — chiffrage · terrain · création`
+            ? `aucune assignation décidée${headline.respectPending > 0 ? ` · ${headline.respectPending} en attente` : ''} · ${periodLabel}`
+            : `${headline.respectOnTime} en délai · ${headline.respectLate} hors délai${headline.respectPending > 0 ? ` · ${headline.respectPending} en attente` : ''} · ${periodLabel}`
         }
       />
       <HeadlineTile label="En attente" value={headline.enAttente} caption="sans rapport déposé · aujourd'hui" />
-      {/* Exception tile — semantic colour with meaning (status pair), and a jump to the list. */}
+      {/* Exception tile — the status colour only when there IS an exception (Few:
+          bright colour for highlighting only; no red/green pair), and a jump to the list. */}
       <Card className="min-w-0 p-0">
         <button
           type="button"
-          onClick={scrollToAging}
-          className="block w-full rounded-xl p-5 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={onJumpToAging}
+          className="block w-full rounded-xl p-4 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           title="Voir la liste « À traiter aujourd'hui »"
         >
           <p className="t-label">En retard aujourd'hui</p>
           <p
             className={cn(
-              'mt-2 text-[28px] font-semibold leading-none',
-              headline.enRetard > 0 ? 'text-status-danger-fg' : 'text-status-success-fg',
+              'mt-2 text-[36px] font-semibold leading-none',
+              headline.enRetard > 0 ? 'text-status-danger-fg' : 'text-ink',
             )}
           >
             {headline.enRetard}
@@ -838,20 +901,26 @@ function HeadlineRow({ headline }: { headline: Headline }) {
   );
 }
 
-/** Stat tile (dashboard headline pattern): label · 28 px proportional figure · caption. */
+/**
+ * Headline stat tile — label · 36 px proportional figure (M3 display-small; the
+ * summary tier above the 24 px step tiles) · caption. 16 px padding (Carbon
+ * tile / M3 card); content cards keep 24.
+ */
 function HeadlineTile({
   label,
   value,
   caption,
+  title,
 }: {
   label: string;
   value: number | string;
   caption: string;
+  title?: string;
 }) {
   return (
-    <Card className="min-w-0 p-5">
+    <Card className="min-w-0 p-4" title={title}>
       <p className="t-label">{label}</p>
-      <p className="mt-2 text-[28px] font-semibold leading-none text-ink">{value}</p>
+      <p className="mt-2 text-[36px] font-semibold leading-none text-ink">{value}</p>
       <p className="t-caption mt-2">{caption}</p>
     </Card>
   );
@@ -886,7 +955,7 @@ function KpiCard({
   const pctNonRealise = nonRealise != null ? (nonRealise / denominator) * 100 : 0;
 
   return (
-    <Card className="min-w-0 p-5">
+    <Card className="min-w-0 p-4">
       <div className="flex items-center gap-2">
         <span
           className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[11px] font-semibold text-ink-2 shadow-rim"
@@ -896,17 +965,21 @@ function KpiCard({
         </span>
         <p className="t-label truncate">{label}</p>
       </div>
-      {/* Stat-tile value: sans semibold, proportional figures (tabular only in columns). */}
-      <p className="mt-2 text-[28px] font-semibold leading-none text-ink">
+      {/* Stat-tile value: 24 px (M3 headline-small — the detail tier under the 36 px
+          headline row), sans semibold, proportional figures (tabular only in columns). */}
+      <p className="mt-2 text-2xl font-semibold leading-none text-ink">
         {realiseEnDelai}
         <span className="t-caption ml-1.5 font-normal">en délai</span>
       </p>
       <div className="mt-3 space-y-1.5">
+        {/* Magnitude in the accent hue, not a status green: ten green bars on one
+            screen would leave nothing to highlight (Few). Amber is the page's one
+            status colour — the exception. */}
         <KpiBarRow
           label="en délai"
           count={realiseEnDelai}
           pct={pctEnDelai}
-          fillClass="bg-status-success-fg"
+          fillClass="bg-chart-1"
           onClick={onSelectRealise}
         />
         {hasSla ? (
@@ -1029,7 +1102,7 @@ function AgingCard({ items, className }: { items: AgingItem[]; className?: strin
                             : 'bg-status-warning-bg text-status-warning-fg',
                         )}
                       >
-                        <span className="font-headline text-lg font-semibold leading-none">
+                        <span className="text-base font-semibold leading-none tabular-nums">
                           {formatBusinessHours(item.ageHours)}
                         </span>
                         <span className="mt-1 text-[11px] leading-none">ouvrées</span>
@@ -1066,12 +1139,12 @@ function AgingCard({ items, className }: { items: AgingItem[]; className?: strin
 }
 
 /** « Délais par étape » — claims-operations KPI: cycle time by stage (median, business hours). */
-function CycleTimeCard({ rows }: { rows: CycleTimeRow[] }) {
+function CycleTimeCard({ rows, periodLabel }: { rows: CycleTimeRow[]; periodLabel: string }) {
   return (
     <Card className="overflow-hidden">
       <CardHeader>
         <CardTitle>Délais par étape</CardTitle>
-        <p className="t-caption">Heures ouvrées entre le déclencheur et la réalisation · période</p>
+        <p className="t-caption">Heures ouvrées entre le déclencheur et la réalisation · {periodLabel}</p>
       </CardHeader>
       <CardContent className="p-0">
         <Table>
@@ -1142,23 +1215,22 @@ function TrendCard({ points }: { points: WeekPoint[] }) {
   );
 }
 
-/** Step cell shared by both tables: on-time count (heat) + late count on a second line. */
+/**
+ * Step cell shared by both tables: on-time count + late count on a second line.
+ * Numbers right-aligned with their headers (Polaris / Carbon data tables); the
+ * amber "+n" is the only colour in the cell — no heat-map competing with it.
+ */
 function StepCell({
   value,
   late,
-  max,
   emphasis,
 }: {
   value: number;
   late: number;
-  max: number;
   emphasis?: boolean;
 }) {
   return (
-    <TableCell
-      className={cn('text-center', emphasis && 'font-semibold')}
-      style={{ ...tabular, ...heatStyle(value, max) }}
-    >
+    <TableCell className={cn('text-right', emphasis && 'font-semibold')} style={tabular}>
       <div>{value || <span className="font-normal text-ink-4">—</span>}</div>
       {late > 0 && (
         <div className="text-[11px] font-normal text-status-warning-fg tabular-nums">+{late} hors délai</div>
@@ -1170,20 +1242,12 @@ function StepCell({
 function CompagnieView({
   rows,
   loading,
+  periodLabel,
 }: {
   rows: GroupMeasures[];
   loading: boolean;
+  periodLabel: string;
 }) {
-  const columnMax = useMemo(() => {
-    const max = emptyStepCounts();
-    for (const r of rows) {
-      for (const k of STEP_KEYS) {
-        if (r.enDelai[k] > max[k]) max[k] = r.enDelai[k];
-      }
-    }
-    return max;
-  }, [rows]);
-
   if (loading) return <TablePaperSkeleton />;
   if (rows.length === 0) {
     return (
@@ -1199,21 +1263,22 @@ function CompagnieView({
     <Card>
       <CardHeader>
         <CardTitle>Répartition par compagnie</CardTitle>
+        <p className="t-caption">Étapes franchies en délai · {periodLabel}</p>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
-        <Table>
+        <Table regionLabel="Répartition par compagnie">
           <TableHeader>
             <TableRow>
-              <TableHead className="min-w-[12rem]">Compagnie</TableHead>
+              <TableHead className={STICKY_HEAD}>Compagnie</TableHead>
               {STEP_KEYS.map((key) => (
-                <TableHead key={key} className="text-center text-xs">
+                <TableHead key={key} className="text-right">
                   {STEP_LABELS_SHORT[key]}
                 </TableHead>
               ))}
-              <TableHead className="text-center text-xs" title="Part des étapes avec délai réalisées à temps · période">
+              <TableHead className="text-right" title={`Part des assignations à temps · ${periodLabel}`}>
                 Respect
               </TableHead>
-              <TableHead className="text-center text-xs" title="Dossiers sans rapport déposé · à ce jour">
+              <TableHead className="text-right" title="Dossiers sans rapport déposé · à ce jour">
                 En attente
               </TableHead>
             </TableRow>
@@ -1221,20 +1286,14 @@ function CompagnieView({
           <TableBody>
             {rows.map((r) => (
               <TableRow key={r.group}>
-                <TableCell className="font-medium">{r.group}</TableCell>
+                <TableCell className={STICKY_CELL}>{r.group}</TableCell>
                 {STEP_KEYS.map((key) => (
-                  <StepCell
-                    key={key}
-                    value={r.enDelai[key]}
-                    late={r.horsDelai[key]}
-                    max={columnMax[key]}
-                    emphasis
-                  />
+                  <StepCell key={key} value={r.enDelai[key]} late={r.horsDelai[key]} emphasis />
                 ))}
-                <TableCell className="text-center font-semibold" style={tabular}>
+                <TableCell className="text-right font-semibold" style={tabular}>
                   {r.respectPct == null ? <span className="font-normal text-ink-4">—</span> : `${r.respectPct} %`}
                 </TableCell>
-                <TableCell className="text-center" style={tabular}>
+                <TableCell className="text-right" style={tabular}>
                   {r.enAttente || <span className="text-ink-4">—</span>}
                 </TableCell>
               </TableRow>
@@ -1250,23 +1309,13 @@ function UserView({
   rows,
   loading,
   userLookup,
+  periodLabel,
 }: {
   rows: UserRow[];
   loading: boolean;
   userLookup: UserLookup;
+  periodLabel: string;
 }) {
-  const columnMax = useMemo(() => {
-    const realiseMax = emptyStepCounts();
-    let totalMax = 0;
-    for (const r of rows) {
-      for (const k of STEP_KEYS) {
-        if (r.enDelai[k] > realiseMax[k]) realiseMax[k] = r.enDelai[k];
-      }
-      if (r.totalEnDelai > totalMax) totalMax = r.totalEnDelai;
-    }
-    return { realise: realiseMax, total: totalMax };
-  }, [rows]);
-
   if (loading) return <TablePaperSkeleton />;
   if (rows.length === 0) {
     return (
@@ -1282,23 +1331,24 @@ function UserView({
     <Card>
       <CardHeader>
         <CardTitle>Activité par utilisateur</CardTitle>
+        <p className="t-caption">Étapes franchies en délai · {periodLabel}</p>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
-        <Table>
+        <Table regionLabel="Activité par utilisateur">
           <TableHeader>
             <TableRow>
-              <TableHead className="min-w-[14rem]">Utilisateur</TableHead>
+              <TableHead className={cn(STICKY_HEAD, 'min-w-[14rem]')}>Utilisateur</TableHead>
               {STEP_KEYS.map((key) => (
-                <TableHead key={key} className="text-center text-xs">
+                <TableHead key={key} className="text-right">
                   {STEP_LABELS_SHORT[key]}
                 </TableHead>
               ))}
-              <TableHead className="text-center text-xs">Total</TableHead>
-              <TableHead className="text-center text-xs" title="Part des étapes avec délai réalisées à temps · période">
+              <TableHead className="text-right">Total</TableHead>
+              <TableHead className="text-right" title={`Part des assignations à temps · ${periodLabel}`}>
                 Respect
               </TableHead>
               <TableHead
-                className="text-center text-xs"
+                className="text-right"
                 title="Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape"
               >
                 Ouverts (touchés)
@@ -1310,26 +1360,18 @@ function UserView({
               const displayName = resolveUserName(r.user, userLookup);
               return (
                 <TableRow key={r.user}>
-                  <TableCell className="font-medium">{displayName}</TableCell>
+                  <TableCell className={STICKY_CELL}>{displayName}</TableCell>
                   {STEP_KEYS.map((key) => (
-                    <StepCell
-                      key={key}
-                      value={r.enDelai[key]}
-                      late={r.horsDelai[key]}
-                      max={columnMax.realise[key]}
-                    />
+                    <StepCell key={key} value={r.enDelai[key]} late={r.horsDelai[key]} />
                   ))}
-                  <TableCell
-                    className="text-center font-semibold"
-                    style={{ ...tabular, ...heatStyle(r.totalEnDelai, columnMax.total) }}
-                  >
+                  <TableCell className="text-right font-semibold" style={tabular}>
                     {r.totalEnDelai}
                   </TableCell>
-                  <TableCell className="text-center font-semibold" style={tabular}>
+                  <TableCell className="text-right font-semibold" style={tabular}>
                     {r.respectPct == null ? <span className="font-normal text-ink-4">—</span> : `${r.respectPct} %`}
                   </TableCell>
                   <TableCell
-                    className="text-center"
+                    className="text-right"
                     style={tabular}
                     title="Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape"
                   >
