@@ -17,6 +17,20 @@ These cost the most to learn today. They come first.
 1. **Research, don't invent.** Every visual rule must trace to a published
    system (NN/g, Material 3, Apple HIG, GOV.UK, Refactoring UI, Carbon, Linear,
    Stripe, game-UI conventions). If you can't cite it, don't ship it.
+   **This applies per ELEMENT, not per page.** Before creating or restyling any
+   element — a KPI tile, a card, a table, a list row, a form, a stepper, an
+   empty state — do the research for THAT element first:
+   - name the element class and its job on this screen;
+   - read how 2–3 published systems build that element (e.g. KPI tile → Carbon
+     data-viz "metric" tiles, Material 3 cards, Linear/Stripe dashboards;
+     table → NN/g data tables, Carbon; stepper → GOV.UK, Carbon progress);
+   - write the element spec derived from them (anatomy, states, density,
+     what it must not do) in one short paragraph, with the sources;
+   - THEN build it, and cite the sources in the report.
+   Applying the token rules of §1–§4 to a page without this step is not a
+   redesign; it is a re-skin, and it was rejected on screen (Suivi d'équipe,
+   2026-09-01: KPI cards replaced by generic rows without researching what a
+   KPI element is for — reverted).
 2. **"Find the best way" means REPORT, then build.** Present 2–4 options as
    plain before/after scenarios ("today you scroll past six finished steps;
    after, they fold to one line"), recommend one, and let the owner choose.
@@ -273,6 +287,8 @@ in-page nav, Salesforce/Jira record header, Linear.
 
 ## 9. Checklist for a new page (or a new app on this blueprint)
 
+0. For every element on the page, the element research of §0 (rule 1) was done
+   and its sources are written down BEFORE building.
 1. Tokens only — no hexes in components; both themes defined on `:root` and
    `.dark`; every colour has a job in §1.
 2. One primary action on screen; section CTAs follow §6 emphasis.
