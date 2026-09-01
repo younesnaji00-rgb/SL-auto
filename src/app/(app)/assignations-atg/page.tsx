@@ -5,18 +5,13 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { collectionGroup, onSnapshot, query, orderBy, limit, doc, getDoc, getDocs, collection } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import { Card, CardContent } from '@/components/ui/card';
-import { UserCheck, Calendar, MapPin, X, ChevronDown, Clock, CheckCircle2, Users, List, SlidersHorizontal, Navigation } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Calendar, ChevronDown, ChevronRight, Navigation, Search, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { EmptyState } from '@/components/ui/empty-state';
-import { SkeletonRow } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import {
@@ -28,13 +23,11 @@ import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
-import { useOptions } from '@/hooks/use-options';
-import { useAgentTerrainWorkload } from '@/hooks/use-workload-counts';
-import { isAtgCompletedStatus } from '@/lib/status-machine';
 import { businessHoursBetween, formatBusinessLateness } from '@/lib/business-days';
 import { useHolidays } from '@/hooks/use-holidays';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
+import { titleForRoute } from '@/lib/nav-groups';
 import AtScanPlaqueFlow from './at-scan-plaque-flow';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
@@ -141,7 +134,7 @@ function readCurrentPositionString(): Promise<string | null> {
 function AssurePhoneLink({ telephone, className }: { telephone?: string | null; className?: string }) {
   const display = (telephone || '').trim();
   if (!display) {
-    return <span className={cn('text-xs text-muted-foreground', className)}>—</span>;
+    return <span className={cn('text-sm text-ink-3', className)}>—</span>;
   }
   const href = normalizePhoneForTel(display);
   return (
@@ -149,7 +142,7 @@ function AssurePhoneLink({ telephone, className }: { telephone?: string | null; 
       href={`tel:${href}`}
       onClick={(e) => e.stopPropagation()}
       className={cn(
-        'inline-flex items-center text-xs font-semibold text-primary hover:underline tabular-nums whitespace-nowrap',
+        'relative z-10 inline-flex min-h-[24px] items-center whitespace-nowrap text-sm font-semibold tabular-nums text-primary hover:underline',
         className,
       )}
     >
@@ -158,14 +151,31 @@ function AssurePhoneLink({ telephone, className }: { telephone?: string | null; 
   );
 }
 
+// Status pairs only (DESIGN.md §10) — never hand-picked amber/red classes.
+type ChipTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
+const CHIP_TONE: Record<ChipTone, string> = {
+  neutral: 'bg-surface-3 text-ink-2',
+  success: 'bg-status-success-bg text-status-success-fg',
+  warning: 'bg-status-warning-bg text-status-warning-fg',
+  danger: 'bg-status-danger-bg text-status-danger-fg',
+  info: 'bg-status-info-bg text-status-info-fg',
+};
+function StatusChip({ tone, className, children }: { tone: ChipTone; className?: string; children: React.ReactNode }) {
+  return (
+    <span className={cn('inline-flex h-5 items-center whitespace-nowrap rounded-full px-2 text-[11px] font-medium tabular-nums', CHIP_TONE[tone], className)}>
+      {children}
+    </span>
+  );
+}
+
 /**
- * Compact deadline status badge for ATG cards. No bar; just text:
+ * Deadline status chip for mission rows. No bar; just a status pair:
  *   • "En attente" while the RDV is in the future
- *   • "En retard 02j/14h" past the 24-business-hour deadline (red)
- *   • "Xh restants" while in progress
+ *   • "En retard 02j/14h" past the 24-business-hour deadline (danger)
+ *   • "Xh restants" while in progress (neutral → warning → danger)
  * Re-renders every 30s like the original DeadlineBar.
  */
-function DeadlineBadge({
+function DeadlineChip({
   dateRDV,
   createdAt,
   completed = false,
@@ -182,27 +192,16 @@ function DeadlineBadge({
   }, [completed]);
   const holidays = useHolidays();
   if (completed) return null;
-  const { remaining, expired, pending, elapsedHours } = getDeadlineInfo(dateRDV, createdAt, holidays);
+  const { remaining, expired, pending, elapsedHours, percent } = getDeadlineInfo(dateRDV, createdAt, holidays);
   const lateness = expired ? formatBusinessLateness(elapsedHours - DEADLINE_HOURS) : '';
   if (pending) {
-    return (
-      <Badge variant="outline" className="text-[11px] font-medium whitespace-nowrap">
-        En attente
-      </Badge>
-    );
+    return <StatusChip tone="neutral">En attente</StatusChip>;
   }
   if (expired) {
-    return (
-      <Badge variant="destructive" className="text-[11px] font-semibold whitespace-nowrap">
-        {lateness ? `En retard ${lateness}` : 'En retard'}
-      </Badge>
-    );
+    return <StatusChip tone="danger">{lateness ? `En retard ${lateness}` : 'En retard'}</StatusChip>;
   }
-  return (
-    <Badge variant="outline" className="text-[11px] font-medium whitespace-nowrap text-muted-foreground">
-      {remaining}
-    </Badge>
-  );
+  const tone: ChipTone = percent > 80 ? 'danger' : percent > 50 ? 'warning' : 'neutral';
+  return <StatusChip tone={tone}>{remaining}</StatusChip>;
 }
 
 function missionToCategory(typeMission: string): PhotoCategory {
@@ -220,13 +219,9 @@ const MISSION_TABS = [
 
 const DEADLINE_HOURS = 24;
 
-function isToday(ts: any): boolean {
-  if (!ts) return false;
-  const date = ts.toDate ? ts.toDate() : new Date(ts);
-  const now = new Date();
-  return date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
+function toDate(ts: any): Date | null {
+  if (!ts) return null;
+  return ts.toDate ? ts.toDate() : new Date(ts);
 }
 
 function getDeadlineInfo(
@@ -260,81 +255,164 @@ function getDeadlineInfo(
   return { percent, remaining, expired: false, pending: false, elapsedHours };
 }
 
-function DeadlineBar({
-  dateRDV,
-  createdAt,
-  completed = false,
-  completedStatus,
-}: {
-  dateRDV: any;
-  createdAt: any;
-  completed?: boolean;
-  completedStatus?: string;
-}) {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    if (completed) return;
-    const id = setInterval(() => setTick((t) => t + 1), 30_000);
-    return () => clearInterval(id);
-  }, [completed]);
-
-  const holidays = useHolidays();
-  const { percent, remaining, expired, pending, elapsedHours } = getDeadlineInfo(dateRDV, createdAt, holidays);
-  const lateness = expired ? formatBusinessLateness(elapsedHours - DEADLINE_HOURS) : '';
-
-  // Completed: ATG uploaded photos + set a terrain status → hide progress bar,
-  // show checkmark + the chosen status instead.
-  if (completed) {
-    return (
-      <div className="flex items-center gap-1.5 min-w-[140px]">
-        <CheckCircle2 className="h-4 w-4 shrink-0 text-status-success-fg" />
-        {completedStatus && (
-          <Badge
-            variant="outline"
-            className="whitespace-nowrap border-transparent bg-status-success-bg text-[11px] font-semibold text-status-success-fg"
-          >
-            {completedStatus}
-          </Badge>
-        )}
-      </div>
-    );
-  }
-
-  // Semantic three-band (status pairs, never the accent): ≤50% success (plenty
-  // of time), ≤80% warning (attention), >80% danger (urgent).
-  const getBarColor = (pct: number) => {
-    if (pct <= 50) return 'bg-status-success-fg';
-    if (pct <= 80) return 'bg-status-warning-fg';
-    return 'bg-destructive';
-  };
-
-  const getTextColor = (pct: number) => {
-    if (pct <= 50) return 'text-status-success-fg';
-    if (pct <= 80) return 'text-status-warning-fg';
-    return 'text-destructive';
-  };
-
-  if (pending) {
-    return (
-      <div className="flex items-center gap-1.5 min-w-[140px]">
-        <Clock className="h-3 w-3 text-ink-3" />
-        <span className="whitespace-nowrap text-[11px] font-semibold text-ink-3">En attente</span>
-      </div>
-    );
-  }
-
+/** Underline tabs (M3 primary tabs / DESIGN.md step facets) for Avant · En cours · Après. */
+function MissionTabs({ active, counts, onChange, className }: { active: string; counts: Record<string, number>; onChange: (id: string) => void; className?: string }) {
   return (
-    <div className="flex items-center gap-2 min-w-[140px]">
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-3">
-        <div
-          className={cn('h-full rounded-full transition-[width]', expired ? 'bg-destructive' : getBarColor(percent))}
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-      <span className={cn('text-[11px] font-semibold tabular-nums whitespace-nowrap', expired ? 'text-destructive' : getTextColor(percent))}>
-        {expired ? (lateness ? `En retard ${lateness}` : 'En retard') : `${percent}%`}
-      </span>
+    <div role="tablist" aria-label="Type de mission" className={cn('flex w-full', className)}>
+      {MISSION_TABS.map((tab) => {
+        const isActive = active === tab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(tab.id)}
+            className={cn(
+              'flex h-12 flex-1 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring lg:flex-none',
+              isActive ? 'border-primary text-ink' : 'border-transparent text-ink-2 hover:bg-surface-2 hover:text-ink',
+            )}
+          >
+            {tab.label}
+            <span className={cn('inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-medium tabular-nums', isActive ? 'bg-accent text-accent-foreground' : 'bg-surface-3 text-ink-3')}>
+              {counts[tab.id] || 0}
+            </span>
+          </button>
+        );
+      })}
     </div>
+  );
+}
+
+/**
+ * One mission row — planification-tab convention: hairline-separated, the
+ * date block is the anchor (next upcoming RDV wears the third colour), labels
+ * quiet, values bold, every detail in the row. The ref is a stretched button
+ * covering the row; phone / address controls sit above it (z-10).
+ */
+function MissionRow({
+  p,
+  matricule,
+  telephone,
+  showAgent,
+  dense,
+  upcoming,
+  onOpen,
+  formatDate,
+}: {
+  p: PlanificationItem;
+  matricule?: string;
+  telephone?: string;
+  showAgent: boolean;
+  dense: boolean;
+  upcoming: boolean;
+  onOpen: () => void;
+  formatDate: (ts: any) => string;
+}) {
+  const rdv = toDate(p.dateRDV);
+  return (
+    <li className="relative flex min-h-[56px] items-start gap-4 px-4 py-4 transition-colors hover:bg-surface-2 sm:px-6">
+      <div
+        className={cn(
+          'flex w-14 shrink-0 flex-col items-center justify-center rounded-md py-1.5 text-center tabular-nums',
+          upcoming ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled' : 'bg-surface-3 text-ink-2 shadow-rim',
+        )}
+      >
+        <span className="text-[11px] font-medium leading-none">{rdv ? format(rdv, 'MMM', { locale: fr }).replace('.', '') : '—'}</span>
+        <span className="font-headline text-xl font-semibold leading-tight">{rdv ? format(rdv, 'd') : '—'}</span>
+        <span className="text-[11px] leading-none">{rdv ? format(rdv, 'HH:mm') : ''}</span>
+      </div>
+
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="t-mono truncate font-semibold after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
+          >
+            {p.dossierNom || p.dossierId}
+          </button>
+          <span className="min-w-0 truncate text-sm font-semibold text-ink">{p.assureNom || '—'}</span>
+          <DeadlineChip dateRDV={p.dateRDV} createdAt={p.createdAt} />
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-3">
+          <span className="truncate">{p.compagnie || '—'}</span>
+          <span className="t-mono text-ink-3">{matricule || '—'}</span>
+          {p.expertRank && <span className="truncate">{p.expertRank}</span>}
+        </div>
+        <dl className={cn('grid grid-cols-2 gap-x-6 gap-y-2', dense ? '' : 'sm:grid-cols-3 xl:grid-cols-4')}>
+          <div className="min-w-0">
+            <dt className="t-label">Zone</dt>
+            <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{p.zone || <span className="font-normal text-ink-3">—</span>}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="t-label">Téléphone</dt>
+            <dd className="mt-0.5"><AssurePhoneLink telephone={telephone} /></dd>
+          </div>
+          <div className={cn('min-w-0', dense ? 'col-span-2' : 'col-span-2 sm:col-span-1 xl:col-span-2')}>
+            <dt className="t-label">Adresse</dt>
+            <dd className="mt-0.5 text-sm text-ink">
+              {p.adresse ? (
+                // Anchor nested inside a role="button" card was being swallowed on
+                // some mobile browsers. Explicit click handler that stops bubbling,
+                // prevents default, and opens the maps URL via window.open.
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    window.open(
+                      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.adresse)}`,
+                      '_blank',
+                      'noopener,noreferrer',
+                    );
+                  }}
+                  title={p.adresse}
+                  className="relative z-10 block max-w-full truncate text-left font-semibold text-primary hover:underline"
+                >
+                  {p.adresse}
+                </button>
+              ) : (
+                <span className="text-ink-3">—</span>
+              )}
+            </dd>
+          </div>
+          {showAgent && (
+            <div className="min-w-0">
+              <dt className="t-label">Agent</dt>
+              <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{p.agentTerrain || <span className="font-normal text-ink-3">—</span>}</dd>
+            </div>
+          )}
+          {!dense && (
+            <>
+              <div className="min-w-0">
+                <dt className="t-label">Créé le</dt>
+                <dd className="mt-0.5 truncate text-sm font-semibold tabular-nums text-ink">{formatDate(p.createdAt)}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="t-label">Créé par</dt>
+                <dd className="mt-0.5 truncate text-sm font-semibold text-ink">
+                  {p.createdByName ? (
+                    <>
+                      {p.createdByName}
+                      {p.createdByRole && <span className="ml-1 font-normal text-ink-3">({p.createdByRole})</span>}
+                    </>
+                  ) : (
+                    <span className="font-normal text-ink-3">—</span>
+                  )}
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="t-label">Assigné par</dt>
+                <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{p.modifiedByName || <span className="font-normal text-ink-3">—</span>}</dd>
+              </div>
+            </>
+          )}
+        </dl>
+      </div>
+
+      <ChevronRight className="mt-4 h-4 w-4 shrink-0 text-ink-4" aria-hidden />
+    </li>
   );
 }
 
@@ -352,14 +430,6 @@ export default function AssignationsATGPage() {
   const filterDefaults = { activeTab: 'Avant', dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', agentFilter: 'Tous', keyword: '' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-atg', filterDefaults);
   const { activeTab, dateFrom, dateTo, compagnieFilter, agentFilter, keyword } = filters;
-
-  const [viewMode, setViewMode] = useState<'by-zone' | 'list'>('list');
-
-  // Agent source-of-truth (same data as the planification modal dropdown) so
-  // the zones reflect configured agents, not just agents that happen to be
-  // assigned to a planification right now.
-  const { options: agentOptionsRaw } = useOptions('options_agents', []);
-  const agentWorkload = useAgentTerrainWorkload();
 
   useEffect(() => {
     if (!db) return;
@@ -633,10 +703,25 @@ export default function AssignationsATGPage() {
     });
 
     return [
-      { key: 'today' as const, label: "Aujourd'hui", items: todayGroup, color: 'bg-accent/50 text-ink' },
-      { key: 'expired' as const, label: 'En retard', items: expiredGroup, color: 'bg-status-danger-bg text-status-danger-fg' },
-      { key: 'future' as const, label: 'À venir', items: futureGroup, color: 'bg-surface-2 text-ink-2' },
+      { key: 'today' as const, label: "Aujourd'hui", items: todayGroup, tone: 'info' as ChipTone },
+      { key: 'expired' as const, label: 'En retard', items: expiredGroup, tone: 'danger' as ChipTone },
+      { key: 'future' as const, label: 'À venir', items: futureGroup, tone: 'neutral' as ChipTone },
     ];
+  }, [filteredPlanifications]);
+
+  // The next upcoming RDV (nearest in the future) wears the third colour on
+  // its date block — planification-tab "next visit" convention.
+  const upcomingKey = useMemo(() => {
+    const now = Date.now();
+    let best: { key: string; t: number } | null = null;
+    for (const p of filteredPlanifications) {
+      const rdv = toDate(p.dateRDV);
+      if (!rdv) continue;
+      const t = rdv.getTime();
+      if (t < now) continue;
+      if (!best || t < best.t) best = { key: `${p.dossierId}-${p.id}`, t };
+    }
+    return best?.key ?? null;
   }, [filteredPlanifications]);
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({ today: true, expired: true, future: true });
@@ -696,35 +781,6 @@ export default function AssignationsATGPage() {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // Group agents by zone for the "Par zone" view. Agents without a zone go
-  // into a "Zone non définie" bucket at the bottom. Respects the agentFilter
-  // so zones without matching agents are hidden when a specific name filter is
-  // active (per task constraint: zones with zero matches should be hidden).
-  const UNASSIGNED_ZONE = 'Zone non définie';
-  const zoneGroups = useMemo(() => {
-    const filteredAgents = agentOptionsRaw.filter(a => {
-      if (!a.active) return false;
-      if (agentFilter !== 'Tous' && (a.label || '').trim() !== agentFilter) return false;
-      return true;
-    });
-    const buckets: Record<string, typeof filteredAgents> = {};
-    filteredAgents.forEach(a => {
-      const z = a.zone?.trim() || UNASSIGNED_ZONE;
-      if (!buckets[z]) buckets[z] = [];
-      buckets[z].push(a);
-    });
-    const definedZones = Object.keys(buckets)
-      .filter(z => z !== UNASSIGNED_ZONE)
-      .sort((a, b) => a.localeCompare(b, 'fr'));
-    const ordered = definedZones.map(z => ({ zone: z, agents: buckets[z] }));
-    if (buckets[UNASSIGNED_ZONE]?.length) {
-      ordered.push({ zone: UNASSIGNED_ZONE, agents: buckets[UNASSIGNED_ZONE] });
-    }
-    return ordered;
-  }, [agentOptionsRaw, agentFilter]);
-
-  const [openZoneSections, setOpenZoneSections] = useState<Record<string, boolean>>({});
-  const zoneOpen = (key: string) => openZoneSections[key] ?? true;
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
   const formatDate = (ts: any) => {
@@ -738,61 +794,81 @@ export default function AssignationsATGPage() {
   const canUseAtFlows = isATG || profile?.role === 'Admin';
   const canSeeNameFilter = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
   const showAgentColumn = !isATG;
-  const colCount = showAgentColumn ? 9 : 8;
-  // ATG users only see their own assignments — the zone-grouping view (which
-  // lists the whole team) is irrelevant for them. Force "list" for that role.
-  // Par-zone toggle was removed for all roles — list view is the only path now.
-  // `viewMode` / `setViewMode` are kept since some legacy callers still set them.
-  // Cast keeps existing `=== 'by-zone'` branches type-checkable (they're dead code,
-  // a follow-up will delete them).
-  const effectiveViewMode = 'list' as 'by-zone' | 'list';
   const isMobile = useIsMobile();
+
+  const activeFilterCount =
+    (compagnieFilter !== 'Toutes' ? 1 : 0) +
+    (canSeeNameFilter && agentFilter !== 'Tous' ? 1 : 0) +
+    (dateFrom || dateTo ? 1 : 0) +
+    (keyword ? 1 : 0);
+
+  const resetFilters = () => setFilters({ compagnieFilter: 'Toutes', agentFilter: 'Tous', dateFrom: '', dateTo: '', keyword: '' });
+
+  const openMission = (p: PlanificationItem) =>
+    router.push(`/assignations-atg/${p.dossierId}?mission=${encodeURIComponent(activeTab)}`);
+
+  const visibleGroups = groups.filter(g => g.items.length > 0);
+
+  const renderGroupRows = (items: PlanificationItem[], dense: boolean) => (
+    <ol className="divide-y divide-hairline">
+      {items.map((p) => (
+        <MissionRow
+          key={`${p.dossierId}-${p.id}`}
+          p={p}
+          matricule={dossierLive[p.dossierId]?.matricule}
+          telephone={dossierLive[p.dossierId]?.assureTelephone ?? p.assureTelephone}
+          showAgent={showAgentColumn}
+          dense={dense}
+          upcoming={upcomingKey === `${p.dossierId}-${p.id}`}
+          onOpen={() => openMission(p)}
+          formatDate={formatDate}
+        />
+      ))}
+    </ol>
+  );
 
   if (isMobile) {
     return (
-      <div>
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-hairline bg-card px-4">
-          <UserCheck className="h-5 w-5 text-ink-3" />
-          <h1 className="t-heading flex-1">Mes missions</h1>
-          <Badge variant="secondary">
-            {effectiveViewMode === 'by-zone'
-              ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
-              : filteredPlanifications.length}
-          </Badge>
+      // Bleeds the layout gutter (p-4) so the sticky bars run edge to edge.
+      <div className="-mx-4 -mt-4">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 glass-bar border-b border-hairline px-4">
+          <h1 className="t-heading flex-1 truncate">Mes missions</h1>
+          <span className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-surface-3 px-2 text-xs font-medium tabular-nums text-ink-2">
+            {filteredPlanifications.length}
+          </span>
           <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 -mr-2 relative" aria-label="Filtres">
+              <Button variant="outline" size="icon" className="relative h-10 w-10 shrink-0" aria-label="Filtres">
                 <SlidersHorizontal className="h-4 w-4" />
-                {(compagnieFilter !== 'Toutes' || (canSeeNameFilter && agentFilter !== 'Tous') || dateFrom || dateTo || keyword) && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive" />
+                {activeFilterCount > 0 && (
+                  <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-accent px-1 text-[11px] font-semibold tabular-nums text-accent-foreground">
+                    {activeFilterCount}
+                  </span>
                 )}
               </Button>
             </SheetTrigger>
-            <SheetContent side="bottom" className="h-[calc(70vh/var(--app-zoom))] flex flex-col p-0">
-              <SheetHeader className="px-4 py-3 border-b">
+            <SheetContent side="bottom" className="flex h-[calc(70vh/var(--app-zoom))] flex-col p-0">
+              <SheetHeader className="border-b border-hairline px-4 py-3">
                 <SheetTitle>Filtres</SheetTitle>
               </SheetHeader>
-              <div className="flex-1 px-4 py-4 space-y-4 overflow-y-auto">
+              <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
                 <div className="space-y-1.5">
-                  <label className="t-label">
-                    Recherche
-                  </label>
+                  <label className="t-label" htmlFor="atg-search">Recherche</label>
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
                     <Input
+                      id="atg-search"
                       value={keyword}
                       onChange={(e) => setFilters({ keyword: e.target.value })}
                       placeholder="Réf, assuré, adresse, immat..."
-                      className="h-10 pl-8 text-sm"
+                      className="h-11 pl-8"
                     />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="t-label">
-                    Compagnie
-                  </label>
+                  <span className="t-label">Compagnie</span>
                   <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
-                    <SelectTrigger className="w-full h-10 text-sm">
+                    <SelectTrigger className="h-11 w-full" aria-label="Compagnie">
                       <SelectValue placeholder="Compagnie" />
                     </SelectTrigger>
                     <SelectContent>
@@ -805,11 +881,9 @@ export default function AssignationsATGPage() {
                 </div>
                 {canSeeNameFilter && (
                   <div className="space-y-1.5">
-                    <label className="t-label">
-                      Agent
-                    </label>
+                    <span className="t-label">Agent</span>
                     <Select value={agentFilter} onValueChange={v => setFilters({ agentFilter: v })}>
-                      <SelectTrigger className="w-full h-10 text-sm">
+                      <SelectTrigger className="h-11 w-full" aria-label="Agent">
                         <SelectValue placeholder="Agent" />
                       </SelectTrigger>
                       <SelectContent>
@@ -822,9 +896,7 @@ export default function AssignationsATGPage() {
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <label className="t-label">
-                    Période
-                  </label>
+                  <span className="t-label">Période</span>
                   <DateRangeFilter
                     dateFrom={dateFrom}
                     dateTo={dateTo}
@@ -833,116 +905,77 @@ export default function AssignationsATGPage() {
                   />
                 </div>
               </div>
-              <div className="border-t p-3 flex gap-2">
-                <Button
-                  variant="ghost"
-                  className="flex-1 h-10"
-                  onClick={() => setFilters({ compagnieFilter: 'Toutes', agentFilter: 'Tous', dateFrom: '', dateTo: '', keyword: '' })}
-                >
+              <div className="flex gap-2 border-t border-hairline p-3">
+                <Button variant="ghost" className="h-11 flex-1" onClick={resetFilters}>
                   Réinitialiser
                 </Button>
-                <Button
-                  className="flex-1 h-10"
-                  onClick={() => setIsFilterSheetOpen(false)}
-                >
+                <Button className="h-11 flex-1" onClick={() => setIsFilterSheetOpen(false)}>
                   Appliquer
                 </Button>
               </div>
             </SheetContent>
           </Sheet>
         </header>
-        <div className="flex items-center justify-between h-10 px-4 border-b text-sm">
-          <span className="text-muted-foreground">
-            Bonjour <span className="font-semibold text-foreground">{profile?.prenom || profile?.nom || 'agent'}</span>
+
+        <div className="flex h-10 items-center justify-between border-b border-hairline px-4 text-sm">
+          <span className="truncate text-ink-3">
+            Bonjour <span className="font-semibold text-ink">{profile?.prenom || profile?.nom || 'agent'}</span>
             {' · '}
             {format(new Date(), 'EEE d MMM', { locale: fr })}
           </span>
-          <Badge variant="outline" className="text-xs">
-            {(effectiveViewMode === 'by-zone'
-              ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
-              : filteredPlanifications.length)} mission{(effectiveViewMode === 'by-zone'
-              ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
-              : filteredPlanifications.length) > 1 ? 's' : ''}
-          </Badge>
+          <span className="shrink-0 text-ink-2 tabular-nums">
+            {filteredPlanifications.length} mission{filteredPlanifications.length > 1 ? 's' : ''}
+          </span>
         </div>
-        {/* AT self-service (scan plaque → planifier / importer photos) — was
-            desktop-only; field agents work from phones, so surface it here. */}
+
+        {/* AT self-service (scan plaque → planifier / importer photos): the ONE
+            solid primary, full width and thumb-sized on phones. */}
         {canUseAtFlows && (
-          <div className="flex items-center gap-2 px-4 py-2 border-b bg-card">
-            <AtScanPlaqueFlow />
+          <div className="px-4 py-3">
+            <AtScanPlaqueFlow buttonClassName="h-12 w-full" />
           </div>
         )}
-        {effectiveViewMode === 'list' && (
-          <div className="sticky top-14 z-20 grid grid-cols-3 gap-1 p-1 border-b bg-card">
-            {MISSION_TABS.map((tab) => {
-              const isActive = activeTab === tab.id;
-              const count = countByType[tab.id] || 0;
+
+        <div className="sticky top-14 z-20 glass-bar border-b border-hairline">
+          <MissionTabs active={activeTab} counts={countByType} onChange={(id) => setFilters({ activeTab: id })} />
+        </div>
+
+        {loading ? (
+          <ul className="divide-y divide-hairline" aria-busy="true">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <li key={i} className="flex items-start gap-4 px-4 py-4">
+                <Skeleton className="h-14 w-14 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-3.5 w-full" />
+                  <Skeleton className="h-3.5 w-2/3" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : filteredPlanifications.length === 0 ? (
+          <div className="p-4">
+            <EmptyState
+              icon={<Calendar />}
+              title={`Aucune mission ${activeTab.toLowerCase()}`}
+              description="Les nouvelles assignations apparaîtront ici."
+            />
+          </div>
+        ) : (
+          <div>
+            {visibleGroups.map((group) => {
+              const addressableCount = group.items.filter(p => p.adresse?.trim()).length;
               return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setFilters({ activeTab: tab.id })}
-                  className={cn(
-                    'flex items-center justify-center gap-1.5 h-11 rounded-md text-xs font-semibold transition-colors',
-                    isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-ink-2 hover:bg-surface-3'
-                  )}
-                >
-                  <span>{tab.label}</span>
-                  <span
-                    className={cn(
-                      'inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded text-[11px] font-mono',
-                      isActive
-                        ? 'bg-primary-foreground/20 text-primary-foreground'
-                        : 'bg-surface-3 text-ink-3'
-                    )}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {effectiveViewMode === 'list' ? (
-          loading ? (
-            <div className="p-4 space-y-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-[104px] rounded-xl bg-muted/40 animate-pulse" />
-              ))}
-            </div>
-          ) : filteredPlanifications.length === 0 ? (
-            <div className="p-4">
-              <EmptyState
-                icon={<Calendar />}
-                title={`Aucune mission ${activeTab.toLowerCase()}`}
-                description="Les nouvelles assignations apparaîtront ici."
-                dashed={false}
-                className="border-0 bg-transparent py-10"
-              />
-            </div>
-          ) : (
-            <div className="p-4 space-y-4">
-              {groups.filter(g => g.items.length > 0).map((group) => {
-                const addressableCount = group.items.filter(p => p.adresse?.trim()).length;
-                return (
                 <Collapsible
                   key={group.key}
                   open={openSections[group.key]}
                   onOpenChange={(open) => setOpenSections(prev => ({ ...prev, [group.key]: open }))}
                 >
-                  <div className="flex items-center gap-2 w-full">
-                    <CollapsibleTrigger className="t-label flex h-9 flex-1 items-center justify-between px-1 transition-colors hover:text-ink">
-                      <span>
-                        {group.label} ({group.items.length})
-                      </span>
-                      <ChevronDown
-                        className={cn(
-                          'h-4 w-4 transition-transform',
-                          openSections[group.key] ? 'rotate-0' : '-rotate-90',
-                        )}
-                      />
+                  <div className="flex min-h-[56px] items-center gap-2 border-b border-hairline bg-surface-2 px-4">
+                    <CollapsibleTrigger className="flex h-11 min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                      <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform', openSections[group.key] ? 'rotate-0' : '-rotate-90')} />
+                      <span className="t-heading truncate">{group.label}</span>
+                      <StatusChip tone={group.tone}>{group.items.length}</StatusChip>
                     </CollapsibleTrigger>
                     {/* Start button — bundles every group item with an adresse into a
                         Google Maps multi-stop URL, ordered by earliest RDV first. */}
@@ -950,7 +983,7 @@ export default function AssignationsATGPage() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-7 gap-1.5 text-xs shrink-0"
+                      className="h-9 shrink-0 gap-1.5"
                       disabled={addressableCount === 0}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -962,166 +995,14 @@ export default function AssignationsATGPage() {
                       Start
                     </Button>
                   </div>
-                  <CollapsibleContent className="space-y-3 pt-2">
-                    {group.items.map((p) => {
-                      const rdv = p.dateRDV?.toDate ? p.dateRDV.toDate() : (p.dateRDV ? new Date(p.dateRDV) : null);
-                      return (
-                        <div
-                          key={`${p.dossierId}-${p.id}`}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => router.push(`/assignations-atg/${p.dossierId}?mission=${encodeURIComponent(activeTab)}`)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              router.push(`/assignations-atg/${p.dossierId}?mission=${encodeURIComponent(activeTab)}`);
-                            }
-                          }}
-                          className="paper block w-full cursor-pointer p-3 text-left transition-colors hover:bg-surface-2"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="t-mono truncate font-semibold">{p.dossierNom || p.dossierId}</span>
-                            <span className="t-caption whitespace-nowrap tabular-nums">
-                              {rdv ? format(rdv, 'HH:mm') : '-'}
-                            </span>
-                          </div>
-                          <div className="mt-1 flex items-center justify-between gap-2">
-                            <span className="text-sm font-medium truncate">{p.assureNom || '-'}</span>
-                            {p.compagnie && (
-                              <Badge variant="outline" className="text-[11px] shrink-0">{p.compagnie}</Badge>
-                            )}
-                          </div>
-                          {p.zone && (
-                            <div className="mt-1 flex items-center gap-1 truncate text-xs font-medium text-ink">
-                              <MapPin className="h-3 w-3 shrink-0 text-ink-3" />
-                              <span className="truncate">{p.zone}</span>
-                            </div>
-                          )}
-                          {p.adresse && (
-                            <div className="mt-0.5 text-xs truncate pl-4">
-                              {/* Anchor nested inside a role="button" card was being
-                                  swallowed on some mobile browsers. Use an explicit
-                                  click handler that stops bubbling, prevents default,
-                                  and opens the maps URL via window.open — guaranteed
-                                  user-initiated navigation. */}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                  window.open(
-                                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.adresse)}`,
-                                    '_blank',
-                                    'noopener,noreferrer',
-                                  );
-                                }}
-                                className="text-primary hover:underline truncate text-left w-full cursor-pointer"
-                              >
-                                {p.adresse}
-                              </button>
-                            </div>
-                          )}
-                          <div className="mt-1 text-[11px] font-mono tabular-nums tracking-wide text-muted-foreground">
-                            {dossierLive[p.dossierId]?.matricule || '—'}
-                          </div>
-                          <div className="mt-2 flex items-center gap-2 flex-wrap min-w-[140px]">
-                            <AssurePhoneLink telephone={dossierLive[p.dossierId]?.assureTelephone ?? p.assureTelephone} />
-                            <DeadlineBadge dateRDV={p.dateRDV} createdAt={p.createdAt} />
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <CollapsibleContent>
+                    {renderGroupRows(sortGroupItems(group.items, deadlineSortByGroup[group.key]), true)}
                   </CollapsibleContent>
                 </Collapsible>
-                );
-              })}
-            </div>
-          )
-        ) : zoneGroups.length === 0 ? (
-          <div className="p-4">
-            <EmptyState
-              icon={<Users />}
-              title={agentFilter !== 'Tous' ? `Aucun agent correspondant au filtre « ${agentFilter} »` : 'Aucun agent de terrain configuré'}
-              description={agentFilter !== 'Tous' ? "Ajustez le filtre Agent pour voir d'autres zones." : 'Ajoutez des agents depuis la modale de planification pour les voir apparaître ici.'}
-              dashed={false}
-              className="border-0 bg-transparent py-10"
-            />
+              );
+            })}
           </div>
-        ) : (
-            <div className="p-4 space-y-3">
-              {zoneGroups.map(({ zone, agents }) => {
-                const totalWorkload = agents.reduce((acc, a) => acc + (agentWorkload[(a.label || '').trim()] || 0), 0);
-                const isUnassigned = zone === UNASSIGNED_ZONE;
-                return (
-                  <Collapsible
-                    key={zone}
-                    open={zoneOpen(zone)}
-                    onOpenChange={(open) => setOpenZoneSections(prev => ({ ...prev, [zone]: open }))}
-                  >
-                    <div className="paper overflow-hidden">
-                      <CollapsibleTrigger className={cn(
-                        'flex w-full items-center justify-between bg-surface-2 px-3 py-2.5 transition-colors hover:bg-surface-3',
-                        isUnassigned ? 'text-ink-3' : 'text-ink'
-                      )}>
-                        <div className="flex min-w-0 flex-1 items-center gap-2">
-                          <MapPin className="h-4 w-4 shrink-0" />
-                          <span className="truncate text-sm font-semibold">{zone}</span>
-                          <Badge variant="secondary" className="text-[11px] font-mono h-5 min-w-[20px] justify-center shrink-0">
-                            {agents.length}
-                          </Badge>
-                          {totalWorkload > 0 && (
-                            <Badge variant="outline" className="text-[11px] h-5 gap-1 border-transparent bg-status-warning-bg text-status-warning-fg shrink-0">
-                              <Clock className="h-3 w-3" /> {totalWorkload}
-                            </Badge>
-                          )}
-                        </div>
-                        <ChevronDown className={cn(
-                          'h-4 w-4 transition-transform shrink-0',
-                          zoneOpen(zone) ? 'rotate-0' : '-rotate-90'
-                        )} />
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="divide-y">
-                          {agents.map((agent) => {
-                            const name = (agent.label || '').trim();
-                            const active = agentWorkload[name] || 0;
-                            return (
-                              <button
-                                key={agent.id}
-                                type="button"
-                                onClick={() => {
-                                  setFilters({ agentFilter: name });
-                                  setViewMode('list');
-                                }}
-                                className="flex h-14 w-full items-center justify-between px-3 text-left transition-colors hover:bg-surface-2"
-                              >
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <span className="text-sm font-medium truncate">{name || '-'}</span>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  {active > 0 ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-[11px] gap-1 border-transparent bg-status-warning-bg text-status-warning-fg"
-                                    >
-                                      <Clock className="h-3 w-3" /> {active}
-                                    </Badge>
-                                  ) : (
-                                    <span className="text-[11px] text-muted-foreground">0</span>
-                                  )}
-                                  <ChevronDown className="h-4 w-4 text-muted-foreground -rotate-90" />
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </CollapsibleContent>
-                    </div>
-                  </Collapsible>
-                );
-              })}
-            </div>
-          )}
+        )}
       </div>
     );
   }
@@ -1129,362 +1010,144 @@ export default function AssignationsATGPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Missions terrain"
-        icon={<UserCheck />}
-        count={effectiveViewMode === 'by-zone'
-          ? zoneGroups.reduce((acc, g) => acc + g.agents.length, 0)
-          : filteredPlanifications.length}
+        title={titleForRoute('/assignations-atg') ?? 'Missions terrain'}
+        count={filteredPlanifications.length}
         actions={canUseAtFlows ? <AtScanPlaqueFlow /> : undefined}
+        tabs={<MissionTabs active={activeTab} counts={countByType} onChange={(id) => setFilters({ activeTab: id })} className="border-b border-hairline" />}
         filters={
-        <>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              value={keyword}
-              onChange={(e) => setFilters({ keyword: e.target.value })}
-              placeholder="Rechercher (réf, assuré, adresse, immat...)"
-              className="h-9 w-[260px] pl-8 text-xs"
-            />
-            {keyword && (
-              <button onClick={() => clearFilter('keyword')} className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-muted text-muted-foreground hover:bg-destructive hover:text-destructive-foreground flex items-center justify-center">
-                <X className="h-2.5 w-2.5" />
-              </button>
-            )}
-          </div>
-          <div className="relative">
-            <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
-              <SelectTrigger className="w-[180px] h-9 text-xs">
-                <SelectValue placeholder="Compagnie" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
-                {compagnieOptions.map(([name, count]) => (
-                  <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {compagnieFilter !== 'Toutes' && (
-              <button onClick={() => clearFilter('compagnieFilter')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
-                <X className="h-2.5 w-2.5" />
-              </button>
-            )}
-          </div>
-          {canSeeNameFilter && (
-            <div className="relative">
-              <Select value={agentFilter} onValueChange={v => setFilters({ agentFilter: v })}>
-                <SelectTrigger className="w-[180px] h-9 text-xs">
-                  <SelectValue placeholder="Agent" />
+          // Quiet toolbar: solid input/selects under `t-label` labels, one ghost reset.
+          <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+            <div className="flex flex-col gap-1">
+              <label className="t-label" htmlFor="atg-search-desktop">Recherche</label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" />
+                <Input
+                  id="atg-search-desktop"
+                  value={keyword}
+                  onChange={(e) => setFilters({ keyword: e.target.value })}
+                  placeholder="Rechercher (réf, assuré, adresse, immat...)"
+                  className="h-9 w-[260px] pl-8"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="t-label">Compagnie</span>
+              <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
+                <SelectTrigger className="h-9 w-[180px]" aria-label="Compagnie">
+                  <SelectValue placeholder="Compagnie" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Tous">Tous les agents</SelectItem>
-                  {agentOptions.map(([name, count]) => (
+                  <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
+                  {compagnieOptions.map(([name, count]) => (
                     <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {agentFilter !== 'Tous' && (
-                <button onClick={() => clearFilter('agentFilter')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
-                  <X className="h-2.5 w-2.5" />
-                </button>
-              )}
             </div>
-          )}
-          <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
-        </>
+            {canSeeNameFilter && (
+              <div className="flex flex-col gap-1">
+                <span className="t-label">Agent</span>
+                <Select value={agentFilter} onValueChange={v => setFilters({ agentFilter: v })}>
+                  <SelectTrigger className="h-9 w-[180px]" aria-label="Agent">
+                    <SelectValue placeholder="Agent" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Tous">Tous les agents</SelectItem>
+                    {agentOptions.map(([name, count]) => (
+                      <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="flex flex-col gap-1">
+              <span className="t-label">Période</span>
+              <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
+            </div>
+            {activeFilterCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => { clearFilter('keyword'); resetFilters(); }}>
+                Réinitialiser
+              </Button>
+            )}
+          </div>
         }
       />
 
-      {/* Mission type tabs — only relevant for the flat list view; hidden
-          in the zone-grouped view because that one pivots on agents. */}
-      {effectiveViewMode === 'list' && (
-        <div className="paper sticky top-0 z-20">
-          <div className="flex overflow-x-auto no-scrollbar">
-            {MISSION_TABS.map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setFilters({ activeTab: tab.id })}
-                  className={cn(
-                    'flex items-center gap-2 px-6 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap',
-                    isActive
-                      ? 'border-primary text-ink'
-                      : 'border-transparent text-ink-2 hover:bg-surface-2 hover:text-ink'
-                  )}
-                >
-                  {tab.label}
-                  <Badge
-                    variant={isActive ? 'default' : 'secondary'}
-                    className="text-[11px] font-mono ml-1 h-5 min-w-[20px] justify-center"
-                  >
-                    {countByType[tab.id] || 0}
-                  </Badge>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {effectiveViewMode === 'by-zone' ? (
-        zoneGroups.length === 0 ? (
-          <Card className="overflow-hidden">
-            <CardContent className="p-0">
-              <EmptyState
-                icon={<Users />}
-                title={agentFilter !== 'Tous' ? `Aucun agent correspondant au filtre « ${agentFilter} »` : 'Aucun agent de terrain configuré'}
-                description={agentFilter !== 'Tous' ? 'Ajustez le filtre Agent pour voir d\'autres zones.' : 'Ajoutez des agents depuis la modale de planification pour les voir apparaître ici.'}
-                dashed={false}
-                className="border-0 bg-transparent py-10"
-              />
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {zoneGroups.map(({ zone, agents }) => {
-              const totalWorkload = agents.reduce((acc, a) => acc + (agentWorkload[(a.label || '').trim()] || 0), 0);
-              const isUnassigned = zone === UNASSIGNED_ZONE;
-              return (
-                <Collapsible
-                  key={zone}
-                  open={zoneOpen(zone)}
-                  onOpenChange={(open) => setOpenZoneSections(prev => ({ ...prev, [zone]: open }))}
-                >
-                  <Card className="overflow-hidden">
-                    <CollapsibleTrigger className={cn(
-                      'flex w-full items-center justify-between bg-surface-2 px-4 py-3 transition-colors hover:bg-surface-3',
-                      isUnassigned ? 'text-ink-3' : 'text-ink'
-                    )}>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 shrink-0" />
-                        <span className="text-sm font-semibold">{zone}</span>
-                        <Badge variant="secondary" className="text-[11px] font-mono h-5 min-w-[20px] justify-center">
-                          {agents.length}
-                        </Badge>
-                        {totalWorkload > 0 && (
-                          <Badge variant="outline" className="text-[11px] h-5 gap-1 border-transparent bg-status-warning-bg text-status-warning-fg">
-                            <Clock className="h-3 w-3" /> {totalWorkload} actif{totalWorkload > 1 ? 's' : ''}
-                          </Badge>
-                        )}
-                      </div>
-                      <ChevronDown className={cn(
-                        'h-4 w-4 transition-transform',
-                        zoneOpen(zone) ? 'rotate-0' : '-rotate-90'
-                      )} />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="p-0">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Agent</TableHead>
-                              <TableHead>Zone</TableHead>
-                              <TableHead>Planifications actives</TableHead>
-                              <TableHead className="pr-4 text-right">Action</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {agents.map((agent) => {
-                              const name = (agent.label || '').trim();
-                              const active = agentWorkload[name] || 0;
-                              return (
-                                <TableRow
-                                  key={agent.id}
-                                  className="cursor-pointer"
-                                  onClick={() => {
-                                    setFilters({ agentFilter: name });
-                                    setViewMode('list');
-                                  }}
-                                >
-                                  <TableCell className="font-medium text-sm">{name || '-'}</TableCell>
-                                  <TableCell>
-                                    {/* Subtle zone badge — redundant within the group but useful
-                                        when skimming a single row out of context. */}
-                                    {agent.zone?.trim() ? (
-                                      <Badge variant="outline" className="text-[11px] gap-1 font-normal">
-                                        <MapPin className="h-3 w-3" /> {agent.zone.trim()}
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="outline" className="text-[11px] font-normal italic text-muted-foreground">
-                                        Non définie
-                                      </Badge>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    {active > 0 ? (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[11px] gap-1 border-transparent bg-status-warning-bg text-status-warning-fg"
-                                      >
-                                        <Clock className="h-3 w-3" /> {active}
-                                      </Badge>
-                                    ) : (
-                                      <span className="text-xs text-ink-4">0</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-right pr-4">
-                                    <span className="text-[11px] text-primary underline-offset-2 hover:underline">
-                                      Voir assignations
-                                    </span>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
-              );
-            })}
-          </div>
-        )
-      ) : loading ? (
+      {loading ? (
         <Card className="overflow-hidden">
-          <CardContent className="p-0">
+          <ul className="divide-y divide-hairline" aria-busy="true">
             {Array.from({ length: 5 }).map((_, i) => (
-              <SkeletonRow key={i} />
+              <li key={i} className="flex items-start gap-4 px-6 py-4">
+                <Skeleton className="h-14 w-14 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3.5 w-72 max-w-full" />
+                  <Skeleton className="h-3.5 w-56 max-w-full" />
+                </div>
+                <Skeleton className="h-5 w-24 rounded-full" />
+              </li>
             ))}
-          </CardContent>
+          </ul>
         </Card>
       ) : filteredPlanifications.length === 0 ? (
         <Card className="overflow-hidden">
-          <CardContent className="p-0">
-            <EmptyState
-              icon={<Calendar />}
-              title={`Aucune mission ${activeTab.toLowerCase()}`}
-              description="Les nouvelles assignations apparaîtront ici."
-              dashed={false}
-              className="border-0 bg-transparent py-10"
-            />
-          </CardContent>
+          <EmptyState
+            icon={<Calendar />}
+            title={`Aucune mission ${activeTab.toLowerCase()}`}
+            description="Les nouvelles assignations apparaîtront ici."
+            dashed={false}
+            className="rounded-none bg-transparent py-12"
+          />
         </Card>
       ) : (
-        <div className="space-y-4">
-          {(() => {
-            const renderTableHeader = (groupKey: GroupKey) => (
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Dossier</TableHead>
-                  <TableHead>Assuré</TableHead>
-                  <TableHead>Immat.</TableHead>
-                  <TableHead>Compagnie</TableHead>
-                  {showAgentColumn && <TableHead>Agent</TableHead>}
-                  <TableHead>Date RDV</TableHead>
-                  <TableHead>Zone</TableHead>
-                  <TableHead>Adresse</TableHead>
-                  <TableHead>Téléphone</TableHead>
-                  <TableHead>Créé le</TableHead>
-                  <TableHead>Créé par</TableHead>
-                  <TableHead>Assigné par</TableHead>
-                </TableRow>
-              </TableHeader>
-            );
-            const renderRow = (p: PlanificationItem) => (
-              <TableRow
-                key={`${p.dossierId}-${p.id}`}
-                className="cursor-pointer"
-                onClick={() => router.push(`/assignations-atg/${p.dossierId}?mission=${encodeURIComponent(activeTab)}`)}
-              >
-                <TableCell>
-                  <span className="t-mono font-semibold">{p.dossierNom || p.dossierId}</span>
-                </TableCell>
-                <TableCell>{p.assureNom || '-'}</TableCell>
-                <TableCell className="t-mono">{dossierLive[p.dossierId]?.matricule || '—'}</TableCell>
-                <TableCell className="text-ink-2">{p.compagnie || '-'}</TableCell>
-                {showAgentColumn && <TableCell className="font-medium text-sm">{p.agentTerrain}</TableCell>}
-                <TableCell className="text-ink-3">{formatDate(p.dateRDV)}</TableCell>
-                <TableCell>
-                  {p.zone ? (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <MapPin className="h-3 w-3 shrink-0" /> {p.zone}
-                    </span>
-                  ) : '-'}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground max-w-[240px]">
-                  {p.adresse ? (
-                    <span className="truncate block" title={p.adresse}>{p.adresse}</span>
-                  ) : '-'}
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-col gap-1">
-                    <AssurePhoneLink telephone={dossierLive[p.dossierId]?.assureTelephone ?? p.assureTelephone} />
-                    <DeadlineBadge dateRDV={p.dateRDV} createdAt={p.createdAt} />
-                  </div>
-                </TableCell>
-                <TableCell className="text-ink-3">{formatDate(p.createdAt)}</TableCell>
-                <TableCell className="text-ink-3">
-                  {p.createdByName ? (
-                    <>
-                      <span>{p.createdByName}</span>
-                      {p.createdByRole && (
-                        <span className="ml-1 text-[11px] text-ink-4">({p.createdByRole})</span>
-                      )}
-                    </>
-                  ) : '—'}
-                </TableCell>
-                <TableCell className="text-ink-3">{p.modifiedByName || '-'}</TableCell>
-              </TableRow>
-            );
-
-            return groups.filter(g => g.items.length > 0).map((group) => {
-              const addressableCount = group.items.filter(p => p.adresse?.trim()).length;
-              return (
+        <div className="space-y-6">
+          {visibleGroups.map((group) => {
+            const addressableCount = group.items.filter(p => p.adresse?.trim()).length;
+            return (
               <Collapsible
                 key={group.key}
                 open={openSections[group.key]}
                 onOpenChange={(open) => setOpenSections(prev => ({ ...prev, [group.key]: open }))}
               >
+                {/* One paper per group: hairline header row (title · count · sort · Start), rows below. */}
                 <Card className="overflow-hidden">
-                  <div className={cn('flex w-full items-center', group.color)}>
-                    <CollapsibleTrigger className="flex flex-1 items-center justify-between px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold">{group.label}</span>
-                        <Badge variant="secondary" className="text-[11px] font-mono h-5 min-w-[20px] justify-center">
-                          {group.items.length}
-                        </Badge>
-                      </div>
-                      <ChevronDown className={cn(
-                        'h-4 w-4 transition-transform',
-                        openSections[group.key] ? 'rotate-0' : '-rotate-90'
-                      )} />
+                  <div className="flex min-h-[48px] items-center gap-3 border-b border-hairline px-6 py-2">
+                    <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform', openSections[group.key] ? 'rotate-0' : '-rotate-90')} />
+                      <h2 className="t-heading truncate">{group.label}</h2>
+                      <StatusChip tone={group.tone}>{group.items.length}</StatusChip>
                     </CollapsibleTrigger>
+                    <SortableHeader
+                      label="Délai"
+                      sort={deadlineSortByGroup[group.key]}
+                      onChange={(next) => setDeadlineSortByGroup(prev => ({ ...prev, [group.key]: next }))}
+                      className="text-xs"
+                    />
                     {/* Start button — bundles every group item with an adresse into a
                         Google Maps multi-stop URL, ordered by earliest RDV first. */}
-                    <div className="px-3 shrink-0">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        className="h-7 gap-1.5 text-xs"
-                        disabled={addressableCount === 0}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openRouteForItems(group.items);
-                        }}
-                        title="Ouvrir l'itinéraire dans Google Maps"
-                      >
-                        <Navigation className="h-3.5 w-3.5" />
-                        Start
-                      </Button>
-                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 shrink-0 gap-1.5"
+                      disabled={addressableCount === 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openRouteForItems(group.items);
+                      }}
+                      title="Ouvrir l'itinéraire dans Google Maps"
+                    >
+                      <Navigation className="h-3.5 w-3.5" />
+                      Start
+                    </Button>
                   </div>
                   <CollapsibleContent>
-                    <CardContent className="p-0">
-                      <Table>
-                        {renderTableHeader(group.key)}
-                        <TableBody>
-                          {sortGroupItems(group.items, deadlineSortByGroup[group.key]).map(renderRow)}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
+                    {renderGroupRows(sortGroupItems(group.items, deadlineSortByGroup[group.key]), false)}
                   </CollapsibleContent>
                 </Card>
               </Collapsible>
-              );
-            });
-          })()}
+            );
+          })}
         </div>
       )}
     </div>

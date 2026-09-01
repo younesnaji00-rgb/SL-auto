@@ -6,14 +6,11 @@ import Link from 'next/link';
 import { collection, onSnapshot, query, orderBy, doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import { Card, CardContent } from '@/components/ui/card';
-import { Calculator, CheckCircle2, Clock, X } from 'lucide-react';
-import { DeadlineBar } from '@/components/deadline-bar';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Calculator, ChevronRight, MessageSquare } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
-import { SkeletonRow } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -29,6 +26,7 @@ import { useChiffreurWorkload } from '@/hooks/use-workload-counts';
 import { REFORME_TYPES, normalizeReformeType } from '@/components/chiffreurs/reforme-dialog';
 import { businessHoursBetween, formatBusinessLateness } from '@/lib/business-days';
 import { useHolidays } from '@/hooks/use-holidays';
+import { titleForRoute } from '@/lib/nav-groups';
 import ObservationHistorySheet from '@/app/(app)/dossiers/observation-history-sheet';
 import { useChiffrageTabs } from '@/hooks/use-chiffrage-tabs';
 
@@ -44,6 +42,30 @@ interface ChiffrageItem {
   sentByNom?: string;
   sentByEmail?: string;
   completedAt?: any;
+}
+
+// Status pairs only (DESIGN.md §10) — never hand-picked amber/red classes.
+type ChipTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
+const CHIP_TONE: Record<ChipTone, string> = {
+  neutral: 'bg-surface-3 text-ink-2',
+  success: 'bg-status-success-bg text-status-success-fg',
+  warning: 'bg-status-warning-bg text-status-warning-fg',
+  danger: 'bg-status-danger-bg text-status-danger-fg',
+  info: 'bg-status-info-bg text-status-info-fg',
+};
+function StatusChip({ tone, className, children }: { tone: ChipTone; className?: string; children: React.ReactNode }) {
+  return (
+    <span className={cn('inline-flex h-5 items-center whitespace-nowrap rounded-full px-2 text-[11px] font-medium tabular-nums', CHIP_TONE[tone], className)}>
+      {children}
+    </span>
+  );
+}
+
+const DEADLINE_HOURS = 24;
+
+function formatRemaining(hours: number): string {
+  if (hours >= 1) return `${Math.floor(hours)} h restantes`;
+  return `${Math.max(1, Math.round(hours * 60))} min restantes`;
 }
 
 export default function AssignationsChiffragePage() {
@@ -162,7 +184,7 @@ export default function AssignationsChiffragePage() {
     if (!ts) return { percent: 0, elapsed: 0, total: 0, overdue: false, elapsedHours: 0 };
     const created = ts.toDate ? ts.toDate() : new Date(ts);
     // Business-hours deadline: weekends + Moroccan holidays don't count.
-    const totalHours = 24;
+    const totalHours = DEADLINE_HOURS;
     const elapsedHours = businessHoursBetween(created, new Date(), holidays);
     const percent = Math.min(Math.max((elapsedHours / totalHours) * 100, 0), 100);
     const HOUR_MS = 3_600_000;
@@ -227,11 +249,27 @@ export default function AssignationsChiffragePage() {
     return results;
   }, [chiffrages, compagnieFilter, chiffreurFilter, typeReformeFilter, dossierCompagnies, dossierReformeTypes, dateFrom, dateTo, deadlineSort]);
 
-  const formatDate = (ts: any) => {
-    if (!ts) return '-';
-    const date = ts.toDate ? ts.toDate() : new Date(ts);
-    try { return format(date, "d MMM yyyy 'à' HH:mm", { locale: fr }); }
-    catch { return '-'; }
+  // The single most urgent open item gets the third colour on its date block
+  // (planification-tab "next visit" convention): nearest deadline, not yet
+  // overdue, not yet chiffré.
+  const urgentId = useMemo(() => {
+    let best: { id: string; end: number } | null = null;
+    for (const c of filteredChiffrages) {
+      if (c.completedAt || !c.createdAt) continue;
+      const nature = dossierNatures[c.dossierId] || '';
+      const d = getDeadlineInfo(c.createdAt, nature);
+      if (d.overdue) continue;
+      const created = c.createdAt.toDate ? c.createdAt.toDate().getTime() : new Date(c.createdAt).getTime();
+      const end = created + DEADLINE_HOURS * 3_600_000;
+      if (!best || end < best.end) best = { id: c.id, end };
+    }
+    return best?.id ?? null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredChiffrages, dossierNatures, holidays]);
+
+  const toDate = (ts: any): Date | null => {
+    if (!ts) return null;
+    return ts.toDate ? ts.toDate() : new Date(ts);
   };
 
   const renderAssure = (assure: any): string => {
@@ -241,204 +279,219 @@ export default function AssignationsChiffragePage() {
   };
 
   const isChiffreur = profile?.role === 'Chiffreur';
-  const isATG = profile?.role === 'Agent de Terrain';
   const canSeeNameFilter = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
-  const showChiffreurColumn = !isChiffreur;
-  const colCount = showChiffreurColumn ? 10 : 9;
+  const showChiffreur = !isChiffreur;
+  const hasActiveFilter =
+    compagnieFilter !== 'Toutes' || chiffreurFilter !== 'Tous' || typeReformeFilter !== 'Tous' || !!dateFrom || !!dateTo;
+
+  const resetFilters = () => {
+    clearFilter('compagnieFilter');
+    clearFilter('chiffreurFilter');
+    clearFilter('typeReformeFilter');
+    clearFilter('dateFrom');
+    clearFilter('dateTo');
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Assignations au chiffrage"
-        icon={<Calculator />}
+        title={titleForRoute('/assignations-chiffrage') ?? 'Assignations au chiffrage'}
         count={filteredChiffrages.length}
         filters={
-        <>
-          <div className="relative">
-            <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
-              <SelectTrigger className="w-[180px] h-9 text-xs">
-                <SelectValue placeholder="Compagnie" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
-                {compagnieOptions.map(([name, count]) => (
-                  <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {compagnieFilter !== 'Toutes' && (
-              <button onClick={() => clearFilter('compagnieFilter')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
-                <X className="h-2.5 w-2.5" />
-              </button>
-            )}
-          </div>
-          {canSeeNameFilter && (
-            <div className="relative">
-              <Select value={chiffreurFilter} onValueChange={v => setFilters({ chiffreurFilter: v })}>
-                <SelectTrigger className="w-[180px] h-9 text-xs">
-                  <SelectValue placeholder="Chiffreur" />
+          // Quiet toolbar: solid selects under `t-label` labels, one ghost reset.
+          <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+            <div className="flex flex-col gap-1">
+              <span className="t-label">Compagnie</span>
+              <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
+                <SelectTrigger className="h-9 w-[180px]" aria-label="Compagnie">
+                  <SelectValue placeholder="Compagnie" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Tous">Tous les chiffreurs</SelectItem>
-                  {chiffreurOptions.map(([name, count]) => (
+                  <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
+                  {compagnieOptions.map(([name, count]) => (
                     <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {chiffreurFilter !== 'Tous' && (
-                <button onClick={() => clearFilter('chiffreurFilter')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
-                  <X className="h-2.5 w-2.5" />
-                </button>
-              )}
             </div>
-          )}
-          <div className="relative">
-            <Select value={typeReformeFilter} onValueChange={v => setFilters({ typeReformeFilter: v })}>
-              <SelectTrigger className="w-[160px] h-9 text-xs">
-                <SelectValue placeholder="Type réforme" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Tous">Tous les types</SelectItem>
-                {REFORME_TYPES.map(t => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {typeReformeFilter !== 'Tous' && (
-              <button onClick={() => clearFilter('typeReformeFilter')} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 z-10">
-                <X className="h-2.5 w-2.5" />
-              </button>
+            {canSeeNameFilter && (
+              <div className="flex flex-col gap-1">
+                <span className="t-label">Chiffreur</span>
+                <Select value={chiffreurFilter} onValueChange={v => setFilters({ chiffreurFilter: v })}>
+                  <SelectTrigger className="h-9 w-[180px]" aria-label="Chiffreur">
+                    <SelectValue placeholder="Chiffreur" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Tous">Tous les chiffreurs</SelectItem>
+                    {chiffreurOptions.map(([name, count]) => (
+                      <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="flex flex-col gap-1">
+              <span className="t-label">Type de réforme</span>
+              <Select value={typeReformeFilter} onValueChange={v => setFilters({ typeReformeFilter: v })}>
+                <SelectTrigger className="h-9 w-[160px]" aria-label="Type de réforme">
+                  <SelectValue placeholder="Type réforme" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Tous">Tous les types</SelectItem>
+                  {REFORME_TYPES.map(t => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="t-label">Période</span>
+              <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="t-label">Tri</span>
+              <div className="flex h-9 items-center">
+                <SortableHeader label="Délai" sort={deadlineSort} onChange={setDeadlineSort} className="text-sm" />
+              </div>
+            </div>
+            {hasActiveFilter && (
+              <Button variant="ghost" size="sm" onClick={resetFilters}>
+                Réinitialiser
+              </Button>
             )}
           </div>
-          <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
-        </>
         }
       />
 
+      {/* Queue rows on hairlines with a date block anchor (planification-tab
+          convention) — no table, no card-per-item. */}
       <Card className="overflow-hidden">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Dossier</TableHead>
-                <TableHead>Nom d&apos;assuré</TableHead>
-                <TableHead>Immatriculation</TableHead>
-                {showChiffreurColumn && <TableHead>Chiffreur</TableHead>}
-                <TableHead>Nature du dossier</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead>Assigné par</TableHead>
-                <TableHead>Observations</TableHead>
-                <TableHead className="w-[160px]">
-                  <SortableHeader label="Délai" sort={deadlineSort} onChange={setDeadlineSort} />
-                </TableHead>
-                <TableHead className="text-right">Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={`sk-${i}`}>
-                    <TableCell colSpan={colCount} className="p-0">
-                      <SkeletonRow />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : filteredChiffrages.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={colCount} className="p-0">
-                    <EmptyState
-                      icon={<Calculator />}
-                      title="Aucun chiffrage assigné"
-                      description="Les nouvelles assignations de chiffrage apparaîtront ici."
-                      dashed={false}
-                      className="border-0 bg-transparent py-10"
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredChiffrages.map((c) => {
-                  const statut = dossierStatuts[c.dossierId] || 'Nouveau';
-                  const nature = dossierNatures[c.dossierId] || '';
-                  const today = isToday(c.createdAt);
-                  const deadline = getDeadlineInfo(c.createdAt, nature);
+        {loading ? (
+          <ul className="divide-y divide-hairline" aria-busy="true">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <li key={`sk-${i}`} className="flex items-start gap-4 px-6 py-4">
+                <Skeleton className="h-14 w-14 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3.5 w-72 max-w-full" />
+                </div>
+                <Skeleton className="h-5 w-24 rounded-full" />
+              </li>
+            ))}
+          </ul>
+        ) : filteredChiffrages.length === 0 ? (
+          <EmptyState
+            icon={<Calculator />}
+            title="Aucun chiffrage assigné"
+            description="Les nouvelles assignations de chiffrage apparaîtront ici."
+            dashed={false}
+            className="rounded-none bg-transparent py-12"
+          />
+        ) : (
+          <ol className="divide-y divide-hairline">
+            {filteredChiffrages.map((c) => {
+              const statut = dossierStatuts[c.dossierId] || 'Nouveau';
+              const nature = dossierNatures[c.dossierId] || '';
+              const today = isToday(c.createdAt);
+              const deadline = getDeadlineInfo(c.createdAt, nature);
+              const created = toDate(c.createdAt);
+              const completed = toDate(c.completedAt);
+              const urgent = c.id === urgentId;
+              const obs = dossierObs[c.dossierId];
+              const obsCount = obs?.count ?? 0;
+              const obsText = obs?.text || '';
+              const obsTruncated = obsText.length > 60 ? obsText.slice(0, 60) + '…' : obsText;
+              const remainingHours = Math.max(0, DEADLINE_HOURS - deadline.elapsedHours);
+              const deadlineTone: ChipTone = deadline.overdue ? 'danger' : deadline.percent > 80 ? 'danger' : deadline.percent > 50 ? 'warning' : 'neutral';
+              const href = `/assignations-chiffrage/${c.id}`;
 
-                  return (
-                    <TableRow key={c.id} className={cn('align-top', today && 'bg-accent/30')}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/assignations-chiffrage/${c.id}`}
-                            onClick={() => openTab(c.id, c.dossierNom || `Chiffrage ${c.id.slice(0, 6)}`)}
-                            className="t-mono font-semibold hover:underline"
-                          >
-                            {c.dossierNom || 'Sans ref.'}
-                          </Link>
-                          {today && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-status-info-fg">
-                              <span className="h-1.5 w-1.5 rounded-full bg-status-info-fg" />
-                              aujourd&apos;hui
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">{renderAssure(dossierAssure[c.dossierId])}</TableCell>
-                      <TableCell className="t-mono">{dossierMatricule[c.dossierId] || '-'}</TableCell>
-                      {showChiffreurColumn && <TableCell className="text-sm">{c.assignedChiffreurNom || '-'}</TableCell>}
-                      <TableCell className="text-ink-2">{nature || '-'}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut))}>{statut}</Badge>
-                      </TableCell>
-                      <TableCell className="text-ink-2">{c.sentByNom || c.sentByEmail || '-'}</TableCell>
-                      <TableCell
-                        className="cursor-pointer text-xs text-ink-2 hover:bg-surface-3 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setObsHistoryDossier({ id: c.dossierId, refExpert: c.dossierNom });
-                        }}
-                        title="Voir l'historique des observations"
+              return (
+                <li key={c.id} className="relative flex items-start gap-4 px-6 py-4 transition-colors hover:bg-surface-2">
+                  {/* Date block — the row's anchor; the most urgent open item wears the third colour. */}
+                  <div
+                    className={cn(
+                      'flex w-14 shrink-0 flex-col items-center justify-center rounded-md py-1.5 text-center tabular-nums',
+                      urgent ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled' : 'bg-surface-3 text-ink-2 shadow-rim',
+                    )}
+                  >
+                    <span className="text-[11px] font-medium leading-none">{created ? format(created, 'MMM', { locale: fr }).replace('.', '') : '—'}</span>
+                    <span className="font-headline text-xl font-semibold leading-tight">{created ? format(created, 'd') : '—'}</span>
+                    <span className="text-[11px] leading-none">{created ? format(created, 'HH:mm') : ''}</span>
+                  </div>
+
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      {/* Stretched link: the ref names the row and covers it; other controls sit above (z-10). */}
+                      <Link
+                        href={href}
+                        onClick={() => openTab(c.id, c.dossierNom || `Chiffrage ${c.id.slice(0, 6)}`)}
+                        className="t-mono font-semibold after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
                       >
-                        {(() => {
-                          const obs = dossierObs[c.dossierId];
-                          const count = obs?.count ?? 0;
-                          if (count === 0) return '—';
-                          const raw = obs?.text || '';
-                          const truncated = raw.length > 40 ? raw.slice(0, 40) + '…' : raw;
-                          return (
-                            <>
-                              {truncated}
-                              {count > 1 && (
-                                <span className="ml-1 text-[11px] text-ink-3">({count})</span>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </TableCell>
-                      <TableCell>
-                        {c.completedAt ? (
-                          <div className="flex items-center gap-1.5 text-sm text-status-success-fg">
-                            <CheckCircle2 className="h-4 w-4 shrink-0" />
-                            <span className="truncate">
-                              Chiffré le {format(c.completedAt?.toDate ? c.completedAt.toDate() : new Date(c.completedAt), "dd/MM/yyyy HH:mm")}
-                            </span>
-                          </div>
-                        ) : (
-                          <DeadlineBar
-                            percent={deadline.percent}
-                            overdue={deadline.overdue}
-                            lateness={deadline.overdue ? formatBusinessLateness(deadline.elapsedHours - 24) : undefined}
-                          />
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right text-ink-3">
-                        {formatDate(c.createdAt)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
+                        {c.dossierNom || 'Sans ref.'}
+                      </Link>
+                      <span className="text-sm font-semibold text-ink">{renderAssure(dossierAssure[c.dossierId])}</span>
+                      {today && <StatusChip tone="info">Aujourd&apos;hui</StatusChip>}
+                      <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut), 'shrink-0')}>{statut}</Badge>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-3">
+                      <span className="truncate">{dossierCompagnies[c.dossierId] || '—'}</span>
+                      <span className="t-mono text-ink-3">{dossierMatricule[c.dossierId] || '—'}</span>
+                      {nature && <span className="truncate">{nature}</span>}
+                    </div>
+                    <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 xl:grid-cols-4">
+                      {showChiffreur && (
+                        <div className="min-w-0">
+                          <dt className="t-label">Chiffreur</dt>
+                          <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{c.assignedChiffreurNom || <span className="font-normal text-ink-3">—</span>}</dd>
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <dt className="t-label">Assigné par</dt>
+                        <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{c.sentByNom || c.sentByEmail || <span className="font-normal text-ink-3">—</span>}</dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="t-label">Délai</dt>
+                        <dd className="mt-0.5">
+                          {completed ? (
+                            <StatusChip tone="success">Chiffré le {format(completed, 'dd/MM/yyyy HH:mm')}</StatusChip>
+                          ) : deadline.overdue ? (
+                            <StatusChip tone="danger">En retard {formatBusinessLateness(deadline.elapsedHours - DEADLINE_HOURS)}</StatusChip>
+                          ) : (
+                            <StatusChip tone={deadlineTone}>{formatRemaining(remainingHours)}</StatusChip>
+                          )}
+                        </dd>
+                      </div>
+                      <div className="col-span-2 min-w-0 sm:col-span-3 xl:col-span-1">
+                        <dt className="t-label">Observations</dt>
+                        <dd className="mt-0.5">
+                          {obsCount === 0 ? (
+                            <span className="text-sm text-ink-3">—</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setObsHistoryDossier({ id: c.dossierId, refExpert: c.dossierNom });
+                              }}
+                              title="Voir l'historique des observations"
+                              className="relative z-10 inline-flex max-w-full items-center gap-1.5 rounded-md text-left text-sm text-ink-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              <MessageSquare className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                              <span className="truncate">{obsTruncated}</span>
+                              {obsCount > 1 && <span className="t-caption shrink-0 tabular-nums">({obsCount})</span>}
+                            </button>
+                          )}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  <ChevronRight className="mt-4 h-4 w-4 shrink-0 text-ink-4" aria-hidden />
+                </li>
+              );
+            })}
+          </ol>
+        )}
       </Card>
       <ObservationHistorySheet
         open={!!obsHistoryDossier}
