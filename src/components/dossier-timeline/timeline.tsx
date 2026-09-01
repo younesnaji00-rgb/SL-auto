@@ -99,6 +99,8 @@ export interface TimelineProps {
   sections: Record<number, React.ReactNode>;
   /** The currently-focused step (controlled). */
   activeStep: number;
+  /** Focus mode: hide the steps rail/bar and use the full width. */
+  focus?: boolean;
   /** Called when the user clicks a step in the bar OR when scroll auto-detects a new active section. */
   onActiveStepChange: (stepId: number) => void;
   /** Sticky offset of the horizontal bar (px from the top of the scroll container). */
@@ -120,7 +122,7 @@ function findScrollContainer(el: HTMLElement | null): HTMLElement | null {
   return null;
 }
 
-export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepChange, stickyTop = 48 }: TimelineProps) {
+export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepChange, stickyTop = 48, focus = false }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const suppressRef = useRef(false);
   const stepIds = useMemo(() => steps.map((s) => s.id), [steps]);
@@ -206,7 +208,7 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
     <div ref={containerRef} className="w-full">
       {/* Horizontal stepper: sticky under the record bar (hidden on 2xl where the rail takes over). */}
       <div
-        className="sticky z-30 flex items-center border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 2xl:hidden"
+        className={cn("sticky z-30 flex items-center border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 2xl:hidden", focus && "hidden")}
         style={{ top: stickyTop }}
       >
         <TimelineBar steps={steps} activeId={activeStep} onStepClick={handleStepClick} className="min-w-0 flex-1" />
@@ -224,9 +226,9 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
         </div>
       </div>
 
-      <div className="mx-auto max-w-screen-xl px-3 sm:px-6 2xl:grid 2xl:max-w-none 2xl:grid-cols-[240px_minmax(0,1fr)] 2xl:gap-8">
+      <div className={cn("mx-auto px-3 sm:px-6", focus ? "max-w-none" : "max-w-screen-xl 2xl:grid 2xl:max-w-none 2xl:grid-cols-[240px_minmax(0,1fr)] 2xl:gap-8")}>
         {/* Vertical rail on very wide screens: never clips, never scrolls. */}
-        <aside className="hidden 2xl:block">
+        <aside className={cn("hidden", !focus && "2xl:block")}>
           <div className="sticky pt-4" style={{ top: stickyTop + 8 }}>
             <TimelineBar steps={steps} activeId={activeStep} onStepClick={handleStepClick} orientation="vertical" />
             <Button

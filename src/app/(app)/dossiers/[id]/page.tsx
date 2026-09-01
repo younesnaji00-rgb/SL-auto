@@ -28,6 +28,8 @@ import { Timeline } from '@/components/dossier-timeline/timeline';
 import { StepTabs } from '@/components/dossier-timeline/step-tabs';
 import { useRequiredDocsStatus } from '@/hooks/use-required-docs-status';
 import { getMissingRequiredFields } from '@/lib/required-fields';
+import { useFocusMode } from '@/hooks/use-focus-mode';
+import { useSidebar } from '@/components/ui/sidebar';
 import { ClipboardList, FolderOpen, CalendarDays, Camera, MessageSquare } from 'lucide-react';
 import { getStepStatuses } from '@/lib/dossier-steps';
 import { RecordBar, RECORD_BAR_HEIGHT } from '@/components/dossiers/record-bar';
@@ -66,6 +68,22 @@ export default function DossierDetailPage({
   // Badges the Pièces tab (n/m required pieces) so its state is visible
   // without opening it.
   const requiredDocs = useRequiredDocsStatus(id);
+  // Focus mode (raised by « Comparer »): collapse the app sidebar, retract the
+  // steps rail and the context column so the section gets the full width.
+  const focusMode = useFocusMode();
+  const { open: sidebarOpen, setOpen: setSidebarOpen, isMobile: sidebarIsMobile } = useSidebar();
+  const sidebarWasOpen = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (sidebarIsMobile) return;
+    if (focusMode) {
+      if (sidebarWasOpen.current === null) sidebarWasOpen.current = sidebarOpen;
+      setSidebarOpen(false);
+    } else if (sidebarWasOpen.current !== null) {
+      setSidebarOpen(sidebarWasOpen.current);
+      sidebarWasOpen.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusMode, sidebarIsMobile]);
   const { canWrite, profile } = useCurrentUser();
   const readOnly = !canWrite('dossiers');
   const { toast } = useToast();
@@ -310,8 +328,9 @@ export default function DossierDetailPage({
       />
 
       {/* TIMELINE CONTENT (+ context column on wide screens) */}
-      <div className="flex-1 xl:grid xl:grid-cols-[minmax(0,1fr)_280px] xl:gap-6 xl:pr-5">
+      <div className={cn("flex-1", !focusMode && "xl:grid xl:grid-cols-[minmax(0,1fr)_280px] xl:gap-6 xl:pr-5")}>
         <Timeline
+          focus={focusMode}
           dossierId={id}
           stickyTop={RECORD_BAR_HEIGHT}
           steps={stepStates}
@@ -400,7 +419,7 @@ export default function DossierDetailPage({
           activeStep={activeStep}
           onActiveStepChange={setActiveStep}
         />
-        <DossierContextPanel
+        {!focusMode && <DossierContextPanel
           dossierId={id}
           onOpenHistorique={() => setHistoriqueOpen(true)}
           onGoToStep={(stepId) => {
@@ -408,7 +427,7 @@ export default function DossierDetailPage({
             document.getElementById(`step-${stepId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }}
           className="hidden xl:flex xl:sticky xl:top-[60px] xl:max-h-[calc(100svh-7rem)] xl:self-start xl:overflow-y-auto xl:pt-4"
-        />
+        />}
       </div>
 
       {/* MODALS */}

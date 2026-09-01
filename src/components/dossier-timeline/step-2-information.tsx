@@ -15,6 +15,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { setFocusMode } from '@/hooks/use-focus-mode';
 import { AlertCircle, Columns2, Maximize2, X } from 'lucide-react';
 import { collection, type DocumentReference } from 'firebase/firestore';
 
@@ -58,6 +59,12 @@ export default function Step2Information({
   const missing = useMemo(() => getMissingRequiredFields(dossier), [dossier]);
 
   const [showCompare, setShowCompare] = useState(false);
+  // Comparing is a focus task: ask the page to retract sidebar, steps rail and
+  // context column so the form and the document can split the width 50/50.
+  useEffect(() => {
+    setFocusMode(showCompare);
+    return () => setFocusMode(false);
+  }, [showCompare]);
   // Once the user toggles the pane by hand, stop auto-opening it.
   const compareTouched = useRef(false);
   const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
@@ -181,7 +188,7 @@ export default function Step2Information({
   const selectedUrl: string | undefined = selectedScan?.url || undefined;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
+    <div className="grid gap-6 lg:grid-cols-2">
       <div className="min-w-0 space-y-4">
         {banner}
         {informationContent}
