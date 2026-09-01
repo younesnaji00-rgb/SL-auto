@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { collection, type DocumentReference } from 'firebase/firestore';
-import { Camera, ChevronDown, Send } from 'lucide-react';
+import { Camera, ChevronDown, Send, Upload } from 'lucide-react';
 
 import DocumentsTab from '@/app/(app)/dossiers/[id]/documents-tab';
 import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
@@ -203,20 +203,29 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
 
   return (
     <div className="space-y-8">
-      {!readOnly && !hideInbox && (
-        <SmartInbox
-          buttonLabel="Ajouter des pièces"
-          dossierId={dossierId}
-          dossier={dossier}
-          readOnly={readOnly}
-          title="Déposez vos pièces ici"
-          description="Devis, factures, PV, carte grise, attestation, photos… chaque fichier est reconnu par l'IA et rangé sous le bon type ci-dessous."
-        />
-      )}
-
+      {/* The picker is the toolbar's action (right end, where the eye lands —
+          user ruling 2026-09-01): solid teal while required pieces are
+          missing, teal tint once all are in. */}
       <DocumentsTab
         dossierId={dossierId}
-        primaryAction={!readOnly && onSendToChiffrage ? gatedButton('Envoyer vers chiffrage') : undefined}
+        primaryAction={
+          !readOnly && (!hideInbox || onSendToChiffrage) ? (
+            <>
+              {!hideInbox && (
+                <SmartInbox
+                  buttonLabel="Ajouter des pièces"
+                  dossierId={dossierId}
+                  dossier={dossier}
+                  readOnly={readOnly}
+                  emphasis={allRequiredFilled ? 'tonal' : 'primary'}
+                  icon={<Upload className="h-4 w-4" />}
+                  className="space-y-0"
+                />
+              )}
+              {onSendToChiffrage && gatedButton('Envoyer vers chiffrage')}
+            </>
+          ) : undefined
+        }
       />
 
       {!hidePhotos && (

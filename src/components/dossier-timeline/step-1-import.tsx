@@ -9,7 +9,7 @@ import {
   Timestamp,
   type DocumentReference,
 } from 'firebase/firestore';
-import { Check, Eye, FileIcon, FileText, Loader2, ScanSearch, Trash2, Upload } from 'lucide-react';
+import { Check, Eye, FileIcon, FileText, Loader2, ScanSearch, Sparkles, Trash2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -417,6 +417,8 @@ export default function Step1Import({
             readOnly={readOnly}
             prefilling={isScanning}
             buttonLabel="Pré-remplir depuis un document"
+            emphasis={hasImportDoc ? 'tonal' : 'primary'}
+            icon={<Sparkles className="h-4 w-4" />}
             onPrefill={async (files, sourceDocId) => {
               const userEmail = auth?.currentUser?.email || 'Admin';
               await runScanAndMerge(files, userEmail, sourceDocId);

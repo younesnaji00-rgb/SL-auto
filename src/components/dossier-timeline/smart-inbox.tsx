@@ -23,6 +23,7 @@ import {
   ImageIcon,
   Loader2,
   ScanSearch,
+  Upload,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -73,6 +74,13 @@ export interface SmartInboxProps {
   description?: string;
   /** Label of the picker button — name it by purpose (« Pré-remplir depuis un document », « Ajouter des pièces »). */
   buttonLabel?: string;
+  /**
+   * GOV.UK "the primary is the next thing to do": `primary` (solid teal)
+   * while the tab's job is not done, `tonal` (teal tint) once it is.
+   */
+  emphasis?: 'primary' | 'tonal';
+  /** Leading icon (defaults to an upload arrow). */
+  icon?: React.ReactNode;
 }
 
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -104,7 +112,7 @@ async function runPool<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
   );
 }
 
-export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, prefilling, className, buttonLabel = 'Choisir des fichiers' }: SmartInboxProps) {
+export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, prefilling, className, buttonLabel = 'Choisir des fichiers', emphasis = 'tonal', icon }: SmartInboxProps) {
   const db = useFirestore();
   const storage = useStorage();
   const auth = useAuth();
@@ -379,21 +387,22 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
 
   return (
     <section className={cn('space-y-4', className)} aria-label="Boîte de dépôt des documents">
-      {/* File picker — a plain button (user ruling: no banner, no icon, no
-          copy). Still a drop target: dragging files over it lights it up. */}
+      {/* File picker — ONE button, no banner / dashed panel / copy (user
+          ruling), but it must command attention (user ruling 2026-09-01):
+          full size, bold, leading icon, solid teal until the job is done.
+          Still a drop target: dragging files over it lights it up. */}
       <div>
         <Button
           type="button"
-          variant="outline"
-          size="sm"
-          className={cn('h-8', dragging && 'ring-2 ring-primary/50 bg-accent/40')}
+          variant={emphasis === 'primary' ? 'default' : 'tonal'}
+          className={cn('h-10 gap-2 px-4 font-semibold', dragging && 'ring-2 ring-primary/50')}
           disabled={busy}
           onClick={() => inputRef.current?.click()}
           onDragOver={(e) => { e.preventDefault(); if (!draggingItemId) setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={onZoneDrop}
         >
-          {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : (icon ?? <Upload className="h-4 w-4" />)}
           {busy ? 'Analyse en cours…' : buttonLabel}
         </Button>
         <input

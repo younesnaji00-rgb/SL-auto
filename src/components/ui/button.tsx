@@ -19,6 +19,9 @@ const buttonVariants = cva(
           "bg-card text-ink shadow-rim hover:bg-surface-2 hover:text-ink",
         secondary:
           "bg-surface-2 text-ink shadow-rim hover:bg-surface-3",
+        // Material 3 "filled tonal": the strongest control inside a section
+        // that is not THE page primary (accent tint, dark-teal text).
+        tonal: "bg-accent text-accent-foreground shadow-rim hover:bg-accent/80",
         ghost: "text-ink-2 shadow-rim hover:bg-surface-3 hover:text-ink",
         link: "text-primary underline-offset-4 hover:underline",
       },
