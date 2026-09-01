@@ -107,8 +107,9 @@ export function CellNumberInput({
         disabled={disabled}
         inputMode="decimal"
         className={cn(
-          "w-full h-7 px-1.5 text-xs bg-transparent outline-none rounded border border-transparent",
-          "focus:border-primary/50 focus:bg-background disabled:cursor-not-allowed",
+          // Solid field inside a glass/paper table cell (blueprint §3: inputs are never translucent).
+          "w-full h-7 px-1.5 text-xs bg-card text-ink tabular-nums outline-none rounded border border-transparent",
+          "focus:border-input focus:ring-2 focus:ring-ring disabled:cursor-not-allowed",
           align === 'center' && 'text-center',
           align === 'right' && 'text-right',
           suffix && 'pr-5',
@@ -117,7 +118,7 @@ export function CellNumberInput({
       />
       {suffix && (
         <span className={cn(
-          "absolute top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground pointer-events-none",
+          "absolute top-1/2 -translate-y-1/2 text-[11px] text-ink-3 pointer-events-none",
           showSteppers ? 'right-5' : 'right-1.5',
         )}>
           {suffix}

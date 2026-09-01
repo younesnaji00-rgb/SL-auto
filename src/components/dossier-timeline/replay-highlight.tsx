@@ -67,7 +67,7 @@ export function ChangeBadge({ status, className }: { status: ChangeStatus; class
   return (
     <span
       className={cn(
-        'text-[11px] font-semibold uppercase tracking-wide rounded px-1 py-px',
+        'text-[11px] font-medium rounded px-1 py-px',
         STATUS_TEXT[status],
         className,
       )}
