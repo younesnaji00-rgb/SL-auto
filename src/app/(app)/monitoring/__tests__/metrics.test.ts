@@ -130,9 +130,39 @@ test('headline: respect % over clocks started in range (a breached open one is l
   assert.equal(h.traites, 1);
   assert.equal(h.enAttente, 1);
   assert.equal(h.enRetard, 1);
-  // clocks started in range: creation ×2 (1 h) + c1 (2 h) on time; c2 open since Tue 10:00 → breached → late (closed or not)
+  // clocks active in the period: creation ×2 (1 h) + c1 (2 h) on time; c2 open since Tue 10:00 → breached → late (closed or not)
   assert.equal(h.respectN, 4);
   assert.equal(h.respectPct, 75);
+  assert.equal(h.respectOnTime, 3);
+  assert.equal(h.respectLate, 1);
+  assert.equal(h.respectPending, 0);
+});
+
+test('a period counts the assignments ACTIVE in it — made earlier and still open, or closed inside it — like the queues', () => {
+  const d = base('d', { createdAt: new Date(2026, 1, 2, 9), dateRequete: new Date(2026, 1, 2, 8) });
+  const today = { from: new Date(2026, 2, 10, 0, 0), to: new Date(2026, 2, 10, 23, 59) };
+  const sla = buildSlaItems(
+    [d],
+    [
+      { id: 'openLate', dossierId: 'd', createdAt: new Date(2026, 2, 3, 9), assignedChiffreurNom: 'Sara' }, // last week, still open → late, active today
+      { id: 'openFresh', dossierId: 'd', createdAt: new Date(2026, 2, 10, 9), assignedChiffreurNom: 'Sara' }, // this morning → pending
+      { id: 'closedToday', dossierId: 'd', createdAt: new Date(2026, 2, 9, 9), completedAt: new Date(2026, 2, 10, 8), assignedChiffreurNom: 'Sara' }, // 23 h → on time, closed today
+      { id: 'closedBefore', dossierId: 'd', createdAt: new Date(2026, 1, 20, 9), completedAt: new Date(2026, 1, 20, 12), assignedChiffreurNom: 'Sara' }, // not active today
+    ],
+    [],
+    undefined,
+    new Date(2026, 2, 10, 12),
+  );
+  const h = computeHeadline([d], today, new Date(2026, 2, 10, 12), sla);
+  assert.equal(h.respectOnTime, 1);
+  assert.equal(h.respectLate, 1);
+  assert.equal(h.respectPending, 1);
+  assert.equal(h.respectPct, 50);
+  const m = computeStepMeasures([d], today, sla);
+  assert.equal(m.horsDelai.accord, 1); // openLate is the 2nd+ assignment of the dossier
+  const lateRows = dossiersForStepMeasure([d], [], sla, today, 'accord', 'horsDelai');
+  assert.equal(lateRows.length, 1);
+  assert.equal(lateRows[0].doneAt, null);
 });
 
 test('cycle time: median business hours per SLA stage from the clocks, and end-to-end', () => {

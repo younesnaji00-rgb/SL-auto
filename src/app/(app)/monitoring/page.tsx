@@ -368,7 +368,8 @@ export default function MonitoringPage() {
   // Every deadline on this page is one of these clocks (chiffrage assignment,
   // terrain mission, création) — the Chiffrage/Terrain queues' own SLA rule.
   // A clock is late the moment 24 h ouvrées pass without completion — closing it
-  // later never clears it (user ruling); each clock belongs to the period of its start.
+  // later never clears it (user ruling); a period counts the clocks ACTIVE in it
+  // (open or closed inside it), the same set the queues show.
   const sla = useMemo(() => buildSlaItems(dossiers, chiffrages, missions, holidays, now), [dossiers, chiffrages, missions, holidays, now]);
   // One time base for the tiles: green and amber both count completions in the period.
   const stepMeasures = useMemo(() => computeStepMeasures(dossiers, range, sla), [dossiers, range, sla]);
@@ -808,8 +809,8 @@ function HeadlineRow({ headline }: { headline: Headline }) {
         value={headline.respectPct == null ? '—' : `${headline.respectPct} %`}
         caption={
           headline.respectPct == null
-            ? 'aucune assignation décidée · période'
-            : `${headline.respectN} assignation${headline.respectN > 1 ? 's' : ''} de la période (chiffrage · terrain · création) · en attente exclues`
+            ? `aucune assignation décidée${headline.respectPending > 0 ? ` · ${headline.respectPending} en attente` : ''}`
+            : `${headline.respectOnTime} en délai · ${headline.respectLate} hors délai${headline.respectPending > 0 ? ` · ${headline.respectPending} en attente` : ''} — chiffrage · terrain · création`
         }
       />
       <HeadlineTile label="En attente" value={headline.enAttente} caption="sans rapport déposé · aujourd'hui" />

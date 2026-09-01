@@ -26,9 +26,11 @@
  * LATENESS (user ruling 2026-09-01): a clock is « hors délai » the moment 24
  * business hours pass without completion — closing it later does not clear
  * it. « En délai » = closed within the window; open and inside the window =
- * pending (counted nowhere yet). Every clock belongs to the PERIOD OF ITS
- * START (the assignment date), so a period reads "of the assignments made
- * then, how many were late".
+ * pending. A clock is ACTIVE in a period when it was started before the
+ * period ends and was still open, or closed, inside it — the same set the
+ * Chiffrage / Terrain queues show — so a period reads "of the assignments
+ * in play then, how many were late" (WIP-based SLA view). Completions
+ * (« en délai ») are counted by their closing date.
  */
 
 import { addDays, eachWeekOfInterval, startOfWeek } from 'date-fns';
@@ -77,6 +79,14 @@ const inRange = (d: Date | null, range?: FunnelRange) => {
   if (!range) return true;
   if (range.from && d < range.from) return false;
   if (range.to && d > range.to) return false;
+  return true;
+};
+
+/** Started before the period ends and still open or closed inside it. */
+export const activeInRange = (it: { start: Date; doneAt: Date | null }, range?: FunnelRange): boolean => {
+  if (!range) return true;
+  if (range.to && it.start > range.to) return false;
+  if (range.from && it.doneAt && it.doneAt < range.from) return false;
   return true;
 };
 
@@ -222,11 +232,11 @@ export interface StepMeasures {
 }
 
 /**
- * Per-step measures. SLA steps: the clocks STARTED in range — « en délai »
- * when closed inside the window, « hors délai » when breached (closed or
- * not), pending ones counted nowhere. A completion with no clock (legacy
- * dossiers) still counts as en délai by its completion date; steps without
- * an SLA count every completion in range as en délai.
+ * Per-step measures. SLA steps: « en délai » = clocks closed inside the
+ * window with a closing date in range; « hors délai » = breached clocks
+ * (closed or not) active in the period; pending ones counted nowhere. A
+ * completion with no clock (legacy dossiers) still counts as en délai by
+ * its completion date; steps without an SLA count every completion in range.
  */
 export function computeStepMeasures(dossiers: FunnelDossier[], range: FunnelRange, sla: SlaItem[]): StepMeasures {
   const enDelai = emptyCounts();
@@ -234,10 +244,10 @@ export function computeStepMeasures(dossiers: FunnelDossier[], range: FunnelRang
   const covered = new Map<StepKey, Set<string>>();
   for (const key of STEP_KEYS) covered.set(key, new Set());
   for (const it of sla) {
-    if (!inRange(it.start, range)) continue;
+    if (!activeInRange(it, range)) continue;
     covered.get(it.step)!.add(it.dossier.id);
     if (it.late) horsDelai[it.step] += 1;
-    else if (it.doneAt) enDelai[it.step] += 1;
+    else if (it.doneAt && inRange(it.doneAt, range)) enDelai[it.step] += 1;
   }
   for (const d of dossiers) {
     for (const key of STEP_KEYS) {
@@ -261,10 +271,12 @@ export function dossiersForStepMeasure(
   const out: DossierForStep[] = [];
   const covered = new Set<string>();
   for (const it of sla) {
-    if (it.step !== step || !inRange(it.start, range)) continue;
+    if (it.step !== step || !activeInRange(it, range)) continue;
     covered.add(it.dossier.id);
     if (it.pending) continue;
-    if ((mode === 'horsDelai') === it.late) out.push({ dossier: it.dossier, doneAt: it.doneAt, author: it.owner });
+    if (mode === 'horsDelai' ? it.late : !it.late && !!it.doneAt && inRange(it.doneAt, range)) {
+      out.push({ dossier: it.dossier, doneAt: it.doneAt, author: it.owner });
+    }
   }
   if (mode === 'enDelai') {
     for (const d of dossiers) {
@@ -311,9 +323,13 @@ export interface Headline {
   crees: number;
   /** Dossiers whose rapport was deposited in range (end-to-end throughput). */
   traites: number;
-  /** On-time share of the clocks STARTED in range (pending excluded); null when none decided. */
+  /** On-time share of the clocks ACTIVE in the period (pending excluded); null when none decided. */
   respectPct: number | null;
   respectN: number;
+  respectOnTime: number;
+  respectLate: number;
+  /** Open clocks still inside their window (not decided yet). */
+  respectPending: number;
   /** Open backlog: dossiers in scope with no rapport deposited (now, not period). */
   enAttente: number;
   /** Dossiers with at least one clock past SLA right now (leading). */
@@ -332,10 +348,12 @@ export function computeHeadline(dossiers: FunnelDossier[], range: FunnelRange, n
   }
   let onTime = 0;
   let late = 0;
+  let pending = 0;
   for (const it of sla) {
-    if (!inRange(it.start, range) || it.pending) continue;
+    if (!activeInRange(it, range)) continue;
+    if (it.pending) { pending += 1; continue; }
     if (it.late) late += 1;
-    else onTime += 1;
+    else if (it.doneAt && inRange(it.doneAt, range)) onTime += 1;
   }
   const respectN = onTime + late;
   const aging = new Set(agingItems(sla, now, holidays).map((a) => a.dossier.id));
@@ -344,6 +362,9 @@ export function computeHeadline(dossiers: FunnelDossier[], range: FunnelRange, n
     traites,
     respectPct: respectN === 0 ? null : Math.round((onTime / respectN) * 100),
     respectN,
+    respectOnTime: onTime,
+    respectLate: late,
+    respectPending: pending,
     enAttente,
     enRetard: aging.size,
   };
@@ -365,12 +386,12 @@ function median(values: number[]): number | null {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-/** Median business hours per SLA stage (closed clocks started in range) and création → rapport déposé (deposited in range). */
+/** Median business hours per SLA stage (clocks closed in range) and création → rapport déposé (deposited in range). */
 export function computeCycleTimes(dossiers: FunnelDossier[], range: FunnelRange, sla: SlaItem[], holidays?: ReadonlySet<string>): CycleTimeRow[] {
   const perStep = new Map<StepKey, number[]>();
   for (const key of STEP_KEYS) if (STAGE_HAS_SLA[key]) perStep.set(key, []);
   for (const it of sla) {
-    if (!it.doneAt || !inRange(it.start, range)) continue;
+    if (!it.doneAt || !inRange(it.doneAt, range)) continue;
     perStep.get(it.step)?.push(it.hours);
   }
   const rows: CycleTimeRow[] = [];
@@ -513,10 +534,10 @@ export function computePerUserMeasures(dossiers: FunnelDossier[], logs: Workflow
     if (!it.owner) continue;
     const r = ensure(it.owner);
     if (isOpen(it.dossier)) r.openIds.add(it.dossier.id);
-    if (!inRange(it.start, range)) continue;
+    if (!activeInRange(it, range)) continue;
     covered.get(it.step)!.add(it.dossier.id);
     if (it.late) r.horsDelai[it.step] += 1;
-    else if (it.doneAt) r.enDelai[it.step] += 1;
+    else if (it.doneAt && inRange(it.doneAt, range)) r.enDelai[it.step] += 1;
   }
   for (const d of dossiers) {
     for (const key of STEP_KEYS) {
