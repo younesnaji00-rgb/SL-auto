@@ -157,7 +157,9 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
       <div
         onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}
-        className="flex h-12 items-center gap-0.5 overflow-x-auto px-3 [scrollbar-width:none] sm:px-5 [&::-webkit-scrollbar]:hidden"
+        // Steps are spread over the whole bar (connectors flex); below lg the
+        // row can still scroll and non-active titles fold away.
+        className="flex h-12 w-full items-center gap-0.5 overflow-x-auto px-3 [scrollbar-width:none] sm:px-5 [&::-webkit-scrollbar]:hidden"
       >
         {steps.map((step, idx) => {
           const isActive = step.id === activeId;
@@ -183,7 +185,7 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                   // Width unfolds via the label's grid column; scale is the Dock
                   // fisheye. Both on the shared standard curve; nothing under
                   // reduced motion.
-                  'relative z-0 flex shrink-0 origin-center items-center rounded-full py-0.5 pl-0.5 pr-0.5 text-left',
+                  'relative z-0 flex shrink-0 origin-center items-center rounded-full py-0.5 pl-0.5 pr-0.5 text-left lg:pr-2.5',
                   'transition-[transform,background-color,padding] duration-150 ease-standard motion-reduce:transition-none',
                   'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   unfolded && 'z-10 pr-2.5',
@@ -194,11 +196,12 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                 <span data-dot className="inline-flex">
                   <StepDot step={step} index={idx} isActive={isActive} />
                 </span>
+                {/* Title: always visible from lg up (and for the active step);
+                    below lg it unfolds horizontally on hover/focus. */}
                 <span
-                  aria-hidden={!unfolded}
                   className={cn(
                     'grid min-w-0 transition-[grid-template-columns,opacity,margin] duration-150 ease-standard motion-reduce:transition-none',
-                    unfolded ? 'ml-2 grid-cols-[1fr] opacity-100' : 'ml-0 grid-cols-[0fr] opacity-0',
+                    unfolded ? 'ml-2 grid-cols-[1fr] opacity-100' : 'ml-0 grid-cols-[0fr] opacity-0 lg:ml-2 lg:grid-cols-[1fr] lg:opacity-100',
                   )}
                 >
                   <span className="flex min-w-0 flex-col overflow-hidden leading-tight">
@@ -210,15 +213,24 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                     >
                       {step.label}
                     </span>
-                    <span className="whitespace-nowrap text-[11px] leading-[1.2] text-ink-3">
-                      {step.doneAt ? <StepStamp step={step} className="max-w-[180px]" /> : blocked ? step.blockedReason : step.statusLabel}
+                    {/* Details: unfold vertically under the title on hover/focus. */}
+                    <span
+                      aria-hidden={!unfolded}
+                      className={cn(
+                        'grid transition-[grid-template-rows,opacity] duration-150 ease-standard motion-reduce:transition-none',
+                        unfolded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+                      )}
+                    >
+                      <span className="min-h-0 overflow-hidden whitespace-nowrap text-[11px] leading-[1.2] text-ink-3">
+                        {step.doneAt ? <StepStamp step={step} className="max-w-[180px]" /> : blocked ? step.blockedReason : step.statusLabel}
+                      </span>
                     </span>
                   </span>
                 </span>
               </button>
               {idx < steps.length - 1 && (
                 <span
-                  className={cn('h-px w-2.5 shrink-0 sm:w-4', step.status === 'done' ? 'bg-status-success-fg/50' : 'bg-hairline-strong')}
+                  className={cn('h-px min-w-[10px] flex-1 sm:min-w-[16px]', step.status === 'done' ? 'bg-status-success-fg/50' : 'bg-hairline-strong')}
                   aria-hidden
                 />
               )}
