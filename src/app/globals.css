@@ -288,36 +288,9 @@
   }
 }
 
-/* ── Ambient backdrop the glass refracts ───────────────────────────────
-   Frosting a flat page reads as mere reduced opacity: the blur needs
-   something behind it. Teal-tinted radials pinned to the viewport on a
-   fixed pseudo-layer (background-attachment: fixed is unreliable on mobile),
-   two of them mid-screen so the bars have colour to refract wherever the
-   page is scrolled. z-index -1 keeps it under everything but above the
-   body colour; the opaque paper cards sit on top untouched. */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(42rem 30rem at 8% -6%, hsl(178 55% 38% / 0.42), transparent 58%),
-    radial-gradient(44rem 32rem at 96% 0%, hsl(168 60% 48% / 0.34), transparent 60%),
-    radial-gradient(34rem 28rem at 72% 58%, hsl(178 55% 36% / 0.24), transparent 56%),
-    radial-gradient(30rem 26rem at 30% 48%, hsl(172 50% 55% / 0.18), transparent 55%),
-    radial-gradient(36rem 30rem at 10% 98%, hsl(165 55% 50% / 0.3), transparent 58%),
-    radial-gradient(34rem 28rem at 58% 116%, hsl(178 55% 34% / 0.24), transparent 58%);
-}
-.dark body::before {
-  background:
-    radial-gradient(42rem 30rem at 8% -6%, hsl(172 55% 45% / 0.18), transparent 56%),
-    radial-gradient(44rem 32rem at 96% 0%, hsl(168 60% 50% / 0.14), transparent 58%),
-    radial-gradient(34rem 28rem at 72% 58%, hsl(172 50% 50% / 0.09), transparent 54%),
-    radial-gradient(30rem 26rem at 30% 48%, hsl(172 50% 55% / 0.07), transparent 54%),
-    radial-gradient(36rem 30rem at 10% 98%, hsl(165 55% 50% / 0.14), transparent 56%),
-    radial-gradient(34rem 28rem at 58% 116%, hsl(178 55% 40% / 0.12), transparent 56%);
-}
+/* No ambient mesh (user ruling 2026-09-01): the canvas stays flat cream.
+   The frost is visible where it matters — content scrolling under the
+   sticky bars, the page behind menus and dialogs. */
 /* Fine grain so the frosted chrome doesn't read as a flat vector. Above
    static content (z 1) but under every z ≥ 1 layer (bars 30/40, overlays
    50) — a texture, never a veil. */
@@ -382,7 +355,7 @@ body::after {
   .glass-strong { background: hsl(var(--popover)); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .glass-bar { background: hsl(var(--background)); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .glass-sidebar { background: hsl(var(--sidebar-background)); -webkit-backdrop-filter: none; backdrop-filter: none; }
-  body::before, body::after { display: none; }
+  body::after { display: none; }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass-strong { background: hsl(var(--popover)); }
@@ -391,7 +364,7 @@ body::after {
 }
 @media print {
   .glass-strong, .glass-bar, .glass-sidebar { background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
-  body::before, body::after { display: none; }
+  body::after { display: none; }
 }
 
 @layer utilities {
