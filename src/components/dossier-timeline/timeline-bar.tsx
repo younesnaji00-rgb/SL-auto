@@ -5,16 +5,16 @@
  * progress indicator): ✓ muted for done, filled accent for the active step,
  * outline for to-do, grey non-link for blocked.
  *
- * Compact "dock" presentation (user decision): every step is a 28 px medallion
- * so all of them fit in one row without scrolling; the active step keeps its
- * label. Moving the pointer along the row magnifies the step under the
- * cursor and, less, its neighbours — a distance-based fisheye like the macOS
- * Dock — and the magnified step unfolds its label and "who · when" stamp.
- * Keyboard focus unfolds the same way. Under prefers-reduced-motion nothing
- * scales; hover/focus simply shows the label.
+ * Compact presentation (user decision): 28 px medallions + titles spread over
+ * the whole bar so every step fits without scrolling. Hovering (or focusing)
+ * a step slides its details — "date · who" stamp, status or blocked reason —
+ * in from the left, right after the title. Strictly horizontal: nothing
+ * scales and nothing moves vertically; the reveal is CSS-only (`group-hover`)
+ * so it never fights the pointer. Below lg only the active title stays; the
+ * others slide in the same way.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Check, Lock } from 'lucide-react';
@@ -89,142 +89,76 @@ function StepDot({ step, index, isActive }: { step: StepState; index: number; is
   }
 }
 
-/** Fisheye radius (px) and peak magnification of the Dock effect. */
-const DOCK_RADIUS = 96;
-const DOCK_BOOST = 0.3;
-/** Within this distance of a medallion's centre the step counts as hovered. */
-const HOVER_REACH = 44;
+/**
+ * Horizontal slide-reveal: the column animates 0fr → 1fr while the content
+ * translates in from the left. `open` forces it (active title); otherwise the
+ * button's hover / focus-visible drives it through the `group` variants.
+ */
+const REVEAL_OUTER = (open: boolean, alwaysAtLg = false) =>
+  cn(
+    'grid min-w-0 transition-[grid-template-columns,margin] duration-200 ease-standard motion-reduce:transition-none',
+    open
+      ? 'ml-1.5 grid-cols-[1fr]'
+      : cn(
+          'ml-0 grid-cols-[0fr] group-hover:ml-1.5 group-hover:grid-cols-[1fr] group-focus-visible:ml-1.5 group-focus-visible:grid-cols-[1fr]',
+          alwaysAtLg && 'lg:ml-1.5 lg:grid-cols-[1fr]',
+        ),
+  );
+const REVEAL_INNER = (open: boolean, alwaysAtLg = false) =>
+  cn(
+    'block min-w-0 overflow-hidden whitespace-nowrap transition-[opacity,transform] duration-200 ease-standard motion-reduce:transition-none',
+    open
+      ? 'translate-x-0 opacity-100'
+      : cn(
+          '-translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100',
+          alwaysAtLg && 'lg:translate-x-0 lg:opacity-100',
+        ),
+  );
 
 export function TimelineBar({ steps, activeId, onStepClick, className }: TimelineBarProps) {
-  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  // Pointer X in viewport coordinates while over the bar; null otherwise.
-  const [pointerX, setPointerX] = useState<number | null>(null);
-  const [focusId, setFocusId] = useState<number | null>(null);
-  const [reduceMotion, setReduceMotion] = useState(false);
-  const frame = useRef<number>(0);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const apply = () => setReduceMotion(mq.matches);
-    apply();
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
-  }, []);
-
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (e.pointerType !== 'mouse') return; // touch: no fisheye, tap = click
-    const x = e.clientX;
-    cancelAnimationFrame(frame.current);
-    frame.current = requestAnimationFrame(() => setPointerX(x));
-  }, []);
-  const onPointerLeave = useCallback(() => {
-    cancelAnimationFrame(frame.current);
-    setPointerX(null);
-  }, []);
-
-  // Per-step magnification from the pointer's distance to the medallion centre.
-  const scaleFor = (idx: number): number => {
-    if (reduceMotion || pointerX === null) return 1;
-    const el = itemRefs.current[idx];
-    if (!el) return 1;
-    const dot = el.querySelector<HTMLElement>('[data-dot]') ?? el;
-    const r = dot.getBoundingClientRect();
-    const d = Math.abs(pointerX - (r.left + r.width / 2));
-    if (d >= DOCK_RADIUS) return 1;
-    const t = 1 - d / DOCK_RADIUS;
-    return 1 + DOCK_BOOST * t * t;
-  };
-  // The one step whose label unfolds: focused, else nearest to the pointer.
-  let hoveredId: number | null = focusId;
-  if (hoveredId === null && pointerX !== null) {
-    let best = Infinity;
-    steps.forEach((s, idx) => {
-      const el = itemRefs.current[idx];
-      if (!el) return;
-      const dot = el.querySelector<HTMLElement>('[data-dot]') ?? el;
-      const r = dot.getBoundingClientRect();
-      const d = Math.abs(pointerX - (r.left + r.width / 2));
-      if (d < best && d <= HOVER_REACH) {
-        best = d;
-        hoveredId = s.id;
-      }
-    });
-  }
-
   return (
     <nav aria-label="Étapes du dossier" className={cn('relative w-full', className)}>
-      <div
-        onPointerMove={onPointerMove}
-        onPointerLeave={onPointerLeave}
-        // Steps are spread over the whole bar (connectors flex); below lg the
-        // row can still scroll and non-active titles fold away.
-        className="flex h-12 w-full items-center gap-0.5 overflow-x-auto px-3 [scrollbar-width:none] sm:px-5 [&::-webkit-scrollbar]:hidden"
-      >
+      <div className="flex h-12 w-full items-center gap-0.5 overflow-x-auto px-3 [scrollbar-width:none] sm:px-5 [&::-webkit-scrollbar]:hidden">
         {steps.map((step, idx) => {
           const isActive = step.id === activeId;
           const blocked = step.status === 'blocked';
-          const unfolded = isActive || hoveredId === step.id;
-          const scale = scaleFor(idx);
           return (
             <React.Fragment key={step.id}>
               <button
-                ref={(el) => {
-                  itemRefs.current[idx] = el;
-                }}
                 type="button"
                 disabled={blocked}
                 title={blocked ? step.blockedReason : `${step.longLabel} — ${step.statusLabel}`}
                 aria-label={`Étape ${idx + 1} : ${step.longLabel} — ${step.statusLabel}`}
                 onClick={() => onStepClick(step.id)}
-                onFocus={() => setFocusId(step.id)}
-                onBlur={() => setFocusId((v) => (v === step.id ? null : v))}
                 aria-current={isActive ? 'step' : undefined}
-                style={{ transform: `scale(${scale.toFixed(3)})` }}
                 className={cn(
-                  // Width unfolds via the label's grid column; scale is the Dock
-                  // fisheye. Both on the shared standard curve; nothing under
-                  // reduced motion.
-                  'relative z-0 flex shrink-0 origin-center items-center rounded-full py-0.5 pl-0.5 pr-0.5 text-left lg:pr-2.5',
-                  'transition-[transform,background-color,padding] duration-150 ease-standard motion-reduce:transition-none',
+                  'group flex h-9 shrink-0 items-center rounded-full py-0.5 pl-0.5 pr-2 text-left',
+                  'transition-colors duration-150 ease-standard motion-reduce:transition-none',
                   'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  unfolded && 'z-10 pr-2.5',
-                  isActive ? 'bg-accent/50' : unfolded ? 'bg-surface-2 shadow-card' : 'bg-transparent',
-                  blocked && 'cursor-not-allowed',
+                  isActive ? 'bg-accent/50' : 'hover:bg-surface-2 focus-visible:bg-surface-2',
+                  blocked && 'cursor-not-allowed hover:bg-transparent',
                 )}
               >
-                <span data-dot className="inline-flex">
-                  <StepDot step={step} index={idx} isActive={isActive} />
+                <StepDot step={step} index={idx} isActive={isActive} />
+
+                {/* Title — always from lg (and for the active step); slides in on hover below lg. */}
+                <span className={REVEAL_OUTER(isActive, true)}>
+                  <span
+                    className={cn(
+                      REVEAL_INNER(isActive, true),
+                      'text-xs',
+                      isActive ? 'font-semibold text-ink' : step.status === 'done' ? 'font-medium text-ink-2' : blocked ? 'text-ink-4' : 'font-medium text-ink-3',
+                    )}
+                  >
+                    {step.label}
+                  </span>
                 </span>
-                {/* Title: always visible from lg up (and for the active step);
-                    below lg it unfolds horizontally on hover/focus. */}
-                <span
-                  className={cn(
-                    'grid min-w-0 transition-[grid-template-columns,opacity,margin] duration-150 ease-standard motion-reduce:transition-none',
-                    unfolded ? 'ml-2 grid-cols-[1fr] opacity-100' : 'ml-0 grid-cols-[0fr] opacity-0 lg:ml-2 lg:grid-cols-[1fr] lg:opacity-100',
-                  )}
-                >
-                  <span className="flex min-w-0 flex-col overflow-hidden leading-tight">
-                    <span
-                      className={cn(
-                        'whitespace-nowrap text-xs',
-                        isActive ? 'font-semibold text-ink' : step.status === 'done' ? 'font-medium text-ink-2' : blocked ? 'text-ink-4' : 'font-medium text-ink-3',
-                      )}
-                    >
-                      {step.label}
-                    </span>
-                    {/* Details: unfold vertically under the title on hover/focus. */}
-                    <span
-                      aria-hidden={!unfolded}
-                      className={cn(
-                        'grid transition-[grid-template-rows,opacity] duration-150 ease-standard motion-reduce:transition-none',
-                        unfolded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
-                      )}
-                    >
-                      <span className="min-h-0 overflow-hidden whitespace-nowrap text-[11px] leading-[1.2] text-ink-3">
-                        {step.doneAt ? <StepStamp step={step} className="max-w-[180px]" /> : blocked ? step.blockedReason : step.statusLabel}
-                      </span>
-                    </span>
+
+                {/* Details — slide in after the title on hover / focus only. */}
+                <span className={REVEAL_OUTER(false)} aria-hidden>
+                  <span className={cn(REVEAL_INNER(false), 'text-[11px] text-ink-3')}>
+                    <span aria-hidden className="mr-1.5">·</span>
+                    {step.doneAt ? <StepStamp step={step} className="max-w-[200px]" /> : blocked ? step.blockedReason : step.statusLabel}
                   </span>
                 </span>
               </button>
