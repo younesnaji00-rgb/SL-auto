@@ -1,7 +1,7 @@
 'use client';
 
 import { PageHeader } from '@/components/layout/page-header';
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   collection,
   collectionGroup,
@@ -9,7 +9,7 @@ import {
   orderBy,
   query,
 } from 'firebase/firestore';
-import { Activity, Gauge, Building2, Users, RotateCcw, Search } from 'lucide-react';
+import { Activity, Gauge, Building2, Users, RotateCcw, Search, Clock, FolderOpen } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { startOfDay, endOfDay, startOfWeek, startOfMonth, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -17,12 +17,7 @@ import { fr } from 'date-fns/locale';
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useCompagnies } from '@/hooks/use-compagnies';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import {
   Tabs,
   TabsContent,
@@ -42,7 +37,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-import { Button } from '@/components/ui/button';
+import { Button, type ButtonProps } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -55,6 +50,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { roles } from '@/lib/dossiers-data';
+import { cn } from '@/lib/utils';
+import { NAV_ITEMS, titleForRoute } from '@/lib/nav-groups';
 
 import {
   STEP_KEYS,
@@ -114,6 +111,109 @@ const resolveUserName = (raw: string, lookup: UserLookup): string => {
   if (trimmed.length > 16) return `${trimmed.slice(0, 6)}…`;
   return trimmed;
 };
+
+// ── Local layout helpers (blueprint §3 / §6) ────────────────────────────
+
+/**
+ * Paper section with a hairline header row — same anatomy as `Section` in
+ * dossiers/[id]/information-tab.tsx: `t-heading` title, optional count pill,
+ * right-side controls; body padded 24 px unless `flush` (lists / tables).
+ */
+function Section({
+  title,
+  count,
+  actions,
+  children,
+  className,
+  bodyClassName,
+  flush = false,
+}: {
+  title: string;
+  count?: number;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+  bodyClassName?: string;
+  flush?: boolean;
+}) {
+  return (
+    <Card role="region" aria-label={title} className={cn('min-w-0', className)}>
+      <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h2 className="t-heading truncate">{title}</h2>
+          {count !== undefined && (
+            <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-xs font-medium tabular-nums text-ink-2">
+              {count}
+            </span>
+          )}
+        </div>
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      </header>
+      <div className={cn(!flush && 'p-6', bodyClassName)}>{children}</div>
+    </Card>
+  );
+}
+
+/**
+ * KPI tile (Material 3 tonal): value `t-title` tabular over a `t-caption`
+ * label, optional tinted icon chip. `featured` = the page's ONE terracotta
+ * surface, reserved for the hero number (`t-display`).
+ */
+function StatTile({
+  label,
+  value,
+  caption,
+  icon,
+  featured = false,
+}: {
+  label: string;
+  value: number | string;
+  caption?: string;
+  icon?: React.ReactNode;
+  featured?: boolean;
+}) {
+  if (featured) {
+    return (
+      <Card variant="featured" className="p-6">
+        <p className="t-label text-tertiary-foreground/80">{label}</p>
+        <p className="t-display mt-2 tabular-nums text-tertiary-foreground">{value}</p>
+        {caption && <p className="t-caption mt-1 text-tertiary-foreground/80">{caption}</p>}
+      </Card>
+    );
+  }
+  return (
+    <Card className="flex items-start gap-4 p-6">
+      {icon && (
+        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground shadow-rim [&>svg]:h-5 [&>svg]:w-5" aria-hidden>
+          {icon}
+        </span>
+      )}
+      <div className="min-w-0">
+        <p className="t-caption">{label}</p>
+        <p className="t-title mt-1 tabular-nums">{value}</p>
+        {caption && <p className="t-caption mt-1 truncate">{caption}</p>}
+      </div>
+    </Card>
+  );
+}
+
+/** One segment of a segmented control (Apple HIG: the selected segment is the raised one). */
+function Segment({ active, className, children, ...props }: ButtonProps & { active: boolean }) {
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant={active ? 'outline' : 'ghost'}
+      aria-pressed={active}
+      className={cn('h-8', !active && 'shadow-none', className)}
+      {...props}
+    >
+      {children}
+    </Button>
+  );
+}
+
+const NAV_ITEM = NAV_ITEMS.find((i) => i.href === '/monitoring');
 
 export default function MonitoringPage() {
   const db = useFirestore();
@@ -358,143 +458,107 @@ export default function MonitoringPage() {
     setDateTo(endOfDay(new Date()));
   };
 
+  const rangeFilters = (
+    <div className="flex flex-wrap items-end gap-2">
+      <div className="flex h-10 items-center gap-1 self-end rounded-md bg-surface-2 p-0.5" role="group" aria-label="Période">
+        <Segment active={activePreset === 'jour'} onClick={applyJour}>Jour</Segment>
+        <Segment active={activePreset === 'semaine'} onClick={applySemaine}>Semaine</Segment>
+        <Segment active={activePreset === 'mois'} onClick={applyMois}>Mois</Segment>
+        <Segment active={activePreset === 'custom'} disabled>Personnalisé</Segment>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="t-label">Du</label>
+        <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Date de début" className="w-40" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="t-label">Au</label>
+        <DatePicker value={dateTo} onChange={setDateTo} placeholder="Date de fin" className="w-40" />
+      </div>
+      <Button variant="outline" onClick={resetRange} className="h-10">
+        <RotateCcw className="h-4 w-4" />
+        Réinitialiser
+      </Button>
+    </div>
+  );
+
   return (
-    <div className="space-y-8">
+    // The Tabs root wraps the header so the tab strip can live in the
+    // PageHeader `tabs` slot (DESIGN.md §2: title → tabs → filters).
+    <Tabs defaultValue="global" className="space-y-8">
       <PageHeader
-        title="Suivi d'équipe"
-        subtitle="Funnel des étapes — combien de dossiers ont franchi chaque étape."
-        filters={
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="flex h-10 items-center gap-1 self-end rounded-md bg-surface-2 p-0.5">
-            <Button
-              size="sm"
-              variant={activePreset === 'jour' ? 'default' : 'ghost'}
-              className="h-8"
-              onClick={applyJour}
-            >
-              Jour
-            </Button>
-            <Button
-              size="sm"
-              variant={activePreset === 'semaine' ? 'default' : 'ghost'}
-              className="h-8"
-              onClick={applySemaine}
-            >
-              Semaine
-            </Button>
-            <Button
-              size="sm"
-              variant={activePreset === 'mois' ? 'default' : 'ghost'}
-              className="h-8"
-              onClick={applyMois}
-            >
-              Mois
-            </Button>
-            <Button
-              size="sm"
-              variant={activePreset === 'custom' ? 'default' : 'ghost'}
-              className="h-8"
-              disabled
-            >
-              Personnalisé
-            </Button>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="t-label">Du</label>
-            <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Date de début" className="w-44" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="t-label">Au</label>
-            <DatePicker value={dateTo} onChange={setDateTo} placeholder="Date de fin" className="w-44" />
-          </div>
-          <Button variant="outline" size="sm" onClick={resetRange} className="h-10">
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Réinitialiser
-          </Button>
-        </div>
+        title={titleForRoute('/monitoring') ?? "Suivi d'équipe"}
+        subtitle={NAV_ITEM?.subtitle}
+        tabs={
+          <TabsList>
+            <TabsTrigger value="global" className="gap-2">
+              <Gauge className="h-4 w-4" aria-hidden />
+              Global
+            </TabsTrigger>
+            <TabsTrigger value="compagnie" className="gap-2">
+              <Building2 className="h-4 w-4" aria-hidden />
+              Par compagnie
+            </TabsTrigger>
+            <TabsTrigger value="user" className="gap-2">
+              <Users className="h-4 w-4" aria-hidden />
+              Par utilisateur
+            </TabsTrigger>
+          </TabsList>
         }
+        filters={rangeFilters}
       />
 
-      <Tabs defaultValue="global" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="global" className="gap-2">
-            <Gauge className="h-4 w-4" />
-            Global
-          </TabsTrigger>
-          <TabsTrigger value="compagnie" className="gap-2">
-            <Building2 className="h-4 w-4" />
-            Par compagnie
-          </TabsTrigger>
-          <TabsTrigger value="user" className="gap-2">
-            <Users className="h-4 w-4" />
-            Par utilisateur
-          </TabsTrigger>
-        </TabsList>
+      <TabsContent value="global" className="mt-0 space-y-6">
+        {loading ? (
+          <GlobalSkeleton />
+        ) : (
+          <GlobalView
+            counts={globalCounts}
+            horsDelaiCounts={globalHorsDelaiCounts}
+            realiseAllTimeCounts={globalRealiseAllTime}
+            totalDossiers={totalDossiersInScope}
+            loading={loading}
+            onSelectStep={openDrawer}
+          />
+        )}
+      </TabsContent>
 
-        <TabsContent value="global" className="space-y-6">
-          {loading ? (
-            <div className="paper-featured p-5" aria-busy="true">
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                {Array.from({ length: STEP_KEYS.length }).map((_, i) => (
-                  <div key={i} className="space-y-3">
-                    <Skeleton className="h-3 w-24 bg-on-ink/15" />
-                    <Skeleton className="h-7 w-16 bg-on-ink/15" />
-                    <Skeleton className="h-2 w-full bg-on-ink/15" />
-                    <Skeleton className="h-2 w-full bg-on-ink/15" />
-                  </div>
+      <TabsContent value="compagnie" className="mt-0 space-y-6">
+        <CompagnieView rows={perCompagnie} loading={loading} />
+      </TabsContent>
+
+      <TabsContent value="user" className="mt-0 space-y-6">
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label className="t-label">Rôle</label>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="h-10 w-56">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ROLE_FILTER_ALL}>Tous les rôles</SelectItem>
+                {roles.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {r}
+                  </SelectItem>
                 ))}
-              </div>
-            </div>
-          ) : (
-            <GlobalView
-              counts={globalCounts}
-              horsDelaiCounts={globalHorsDelaiCounts}
-              realiseAllTimeCounts={globalRealiseAllTime}
-              totalDossiers={totalDossiersInScope}
-              loading={loading}
-              onSelectStep={openDrawer}
-            />
-          )}
-        </TabsContent>
-
-        <TabsContent value="compagnie" className="space-y-6">
-          <CompagnieView rows={perCompagnie} loading={loading} />
-        </TabsContent>
-
-        <TabsContent value="user" className="space-y-6">
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="flex flex-col gap-1">
-              <label className="t-label">Rôle</label>
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger className="h-10 w-56">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ROLE_FILTER_ALL}>Tous les rôles</SelectItem>
-                  {roles.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {r}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="t-label">Utilisateur</label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
-                <Input
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  placeholder="Rechercher un utilisateur…"
-                  className="h-10 w-64 pl-8"
-                />
-              </div>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="t-label">Utilisateur</label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
+              <Input
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Rechercher un utilisateur…"
+                className="h-10 w-64 pl-8"
+              />
             </div>
           </div>
-          <UserView rows={filteredPerUser} loading={loading} userLookup={userLookup} />
-        </TabsContent>
-      </Tabs>
+        </div>
+        <UserView rows={filteredPerUser} loading={loading} userLookup={userLookup} />
+      </TabsContent>
 
       <DossierDrawer
         open={selectedStep != null}
@@ -504,7 +568,7 @@ export default function MonitoringPage() {
         rows={drawerRows}
         userLookup={userLookup}
       />
-    </div>
+    </Tabs>
   );
 }
 
@@ -532,6 +596,10 @@ function GlobalView({
     value: { label: 'Dossiers', color: 'hsl(var(--chart-1))' },
   };
 
+  // Headline figures derived from the same counts the rows show.
+  const totalEnDelai = STEP_KEYS.reduce((sum, k) => sum + (counts[k] ?? 0), 0);
+  const totalHorsDelai = STEP_KEYS.reduce((sum, k) => sum + (horsDelaiCounts[k] ?? 0), 0);
+
   if (totalDossiers === 0 && !loading) {
     return (
       <EmptyState
@@ -544,60 +612,76 @@ function GlobalView({
 
   return (
     <>
-      <Card variant="featured">
-        <CardContent className="grid gap-x-0 gap-y-6 p-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-y-0 lg:divide-x lg:divide-on-ink/15">
-        {STEP_KEYS.map((key, idx) => {
-          const realiseEnDelai = counts[key];
-          const horsDelai = horsDelaiCounts[key] ?? 0;
-          const realiseAllTime = realiseAllTimeCounts[key] ?? 0;
-          const nonRealise =
-            key === 'creation' ? null : Math.max(totalDossiers - realiseAllTime, 0);
-          return (
-            <KpiCard
-              key={key}
-              index={idx + 1}
-              label={STEP_LABELS[key]}
-              realiseEnDelai={realiseEnDelai}
-              horsDelai={horsDelai}
-              nonRealise={nonRealise}
-              total={totalDossiers}
-              onSelectRealise={() => onSelectStep(key, 'realise')}
-              onSelectHorsDelai={() => onSelectStep(key, 'horsDelai')}
-              onSelectNonRealise={() => onSelectStep(key, 'nonRealise')}
-            />
-          );
-        })}
-        </CardContent>
-      </Card>
+      {/* KPI row: the ONE featured (terracotta) surface carries the hero
+          number; the two secondary figures are tonal tiles. */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatTile featured label="Étapes franchies en délai" value={totalEnDelai} caption="sur la période sélectionnée" />
+        <StatTile icon={<Clock />} label="Hors délai" value={totalHorsDelai} caption="toutes périodes confondues" />
+        <StatTile icon={<FolderOpen />} label="Dossiers en périmètre" value={totalDossiers} caption="compagnies assignées" />
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Volume par étape</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {chartData.every((d) => d.value === 0) ? (
-            <EmptyState
-              title="Aucune activité dans cette plage"
-              description="Aucun dossier n'a réalisé une étape dans la période sélectionnée."
-            />
-          ) : (
-            <ChartContainer config={chartConfig} className="h-72 w-full">
-              <BarChart data={chartData} margin={{ top: 8, right: 16, left: -8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--hairline))" />
-                <XAxis dataKey="step" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--ink-3))' }} allowDecimals={false} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="value" fill="var(--color-value)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ChartContainer>
-          )}
-        </CardContent>
-      </Card>
+      {/* Funnel as a step list (GOV.UK step-by-step): ordinal medallion as
+          the row anchor, the step's figure as the value, a stacked bar whose
+          segments open the matching drawer. */}
+      <Section title="Avancement par étape" flush>
+        <ol className="divide-y divide-hairline">
+          {STEP_KEYS.map((key, idx) => {
+            const realiseEnDelai = counts[key];
+            const horsDelai = horsDelaiCounts[key] ?? 0;
+            const realiseAllTime = realiseAllTimeCounts[key] ?? 0;
+            const nonRealise =
+              key === 'creation' ? null : Math.max(totalDossiers - realiseAllTime, 0);
+            return (
+              <FunnelRow
+                key={key}
+                index={idx + 1}
+                label={STEP_LABELS[key]}
+                realiseEnDelai={realiseEnDelai}
+                horsDelai={horsDelai}
+                nonRealise={nonRealise}
+                total={totalDossiers}
+                onSelectRealise={() => onSelectStep(key, 'realise')}
+                onSelectHorsDelai={() => onSelectStep(key, 'horsDelai')}
+                onSelectNonRealise={() => onSelectStep(key, 'nonRealise')}
+              />
+            );
+          })}
+        </ol>
+      </Section>
+
+      <Section title="Volume par étape">
+        {chartData.every((d) => d.value === 0) ? (
+          <EmptyState
+            title="Aucune activité dans cette plage"
+            description="Aucun dossier n'a réalisé une étape dans la période sélectionnée."
+            dashed={false}
+          />
+        ) : (
+          <ChartContainer config={chartConfig} className="h-72 w-full">
+            <BarChart data={chartData} margin={{ top: 8, right: 16, left: -8, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--hairline))" />
+              <XAxis dataKey="step" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} />
+              <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} allowDecimals={false} />
+              <ChartTooltip cursor={{ fill: 'hsl(var(--surface-2))' }} content={<ChartTooltipContent className="bg-popover" />} />
+              <Bar dataKey="value" fill="var(--color-value)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ChartContainer>
+        )}
+      </Section>
     </>
   );
 }
 
-function KpiCard({
+type FunnelSegment = {
+  key: DrawerMode;
+  label: string;
+  count: number;
+  pct: number;
+  fillClass: string;
+  onClick: () => void;
+};
+
+function FunnelRow({
   index,
   label,
   realiseEnDelai,
@@ -619,88 +703,85 @@ function KpiCard({
   onSelectNonRealise: () => void;
 }) {
   const denominator = total <= 0 ? 1 : total;
-  const pctEnDelai = (realiseEnDelai / denominator) * 100;
-  const pctHorsDelai = (horsDelai / denominator) * 100;
-  const pctNonRealise = nonRealise != null ? (nonRealise / denominator) * 100 : 0;
+  const segments: FunnelSegment[] = [
+    {
+      key: 'realise',
+      label: 'en délai',
+      count: realiseEnDelai,
+      pct: (realiseEnDelai / denominator) * 100,
+      fillClass: 'bg-status-success-fg',
+      onClick: onSelectRealise,
+    },
+    {
+      key: 'horsDelai',
+      label: 'hors délai',
+      count: horsDelai,
+      pct: (horsDelai / denominator) * 100,
+      fillClass: 'bg-status-warning-fg',
+      onClick: onSelectHorsDelai,
+    },
+  ];
+  if (nonRealise != null) {
+    segments.push({
+      key: 'nonRealise',
+      label: 'non réalisé',
+      count: nonRealise,
+      pct: (nonRealise / denominator) * 100,
+      fillClass: 'bg-ink-4',
+      onClick: onSelectNonRealise,
+    });
+  }
 
   return (
-    <div className="min-w-0 lg:px-5 lg:first:pl-0 lg:last:pr-0">
-      <div className="flex items-center gap-2">
-        <span
-          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-on-ink/15 text-[11px] font-semibold text-on-ink"
-          style={tabular}
-        >
-          {index}
-        </span>
-        <p className="t-label truncate text-on-ink/70">{label}</p>
-      </div>
-      <p className="t-title mt-2 text-on-ink" style={tabular}>
-        {realiseEnDelai}
-        <span className="t-caption ml-1.5 text-on-ink/70">en délai</span>
-      </p>
-      <div className="mt-3 space-y-1.5">
-        <KpiBarRow
-          label="en délai"
-          count={realiseEnDelai}
-          pct={pctEnDelai}
-          fillClass="bg-status-success-bg dark:bg-status-success-fg"
-          onClick={onSelectRealise}
-        />
-        <KpiBarRow
-          label="hors délai"
-          count={horsDelai}
-          pct={pctHorsDelai}
-          fillClass="bg-status-warning-bg dark:bg-status-warning-fg"
-          onClick={onSelectHorsDelai}
-        />
-        {nonRealise != null && (
-          <KpiBarRow
-            label="non réalisé"
-            count={nonRealise}
-            pct={pctNonRealise}
-            fillClass="bg-on-ink/40"
-            onClick={onSelectNonRealise}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function KpiBarRow({
-  label,
-  count,
-  pct,
-  fillClass,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  pct: number;
-  fillClass: string;
-  onClick: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-2 text-[11px] text-on-ink/80">
-      <span className="flex w-20 shrink-0 items-center gap-1.5">
-        <span className={`inline-block h-2 w-2 shrink-0 rounded-sm ${fillClass}`} aria-hidden />
-        <span className="truncate">{label}</span>
+    <li className="flex items-start gap-4 px-6 py-4">
+      {/* Ordinal medallion — the row's anchor (tinted + light contour). */}
+      <span
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-surface-3 font-headline text-base font-semibold text-ink-2 shadow-rim"
+        style={tabular}
+        aria-hidden
+      >
+        {index}
       </span>
-      <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-on-ink/15">
-        {pct > 0 && (
-          <button
-            type="button"
-            onClick={onClick}
-            className={`absolute inset-y-0 left-0 rounded-full ${fillClass} transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-ink`}
-            style={{ width: `${pct}%` }}
-            title={`${label} : ${count}`}
-          />
-        )}
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <p className="min-w-0 text-sm font-semibold text-ink">{label}</p>
+          <p className="t-title tabular-nums">
+            {realiseEnDelai}
+            <span className="t-caption ml-1.5 font-body">en délai</span>
+          </p>
+        </div>
+        {/* Stacked share of the scope; each segment is a drawer target. */}
+        <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-surface-3" aria-hidden>
+          {segments.map((s) =>
+            s.pct > 0 ? (
+              <button
+                key={s.key}
+                type="button"
+                tabIndex={-1}
+                onClick={s.onClick}
+                className={cn('h-full transition-opacity hover:opacity-80', s.fillClass)}
+                style={{ width: `${s.pct}%` }}
+                title={`${s.label} : ${s.count}`}
+              />
+            ) : null,
+          )}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+          {segments.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={s.onClick}
+              className="t-caption inline-flex items-center gap-1.5 rounded-sm transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className={cn('h-2 w-2 shrink-0 rounded-sm', s.fillClass)} aria-hidden />
+              <span>{s.label}</span>
+              <span className="font-semibold tabular-nums text-ink">{s.count}</span>
+            </button>
+          ))}
+        </div>
       </div>
-      <span className="w-6 shrink-0 text-right font-semibold tabular-nums text-on-ink">
-        {count}
-      </span>
-    </div>
+    </li>
   );
 }
 
@@ -735,44 +816,41 @@ function CompagnieView({
     );
   }
 
+  // The tab label already names this table (blueprint §4: no repeated
+  // titles) — the paper holds the table alone.
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Répartition par compagnie</CardTitle>
-      </CardHeader>
-      <CardContent className="overflow-x-auto p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="min-w-[12rem]">Compagnie</TableHead>
-              {STEP_KEYS.map((key) => (
-                <TableHead key={key} className="text-center text-xs">
-                  {STEP_LABELS_SHORT[key]}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map(({ compagnie, counts }) => (
-              <TableRow key={compagnie}>
-                <TableCell className="font-medium">{compagnie}</TableCell>
-                {STEP_KEYS.map((key) => {
-                  const v = counts[key];
-                  return (
-                    <TableCell
-                      key={key}
-                      className="text-center font-semibold"
-                      style={{ ...tabular, ...heatStyle(v, columnMax[key]) }}
-                    >
-                      {v || <span className="font-normal text-ink-4">—</span>}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
+    <Card className="overflow-hidden">
+      <Table regionLabel="Répartition par compagnie">
+        <TableHeader className="sticky top-0 z-[1] bg-card">
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="min-w-[12rem] pl-6">Compagnie</TableHead>
+            {STEP_KEYS.map((key) => (
+              <TableHead key={key} className="text-center">
+                {STEP_LABELS_SHORT[key]}
+              </TableHead>
             ))}
-          </TableBody>
-        </Table>
-      </CardContent>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map(({ compagnie, counts }) => (
+            <TableRow key={compagnie}>
+              <TableCell className="pl-6 font-semibold">{compagnie}</TableCell>
+              {STEP_KEYS.map((key) => {
+                const v = counts[key];
+                return (
+                  <TableCell
+                    key={key}
+                    className="text-center font-semibold"
+                    style={{ ...tabular, ...heatStyle(v, columnMax[key]) }}
+                  >
+                    {v || <span className="font-normal text-ink-4">—</span>}
+                  </TableCell>
+                );
+              })}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </Card>
   );
 }
@@ -817,71 +895,116 @@ function UserView({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Activité par utilisateur</CardTitle>
-      </CardHeader>
-      <CardContent className="overflow-x-auto p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="min-w-[14rem]">Utilisateur</TableHead>
-              {STEP_KEYS.map((key) => (
-                <TableHead key={key} className="text-center text-xs">
-                  {STEP_LABELS_SHORT[key]}
-                </TableHead>
-              ))}
-              <TableHead className="text-center text-xs">Total</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((r) => {
-              const displayName = resolveUserName(r.user, userLookup);
-              return (
-                <TableRow key={r.user}>
-                  <TableCell className="font-medium">{displayName}</TableCell>
-                  {STEP_KEYS.map((key) => {
-                    const v = r.realise[key];
-                    return (
-                      <TableCell
-                        key={key}
-                        className="text-center"
-                        style={{ ...tabular, ...heatStyle(v, columnMax.realise[key]) }}
-                      >
-                        {v || <span className="text-ink-4">—</span>}
-                      </TableCell>
-                    );
-                  })}
-                  <TableCell
-                    className="text-center font-semibold"
-                    style={{ ...tabular, ...heatStyle(r.totalRealise, columnMax.total) }}
-                  >
-                    {r.totalRealise}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </CardContent>
+    <Card className="overflow-hidden">
+      <Table regionLabel="Activité par utilisateur">
+        <TableHeader className="sticky top-0 z-[1] bg-card">
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="min-w-[14rem] pl-6">Utilisateur</TableHead>
+            {STEP_KEYS.map((key) => (
+              <TableHead key={key} className="text-center">
+                {STEP_LABELS_SHORT[key]}
+              </TableHead>
+            ))}
+            <TableHead className="text-center">Total</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r) => {
+            const displayName = resolveUserName(r.user, userLookup);
+            return (
+              <TableRow key={r.user}>
+                <TableCell className="pl-6 font-semibold">{displayName}</TableCell>
+                {STEP_KEYS.map((key) => {
+                  const v = r.realise[key];
+                  return (
+                    <TableCell
+                      key={key}
+                      className="text-center"
+                      style={{ ...tabular, ...heatStyle(v, columnMax.realise[key]) }}
+                    >
+                      {v || <span className="text-ink-4">—</span>}
+                    </TableCell>
+                  );
+                })}
+                <TableCell
+                  className="text-center font-semibold"
+                  style={{ ...tabular, ...heatStyle(r.totalRealise, columnMax.total) }}
+                >
+                  {r.totalRealise}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </Card>
   );
 }
 
-/** Paper-shaped table placeholder (tonal, no border) used while a tab loads. */
-function TablePaperSkeleton() {
+/** Global tab placeholder shaped like the final layout: KPI row + step rows. */
+function GlobalSkeleton() {
   return (
-    <div className="paper p-5" aria-busy="true">
-      <Skeleton className="mb-4 h-4 w-44" />
-      <div className="space-y-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-4">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-4 flex-1" />
-            <Skeleton className="h-4 w-12" />
+    <div className="space-y-6" aria-busy="true" aria-live="polite">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="paper-featured space-y-2 p-6">
+          <Skeleton className="h-3 w-32 bg-tertiary-foreground/15" />
+          <Skeleton className="h-8 w-16 bg-tertiary-foreground/15" />
+          <Skeleton className="h-3 w-40 bg-tertiary-foreground/15" />
+        </div>
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div key={i} className="paper flex items-start gap-4 p-6">
+            <Skeleton className="h-10 w-10 rounded-lg" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-6 w-12" />
+              <Skeleton className="h-3 w-28" />
+            </div>
           </div>
         ))}
       </div>
+      <div className="paper">
+        <div className="flex h-12 items-center border-b border-hairline px-6">
+          <Skeleton className="h-4 w-44" />
+        </div>
+        <ul className="divide-y divide-hairline">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <li key={i} className="flex items-start gap-4 px-6 py-4">
+              <Skeleton className="h-9 w-9 rounded-md" />
+              <div className="flex-1 space-y-3">
+                <div className="flex justify-between">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-5 w-10" />
+                </div>
+                <Skeleton className="h-2 w-full rounded-full" />
+                <Skeleton className="h-3 w-56" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+/** Paper-shaped table placeholder (header row + hairline rows) used while a tab loads. */
+function TablePaperSkeleton() {
+  return (
+    <div className="paper overflow-hidden" aria-busy="true" aria-live="polite">
+      <div className="flex h-10 items-center gap-6 border-b border-hairline bg-surface-2 px-6">
+        <Skeleton className="h-3 w-32" />
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-3 w-12" />
+        ))}
+      </div>
+      <ul className="divide-y divide-hairline">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <li key={i} className="flex h-11 items-center gap-6 px-6">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-4 flex-1" />
+            <Skeleton className="h-4 w-12" />
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

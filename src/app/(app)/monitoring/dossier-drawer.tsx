@@ -13,6 +13,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { EmptyState } from '@/components/ui/empty-state';
+import { cn } from '@/lib/utils';
 
 import { STEP_LABELS, type DossierForStep, type StepKey } from './funnel';
 
@@ -64,6 +65,17 @@ const dossierIdentifier = (d: any): string => {
   if (typeof d.assure === 'string' && d.assure) return d.assure;
   return d.id;
 };
+
+/** Date block — the row's anchor (same tile as the planification rows). */
+function DateBlock({ date }: { date: Date | null | undefined }) {
+  return (
+    <span className="flex w-14 shrink-0 flex-col items-center justify-center rounded-md bg-surface-3 py-1.5 text-center tabular-nums text-ink-2 shadow-rim">
+      <span className="text-[11px] font-medium uppercase leading-none">{date ? format(date, 'MMM', { locale: fr }).replace('.', '') : '—'}</span>
+      <span className="font-headline text-xl font-semibold leading-tight">{date ? format(date, 'd') : '—'}</span>
+      <span className="text-[11px] leading-none">{date ? format(date, 'HH:mm') : ''}</span>
+    </span>
+  );
+}
 
 export function DossierDrawer({
   open,
@@ -122,7 +134,7 @@ export function DossierDrawer({
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
 
-        <div className="mt-6 space-y-1">
+        <div className="mt-6">
           {rows.length === 0 ? (
             <EmptyState
               icon={<Inbox />}
@@ -130,29 +142,35 @@ export function DossierDrawer({
               description={emptyDescription}
             />
           ) : (
-            rows.map(({ dossier, doneAt, author }) => (
-              <button
-                key={dossier.id}
-                type="button"
-                onClick={() => navigate(dossier.id)}
-                className="group flex w-full items-center justify-between gap-3 rounded-md p-3 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium text-ink">{dossierIdentifier(dossier)}</div>
-                  {!isNonRealise && (
-                    <div className="t-caption mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span>par {resolveUserName(author, userLookup)}</span>
-                      {doneAt && (
-                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                          {format(doneAt, 'dd/MM/yyyy HH:mm', { locale: fr })}
+            // Records as hairline-separated rows (blueprint §6 "lists of
+            // events"): the completion date block anchors the row; the whole
+            // row is the link (DESIGN.md §4).
+            <ol className="divide-y divide-hairline">
+              {rows.map(({ dossier, doneAt, author }) => (
+                <li key={dossier.id}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(dossier.id)}
+                    className={cn(
+                      'group -mx-2 flex w-[calc(100%+1rem)] items-center gap-4 rounded-md px-2 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      isNonRealise ? 'py-2.5' : 'py-3',
+                    )}
+                  >
+                    {!isNonRealise && <DateBlock date={doneAt} />}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-ink">{dossierIdentifier(dossier)}</span>
+                      {!isNonRealise && (
+                        <span className="t-caption mt-0.5 block truncate tabular-nums">
+                          par <span className="font-medium text-ink-2">{resolveUserName(author, userLookup)}</span>
+                          {doneAt && <> · {format(doneAt, 'dd/MM/yyyy HH:mm', { locale: fr })}</>}
                         </span>
                       )}
-                    </div>
-                  )}
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-ink-4 transition-colors group-hover:text-ink" />
-              </button>
-            ))
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-ink-4 transition-colors group-hover:text-ink" aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ol>
           )}
         </div>
       </SheetContent>
