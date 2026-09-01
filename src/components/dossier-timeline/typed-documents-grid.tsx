@@ -15,7 +15,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 import { DocumentPreviewLightbox, type DocumentPreviewLightboxDoc } from '@/components/document-preview-lightbox';
-import { downloadFileFromUrl, toLightboxDoc } from '@/components/documents/typed-doc';
+import { downloadFileFromUrl, toLightboxDoc, type DocDragPayload } from '@/components/documents/typed-doc';
+import { reclassifyDocuments } from '@/components/documents/reclassify';
+import { docTypeOf } from '@/lib/required-docs';
 import { SlotCard, type ExtraSlotKind, type TypedDoc } from './slot-card';
 import { FamilyRow } from './family-row';
 
@@ -617,6 +619,43 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     setPreview({ doc: toLightboxDoc(d), pages: list });
   };
 
+  // Socket-to-socket drag: move (empty target) or swap (filled target) every
+  // page of the dragged document. Writes + historique + AI feedback live in
+  // `reclassifyDocuments`; the board only resolves the two doc sets.
+  const handleDocDrop = async (targetSlot: string, payload: DocDragPayload) => {
+    if (!db) return;
+    const sourceType = payload.type;
+    if (!sourceType || sourceType === targetSlot) return;
+    const all = ((allDocs as TypedDoc[] | undefined) ?? []);
+    const sourceDocs = all.filter((d) => docTypeOf(d) === sourceType);
+    const targetDocs = all.filter((d) => docTypeOf(d) === targetSlot && !!d.url);
+    if (sourceDocs.length === 0) return;
+    const userEmail = auth?.currentUser?.email || profile?.email || 'Admin';
+    try {
+      let compagnie: string | null = null;
+      try {
+        const snap = await getDoc(doc(db, 'dossiers', dossierId));
+        compagnie = ((snap.data() as any)?.compagnie as string | undefined) ?? null;
+      } catch { /* non-fatal — feedback just lacks the compagnie hint */ }
+      const res = await reclassifyDocuments({
+        db, dossierId, sourceType, targetType: targetSlot, sourceDocs, targetDocs,
+        userEmail, userName: profile?.nom, compagnie,
+      });
+      toast({
+        title: res.mode === 'swap'
+          ? `Documents échangés : ${sourceType} ↔ ${targetSlot}`
+          : `Document déplacé vers « ${targetSlot} »`,
+      });
+    } catch (err: any) {
+      console.error('[typed-docs-grid] reclassify failed', err);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur lors du reclassement',
+        description: err?.message || 'Impossible de déplacer le document.',
+      });
+    }
+  };
+
   const renderSlotCard = (slot: string) => (
     <SlotCard
       key={slot}
@@ -635,6 +674,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
       onCreateExtraSlot={handleCreateExtraSlot}
       onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
       onPreview={handlePreview}
+      onDocDrop={(payload) => handleDocDrop(slot, payload)}
       hideCardinalPlus={hideCardinalPlus}
       hideExtraSlotPlus={hideExtraSlotPlus}
     />
@@ -709,6 +749,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
                     onCreateExtraSlot={handleCreateExtraSlot}
                     onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
                     onPreview={handlePreview}
+                    onDocDrop={(payload) => handleDocDrop(slot, payload)}
                     hideCardinalPlus
                     hideExtraSlotPlus
                   />
@@ -737,6 +778,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               onCreateExtraSlot={handleCreateExtraSlot}
               onRenameExtraSlot={handleRenameExtraSlot}
               onPreview={handlePreview}
+              onDocDrop={handleDocDrop}
               hideCardinalPlus={hideCardinalPlus}
               hideExtraSlotPlus={hideExtraSlotPlus}
               cardinalFilter={cardinalFilter}
@@ -763,6 +805,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               onCreateExtraSlot={handleCreateExtraSlot}
               onRenameExtraSlot={handleRenameExtraSlot}
               onPreview={handlePreview}
+              onDocDrop={handleDocDrop}
               hideCardinalPlus={hideCardinalPlus}
               hideExtraSlotPlus={hideExtraSlotPlus}
               cardinalFilter={cardinalFilter}

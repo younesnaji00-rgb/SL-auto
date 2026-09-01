@@ -31,6 +31,12 @@ export type TypedDoc = {
   uploadedAt?: unknown;
   /** Client-side creation instant (ms) — set by the offline-capable upload path. */
   _localCreatedAt?: number;
+  // SmartInbox classification trail — feeds the learning loop when a user
+  // corrects the placement by dragging the document to another socket.
+  aiSuggestedType?: string | null;
+  aiSummary?: string | null;
+  aiConfidence?: number | null;
+  classifiedBy?: string | null;
   // Marks a document as belonging to a gestionnaire-created extra slot
   // (rendered after "Devis Garage" / "Facture Garage"). The slot grouping
   // key is still the `type` string; this field is used only to detect
@@ -124,6 +130,31 @@ export function docPagesMetaLine(pages: ReadonlyArray<TypedDoc>): string {
   ]
     .filter(Boolean)
     .join(' · ');
+}
+
+// ── Socket-to-socket drag (reclassify a document) ────────────────────────────
+
+/** DataTransfer MIME for dragging a document between sockets. */
+export const DOC_DRAG_MIME = 'application/x-sl-doc';
+
+/** Payload carried by a socket drag: the first page's id + the source type. */
+export type DocDragPayload = { docId: string; type: string };
+
+export function writeDocDragPayload(dt: DataTransfer, payload: DocDragPayload): void {
+  dt.setData(DOC_DRAG_MIME, JSON.stringify(payload));
+  dt.effectAllowed = 'move';
+}
+
+export function readDocDragPayload(dt: DataTransfer): DocDragPayload | null {
+  try {
+    const raw = dt.getData(DOC_DRAG_MIME);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<DocDragPayload>;
+    if (typeof parsed.docId !== 'string' || typeof parsed.type !== 'string') return null;
+    return { docId: parsed.docId, type: parsed.type };
+  } catch {
+    return null;
+  }
 }
 
 /** Lightbox page descriptor for a doc (`{ url, nom }`). */

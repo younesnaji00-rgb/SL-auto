@@ -83,14 +83,18 @@ import {
   GARAGE_PAIR_LABEL,
   computeRequiredDocsStatus,
   requiredDocChip,
+  isChiffrageOutputType,
+  docTypeOf,
 } from '@/lib/required-docs';
 import { SlotCard, SOCKET_BASE_CLASS, SOCKET_OPEN_CLASS } from '@/components/dossier-timeline/slot-card';
 import {
   docDisplayName,
   downloadFileFromUrl,
   toLightboxDoc,
+  type DocDragPayload,
   type TypedDoc,
 } from '@/components/documents/typed-doc';
+import { reclassifyDocuments } from '@/components/documents/reclassify';
 import JSZip from 'jszip';
 
 type DocumentsTabProps = {
@@ -225,10 +229,12 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
       };
     });
 
-    // Autres documents — every other type holding at least one file.
+    // Autres documents — every other type holding at least one file, EXCEPT
+    // chiffrage outputs (accords / propositions of any cardinal, réforme,
+    // rapport, note d'honoraire): those live only on the accord steps.
     const handled = new Set<string>([...REQUIRED_SOURCE_SLOTS, ...GARAGE_DOC_SLOTS]);
     const others: SocketSpec[] = Object.keys(docsByType)
-      .filter((t) => !handled.has(t) && (docsByType[t]?.length || 0) > 0)
+      .filter((t) => !handled.has(t) && !isChiffrageOutputType(t) && (docsByType[t]?.length || 0) > 0)
       .map((t) => ({ type: t, docs: docsByType[t] }))
       .sort((a, b) => b.docs.length - a.docs.length || a.type.localeCompare(b.type, 'fr'));
 
@@ -448,6 +454,39 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
     }
   };
 
+  // Socket-to-socket drag: move (empty target) or swap (filled target) every
+  // page of the dragged document; writes + historique + AI feedback in
+  // `reclassifyDocuments`. Chiffrage outputs never appear here, so a drop can
+  // only ever land on a step-1 type.
+  const handleDocDrop = async (targetType: string, payload: DocDragPayload) => {
+    if (!db) return;
+    const sourceType = payload.type;
+    if (!sourceType || sourceType === targetType || isChiffrageOutputType(targetType)) return;
+    const sourceDocs = sortedDocs.filter((d) => docTypeOf(d) === sourceType);
+    const targetDocs = (docsByType[targetType] || []).filter((d) => !!d.url);
+    if (sourceDocs.length === 0) return;
+    const userEmail = auth?.currentUser?.email || 'Admin';
+    try {
+      const res = await reclassifyDocuments({
+        db, dossierId, sourceType, targetType, sourceDocs, targetDocs,
+        userEmail, userName: profile?.nom,
+        compagnie: ((dossier as any)?.compagnie as string | undefined) ?? null,
+      });
+      toast({
+        title: res.mode === 'swap'
+          ? `Documents échangés : ${sourceType} ↔ ${targetType}`
+          : `Document déplacé vers « ${targetType} »`,
+      });
+    } catch (error: any) {
+      console.error('Reclassify error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur lors du reclassement',
+        description: error?.message || 'Impossible de déplacer le document.',
+      });
+    }
+  };
+
   const openDoc = (d: TypedDoc, pages?: TypedDoc[]) => {
     if (d.pendingUpload || !d.url) return;
     const list = (pages && pages.length > 0 ? pages : [d])
@@ -658,6 +697,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
       onCreateExtraSlot={noop}
       onRenameExtraSlot={noop}
       onPreview={openDoc}
+      onDocDrop={(payload) => handleDocDrop(spec.type, payload)}
       hideCardinalPlus
       hideExtraSlotPlus
       hint={spec.hint}

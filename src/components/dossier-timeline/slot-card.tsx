@@ -11,8 +11,15 @@
  * The files of a slot are the PAGES of one document (a carte grise is shot
  * recto then verso). A slot holding n ≥ 2 files renders a 2-up page strip,
  * the slot title + "n pages · size · date · user" meta and a numbered pager
- * (per-page Aperçu · Télécharger · Supprimer, "Ajouter une page"). Pages are
- * ordered by upload time (oldest first). n = 1 keeps the single-item layout.
+ * (per-page Aperçu · Télécharger · Supprimer). Pages are ordered by upload
+ * time (oldest first). n = 1 keeps the single-item layout. Pages are added
+ * only by the SmartInbox classifying a file into the same type — filled
+ * tiles have no "add" affordance and accept no OS file drops.
+ *
+ * Socket-to-socket drag (correcting the AI's placement): a filled tile is
+ * draggable (`application/x-sl-doc` = `{ docId, type }`); every socket the
+ * user may upload into is a drop target — empty → "Déplacer ici" (move),
+ * filled → "Échanger" (swap). The host performs the writes (`onDocDrop`).
  *
  * Three states:
  *  1. Filled ("item in slot") — raised paper tile, the document visual
@@ -20,16 +27,10 @@
  *     `scale-[1.02]`), actions as a hover/focus overlay. A 2 px success top
  *     edge is the only received signal — no "Reçu" chip.
  *  2. Empty uploadable ("open socket") — recessed dashed well; the whole tile
- *     is the upload button AND the drop target.
+ *     is the upload button AND the file-drop target.
  *  3. Locked — recessed, non-interactive, `Lock` icon: chiffreur-only
  *     accord / proposition / réforme / rapport slots without a document
- *     (plus any empty slot for read-only viewers).
- *
- * All behaviour is the original slot-card contract: cardinal `+` pimple with
- * chain gating, extra-garage `+` picker, rename pencil on extras, 1-doc cap on
- * extras, per-doc delete rules, chiffreur "Éditer" on pending accords,
- * session-replay highlighting. Optional extras for the Pièces tab: `hint`,
- * `emptyCaption`, `accept`/`acceptFile`, selection overlay, `id`.
+ *     (plus any empty slot for read-only viewers). Never a drop target.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -48,13 +49,17 @@ import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from './replay-highlight';
 import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
 import {
+  DOC_DRAG_MIME,
   docDisplayName,
   docMetaLine,
   docPagesMetaLine,
   downloadFileFromUrl,
   isImage,
   isPdf,
+  readDocDragPayload,
   sortPagesAsc,
+  writeDocDragPayload,
+  type DocDragPayload,
   type ExtraSlotKind,
   type TypedDoc,
 } from '@/components/documents/typed-doc';
@@ -84,6 +89,13 @@ export interface SlotCardProps {
    * slots so the host can enable ‹ › paging across the sibling files.
    */
   onPreview: (d: TypedDoc, pages?: TypedDoc[]) => void;
+  /**
+   * Socket-to-socket drag support. When set, a filled tile is draggable and
+   * this socket accepts a dragged document (`payload.type` ≠ this slot):
+   * the host moves (empty target) or swaps (filled target). Only slots the
+   * user may upload into (`canEdit`, not chiffreur-only) take part.
+   */
+  onDocDrop?: (payload: DocDragPayload) => void;
   /**
    * When true, the cardinal `+` pimple button (used to create the next
    * accord/proposition cardinal slot) is not rendered. The "extra slot"
@@ -150,20 +162,19 @@ const PAGE_PILL_CLASS =
   'inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2 ' +
   'transition-colors duration-150 hover:bg-surface-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
-// Dashed "Ajouter une page" ghost.
-const ADD_PAGE_CLASS =
-  'inline-flex items-center gap-1 rounded-full border border-dashed border-hairline-strong text-[11px] font-medium text-ink-3 ' +
-  'transition-colors duration-150 hover:border-primary/50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait';
+const DRAG_OVER_CLASS = 'bg-accent/40 ring-2 ring-primary/50';
 
 const DEFAULT_ACCEPT = 'image/*,.pdf';
 const defaultAcceptFile = (f: File) => f.type.startsWith('image/') || /\.pdf$/i.test(f.name);
+
+type DragKind = 'file' | 'doc' | null;
 
 /** One page's visual — image cover, first PDF page, or the file glyph. */
 function PageThumb({ doc }: { doc: TypedDoc }) {
   const name = docDisplayName(doc);
   if (doc.url && isImage(name)) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={doc.url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />;
+    return <img src={doc.url} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" />;
   }
   if (doc.url && isPdf(name)) {
     return <PdfThumbnail url={doc.url} width={320} className="h-full w-full" />;
@@ -171,6 +182,17 @@ function PageThumb({ doc }: { doc: TypedDoc }) {
   return (
     <div className="flex h-full w-full items-center justify-center text-ink-3" aria-hidden>
       <FileText className="h-6 w-6" />
+    </div>
+  );
+}
+
+/** Dashed caption shown over a socket while a document hovers it. */
+function DropCaption({ label }: { label: string }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-lg">
+      <span className="rounded-md border border-dashed border-primary/60 bg-card px-2 py-1 text-xs font-medium text-ink shadow-card">
+        {label}
+      </span>
     </div>
   );
 }
@@ -191,6 +213,7 @@ export function SlotCard({
   onCreateExtraSlot,
   onRenameExtraSlot,
   onPreview,
+  onDocDrop,
   hideCardinalPlus,
   hideExtraSlotPlus,
   onEdit,
@@ -204,9 +227,10 @@ export function SlotCard({
   onToggleSelect,
 }: SlotCardProps) {
   void userRole; // accepted for prop compatibility; roles gate via callbacks
+  const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const extraSlotInputRef = useRef<HTMLInputElement>(null);
-  const [isDragOver, setIsDragOver] = useState(false);
+  const [dragKind, setDragKind] = useState<DragKind>(null);
   const dragDepth = useRef(0);
   // Inert on the live editing page; in the rappel replica it tints documents
   // the gestionnaire added / changed during their treatment session.
@@ -258,11 +282,11 @@ export function SlotCard({
   // Rename pencil: only on gestionnaire-managed extras.
   const showRenameButton = !!extraSlotKind && canManageExtraSlots;
 
-  // Drop accepted only when the upload UI itself is allowed for this slot.
-  const dropEnabled = canEdit && !hideUploadForAccord && !isFilledExtraSlot;
-  const uploadAllowed = dropEnabled;
-
   const filled = pages.length > 0;
+  // Explicit typed upload: click / OS file drop — EMPTY sockets only.
+  const uploadAllowed = canEdit && !hideUploadForAccord && !isFilledExtraSlot && !filled;
+  // Socket-to-socket document drag: any slot the user may upload into.
+  const docDndEnabled = !!onDocDrop && canEdit && !hideUploadForAccord;
 
   // `animate-scale-in` only on the empty → filled transition ("item lands in
   // the socket"), never on initial mount — page load must stay still.
@@ -273,47 +297,72 @@ export function SlotCard({
     prevFilled.current = filled;
   }, [filled]);
 
+  // ── Drop-target plumbing (OS files on empty sockets, documents anywhere allowed)
+  const kindOf = (dt: DataTransfer): DragKind => {
+    const types = Array.from(dt.types || []);
+    if (docDndEnabled && types.includes(DOC_DRAG_MIME)) return 'doc';
+    if (uploadAllowed && types.includes('Files')) return 'file';
+    return null;
+  };
+
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!dropEnabled) return;
-    if (!e.dataTransfer.types.includes('Files')) return;
+    const kind = kindOf(e.dataTransfer);
+    if (!kind) return;
     e.preventDefault();
     e.stopPropagation();
     dragDepth.current += 1;
-    setIsDragOver(true);
+    setDragKind(kind);
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!dropEnabled) return;
-    if (!e.dataTransfer.types.includes('Files')) return;
+    const kind = kindOf(e.dataTransfer);
+    if (!kind) return;
     e.preventDefault();
     e.stopPropagation();
-    e.dataTransfer.dropEffect = 'copy';
+    e.dataTransfer.dropEffect = kind === 'doc' ? 'move' : 'copy';
   };
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!dropEnabled) return;
+    if (!dragKind) return;
     e.preventDefault();
     e.stopPropagation();
     dragDepth.current = Math.max(0, dragDepth.current - 1);
-    if (dragDepth.current === 0) setIsDragOver(false);
+    if (dragDepth.current === 0) setDragKind(null);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!dropEnabled) return;
+    const kind = kindOf(e.dataTransfer);
+    dragDepth.current = 0;
+    setDragKind(null);
+    if (!kind) return;
     e.preventDefault();
     e.stopPropagation();
-    dragDepth.current = 0;
-    setIsDragOver(false);
+    if (kind === 'doc') {
+      const payload = readDocDragPayload(e.dataTransfer);
+      if (payload && payload.type !== slot) onDocDrop?.(payload);
+      return;
+    }
     const files = Array.from(e.dataTransfer.files || []).filter(acceptFile);
     if (files.length > 0) onUpload(files);
   };
 
-  const dragProps = {
+  const dropProps = {
     onDragEnter: handleDragEnter,
     onDragOver: handleDragOver,
     onDragLeave: handleDragLeave,
     onDrop: handleDrop,
   };
+
+  // ── Drag source (filled tiles): the whole tile is the drag image.
+  const draggable = filled && docDndEnabled;
+  const handleDragStart = (e: React.DragEvent<HTMLElement>) => {
+    if (!draggable) return;
+    writeDocDragPayload(e.dataTransfer, { docId: pages[0].id, type: slot });
+    if (rootRef.current) e.dataTransfer.setDragImage(rootRef.current, 24, 24);
+  };
+  const dragSourceProps = draggable
+    ? { draggable: true, onDragStart: handleDragStart, title: 'Glisser vers un autre emplacement pour reclasser' }
+    : {};
 
   // Slot controls (rename · cardinal + · extra +) — original placement rules.
   const hasControls =
@@ -377,19 +426,6 @@ export function SlotCard({
     </>
   ) : null;
 
-  const uploadInput = uploadAllowed ? (
-    <input
-      ref={inputRef}
-      type="file"
-      accept={accept}
-      multiple
-      className="hidden"
-      onChange={handlePick}
-      tabIndex={-1}
-      aria-hidden
-    />
-  ) : null;
-
   const selectionOverlay = (anySelectable: boolean) =>
     selectable ? (
       <div className="absolute left-1.5 top-1.5 z-10 rounded bg-card p-0.5 shadow-card">
@@ -405,9 +441,10 @@ export function SlotCard({
   const tileClass = cn(
     ITEM_TILE_CLASS,
     justFilled && 'animate-scale-in',
-    isDragOver && 'bg-accent/40 ring-2 ring-primary/50',
+    dragKind && DRAG_OVER_CLASS,
     selectable && selected && 'ring-2 ring-primary',
   );
+  const docDropCaption = dragKind === 'doc' ? <DropCaption label={filled ? 'Échanger' : 'Déplacer ici'} /> : null;
 
   // ── State 1b: filled, multi-page (n ≥ 2) ──────────────────────────────────
   if (pages.length >= 2) {
@@ -419,10 +456,9 @@ export function SlotCard({
       parsedAccord && typeof latest.uploadedByName === 'string' ? latest.uploadedByName.trim() : '';
 
     return (
-      <div id={id} className={tileClass} {...dragProps}>
+      <div id={id} ref={rootRef} className={tileClass} {...dropProps}>
         {/* The only "received" signal — a 2 px success edge. No chip. */}
         <div aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-status-success-fg/60" />
-        {uploadInput}
 
         {/* Controls row (only when a control exists) */}
         {controls ? (
@@ -431,8 +467,12 @@ export function SlotCard({
           <div className="pt-2" aria-hidden />
         )}
 
-        {/* Page strip — the first two pages 2-up, "+n" on the second when more */}
-        <div className="relative mx-2.5 mt-1 h-20 shrink-0 overflow-hidden rounded-md bg-hairline">
+        {/* Page strip — the first two pages 2-up, "+n" on the second when more.
+            Draggable: carries every page of this document. */}
+        <div
+          className={cn('relative mx-2.5 mt-1 h-20 shrink-0 overflow-hidden rounded-md bg-hairline', draggable && 'cursor-grab active:cursor-grabbing')}
+          {...dragSourceProps}
+        >
           <button
             type="button"
             onClick={() => onPreview(pages[0], pages)}
@@ -471,7 +511,7 @@ export function SlotCard({
           )}
         </div>
 
-        {/* Pager — numbered pills with per-page actions, then "Ajouter une page" */}
+        {/* Pager — numbered pills with per-page actions */}
         <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2" aria-label="Pages">
           {pages.map((p, i) => {
             const name = docDisplayName(p);
@@ -516,19 +556,8 @@ export function SlotCard({
               </DropdownMenu>
             );
           })}
-          {uploadAllowed && (
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
-              disabled={isUploading}
-              className={cn(ADD_PAGE_CLASS, 'h-5 px-1.5')}
-              aria-label={`Ajouter une page — ${slot}`}
-            >
-              {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-              {isUploading ? 'Envoi…' : 'Ajouter une page'}
-            </button>
-          )}
         </div>
+        {docDropCaption}
       </div>
     );
   }
@@ -547,10 +576,9 @@ export function SlotCard({
     const meta = docMetaLine(primary);
 
     return (
-      <div id={id} className={tileClass} {...dragProps}>
+      <div id={id} ref={rootRef} className={tileClass} {...dropProps}>
         {/* The only "received" signal — a 2 px success edge. No chip. */}
         <div aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-status-success-fg/60" />
-        {uploadInput}
 
         {/* Slot label + controls */}
         <div className="flex items-center gap-1 px-2.5 pb-1 pt-2">
@@ -558,8 +586,12 @@ export function SlotCard({
           {controls}
         </div>
 
-        {/* Item visual — image cover, first PDF page, or large glyph; overlay actions */}
-        <div className="relative mx-2.5 h-20 shrink-0 overflow-hidden rounded-md bg-surface-2">
+        {/* Item visual — image cover, first PDF page, or large glyph; overlay
+            actions. Draggable to another socket to reclassify. */}
+        <div
+          className={cn('relative mx-2.5 h-20 shrink-0 overflow-hidden rounded-md bg-surface-2', draggable && 'cursor-grab active:cursor-grabbing')}
+          {...dragSourceProps}
+        >
           <PageThumb doc={primary} />
           {selectionOverlay(primaryClickable)}
           <div className="absolute inset-0 flex items-center justify-center gap-1 bg-ink-solid/60 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
@@ -625,20 +657,7 @@ export function SlotCard({
             </p>
           )}
         </div>
-
-        {/* Append a page (recto → verso…) — same upload path */}
-        {uploadAllowed && (
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={isUploading}
-            className={cn(ADD_PAGE_CLASS, 'mx-2.5 mb-2 h-7 justify-center rounded-md px-2')}
-            aria-label={`Ajouter une page — ${slot}`}
-          >
-            {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-            {isUploading ? 'Envoi…' : 'Ajouter une page'}
-          </button>
-        )}
+        {docDropCaption}
       </div>
     );
   }
@@ -646,8 +665,17 @@ export function SlotCard({
   // ── State 2: empty uploadable ("open socket") ─────────────────────────────
   if (uploadAllowed) {
     return (
-      <div id={id} className="relative" {...dragProps}>
-        {uploadInput}
+      <div id={id} className="relative" {...dropProps}>
+        <input
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          multiple
+          className="hidden"
+          onChange={handlePick}
+          tabIndex={-1}
+          aria-hidden
+        />
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
@@ -657,7 +685,7 @@ export function SlotCard({
             SOCKET_BASE_CLASS,
             SOCKET_OPEN_CLASS,
             'disabled:cursor-wait',
-            isDragOver && 'bg-accent/40 ring-2 ring-primary/50',
+            dragKind && DRAG_OVER_CLASS,
           )}
         >
           {isUploading ? (
@@ -677,11 +705,12 @@ export function SlotCard({
         {controls && (
           <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-0.5">{controls}</div>
         )}
+        {docDropCaption}
       </div>
     );
   }
 
-  // ── State 3: locked ("locked slot") ───────────────────────────────────────
+  // ── State 3: locked ("locked slot") — never a drop target ─────────────────
   const lockText =
     parsedAccord || isReformeSlot
       ? 'En attente de chiffrage'

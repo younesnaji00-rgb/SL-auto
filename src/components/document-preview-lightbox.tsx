@@ -19,9 +19,40 @@
 import * as React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Download, Trash2, X } from 'lucide-react';
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { ChevronLeft, ChevronRight, Download, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { TransformWrapper, TransformComponent, useControls, useTransformEffect } from 'react-zoom-pan-pinch';
 import { cn } from '@/lib/utils';
+
+/**
+ * Zoom toolbar rendered inside the TransformWrapper (hooks need its context):
+ * − / percentage / + / fit. Buttons step 25 %; the wheel is configured on the
+ * wrapper to zoom gradually (a few % per notch) instead of jumping.
+ */
+function ZoomControls() {
+  const { zoomIn, zoomOut, resetTransform } = useControls();
+  const [scale, setScale] = React.useState(1);
+  useTransformEffect(({ state }) => {
+    setScale(state.scale);
+  });
+  return (
+    <div
+      className="pointer-events-auto absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-card/95 px-1 py-0.5 shadow-raised ring-1 ring-hairline"
+      role="group"
+      aria-label="Zoom"
+      title="Molette pour zoomer progressivement, double-clic pour agrandir"
+    >
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomOut(0.25, 150)} aria-label="Zoom arrière" disabled={scale <= 1}>
+        <ZoomOut className="h-4 w-4" />
+      </Button>
+      <button type="button" className="t-caption min-w-[3.25rem] rounded px-1 text-center tabular-nums hover:bg-surface-2" onClick={() => resetTransform(150)} aria-label={`Zoom ${Math.round(scale * 100)} % — réinitialiser`}>
+        {Math.round(scale * 100)} %
+      </button>
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomIn(0.25, 150)} aria-label="Zoom avant" disabled={scale >= 8}>
+        <ZoomIn className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
 
 export interface DocumentPreviewLightboxDoc {
   url: string;
@@ -154,7 +185,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
         </DialogHeader>
         <div
           className={cn(
-            'flex max-w-full items-center justify-center overflow-hidden bg-ink-solid',
+            'relative flex max-w-full items-center justify-center overflow-hidden bg-ink-solid',
             ratio === null && 'flex-1',
             portrait && 'min-h-0 flex-1 lg:aspect-[var(--ar)]',
             landscape && 'min-h-0 flex-1 lg:flex-none lg:w-full lg:aspect-[var(--ar)]',
@@ -164,10 +195,16 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
           {isImage ? (
             <TransformWrapper
               minScale={1}
-              maxScale={5}
-              doubleClick={{ mode: 'zoomIn', step: 0.7 }}
-              wheel={{ step: 0.2 }}
+              maxScale={8}
+              doubleClick={{ mode: 'zoomIn', step: 0.5, animationTime: 200 }}
+              // Gradual wheel zoom: ~5 % per notch (the default 0.2 jumped
+              // 20 % per notch). The toolbar buttons pass their own 25 % step.
+              wheel={{ step: 0.05 }}
+              pinch={{ step: 5 }}
+              zoomAnimation={{ animationTime: 150 }}
+              centerZoomedOut
             >
+              <ZoomControls />
               <TransformComponent
                 wrapperClass="!w-full !h-full"
                 contentClass="!w-full !h-full flex items-center justify-center"

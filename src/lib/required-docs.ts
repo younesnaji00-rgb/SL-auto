@@ -9,6 +9,24 @@
  * filled (either-or). "Autre" is optional and never counted.
  */
 
+import { parseAccordDocType } from './docType-accorde';
+
+/**
+ * Chiffrage / expertise OUTPUT types — produced by the chiffreur (accords,
+ * propositions, any cardinal), the report generator (Rapport *, Réforme *)
+ * or the honoraires step. They live exclusively on the accord / rapport /
+ * honoraires steps and must never surface in step 1 (Pièces).
+ */
+export function isChiffrageOutputType(type: string | null | undefined): boolean {
+  const t = (type || '').trim();
+  if (!t) return false;
+  if (parseAccordDocType(t)) return true;
+  if (t === 'Réforme technique' || t === 'Réforme économique') return true;
+  if (t === 'Rapport final' || t.startsWith('Rapport ')) return true;
+  if (t === "Note d'honoraire") return true;
+  return false;
+}
+
 export const REQUIRED_SOURCE_SLOTS = [
   'PV-Constat / Récépissé de police',
   'Carte grise',

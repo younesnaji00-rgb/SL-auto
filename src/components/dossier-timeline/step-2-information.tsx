@@ -177,6 +177,37 @@ export default function Step2Information({
   // outgoing first, then layout, then incoming).
   const { mounted: paneMounted, shown: paneShown } = usePresence(showCompare, 300);
 
+  // Gradual wheel zoom (Ctrl/⌘ + wheel; a plain wheel scrolls), anchored
+  // under the cursor: ~±10 % per notch via an exponential factor, clamped to
+  // 50–400 %. Native listener because React's wheel events are passive (no
+  // preventDefault → the browser would zoom the whole page).
+  useEffect(() => {
+    if (!paneMounted) return;
+    const el = paneRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const px = cx + el.scrollLeft;
+      const py = cy + el.scrollTop;
+      setZoom((prev) => {
+        const next = Math.min(4, Math.max(0.5, prev * Math.exp(-e.deltaY * 0.0015)));
+        if (next === prev) return prev;
+        const k = next / prev;
+        requestAnimationFrame(() => {
+          el.scrollLeft = px * k - cx;
+          el.scrollTop = py * k - cy;
+        });
+        return next;
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [paneMounted]);
+
   if (!paneMounted) {
     return (
       <div className="space-y-4">
@@ -227,7 +258,7 @@ export default function Step2Information({
                 <p className="t-caption truncate" title={selectedFileName}>{selectedFileName}</p>
               )}
             </div>
-            <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="Zoom">
+            <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="Zoom" title="Ctrl + molette pour zoomer progressivement">
               <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-ink-3 hover:text-ink" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} disabled={!selectedUrl || zoom <= 0.5} aria-label="Zoom arrière">
                 <ZoomOut className="h-3.5 w-3.5" />
               </Button>

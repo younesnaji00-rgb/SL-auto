@@ -10,6 +10,7 @@ import {
 import type { DocFamily } from '@/lib/doc-family';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { cn } from '@/lib/utils';
+import type { DocDragPayload } from '@/components/documents/typed-doc';
 
 interface FamilyRowProps {
   /** The family group (parent + ordered slot labels) to render as a row. */
@@ -60,6 +61,11 @@ interface FamilyRowProps {
   onEditSlot?: (slot: string) => void;
   /** Scopes the per-family collapse persistence (sessionStorage). */
   dossierId?: string;
+  /**
+   * Socket-to-socket drag (reclassify): called with the target slot and the
+   * dragged document payload. Forwarded to each uploadable `SlotCard`.
+   */
+  onDocDrop?: (slot: string, payload: DocDragPayload) => void;
 }
 
 /**
@@ -92,6 +98,7 @@ export function FamilyRow({
   cardinalFilter = 'all',
   onEditSlot,
   dossierId,
+  onDocDrop,
 }: FamilyRowProps) {
   const storageKey = `docfam-collapsed:${dossierId ?? 'dossier'}:${group.parent}`;
   const [collapsed, setCollapsed] = React.useState<boolean>(() => {
@@ -193,6 +200,7 @@ export function FamilyRow({
               hideCardinalPlus={hideCardinalPlus}
               hideExtraSlotPlus={hideExtraSlotPlus}
               onEdit={onEditSlot ? () => onEditSlot(slot) : undefined}
+              onDocDrop={onDocDrop ? (payload) => onDocDrop(slot, payload) : undefined}
             />
           ))}
         </div>
