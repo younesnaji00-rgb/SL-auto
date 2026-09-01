@@ -121,11 +121,12 @@ export default function PlanificationTab({
                   highlightClass(replayStatus),
                 )}
               >
-                {/* Date block — the next upcoming visit gets the navy surface. */}
+                {/* Date block — the row's anchor: tinted + light contour; the next
+                    upcoming visit gets the terracotta surface. */}
                 <div
                   className={cn(
                     'flex w-14 shrink-0 flex-col items-center justify-center rounded-md py-1.5 text-center tabular-nums',
-                    upcoming ? 'bg-tertiary text-tertiary-foreground' : 'bg-surface-2 text-ink-3',
+                    upcoming ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled' : 'bg-surface-3 text-ink-2 shadow-rim',
                   )}
                 >
                   <span className="text-[11px] font-medium uppercase leading-none">{rdv ? format(rdv, 'MMM', { locale: fr }).replace('.', '') : '—'}</span>
@@ -152,14 +153,14 @@ export default function PlanificationTab({
                   <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
                     <div>
                       <dt className="t-label">Agent de terrain</dt>
-                      <dd className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-ink">
+                      <dd className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-ink">
                         <User className="h-3.5 w-3.5 shrink-0 text-ink-3" />
                         {plan.agentTerrain || <span className="font-normal text-ink-3">Non assigné</span>}
                       </dd>
                     </div>
                     <div>
                       <dt className="t-label">Zone d&apos;intervention</dt>
-                      <dd className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-ink">
+                      <dd className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-ink">
                         <MapPin className="h-3.5 w-3.5 shrink-0 text-ink-3" />
                         {plan.zone || <span className="font-normal text-ink-3">—</span>}
                       </dd>

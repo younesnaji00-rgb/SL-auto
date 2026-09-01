@@ -144,7 +144,7 @@ const HEADER_ICON_BUTTON_CLASS =
 
 /** Recessed socket base — shared by the empty and locked states (exported for sibling tiles). */
 export const SOCKET_BASE_CLASS =
-  'flex min-h-[120px] w-full flex-col items-center justify-center gap-1 rounded-lg bg-surface-2 px-3 py-4 text-center ' +
+  'flex min-h-[120px] w-full flex-col items-center justify-center gap-1 rounded-[10px] bg-surface-2 px-3 py-4 text-center ' +
   'shadow-[inset_0_1px_3px_hsl(var(--shadow-color)/0.08)]';
 
 /** Interactive dashed variant of the socket (empty uploadable / "add" tiles). */
@@ -154,7 +154,7 @@ export const SOCKET_OPEN_CLASS =
 
 // Raised item tile (filled state).
 const ITEM_TILE_CLASS =
-  'group relative flex min-h-[120px] flex-col overflow-hidden rounded-lg bg-card shadow-card dark:ring-1 dark:ring-hairline ' +
+  'group relative flex min-h-[120px] flex-col overflow-hidden rounded-[10px] bg-card shadow-card dark:ring-1 dark:ring-hairline ' +
   'transition-[transform,box-shadow] duration-150 hover:scale-[1.02] hover:shadow-raised motion-reduce:transform-none motion-reduce:hover:scale-100';
 
 // Numbered page pill (multi-page pager).
@@ -189,7 +189,7 @@ function PageThumb({ doc }: { doc: TypedDoc }) {
 /** Dashed caption shown over a socket while a document hovers it. */
 function DropCaption({ label }: { label: string }) {
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-lg">
+    <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[10px]">
       <span className="rounded-md border border-dashed border-primary/60 bg-card px-2 py-1 text-xs font-medium text-ink shadow-card">
         {label}
       </span>
@@ -720,7 +720,9 @@ export function SlotCard({
 
   return (
     <div id={id} className="relative">
-      <div className={cn(SOCKET_BASE_CLASS, 'border border-hairline')}>
+      {/* Lighter than a disabled button (user ruling 2026-09-01): near-white
+          fill + faint SOLID edge + lock. Dashed stays reserved for "drop here". */}
+      <div className={cn(SOCKET_BASE_CLASS, 'border border-hairline bg-card/60')}>
         <Lock className="h-5 w-5 text-ink-4" aria-hidden />
         <span className="t-body-sm w-full truncate font-medium text-ink-3" title={slot}>{slot}</span>
         <span className="t-caption text-ink-4">{lockText}</span>
