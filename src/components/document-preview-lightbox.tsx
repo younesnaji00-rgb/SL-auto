@@ -150,13 +150,13 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
           // Below lg the dialog base renders a full-width bottom sheet; the
           // orientation-aware sizing only applies to the centred lg+ modal
           // (lg-prefixed so it outranks the base's `lg:max-w-lg`).
-          'flex h-[85dvh] flex-col overflow-hidden p-0',
+          'flex h-[calc(85dvh/var(--app-zoom))] flex-col overflow-hidden p-0',
           // Ratio unknown yet (image still loading): the previous neutral box.
-          ratio === null && 'lg:h-[85svh] lg:max-w-4xl',
+          ratio === null && 'lg:h-[calc(85svh/var(--app-zoom))] lg:max-w-4xl',
           // Portrait media → tall window: height leads, width follows the ratio.
-          portrait && 'lg:h-[92svh] lg:w-auto lg:min-w-[420px] lg:max-w-[96vw]',
+          portrait && 'lg:h-[calc(92svh/var(--app-zoom))] lg:w-auto lg:min-w-[420px] lg:max-w-[calc(96vw/var(--app-zoom))]',
           // Landscape media → wide window: width leads, height follows.
-          landscape && 'lg:h-auto lg:max-h-[92svh] lg:w-[min(96vw,1200px)] lg:max-w-[96vw]',
+          landscape && 'lg:h-auto lg:max-h-[calc(92svh/var(--app-zoom))] lg:w-[min(calc(96vw/var(--app-zoom)),1200px)] lg:max-w-[calc(96vw/var(--app-zoom))]',
         )}
         style={ratio !== null ? ({ ['--ar' as string]: String(ratio) } as React.CSSProperties) : undefined}
       >
@@ -213,7 +213,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
             portrait && 'min-h-0 flex-1 lg:aspect-[var(--ar)]',
             landscape && 'min-h-0 flex-1 lg:flex-none lg:w-full lg:aspect-[var(--ar)]',
           )}
-          style={landscape ? { maxHeight: `calc(92svh - ${HEADER_H}px)` } : undefined}
+          style={landscape ? { maxHeight: `calc((92svh - ${HEADER_H}px) / var(--app-zoom))` } : undefined}
         >
           {isImage ? (
             <TransformWrapper

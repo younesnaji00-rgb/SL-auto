@@ -13,7 +13,7 @@ const PageLoader = React.forwardRef<HTMLDivElement, PageLoaderProps>(
       <div
         ref={ref}
         className={cn(
-          "flex min-h-[60vh] w-full flex-col items-center justify-center gap-3 text-muted-foreground",
+          "flex min-h-[calc(60vh/var(--app-zoom))] w-full flex-col items-center justify-center gap-3 text-muted-foreground",
           className
         )}
         aria-live="polite"

@@ -197,7 +197,7 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
             so they can't be applied through an arbitrary variant). Rows = t-body-sm. */}
         <Command shouldFilter={false} loop className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.06em] [&_[cmdk-group-heading]]:text-ink-3 [&_[cmdk-item]]:text-[13px] [&_[cmdk-item]]:text-ink">
           <CommandInput ref={inputRef} placeholder="Réf., plaque, assuré, page ou action…" value={query} onValueChange={setQuery} />
-          <CommandList className="max-h-[60vh]">
+          <CommandList className="max-h-[calc(60vh/var(--app-zoom))]">
             {nothing && q.length < 2 && <CommandEmpty>Aucun résultat.</CommandEmpty>}
 
             {showRecents && (openTabs.length > 0 || recentEntries.length > 0) && (

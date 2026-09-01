@@ -27,7 +27,7 @@ export default function EditorLoading() {
       {/* Canvas area */}
       <div className="flex-1 flex items-center justify-center bg-slate-200 dark:bg-slate-800 p-8">
         <div className="space-y-6 w-full max-w-3xl">
-          <Skeleton className="h-[70vh] w-full rounded-lg bg-white dark:bg-slate-700 shadow-lg" />
+          <Skeleton className="h-[calc(70vh/var(--app-zoom))] w-full rounded-lg bg-white dark:bg-slate-700 shadow-lg" />
         </div>
       </div>
     </div>

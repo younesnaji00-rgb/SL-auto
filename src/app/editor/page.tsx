@@ -771,7 +771,7 @@ export default function EditorPage() {
           <div className="h-8 w-28 animate-pulse rounded bg-muted" />
         </div>
         <div className="flex-1 flex items-center justify-center bg-slate-200 dark:bg-slate-800 p-8">
-          <div className="h-[70vh] w-full max-w-3xl animate-pulse rounded-lg bg-white dark:bg-slate-700 shadow-lg" />
+          <div className="h-[calc(70vh/var(--app-zoom))] w-full max-w-3xl animate-pulse rounded-lg bg-white dark:bg-slate-700 shadow-lg" />
         </div>
         <div className="bg-card border-t px-4 py-1.5 h-7" />
       </div>

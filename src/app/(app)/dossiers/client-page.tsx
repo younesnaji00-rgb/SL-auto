@@ -710,7 +710,7 @@ export default function DossiersClientPage() {
         </div>
       ) : null}
 
-      <Card className="max-h-[calc(100dvh-280px)] overflow-x-scroll overflow-y-auto [&>div]:overflow-visible">
+      <Card className="max-h-[calc((100dvh-280px)/var(--app-zoom))] overflow-x-scroll overflow-y-auto [&>div]:overflow-visible">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>

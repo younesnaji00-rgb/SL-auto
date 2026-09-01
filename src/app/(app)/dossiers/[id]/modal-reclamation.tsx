@@ -159,7 +159,7 @@ export default function ModalReclamation({ open, onOpenChange, dossierId }: Moda
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[calc(80vh/var(--app-zoom))] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Soumettre une Réclamation</DialogTitle>
           <DialogDescription>

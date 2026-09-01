@@ -186,7 +186,7 @@ export function CreateDossierDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[calc(85vh/var(--app-zoom))] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nouveau dossier</DialogTitle>
           <DialogDescription>

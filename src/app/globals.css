@@ -417,6 +417,35 @@ body::after {
   body::after { display: none; }
 }
 
+/* ── Density zoom (user ruling 2026-09-01) ─────────────────────────────
+   0.9 on 1080p monitors, 1.1 on 1440p, 1.0 everywhere else — fixed, never
+   per-size beyond these two classes. The value is set on <html> by the
+   inline script in app/layout.tsx from the PHYSICAL screen height
+   (screen.height × devicePixelRatio), so OS scaling doesn't fool it.
+   CSS zoom scales everything except viewport units (measured in Chrome 151:
+   100svh renders at 90 % under zoom 0.9), so EVERY vh/svh/dvh/vw value in
+   the app must be divided by --app-zoom: the core utilities below are
+   re-declared; arbitrary values use calc(…/var(--app-zoom)). */
+:root {
+  --app-zoom: 1;
+}
+html {
+  zoom: var(--app-zoom);
+}
+.h-svh { height: calc(100svh / var(--app-zoom)); }
+.min-h-svh { min-height: calc(100svh / var(--app-zoom)); }
+.max-h-svh { max-height: calc(100svh / var(--app-zoom)); }
+.h-dvh { height: calc(100dvh / var(--app-zoom)); }
+.min-h-dvh { min-height: calc(100dvh / var(--app-zoom)); }
+.max-h-dvh { max-height: calc(100dvh / var(--app-zoom)); }
+.h-screen { height: calc(100vh / var(--app-zoom)); }
+.min-h-screen { min-height: calc(100vh / var(--app-zoom)); }
+.max-h-screen { max-height: calc(100vh / var(--app-zoom)); }
+.w-screen { width: calc(100vw / var(--app-zoom)); }
+@media print {
+  html { zoom: 1; }
+}
+
 @layer utilities {
   .tabular {
     font-variant-numeric: tabular-nums;

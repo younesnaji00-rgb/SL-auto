@@ -1080,7 +1080,7 @@ export function DevisEditor({
             isOpen={comparisonOpen}
             onClose={() => setComparisonOpen(false)}
             initialDocType={docType}
-            className="sticky top-4 self-start h-[calc(100dvh-7rem)] w-1/2 min-w-[320px] max-w-[640px] border rounded-xl overflow-hidden"
+            className="sticky top-4 self-start h-[calc((100dvh-7rem)/var(--app-zoom))] w-1/2 min-w-[320px] max-w-[640px] border rounded-xl overflow-hidden"
           />
         )}
         <div className={cn(comparisonOpen ? 'flex-1 min-w-0 space-y-4' : 'space-y-4')}>

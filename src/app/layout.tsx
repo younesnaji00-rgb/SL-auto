@@ -60,6 +60,15 @@ export default function RootLayout({
   return (
     <html lang="fr" suppressHydrationWarning className={cn(outfit.variable, inter.variable)}>
       <body className={cn('font-body antialiased')}>
+        {/* Density zoom (DESIGN.md §6): 0.9 on 1080p monitors, 1.1 on 1440p,
+            1 elsewhere — from the PHYSICAL screen height so OS scaling and
+            browser zoom don't fool it. Runs before paint; re-evaluated on
+            resize (window moved to another monitor). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){function z(){var d=window.devicePixelRatio||1;var h=Math.round(screen.height*d);var v=1;if(Math.abs(h-1080)<=8)v=0.9;else if(Math.abs(h-1440)<=8)v=1.1;document.documentElement.style.setProperty('--app-zoom',String(v));}z();window.addEventListener('resize',z);})();`,
+          }}
+        />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <FirebaseClientProvider>
             <PwaRegister />

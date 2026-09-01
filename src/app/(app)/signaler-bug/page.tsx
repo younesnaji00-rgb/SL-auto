@@ -143,7 +143,7 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
     <div className="space-y-6">
       <PageHeader title="Signaler un bug" icon={<Bug />} count={conversations?.length || 0} subtitle="Conversations des utilisateurs" />
 
-      <div className="grid min-h-[calc(100dvh-200px)] grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
+      <div className="grid min-h-[calc((100dvh-200px)/var(--app-zoom))] grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
         {/* Conversations list */}
         <Card className="overflow-hidden">
           <CardContent className="p-0">
@@ -413,7 +413,7 @@ function ChatThread({
       />
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100dvh-340px)]">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc((100dvh-340px)/var(--app-zoom))]">
         {loading ? (
           <div className="flex justify-center py-10">
             <InlineLoader label="Chargement…" size="md" />

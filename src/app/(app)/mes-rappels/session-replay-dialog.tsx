@@ -322,7 +322,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[97vw] h-[94vh] p-0 gap-0 flex flex-col overflow-hidden">
+      <DialogContent className="max-w-6xl w-[calc(97vw/var(--app-zoom))] h-[calc(94vh/var(--app-zoom))] p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader className="shrink-0 space-y-1.5 border-b border-hairline px-5 py-3">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Play className="h-4 w-4 text-ink-3" />

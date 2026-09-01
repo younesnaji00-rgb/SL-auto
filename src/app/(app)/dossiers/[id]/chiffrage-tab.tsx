@@ -197,7 +197,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
   const editorDocType = creatorKind === 'devis' ? 'Devis Garage' : 'Facture Garage';
   const creatorDialog = (
     <Dialog open={!!creatorKind} onOpenChange={(o) => !o && setCreatorKind(null)}>
-      <DialogContent className="max-w-[98vw] w-full h-[95vh] flex flex-col p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-[calc(98vw/var(--app-zoom))] w-full h-[calc(95vh/var(--app-zoom))] flex flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-4 py-3 border-b shrink-0">
           <DialogTitle>
             {creatorKind === 'devis' ? 'Créer un devis' : 'Créer une facture'}
@@ -333,7 +333,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
 
       {previewIndex !== null && chiffrage && downloadUrls[previewIndex] && (
         <Dialog open onOpenChange={() => setPreviewIndex(null)}>
-          <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
+          <DialogContent className="max-w-2xl h-[calc(60vh/var(--app-zoom))] flex flex-col p-0">
             <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
               {chiffrage.files[previewIndex].name.match(/\.(jpg|jpeg|png|webp)$/i) ? (
                 <img src={downloadUrls[previewIndex]} className="max-w-full max-h-full object-contain" alt="Aperçu" />

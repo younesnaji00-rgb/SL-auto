@@ -86,7 +86,7 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
             Historique des assignations chiffrage et planification.
           </SheetDescription>
         </SheetHeader>
-        <div className="py-6 pr-4 space-y-6 overflow-y-auto max-h-[calc(100dvh-150px)]">
+        <div className="py-6 pr-4 space-y-6 overflow-y-auto max-h-[calc((100dvh-150px)/var(--app-zoom))]">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-ink-3" />

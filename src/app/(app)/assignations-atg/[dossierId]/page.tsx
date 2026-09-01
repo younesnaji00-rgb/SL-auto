@@ -864,7 +864,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       {/* Photo preview dialog */}
       {previewPhoto && (
         <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
-          <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
+          <DialogContent className="max-w-2xl h-[calc(60vh/var(--app-zoom))] flex flex-col p-0">
             <div className="flex-1 overflow-hidden bg-ink-solid flex items-center justify-center">
               <img src={previewPhoto.url} className="max-w-full max-h-full object-contain" alt={previewPhoto.name} />
             </div>
@@ -875,7 +875,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       {/* Preuve preview dialog */}
       {previewPreuvePhotos && (
         <Dialog open onOpenChange={() => setPreviewPreuvePhotos(null)}>
-          <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
+          <DialogContent className="max-w-2xl h-[calc(60vh/var(--app-zoom))] flex flex-col p-0">
             <div className="flex-1 overflow-hidden bg-ink-solid flex items-center justify-center relative">
               <img
                 src={previewPreuvePhotos.urls[previewPreuvePhotos.index]}

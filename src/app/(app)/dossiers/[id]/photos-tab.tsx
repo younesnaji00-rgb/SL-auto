@@ -672,7 +672,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
         return (
           <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
             <DialogContent
-              className="max-w-[100vw] w-screen h-screen p-0 rounded-none border-0 flex flex-col bg-black/95"
+              className="max-w-[calc(100vw/var(--app-zoom))] w-screen h-screen p-0 rounded-none border-0 flex flex-col bg-black/95"
               onKeyDown={onKey}
             >
               <DialogHeader className="px-4 py-3 border-b border-white/10 shrink-0 pr-14">

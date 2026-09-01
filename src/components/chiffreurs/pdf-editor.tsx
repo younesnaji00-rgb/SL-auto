@@ -284,7 +284,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-[98vw] w-full h-[98vh] flex flex-col p-0 gap-0 border-none shadow-2xl overflow-hidden rounded-none bg-slate-100">
+      <DialogContent className="max-w-[calc(98vw/var(--app-zoom))] w-full h-[calc(98vh/var(--app-zoom))] flex flex-col p-0 gap-0 border-none shadow-2xl overflow-hidden rounded-none bg-slate-100">
         <DialogHeader className="px-6 py-3 border-b bg-card shrink-0 z-50 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">

@@ -445,7 +445,7 @@ export default function DossierDetailPage({
           onPlanifier={(type) => handleNewPlanification(type)}
           onChiffrage={() => setChiffrageModalOpen(true)}
           className={cn(
-            'flex w-[280px] max-h-[calc(100svh-7rem)] overflow-y-auto overflow-x-hidden pt-4 scrollbar-thin transition-[opacity,transform] duration-200 ease-standard motion-reduce:transition-none',
+            'flex w-[280px] max-h-[calc((100svh-7rem)/var(--app-zoom))] overflow-y-auto overflow-x-hidden pt-4 scrollbar-thin transition-[opacity,transform] duration-200 ease-standard motion-reduce:transition-none',
             focusMode ? '-translate-x-3 opacity-0' : 'translate-x-0 opacity-100 delay-150',
           )}
         />

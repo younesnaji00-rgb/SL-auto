@@ -172,7 +172,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[1000px] max-h-[95vh] overflow-y-auto p-0 border-none shadow-2xl">
+      <DialogContent className="sm:max-w-[1000px] max-h-[calc(95vh/var(--app-zoom))] overflow-y-auto p-0 border-none shadow-2xl">
         <DialogHeader className="p-6 border-b bg-muted/30">
           <DialogTitle className="text-xl font-bold">Modifier Dossier</DialogTitle>
         </DialogHeader>

@@ -386,7 +386,7 @@ export function DevisPreviewDialog({
 
         <div
           ref={viewerContainerRef}
-          className="relative w-full h-[70vh] rounded-md border overflow-auto bg-muted/20"
+          className="relative w-full h-[calc(70vh/var(--app-zoom))] rounded-md border overflow-auto bg-muted/20"
           style={isPlacing ? { cursor: 'none' } : undefined}
         >
           {!renderError && (

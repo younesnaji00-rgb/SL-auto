@@ -196,7 +196,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-[550px] max-h-[calc(85vh/var(--app-zoom))] flex flex-col">
         <DialogHeader>
           <DialogTitle>Envoyer vers Chiffrage</DialogTitle>
           <DialogDescription>

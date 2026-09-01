@@ -205,7 +205,7 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideCloseButton className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent hideCloseButton className="max-w-3xl max-h-[calc(90vh/var(--app-zoom))] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Réforme</DialogTitle>
           <DialogDescription>
