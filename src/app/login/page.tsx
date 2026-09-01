@@ -10,11 +10,10 @@ import { landingPathFor } from '@/lib/role-landing';
 import { collectSessionMeta, isSessionClaimable, timestampToMillis } from '@/lib/session-meta';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageLoader } from '@/components/ui/page-loader';
-import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import Logo from '@/components/logo';
 import { useToast } from '@/hooks/use-toast';
 
@@ -70,8 +69,18 @@ function readTabSessionId(): string | null {
   return window.sessionStorage.getItem(SESSION_STORAGE_KEY);
 }
 
-const PAGE_BACKGROUND =
-  'bg-[radial-gradient(ellipse_at_top,hsl(var(--card))_0%,hsl(var(--background))_70%)]';
+// Flat cream canvas (blueprint §3: no ambient gradient/mesh behind the page).
+const PAGE_BACKGROUND = 'bg-background text-ink';
+
+/** Field label: 12 px sentence case, quiet (blueprint §2 `t-label`). Plain
+ *  <label> rather than the shadcn Label so its 14 px utility doesn't win. */
+function FieldLabel({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
+  return (
+    <label htmlFor={htmlFor} className="t-label block">
+      {children}
+    </label>
+  );
+}
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -407,67 +416,61 @@ export default function LoginPage() {
   if (needsSetup) {
     return (
       <div className={`flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
-        <Card className="w-full max-w-md shadow-xl">
-          <CardHeader className="text-center space-y-4 pb-2">
-            <div className="flex justify-center">
-              <Logo />
-            </div>
-            <div>
-              <div className="flex items-center justify-center gap-2 mb-1">
-                <ShieldCheck className="h-5 w-5 text-primary" />
-                <CardTitle className="text-2xl">Configuration initiale</CardTitle>
-              </div>
-              <CardDescription className="mt-1">
+        {/* One paper card on the cream canvas; 24–32 px padding, max 400 px. */}
+        <Card className="w-full max-w-[400px] p-6 sm:p-8">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <Logo />
+            <div className="space-y-1">
+              <h1 className="t-title">Configuration initiale</h1>
+              <p className="text-sm text-ink-3">
                 Aucun utilisateur n&apos;existe encore. Créez le compte administrateur pour commencer.
-              </CardDescription>
+              </p>
             </div>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSetup} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="setup-name">Nom complet de l&apos;administrateur</Label>
-                <Input
-                  id="setup-name"
-                  value={setupName}
-                  onChange={e => setSetupName(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="setup-password">Mot de passe</Label>
-                <Input
-                  id="setup-password"
-                  type="password"
-                  placeholder="Minimum 6 caractères"
-                  value={setupPassword}
-                  onChange={e => setSetupPassword(e.target.value)}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">Au moins 6 caractères.</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="setup-confirm">Confirmez le mot de passe</Label>
-                <Input
-                  id="setup-confirm"
-                  type="password"
-                  value={setupConfirm}
-                  onChange={e => setSetupConfirm(e.target.value)}
-                  required
-                />
-              </div>
+          </div>
+          <form onSubmit={handleSetup} className="mt-6 space-y-4">
+            <div className="space-y-1">
+              <FieldLabel htmlFor="setup-name">Nom complet de l&apos;administrateur</FieldLabel>
+              <Input
+                id="setup-name"
+                value={setupName}
+                onChange={e => setSetupName(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1">
+              <FieldLabel htmlFor="setup-password">Mot de passe</FieldLabel>
+              <Input
+                id="setup-password"
+                type="password"
+                placeholder="Minimum 6 caractères"
+                value={setupPassword}
+                onChange={e => setSetupPassword(e.target.value)}
+                required
+              />
+              <p className="t-caption">Au moins 6 caractères.</p>
+            </div>
+            <div className="space-y-1">
+              <FieldLabel htmlFor="setup-confirm">Confirmez le mot de passe</FieldLabel>
+              <Input
+                id="setup-confirm"
+                type="password"
+                value={setupConfirm}
+                onChange={e => setSetupConfirm(e.target.value)}
+                required
+              />
+            </div>
 
-              {setupError && (
-                <Alert variant="destructive">
-                  <AlertDescription>{setupError}</AlertDescription>
-                </Alert>
-              )}
+            {setupError && (
+              <Alert variant="destructive">
+                <AlertDescription>{setupError}</AlertDescription>
+              </Alert>
+            )}
 
-              <Button type="submit" className="w-full" loading={setupLoading}>
-                {setupLoading ? 'Création...' : 'Créer le compte Admin'}
-              </Button>
-            </form>
-          </CardContent>
+            <Button type="submit" className="w-full font-semibold" loading={setupLoading}>
+              {setupLoading ? 'Création...' : 'Créer le compte Admin'}
+            </Button>
+          </form>
         </Card>
       </div>
     );
@@ -476,61 +479,60 @@ export default function LoginPage() {
   // ===== NORMAL LOGIN =====
   return (
     <div className={`flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="text-center space-y-4 pb-2">
-          <div className="flex justify-center">
-            <Logo />
+      {/* One paper card on the cream canvas; 24–32 px padding, max 400 px. */}
+      <Card className="w-full max-w-[400px] p-6 sm:p-8">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <Logo />
+          <div className="space-y-1">
+            <h1 className="t-title">Connexion</h1>
+            <p className="text-sm text-ink-3">Entrez vos identifiants pour accéder au système.</p>
           </div>
-          <div>
-            <CardTitle className="text-2xl">Connexion</CardTitle>
-            <CardDescription className="mt-1">Entrez vos identifiants pour accéder au système.</CardDescription>
+        </div>
+        <form onSubmit={handleLogin} className="mt-6 space-y-4">
+          <div className="space-y-1">
+            <FieldLabel htmlFor="nom">Nom complet</FieldLabel>
+            <Input
+              id="nom"
+              value={nom}
+              onChange={e => setNom(e.target.value)}
+              required
+              autoFocus
+            />
           </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="nom">Nom complet</Label>
+          <div className="space-y-1">
+            <FieldLabel htmlFor="password">Mot de passe</FieldLabel>
+            <div className="relative">
               <Input
-                id="nom"
-                value={nom}
-                onChange={e => setNom(e.target.value)}
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
                 required
-                autoFocus
+                className="pr-10"
               />
+              {/* Inline affordance inside the field (not a CTA): quiet ink, no rim. */}
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-sm text-ink-3 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => setShowPassword(v => !v)}
+                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                aria-pressed={showPassword}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+              </button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Mot de passe</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 hover:bg-transparent"
-                  onClick={() => setShowPassword(v => !v)}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
+          </div>
 
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-            <Button type="submit" className="w-full" loading={loading}>
-              {loading ? 'Connexion...' : 'Se connecter'}
-            </Button>
-          </form>
-        </CardContent>
+          <Button type="submit" className="w-full font-semibold" loading={loading}>
+            {loading ? 'Connexion...' : 'Se connecter'}
+          </Button>
+        </form>
       </Card>
     </div>
   );

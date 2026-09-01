@@ -1,12 +1,13 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, Settings, X, Download, Plus, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check, Bell, Send, Loader2 } from 'lucide-react';
+import { Search, Trash2, AlertCircle, Eye, History, X, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check } from 'lucide-react';
 import { format, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+import { findNavItem } from '@/lib/nav-groups';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
@@ -76,6 +77,23 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'createdByName', label: 'Créé par' },
 ];
 const ALL_COLUMN_KEYS = new Set(EXPORT_COLUMNS.map(c => c.key));
+
+/** Removable active-filter chip: surface-3 + ink-2, ghost × (no red hover). */
+function FilterChip({ label, onRemove, ariaLabel }: { label: string; onRemove: () => void; ariaLabel: string }) {
+  return (
+    <span className="inline-flex h-7 items-center gap-1 rounded-full bg-surface-3 pl-2.5 pr-1 text-xs text-ink-2">
+      {label}
+      <button
+        type="button"
+        onClick={onRemove}
+        className="flex h-5 w-5 items-center justify-center rounded-full text-ink-3 hover:bg-surface-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={ariaLabel}
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
 
 export default function DossiersClientPage() {
   const router = useRouter();
@@ -444,34 +462,53 @@ export default function DossiersClientPage() {
     });
   };
 
-  const formatDate = (val: any) => {
-    if (!val) return '-';
+  const formatDate = (val: any): string => {
+    if (!val) return '';
     const date = val.toDate ? val.toDate() : new Date(val);
-    return format(date, 'dd/MM/yyyy');
+    return Number.isNaN(date.getTime()) ? '' : format(date, 'dd/MM/yyyy');
   };
 
-  const renderAssure = (assure: any) => {
-    if (!assure) return 'N/A';
+  const renderAssure = (assure: any): string => {
+    if (!assure) return '';
     if (typeof assure === 'string') return assure;
-    return `${assure.nom || ''} ${assure.prenom || ''}`.trim() || 'N/A';
+    return `${assure.nom || ''} ${assure.prenom || ''}`.trim();
+  };
+
+  // Empty cell = quiet dash (blueprint §2: values are the star, empties recede).
+  const cell = (v: string | undefined | null) => (v ? v : <span className="text-ink-4">—</span>);
+
+  // Names come from one place (DESIGN.md §1).
+  const navItem = findNavItem('/dossiers');
+  const pageTitle = navItem?.title ?? navItem?.label ?? 'Dossiers';
+  const pageSubtitle = navItem?.subtitle;
+
+  const hasAttributeFilters =
+    filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' ||
+    filters.observation !== 'Toutes' || filters.creator !== 'Tous' || !!filters.dateFrom || !!filters.dateTo;
+
+  const applyPreset = (preset: 'jour' | 'semaine' | 'mois') => {
+    const now = new Date();
+    const from = preset === 'jour' ? startOfDay(now) : preset === 'semaine' ? startOfWeek(now, { locale: fr }) : startOfMonth(now);
+    setFilters({ dateFrom: format(from, 'yyyy-MM-dd'), dateTo: format(endOfDay(now), 'yyyy-MM-dd'), datePreset: preset });
+    setPage(1);
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Dossiers"
-        subtitle="Gérer et suivre tous les dossiers de sinistres"
+        title={pageTitle}
+        subtitle={pageSubtitle}
         count={loading ? undefined : dossierList.length}
         actions={
+          // One solid primary at the right end of the title row; the
+          // selection-mode entry is outline (blueprint §6: emphasis follows the job).
           exportMode ? undefined : (
             <>
-              <Button variant="outline" size="sm" className="h-9" onClick={() => setExportMode(true)}>
-                <Bell className="mr-2 h-4 w-4" />
+              <Button variant="outline" onClick={() => setExportMode(true)} title="Sélectionner des dossiers à rappeler">
                 Rappeler
               </Button>
               {canEditDossiers && (
-                <Button size="sm" className="h-9" onClick={handleOpenCreate} title="Nouveau dossier (C)">
-                  <Plus className="mr-2 h-4 w-4" />
+                <Button className="font-semibold" onClick={handleOpenCreate} title="Nouveau dossier (C)">
                   Nouveau dossier
                 </Button>
               )}
@@ -487,82 +524,45 @@ export default function DossiersClientPage() {
         </Alert>
       )}
 
-      <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative flex-grow max-sm:w-full max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-3" />
+      {/* Filter toolbar — ONE quiet row (NN/g data tables: search first and
+          widest, then scoped controls); wraps below lg, 16 px gaps. The
+          per-attribute filters (nature, statut, compagnie, observation, créé
+          par) live in their column headers below. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3" role="search">
+        <div className="relative min-w-[240px] flex-1 basis-72 lg:max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
           <Input
             className="pl-9"
             placeholder="Rechercher (réf, assuré, plaque…)"
             value={filters.search}
             onChange={e => setFilters({ search: e.target.value })}
+            aria-label="Rechercher un dossier"
           />
         </div>
         <SavedViews storageKey="dossiers" current={filters} onApply={(f) => { setFilters(() => f); setPage(1); }} />
-        
-        {/* Per-attribute filters (nature, statut, compagnie, observation) moved
-            into their respective column headers below. The top bar keeps only
-            the search box, date presets, custom-range pickers, sort-by-creation
-            and reset — every other filter lives next to the column it scopes. */}
 
-        {/* Date preset bar — matches the `Suivi d'équipe` page (monitoring) so
-            users get the same Jour / Semaine / Mois / Personnalisé shortcut on
-            both views. Presets write the SAME `dateFrom`/`dateTo` filter state
-            (yyyy-MM-dd strings) the pipeline already consumes; `datePreset`
-            tracks the active button purely for highlight, and is cleared by
-            the iter-18 reset together with the date strings. */}
-        <div className="flex h-9 items-center gap-1 rounded-md bg-surface-2 p-0.5">
+        {/* Date presets — same Jour / Semaine / Mois / Personnalisé shortcut as
+            `Suivi d'équipe`; they write the SAME `dateFrom`/`dateTo` strings the
+            pipeline consumes. Selected segment = `tonal` (M3 segmented button),
+            never the accent fill — the page primary is « Nouveau dossier ». */}
+        <div className="flex h-9 items-center gap-0.5 rounded-md bg-surface-2 p-0.5" role="group" aria-label="Période de création">
+          {([['jour', 'Jour'], ['semaine', 'Semaine'], ['mois', 'Mois']] as const).map(([key, label]) => (
+            <Button
+              key={key}
+              size="sm"
+              variant={filters.datePreset === key ? 'tonal' : 'ghost'}
+              className={cn('h-8 px-3', filters.datePreset !== key && 'shadow-none')}
+              aria-pressed={filters.datePreset === key}
+              onClick={() => applyPreset(key)}
+            >
+              {label}
+            </Button>
+          ))}
           <Button
             size="sm"
-            variant={filters.datePreset === 'jour' ? 'default' : 'ghost'}
-            className="h-7"
-            onClick={() => {
-              const now = new Date();
-              setFilters({
-                dateFrom: format(startOfDay(now), 'yyyy-MM-dd'),
-                dateTo: format(endOfDay(now), 'yyyy-MM-dd'),
-                datePreset: 'jour',
-              });
-              setPage(1);
-            }}
-          >
-            Jour
-          </Button>
-          <Button
-            size="sm"
-            variant={filters.datePreset === 'semaine' ? 'default' : 'ghost'}
-            className="h-7"
-            onClick={() => {
-              const now = new Date();
-              setFilters({
-                dateFrom: format(startOfWeek(now, { locale: fr }), 'yyyy-MM-dd'),
-                dateTo: format(endOfDay(now), 'yyyy-MM-dd'),
-                datePreset: 'semaine',
-              });
-              setPage(1);
-            }}
-          >
-            Semaine
-          </Button>
-          <Button
-            size="sm"
-            variant={filters.datePreset === 'mois' ? 'default' : 'ghost'}
-            className="h-7"
-            onClick={() => {
-              const now = new Date();
-              setFilters({
-                dateFrom: format(startOfMonth(now), 'yyyy-MM-dd'),
-                dateTo: format(endOfDay(now), 'yyyy-MM-dd'),
-                datePreset: 'mois',
-              });
-              setPage(1);
-            }}
-          >
-            Mois
-          </Button>
-          <Button
-            size="sm"
-            variant={filters.datePreset === 'personnalise' ? 'default' : 'ghost'}
-            className="h-7"
+            variant={filters.datePreset === 'personnalise' ? 'tonal' : 'ghost'}
+            className={cn('h-8 px-3', filters.datePreset !== 'personnalise' && 'shadow-none')}
+            aria-pressed={filters.datePreset === 'personnalise'}
             onClick={() => setFilters({ datePreset: 'personnalise' })}
           >
             Personnalisé
@@ -577,103 +577,65 @@ export default function DossiersClientPage() {
         />
 
         {/* Sort by creation date. Default `desc` matches the Firestore-side
-            ordering (newest-first) so the visible order is unchanged until
-            the user opts into `asc`. Reset handler clears via `clearFilter()`,
-            which restores `filterDefaults.sortByCreation = 'desc'`. */}
+            ordering (newest-first); `clearFilter()` restores it. */}
         <Select
           value={filters.sortByCreation}
           onValueChange={v => setFilters({ sortByCreation: v as 'desc' | 'asc' })}
         >
-          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Tri par date" /></SelectTrigger>
+          <SelectTrigger className="w-[190px] [&>span]:truncate" aria-label="Tri par date de création">
+            <SelectValue placeholder={<span className="t-label">Tri par date</span>} />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="desc">Plus récent d&apos;abord</SelectItem>
             <SelectItem value="asc">Plus ancien d&apos;abord</SelectItem>
           </SelectContent>
         </Select>
 
-        {/* One-click reset: clears search, nature, status, compagnie,
-            observation and date range back to their defaults. Kept always
-            visible (per spec) so users learn it's there even before applying
-            any filter. */}
+        {/* One-click reset — always visible so users learn it exists. */}
         <Button
           variant="ghost"
           size="sm"
-          className="gap-1.5"
+          className="gap-1.5 text-ink-3"
           onClick={() => {
             clearFilter();
             setPage(1);
           }}
           title="Réinitialiser tous les filtres"
         >
-          <RotateCcw className="h-4 w-4" />
+          <RotateCcw className="h-4 w-4" aria-hidden />
           Réinitialiser
         </Button>
       </div>
 
-      {/* Active filters strip */}
-      {(filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.observation !== 'Toutes' || filters.creator !== 'Tous' || filters.dateFrom || filters.dateTo) && (
+      {/* Active filters — removable chips (surface-3 / ink-2, ghost ×). */}
+      {hasAttributeFilters && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="t-label">Filtres actifs</span>
           {filters.nature !== 'Toutes' && (
-            <Badge variant="outline" className="gap-1 pr-1">
-              Nature : {filters.nature}
-              <button onClick={() => clearFilter('nature')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre nature">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterChip label={`Nature : ${filters.nature}`} onRemove={() => clearFilter('nature')} ariaLabel="Retirer le filtre nature" />
           )}
           {filters.status !== 'Tous' && (
-            <Badge variant="outline" className="gap-1 pr-1">
-              Statut : {filters.status}
-              <button onClick={() => clearFilter('status')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre statut">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterChip label={`Statut : ${filters.status}`} onRemove={() => clearFilter('status')} ariaLabel="Retirer le filtre statut" />
           )}
           {filters.compagnie !== 'Toutes' && (
-            <Badge variant="outline" className="gap-1 pr-1">
-              Compagnie : {filters.compagnie}
-              <button onClick={() => clearFilter('compagnie')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre compagnie">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterChip label={`Compagnie : ${filters.compagnie}`} onRemove={() => clearFilter('compagnie')} ariaLabel="Retirer le filtre compagnie" />
           )}
           {filters.observation !== 'Toutes' && (
-            <Badge variant="outline" className="gap-1 pr-1">
-              Observation : {filters.observation}
-              <button onClick={() => clearFilter('observation')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre observation">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterChip label={`Observation : ${filters.observation}`} onRemove={() => clearFilter('observation')} ariaLabel="Retirer le filtre observation" />
           )}
           {filters.creator !== 'Tous' && (
-            <Badge variant="outline" className="gap-1 pr-1">
-              Créé par : {filters.creator}
-              <button onClick={() => clearFilter('creator')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre créé par">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterChip label={`Créé par : ${filters.creator}`} onRemove={() => clearFilter('creator')} ariaLabel="Retirer le filtre créé par" />
           )}
           {filters.dateFrom && (
-            <Badge variant="outline" className="gap-1 pr-1">
-              Du : {filters.dateFrom}
-              <button onClick={() => clearFilter('dateFrom')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer la date de début">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterChip label={`Du : ${filters.dateFrom}`} onRemove={() => clearFilter('dateFrom')} ariaLabel="Retirer la date de début" />
           )}
           {filters.dateTo && (
-            <Badge variant="outline" className="gap-1 pr-1">
-              Au : {filters.dateTo}
-              <button onClick={() => clearFilter('dateTo')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer la date de fin">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterChip label={`Au : ${filters.dateTo}`} onRemove={() => clearFilter('dateTo')} ariaLabel="Retirer la date de fin" />
           )}
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 text-xs"
+            className="h-7 text-xs text-ink-3"
             onClick={() => {
               clearFilter('nature');
               clearFilter('status');
@@ -691,16 +653,17 @@ export default function DossiersClientPage() {
 
       {/* Export toolbar */}
       {exportMode ? (
-        <div className="flex items-center justify-between rounded-lg bg-surface-2 px-4 py-2">
-          <span className="text-sm font-medium">
+        // Selection toolbar: while selecting, « Envoyer à » is the page's one
+        // solid primary (the header actions are hidden in this mode).
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface-2 px-4 py-2">
+          <span className="text-sm font-semibold tabular-nums text-ink">
             {selectedRows.size} / {dossierList.length} dossier(s) sélectionné(s)
           </span>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={allVisibleSelected ? () => setSelectedRows(new Set()) : handleSelectAll}>
               {allVisibleSelected ? 'Tout désélectionner' : 'Sélectionner tout'}
             </Button>
-            <Button size="sm" onClick={() => setIsSendToOpen(true)} disabled={selectedRows.size === 0}>
-              <Send className="mr-2 h-4 w-4" />
+            <Button size="sm" className="font-semibold" onClick={() => setIsSendToOpen(true)} disabled={selectedRows.size === 0}>
               Envoyer à
             </Button>
             <Button variant="ghost" size="sm" onClick={handleCancelExport}>
@@ -710,8 +673,9 @@ export default function DossiersClientPage() {
         </div>
       ) : null}
 
-      <Card className="max-h-[calc((100dvh-280px)/var(--app-zoom))] overflow-x-scroll overflow-y-auto [&>div]:overflow-visible">
-        <Table>
+      {/* Table paper: glass edge only, hairline rows, sticky header on card. */}
+      <Card className="max-h-[calc((100dvh-280px)/var(--app-zoom))] overflow-x-auto overflow-y-auto [&>div]:overflow-visible">
+        <Table regionLabel="Liste des dossiers">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               {exportMode && (
@@ -752,8 +716,8 @@ export default function DossiersClientPage() {
                               type="button"
                               onClick={() => setFilters({ nature: 'Toutes' })}
                               className={cn(
-                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
-                                filters.nature === 'Toutes' && "bg-muted font-medium",
+                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-surface-2",
+                                filters.nature === 'Toutes' && "bg-surface-2 font-medium",
                               )}
                             >
                               <span>Toutes les natures</span>
@@ -765,8 +729,8 @@ export default function DossiersClientPage() {
                                 type="button"
                                 onClick={() => setFilters({ nature: n.label })}
                                 className={cn(
-                                  "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
-                                  filters.nature === n.label && "bg-muted font-medium",
+                                  "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-surface-2",
+                                  filters.nature === n.label && "bg-surface-2 font-medium",
                                 )}
                               >
                                 <span>{n.label}</span>
@@ -802,8 +766,8 @@ export default function DossiersClientPage() {
                               type="button"
                               onClick={() => setFilters({ status: 'Tous' })}
                               className={cn(
-                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
-                                filters.status === 'Tous' && "bg-muted font-medium",
+                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-surface-2",
+                                filters.status === 'Tous' && "bg-surface-2 font-medium",
                               )}
                             >
                               <span>Tous les statuts</span>
@@ -815,8 +779,8 @@ export default function DossiersClientPage() {
                                 type="button"
                                 onClick={() => setFilters({ status: s.label })}
                                 className={cn(
-                                  "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
-                                  filters.status === s.label && "bg-muted font-medium",
+                                  "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-surface-2",
+                                  filters.status === s.label && "bg-surface-2 font-medium",
                                 )}
                               >
                                 <span className="flex items-center gap-2">
@@ -855,8 +819,8 @@ export default function DossiersClientPage() {
                               type="button"
                               onClick={() => setFilters({ compagnie: 'Toutes' })}
                               className={cn(
-                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
-                                filters.compagnie === 'Toutes' && "bg-muted font-medium",
+                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-surface-2",
+                                filters.compagnie === 'Toutes' && "bg-surface-2 font-medium",
                               )}
                             >
                               <span>Toutes les compagnies</span>
@@ -868,8 +832,8 @@ export default function DossiersClientPage() {
                                 type="button"
                                 onClick={() => setFilters({ compagnie: c.label })}
                                 className={cn(
-                                  "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
-                                  filters.compagnie === c.label && "bg-muted font-medium",
+                                  "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-surface-2",
+                                  filters.compagnie === c.label && "bg-surface-2 font-medium",
                                 )}
                               >
                                 <span>{c.label}</span>
@@ -905,8 +869,8 @@ export default function DossiersClientPage() {
                               type="button"
                               onClick={() => setFilters({ observation: 'Toutes' })}
                               className={cn(
-                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
-                                filters.observation === 'Toutes' && "bg-muted font-medium",
+                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-surface-2",
+                                filters.observation === 'Toutes' && "bg-surface-2 font-medium",
                               )}
                             >
                               <span>Toutes les observations</span>
@@ -918,8 +882,8 @@ export default function DossiersClientPage() {
                                   type="button"
                                   onClick={() => setFilters({ observation: o.label })}
                                   className={cn(
-                                    "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
-                                    filters.observation === o.label && "bg-muted font-medium",
+                                    "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-surface-2",
+                                    filters.observation === o.label && "bg-surface-2 font-medium",
                                   )}
                                 >
                                   <span>{o.label}</span>
@@ -931,8 +895,8 @@ export default function DossiersClientPage() {
                                     type="button"
                                     onClick={() => setFilters({ observation: t })}
                                     className={cn(
-                                      "w-full text-left flex items-center justify-between gap-2 pl-6 pr-2 py-1.5 text-sm rounded hover:bg-muted",
-                                      filters.observation === t && "bg-muted font-medium",
+                                      "w-full text-left flex items-center justify-between gap-2 pl-6 pr-2 py-1.5 text-sm rounded hover:bg-surface-2",
+                                      filters.observation === t && "bg-surface-2 font-medium",
                                     )}
                                   >
                                     <span className="truncate">{t}</span>
@@ -943,15 +907,15 @@ export default function DossiersClientPage() {
                             ))}
                             {!filterObservations.some(o => o.label === 'Autre') && customObservationTexts.length > 0 && (
                               <>
-                                <div className="px-2 pt-2 pb-1 text-xs text-muted-foreground">— Personnalisées —</div>
+                                <div className="px-2 pt-2 pb-1 t-caption">— Personnalisées —</div>
                                 {customObservationTexts.map(t => (
                                   <button
                                     key={`custom-${t}`}
                                     type="button"
                                     onClick={() => setFilters({ observation: t })}
                                     className={cn(
-                                      "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
-                                      filters.observation === t && "bg-muted font-medium",
+                                      "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-surface-2",
+                                      filters.observation === t && "bg-surface-2 font-medium",
                                     )}
                                   >
                                     <span className="truncate">{t}</span>
@@ -989,15 +953,15 @@ export default function DossiersClientPage() {
                               type="button"
                               onClick={() => setFilters({ creator: 'Tous' })}
                               className={cn(
-                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
-                                filters.creator === 'Tous' && "bg-muted font-medium",
+                                "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-surface-2",
+                                filters.creator === 'Tous' && "bg-surface-2 font-medium",
                               )}
                             >
                               <span>Tous les créateurs</span>
                               {filters.creator === 'Tous' && <Check className="h-4 w-4 text-primary shrink-0" />}
                             </button>
                             {filterCreators.length === 0 ? (
-                              <p className="px-2 py-1.5 text-xs text-muted-foreground">Aucun créateur</p>
+                              <p className="px-2 py-1.5 t-caption">Aucun créateur</p>
                             ) : (
                               filterCreators.map(name => (
                                 <button
@@ -1005,8 +969,8 @@ export default function DossiersClientPage() {
                                   type="button"
                                   onClick={() => setFilters({ creator: name })}
                                   className={cn(
-                                    "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted",
-                                    filters.creator === name && "bg-muted font-medium",
+                                    "w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 text-sm rounded hover:bg-surface-2",
+                                    filters.creator === name && "bg-surface-2 font-medium",
                                   )}
                                 >
                                   <span>{name}</span>
@@ -1042,7 +1006,7 @@ export default function DossiersClientPage() {
                 );
               })}
               {!exportMode && (
-                <TableHead className="sticky right-0 z-10 bg-surface-2 text-right shadow-[-4px_0_6px_-2px_hsl(var(--shadow-color)/0.08)]">
+                <TableHead className="sticky right-0 z-10 bg-card text-right shadow-[-4px_0_6px_-2px_hsl(var(--shadow-color)/0.08)]">
                   Actions
                 </TableHead>
               )}
@@ -1069,8 +1033,8 @@ export default function DossiersClientPage() {
                         : 'Créez votre premier dossier pour commencer.'
                     }
                     action={canEditDossiers ? (
-                      <Button onClick={handleOpenCreate}>
-                        <Plus className="mr-2 h-4 w-4" /> Création de mission
+                      <Button onClick={handleOpenCreate} className="font-semibold">
+                        Nouveau dossier
                       </Button>
                     ) : null}
                     dashed={false}
@@ -1083,11 +1047,13 @@ export default function DossiersClientPage() {
                 <TableRow
                   key={d.id}
                   className={cn(
+                    // Hover = surface-2 (table primitive); selected = accent tint.
+                    // No row tint for observations — the warning chip carries it.
                     "group [&_td]:!py-2",
                     !exportMode && "cursor-pointer",
-                    exportMode && selectedRows.has(d.id) && "bg-accent/40",
-                    d.lastObservation?.text && 'bg-status-warning-bg/40'
+                    exportMode && selectedRows.has(d.id) && "bg-accent/40 hover:bg-accent/40",
                   )}
+                  aria-selected={exportMode ? selectedRows.has(d.id) : undefined}
                   onClick={() => exportMode ? handleToggleRow(d.id) : openDossier(d)}
                   onDoubleClick={() => { if (!exportMode) openDossier(d, { preview: false }); }}
                   onAuxClick={(e) => { if (!exportMode && e.button === 1) { e.preventDefault(); openDossier(d, { preview: false, navigate: false }); } }}
@@ -1100,13 +1066,13 @@ export default function DossiersClientPage() {
                       />
                     </TableCell>
                   )}
-                  <TableCell className="t-mono font-semibold">{d.refExpert || <span className="font-sans font-normal text-ink-3">Sans réf.</span>}</TableCell>
-                  <TableCell>{renderAssure(d.assure)}</TableCell>
-                  <TableCell>{d.compagnie || '-'}</TableCell>
-                  <TableCell>{d.referenceCompagnie || ''}</TableCell>
-                  <TableCell className="tabular-nums">{formatDate((d as any).createdAt)}</TableCell>
-                  <TableCell>{d.nature || '-'}</TableCell>
-                  <TableCell>{d.typeDossier || '-'}</TableCell>
+                  <TableCell className="t-mono font-semibold">{d.refExpert || <span className="font-sans font-normal text-ink-4">Sans réf.</span>}</TableCell>
+                  <TableCell className="font-medium">{cell(renderAssure(d.assure))}</TableCell>
+                  <TableCell>{cell(d.compagnie)}</TableCell>
+                  <TableCell>{cell(d.referenceCompagnie)}</TableCell>
+                  <TableCell className="tabular-nums">{cell(formatDate((d as any).createdAt))}</TableCell>
+                  <TableCell>{cell(d.nature)}</TableCell>
+                  <TableCell>{cell(d.typeDossier)}</TableCell>
                   <TableCell
                     onClick={exportMode ? undefined : (e) => {
                       e.stopPropagation();
@@ -1128,20 +1094,22 @@ export default function DossiersClientPage() {
                     title={!exportMode ? "Voir l'historique des observations" : undefined}
                   >
                     {d.lastObservation?.text ? (
-                      <Badge className="border-transparent bg-status-warning-bg text-status-warning-fg hover:bg-status-warning-bg">
+                      // Warning pair chip — the only emphasis for an open observation.
+                      <span
+                        className="inline-flex h-5 max-w-[260px] items-center truncate rounded-full bg-status-warning-bg px-2 text-[11px] font-medium text-status-warning-fg"
+                        title={d.lastObservation.text}
+                      >
                         {d.lastObservation.text}
-                      </Badge>
+                      </span>
                     ) : (
-                      <span className="text-ink-4">-</span>
+                      <span className="text-ink-4">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="t-mono">{d.matricule || '-'}</TableCell>
-                  <TableCell className="t-mono">{d.vehicule?.immatriculationAnterieur || '-'}</TableCell>
-                  <TableCell className="tabular-nums">{formatDate(d.dateSinistre)}</TableCell>
-                  <TableCell className="tabular-nums">{formatDate(d.dateRequete)}</TableCell>
-                  <TableCell>
-                    {resolveCreatorName(d) || <span className="text-ink-4">—</span>}
-                  </TableCell>
+                  <TableCell className="t-mono">{cell(d.matricule)}</TableCell>
+                  <TableCell className="t-mono">{cell(d.vehicule?.immatriculationAnterieur)}</TableCell>
+                  <TableCell className="tabular-nums">{cell(formatDate(d.dateSinistre))}</TableCell>
+                  <TableCell className="tabular-nums">{cell(formatDate(d.dateRequete))}</TableCell>
+                  <TableCell>{cell(resolveCreatorName(d))}</TableCell>
 
                   {!exportMode && (
                     <TableCell
@@ -1202,19 +1170,22 @@ export default function DossiersClientPage() {
         </Table>
       </Card>
 
-      <div className="flex items-center justify-between px-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-ink-3">Afficher</span>
+      {/* Pagination footer: caption count · rows-per-page · prev/next (NN/g data tables). */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-2">
+        <div className="flex items-center gap-3">
+          <label htmlFor="dossiers-rows-per-page" className="t-caption">Lignes par page</label>
           <Select value={String(rowsPerPage)} onValueChange={v => { setFilters({ rowsPerPage: Number(v) }); setPage(1); }}>
-            <SelectTrigger className="h-8 w-[70px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger id="dossiers-rows-per-page" className="h-8 w-[76px] tabular-nums"><SelectValue /></SelectTrigger>
             <SelectContent>
               {[10, 25, 50, 100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
             </SelectContent>
           </Select>
-          <span className="text-sm text-ink-3 ml-4">Total: {dossierList.length} dossiers</span>
+          <span className="t-caption tabular-nums">
+            {dossierList.length} dossier{dossierList.length > 1 ? 's' : ''}
+          </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-ink-3 tabular-nums">
+          <span className="t-caption tabular-nums">
             Page {page} / {totalPages}
           </span>
           <Button
@@ -1269,13 +1240,13 @@ export default function DossiersClientPage() {
             className="resize-none"
           />
           {gestLoading ? (
-            <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+            <p className="t-caption py-4 text-center" aria-busy="true">Chargement…</p>
           ) : gestionnaires.length === 0 ? (
             <p className="text-sm text-ink-3 py-4">Aucun gestionnaire disponible.</p>
           ) : (
             <div className="space-y-1 max-h-[300px] overflow-y-auto py-2">
               {gestionnaires.map((g) => (
-                <label key={g.uid} className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 rounded px-2 py-1.5">
+                <label key={g.uid} className="flex items-center gap-2 cursor-pointer hover:bg-surface-2 rounded px-2 py-1.5">
                   <Checkbox
                     checked={selectedGestUids.has(g.uid)}
                     onCheckedChange={(v) => {
@@ -1293,8 +1264,7 @@ export default function DossiersClientPage() {
           )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsSendToOpen(false)}>Annuler</Button>
-            <Button disabled={selectedGestUids.size === 0 || sending} onClick={handleSendRappel}>
-              {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+            <Button disabled={selectedGestUids.size === 0} loading={sending} onClick={handleSendRappel}>
               Envoyer ({selectedGestUids.size})
             </Button>
           </DialogFooter>
@@ -1322,7 +1292,7 @@ export default function DossiersClientPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={!!deletingId}>Annuler</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className={buttonVariants({ variant: 'destructive' })}
               disabled={!!deletingId}
               onClick={(e) => {
                 e.preventDefault();

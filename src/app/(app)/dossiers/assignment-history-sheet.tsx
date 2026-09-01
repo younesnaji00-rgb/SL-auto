@@ -1,24 +1,31 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
-import { Send, MapPin, Inbox, Loader2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Sheet } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 import { useCollection, useFirestore } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { UserNameLink } from '@/components/user-name-link';
+import {
+  HistoryEmpty,
+  HistoryField,
+  HistoryLoading,
+  HistoryRow,
+  HistorySheetContent,
+  formatDateTime,
+} from './status-history-sheet';
 
 type AssignmentHistorySheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   dossier: any | null;
+};
+
+// Visit type → status pair (same mapping as the Planifications tab).
+const MISSION_CHIP: Record<string, string> = {
+  Avant: 'bg-status-info-bg text-status-info-fg',
+  'En cours': 'bg-status-warning-bg text-status-warning-fg',
+  Après: 'bg-status-success-bg text-status-success-fg',
 };
 
 export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: AssignmentHistorySheetProps) {
@@ -46,16 +53,6 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
 
   if (!dossier) return null;
 
-  const formatDate = (ts: any) => {
-    if (!ts) return '-';
-    const date = ts.toDate ? ts.toDate() : new Date(ts);
-    try {
-      return format(date, "dd MMM yyyy 'à' HH:mm", { locale: fr });
-    } catch {
-      return '-';
-    }
-  };
-
   // Filter historique to only assignment-related entries
   const assignmentEntries = (allHistorique || []).filter((e: any) =>
     e.type === 'assignation' ||
@@ -67,11 +64,11 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
   const planificationEntries = (planifications || []).map((p: any) => ({
     id: p.id,
     type: 'planification',
-    agent: p.agentTerrain || 'N/A',
+    agent: p.agentTerrain || '',
     mission: p.typeMission || '',
     zone: p.zone || '',
     date: p.createdAt,
-    modifiedBy: p.modifiedByName || p.modifiedBy || 'N/A',
+    modifiedBy: p.modifiedByName || p.modifiedBy || '',
   }));
 
   const loading = loadingH || loadingP;
@@ -79,78 +76,78 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>Assignations — {dossier.refExpert || 'Dossier'}</SheetTitle>
-          <SheetDescription>
-            Historique des assignations chiffrage et planification.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="py-6 pr-4 space-y-6 overflow-y-auto max-h-[calc((100dvh-150px)/var(--app-zoom))]">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-ink-3" />
-              <p className="text-sm text-ink-3">Chargement...</p>
-            </div>
-          ) : !hasData ? (
-            <div className="flex flex-col items-center justify-center space-y-4 rounded-xl bg-surface-2 py-20 text-center">
-              <Inbox className="h-10 w-10 text-ink-4" />
-              <p className="px-6 text-sm text-ink-3">
-                Aucune assignation pour ce dossier.
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Chiffrage assignments */}
-              {assignmentEntries.length > 0 && (
-                <div>
-                  <h3 className="t-label mb-3 flex items-center gap-2">
-                    <Send className="h-3.5 w-3.5" /> Chiffrage
-                  </h3>
-                  <div className="space-y-3">
-                    {assignmentEntries.map((entry: any) => (
-                      <div key={entry.id} className="space-y-1 rounded-lg border border-hairline p-3">
-                        <p className="text-sm font-medium">{entry.action}</p>
+      <HistorySheetContent
+        title="Assignations"
+        description="Historique des assignations chiffrage et planification."
+        refExpert={dossier.refExpert}
+      >
+        {loading ? (
+          <HistoryLoading />
+        ) : !hasData ? (
+          <HistoryEmpty title="Aucune assignation" description="Les envois au chiffrage et les planifications apparaissent ici." />
+        ) : (
+          <div className="space-y-6">
+            {/* Chiffrage assignments — group label is quiet, rows hairline-separated. */}
+            {assignmentEntries.length > 0 && (
+              <section>
+                <h3 className="t-label mb-2">Chiffrage</h3>
+                <ul className="divide-y divide-hairline">
+                  {assignmentEntries.map((entry: any) => (
+                    <HistoryRow key={entry.id} date={entry.date}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-ink">{entry.action}</span>
+                        <span className="t-caption tabular-nums">{formatDateTime(entry.date)}</span>
+                      </div>
+                      <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+                        <HistoryField label="Par">
+                          {entry.userNom || entry.user ? <UserNameLink entry={entry} /> : <span className="font-normal text-ink-4">—</span>}
+                        </HistoryField>
                         {entry.details && (
-                          <p className="t-caption">{entry.details}</p>
+                          <HistoryField label="Détails" className="sm:col-span-2">
+                            <span className="whitespace-pre-wrap break-words font-normal text-ink">{entry.details}</span>
+                          </HistoryField>
                         )}
-                        <p className="t-caption">
-                          {formatDate(entry.date)} par <span className="font-semibold text-ink-2">{entry.user}</span>
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                      </dl>
+                    </HistoryRow>
+                  ))}
+                </ul>
+              </section>
+            )}
 
-              {/* Planification assignments */}
-              {planificationEntries.length > 0 && (
-                <div>
-                  <h3 className="t-label mb-3 flex items-center gap-2">
-                    <MapPin className="h-3.5 w-3.5" /> Planification
-                  </h3>
-                  <div className="space-y-3">
-                    {planificationEntries.map((entry: any) => (
-                      <div key={entry.id} className="space-y-1 rounded-lg border border-hairline p-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">Agent : {entry.agent}</span>
-                          {entry.mission && <Badge variant="outline" className="text-[11px]">{entry.mission}</Badge>}
-                        </div>
-                        {entry.zone && (
-                          <p className="t-caption">Zone : {entry.zone}</p>
+            {/* Planification assignments */}
+            {planificationEntries.length > 0 && (
+              <section className={cn(assignmentEntries.length > 0 && 'border-t border-hairline pt-6')}>
+                <h3 className="t-label mb-2">Planification</h3>
+                <ul className="divide-y divide-hairline">
+                  {planificationEntries.map((entry) => (
+                    <HistoryRow key={entry.id} date={entry.date}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {entry.mission && (
+                          <span className={cn('inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium', MISSION_CHIP[entry.mission] ?? 'bg-surface-3 text-ink-2')}>
+                            Visite {String(entry.mission).toLowerCase()}
+                          </span>
                         )}
-                        <p className="t-caption">
-                          {formatDate(entry.date)} par <span className="font-semibold text-ink-2">{entry.modifiedBy}</span>
-                        </p>
+                        <span className="t-caption tabular-nums">{formatDateTime(entry.date)}</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </SheetContent>
+                      <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+                        <HistoryField label="Agent de terrain">
+                          {entry.agent || <span className="font-normal text-ink-4">—</span>}
+                        </HistoryField>
+                        <HistoryField label="Zone">
+                          {entry.zone || <span className="font-normal text-ink-4">—</span>}
+                        </HistoryField>
+                        <HistoryField label="Par">
+                          {entry.modifiedBy || <span className="font-normal text-ink-4">—</span>}
+                        </HistoryField>
+                      </dl>
+                    </HistoryRow>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+        )}
+      </HistorySheetContent>
     </Sheet>
   );
 }
