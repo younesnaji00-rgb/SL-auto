@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -45,6 +45,13 @@ export interface DevisPreviewDialogProps {
 const NONE_VALUE = '__none__';
 const STAMP_DEFAULT_WIDTH_MM = 40;
 const STAMP_MIN_WIDTH_MM = 10;
+
+// Viewer zoom (lightbox rules): 25 % button steps, % = fit width, Ctrl/⌘ +
+// wheel one notch (100 px accumulated deltaY) = ×1.3. The stamp overlay and
+// the cursor preview measure the live canvas rect, so they follow the zoom.
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2;
+const ZOOM_STEP = 0.25;
 
 interface StampImage {
   dataUrl: string;
@@ -110,6 +117,7 @@ export function DevisPreviewDialog({
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const [pageMetas, setPageMetas] = useState<PageMeta[]>([]);
   const [viewerReady, setViewerReady] = useState(false);
+  const [zoom, setZoom] = useState(1);
 
   const titleOverride = useMemo<
     'Devis' | 'Facture' | 'Accord' | "Proposition d'accord"
@@ -122,6 +130,7 @@ export function DevisPreviewDialog({
   // Reset state each time the dialog is opened.
   useEffect(() => {
     if (open) {
+      setZoom(1);
       setSelectedStampId(NONE_VALUE);
       setRenderError(null);
       setStampWarning(null);
@@ -301,6 +310,26 @@ export function DevisPreviewDialog({
     }
   }, [open]);
 
+  // Ctrl/⌘ + wheel zoom with the one-notch gate (native listener: React wheel
+  // events are passive). A plain wheel keeps scrolling the pages.
+  useEffect(() => {
+    if (!open) return;
+    const el = viewerContainerRef.current;
+    if (!el) return;
+    let acc = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      acc += e.deltaY;
+      if (Math.abs(acc) < 100) return;
+      const direction = acc < 0 ? 1 : -1;
+      acc = 0;
+      setZoom((prev) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [open]);
+
   // Track the cursor at the window level while in placing mode so the
   // mouse-follow stamp preview keeps up across the entire viewport — not just
   // the viewer container (the dialog only spans part of the screen).
@@ -379,27 +408,42 @@ export function DevisPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Aperçu avant enregistrement</DialogTitle>
+      <DialogContent className="lg:max-w-4xl">
+        <DialogHeader className="flex flex-row items-center justify-between gap-3 space-y-0 pr-8">
+          <DialogTitle className="t-heading">Aperçu avant enregistrement</DialogTitle>
+          {/* Zoom pill — −/%/+, 25 % steps, % = fit (lightbox rules). */}
+          <div className="flex shrink-0 items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom" title="Ctrl + molette pour zoomer progressivement">
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière">
+              <ZoomOut className="h-3.5 w-3.5" />
+            </Button>
+            <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — ajuster à la largeur`}>
+              {Math.round(zoom * 100)} %
+            </button>
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom avant">
+              <ZoomIn className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </DialogHeader>
 
+        {/* Dark functional backdrop (lightbox media area); pages are the document. */}
         <div
           ref={viewerContainerRef}
-          className="relative w-full h-[calc(70vh/var(--app-zoom))] rounded-md border overflow-auto bg-muted/20"
+          className="relative h-[calc(70vh/var(--app-zoom))] w-full overflow-auto overscroll-contain rounded-lg bg-ink-solid"
           style={isPlacing ? { cursor: 'none' } : undefined}
         >
           {!renderError && (
-            <div className="flex flex-col items-center gap-3 p-3">
+            <div className="flex flex-col items-center gap-4 p-4">
               {pageMetas.map((meta) => (
-                <div key={meta.pageNumber} className="relative">
+                // 100 % = fit to the viewer width; beyond it the page overflows
+                // and the container scrolls on both axes (compare-pane rule).
+                <div key={meta.pageNumber} className="relative shrink-0" style={{ width: `${zoom * 100}%` }}>
                   <canvas
                     ref={(el) => {
                       if (el) canvasRefs.current.set(meta.pageNumber, el);
                       else canvasRefs.current.delete(meta.pageNumber);
                     }}
                     onClick={(e) => handleCanvasClick(e, meta)}
-                    className="shadow-sm bg-white max-w-full h-auto"
+                    className="h-auto w-full bg-white shadow-raised"
                     style={{
                       cursor: isPlacing ? 'none' : 'default',
                       display: 'block',
@@ -423,13 +467,13 @@ export function DevisPreviewDialog({
             </div>
           )}
           {(rendering || (!viewerReady && !renderError)) && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/70">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="absolute inset-0 flex items-center justify-center bg-ink-solid/70">
+              <Loader2 className="h-6 w-6 animate-spin text-on-ink/80" />
             </div>
           )}
           {renderError && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background p-6 text-center">
-              <p className="text-sm text-destructive">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card p-6 text-center">
+              <p className="text-sm text-status-danger-fg">
                 Erreur lors du rendu du PDF : {renderError}
               </p>
               <Button
@@ -482,27 +526,28 @@ export function DevisPreviewDialog({
           )}
 
         {stampWarning && (
-          <p className="text-xs text-amber-700 dark:text-amber-400">
+          <p className="text-xs text-status-warning-fg">
             {stampWarning}
           </p>
         )}
 
         {isPlacing && selectedStampId !== NONE_VALUE && (
-          <p className="text-xs text-muted-foreground">
+          <p className="t-caption">
             Cliquez sur le rapport pour poser le tampon.
           </p>
         )}
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {/* Footer row: stamp picker (t-label + solid select) · cancel ghost · ONE solid primary. */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 sm:min-w-[320px]">
-            <label className="text-sm text-muted-foreground whitespace-nowrap">
+            <label className="t-label whitespace-nowrap" htmlFor="devis-preview-stamp">
               Tampon
             </label>
             <Select
               value={selectedStampId}
               onValueChange={setSelectedStampId}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger id="devis-preview-stamp" className="h-9 w-full">
                 <SelectValue placeholder="Sans tampon" />
               </SelectTrigger>
               <SelectContent>
@@ -517,7 +562,7 @@ export function DevisPreviewDialog({
           </div>
 
           <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" onClick={handleEdit}>
+            <Button type="button" variant="ghost" onClick={handleEdit}>
               Modifier
             </Button>
             <Button
@@ -728,14 +773,15 @@ function StampOverlay({
     };
 
   const cornerHandleStyle = (corner: StampCorner): React.CSSProperties => {
+    // Tokens only (blueprint §9.1): card fill, strong hairline, tinted shadow.
     const base: React.CSSProperties = {
       position: 'absolute',
       width: 12,
       height: 12,
-      background: 'white',
-      border: '1px solid rgba(0,0,0,0.6)',
+      background: 'hsl(var(--card))',
+      border: '1px solid hsl(var(--hairline-strong))',
       borderRadius: 2,
-      boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
+      boxShadow: '0 1px 2px hsl(var(--shadow-color) / 0.15)',
     };
     switch (corner) {
       case 'tl': return { ...base, left: -6, top: -6, cursor: 'nwse-resize' };
@@ -764,7 +810,7 @@ function StampOverlay({
         // <img> would render 4px smaller than the wrapper, and the cursor
         // preview would no longer match the placed stamp's size. Outline
         // is drawn outside the box and doesn't affect layout.
-        outline: '2px dashed rgba(20,184,166,0.7)',
+        outline: '2px dashed hsl(var(--ring) / 0.7)',
         outlineOffset: 0,
       }}
     >
@@ -818,14 +864,14 @@ function StampOverlay({
               width: 20,
               height: 20,
               borderRadius: '50%',
-              background: '#ef4444',
-              color: 'white',
+              background: 'hsl(var(--destructive))',
+              color: 'hsl(var(--destructive-foreground))',
               border: 'none',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+              boxShadow: '0 1px 3px hsl(var(--shadow-color) / 0.25)',
               padding: 0,
             }}
           >

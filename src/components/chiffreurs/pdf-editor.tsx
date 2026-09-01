@@ -9,20 +9,17 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Download, 
-  Save, 
-  Loader2, 
-  Type, 
-  Minus, 
-  MousePointer2, 
-  Palette,
+import {
+  Download,
+  Save,
+  Loader2,
+  Type,
+  Minus,
+  MousePointer2,
   Square,
   X,
   Undo2,
   Trash2,
-  Maximize2,
   ZoomIn,
   ZoomOut
 } from 'lucide-react';
@@ -57,6 +54,8 @@ interface PdfEditorProps {
   onClose: () => void;
 }
 
+// Annotation ink colours are DOCUMENT content (they are burned into the
+// exported PDF), not UI palette — the hexes stay.
 const COLORS = [
   { name: 'Rouge', value: '#dc2626' },
   { name: 'Bleu', value: '#2563eb' },
@@ -64,11 +63,17 @@ const COLORS = [
   { name: 'Vert', value: '#16a34a' },
 ];
 
+// Lightbox zoom rules (document-preview-lightbox): buttons step 25 %, the
+// percentage resets to fit (100 %).
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2;
+const ZOOM_STEP = 0.25;
+
 export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }: PdfEditorProps) {
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
-  
+
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -76,7 +81,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
   const [color, setColor] = useState(COLORS[0].value);
   const [hasBorder, setHasBorder] = useState(true);
   const [zoom, setZoom] = useState(1);
-  
+
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -99,6 +104,27 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
     };
     fetchExisting();
   }, [db, chiffrageId, fileIndex]);
+
+  // Ctrl/⌘ + wheel zoom on the canvas: one notch (100 px of accumulated
+  // deltaY, so multi-event wheels and trackpads count once) = ×1.3 / ÷1.3.
+  // Native listener because React wheel events are passive. Pattern:
+  // dossier-timeline/step-2-information.tsx compare pane.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let acc = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      acc += e.deltaY;
+      if (Math.abs(acc) < 100) return;
+      const direction = acc < 0 ? 1 : -1;
+      acc = 0;
+      setZoom((prev) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (tool === 'select') return;
@@ -133,7 +159,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
     const rect = canvasRef.current.getBoundingClientRect();
     const currentX = (e.clientX - rect.left) / zoom;
     const width = currentX - currentLine.x;
-    
+
     setCurrentLine({ ...currentLine, width });
   };
 
@@ -188,7 +214,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
   const handleExportPdf = async () => {
     if (!canvasRef.current) return;
     setIsExporting(true);
-    
+
     try {
       const originalZoom = zoom;
       setZoom(1); // Reset zoom for high-res capture
@@ -205,13 +231,13 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgWidth = 210;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
+
       let heightLeft = imgHeight;
       let position = 0;
       const pageHeight = 297;
 
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      
+
       pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
 
@@ -221,7 +247,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
         pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
       }
-      
+
       const pdfBlob = pdf.output('blob');
       const storagePath = `chiffrages/${chiffrageId}/correction_manual_${Date.now()}.pdf`;
 
@@ -268,7 +294,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
       a.href = URL.createObjectURL(pdfBlob);
       a.download = `Correction_Manuelle_${fileName.split('.')[0]}.pdf`;
       a.click();
-      
+
       setZoom(originalZoom);
       toast({ title: 'PDF exporté avec succès' });
       onClose();
@@ -284,103 +310,121 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-[calc(98vw/var(--app-zoom))] w-full h-[calc(98vh/var(--app-zoom))] flex flex-col p-0 gap-0 border-none shadow-2xl overflow-hidden rounded-none bg-slate-100">
-        <DialogHeader className="px-6 py-3 border-b bg-card shrink-0 z-50 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <DialogTitle className="text-lg font-bold flex items-center gap-2">
-                <Palette className="h-5 w-5 text-primary" />
-                Correcteur Professionnel
-              </DialogTitle>
-              <Badge variant="outline" className="font-mono text-[11px]">{fileName}</Badge>
+      {/* Full-viewport workspace; the dialog base already frosts (glass-strong)
+          and turns into a bottom sheet below lg. */}
+      <DialogContent
+        hideCloseButton
+        className="flex h-[calc(92dvh/var(--app-zoom))] w-full flex-col gap-0 overflow-hidden p-0 lg:h-[calc(96svh/var(--app-zoom))] lg:max-w-[calc(98vw/var(--app-zoom))]"
+      >
+        {/* Identity / tool bar — record-bar anatomy: identity · tools · ONE solid primary. */}
+        <DialogHeader className="shrink-0 space-y-0 border-b border-hairline px-4 py-2 sm:px-5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="flex min-w-0 items-center gap-3">
+              <DialogTitle className="t-heading whitespace-nowrap">Correcteur Professionnel</DialogTitle>
+              <span className="t-mono min-w-0 truncate text-ink-3" title={fileName}>{fileName}</span>
             </div>
 
-            <div className="flex items-center gap-4 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
-              <div className="flex items-center border-r pr-3 gap-1">
-                <Button 
-                  variant={tool === 'select' ? 'default' : 'ghost'} 
-                  size="sm" className="h-8 w-8 p-0" 
-                  onClick={() => setTool('select')} title="Sélectionner"
+            {/* Dense tool strip: 16 px rhythm instead of 24 (tool panel). */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-0.5 rounded-md bg-surface-2 p-0.5" role="group" aria-label="Outils">
+                <Button
+                  variant={tool === 'select' ? 'tonal' : 'ghost'}
+                  size="icon" className="h-8 w-8"
+                  onClick={() => setTool('select')} title="Sélectionner" aria-pressed={tool === 'select'}
                 >
                   <MousePointer2 className="h-4 w-4" />
                 </Button>
-                <Button 
-                  variant={tool === 'line' ? 'default' : 'ghost'} 
-                  size="sm" className="h-8 w-8 p-0" 
-                  onClick={() => setTool('line')} title="Barrer (Horizontal)"
+                <Button
+                  variant={tool === 'line' ? 'tonal' : 'ghost'}
+                  size="icon" className="h-8 w-8"
+                  onClick={() => setTool('line')} title="Barrer (Horizontal)" aria-pressed={tool === 'line'}
                 >
                   <Minus className="h-4 w-4" />
                 </Button>
-                <Button 
-                  variant={tool === 'text' ? 'default' : 'ghost'} 
-                  size="sm" className="h-8 w-8 p-0" 
-                  onClick={() => setTool('text')} title="Texte de correction"
+                <Button
+                  variant={tool === 'text' ? 'tonal' : 'ghost'}
+                  size="icon" className="h-8 w-8"
+                  onClick={() => setTool('text')} title="Texte de correction" aria-pressed={tool === 'text'}
                 >
                   <Type className="h-4 w-4" />
                 </Button>
               </div>
 
-              <div className="flex items-center border-r pr-3 gap-1.5">
+              <div className="h-5 w-px bg-hairline" aria-hidden />
+
+              <div className="flex items-center gap-1.5" role="group" aria-label="Couleur">
                 {COLORS.map(c => (
                   <button
                     key={c.value}
+                    type="button"
                     onClick={() => setColor(c.value)}
                     className={cn(
-                      "w-5 h-5 rounded-full border-2 transition-all",
-                      color === c.value ? "border-slate-900 scale-125" : "border-transparent"
+                      "h-5 w-5 rounded-full shadow-rim transition-[box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                      color === c.value && "ring-2 ring-ring ring-offset-2 ring-offset-card"
                     )}
                     style={{ backgroundColor: c.value }}
                     title={c.name}
+                    aria-label={c.name}
+                    aria-pressed={color === c.value}
                   />
                 ))}
               </div>
 
-              <div className="flex items-center border-r pr-3 gap-2">
-                <Button
-                  variant={hasBorder ? 'default' : 'outline'}
-                  size="sm"
-                  className="h-7 text-[11px] px-2"
-                  onClick={() => setHasBorder(!hasBorder)}
-                >
-                  <Square className={cn("h-3 w-3 mr-1", !hasBorder && "opacity-30")} />
-                  Bordure
-                </Button>
-              </div>
+              <div className="h-5 w-px bg-hairline" aria-hidden />
 
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={deleteSelected} disabled={!selectedId}>
+              <Button
+                variant={hasBorder ? 'tonal' : 'ghost'}
+                size="sm"
+                className="h-8 px-2 text-xs"
+                onClick={() => setHasBorder(!hasBorder)}
+                aria-pressed={hasBorder}
+              >
+                <Square className={cn("h-3 w-3", !hasBorder && "opacity-30")} />
+                Bordure
+              </Button>
+
+              <div className="h-5 w-px bg-hairline" aria-hidden />
+
+              <div className="flex items-center gap-0.5">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-ink-3 hover:text-destructive" onClick={deleteSelected} disabled={!selectedId} title="Supprimer" aria-label="Supprimer">
                   <Trash2 className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setAnnotations(annotations.slice(0, -1))}>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAnnotations(annotations.slice(0, -1))} title="Annuler" aria-label="Annuler">
                   <Undo2 className="h-4 w-4" />
                 </Button>
               </div>
             </div>
 
+            <div className="flex-1" />
+
             <div className="flex items-center gap-2">
-              <div className="flex items-center bg-slate-50 border rounded-lg px-2 mr-2">
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}><ZoomOut className="h-3.5 w-3.5" /></Button>
-                <span className="text-[11px] font-bold w-10 text-center">{Math.round(zoom * 100)}%</span>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(Math.min(2, zoom + 0.1))}><ZoomIn className="h-3.5 w-3.5" /></Button>
+              {/* Zoom pill — lightbox rules: −/%/+, 25 % steps, % = fit. */}
+              <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom" title="Ctrl + molette pour zoomer progressivement">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(Math.max(ZOOM_MIN, +(zoom - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière"><ZoomOut className="h-3.5 w-3.5" /></Button>
+                <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — réinitialiser`}>
+                  {Math.round(zoom * 100)} %
+                </button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(Math.min(ZOOM_MAX, +(zoom + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom avant"><ZoomIn className="h-3.5 w-3.5" /></Button>
               </div>
-              <Button variant="outline" size="sm" onClick={handleSave} disabled={isSaving}>
-                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+              <Button variant="tonal" size="sm" onClick={handleSave} disabled={isSaving}>
+                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                 Enregistrer
               </Button>
-              <Button variant="default" size="sm" className="bg-primary shadow-lg shadow-primary/20" onClick={handleExportPdf} disabled={isExporting}>
-                {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1.5" />}
+              <Button variant="default" size="sm" onClick={handleExportPdf} disabled={isExporting}>
+                {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                 Exporter PDF
               </Button>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-auto p-10 flex justify-center bg-slate-200" ref={containerRef}>
-          <div 
+        {/* Dark functional backdrop (lightbox media area); the page is the document. */}
+        <div className="flex flex-1 justify-center overflow-auto bg-ink-solid p-10" ref={containerRef}>
+          <div
             ref={canvasRef}
-            className="relative bg-white shadow-2xl overflow-hidden cursor-crosshair origin-top transition-transform duration-200"
-            style={{ 
-              width: '210mm', 
+            className="relative origin-top cursor-crosshair overflow-hidden bg-white shadow-raised transition-transform duration-200 ease-standard motion-reduce:transition-none"
+            style={{
+              width: '210mm',
               minHeight: '297mm',
               backgroundImage: isPdf ? 'none' : `url(${fileUrl})`,
               backgroundSize: 'contain',
@@ -393,15 +437,15 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
             onMouseUp={handleMouseUp}
           >
             {isPdf && (
-              <iframe 
-                src={`${fileUrl}#toolbar=0&view=FitH`} 
-                className="absolute inset-0 w-full h-full pointer-events-none" 
+              <iframe
+                src={`${fileUrl}#toolbar=0&view=FitH`}
+                className="absolute inset-0 w-full h-full pointer-events-none"
                 title="Background PDF"
               />
             )}
 
             {isDrawing && currentLine && tool === 'line' && (
-              <div 
+              <div
                 className="absolute pointer-events-none"
                 style={{
                   left: currentLine.width >= 0 ? currentLine.x : currentLine.x + currentLine.width,
@@ -418,8 +462,8 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
               <div
                 key={a.id}
                 className={cn(
-                  "absolute group transition-shadow",
-                  selectedId === a.id && "ring-2 ring-blue-400 ring-offset-2"
+                  "absolute group",
+                  selectedId === a.id && "ring-2 ring-ring ring-offset-2"
                 )}
                 style={{
                   left: a.x,
@@ -435,12 +479,14 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
                 }}
               >
                 {a.type === 'text' && (
+                  // Document content: white box + coloured border is what gets
+                  // exported, so it stays literal (not a UI surface).
                   <div
                     contentEditable={selectedId === a.id}
                     suppressContentEditableWarning
                     onBlur={(e) => {
                       const newText = e.currentTarget.innerText;
-                      setAnnotations(annotations.map(anno => 
+                      setAnnotations(annotations.map(anno =>
                         anno.id === a.id ? { ...anno, text: newText } : anno
                       ));
                     }}
@@ -448,7 +494,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
                       "px-2 py-1 text-xs font-bold whitespace-nowrap outline-none",
                       a.hasBorder ? "bg-white border-2" : "bg-transparent border-none"
                     )}
-                    style={{ 
+                    style={{
                       color: a.color,
                       borderColor: a.color,
                       fontSize: '13px',
@@ -460,11 +506,12 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
                 )}
                 {selectedId === a.id && (
                   <div className="absolute -top-6 -right-6 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button 
-                      variant="destructive" 
-                      size="icon" 
-                      className="h-5 w-5 rounded-full" 
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="h-5 w-5 rounded-full"
                       onClick={deleteSelected}
+                      aria-label="Supprimer l'annotation"
                     >
                       <X className="h-3 w-3" />
                     </Button>
@@ -475,16 +522,16 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-2 border-t bg-card shrink-0">
-          <div className="flex items-center justify-between w-full">
-            <p className="text-[11px] text-muted-foreground uppercase font-black tracking-widest opacity-40">
+        <DialogFooter className="shrink-0 border-t border-hairline px-5 py-2 sm:justify-between">
+          <div className="flex w-full flex-wrap items-center justify-between gap-3">
+            <p className="t-caption text-ink-4">
               DashFlow Canvas Engine — Mode "Correction Native" Manuel
             </p>
-            <div className="flex gap-4">
-              <span className="text-[11px] text-muted-foreground italic">
+            <div className="flex items-center gap-4">
+              <span className="t-caption hidden sm:inline">
                 Cliquez pour modifier un texte. Utilisez l'outil "Barre" pour corriger les prix originaux.
               </span>
-              <Button variant="ghost" size="sm" onClick={onClose} className="font-bold text-xs h-7">Fermer</Button>
+              <Button variant="ghost" size="sm" onClick={onClose}>Fermer</Button>
             </div>
           </div>
         </DialogFooter>

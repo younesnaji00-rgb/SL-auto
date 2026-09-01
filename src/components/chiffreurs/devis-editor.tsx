@@ -6,14 +6,19 @@ import Link from 'next/link';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
-  ArrowLeft, Check, ChevronDown, ChevronUp, Columns2, FileText, Loader2,
-  Save, Sparkles, Trash2, X,
+  ArrowLeft, ChevronDown, ChevronUp, Columns2, FileText, Loader2,
+  MoreHorizontal, Save, Trash2, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { CellNumberInput } from '@/components/ui/cell-number-input';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -37,6 +42,8 @@ import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import { saveGestionnaireDevisAsPieceJointe } from '@/lib/send-to-chiffrage';
 import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
 import { deriveStatus } from '@/lib/status-machine';
+import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { assureName } from '@/lib/dossier-label';
 import { cn } from '@/lib/utils';
 import ReferencePanel from '@/app/editor/reference-panel';
 import { useSidebar } from '@/components/ui/sidebar';
@@ -986,47 +993,67 @@ export function DevisEditor({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
       </div>
     );
   }
 
+  const statut: string | undefined = dossier?.statut || undefined;
+  const plaque: string = dossier?.matricule || header.matricule || '';
+  const sourceCaption = isGestionnaire
+    ? `Nouveau ${typeLabel.lower} — sera ajouté aux pièces jointes du dossier.`
+    : devisFileNames.length > 0
+      ? `${devisFileNames.length} ${typeLabel.lower}(s) fusionne(s) : ${devisFileNames.join(' · ')}`
+      : `Aucun ${typeLabel.lower} dans cette assignation`;
+  // Emphasis follows the job (GOV.UK "the primary is the next thing to do"):
+  // while the scan is unreviewed « J'ai vérifié » is THE primary and
+  // « Enregistrer » drops to tonal; once reviewed, « Enregistrer » leads.
+  const reviewPending = canEdit && !scanReviewed;
+
   return (
-    <div className="w-full px-3 sm:px-6 py-4 space-y-4">
-      {/* Top bar */}
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+    <div className="w-full">
+      {/* Sticky identity / tool bar — record-bar anatomy (components/dossiers/record-bar.tsx):
+          back · ref (mono) · assuré · plaque · statut · ONE solid primary · ⋯ menu.
+          The content scrolls under it (main is the scroll container). */}
+      <div className="sticky top-0 z-30 flex min-h-[48px] flex-wrap items-center gap-2 glass-bar border-b border-hairline px-3 sm:px-6">
         {!isGestionnaire && chiffrageId && (
-          <Button variant="outline" size="icon" asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink" asChild>
             <Link href={`/assignations-chiffrage/${chiffrageId}`} aria-label="Retour">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
         )}
-        <div className="flex-1 min-w-0">
-          <h1 className="text-lg sm:text-xl font-bold truncate">Editer les {typeLabel.plural}</h1>
-          <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
-            {isGestionnaire ? (
-              <span className="truncate">Nouveau {typeLabel.lower} — sera ajouté aux pièces jointes du dossier.</span>
-            ) : devisFileNames.length > 0 ? (
-              <>
-                <Badge variant="outline" className="text-[11px]">{devisFileNames.length}</Badge>
-                <span className="truncate">{typeLabel.lower}(s) fusionne(s) : {devisFileNames.join(' · ')}</span>
-              </>
-            ) : `Aucun ${typeLabel.lower} dans cette assignation`}
-          </div>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
+          {/* Reading order: ref (mono, ink) → assuré (ink) → plaque (ink-3) → statut → source caption. */}
+          <h1 className="t-mono min-w-0 truncate font-semibold tracking-tight" title={dossier?.refExpert || undefined}>
+            {dossier?.refExpert || 'Sans réf.'}
+          </h1>
+          {assureName(dossier?.assure) && (
+            <span className="t-body min-w-0 truncate font-medium">{assureName(dossier?.assure)}</span>
+          )}
+          {plaque && <span className="t-mono hidden text-ink-3 lg:inline">{plaque}</span>}
+          {statut && (
+            <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut), 'shrink-0')}>
+              {statut}
+            </Badge>
+          )}
+          <span className="hidden text-sm text-ink-3 md:inline">Editer les {typeLabel.plural}</span>
+          <span className="t-caption hidden min-w-0 truncate xl:inline" title={sourceCaption}>{sourceCaption}</span>
         </div>
         <Button
-          variant={comparisonOpen ? 'default' : 'outline'}
+          variant={comparisonOpen ? 'tonal' : 'outline'}
           size="sm"
+          className="h-8 gap-1.5"
           onClick={() => {
             const opening = !comparisonOpen;
             setComparisonOpen(opening);
             if (opening) setAppSidebarOpen(false);
           }}
           disabled={!dossierId}
+          aria-pressed={comparisonOpen}
           title={comparisonOpen ? 'Fermer la comparaison' : 'Ouvrir la comparaison'}
         >
-          <Columns2 className="h-3.5 w-3.5 mr-1.5" />
+          <Columns2 className="h-3.5 w-3.5" />
           Comparer
         </Button>
         {/*
@@ -1036,58 +1063,72 @@ export function DevisEditor({
           which is the single canonical unlock entry-point. Visible only when
           the table is locked (`!scanReviewed`) and the user can edit.
         */}
-        {canEdit && !scanReviewed && (
+        {reviewPending && (
           <Button
             variant="default"
             size="sm"
+            className="h-8"
             onClick={() => setScanReviewed(true)}
             title="Confirmer la vérification du scan et déverrouiller le tableau"
           >
-            <Check className="h-3.5 w-3.5 mr-1.5" />
             J&apos;ai vérifié
           </Button>
         )}
-        {!isGestionnaire && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => runExtraction(true)}
-            loading={extracting}
-            disabled={!canEdit || devisFileNames.length === 0}
-            title="Relancer l'extraction automatique (écrase les données)"
-          >
-            {extracting ? null : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
-            Ré-extraire
-          </Button>
-        )}
-        <Button variant="default" size="sm" onClick={handleSave} loading={saving} disabled={!canEdit}>
-          {saving ? null : <Save className="h-3.5 w-3.5 mr-1.5" />}
+        <Button variant={reviewPending ? 'tonal' : 'default'} size="sm" className="h-8" onClick={handleSave} loading={saving} disabled={!canEdit}>
+          {saving ? null : <Save className="h-3.5 w-3.5" />}
           Enregistrer
         </Button>
+        {!isGestionnaire && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Plus d'actions">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="t-caption truncate font-normal">{sourceCaption}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => runExtraction(true)}
+                disabled={!canEdit || devisFileNames.length === 0 || extracting}
+                title="Relancer l'extraction automatique (écrase les données)"
+              >
+                {extracting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Ré-extraire
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
+      <div className="space-y-4 px-3 py-4 sm:px-6">
+
       {extracting && !saving && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/40 border rounded-lg px-3 py-2">
+        <div className="t-caption flex items-center gap-2 rounded-lg bg-surface-2 px-4 py-2.5">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Extraction automatique en cours depuis {devisFileNames.length} {typeLabel.lower}(s)…
         </div>
       )}
 
-      <div className={cn(comparisonOpen && 'flex gap-3 items-start')}>
+      {/* Focus-mode split (step-2-information compare pane): the source
+          document is a sticky paper pane beside the table, never a thumbnail. */}
+      <div className={cn(comparisonOpen && 'flex items-start gap-6')}>
         {comparisonOpen && dossierId && (
           <ReferencePanel
             dossierId={dossierId}
             isOpen={comparisonOpen}
             onClose={() => setComparisonOpen(false)}
             initialDocType={docType}
-            className="sticky top-4 self-start h-[calc((100dvh-7rem)/var(--app-zoom))] w-1/2 min-w-[320px] max-w-[640px] border rounded-xl overflow-hidden"
+            className="paper sticky top-16 h-[calc((100dvh-10rem)/var(--app-zoom))] w-1/2 min-w-[320px] max-w-[640px] self-start overflow-hidden"
           />
         )}
         <div className={cn(comparisonOpen ? 'flex-1 min-w-0 space-y-4' : 'space-y-4')}>
 
-      {/* Identity block */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border rounded-xl p-3 sm:p-4 bg-card shadow-sm">
-        <div className="space-y-2">
+      {/* Identity block — a glass pane with the definition-list rhythm of
+          information-tab FieldRow: t-label over the control, 16 px rows,
+          24 px padding. Field order is unchanged (left list, right list, N°, date). */}
+      <Card className="p-6">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {HEADER_FIELDS_LEFT.map((f) => (
             <HeaderField
               key={f.key}
@@ -1097,8 +1138,6 @@ export function DevisEditor({
               disabled={!isEditable}
             />
           ))}
-        </div>
-        <div className="space-y-2">
           {HEADER_FIELDS_RIGHT.map((f) => (
             <HeaderField
               key={f.key}
@@ -1108,23 +1147,21 @@ export function DevisEditor({
               disabled={!isEditable}
             />
           ))}
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <HeaderField
-              label="Devis N°"
-              value={header.devisNumero}
-              onChange={(v) => setHeader((h) => ({ ...h, devisNumero: v }))}
-              disabled={!isEditable}
-            />
-            <HeaderField
-              label="Date"
-              value={header.dateDevis}
-              onChange={(v) => setHeader((h) => ({ ...h, dateDevis: v }))}
-              disabled={!isEditable}
-              placeholder="JJ/MM/AAAA"
-            />
-          </div>
+          <HeaderField
+            label="Devis N°"
+            value={header.devisNumero}
+            onChange={(v) => setHeader((h) => ({ ...h, devisNumero: v }))}
+            disabled={!isEditable}
+          />
+          <HeaderField
+            label="Date"
+            value={header.dateDevis}
+            onChange={(v) => setHeader((h) => ({ ...h, dateDevis: v }))}
+            disabled={!isEditable}
+            placeholder="JJ/MM/AAAA"
+          />
         </div>
-      </div>
+      </Card>
 
       <div className="flex items-center gap-2 px-1">
         <Checkbox
@@ -1133,7 +1170,7 @@ export function DevisEditor({
           onCheckedChange={(v) => setSansTva(v === true)}
           disabled={!isEditable}
         />
-        <label htmlFor="sans-tva-toggle" className="text-sm font-medium select-none cursor-pointer">
+        <label htmlFor="sans-tva-toggle" className="cursor-pointer select-none text-sm font-medium text-ink">
           Sans TVA
         </label>
       </div>
@@ -1143,18 +1180,21 @@ export function DevisEditor({
           Rows are added only via AI scan, paste, or programmatic flows (no
           manual "add row" button). The table grows to its natural height —
           only horizontal scroll on overflow. */}
-      <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
+      {/* Table = one glass pane: t-label column heads on the surface-2 step,
+          hairline rows only (no cell borders, no zebra, no background swaps),
+          tabular figures everywhere, totals on surface-2 in 600 ink. */}
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto relative">
           <table className="min-w-[900px] w-full text-xs border-collapse">
-            <thead className="bg-muted/50 sticky top-0 z-10">
-              <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:font-bold [&>th]:text-[11px] [&>th]:border-b [&>th]:border-r [&>th:last-child]:border-r-0 [&>th]:bg-muted/50">
+            <thead className="sticky top-0 z-10 bg-surface-2">
+              <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:whitespace-nowrap [&>th]:text-xs [&>th]:font-normal [&>th]:text-ink-3 [&>th]:border-b [&>th]:border-hairline [&>th]:bg-surface-2">
                 <th style={{ width: '180px' }}>
                   <Popover open={refHeaderOpen} onOpenChange={setRefHeaderOpen}>
                     <PopoverTrigger asChild>
                       <button
                         type="button"
                         disabled={!isEditable}
-                        className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex w-full items-center justify-between gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         title="Définir Réparation/Remplacement pour toutes les lignes"
                       >
                         <span>Réparation/Remplacement</span>
@@ -1166,7 +1206,7 @@ export function DevisEditor({
                         <button
                           key={opt}
                           type="button"
-                          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                          className="w-full rounded-md px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
                           onClick={() => {
                             setRows((rs) => rs.map((r) => ({ ...r, ref: opt })));
                             setRefHeaderOpen(false);
@@ -1185,7 +1225,7 @@ export function DevisEditor({
                       <button
                         type="button"
                         disabled={!isEditable}
-                        className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex w-full items-center justify-between gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         title="Définir Type pour toutes les lignes"
                       >
                         <span>Type</span>
@@ -1197,7 +1237,7 @@ export function DevisEditor({
                         <button
                           key={opt}
                           type="button"
-                          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                          className="w-full rounded-md px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
                           onClick={() => {
                             setRows((rs) => rs.map((r) => {
                               if (opt === 'Originale' && r.type !== 'Originale') return { ...r, type: 'Originale', tva: 20 };
@@ -1214,7 +1254,7 @@ export function DevisEditor({
                   </Popover>
                 </th>
                 <th style={{ width: '70px' }} className="text-center">Quantite</th>
-                <th style={{ width: '110px' }} className="text-right bg-muted/40">P.U.H.T</th>
+                <th style={{ width: '110px' }} className="text-right">P.U.H.T</th>
                 <th style={{ width: '120px' }} className="text-right">Total H.T</th>
                 <th style={{ width: '70px' }} className="text-center">
                   <Popover open={tvaHeaderOpen} onOpenChange={setTvaHeaderOpen}>
@@ -1222,7 +1262,7 @@ export function DevisEditor({
                       <button
                         type="button"
                         disabled={!isEditable}
-                        className="w-full flex items-center justify-center gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex w-full items-center justify-center gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         title="Définir T.V.A pour toutes les lignes"
                       >
                         <span>T.V.A</span>
@@ -1255,7 +1295,7 @@ export function DevisEditor({
                   <div className="flex items-center justify-center gap-1">
                     <span>Vetuste</span>
                     <button type="button" disabled={!isEditable}
-                            className="h-4 w-4 flex items-center justify-center rounded hover:bg-muted focus:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex h-4 w-4 items-center justify-center rounded text-ink-3 hover:bg-surface-3 hover:text-ink focus:bg-surface-3 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                             title="-5 sur toutes les lignes"
                             onClick={() => setRows((rs) => rs.map((r) => {
                               if (r.type === 'Occasion') return r;
@@ -1265,7 +1305,7 @@ export function DevisEditor({
                       <ChevronDown className="h-3 w-3" />
                     </button>
                     <button type="button" disabled={!isEditable}
-                            className="h-4 w-4 flex items-center justify-center rounded hover:bg-muted focus:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex h-4 w-4 items-center justify-center rounded text-ink-3 hover:bg-surface-3 hover:text-ink focus:bg-surface-3 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                             title="+5 sur toutes les lignes"
                             onClick={() => setRows((rs) => rs.map((r) => {
                               if (r.type === 'Occasion') return r;
@@ -1288,7 +1328,7 @@ export function DevisEditor({
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="truncate font-bold text-[11px] cursor-help">
+                            <span className="cursor-help truncate">
                               {`${col.label || (col.kind === 'accord' ? 'PUHT accordé' : 'PUHT proposé')}${col.kind === 'proposition-accord' ? propositionExpertSuffix : ''}`}
                             </span>
                           </TooltipTrigger>
@@ -1305,7 +1345,7 @@ export function DevisEditor({
                         <PopoverTrigger asChild>
                           <button
                             type="button"
-                            className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary"
+                            className="flex w-full items-center justify-between gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             title="Choisir un type d'accord"
                           >
                             <span className="truncate">{`${col.label || 'Choisir un accord'}${col.kind === 'proposition-accord' ? propositionExpertSuffix : ''}`}</span>
@@ -1315,7 +1355,7 @@ export function DevisEditor({
                         <PopoverContent align="start" className="w-48 p-1">
                           <button
                             type="button"
-                            className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                            className="w-full rounded-md px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
                             onClick={() => {
                               updateExtraColumn(col.id, { label: 'PUHT accordé', kind: 'accord' });
                               setAccordHeaderOpen((s) => ({ ...s, [col.id]: false }));
@@ -1325,7 +1365,7 @@ export function DevisEditor({
                           </button>
                           <button
                             type="button"
-                            className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                            className="w-full rounded-md px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
                             onClick={() => {
                               updateExtraColumn(col.id, {
                                 label: 'PUHT proposé',
@@ -1345,11 +1385,11 @@ export function DevisEditor({
                     const tripleSuffix = col.kind === 'accord' ? 'accordé' : 'proposé';
                     return (
                       <React.Fragment key={col.id}>
-                        <th style={{ width: '120px' }} className="text-right bg-muted/40">
+                        <th style={{ width: '120px' }} className="text-right">
                           {puHeader}
                         </th>
-                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Total H.T ${tripleSuffix}`}</th>
-                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`Prix Total ${col.kind === 'accord' ? 'Accordé' : 'Proposé'} SL Auto Expertise`}</th>
+                        <th style={{ width: '130px' }} className="text-right">{`Total H.T ${tripleSuffix}`}</th>
+                        <th style={{ width: '130px' }} className="text-right">{`Prix Total ${col.kind === 'accord' ? 'Accordé' : 'Proposé'} SL Auto Expertise`}</th>
                       </React.Fragment>
                     );
                   }
@@ -1357,17 +1397,17 @@ export function DevisEditor({
                     <th
                       key={col.id}
                       style={{ width: '140px' }}
-                      className={cn(isCounter && 'text-destructive')}
+                      className={cn(isCounter && 'text-status-danger-fg')}
                     >
                       <div className="flex items-center gap-1">
-                        {isCounter && <span className="inline-block h-1.5 w-1.5 rounded-full bg-destructive shrink-0" aria-hidden />}
+                        {isCounter && <span className="inline-block h-1.5 w-1.5 rounded-full bg-status-danger-fg shrink-0" aria-hidden />}
                         <span className="truncate">{col.label}</span>
                         {isCounter && col.sourcePdfUrl && (
                           <a
                             href={col.sourcePdfUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-destructive/70 hover:text-destructive"
+                            className="text-status-danger-fg hover:text-ink"
                             title="Ouvrir le document source"
                           >
                             <FileText className="h-3 w-3" />
@@ -1383,7 +1423,7 @@ export function DevisEditor({
                       <button
                         type="button"
                         disabled={!isEditable}
-                        className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex w-full items-center justify-between gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         title="Définir Observation pour toutes les lignes"
                       >
                         <span>Observation</span>
@@ -1393,7 +1433,7 @@ export function DevisEditor({
                     <PopoverContent align="start" className="w-44 p-1">
                       <button
                         type="button"
-                        className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none text-muted-foreground"
+                        className="w-full rounded-md px-2 py-1.5 text-left text-[13px] text-ink-3 hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
                         onClick={() => {
                           setRows((rs) => rs.map((r) => ({ ...r, observation: undefined })));
                           setObsHeaderOpen(false);
@@ -1405,7 +1445,7 @@ export function DevisEditor({
                         <button
                           key={opt}
                           type="button"
-                          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                          className="w-full rounded-md px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
                           onClick={() => {
                             setRows((rs) => rs.map((r) => ({ ...r, observation: opt as ObservationOption })));
                             setObsHeaderOpen(false);
@@ -1428,7 +1468,7 @@ export function DevisEditor({
                 // undefined; 0 is a valid filled-in value.
                 const vetusteMissing = (r.type === 'Adaptable' || r.type === 'Originale') && r.vetuste == null;
                 return (
-                  <tr key={r.id} className="[&>td]:px-1.5 [&>td]:py-1 [&>td]:border-b [&>td]:border-r [&>td:last-child]:border-r-0 group hover:bg-muted/30">
+                  <tr key={r.id} className="group [&>td]:px-1.5 [&>td]:py-1 [&>td]:border-b [&>td]:border-hairline hover:bg-surface-2/60">
                     <td>
                       {/* scanned values outside the enum render blank so the chiffreur picks */}
                       <div className="flex items-center gap-0.5">
@@ -1437,7 +1477,7 @@ export function DevisEditor({
                           onValueChange={(v) => updateRow(r.id, { ref: v })}
                           disabled={!isEditable}
                         >
-                          <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
+                          <SelectTrigger className="h-8 w-full rounded-md border-transparent bg-card px-1.5 text-xs text-ink focus:ring-1 focus:ring-ring focus:ring-offset-0">
                             <SelectValue placeholder="" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1450,7 +1490,7 @@ export function DevisEditor({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                            className="h-6 w-6 shrink-0 text-ink-3 hover:text-ink"
                             title="Effacer"
                             onClick={(e) => { e.stopPropagation(); updateRow(r.id, { ref: '' }); }}
                           >
@@ -1481,7 +1521,7 @@ export function DevisEditor({
                           }}
                           disabled={!isEditable}
                         >
-                          <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
+                          <SelectTrigger className="h-8 w-full rounded-md border-transparent bg-card px-1.5 text-xs text-ink focus:ring-1 focus:ring-ring focus:ring-offset-0">
                             <SelectValue placeholder="" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1494,7 +1534,7 @@ export function DevisEditor({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                            className="h-6 w-6 shrink-0 text-ink-3 hover:text-ink"
                             title="Effacer"
                             onClick={(e) => { e.stopPropagation(); updateRow(r.id, { type: '' }); }}
                           >
@@ -1517,16 +1557,16 @@ export function DevisEditor({
                         updateRow(r.id, { qte: v });
                       }} disabled={!isEditable} decimals={0} align="center" allowNull />
                     </td>
-                    <td className="bg-muted/40">
+                    <td>
                       <CellNumberInput value={r.puHT} onChange={(v) => updateRow(r.id, { puHT: v ?? 0 })} disabled={!isEditable} align="right" />
                     </td>
                     {/* Total H.T is computed — read-only, auto-updating. */}
-                    <td className="text-right font-semibold pr-2">{formatFr(total)}</td>
+                    <td className="pr-2 text-right font-semibold tabular-nums text-ink">{formatFr(total)}</td>
                     <td>
                       <CellNumberInput value={r.tva} onChange={(v) => updateRow(r.id, { tva: v })} disabled={!isEditable} suffix="%" decimals={0} align="center" allowNull />
                     </td>
                     <td>
-                      <div className={cn("relative rounded", vetusteMissing && "ring-1 ring-red-500")}>
+                      <div className={cn("relative rounded-md", vetusteMissing && "ring-1 ring-status-danger-fg")}>
                         <CellNumberInput
                           value={r.vetuste ?? null}
                           onChange={(v) => updateRow(r.id, { vetuste: v })}
@@ -1541,12 +1581,12 @@ export function DevisEditor({
                           showSteppers
                         />
                         {vetusteMissing && (
-                          <span className="absolute -top-1 -right-1 text-red-500 text-[11px] leading-none pointer-events-none">*</span>
+                          <span className="pointer-events-none absolute -right-1 -top-1 text-[11px] leading-none text-status-danger-fg">*</span>
                         )}
                       </div>
                     </td>
                     {/* Prix en TTC is computed — read-only: Total H.T * (1 + tva/100). */}
-                    <td className="text-right font-semibold pr-2">
+                    <td className="pr-2 text-right font-semibold tabular-nums text-ink">
                       {formatFr(total * (1 + (r.tva ?? 0) / 100))}
                     </td>
                     {extraColumns.map((col) => {
@@ -1563,7 +1603,7 @@ export function DevisEditor({
                         const isAccordOverCap = puAccord > 0 && puAccord > rowPuHT;
                         return (
                           <React.Fragment key={col.id}>
-                            <td className="bg-muted/40 align-top">
+                            <td className="align-top">
                               <AccordPUInput
                                 value={raw}
                                 disabled={!isEditable || col.locked === true}
@@ -1582,15 +1622,15 @@ export function DevisEditor({
                                 }}
                               />
                               {isAccordOverCap && (
-                                <p className="text-[11px] text-destructive mt-0.5 px-1.5 leading-tight">
+                                <p className="mt-0.5 px-1.5 text-[11px] leading-tight text-status-danger-fg">
                                   Doit être ≤ P.U.H.T
                                 </p>
                               )}
                             </td>
-                            <td className="text-right font-semibold pr-2 bg-muted/40">
+                            <td className="pr-2 text-right font-semibold tabular-nums text-ink">
                               {formatFr(totalHTAccord)}
                             </td>
-                            <td className="text-right font-semibold pr-2 bg-muted/40">
+                            <td className="pr-2 text-right font-semibold tabular-nums text-ink">
                               {formatFr(sansTva ? totalHTAccord : prixTTCAccord)}
                             </td>
                           </React.Fragment>
@@ -1602,7 +1642,7 @@ export function DevisEditor({
                             value={col.values[r.id] || ''}
                             onChange={(v) => updateExtraCell(col.id, r.id, v)}
                             disabled={!isEditable}
-                            className={col.kind === 'counter' ? 'text-destructive font-semibold' : undefined}
+                            className={col.kind === 'counter' ? 'font-semibold text-status-danger-fg' : undefined}
                           />
                         </td>
                       );
@@ -1626,13 +1666,13 @@ export function DevisEditor({
                           }}
                           disabled={!isEditable}
                         >
-                          <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
+                          <SelectTrigger className="h-8 w-full rounded-md border-transparent bg-card px-1.5 text-xs text-ink focus:ring-1 focus:ring-ring focus:ring-offset-0">
                             <SelectValue placeholder="">
                               {r.observation ? OBSERVATION_LABELS[r.observation] : ''}
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__none__" className="text-xs text-muted-foreground">(aucune)</SelectItem>
+                            <SelectItem value="__none__" className="text-xs text-ink-3">(aucune)</SelectItem>
                             {OBSERVATION_OPTIONS.map((opt) => (
                               <SelectItem key={opt} value={opt} className="text-xs">{OBSERVATION_LABELS[opt]}</SelectItem>
                             ))}
@@ -1642,7 +1682,7 @@ export function DevisEditor({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                            className="h-6 w-6 shrink-0 text-ink-3 hover:text-ink"
                             title="Effacer"
                             onClick={(e) => { e.stopPropagation(); updateRow(r.id, { observation: undefined }); }}
                           >
@@ -1653,8 +1693,8 @@ export function DevisEditor({
                     </td>
                     <td>
                       {canEdit && (
-                        <div className="flex items-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" title="Supprimer" onClick={() => deleteRow(r.id)}>
+                        <div className="flex items-center gap-0.5 opacity-40 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-ink-3 hover:text-destructive" title="Supprimer" aria-label="Supprimer la ligne" onClick={() => deleteRow(r.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -1671,20 +1711,18 @@ export function DevisEditor({
               */}
               <tr
                 className={cn(
-                  'sticky bottom-0 z-10 bg-muted/80 backdrop-blur-sm font-bold',
-                  'border-t-2 border-foreground/20',
-                  '[&>td]:px-1.5 [&>td]:py-2 [&>td]:border-t-2 [&>td]:border-foreground/20 [&>td]:bg-muted/80',
-                  '[&>td]:border-r [&>td:last-child]:border-r-0',
+                  'sticky bottom-0 z-10 bg-surface-2 font-semibold tabular-nums text-ink',
+                  '[&>td]:px-1.5 [&>td]:py-2 [&>td]:border-t [&>td]:border-hairline-strong [&>td]:bg-surface-2',
                 )}
               >
-                <td className="text-muted-foreground">Total</td>
+                <td className="font-normal text-ink-3">Total</td>
                 <td />
                 <td />
                 <td className="text-center">{formatFr(totalsRow.qteSum, 0)}</td>
                 <td />
                 <td className="text-right">{formatFr(totalsRow.totalHt)}</td>
                 <td />
-                <td className="text-center text-muted-foreground">—</td>
+                <td className="text-center font-normal text-ink-4">—</td>
                 <td className="text-right">{totalTTCExpert == null ? '—' : formatFr(totalTTCExpert)}</td>
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
@@ -1714,7 +1752,7 @@ export function DevisEditor({
                   // Σ for imported/extra columns, SR-tolerant.
                   const colSum = rows.reduce((acc, r) => acc + parseFr(col.values[r.id] || ''), 0);
                   return (
-                    <td key={col.id} className={cn('text-right', isCounter && 'text-destructive')}>
+                    <td key={col.id} className={cn('text-right', isCounter && 'text-status-danger-fg')}>
                       {formatFr(colSum)}
                     </td>
                   );
@@ -1730,23 +1768,21 @@ export function DevisEditor({
           Total TTC Expert (under Prix en TTC col). Task #16 collapsed the
           previous two-row TVA + TTC footer into this single row.
         */}
-        <div className="flex items-center p-2 border-t bg-muted/20 text-xs">
-          <div className="flex-1" />
-          <div className="flex items-center gap-6">
-            <span className="font-bold">Total H.T</span>
-            <span className="w-28 text-right font-bold">{formatFr(totals.ht)}</span>
-            {!sansTva && (
-              <>
-                <span className="font-bold">Total TTC Expert</span>
-                <span className="w-28 text-right font-bold">{totalTTCExpert == null ? '—' : formatFr(totalTTCExpert)}</span>
-              </>
-            )}
-          </div>
+        <div className="flex items-center justify-end gap-6 border-t border-hairline bg-surface-2 px-4 py-2 text-sm">
+          <span className="t-label">Total H.T</span>
+          <span className="w-28 text-right font-semibold tabular-nums text-ink">{formatFr(totals.ht)}</span>
+          {!sansTva && (
+            <>
+              <span className="t-label">Total TTC Expert</span>
+              <span className={cn('w-28 text-right font-semibold tabular-nums', totalTTCExpert == null ? 'text-ink-4' : 'text-ink')}>{totalTTCExpert == null ? '—' : formatFr(totalTTCExpert)}</span>
+            </>
+          )}
+        </div>
+      </Card>
+
+
         </div>
       </div>
-
-
-        </div>
       </div>
 
       {/*
@@ -1798,19 +1834,26 @@ export function DevisEditor({
 function HeaderField({
   label, value, onChange, disabled, placeholder,
 }: { label: string; value: string; onChange: (v: string) => void; disabled?: boolean; placeholder?: string }) {
+  // information-tab FieldRow in edit mode: quiet t-label, the control takes
+  // the value's place (14/600 ink).
   return (
-    <label className="grid grid-cols-[110px_1fr] items-center gap-2 text-xs">
-      <span className="font-semibold text-muted-foreground">{label}</span>
+    <label className="block min-w-0">
+      <span className="t-label block truncate">{label}</span>
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         placeholder={placeholder}
-        className="h-8 text-xs"
+        className="mt-1 h-8 font-semibold text-ink"
       />
     </label>
   );
 }
+
+// Cell inputs are solid `bg-card` (nested-solid rule) with no box: the row
+// hairline carries the structure and the focus ring marks the edit.
+const CELL_INPUT_CLASS =
+  'h-7 w-full rounded-md border-0 bg-card px-1.5 text-xs text-ink outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-ink-3';
 
 function CellInput({
   value, onChange, disabled, className,
@@ -1820,11 +1863,7 @@ function CellInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
-      className={cn(
-        "w-full h-7 px-1.5 text-xs bg-transparent outline-none rounded border border-transparent",
-        "focus:border-primary/50 focus:bg-background disabled:cursor-not-allowed",
-        className,
-      )}
+      className={cn(CELL_INPUT_CLASS, className)}
     />
   );
 }
@@ -1850,11 +1889,9 @@ function AccordPUInput({
       inputMode="decimal"
       title={error ? 'La valeur ne peut pas dépasser le P.U.H.T.' : undefined}
       className={cn(
-        "w-full h-7 px-1.5 text-xs bg-transparent outline-none rounded border text-right",
-        "focus:bg-background disabled:cursor-not-allowed",
-        error
-          ? "border-destructive focus:border-destructive"
-          : "border-transparent focus:border-primary/50",
+        CELL_INPUT_CLASS,
+        'text-right tabular-nums',
+        error && 'ring-1 ring-status-danger-fg focus-visible:ring-status-danger-fg',
       )}
     />
   );

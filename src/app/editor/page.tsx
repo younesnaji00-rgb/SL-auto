@@ -3,14 +3,23 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  ArrowLeft, Save, Download, Loader2, Type, Minus,
+  ArrowLeft, Save, Download, Type, Minus,
   MousePointer2, Trash2, ZoomIn, ZoomOut, Eraser,
-  RotateCw, RotateCcw, Columns2, Stamp, Plus, X,
+  RotateCw, RotateCcw, Columns2, Stamp, Plus, X, MoreHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
 import ReferencePanel from './reference-panel';
 import { useFirestore, useStorage } from '@/firebase';
 import { doc, updateDoc, serverTimestamp, getDoc, collection, getDocs } from 'firebase/firestore';
@@ -44,6 +53,8 @@ interface SavedStamp {
   dataUrl: string;
 }
 
+// Annotation ink colours are DOCUMENT content (burned into the exported PDF
+// via pdf-lib), not UI palette — the hexes stay.
 const COLORS = [
   { name: 'Rouge', value: '#dc2626' },
   { name: 'Bleu', value: '#2563eb' },
@@ -52,6 +63,12 @@ const COLORS = [
   { name: 'Orange', value: '#ea580c' },
   { name: 'Violet', value: '#7c3aed' },
 ];
+
+// Lightbox zoom rules (document-preview-lightbox): 25 % button steps, % = fit,
+// wheel one notch ≈ ×1.3.
+const ZOOM_MIN = 0.3;
+const ZOOM_MAX = 3;
+const ZOOM_STEP = 0.25;
 
 const STAMPS_STORAGE_KEY = 'editor-custom-stamps';
 
@@ -338,6 +355,28 @@ export default function EditorPage() {
       if (renderTimeoutRef.current) clearTimeout(renderTimeoutRef.current);
     };
   }, [pdfDoc, isImage, pageCount, pageDimensions.length, renderScale]);
+
+  // ── Ctrl/⌘ + wheel zoom ───────────────────────────────────────────────────
+  // One notch (100 px of accumulated deltaY, so multi-event wheels and
+  // trackpads count once) = ×1.3 / ÷1.3. A plain wheel keeps scrolling the
+  // pages. Native listener because React wheel events are passive. Pattern:
+  // dossier-timeline/step-2-information.tsx compare pane.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let acc = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      acc += e.deltaY;
+      if (Math.abs(acc) < 100) return;
+      const direction = acc < 0 ? 1 : -1;
+      acc = 0;
+      setZoom((prev) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [loading]);
 
   // ── Get position relative to a page ────────────────────────────────────────
   const getPagePos = useCallback((e: React.MouseEvent, pageIndex: number) => {
@@ -761,266 +800,315 @@ export default function EditorPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="h-screen flex flex-col bg-background">
-        <div className="border-b bg-card px-3 py-2 flex items-center gap-3">
-          <div className="h-8 w-16 animate-pulse rounded bg-muted" />
-          <div className="h-4 w-px bg-border" />
-          <div className="h-7 w-[180px] animate-pulse rounded bg-muted" />
-          <div className="flex-1" />
-          <div className="h-8 w-24 animate-pulse rounded bg-muted" />
-          <div className="h-8 w-28 animate-pulse rounded bg-muted" />
+      <div className="flex h-screen flex-col bg-background" aria-busy="true">
+        <div className="glass-bar border-b border-hairline">
+          <div className="flex min-h-[48px] items-center gap-2 px-3 sm:px-5">
+            <Skeleton className="h-8 w-8 rounded-md" />
+            <Skeleton className="h-4 w-44" />
+            <div className="flex-1" />
+            <Skeleton className="h-8 w-24 rounded-md" />
+            <Skeleton className="h-8 w-28 rounded-md" />
+          </div>
+          <div className="h-10 border-t border-hairline" />
         </div>
-        <div className="flex-1 flex items-center justify-center bg-slate-200 dark:bg-slate-800 p-8">
-          <div className="h-[calc(70vh/var(--app-zoom))] w-full max-w-3xl animate-pulse rounded-lg bg-white dark:bg-slate-700 shadow-lg" />
+        <div className="flex flex-1 items-start justify-center overflow-hidden bg-ink-solid p-8">
+          <Skeleton className="h-[calc(70vh/var(--app-zoom))] w-full max-w-3xl rounded-sm bg-card/80" />
         </div>
-        <div className="bg-card border-t px-4 py-1.5 h-7" />
+        <div className="h-8 glass-bar border-t border-hairline" />
       </div>
     );
   }
 
+  const toolLabel = tool === 'select' ? 'Sélection' : tool === 'text' ? 'Texte' : tool === 'stamp' ? 'Tampon' : 'Ligne';
+
   return (
-    <div className="flex flex-col h-screen bg-slate-100 dark:bg-slate-900 select-none">
-      {/* ── Top toolbar — Row 1: Navigation & Files ─────────────────────────── */}
-      <div className="bg-card border-b px-3 py-1.5 flex items-center gap-2 shrink-0 z-50 shadow-sm">
-        <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs px-2" onClick={() => router.back()}>
-          <ArrowLeft className="h-3 w-3" /> Retour
-        </Button>
-
-        <div className="h-5 w-px bg-border" />
-
-        {/* Type filter — always visible */}
-        <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
-          <SelectTrigger className="h-7 w-[150px] text-xs">
-            <SelectValue placeholder="Type de document" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">Tous les types ({allFiles.length})</SelectItem>
-            {Object.entries(fileTypeGroups).map(([key, group]) => (
-              <SelectItem key={key} value={key}>
-                {group.label} ({group.indices.length})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* File switcher */}
-        <Select value={String(currentFileIndex)} onValueChange={(v) => handleFileSwitch(Number(v))}>
-          <SelectTrigger className="h-7 w-[200px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {filteredFileIndices.map((i) => (
-              <SelectItem key={i} value={String(i)}>
-                <span className="flex items-center gap-1.5 truncate">
-                  {allFiles[i].source === 'dossier' && <span className="text-[11px] bg-muted px-1 rounded font-semibold text-muted-foreground shrink-0">Dossier</span>}
-                  {allFiles[i].name}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {pageCount > 0 && (
-          <span className="text-[11px] text-muted-foreground whitespace-nowrap">({pageCount} p.)</span>
-        )}
-
-        <div className="h-5 w-px bg-border" />
-
-        {/* Comparison toggle */}
-        {dossierId && (
-          <Button
-            variant={comparisonOpen ? 'default' : 'ghost'}
-            size="sm"
-            className="h-7 text-xs gap-1 px-2"
-            onClick={() => setComparisonOpen(v => !v)}
-          >
-            <Columns2 className="h-3 w-3" />
-            Comparaison
+    <div className="flex h-screen select-none flex-col bg-background">
+      {/* ── Identity / tool bar ───────────────────────────────────────────────
+          Record-bar anatomy (components/dossiers/record-bar.tsx): one glass bar
+          with two rows — identity + primary action, then the dense tool strip
+          (16 px rhythm: tool panel). The canvas scrolls under it. */}
+      <div className="z-40 shrink-0 glass-bar border-b border-hairline">
+        {/* Row 1: navigation · file identity · status · ONE solid primary · ⋯ */}
+        <div className="flex min-h-[48px] flex-wrap items-center gap-2 px-3 sm:px-5">
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink" onClick={() => router.back()} aria-label="Retour" title="Retour">
+            <ArrowLeft className="h-4 w-4" />
           </Button>
-        )}
 
-        <div className="flex-1" />
+          {/* Type filter */}
+          <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
+            <SelectTrigger className="h-8 w-[150px] text-xs">
+              <SelectValue placeholder="Type de document" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Tous les types ({allFiles.length})</SelectItem>
+              {Object.entries(fileTypeGroups).map(([key, group]) => (
+                <SelectItem key={key} value={key}>
+                  {group.label} ({group.indices.length})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        {/* Save & Export */}
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 px-2" onClick={handleSave} loading={isSaving} disabled={!isChiffrageFile} title={!isChiffrageFile ? 'Lecture seule (fichier dossier)' : ''}>
-          {isSaving ? null : <Save className="h-3 w-3" />}
-          Enregistrer
-        </Button>
-        <Button variant="default" size="sm" className="h-7 text-xs gap-1 px-2" onClick={handleExport} loading={isExporting}>
-          {isExporting ? null : <Download className="h-3 w-3" />}
-          Exporter PDF
-        </Button>
-      </div>
+          {/* File switcher */}
+          <Select value={String(currentFileIndex)} onValueChange={(v) => handleFileSwitch(Number(v))}>
+            <SelectTrigger className="h-8 w-[220px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {filteredFileIndices.map((i) => (
+                <SelectItem key={i} value={String(i)}>
+                  <span className="flex items-center gap-1.5 truncate">
+                    {allFiles[i].source === 'dossier' && <span className="shrink-0 rounded bg-surface-3 px-1 text-[11px] font-medium text-ink-2">Dossier</span>}
+                    {allFiles[i].name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {pageCount > 0 && (
+            <span className="t-caption whitespace-nowrap tabular-nums">{pageCount} p.</span>
+          )}
+          {!isChiffrageFile && (
+            <span className="shrink-0 rounded-full bg-status-warning-bg px-2 py-0.5 text-[11px] font-semibold text-status-warning-fg" title="Fichier du dossier : les annotations ne sont pas enregistrées">
+              Lecture seule
+            </span>
+          )}
 
-      {/* ── Top toolbar — Row 2: Tools ──────────────────────────────────────── */}
-      <div className="bg-card border-b px-3 py-1 flex items-center gap-2 shrink-0 z-40">
-        {/* Tools */}
-        <div className="flex items-center gap-0.5 bg-muted/50 p-0.5 rounded-md">
-          <Button variant={tool === 'select' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" onClick={() => setTool('select')} title="Sélectionner / Déplacer">
-            <MousePointer2 className="h-3.5 w-3.5" />
+          {/* Comparison toggle */}
+          {dossierId && (
+            <Button
+              variant={comparisonOpen ? 'tonal' : 'ghost'}
+              size="sm"
+              className="h-8 gap-1.5 px-2.5 text-xs"
+              onClick={() => setComparisonOpen(v => !v)}
+              aria-pressed={comparisonOpen}
+            >
+              <Columns2 className="h-3.5 w-3.5" />
+              Comparaison
+            </Button>
+          )}
+
+          <div className="flex-1" />
+
+          {/* Save (tonal) & Export (THE primary) */}
+          <Button variant="tonal" size="sm" className="hidden h-8 md:inline-flex" onClick={handleSave} loading={isSaving} disabled={!isChiffrageFile} title={!isChiffrageFile ? 'Lecture seule (fichier dossier)' : ''}>
+            {isSaving ? null : <Save className="h-3.5 w-3.5" />}
+            Enregistrer
           </Button>
-          <Button variant={tool === 'text' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" onClick={() => setTool('text')} title="Ajouter du texte">
-            <Type className="h-3.5 w-3.5" />
+          <Button variant="default" size="sm" className="h-8" onClick={handleExport} loading={isExporting}>
+            {isExporting ? null : <Download className="h-3.5 w-3.5" />}
+            Exporter PDF
           </Button>
-          <Button variant={tool === 'line' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" onClick={() => setTool('line')} title="Tracer une ligne">
-            <Minus className="h-3.5 w-3.5" />
-          </Button>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant={tool === 'stamp' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" title="Tampon">
-                <Stamp className="h-3.5 w-3.5" />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Plus d'actions">
+                <MoreHorizontal className="h-4 w-4" />
               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-3" align="start">
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tampons</p>
-                {savedStamps.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {savedStamps.map(s => (
-                      <div
-                        key={s.id}
-                        className={cn(
-                          'relative group rounded-lg border-2 p-1 cursor-pointer hover:border-primary transition-colors aspect-square flex items-center justify-center bg-muted/30',
-                          activeStampUrl === s.dataUrl && tool === 'stamp' ? 'border-primary ring-2 ring-primary/30' : 'border-border'
-                        )}
-                        onClick={() => handleSelectStamp(s.dataUrl)}
-                      >
-                        <img src={s.dataUrl} alt={s.name} className="max-w-full max-h-full object-contain" draggable={false} />
-                        <button
-                          className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center text-[11px] opacity-0 group-hover:opacity-100 transition-opacity shadow"
-                          onClick={(e) => { e.stopPropagation(); handleDeleteStamp(s.id); }}
-                        >
-                          <X className="h-2.5 w-2.5" />
-                        </button>
-                        <span className="absolute bottom-0 inset-x-0 text-[10px] text-center truncate px-0.5 text-muted-foreground">{s.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic text-center py-3">Aucun tampon importé</p>
-                )}
-                <input
-                  ref={stampInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImportStamp}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full h-7 text-xs gap-1.5"
-                  onClick={() => stampInputRef.current?.click()}
-                >
-                  <Plus className="h-3 w-3" /> Ajouter un tampon
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuLabel className="t-caption truncate font-normal">{fileName}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={handleSave} disabled={!isChiffrageFile || isSaving} className="md:hidden">
+                <Save className="mr-2 h-4 w-4" /> Enregistrer
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={deleteSelected} disabled={!selectedId}>
+                <Trash2 className="mr-2 h-4 w-4" /> Supprimer la sélection
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={clearAll} disabled={annotations.length === 0} className="text-destructive focus:text-destructive">
+                <Eraser className="mr-2 h-4 w-4" /> Tout effacer
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Row 2: tools — dense strip (16 px rhythm, tool panel). */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-hairline px-3 py-1.5 sm:px-5">
+          {/* Tools — segmented group on the surface-2 step; active = tonal */}
+          <div className="flex items-center gap-0.5 rounded-md bg-surface-2 p-0.5" role="group" aria-label="Outils">
+            <Button variant={tool === 'select' ? 'tonal' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setTool('select')} title="Sélectionner / Déplacer" aria-pressed={tool === 'select'}>
+              <MousePointer2 className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant={tool === 'text' ? 'tonal' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setTool('text')} title="Ajouter du texte" aria-pressed={tool === 'text'}>
+              <Type className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant={tool === 'line' ? 'tonal' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setTool('line')} title="Tracer une ligne" aria-pressed={tool === 'line'}>
+              <Minus className="h-3.5 w-3.5" />
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant={tool === 'stamp' ? 'tonal' : 'ghost'} size="icon" className="h-7 w-7" title="Tampon" aria-pressed={tool === 'stamp'}>
+                  <Stamp className="h-3.5 w-3.5" />
                 </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-4" align="start">
+                <div className="space-y-3">
+                  <p className="t-label">Tampons</p>
+                  {savedStamps.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-2">
+                      {savedStamps.map(s => {
+                        const active = activeStampUrl === s.dataUrl && tool === 'stamp';
+                        return (
+                          <div
+                            key={s.id}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={active}
+                            className={cn(
+                              'group relative flex aspect-square cursor-pointer items-center justify-center rounded-md bg-surface-2 p-1 ring-1 ring-hairline transition-[box-shadow] duration-150 hover:ring-hairline-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                              active && 'ring-2 ring-ring hover:ring-ring'
+                            )}
+                            onClick={() => handleSelectStamp(s.dataUrl)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectStamp(s.dataUrl); } }}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={s.dataUrl} alt={s.name} className="max-h-full max-w-full object-contain" draggable={false} />
+                            <button
+                              type="button"
+                              className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 shadow-rim-filled transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                              onClick={(e) => { e.stopPropagation(); handleDeleteStamp(s.id); }}
+                              aria-label={`Supprimer le tampon ${s.name}`}
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                            <span className="absolute inset-x-0 bottom-0 truncate px-0.5 text-center text-[11px] text-ink-3">{s.name}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="t-caption py-3 text-center">Aucun tampon importé</p>
+                  )}
+                  <input
+                    ref={stampInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImportStamp}
+                  />
+                  {/* One plain button is the picker (file-picker rule). */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => stampInputRef.current?.click()}
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Ajouter un tampon
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
 
-        <div className="h-5 w-px bg-border" />
+          <div className="h-5 w-px bg-hairline" aria-hidden />
 
-        {/* Colors */}
-        <div className="flex items-center gap-1">
-          {COLORS.map(c => (
-            <button
-              key={c.value}
-              onClick={() => {
-                setColor(c.value);
-                if (selectedId) updateSelected({ color: c.value });
+          {/* Colours — document ink, selected = focus-ring ring (no scale) */}
+          <div className="flex items-center gap-1.5" role="group" aria-label="Couleur">
+            {COLORS.map(c => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => {
+                  setColor(c.value);
+                  if (selectedId) updateSelected({ color: c.value });
+                }}
+                className={cn(
+                  'h-5 w-5 rounded-full shadow-rim transition-[box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                  color === c.value && 'ring-2 ring-ring ring-offset-2 ring-offset-card'
+                )}
+                style={{ backgroundColor: c.value }}
+                title={c.name}
+                aria-label={c.name}
+                aria-pressed={color === c.value}
+              />
+            ))}
+          </div>
+
+          <div className="h-5 w-px bg-hairline" aria-hidden />
+
+          {/* Font size */}
+          <div className="flex items-center gap-1.5" title="Taille du texte">
+            <Type className="h-3 w-3 text-ink-3" aria-hidden />
+            <Slider
+              value={[selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize]}
+              onValueChange={([v]) => {
+                setFontSize(v);
+                if (selectedId && selectedAnnotation?.type === 'text') updateSelected({ fontSize: v });
               }}
-              className={cn(
-                'w-5 h-5 rounded-full border-2 transition-all hover:scale-110',
-                color === c.value ? 'border-foreground scale-110 ring-2 ring-primary/30' : 'border-transparent'
-              )}
-              style={{ backgroundColor: c.value }}
-              title={c.name}
+              min={10}
+              max={48}
+              step={1}
+              className="w-20"
+              aria-label="Taille du texte"
             />
-          ))}
-        </div>
+            <span className="w-5 text-right font-mono text-[11px] tabular-nums text-ink-3">
+              {selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize}
+            </span>
+          </div>
 
-        <div className="h-5 w-px bg-border" />
+          <div className="h-5 w-px bg-hairline" aria-hidden />
 
-        {/* Font size */}
-        <div className="flex items-center gap-1.5">
-          <Type className="h-3 w-3 text-muted-foreground" />
-          <Slider
-            value={[selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize]}
-            onValueChange={([v]) => {
-              setFontSize(v);
-              if (selectedId && selectedAnnotation?.type === 'text') updateSelected({ fontSize: v });
-            }}
-            min={10}
-            max={48}
-            step={1}
-            className="w-20"
-          />
-          <span className="text-[11px] font-mono text-muted-foreground w-5 text-right">
-            {selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize}
-          </span>
-        </div>
+          {/* Line thickness */}
+          <div className="flex items-center gap-1.5" title="Épaisseur de la ligne">
+            <Minus className="h-3 w-3 text-ink-3" aria-hidden />
+            <Slider
+              value={[selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness]}
+              onValueChange={([v]) => {
+                setLineThickness(v);
+                if (selectedId && selectedAnnotation?.type === 'line') updateSelected({ thickness: v });
+              }}
+              min={1}
+              max={8}
+              step={1}
+              className="w-14"
+              aria-label="Épaisseur de la ligne"
+            />
+            <span className="w-3 font-mono text-[11px] tabular-nums text-ink-3">
+              {selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness}
+            </span>
+          </div>
 
-        <div className="h-5 w-px bg-border" />
+          <div className="flex-1" />
 
-        {/* Line thickness */}
-        <div className="flex items-center gap-1.5">
-          <Minus className="h-3 w-3 text-muted-foreground" />
-          <Slider
-            value={[selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness]}
-            onValueChange={([v]) => {
-              setLineThickness(v);
-              if (selectedId && selectedAnnotation?.type === 'line') updateSelected({ thickness: v });
-            }}
-            min={1}
-            max={8}
-            step={1}
-            className="w-14"
-          />
-          <span className="text-[11px] font-mono text-muted-foreground w-3">
-            {selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness}
-          </span>
-        </div>
-
-        <div className="flex-1" />
-
-        {/* Delete / Clear */}
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10" onClick={deleteSelected} disabled={!selectedId} title="Supprimer">
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10" onClick={clearAll} disabled={annotations.length === 0} title="Tout effacer">
-          <Eraser className="h-3.5 w-3.5" />
-        </Button>
-
-        <div className="h-5 w-px bg-border" />
-
-        {/* Zoom */}
-        <div className="flex items-center gap-0.5 bg-muted/50 rounded-md px-1 py-0.5">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.max(0.3, z - 0.1))}>
-            <ZoomOut className="h-3 w-3" />
+          {/* Delete selection — destructive intent stays a quiet ghost icon */}
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-ink-3 hover:text-destructive" onClick={deleteSelected} disabled={!selectedId} title="Supprimer" aria-label="Supprimer la sélection">
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
-          <span className="text-[11px] font-bold w-8 text-center">{Math.round(zoom * 100)}%</span>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.min(3, z + 0.1))}>
-            <ZoomIn className="h-3 w-3" />
-          </Button>
-        </div>
 
-        <div className="h-5 w-px bg-border" />
+          <div className="h-5 w-px bg-hairline" aria-hidden />
 
-        {/* Rotation */}
-        <div className="flex items-center gap-0.5 bg-muted/50 rounded-md px-1 py-0.5">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRotation(r => (r - 90 + 360) % 360)} title="Rotation -90°">
-            <RotateCcw className="h-3 w-3" />
-          </Button>
-          <span className="text-[11px] font-bold w-6 text-center">{rotation}°</span>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRotation(r => (r + 90) % 360)} title="Rotation +90°">
-            <RotateCw className="h-3 w-3" />
-          </Button>
+          {/* Zoom pill — −/%/+, 25 % steps, % = fit (lightbox rules) */}
+          <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom" title="Ctrl + molette pour zoomer progressivement">
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière">
+              <ZoomOut className="h-3 w-3" />
+            </Button>
+            <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — réinitialiser`}>
+              {Math.round(zoom * 100)} %
+            </button>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom avant">
+              <ZoomIn className="h-3 w-3" />
+            </Button>
+          </div>
+
+          <div className="h-5 w-px bg-hairline" aria-hidden />
+
+          {/* Rotation */}
+          <div className="flex items-center gap-0.5" role="group" aria-label="Rotation">
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRotation(r => (r - 90 + 360) % 360)} title="Rotation -90°" aria-label="Rotation -90°">
+              <RotateCcw className="h-3 w-3" />
+            </Button>
+            <span className="t-caption w-7 text-center tabular-nums">{rotation}°</span>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRotation(r => (r + 90) % 360)} title="Rotation +90°" aria-label="Rotation +90°">
+              <RotateCw className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* ── Main content area (comparison panel + canvas) ───────────────────── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
         {/* Reference panel for side-by-side comparison */}
         {comparisonOpen && dossierId && (
           <ReferencePanel
@@ -1030,10 +1118,10 @@ export default function EditorPage() {
           />
         )}
 
-        {/* Canvas area — all pages stacked */}
+        {/* Canvas area — dark functional backdrop (lightbox media area); all pages stacked */}
         <div
           ref={containerRef}
-          className="flex-1 overflow-auto flex flex-col items-center gap-6 p-8 bg-slate-200 dark:bg-slate-800"
+          className="flex flex-1 flex-col items-center gap-6 overflow-auto bg-ink-solid p-8"
         >
           {/* Image file — single page */}
           {isImage && fileUrl && (
@@ -1060,10 +1148,11 @@ export default function EditorPage() {
               }
               onDeleteSelected={deleteSelected}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={fileUrl}
                 alt={fileName}
-                className="w-full h-full object-contain"
+                className="h-full w-full object-contain"
                 crossOrigin="anonymous"
                 draggable={false}
               />
@@ -1100,7 +1189,7 @@ export default function EditorPage() {
                 style={{ display: 'block' }}
               />
               {/* Page number label */}
-              <div className="absolute bottom-2 right-3 text-[11px] text-slate-400 font-mono pointer-events-none">
+              <div className="pointer-events-none absolute bottom-2 right-3 font-mono text-[11px] tabular-nums text-ink-4">
                 Page {i + 1} / {pageCount}
               </div>
             </PageWrapper>
@@ -1109,14 +1198,14 @@ export default function EditorPage() {
       </div>
 
       {/* ── Status bar ──────────────────────────────────────────────────────── */}
-      <div className="bg-card border-t px-4 py-1.5 flex items-center justify-between text-[11px] text-muted-foreground shrink-0">
+      <div className="flex shrink-0 items-center justify-between glass-bar border-t border-hairline px-4 py-1.5 text-xs text-ink-3">
         <div className="flex items-center gap-4">
-          <span>{annotations.length} élément{annotations.length !== 1 ? 's' : ''}</span>
-          {selectedId && <span className="text-primary font-semibold">1 sélectionné — glissez pour déplacer</span>}
+          <span className="tabular-nums">{annotations.length} élément{annotations.length !== 1 ? 's' : ''}</span>
+          {selectedId && <span className="font-semibold text-ink">1 sélectionné — glissez pour déplacer</span>}
         </div>
-        <div className="flex items-center gap-4">
-          <span>Outil : {tool === 'select' ? 'Sélection' : tool === 'text' ? 'Texte' : tool === 'stamp' ? 'Tampon' : 'Ligne'}</span>
-          {!isChiffrageFile && <span className="text-amber-500 font-semibold">Lecture seule</span>}
+        <div className="flex items-center gap-4 tabular-nums">
+          <span>Outil : {toolLabel}</span>
+          {!isChiffrageFile && <span className="font-semibold text-status-warning-fg">Lecture seule</span>}
           <span>Zoom : {Math.round(zoom * 100)}%</span>
           {rotation !== 0 && <span>Rotation : {rotation}°</span>}
         </div>
@@ -1169,10 +1258,11 @@ const PageWrapper = memo(function PageWrapper({
         flexShrink: 0,
       }}
     >
+    {/* The page is the document (white by nature), raised off the dark backdrop. */}
     <div
       id={`editor-page-${pageIndex}`}
       className={cn(
-        'relative bg-white shadow-2xl',
+        'relative bg-white shadow-raised',
         tool === 'text' && 'cursor-crosshair',
         tool === 'line' && 'cursor-crosshair',
         tool === 'stamp' && 'cursor-copy',
@@ -1283,11 +1373,11 @@ const AnnotationElement = memo(function AnnotationElement({ annotation: a, isSel
               backgroundColor: a.color,
             }}
           />
-          {/* Hover highlight */}
+          {/* Hover / selection highlight — the focus ring is the selection cue */}
           <div
             className={cn(
-              'absolute inset-0 rounded transition-colors',
-              isSelected ? 'bg-primary/10 ring-2 ring-primary' : 'hover:bg-primary/5'
+              'absolute inset-0 rounded transition-colors duration-150',
+              isSelected ? 'bg-accent/40 ring-2 ring-ring' : 'hover:bg-accent/25'
             )}
           />
         </>
@@ -1322,8 +1412,9 @@ const AnnotationElement = memo(function AnnotationElement({ annotation: a, isSel
       {a.type === 'stamp' && a.stampUrl && (
         <div className={cn(
           'w-full h-full',
-          isSelected ? 'ring-2 ring-primary ring-offset-1' : ''
+          isSelected ? 'ring-2 ring-ring ring-offset-1' : ''
         )}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={a.stampUrl}
             alt="tampon"
@@ -1336,11 +1427,13 @@ const AnnotationElement = memo(function AnnotationElement({ annotation: a, isSel
       {/* Delete button — visible on hover or selection */}
       {(isSelected || a.type === 'line' || a.type === 'stamp') && (
         <button
+          type="button"
           className={cn(
-            'absolute -top-3 -right-3 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs shadow-lg hover:scale-110 transition-all',
+            'absolute -right-3 -top-3 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground shadow-rim-filled transition-opacity duration-150',
             isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}
           onClick={e => { e.stopPropagation(); onDelete(); }}
+          aria-label="Supprimer l'annotation"
         >
           ×
         </button>

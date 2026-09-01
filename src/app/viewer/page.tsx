@@ -12,7 +12,6 @@ import { useFirestore, useStorage } from '@/firebase';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 
 interface Annotation {
   id: string;
@@ -28,6 +27,11 @@ interface Annotation {
   color: string;
   stampUrl?: string;
 }
+
+// Lightbox zoom rules: 25 % button steps, % = fit, wheel one notch ≈ ×1.3.
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2;
+const ZOOM_STEP = 0.25;
 
 export default function ViewerPage() {
   const searchParams = useSearchParams();
@@ -266,29 +270,48 @@ export default function ViewerPage() {
     };
   }, [pdfDoc, isImage, pageCount, pageDimensions.length, renderScale]);
 
+  // Ctrl/⌘ + wheel zoom, one notch (100 px accumulated deltaY) = ×1.3 —
+  // pattern: dossier-timeline/step-2-information.tsx compare pane. A plain
+  // wheel keeps scrolling the pages.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let acc = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      acc += e.deltaY;
+      if (Math.abs(acc) < 100) return;
+      const direction = acc < 0 ? 1 : -1;
+      acc = 0;
+      setZoom((prev) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [loading, allFiles.length]);
+
   // Loading state
   if (loading && allFiles.length === 0) {
     return (
-      <div className="flex flex-col h-screen items-center justify-center gap-4 bg-slate-100 dark:bg-slate-900">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Chargement du document...</p>
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-ink-3" />
+        <p className="t-caption">Chargement du document...</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-slate-100 dark:bg-slate-900 select-none">
-      {/* Toolbar */}
-      <div className="bg-card border-b px-3 py-1.5 flex items-center gap-2 shrink-0 z-50 shadow-sm">
-        <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs px-2" onClick={() => router.back()}>
-          <ArrowLeft className="h-3 w-3" /> Retour
+    <div className="flex h-screen select-none flex-col bg-background">
+      {/* Identity / tool bar — record-bar anatomy (components/dossiers/record-bar.tsx):
+          back · file identity · status chip · tools; read-only, so no primary. */}
+      <div className="flex min-h-[48px] shrink-0 flex-wrap items-center gap-2 glass-bar border-b border-hairline px-3 sm:px-5">
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink" onClick={() => router.back()} aria-label="Retour" title="Retour">
+          <ArrowLeft className="h-4 w-4" />
         </Button>
-
-        <div className="h-5 w-px bg-border" />
 
         {/* Type filter */}
         <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
-          <SelectTrigger className="h-7 w-[150px] text-xs">
+          <SelectTrigger className="h-8 w-[150px] text-xs">
             <SelectValue placeholder="Type de document" />
           </SelectTrigger>
           <SelectContent>
@@ -303,14 +326,14 @@ export default function ViewerPage() {
 
         {/* File switcher */}
         <Select value={String(currentFileIndex)} onValueChange={(v) => setCurrentFileIndex(Number(v))}>
-          <SelectTrigger className="h-7 w-[200px] text-xs">
+          <SelectTrigger className="h-8 w-[220px] text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {filteredFileIndices.map((i) => (
               <SelectItem key={i} value={String(i)}>
                 <span className="flex items-center gap-1.5 truncate">
-                  {allFiles[i].source === 'dossier' && <span className="text-[11px] bg-muted px-1 rounded font-semibold text-muted-foreground shrink-0">Dossier</span>}
+                  {allFiles[i].source === 'dossier' && <span className="shrink-0 rounded bg-surface-3 px-1 text-[11px] font-medium text-ink-2">Dossier</span>}
                   {allFiles[i].name}
                 </span>
               </SelectItem>
@@ -318,55 +341,56 @@ export default function ViewerPage() {
           </SelectContent>
         </Select>
         {pageCount > 0 && (
-          <span className="text-[11px] text-muted-foreground whitespace-nowrap">({pageCount} p.)</span>
+          <span className="t-caption whitespace-nowrap tabular-nums">{pageCount} p.</span>
         )}
 
-        <div className="h-5 w-px bg-border" />
+        {/* Read-only status chip (status pair, never a hand-picked amber). */}
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-status-warning-bg px-2 py-0.5 text-[11px] font-semibold text-status-warning-fg">
+          <Eye className="h-3 w-3" aria-hidden /> Lecture seule
+        </span>
+
+        <div className="flex-1" />
 
         {/* Comparison toggle */}
         {dossierId && (
           <Button
-            variant={comparisonOpen ? 'default' : 'ghost'}
+            variant={comparisonOpen ? 'tonal' : 'ghost'}
             size="sm"
-            className="h-7 text-xs gap-1 px-2"
+            className="h-8 gap-1.5 px-2.5 text-xs"
             onClick={() => setComparisonOpen(v => !v)}
+            aria-pressed={comparisonOpen}
           >
-            <Columns2 className="h-3 w-3" />
+            <Columns2 className="h-3.5 w-3.5" />
             Comparaison
           </Button>
         )}
 
-        <div className="flex-1" />
-
-        {/* Zoom controls */}
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.max(0.5, z - 0.25))} disabled={zoom <= 0.5}>
-            <ZoomOut className="h-3 w-3" />
+        {/* Zoom pill — −/%/+, 25 % steps, % = fit (lightbox rules). */}
+        <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom" title="Ctrl + molette pour zoomer progressivement">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière">
+            <ZoomOut className="h-3.5 w-3.5" />
           </Button>
-          <span className="text-[11px] font-mono w-8 text-center">{Math.round(zoom * 100)}%</span>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.min(2, z + 0.25))} disabled={zoom >= 2}>
-            <ZoomIn className="h-3 w-3" />
+          <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — réinitialiser`}>
+            {Math.round(zoom * 100)} %
+          </button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom avant">
+            <ZoomIn className="h-3.5 w-3.5" />
           </Button>
         </div>
 
-        <div className="h-5 w-px bg-border" />
-
         {/* Rotation */}
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setRotation(r => r - 90)}>
-          <RotateCcw className="h-3 w-3" />
-        </Button>
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setRotation(r => r + 90)}>
-          <RotateCw className="h-3 w-3" />
-        </Button>
-
-        {/* Read-only indicator */}
-        <div className="flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-300 font-semibold bg-amber-50/80 dark:bg-amber-900/30 px-2 py-1 rounded">
-          <Eye className="h-3 w-3" /> Lecture seule
+        <div className="flex items-center gap-0.5" role="group" aria-label="Rotation">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRotation(r => r - 90)} title="Rotation -90°" aria-label="Rotation -90°">
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRotation(r => r + 90)} title="Rotation +90°" aria-label="Rotation +90°">
+            <RotateCw className="h-3.5 w-3.5" />
+          </Button>
         </div>
       </div>
 
       {/* Main content area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
         {comparisonOpen && dossierId && (
           <ReferencePanel
             dossierId={dossierId}
@@ -375,14 +399,14 @@ export default function ViewerPage() {
           />
         )}
 
-        {/* Canvas area */}
+        {/* Canvas area — dark functional backdrop (lightbox media area). */}
         <div
           ref={containerRef}
-          className="flex-1 overflow-auto flex flex-col items-center gap-6 p-8 bg-slate-200 dark:bg-slate-800"
+          className="flex flex-1 flex-col items-center gap-6 overflow-auto bg-ink-solid p-8"
         >
           {loading && (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-on-ink/70" />
             </div>
           )}
 
@@ -396,10 +420,11 @@ export default function ViewerPage() {
               rotation={rotation}
               annotations={annotations.filter(a => (a.page || 0) === 0)}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={fileUrl}
                 alt={fileName}
-                className="w-full h-full object-contain"
+                className="h-full w-full object-contain"
                 crossOrigin="anonymous"
                 draggable={false}
               />
@@ -421,7 +446,7 @@ export default function ViewerPage() {
                 ref={el => { if (el) pageCanvasRefs.current.set(i, el); }}
                 style={{ display: 'block' }}
               />
-              <div className="absolute bottom-2 right-3 text-[11px] text-slate-400 font-mono pointer-events-none">
+              <div className="pointer-events-none absolute bottom-2 right-3 font-mono text-[11px] tabular-nums text-ink-4">
                 Page {i + 1} / {pageCount}
               </div>
             </ReadOnlyPageWrapper>
@@ -430,13 +455,13 @@ export default function ViewerPage() {
       </div>
 
       {/* Status bar */}
-      <div className="bg-card border-t px-4 py-1.5 flex items-center justify-between text-[11px] text-muted-foreground shrink-0">
+      <div className="flex shrink-0 items-center justify-between glass-bar border-t border-hairline px-4 py-1.5 text-xs text-ink-3">
         <div className="flex items-center gap-4">
-          <span>{annotations.length} annotation{annotations.length !== 1 ? 's' : ''}</span>
-          <span>{fileName}</span>
+          <span className="tabular-nums">{annotations.length} annotation{annotations.length !== 1 ? 's' : ''}</span>
+          <span className="truncate">{fileName}</span>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-amber-500 font-semibold">Lecture seule</span>
+        <div className="flex items-center gap-4 tabular-nums">
+          <span className="font-semibold text-status-warning-fg">Lecture seule</span>
           <span>Zoom : {Math.round(zoom * 100)}%</span>
           {rotation !== 0 && <span>Rotation : {rotation}deg</span>}
         </div>
@@ -473,8 +498,9 @@ const ReadOnlyPageWrapper = memo(function ReadOnlyPageWrapper({
         flexShrink: 0,
       }}
     >
+      {/* The page is the document (white by nature), raised off the dark backdrop. */}
       <div
-        className="relative bg-white shadow-2xl cursor-default"
+        className="relative cursor-default bg-white shadow-raised"
         style={{
           width,
           height,
@@ -538,6 +564,7 @@ const ReadOnlyAnnotation = memo(function ReadOnlyAnnotation({ annotation: a }: {
 
       {a.type === 'stamp' && a.stampUrl && (
         <div className="w-full h-full">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={a.stampUrl}
             alt="tampon"

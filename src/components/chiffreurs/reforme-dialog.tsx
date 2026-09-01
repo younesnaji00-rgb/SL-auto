@@ -205,29 +205,32 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideCloseButton className="max-w-3xl max-h-[calc(90vh/var(--app-zoom))] overflow-y-auto">
+      <DialogContent hideCloseButton className="max-h-[calc(90vh/var(--app-zoom))] overflow-y-auto lg:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Réforme</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="t-heading">Réforme</DialogTitle>
+          <DialogDescription className="t-caption">
             Renseignez les valeurs de réforme du véhicule. Les montants dérivés sont calculés automatiquement.
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
           <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 py-3">
+          // Definition-list rhythm (information-tab FieldRow): t-label over the
+          // control, 16 px between rows; derived amounts are read-only values
+          // (14/600 ink, tabular) rather than disabled inputs.
+          <div className="grid grid-cols-1 gap-x-6 gap-y-4 py-2 md:grid-cols-2">
             {/* Left column */}
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="typeReforme">Type Réforme</Label>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="typeReforme" className="t-label">Type Réforme</Label>
                 <Select
                   value={state.typeReforme || 'Technique'}
                   onValueChange={(v) => set('typeReforme', v)}
                 >
-                  <SelectTrigger id="typeReforme"><SelectValue placeholder="Choisir" /></SelectTrigger>
+                  <SelectTrigger id="typeReforme" className="mt-1 h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
                   <SelectContent>
                     {REFORME_TYPES.map((t) => (
                       <SelectItem key={t} value={t}>{t}</SelectItem>
@@ -241,38 +244,31 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
               <NumberField id="valeurAchat" label="Valeur D'achat" value={state.valeurAchat} onChange={(v) => set('valeurAchat', v)} parse={num} />
               <NumberField id="valeurCommerciale" label="Valeur commerciale" value={state.valeurCommerciale} onChange={(v) => set('valeurCommerciale', v)} parse={num} />
 
-              <div className="space-y-1.5">
-                <Label htmlFor="difference">La différence des valeurs</Label>
-                <Input id="difference" disabled value={difference} className="bg-muted" />
-              </div>
+              <ComputedField label="La différence des valeurs" value={difference} />
 
-              <div className="space-y-1.5">
-                <Label htmlFor="methodeCalcul">La methode de calcul</Label>
-                <Input id="methodeCalcul" value={state.methodeCalcul} onChange={(e) => set('methodeCalcul', e.target.value)} />
+              <div>
+                <Label htmlFor="methodeCalcul" className="t-label">La methode de calcul</Label>
+                <Input id="methodeCalcul" className="mt-1 h-9" value={state.methodeCalcul} onChange={(e) => set('methodeCalcul', e.target.value)} />
               </div>
             </div>
 
             {/* Right column */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               <NumberField id="montantAccord" label="Montant Accord" value={state.montantAccord} onChange={(v) => set('montantAccord', v)} parse={num} />
               <NumberField id="franchise" label="Franchise" value={state.franchise} onChange={(v) => set('franchise', v)} parse={num} />
               <NumberField id="montantDeplacement" label="Montant Déplacement" value={state.montantDeplacement} onChange={(v) => set('montantDeplacement', v)} parse={num} />
               <NumberField id="montantHonoraires" label="Montant Honoraires" value={state.montantHonoraires} onChange={(v) => set('montantHonoraires', v)} parse={num} />
 
-              <div className="space-y-1.5">
-                <Label htmlFor="totalIndemnisation">Total D'indemnisation</Label>
-                <Input id="totalIndemnisation" disabled value={totalIndemnisation} className="bg-muted font-semibold" />
-              </div>
+              <ComputedField label="Total D'indemnisation" value={totalIndemnisation} emphasis />
             </div>
           </div>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
             Annuler
           </Button>
-          <Button onClick={handleSave} disabled={loading || saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+          <Button onClick={handleSave} loading={saving} disabled={loading}>
             Déposer Le Dossier
           </Button>
         </DialogFooter>
@@ -288,15 +284,26 @@ function NumberField({
   onChange: (v: number) => void; parse: (s: string) => number;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
+    <div>
+      <Label htmlFor={id} className="t-label">{label}</Label>
       <Input
         id={id}
         type="number"
         inputMode="decimal"
+        className="mt-1 h-9 tabular-nums"
         value={Number.isFinite(value) ? value : 0}
         onChange={(e) => onChange(parse(e.target.value))}
       />
+    </div>
+  );
+}
+
+/** Derived amount: quiet label over a bold tabular value (values are the star). */
+function ComputedField({ label, value, emphasis }: { label: string; value: number; emphasis?: boolean }) {
+  return (
+    <div className="border-t border-hairline pt-3">
+      <p className="t-label">{label}</p>
+      <p className={emphasis ? 't-title mt-1 tabular-nums' : 't-body mt-1 font-semibold tabular-nums'}>{value}</p>
     </div>
   );
 }
