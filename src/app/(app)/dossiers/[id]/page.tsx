@@ -363,7 +363,9 @@ export default function DossierDetailPage({
                     badge: requiredDocs.loading
                       ? undefined
                       : { kind: requiredDocs.received >= requiredDocs.total ? 'ok' : 'progress', label: `${requiredDocs.received}/${requiredDocs.total}` },
-                    content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos hideAccordSlots showBaseGarageSlots hideOtherSlots showAllNonAccordSlots />,
+                    // No « Envoyer vers chiffrage » in step 1 (user ruling); the
+                    // record bar's primary action covers it when the step is ready.
+                    content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} hidePhotos hideAccordSlots showBaseGarageSlots hideOtherSlots showAllNonAccordSlots />,
                   },
                 ]}
               />
