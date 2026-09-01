@@ -23,6 +23,7 @@ Adopted during the navigation / app-shell upgrade (see `UI-NAVIGATION-UPGRADE-PR
 - `lib/dossier-steps.ts` computes `todo | in_progress | done | blocked` per step from dossier fields (same fields as the monitoring funnel). Tests: `npx tsx --test src/lib/__tests__/dossier-steps.test.ts`.
 - Rendering (GOV.UK task list): ✓ muted = done, filled accent = active, outline = to-do, dashed grey + lock = blocked (tooltip says why). Helper text = `dd/MM/yyyy HH:mm · user`. Short labels: Mission · Visite avant · Accord · Visite en cours · 2ᵉ accord · Visite après · Rapport · Honoraires.
 - Horizontal bar scrolls with fade edges and auto-centres; vertical rail at ≥ 2xl. Scroll-spy via IntersectionObserver; clicking a step moves focus to the section `<h2>`.
+- **Step separation** (GOV.UK step-by-step / Material vertical stepper): each step is a paper card with a 36 px numbered medallion in a left gutter (✓ when done, teal fill when in progress, outlined when to-do, lock when blocked) joined by a 2 px rail, and 32 px of canvas between cards. Boundaries come from the rail + whitespace — never thick rules or background swaps.
 
 ## 4. Lists & tables
 
