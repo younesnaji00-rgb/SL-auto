@@ -97,7 +97,7 @@ export function RecordBar({
 
   return (
     <div
-      className="sticky top-0 z-40 flex min-h-[48px] items-center gap-2 border-b border-hairline bg-background/95 px-3 backdrop-blur sm:px-5"
+      className="sticky top-0 z-40 flex min-h-[48px] items-center gap-2 glass-bar border-b border-hairline px-3 sm:px-5"
       data-record-bar
     >
       <Tooltip>

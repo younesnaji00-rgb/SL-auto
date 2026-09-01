@@ -77,7 +77,7 @@ function MobileUpCrumb() {
 
 const Header = () => {
   return (
-    <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 border-b border-hairline bg-background px-3 md:px-5">
+    <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 glass-bar border-b border-hairline px-3 md:px-5">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <Link href="/" className="flex shrink-0 items-center lg:hidden" aria-label="Accueil">
           <img src="/images/logo.png" alt="" className="h-7 w-7 object-contain dark:invert" />

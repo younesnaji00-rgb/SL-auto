@@ -99,6 +99,21 @@
     --status-danger-fg: 0 65% 34%;
     --status-info-bg: 214 70% 93%;
     --status-info-fg: 216 60% 32%;
+
+    /* ── Glass (chrome layer only — Apple HIG Materials: bars, sidebars,
+         menus and sheets are translucent; the content layer stays opaque
+         paper). Derivatives of --card / --background, never new hues. ── */
+    --glass-bg-strong: hsl(var(--card) / 0.84);      /* menus, dialogs, sheets */
+    --glass-bg-bar: hsl(var(--card) / 0.72);         /* sticky bars content scrolls under */
+    --glass-bg-sidebar: hsl(var(--sidebar-background) / 0.78);
+    --glass-border: hsl(0 0% 100% / 0.72);
+    --glass-highlight: hsl(0 0% 100% / 0.85);        /* inset top edge = refraction */
+    --glass-shadow-panel:
+      inset 0 1px 0 var(--glass-highlight),
+      0 0 0 1px hsl(var(--shadow-color) / 0.06),
+      0 24px 60px hsl(var(--shadow-color) / 0.16);
+    --scrim: hsl(var(--ink-solid) / 0.35);           /* lighter than before: the blur separates the layers */
+    --grain-opacity: 0.03;
   }
   .dark {
     --background: 218 14% 7%;
@@ -170,6 +185,17 @@
     --status-danger-fg: 0 80% 78%;
     --status-info-bg: 216 45% 16%;
     --status-info-fg: 214 75% 78%;
+
+    --glass-bg-strong: hsl(var(--card) / 0.86);
+    --glass-bg-bar: hsl(var(--card) / 0.74);
+    --glass-bg-sidebar: hsl(var(--sidebar-background) / 0.8);
+    --glass-border: hsl(0 0% 100% / 0.1);
+    --glass-highlight: hsl(0 0% 100% / 0.08);
+    --glass-shadow-panel:
+      inset 0 1px 0 var(--glass-highlight),
+      0 28px 70px hsl(0 0% 0% / 0.6);
+    --scrim: hsl(0 0% 0% / 0.55);
+    --grain-opacity: 0.05;
   }
 }
 
@@ -260,6 +286,112 @@
   .paper-featured {
     @apply rounded-xl bg-tertiary text-tertiary-foreground shadow-raised;
   }
+}
+
+/* ── Ambient backdrop the glass refracts ───────────────────────────────
+   Frosting a flat page reads as mere reduced opacity: the blur needs
+   something behind it. Teal-tinted radials pinned to the viewport on a
+   fixed pseudo-layer (background-attachment: fixed is unreliable on mobile),
+   two of them mid-screen so the bars have colour to refract wherever the
+   page is scrolled. z-index -1 keeps it under everything but above the
+   body colour; the opaque paper cards sit on top untouched. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(42rem 30rem at 8% -6%, hsl(178 55% 38% / 0.42), transparent 58%),
+    radial-gradient(44rem 32rem at 96% 0%, hsl(168 60% 48% / 0.34), transparent 60%),
+    radial-gradient(34rem 28rem at 72% 58%, hsl(178 55% 36% / 0.24), transparent 56%),
+    radial-gradient(30rem 26rem at 30% 48%, hsl(172 50% 55% / 0.18), transparent 55%),
+    radial-gradient(36rem 30rem at 10% 98%, hsl(165 55% 50% / 0.3), transparent 58%),
+    radial-gradient(34rem 28rem at 58% 116%, hsl(178 55% 34% / 0.24), transparent 58%);
+}
+.dark body::before {
+  background:
+    radial-gradient(42rem 30rem at 8% -6%, hsl(172 55% 45% / 0.18), transparent 56%),
+    radial-gradient(44rem 32rem at 96% 0%, hsl(168 60% 50% / 0.14), transparent 58%),
+    radial-gradient(34rem 28rem at 72% 58%, hsl(172 50% 50% / 0.09), transparent 54%),
+    radial-gradient(30rem 26rem at 30% 48%, hsl(172 50% 55% / 0.07), transparent 54%),
+    radial-gradient(36rem 30rem at 10% 98%, hsl(165 55% 50% / 0.14), transparent 56%),
+    radial-gradient(34rem 28rem at 58% 116%, hsl(178 55% 40% / 0.12), transparent 56%);
+}
+/* Fine grain so the frosted chrome doesn't read as a flat vector. Above
+   static content (z 1) but under every z ≥ 1 layer (bars 30/40, overlays
+   50) — a texture, never a veil. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── Glass chrome ──────────────────────────────────────────────────────
+   .glass-strong  menus, popovers, selects, dialogs, sheets
+   .glass-bar     sticky bars the content scrolls under (top bar, record
+                  bar, stepper strip, mobile bottom bar)
+   .glass-sidebar the app sidebar (desktop rail + mobile drawer)
+   Content surfaces (.paper, Card, sockets, forms) are NEVER glass — Apple
+   HIG Materials / Liquid Glass: the navigation layer floats, the content
+   layer stays opaque and legible. Layered under `utilities` so Tailwind
+   classes on the element still win. */
+@layer components {
+  .glass-strong {
+    background: var(--glass-bg-strong);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    backdrop-filter: blur(24px) saturate(1.4);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow-panel);
+  }
+  .glass-bar {
+    background: var(--glass-bg-bar);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    backdrop-filter: blur(16px) saturate(1.3);
+    box-shadow: inset 0 1px 0 var(--glass-highlight);
+  }
+  .glass-sidebar {
+    background: var(--glass-bg-sidebar);
+    -webkit-backdrop-filter: blur(24px) saturate(1.3);
+    backdrop-filter: blur(24px) saturate(1.3);
+  }
+  /* Nested-solid rule: glass never stacks on glass. A frosted surface
+     inside another frosted surface flattens to the solid popover colour
+     (one blur per region; text stays legible). */
+  .glass-strong .glass-strong {
+    background: hsl(var(--popover));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: inset 0 1px 0 var(--glass-highlight), 0 8px 24px hsl(var(--shadow-color) / 0.1);
+  }
+}
+/* Below lg: lighter blur on the bars (GPU), overlays keep theirs. */
+@media (max-width: 1023px) {
+  .glass-bar {
+    -webkit-backdrop-filter: blur(12px) saturate(1.2);
+    backdrop-filter: blur(12px) saturate(1.2);
+  }
+}
+/* Accessibility (Apple "Reduce transparency") and unsupported engines:
+   solid surfaces, no mesh, no grain. */
+@media (prefers-reduced-transparency: reduce) {
+  .glass-strong { background: hsl(var(--popover)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .glass-bar { background: hsl(var(--background)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .glass-sidebar { background: hsl(var(--sidebar-background)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body::before, body::after { display: none; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-strong { background: hsl(var(--popover)); }
+  .glass-bar { background: hsl(var(--background)); }
+  .glass-sidebar { background: hsl(var(--sidebar-background)); }
+}
+@media print {
+  .glass-strong, .glass-bar, .glass-sidebar { background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+  body::before, body::after { display: none; }
 }
 
 @layer utilities {

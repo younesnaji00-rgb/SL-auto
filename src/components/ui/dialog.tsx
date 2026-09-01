@@ -21,7 +21,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-[hsl(var(--foreground)/0.55)] backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-50 bg-[color:var(--scrim)] backdrop-blur-[6px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
     {...props}
@@ -39,7 +39,7 @@ const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         // Shared
-        "fixed z-50 grid w-full gap-4 border border-hairline bg-card text-card-foreground p-6 shadow-raised duration-200 overscroll-contain data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none",
+        "fixed z-50 grid w-full glass-strong gap-4 text-card-foreground p-6 duration-200 overscroll-contain data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none",
         // Below lg: bottom sheet — primary action lands in the thumb zone
         "max-lg:inset-x-0 max-lg:bottom-0 max-lg:top-auto max-lg:max-h-[92dvh] max-lg:max-w-none max-lg:overflow-y-auto max-lg:rounded-t-xl max-lg:border-b-0 max-lg:pb-[max(1.5rem,env(safe-area-inset-bottom))] max-lg:data-[state=closed]:slide-out-to-bottom max-lg:data-[state=open]:slide-in-from-bottom",
         // lg and up: centred modal

@@ -228,7 +228,7 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
         style={{ top: stickyTop }}
         aria-hidden={focus || undefined}
       >
-      <div className={cn('flex min-h-0 items-center overflow-hidden border-b bg-background/95 backdrop-blur transition-opacity duration-150 ease-standard supports-[backdrop-filter]:bg-background/85 motion-reduce:transition-none', focus ? 'opacity-0' : 'opacity-100 delay-150')}>
+      <div className={cn('flex min-h-0 items-center glass-bar overflow-hidden border-b transition-opacity duration-150 ease-standard motion-reduce:transition-none', focus ? 'opacity-0' : 'opacity-100 delay-150')}>
         <TimelineBar steps={steps} activeId={activeStep} onStepClick={handleStepClick} className="min-w-0 flex-1" />
         <div className="shrink-0 border-l px-1.5">
           <Button

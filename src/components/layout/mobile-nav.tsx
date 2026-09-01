@@ -41,7 +41,7 @@ export default function MobileNav() {
   return (
     <nav
       aria-label="Navigation principale"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-hairline bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 glass-bar border-t border-hairline lg:hidden"
       style={{ paddingBottom: 'max(6px, env(safe-area-inset-bottom))' }}
     >
       <ul className="grid auto-cols-fr grid-flow-col">
