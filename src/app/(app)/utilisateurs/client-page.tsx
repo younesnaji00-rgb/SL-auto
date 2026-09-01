@@ -1,20 +1,13 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  CardDescription,
-  CardFooter
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/layout/page-header';
+import { Card } from '@/components/ui/card';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Form,
   FormControl,
@@ -39,8 +32,15 @@ import {
   TableBody,
   TableCell,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Search, Pencil, Trash2, Eye, EyeOff, X, User as UserIcon } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Search, Trash2, Eye, EyeOff, X, User as UserIcon, ChevronRight } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
 import {
@@ -105,6 +105,20 @@ function generateEmail(nom: string): string {
   return `${sanitized}@sl-auto.app`;
 }
 
+/** Small pill (role, zone, compagnie, statut). Status pairs carry meaning;
+ *  everything else sits on the neutral ladder (DESIGN.md §10). */
+const Chip = ({ className, children, title }: { className?: string; children: React.ReactNode; title?: string }) => (
+  <span
+    title={title}
+    className={cn('inline-flex h-5 max-w-full items-center truncate rounded-full px-2 text-[11px] font-medium', className)}
+  >
+    {children}
+  </span>
+);
+const ROLE_CHIP = 'bg-surface-3 text-ink-2';
+const statutChip = (statut: string) =>
+  statut === 'Actif' ? 'bg-status-success-bg text-status-success-fg' : 'bg-status-danger-bg text-status-danger-fg';
+
 export default function UtilisateursClientPage() {
   const db = useFirestore();
   const app = useFirebaseApp();
@@ -153,6 +167,9 @@ export default function UtilisateursClientPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  // The creation form lives in a dialog opened by the page's single primary
+  // action (bottom sheet below lg — DESIGN.md §2).
+  const [createOpen, setCreateOpen] = useState(false);
 
   const form = useForm<UserFormData>({
     resolver: zodResolver(userFormSchema),
@@ -267,6 +284,7 @@ export default function UtilisateursClientPage() {
         description: `${data.nom} a été ajouté avec succès.`,
       });
       form.reset();
+      setCreateOpen(false);
     } catch (error: any) {
       console.error(error);
       if (error.code === 'auth/email-already-in-use') {
@@ -325,24 +343,194 @@ export default function UtilisateursClientPage() {
     });
   }, [userList, filters]);
 
+  const hasActiveFilters = !!filters.search || filters.role !== 'Tous';
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div className="md:col-span-1">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <Card>
-              <CardHeader>
-                <CardTitle>Ajouter un utilisateur</CardTitle>
-                <CardDescription>Créez un nouveau profil utilisateur.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <PageHeader
+        title="Utilisateurs"
+        subtitle="Ajouter, gérer et assigner des rôles aux utilisateurs."
+        count={loading ? undefined : filteredUsers.length}
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>Nouvel utilisateur</Button>
+        }
+        filters={
+          <>
+            <div className="relative w-full max-w-sm flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
+              <Input
+                placeholder="Rechercher par nom ou email"
+                className="h-9 pl-9"
+                value={filters.search}
+                onChange={e => setFilters({ search: e.target.value })}
+                aria-label="Rechercher un utilisateur"
+              />
+            </div>
+            <Select value={filters.role} onValueChange={value => setFilters({ role: value })}>
+              <SelectTrigger className="h-9 w-full sm:w-[200px]" aria-label="Filtrer par rôle">
+                <SelectValue placeholder="Filtrer par rôle" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Tous">Tous les rôles</SelectItem>
+                {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {filters.role !== 'Tous' && (
+              <Chip className="h-7 gap-1 bg-surface-3 pr-1 text-ink-2">
+                Rôle : {filters.role}
+                <button
+                  type="button"
+                  onClick={() => clearFilter('role')}
+                  className="rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink"
+                  aria-label="Retirer le filtre rôle"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Chip>
+            )}
+          </>
+        }
+      />
+
+      {/* One paper block for the list: hairline rows, quiet column heads,
+          row = link with a chevron, hover-revealed row actions (DESIGN.md §4). */}
+      <Card variant="tonal" className="overflow-hidden">
+        <Table regionLabel="Utilisateurs">
+          <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Nom</TableHead>
+              <TableHead>Mot de passe</TableHead>
+              <TableHead>Rôle</TableHead>
+              <TableHead>Zone</TableHead>
+              <TableHead>Compagnies</TableHead>
+              <TableHead>Statut</TableHead>
+              <TableHead className="w-24 text-right"><span className="sr-only">Actions</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={`sk-${i}`}>
+                  <TableCell colSpan={7} className="p-0">
+                    <SkeletonRow />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : filteredUsers.length === 0 ? (
+              <TableRow key="empty-users" className="hover:bg-transparent">
+                <TableCell colSpan={7} className="p-0">
+                  <EmptyState
+                    icon={<UserIcon />}
+                    title="Aucun utilisateur trouvé"
+                    description={hasActiveFilters ? "Essayez d'ajuster les filtres." : 'Commencez par ajouter un utilisateur.'}
+                    action={
+                      hasActiveFilters ? (
+                        <Button variant="outline" size="sm" onClick={() => { clearFilter('role'); setFilters({ search: '' }); }}>
+                          Effacer les filtres
+                        </Button>
+                      ) : (
+                        <Button variant="tonal" size="sm" onClick={() => setCreateOpen(true)}>Nouvel utilisateur</Button>
+                      )
+                    }
+                    dashed={false}
+                    className="bg-transparent py-12"
+                  />
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredUsers.map((user: any) => {
+                const displayName = `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Sans nom';
+                const statut = user.statut || 'Actif';
+                const compagnies: string[] = user.compagnies || [];
+                return (
+                  <TableRow
+                    key={user.id}
+                    className="group cursor-pointer"
+                    onClick={() => router.push(`/utilisateurs/${user.id}`)}
+                  >
+                    <TableCell>
+                      <span className="block truncate font-semibold text-ink">{displayName}</span>
+                      {user.email && <span className="t-caption block truncate font-mono">{user.email}</span>}
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1">
+                        <span className="t-mono text-ink-2">
+                          {showPasswords[user.id] ? (user.password || '—') : '••••••'}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-ink-3 hover:text-ink"
+                          onClick={() => togglePasswordVisibility(user.id)}
+                          aria-label={showPasswords[user.id] ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                        >
+                          {showPasswords[user.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {user.role ? <Chip className={ROLE_CHIP}>{user.role}</Chip> : <span className="text-ink-4">—</span>}
+                    </TableCell>
+                    <TableCell>
+                      {user.role === 'Agent de Terrain' && user.zone ? (
+                        <span className="text-ink">{user.zone}</span>
+                      ) : (
+                        <span className="text-ink-4">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-normal">
+                      <div className="flex max-w-[260px] flex-wrap gap-1">
+                        {compagnies.length === 0 ? (
+                          <span className="t-caption">Toutes</span>
+                        ) : compagnies.map((c: string, i: number) => (
+                          <Chip key={i} className="bg-surface-2 text-ink-2" title={c}>{c}</Chip>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Chip className={statutChip(statut)}>{statut}</Chip>
+                    </TableCell>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-ink-3 opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
+                            onClick={() => setDeleteTarget({ id: user.id, nom: displayName === 'Sans nom' ? 'cet utilisateur' : displayName })}
+                            aria-label={`Supprimer ${displayName}`}
+                            title="Supprimer"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <ChevronRight className="h-4 w-4 text-ink-4 transition-colors group-hover:text-ink" aria-hidden />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+
+      <Dialog open={createOpen} onOpenChange={(open) => { if (!isSubmitting) setCreateOpen(open); }}>
+        <DialogContent className="lg:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Nouvel utilisateur</DialogTitle>
+            <DialogDescription>Créez un nouveau profil utilisateur. L&apos;identifiant de connexion est dérivé du nom complet.</DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField
                   control={form.control}
                   name="nom"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nom complet</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel className="t-label">Nom complet</FormLabel>
+                      <FormControl><Input {...field} autoFocus /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -352,7 +540,7 @@ export default function UtilisateursClientPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Mot de passe</FormLabel>
+                      <FormLabel className="t-label">Mot de passe</FormLabel>
                       <FormControl><Input type="password" placeholder="Minimum 6 caractères" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -363,7 +551,7 @@ export default function UtilisateursClientPage() {
                   name="confirmPassword"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Confirmez le mot de passe</FormLabel>
+                      <FormLabel className="t-label">Confirmez le mot de passe</FormLabel>
                       <FormControl><Input type="password" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -373,9 +561,9 @@ export default function UtilisateursClientPage() {
                   control={form.control}
                   name="role"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="sm:col-span-2">
                       <div className="flex items-center justify-between">
-                        <FormLabel>Rôle</FormLabel>
+                        <FormLabel className="t-label">Rôle</FormLabel>
                         <OptionsManagerModal collectionName="options_roles" title="Rôles" />
                       </div>
                       <Select onValueChange={field.onChange} value={field.value}>
@@ -394,9 +582,9 @@ export default function UtilisateursClientPage() {
                   control={form.control}
                   name="compagnies"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="sm:col-span-2">
                       <div className="flex items-center justify-between">
-                        <FormLabel>Compagnies d&apos;Assurance</FormLabel>
+                        <FormLabel className="t-label">Compagnies d&apos;assurance</FormLabel>
                         <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
                       </div>
                       <MultiSelect
@@ -413,9 +601,9 @@ export default function UtilisateursClientPage() {
                   control={form.control}
                   name="sites"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="sm:col-span-2">
                       <div className="flex items-center justify-between">
-                        <FormLabel>Sites</FormLabel>
+                        <FormLabel className="t-label">Sites</FormLabel>
                         <OptionsManagerModal collectionName="options_sites" title="Sites" />
                       </div>
                       <MultiSelect
@@ -448,9 +636,9 @@ export default function UtilisateursClientPage() {
                         : true;
                       const selected = field.value || '';
                       return (
-                        <FormItem className="flex flex-col">
+                        <FormItem className="flex flex-col sm:col-span-2">
                           <div className="flex items-center justify-between">
-                            <FormLabel>Zone</FormLabel>
+                            <FormLabel className="t-label">Zone</FormLabel>
                             <OptionsManagerModal collectionName="options_zones" title="Zones" />
                           </div>
                           <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
@@ -461,22 +649,22 @@ export default function UtilisateursClientPage() {
                                   variant="outline"
                                   role="combobox"
                                   aria-expanded={zonePopoverOpen}
-                                  className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground")}
+                                  className={cn("w-full justify-between font-normal", !selected && "text-ink-3")}
                                 >
                                   {selected || 'Sélectionnez ou saisissez une zone'}
-                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-ink-3" />
                                 </Button>
                               </FormControl>
                             </PopoverTrigger>
                             <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                               <Command shouldFilter={false}>
-                                <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
-                                  <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                                <div className="flex items-center border-b border-hairline px-3" cmdk-input-wrapper="">
+                                  <Search className="mr-2 h-4 w-4 shrink-0 text-ink-3" />
                                   <input
                                     value={zoneQuery}
                                     onChange={(e) => setZoneQuery(e.target.value)}
                                     placeholder="Tapez pour rechercher ou créer..."
-                                    className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+                                    className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-ink-3"
                                     onKeyDown={(e) => {
                                       if (e.key === 'Enter' && trimmedQuery) {
                                         e.preventDefault();
@@ -534,168 +722,32 @@ export default function UtilisateursClientPage() {
                     }}
                   />
                 )}
-              </CardContent>
-              <CardFooter>
-                <Button type="submit" className="w-full" loading={isSubmitting}>
-                  {isSubmitting ? 'Création...' : "Ajouter l'utilisateur"}
+              </div>
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)} disabled={isSubmitting}>
+                  Annuler
                 </Button>
-              </CardFooter>
-            </Card>
-          </form>
-        </Form>
-      </div>
-
-      <div className="md:col-span-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Gérer les utilisateurs</CardTitle>
-            <CardDescription>Modifiez ou supprimez des profils existants.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-grow">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher par nom..."
-                  className="pl-10"
-                  value={filters.search}
-                  onChange={e => setFilters({ search: e.target.value })}
-                />
-              </div>
-              <Select value={filters.role} onValueChange={value => setFilters({ role: value })}>
-                <SelectTrigger className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="Filtrer par rôle" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Tous">Tous les rôles</SelectItem>
-                  {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            {filters.role !== 'Tous' && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="t-label">Filtres actifs</span>
-                <Badge variant="outline" className="gap-1 pr-1">
-                  Rôle : {filters.role}
-                  <button onClick={() => clearFilter('role')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label="Retirer le filtre rôle">
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              </div>
-            )}
-            <div className="overflow-hidden rounded-lg border border-hairline">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nom</TableHead>
-                    <TableHead>Mot de passe</TableHead>
-                    <TableHead>Rôle</TableHead>
-                    <TableHead>Zone</TableHead>
-                    <TableHead>Compagnies</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <TableRow key={`sk-${i}`}>
-                        <TableCell colSpan={7} className="p-0">
-                          <SkeletonRow />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : filteredUsers.length === 0 ? (
-                    <TableRow key="empty-users">
-                      <TableCell colSpan={6} className="p-0">
-                        <EmptyState
-                          icon={<UserIcon />}
-                          title="Aucun utilisateur trouvé"
-                          description={filters.search || filters.role !== 'Tous' ? "Essayez d'ajuster les filtres." : 'Commencez par ajouter un utilisateur.'}
-                          dashed={false}
-                          className="border-0 bg-transparent py-10"
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredUsers.map((user: any) => (
-                      <TableRow
-                        key={user.id}
-                        className="cursor-pointer"
-                        onClick={() => router.push(`/utilisateurs/${user.id}`)}
-                      >
-                        <TableCell className="font-medium">{user.prenom} {user.nom}</TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-1">
-                            <span className="text-sm font-mono">
-                              {showPasswords[user.id] ? (user.password || '-') : '••••••'}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => togglePasswordVisibility(user.id)}
-                            >
-                              {showPasswords[user.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{user.role}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {user.role === 'Agent de Terrain' && user.zone ? (
-                            <Badge variant="secondary" className="text-xs">{user.zone}</Badge>
-                          ) : null}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1 max-w-[200px]">
-                            {(user.compagnies || []).length === 0 ? (
-                              <span className="text-xs text-muted-foreground">Toutes</span>
-                            ) : (user.compagnies || []).map((c: string, i: number) => (
-                              <Badge key={i} variant="secondary" className="text-xs">{c}</Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={user.statut === 'Actif' ? 'success' : 'destructive'}>{user.statut || 'Actif'}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                              <Link href={`/utilisateurs/${user.id}`} title="Modifier">
-                                <Pencil className="h-4 w-4 text-ink-3" />
-                              </Link>
-                            </Button>
-                            {canDelete && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ id: user.id, nom: `${user.prenom || ''} ${user.nom || ''}`.trim() || 'cet utilisateur' })} title="Supprimer">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                <Button type="submit" loading={isSubmitting}>
+                  {isSubmitting ? 'Création…' : "Créer l'utilisateur"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer cet utilisateur ?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.nom && <span className="font-semibold">{deleteTarget.nom}</span>} sera définitivement supprimé. Son compte Firebase, sa fiche et ses entrées dans les collections liées (options_agents / chiffreurs) seront retirés. Cette action est irréversible.
+              {deleteTarget?.nom && <span className="font-semibold text-ink">{deleteTarget.nom}</span>} sera définitivement supprimé. Son compte Firebase, sa fiche et ses entrées dans les collections liées (options_agents / chiffreurs) seront retirés. Cette action est irréversible.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className={buttonVariants({ variant: 'destructive' })}
               disabled={isDeleting}
               onClick={(e) => {
                 e.preventDefault();

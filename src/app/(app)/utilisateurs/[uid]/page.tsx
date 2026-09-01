@@ -1,40 +1,37 @@
 'use client';
 
-import { PageHeader } from '@/components/layout/page-header';
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
-  Save,
-  Trash2,
   User as UserIcon,
-  Mail,
-  Phone,
-  Calendar,
   Clock,
-  ExternalLink,
-  AlertCircle,
   ShieldCheck,
   ChevronRight,
   ChevronDown,
+  FolderOpen,
+  AlertTriangle,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  LogOut,
+  Smartphone,
+  Globe,
+  Eye,
+  EyeOff,
+  Check,
+  ChevronsUpDown,
+  Plus,
+  Search,
 } from 'lucide-react';
 import { useCompagnies } from '@/hooks/use-compagnies';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -60,8 +57,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
@@ -82,13 +88,136 @@ import {
 } from 'firebase/firestore';
 import { roles, isSingleSessionRole, type Role } from '@/lib/dossiers-data';
 import { isSessionStale, timestampToMillis } from '@/lib/session-meta';
-import { Eye, EyeOff, Check, ChevronsUpDown, Plus, Search, LogOut, Smartphone, Globe } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useOptions } from '@/hooks/use-options';
 import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { useRegisterPageTitle } from '@/components/layout/page-chrome';
+import { UserRecordSkeleton } from './loading';
+
+// ── Presentation helpers (mirrors dossiers/[id]/information-tab.tsx) ──
+
+/** Top-level block on the canvas: hairline header (icon + title + actions),
+ *  24 px body. `tonal` because nothing wraps it (DESIGN.md §10). */
+const Section = ({
+  title,
+  icon,
+  actions,
+  children,
+  className,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <Card variant="tonal" role="region" aria-label={title} className={cn('min-w-0', className)}>
+    <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
+      <div className="flex min-w-0 items-center gap-2">
+        {icon && <span className="shrink-0 text-ink-3 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
+        <h2 className="t-heading truncate">{title}</h2>
+      </div>
+      {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
+    </header>
+    <div className="px-6 py-5">{children}</div>
+  </Card>
+);
+
+/** Definition-list cell: quiet label over a bold value; in edit mode the
+ *  value is swapped for the control in place. */
+const Field = ({
+  label,
+  value,
+  edit,
+  editing,
+  className,
+}: {
+  label: string;
+  value?: React.ReactNode;
+  edit?: React.ReactNode;
+  editing: boolean;
+  className?: string;
+}) => {
+  const empty = value === undefined || value === null || value === '';
+  return (
+    <div className={cn('min-w-0', className)}>
+      <dt className="t-label truncate">{label}</dt>
+      <dd className="mt-1 min-h-[20px]">
+        {editing && edit ? (
+          <div className="w-full">{edit}</div>
+        ) : typeof value === 'string' || empty ? (
+          <span className={cn('t-body break-words', empty ? 'text-ink-4' : 'font-semibold text-ink')}>{empty ? '—' : value}</span>
+        ) : (
+          value
+        )}
+      </dd>
+    </div>
+  );
+};
+
+const Chip = ({ className, children, title }: { className?: string; children: React.ReactNode; title?: string }) => (
+  <span title={title} className={cn('inline-flex h-5 max-w-full items-center truncate rounded-full px-2 text-[11px] font-medium', className)}>
+    {children}
+  </span>
+);
+const ROLE_CHIP = 'bg-surface-3 text-ink-2';
+const statutChip = (statut: string) =>
+  statut === 'Actif' ? 'bg-status-success-bg text-status-success-fg' : 'bg-status-danger-bg text-status-danger-fg';
+
+const ChipList = ({ items, emptyLabel }: { items: string[]; emptyLabel: React.ReactNode }) =>
+  items.length === 0 ? (
+    <span className="t-body text-ink-4">{emptyLabel}</span>
+  ) : (
+    <span className="flex flex-wrap gap-1">
+      {items.map((c) => (
+        <Chip key={c} className="bg-surface-2 text-ink-2" title={c}>{c}</Chip>
+      ))}
+    </span>
+  );
+
+type UserForm = {
+  nom: string;
+  prenom: string;
+  email: string;
+  telephone: string;
+  password: string;
+  role: Role | '';
+  statut: 'Actif' | 'Inactif' | '';
+  compagnies: string[];
+  sites: string[];
+  zone: string;
+};
+
+const EMPTY_FORM: UserForm = {
+  nom: '',
+  prenom: '',
+  email: '',
+  telephone: '',
+  password: '',
+  role: '',
+  statut: '',
+  compagnies: [],
+  sites: [],
+  zone: '',
+};
+
+function formFromUser(userData: any): UserForm {
+  return {
+    nom: userData.nom || '',
+    prenom: userData.prenom || '',
+    email: userData.email || '',
+    telephone: userData.telephone || '',
+    password: userData.password || '',
+    role: userData.role || '',
+    statut: userData.statut || 'Actif',
+    compagnies: userData.compagnies || [],
+    sites: userData.sites || [],
+    zone: userData.zone || '',
+  };
+}
 
 export default function UserDetailPage({ params }: { params: Promise<{ uid: string }> }) {
   const { uid } = React.use(params);
@@ -136,6 +265,10 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Edit-in-place (information-tab pattern): read-only definition lists by
+  // default; « Modifier » swaps values for controls, the record bar carries
+  // the single « Enregistrer ».
+  const [editing, setEditing] = useState(false);
   // Per-user permission overrides. `deniedNavItems` = hrefs hidden despite the
   // role allowing them (revoke). `grantedNavItems` = hrefs visible despite the
   // role denying them (grant). Both mirror Firestore fields. The toggle UI
@@ -146,18 +279,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const [deniedNavItems, setDeniedNavItems] = useState<string[]>([]);
   const [grantedNavItems, setGrantedNavItems] = useState<string[]>([]);
   const [permissionsSaving, setPermissionsSaving] = useState<Record<string, boolean>>({});
-  const [formData, setFormData] = useState({
-    nom: '',
-    prenom: '',
-    email: '',
-    telephone: '',
-    password: '',
-    role: '' as Role | '',
-    statut: '' as 'Actif' | 'Inactif' | '',
-    compagnies: [] as string[],
-    sites: [] as string[],
-    zone: '',
-  });
+  const [formData, setFormData] = useState<UserForm>(EMPTY_FORM);
 
   // Fetch assigned dossiers (by assignedTo or createdBy)
   useEffect(() => {
@@ -190,13 +312,13 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         const q = query(collectionGroup(db, 'history'), where('changedBy', '==', uid), limit(50));
         const snap = await getDocs(q);
         const results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        
+
         results.sort((a: any, b: any) => {
           const dateA = a.changedAt?.toDate ? a.changedAt.toDate() : new Date(a.changedAt);
           const dateB = b.changedAt?.toDate ? b.changedAt.toDate() : new Date(b.changedAt);
           return dateB.getTime() - dateA.getTime();
         });
-        
+
         setActivityHistory(results.slice(0, 20));
       } catch (e) {
         console.warn("Failed to fetch activity history", e);
@@ -209,22 +331,17 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
 
   useEffect(() => {
     if (userData) {
-      setFormData({
-        nom: userData.nom || '',
-        prenom: userData.prenom || '',
-        email: userData.email || '',
-        telephone: userData.telephone || '',
-        password: userData.password || '',
-        role: userData.role || '',
-        statut: userData.statut || 'Actif',
-        compagnies: userData.compagnies || [],
-        sites: userData.sites || [],
-        zone: userData.zone || '',
-      });
+      setFormData(formFromUser(userData));
       setDeniedNavItems(Array.isArray(userData.deniedNavItems) ? userData.deniedNavItems : []);
       setGrantedNavItems(Array.isArray(userData.grantedNavItems) ? userData.grantedNavItems : []);
     }
   }, [userData]);
+
+  const initialForm = useMemo(() => (userData ? formFromUser(userData) : EMPTY_FORM), [userData]);
+  const dirty = useMemo(() => JSON.stringify(formData) !== JSON.stringify(initialForm), [formData, initialForm]);
+
+  const displayName = `${formData.prenom ?? ''} ${formData.nom ?? ''}`.trim() || 'Utilisateur';
+  useRegisterPageTitle(userLoading ? null : displayName);
 
   // Permission tree shown in the card. Top-level entries are sidebar items
   // (except `/signaler-bug` which is universally accessible). Some entries
@@ -443,12 +560,18 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       }
 
       toast({ title: "Profil mis à jour", description: "Les informations ont été enregistrées avec succès." });
+      setEditing(false);
     } catch (error) {
       console.error(error);
       toast({ variant: 'destructive', title: "Erreur", description: "Impossible de sauvegarder les modifications." });
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleCancelEdit = () => {
+    setFormData(initialForm);
+    setEditing(false);
   };
 
   const handleDeleteUser = async () => {
@@ -506,517 +629,521 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   };
 
   if (userLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Skeleton className="h-[400px] md:col-span-2" />
-          <Skeleton className="h-[400px]" />
-        </div>
-      </div>
-    );
+    return <UserRecordSkeleton />;
   }
 
   if (!userData) {
     return (
-      <div className="flex flex-col items-center justify-center p-20 text-center">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-bold">Utilisateur introuvable</h1>
-        <Button asChild className="mt-6" variant="outline">
-          <Link href="/utilisateurs"><ArrowLeft className="mr-2 h-4 w-4" /> Retour à la liste</Link>
-        </Button>
-      </div>
+      <EmptyState
+        icon={<UserIcon />}
+        title="Utilisateur introuvable"
+        description="Ce compte n'existe plus ou l'adresse est incorrecte."
+        action={
+          <Button asChild variant="outline">
+            <Link href="/utilisateurs">Retour à la liste</Link>
+          </Button>
+        }
+      />
     );
   }
 
+  const showSessionCard = isAdmin && isSingleSessionRole(userData.role);
+  const statut = formData.statut || 'Actif';
+
+  const passwordValue = (
+    <span className="flex items-center gap-1">
+      <span className="t-mono text-ink-2">{showPassword ? (formData.password || '—') : '••••••'}</span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 text-ink-3 hover:text-ink"
+        onClick={() => setShowPassword(v => !v)}
+        aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+      >
+        {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+      </Button>
+    </span>
+  );
+
+  const zoneEdit = (() => {
+    const trimmedQuery = zoneQuery.trim();
+    const qLower = trimmedQuery.toLowerCase();
+    const filteredZones = qLower
+      ? zoneOptions.filter(z => z.label.toLowerCase().startsWith(qLower))
+      : zoneOptions;
+    const exactMatch = trimmedQuery
+      ? zoneOptions.some(z => z.label.toLowerCase() === qLower)
+      : true;
+    const selected = formData.zone || '';
+    return (
+      <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={zonePopoverOpen}
+            className={cn("w-full justify-between font-normal", !selected && "text-ink-3")}
+          >
+            {selected || 'Sélectionnez ou saisissez une zone'}
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-ink-3" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <Command shouldFilter={false}>
+            <div className="flex items-center border-b border-hairline px-3" cmdk-input-wrapper="">
+              <Search className="mr-2 h-4 w-4 shrink-0 text-ink-3" />
+              <input
+                value={zoneQuery}
+                onChange={(e) => setZoneQuery(e.target.value)}
+                placeholder="Tapez pour rechercher ou créer..."
+                className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-ink-3"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && trimmedQuery) {
+                    e.preventDefault();
+                    setFormData(p => ({ ...p, zone: trimmedQuery }));
+                    setZonePopoverOpen(false);
+                    setZoneQuery('');
+                  }
+                }}
+              />
+            </div>
+            <CommandList>
+              {filteredZones.length === 0 && !trimmedQuery && (
+                <CommandEmpty>Aucune zone enregistrée. Tapez pour créer.</CommandEmpty>
+              )}
+              {filteredZones.length > 0 && (
+                <CommandGroup>
+                  {filteredZones.map(z => (
+                    <CommandItem
+                      key={z.id}
+                      value={z.label}
+                      onSelect={() => {
+                        setFormData(p => ({ ...p, zone: z.label }));
+                        setZonePopoverOpen(false);
+                        setZoneQuery('');
+                      }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", selected === z.label ? "opacity-100" : "opacity-0")} />
+                      {z.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              {trimmedQuery && !exactMatch && (
+                <CommandGroup heading="Créer">
+                  <CommandItem
+                    value={`__create__${trimmedQuery}`}
+                    onSelect={() => {
+                      setFormData(p => ({ ...p, zone: trimmedQuery }));
+                      setZonePopoverOpen(false);
+                      setZoneQuery('');
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Créer «{trimmedQuery}»
+                  </CommandItem>
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
+  })();
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        size="compact"
-        backHref="/utilisateurs"
-        backLabel="Utilisateurs"
-        title={`${formData.prenom ?? ''} ${formData.nom ?? ''}`.trim() || 'Utilisateur'}
-        meta={
-          <>
-            <Badge variant="secondary">{formData.role}</Badge>
-            <Badge variant={formData.statut === 'Actif' ? 'success' : 'destructive'} className="flex gap-1 items-center">
-              <span className={`h-1.5 w-1.5 rounded-full ${formData.statut === 'Actif' ? 'bg-status-success-fg' : 'bg-destructive'}`} />
-              {formData.statut}
-            </Badge>
-          </>
-        }
-      />
+      {/* Sticky identity bar — same tokens as components/dossiers/record-bar.tsx:
+          identity · role · statut · email, ONE primary (Enregistrer while editing),
+          ⋯ menu. Bleeds into the layout padding so it spans the inset. */}
+      <div
+        className="sticky top-0 z-30 -mx-4 -mt-4 flex min-h-[48px] items-center gap-2 glass-bar border-b border-hairline px-4 md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8"
+        data-record-bar
+      >
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink" asChild>
+          <Link href="/utilisateurs" aria-label="Retour aux utilisateurs" title="Utilisateurs">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        </Button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <UserIcon className="h-5 w-5 text-ink-3" />
-                Informations personnelles
-              </CardTitle>
-              <CardDescription>Gérez les coordonnées et les accès de l'utilisateur.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label>Prénom</Label>
-                  <Input 
-                    value={formData.prenom} 
-                    onChange={e => setFormData(p => ({...p, prenom: e.target.value}))} 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Nom</Label>
-                  <Input 
-                    value={formData.nom} 
-                    onChange={e => setFormData(p => ({...p, nom: e.target.value}))} 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      className="pl-10"
-                      value={formData.email} 
-                      onChange={e => setFormData(p => ({...p, email: e.target.value}))} 
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Téléphone</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      className="pl-10"
-                      value={formData.telephone} 
-                      onChange={e => setFormData(p => ({...p, telephone: e.target.value}))} 
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Mot de passe</Label>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? 'text' : 'password'}
-                      value={formData.password}
-                      readOnly
-                      className="bg-surface-2 pr-10 font-mono"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                      onClick={() => setShowPassword(v => !v)}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Rôle</Label>
-                  <Select value={formData.role} onValueChange={v => setFormData(p => ({...p, role: v as Role}))}>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
+          <h1 className="t-heading min-w-0 truncate" tabIndex={-1}>{displayName}</h1>
+          {formData.role && <Chip className={ROLE_CHIP}>{formData.role}</Chip>}
+          <Chip className={statutChip(statut)}>{statut}</Chip>
+          {formData.email && <span className="t-mono hidden truncate text-ink-3 md:inline">{formData.email}</span>}
+        </div>
+
+        {editing && (
+          <>
+            <Button size="sm" variant="ghost" className="h-8" onClick={handleCancelEdit} disabled={isSaving}>
+              Annuler
+            </Button>
+            <Button size="sm" className="h-8" onClick={handleSave} loading={isSaving} disabled={!dirty && !isSaving}>
+              {isSaving ? 'Enregistrement…' : 'Enregistrer'}
+            </Button>
+          </>
+        )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Plus d'actions">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuLabel className="t-caption truncate font-normal">{displayName}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {!editing && (
+              <DropdownMenuItem onSelect={() => setEditing(true)}>
+                <Pencil className="mr-2 h-4 w-4" /> Modifier les informations
+              </DropdownMenuItem>
+            )}
+            {showSessionCard && (
+              <DropdownMenuItem onSelect={handleForceDisconnect} disabled={!userData.currentSessionId || isDisconnecting}>
+                <LogOut className="mr-2 h-4 w-4" /> Déconnecter la session
+              </DropdownMenuItem>
+            )}
+            {canDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => setShowDeleteDialog(true)} className="text-destructive focus:text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer l&apos;utilisateur
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <Section
+            title="Informations"
+            icon={<UserIcon />}
+            actions={
+              !editing ? (
+                <Button type="button" size="sm" variant="outline" className="h-7 gap-1.5 px-2.5 text-xs" onClick={() => setEditing(true)}>
+                  <Pencil className="h-3.5 w-3.5" /> Modifier
+                </Button>
+              ) : undefined
+            }
+          >
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+              <Field
+                label="Prénom"
+                editing={editing}
+                value={formData.prenom}
+                edit={<Input value={formData.prenom} onChange={e => setFormData(p => ({ ...p, prenom: e.target.value }))} />}
+              />
+              <Field
+                label="Nom"
+                editing={editing}
+                value={formData.nom}
+                edit={<Input value={formData.nom} onChange={e => setFormData(p => ({ ...p, nom: e.target.value }))} />}
+              />
+              <Field
+                label="Email"
+                editing={editing}
+                value={formData.email ? <span className="t-mono break-all font-semibold">{formData.email}</span> : ''}
+                edit={<Input className="font-mono" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />}
+              />
+              <Field
+                label="Téléphone"
+                editing={editing}
+                value={formData.telephone ? <span className="t-body font-semibold tabular-nums text-ink">{formData.telephone}</span> : ''}
+                edit={<Input type="tel" inputMode="tel" placeholder="+212 6 00 00 00 00" value={formData.telephone} onChange={e => setFormData(p => ({ ...p, telephone: e.target.value }))} />}
+              />
+              <Field label="Mot de passe" editing={editing} value={passwordValue} />
+              <Field
+                label="Rôle"
+                editing={editing}
+                value={formData.role ? <Chip className={ROLE_CHIP}>{formData.role}</Chip> : ''}
+                edit={
+                  <Select value={formData.role} onValueChange={v => setFormData(p => ({ ...p, role: v as Role }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {roles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Statut</Label>
-                  <Select value={formData.statut} onValueChange={v => setFormData(p => ({...p, statut: v as 'Actif' | 'Inactif'}))}>
+                }
+              />
+              <Field
+                label="Statut"
+                editing={editing}
+                value={<Chip className={statutChip(statut)}>{statut}</Chip>}
+                edit={
+                  <Select value={formData.statut} onValueChange={v => setFormData(p => ({ ...p, statut: v as 'Actif' | 'Inactif' }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Actif">Actif</SelectItem>
                       <SelectItem value="Inactif">Inactif</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                {formData.role === 'Agent de Terrain' && (() => {
-                  const trimmedQuery = zoneQuery.trim();
-                  const qLower = trimmedQuery.toLowerCase();
-                  const filteredZones = qLower
-                    ? zoneOptions.filter(z => z.label.toLowerCase().startsWith(qLower))
-                    : zoneOptions;
-                  const exactMatch = trimmedQuery
-                    ? zoneOptions.some(z => z.label.toLowerCase() === qLower)
-                    : true;
-                  const selected = formData.zone || '';
+                }
+              />
+              {formData.role === 'Agent de Terrain' && (
+                <Field label="Zone" editing={editing} value={formData.zone} edit={zoneEdit} />
+              )}
+            </dl>
+
+            <div className="mt-5 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-hairline pt-5 lg:grid-cols-2">
+              <div className="min-w-0">
+                <dt className="t-label">Compagnies d&apos;assurance affiliées</dt>
+                <dd className="mt-1">
+                  {editing ? (
+                    <>
+                      <MultiSelect
+                        options={companyOptions}
+                        selected={formData.compagnies}
+                        onChange={(vals) => setFormData(p => ({ ...p, compagnies: vals }))}
+                        className="w-full"
+                      />
+                      <p className="t-caption mt-1.5">
+                        L&apos;utilisateur ne verra que les dossiers des compagnies sélectionnées. Si aucune n&apos;est sélectionnée, il verra tous les dossiers.
+                      </p>
+                    </>
+                  ) : (
+                    <ChipList items={formData.compagnies} emptyLabel="Toutes" />
+                  )}
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="t-label">Sites</dt>
+                <dd className="mt-1">
+                  {editing ? (
+                    <>
+                      <MultiSelect
+                        options={siteOptions}
+                        selected={formData.sites}
+                        onChange={(vals) => setFormData(p => ({ ...p, sites: vals }))}
+                        className="w-full"
+                      />
+                      <p className="t-caption mt-1.5">
+                        Villes dans lesquelles l&apos;utilisateur intervient. Plusieurs choix possibles.
+                      </p>
+                    </>
+                  ) : (
+                    <ChipList items={formData.sites} emptyLabel="—" />
+                  )}
+                </dd>
+              </div>
+            </div>
+
+            <dl className="mt-5 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-hairline pt-5 sm:grid-cols-2">
+              <div className="min-w-0">
+                <dt className="t-label">Créé le</dt>
+                <dd className="t-body mt-1 tabular-nums text-ink-2">{formatTimestamp(userData.createdAt)}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="t-label">Dernière connexion</dt>
+                <dd className="t-body mt-1 tabular-nums text-ink-2">{formatTimestamp(userData.lastLogin)}</dd>
+              </div>
+            </dl>
+          </Section>
+
+          <Section title="Accès aux pages" icon={<ShieldCheck />}>
+            <p className="t-caption mb-3 max-w-[65ch]">
+              Accordez ou retirez l&apos;accès à n&apos;importe quelle page pour cet utilisateur, indépendamment de son rôle. Utile pour des privilèges temporaires. «&nbsp;Signaler un bug&nbsp;» reste toujours accessible.
+            </p>
+            {permissionTree.length === 0 ? (
+              <p className="t-caption py-2">Aucun menu configurable.</p>
+            ) : (
+              <ul className="divide-y divide-hairline">
+                {permissionTree.map((item) => {
+                  const allowed = effectiveAllowed(item.id, item.roleDefault);
+                  const isOverride =
+                    (allowed && !item.roleDefault) || (!allowed && item.roleDefault);
+                  const saving = !!permissionsSaving[item.id];
+                  const hasChildren = !!item.children && item.children.length > 0;
+                  const isExpanded = expandedPerms.has(item.id);
                   return (
-                    <div className="space-y-2">
-                      <Label>Zone</Label>
-                      <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            role="combobox"
-                            aria-expanded={zonePopoverOpen}
-                            className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground")}
-                          >
-                            {selected || 'Sélectionnez ou saisissez une zone'}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                          <Command shouldFilter={false}>
-                            <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
-                              <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                              <input
-                                value={zoneQuery}
-                                onChange={(e) => setZoneQuery(e.target.value)}
-                                placeholder="Tapez pour rechercher ou créer..."
-                                className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' && trimmedQuery) {
-                                    e.preventDefault();
-                                    setFormData(p => ({ ...p, zone: trimmedQuery }));
-                                    setZonePopoverOpen(false);
-                                    setZoneQuery('');
-                                  }
-                                }}
-                              />
-                            </div>
-                            <CommandList>
-                              {filteredZones.length === 0 && !trimmedQuery && (
-                                <CommandEmpty>Aucune zone enregistrée. Tapez pour créer.</CommandEmpty>
-                              )}
-                              {filteredZones.length > 0 && (
-                                <CommandGroup>
-                                  {filteredZones.map(z => (
-                                    <CommandItem
-                                      key={z.id}
-                                      value={z.label}
-                                      onSelect={() => {
-                                        setFormData(p => ({ ...p, zone: z.label }));
-                                        setZonePopoverOpen(false);
-                                        setZoneQuery('');
-                                      }}
-                                    >
-                                      <Check className={cn("mr-2 h-4 w-4", selected === z.label ? "opacity-100" : "opacity-0")} />
-                                      {z.label}
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              )}
-                              {trimmedQuery && !exactMatch && (
-                                <CommandGroup heading="Créer">
-                                  <CommandItem
-                                    value={`__create__${trimmedQuery}`}
-                                    onSelect={() => {
-                                      setFormData(p => ({ ...p, zone: trimmedQuery }));
-                                      setZonePopoverOpen(false);
-                                      setZoneQuery('');
-                                    }}
-                                  >
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Créer «{trimmedQuery}»
-                                  </CommandItem>
-                                </CommandGroup>
-                              )}
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Compagnies d&apos;assurance affiliées</Label>
-                <MultiSelect
-                  options={companyOptions}
-                  selected={formData.compagnies}
-                  onChange={(vals) => setFormData(p => ({...p, compagnies: vals}))}
-                  className="w-full"
-                />
-                <p className="text-xs text-muted-foreground">
-                  L&apos;utilisateur ne verra que les dossiers des compagnies sélectionnées. Si aucune n&apos;est sélectionnée, il verra tous les dossiers.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Sites</Label>
-                <MultiSelect
-                  options={siteOptions}
-                  selected={formData.sites}
-                  onChange={(vals) => setFormData(p => ({...p, sites: vals}))}
-                  className="w-full"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Villes dans lesquelles l&apos;utilisateur intervient. Plusieurs choix possibles.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  <span>Créé le: {formatTimestamp(userData.createdAt)}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  <span>Dernière connexion: {formatTimestamp(userData.lastLogin)}</span>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-end border-t border-hairline pt-5">
-              <Button onClick={handleSave} loading={isSaving}>
-                {isSaving ? 'Enregistrement...' : <><Save className="mr-2 h-4 w-4" /> Sauvegarder</>}
-              </Button>
-            </CardFooter>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-ink-3" />
-                Permissions
-              </CardTitle>
-              <CardDescription>
-                Accordez ou retirez l&apos;accès à n&apos;importe quelle page pour cet utilisateur, indépendamment de son rôle. Utile pour des privilèges temporaires. «&nbsp;Signaler un bug&nbsp;» reste toujours accessible.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {permissionTree.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">
-                  Aucun menu configurable.
-                </p>
-              ) : (
-                <ul className="divide-y rounded-md border">
-                  {permissionTree.map((item) => {
-                    const allowed = effectiveAllowed(item.id, item.roleDefault);
-                    const isOverride =
-                      (allowed && !item.roleDefault) || (!allowed && item.roleDefault);
-                    const saving = !!permissionsSaving[item.id];
-                    const hasChildren = !!item.children && item.children.length > 0;
-                    const isExpanded = expandedPerms.has(item.id);
-                    return (
-                      <li key={item.id}>
-                        <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-                          <button
-                            type="button"
-                            disabled={!hasChildren}
-                            onClick={() => hasChildren && toggleExpand(item.id)}
-                            className={cn(
-                              'flex items-center gap-2 min-w-0 flex-1 text-left',
-                              hasChildren && 'transition-colors hover:text-ink-2',
-                            )}
-                          >
-                            {hasChildren ? (
-                              isExpanded ? (
-                                <ChevronDown className="h-4 w-4 shrink-0 text-ink-3" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" />
-                              )
+                    <li key={item.id}>
+                      <div className="flex items-center justify-between gap-3 py-2.5">
+                        <button
+                          type="button"
+                          disabled={!hasChildren}
+                          onClick={() => hasChildren && toggleExpand(item.id)}
+                          className={cn(
+                            'flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                            hasChildren && 'transition-colors hover:text-ink-2',
+                          )}
+                          aria-expanded={hasChildren ? isExpanded : undefined}
+                        >
+                          {hasChildren ? (
+                            isExpanded ? (
+                              <ChevronDown className="h-4 w-4 shrink-0 text-ink-3" />
                             ) : (
-                              <span className="w-4 shrink-0" aria-hidden />
-                            )}
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-sm font-medium leading-tight">{item.label}</p>
-                                {isOverride && (
-                                  <span
-                                    className={cn(
-                                      'text-[11px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
-                                      allowed
-                                        ? 'bg-status-success-bg text-status-success-fg'
-                                        : 'bg-status-warning-bg text-status-warning-fg',
-                                    )}
-                                    title={allowed ? 'Accordé en plus du rôle' : 'Retiré du rôle'}
-                                  >
-                                    {allowed ? 'Accordé' : 'Retiré'}
-                                  </span>
-                                )}
-                                {!item.roleDefault && !isOverride && (
-                                  <span
-                                    className="rounded-sm bg-surface-2 px-1.5 py-px text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3"
-                                    title="Non inclus dans le rôle par défaut"
-                                  >
-                                    Hors rôle
-                                  </span>
-                                )}
-                              </div>
-                              <p className="font-mono text-[11px] text-ink-3">{item.id}</p>
-                            </div>
-                          </button>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {saving && (
-                              <span className="t-label">
-                                Enregistrement…
-                              </span>
-                            )}
-                            <Switch
-                              checked={allowed}
-                              disabled={saving}
-                              onCheckedChange={(v) =>
-                                hasChildren
-                                  ? handleToggleParent(
-                                      { id: item.id, roleDefault: item.roleDefault },
-                                      item.children!.map((c) => ({ id: c.id, roleDefault: c.roleDefault })),
-                                      v,
-                                    )
-                                  : handleTogglePermission(item.id, v, item.roleDefault)
-                              }
-                              aria-label={`Autoriser l'accès à ${item.label}`}
-                            />
-                          </div>
-                        </div>
-                        {hasChildren && isExpanded && (
-                          <ul className="border-t border-hairline bg-surface-2/60">
-                            {item.children!.map((child) => {
-                              const cAllowed = effectiveAllowed(child.id, child.roleDefault);
-                              const cIsOverride =
-                                (cAllowed && !child.roleDefault) || (!cAllowed && child.roleDefault);
-                              const cSaving = !!permissionsSaving[child.id];
-                              return (
-                                <li
-                                  key={child.id}
-                                  className="flex items-center justify-between gap-3 pl-10 pr-3 py-2 border-b last:border-b-0"
+                              <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" />
+                            )
+                          ) : (
+                            <span className="w-4 shrink-0" aria-hidden />
+                          )}
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="t-body font-semibold leading-tight">{item.label}</p>
+                              {isOverride && (
+                                <Chip
+                                  className={allowed ? 'bg-status-success-bg text-status-success-fg' : 'bg-status-warning-bg text-status-warning-fg'}
+                                  title={allowed ? 'Accordé en plus du rôle' : 'Retiré du rôle'}
                                 >
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <p className="text-sm leading-tight">{child.label}</p>
-                                      {cIsOverride && (
-                                        <span
-                                          className={cn(
-                                            'text-[11px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
-                                            cAllowed
-                                              ? 'bg-status-success-bg text-status-success-fg'
-                                              : 'bg-status-warning-bg text-status-warning-fg',
-                                          )}
-                                        >
-                                          {cAllowed ? 'Accordé' : 'Retiré'}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className="font-mono text-[11px] text-ink-3">{child.id}</p>
-                                  </div>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    {cSaving && (
-                                      <span className="t-label">
-                                        Enregistrement…
-                                      </span>
+                                  {allowed ? 'Accordé' : 'Retiré'}
+                                </Chip>
+                              )}
+                              {!item.roleDefault && !isOverride && (
+                                <Chip className="bg-surface-2 text-ink-3" title="Non inclus dans le rôle par défaut">
+                                  Hors rôle
+                                </Chip>
+                              )}
+                            </div>
+                            <p className="font-mono text-[11px] text-ink-3">{item.id}</p>
+                          </div>
+                        </button>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {saving && <span className="t-label">Enregistrement…</span>}
+                          <Switch
+                            checked={allowed}
+                            disabled={saving}
+                            onCheckedChange={(v) =>
+                              hasChildren
+                                ? handleToggleParent(
+                                    { id: item.id, roleDefault: item.roleDefault },
+                                    item.children!.map((c) => ({ id: c.id, roleDefault: c.roleDefault })),
+                                    v,
+                                  )
+                                : handleTogglePermission(item.id, v, item.roleDefault)
+                            }
+                            aria-label={`Autoriser l'accès à ${item.label}`}
+                          />
+                        </div>
+                      </div>
+                      {hasChildren && isExpanded && (
+                        <ul className="divide-y divide-hairline border-t border-hairline">
+                          {item.children!.map((child) => {
+                            const cAllowed = effectiveAllowed(child.id, child.roleDefault);
+                            const cIsOverride =
+                              (cAllowed && !child.roleDefault) || (!cAllowed && child.roleDefault);
+                            const cSaving = !!permissionsSaving[child.id];
+                            return (
+                              <li
+                                key={child.id}
+                                className="flex items-center justify-between gap-3 py-2 pl-6"
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="t-body leading-tight">{child.label}</p>
+                                    {cIsOverride && (
+                                      <Chip className={cAllowed ? 'bg-status-success-bg text-status-success-fg' : 'bg-status-warning-bg text-status-warning-fg'}>
+                                        {cAllowed ? 'Accordé' : 'Retiré'}
+                                      </Chip>
                                     )}
-                                    <Switch
-                                      checked={cAllowed}
-                                      disabled={cSaving}
-                                      onCheckedChange={(v) =>
-                                        handleTogglePermission(child.id, v, child.roleDefault)
-                                      }
-                                      aria-label={`Autoriser ${child.label}`}
-                                    />
                                   </div>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+                                  <p className="font-mono text-[11px] text-ink-3">{child.id}</p>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  {cSaving && <span className="t-label">Enregistrement…</span>}
+                                  <Switch
+                                    checked={cAllowed}
+                                    disabled={cSaving}
+                                    onCheckedChange={(v) =>
+                                      handleTogglePermission(child.id, v, child.roleDefault)
+                                    }
+                                    aria-label={`Autoriser ${child.label}`}
+                                  />
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Section>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Dossiers assignés</CardTitle>
-              <CardDescription>Liste des dossiers actuellement sous la responsabilité de cet utilisateur.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {dossiersLoading ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              ) : !assignedDossiers || assignedDossiers.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg">
-                  Aucun dossier assigné
-                </div>
-              ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Réf Expert</TableHead>
-                        <TableHead>Assuré</TableHead>
-                        <TableHead>Nature du dossier</TableHead>
-                        <TableHead>Statut</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {assignedDossiers.map((d: any) => {
-                        const assureName = typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim() || 'N/A';
-                        return (
-                          <TableRow key={d.id} className="cursor-pointer" onClick={() => router.push(`/dossiers/${d.id}`)}>
-                            <TableCell className="t-mono font-semibold">{d.refExpert || '-'}</TableCell>
-                            <TableCell>{assureName}</TableCell>
-                            <TableCell>{d.nature || '-'}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{d.statut || 'Nouveau'}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button variant="ghost" size="sm" asChild>
-                                <Link href={`/dossiers/${d.id}`}><ExternalLink className="h-4 w-4" /></Link>
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <Section title="Dossiers assignés" icon={<FolderOpen />}>
+            {dossiersLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : !assignedDossiers || assignedDossiers.length === 0 ? (
+              <EmptyState
+                icon={<FolderOpen />}
+                title="Aucun dossier assigné"
+                description="Les dossiers créés par ou confiés à cet utilisateur apparaîtront ici."
+                dashed={false}
+              />
+            ) : (
+              <div className="-mx-6 -mb-5">
+                <Table regionLabel="Dossiers assignés">
+                  <TableHeader className="bg-card">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="pl-6">Réf expert</TableHead>
+                      <TableHead>Assuré</TableHead>
+                      <TableHead>Nature</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead className="w-12 pr-6 text-right"><span className="sr-only">Ouvrir</span></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {assignedDossiers.map((d: any) => {
+                      const assureName = typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim() || 'N/A';
+                      return (
+                        <TableRow key={d.id} className="group cursor-pointer" onClick={() => router.push(`/dossiers/${d.id}`)}>
+                          <TableCell className="t-mono pl-6 font-semibold">{d.refExpert || '—'}</TableCell>
+                          <TableCell className="font-medium">{assureName}</TableCell>
+                          <TableCell className="text-ink-2">{d.nature || '—'}</TableCell>
+                          <TableCell>
+                            <span className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{d.statut || 'Nouveau'}</span>
+                          </TableCell>
+                          <TableCell className="pr-6 text-right" onClick={(e) => e.stopPropagation()}>
+                            <Link href={`/dossiers/${d.id}`} aria-label={`Ouvrir le dossier ${d.refExpert || ''}`} className="inline-flex text-ink-4 transition-colors group-hover:text-ink">
+                              <ChevronRight className="h-4 w-4" />
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </Section>
         </div>
 
         <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-ink-3" />
-                Historique d'activité
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {historyLoading ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-12 w-full" />
-                </div>
-              ) : !activityHistory || activityHistory.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6 italic">
-                  Aucune activité récente
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {activityHistory.map((entry: any) => (
-                    <div key={entry.id} className="relative pl-6 pb-4 border-l last:pb-0">
-                      <div className="absolute left-[-5px] top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">{formatTimestamp(entry.changedAt)}</p>
-                        <p className="text-sm font-medium">{entry.action}</p>
-                        {entry.newStatut && (
-                          <p className="inline-block rounded bg-surface-2 px-2 py-1 text-xs">
-                            → {entry.newStatut}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <Section title="Historique d'activité" icon={<Clock />}>
+            {historyLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : !activityHistory || activityHistory.length === 0 ? (
+              <p className="t-caption py-2">Aucune activité récente</p>
+            ) : (
+              // Hairline rows, date as the quiet caption, action as the value.
+              <ol className="divide-y divide-hairline">
+                {activityHistory.map((entry: any) => (
+                  <li key={entry.id} className="space-y-1 py-2.5 first:pt-0 last:pb-0">
+                    <p className="t-caption tabular-nums">{formatTimestamp(entry.changedAt)}</p>
+                    <p className="t-body-sm font-medium text-ink">{entry.action}</p>
+                    {entry.newStatut && (
+                      <span className={cn(STATUS_BADGE_CLASS, 'inline-block', getStatusBadgeStyles(entry.newStatut))}>
+                        {entry.newStatut}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Section>
 
-          {isAdmin && isSingleSessionRole(userData.role) && (() => {
+          {showSessionCard && (() => {
             // A session is "active" while its heartbeat is fresh. A held slot
             // whose heartbeat has gone stale (app closed/killed without a clean
             // sign-out) is shown as inactive — it will free itself for the next
@@ -1025,30 +1152,24 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             const sessionStale = hasSession && isSessionStale(timestampToMillis(userData.currentSessionSeenAt), Date.now());
             const sessionActive = hasSession && !sessionStale;
             return (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Smartphone className="h-4 w-4 text-ink-3" />
-                  Session / Appareil
-                </CardTitle>
-                <CardDescription>
+              <Section title="Session / Appareil" icon={<Smartphone />}>
+                <p className="t-caption mb-3">
                   Ce rôle est limité à un seul appareil à la fois. Déconnectez sa session
                   pour lui permettre de se connecter depuis un autre appareil.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
+                </p>
                 <div className="flex items-center gap-2 text-sm">
                   <span
                     className={cn(
-                      'w-2 h-2 rounded-full',
+                      'h-2 w-2 shrink-0 rounded-full',
                       sessionActive
                         ? 'bg-status-success-fg'
                         : sessionStale
                           ? 'bg-status-warning-fg'
                           : 'bg-ink-4',
                     )}
+                    aria-hidden
                   />
-                  <span className={cn(!sessionActive && 'text-ink-3')}>
+                  <span className={cn(sessionActive ? 'font-semibold text-ink' : 'text-ink-3')}>
                     {sessionActive
                       ? 'Connecté sur un appareil'
                       : sessionStale
@@ -1057,71 +1178,47 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   </span>
                 </div>
                 {userData.currentSessionId && (
-                  <div className="space-y-1.5 rounded-md bg-surface-2 px-3 py-2 text-xs">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="flex items-center gap-1.5 text-muted-foreground">
-                        <Smartphone className="h-3.5 w-3.5" />
-                        Appareil
-                      </span>
-                      <span className="font-medium text-right">
-                        {sessionMeta?.device || 'Inconnu'}
-                      </span>
+                  <dl className="mt-3 divide-y divide-hairline border-t border-hairline">
+                    <div className="flex items-center justify-between gap-3 py-2">
+                      <dt className="t-label flex items-center gap-1.5"><Smartphone className="h-3.5 w-3.5" /> Appareil</dt>
+                      <dd className="t-body-sm truncate text-right font-semibold text-ink">{sessionMeta?.device || 'Inconnu'}</dd>
                     </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="flex items-center gap-1.5 text-muted-foreground">
-                        <Globe className="h-3.5 w-3.5" />
-                        Adresse IP
-                      </span>
-                      <span className="font-mono tabular-nums text-right">
-                        {sessionMeta?.ip || 'Inconnue'}
-                      </span>
+                    <div className="flex items-center justify-between gap-3 py-2">
+                      <dt className="t-label flex items-center gap-1.5"><Globe className="h-3.5 w-3.5" /> Adresse IP</dt>
+                      <dd className="t-mono text-right">{sessionMeta?.ip || 'Inconnue'}</dd>
                     </div>
                     {sessionMeta?.at && (
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="flex items-center gap-1.5 text-muted-foreground">
-                          <Clock className="h-3.5 w-3.5" />
-                          Connecté depuis
-                        </span>
-                        <span className="tabular-nums text-right">
-                          {formatTimestamp(sessionMeta.at)}
-                        </span>
+                      <div className="flex items-center justify-between gap-3 py-2">
+                        <dt className="t-label flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Connecté depuis</dt>
+                        <dd className="t-body-sm text-right tabular-nums text-ink">{formatTimestamp(sessionMeta.at)}</dd>
                       </div>
                     )}
-                  </div>
+                  </dl>
                 )}
                 <Button
                   variant="outline"
-                  className="w-full"
+                  className="mt-4 w-full"
                   disabled={!userData.currentSessionId || isDisconnecting}
                   loading={isDisconnecting}
                   onClick={handleForceDisconnect}
                 >
-                  {!isDisconnecting && <LogOut className="mr-2 h-4 w-4" />}
                   Déconnecter la session
                 </Button>
-              </CardContent>
-            </Card>
+              </Section>
             );
           })()}
 
           {canDelete && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Supprimer cet utilisateur</CardTitle>
-                <CardDescription>
-                  L&apos;utilisateur sera retiré du système. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  variant="outline"
-                  className="w-full border-destructive text-destructive hover:bg-destructive hover:text-white"
-                  onClick={() => setShowDeleteDialog(true)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer l&apos;utilisateur
-                </Button>
-              </CardContent>
-            </Card>
+            // Destructive zone: kept apart from the record's data, one
+            // `destructive` control only (GOV.UK: dangerous actions stand alone).
+            <Section title="Zone sensible" icon={<AlertTriangle />}>
+              <p className="t-caption mb-4">
+                L&apos;utilisateur sera retiré du système. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
+              </p>
+              <Button variant="destructive" className="w-full" onClick={() => setShowDeleteDialog(true)}>
+                Supprimer l&apos;utilisateur
+              </Button>
+            </Section>
           )}
         </div>
       </div>
@@ -1131,18 +1228,18 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer définitivement l&apos;utilisateur <strong>{formData.prenom} {formData.nom}</strong> ?
+              Êtes-vous sûr de vouloir supprimer définitivement l&apos;utilisateur <strong className="text-ink">{formData.prenom} {formData.nom}</strong> ?
               Cette action est irréversible. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={(e) => { e.preventDefault(); handleDeleteUser(); }} 
-              className="bg-destructive hover:bg-destructive/90"
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteUser(); }}
+              className={buttonVariants({ variant: 'destructive' })}
               disabled={isDeleting}
             >
-              {isDeleting ? 'Suppression...' : 'Confirmer la suppression'}
+              {isDeleting ? 'Suppression…' : 'Confirmer la suppression'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

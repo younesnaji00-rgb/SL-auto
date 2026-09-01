@@ -2,13 +2,22 @@
 
 import { PageHeader } from '@/components/layout/page-header';
 import React, { useMemo, useRef, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { Trash2, Plus, Loader2, CalendarDays, Upload, ImageIcon, Sparkles } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Trash2, Loader2, CalendarDays, Upload } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { useOptions } from '@/hooks/use-options';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -20,8 +29,40 @@ import {
 } from 'firebase/firestore';
 import { MOROCCAN_HOLIDAYS_DEFAULT } from '@/lib/business-days';
 import { apiFetch } from '@/lib/api-fetch';
+import { format, isBefore, isValid, parseISO, startOfDay } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+import { JoursFeriesSkeleton } from './loading';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Top-level block: hairline header (icon + title + actions), 24 px body. */
+const Section = ({
+  title,
+  icon,
+  actions,
+  children,
+  className,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <Card variant="tonal" role="region" aria-label={title} className={cn('min-w-0', className)}>
+    <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
+      <div className="flex min-w-0 items-center gap-2">
+        {icon && <span className="shrink-0 text-ink-3 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
+        <h2 className="t-heading truncate">{title}</h2>
+      </div>
+      {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
+    </header>
+    <div className="px-6 py-5">{children}</div>
+  </Card>
+);
+
+const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 export default function JoursFeriesSettingsPage() {
   const { profile, loading: userLoading, canDelete } = useCurrentUser();
@@ -31,6 +72,7 @@ export default function JoursFeriesSettingsPage() {
 
   const [newDate, setNewDate] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -41,6 +83,25 @@ export default function JoursFeriesSettingsPage() {
     () => [...options].sort((a, b) => a.label.localeCompare(b.label)),
     [options],
   );
+
+  // Calendar view: months as hairline-separated groups (planification-tab
+  // rows); the next upcoming holiday is the page's one terracotta element.
+  const { groups, nextId } = useMemo(() => {
+    const today = startOfDay(new Date());
+    let next: string | null = null;
+    const byMonth = new Map<string, { month: Date | null; items: { id: string; label: string; date: Date | null; past: boolean }[] }>();
+    for (const o of sorted) {
+      const d = ISO_DATE.test(o.label) ? parseISO(o.label) : null;
+      const date = d && isValid(d) ? d : null;
+      const past = date ? isBefore(date, today) : false;
+      if (date && !past && !next) next = o.id;
+      const key = date ? format(date, 'yyyy-MM') : 'invalid';
+      const g = byMonth.get(key) ?? { month: date ? new Date(date.getFullYear(), date.getMonth(), 1) : null, items: [] };
+      g.items.push({ id: o.id, label: o.label, date, past });
+      byMonth.set(key, g);
+    }
+    return { groups: Array.from(byMonth.entries()).map(([key, g]) => ({ key, ...g })), nextId: next };
+  }, [sorted]);
 
   const router = useRouter();
   React.useEffect(() => {
@@ -57,7 +118,7 @@ export default function JoursFeriesSettingsPage() {
   }, [userLoading, profile?.role, router]);
 
   if (userLoading) {
-    return <div className="py-12 text-sm text-muted-foreground">Chargement...</div>;
+    return <JoursFeriesSkeleton />;
   }
   if (profile?.role !== 'Admin' && profile?.role !== 'Directeur' && profile?.role !== 'Directeur des opérations' && profile?.role !== 'Directeur technique') {
     return null;
@@ -89,6 +150,7 @@ export default function JoursFeriesSettingsPage() {
     try {
       await addOne(newDate);
       setNewDate('');
+      setAddOpen(false);
       toast({ title: 'Jour férié ajouté' });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: err.message });
@@ -248,139 +310,187 @@ export default function JoursFeriesSettingsPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title="Jours fériés"
-        icon={<CalendarDays />}
-        subtitle="Dates pendant lesquelles les délais ne sont pas comptés (compteur hors délai). Format YYYY-MM-DD."
+    <div className="space-y-6">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void handleImageImport(f);
+        }}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Ajouter une date</CardTitle>
-        </CardHeader>
-        <CardContent className="flex items-end gap-2">
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="new-date">Date</Label>
+      <PageHeader
+        title="Jours fériés"
+        subtitle="Dates pendant lesquelles les délais ne sont pas comptés (compteur hors délai)."
+        count={loading ? undefined : options.length}
+        actions={<Button onClick={() => setAddOpen(true)}>Ajouter un jour férié</Button>}
+      />
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Section title="Calendrier" icon={<CalendarDays />}>
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-12 w-14 rounded-md" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : sorted.length === 0 ? (
+            <EmptyState
+              icon={<CalendarDays />}
+              title="Aucune date enregistrée"
+              description="Importez le calendrier marocain par défaut pour démarrer, ou ajoutez vos dates une par une."
+              action={
+                <Button variant="tonal" onClick={handleSeedDefaults} loading={isImporting}>
+                  Importer le calendrier marocain par défaut
+                </Button>
+              }
+              dashed={false}
+            />
+          ) : (
+            <div className="divide-y divide-hairline">
+              {groups.map((g) => (
+                <section key={g.key} className="py-4 first:pt-0 last:pb-0" aria-label={g.month ? format(g.month, 'LLLL yyyy', { locale: fr }) : 'Dates invalides'}>
+                  <h3 className="t-label mb-2">
+                    {g.month ? capitalize(format(g.month, 'LLLL yyyy', { locale: fr })) : 'Format non reconnu'}
+                  </h3>
+                  <ol className="divide-y divide-hairline">
+                    {g.items.map((o) => {
+                      const upcoming = o.id === nextId;
+                      return (
+                        <li key={o.id} className="group flex items-center gap-4 py-2.5">
+                          {/* Date block — the row's anchor (planification-tab). */}
+                          <div
+                            className={cn(
+                              'flex w-14 shrink-0 flex-col items-center justify-center rounded-md py-1.5 text-center tabular-nums',
+                              upcoming ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled' : 'bg-surface-3 text-ink-2 shadow-rim',
+                            )}
+                          >
+                            <span className="text-[11px] font-medium leading-none">
+                              {o.date ? format(o.date, 'EEE', { locale: fr }).replace('.', '') : '—'}
+                            </span>
+                            <span className="font-headline text-xl font-semibold leading-tight">{o.date ? format(o.date, 'd') : '—'}</span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className={cn('t-body truncate', o.past ? 'font-medium text-ink-2' : 'font-semibold text-ink')}>
+                              {o.date ? capitalize(format(o.date, 'EEEE d MMMM yyyy', { locale: fr })) : o.label}
+                            </p>
+                            <p className="t-caption flex flex-wrap items-center gap-x-2 tabular-nums">
+                              <span className="font-mono">{o.label}</span>
+                              {upcoming && <span className="text-tertiary-deep">· Prochain jour férié</span>}
+                              {o.past && <span>· Passé</span>}
+                            </p>
+                          </div>
+                          {canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-ink-3 opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none data-[busy=true]:opacity-100"
+                              data-busy={deletingId === o.id}
+                              disabled={deletingId === o.id}
+                              onClick={() => handleDelete(o.id)}
+                              aria-label={`Supprimer ${o.label}`}
+                              title="Supprimer"
+                            >
+                              {deletingId === o.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                            </Button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </section>
+              ))}
+            </div>
+          )}
+        </Section>
+
+        <Section title="Importer" icon={<Upload />} className="self-start">
+          <div className="divide-y divide-hairline">
+            {/* One plain picker button — no banner, no dashed panel. */}
+            <div className="space-y-3 pb-5">
+              <div>
+                <p className="t-label">Depuis une image</p>
+                <p className="t-caption mt-1">
+                  Choisissez une capture d&apos;écran listant les jours fériés de l&apos;année : les dates sont extraites automatiquement. PNG, JPG, WEBP ; les doublons sont ignorés.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isScanning}
+                loading={isScanning}
+              >
+                {isScanning ? 'Analyse en cours…' : 'Choisir une image'}
+              </Button>
+            </div>
+
+            <div className="space-y-3 pt-5">
+              <div>
+                <Label htmlFor="import-dates" className="t-label">Depuis une liste</Label>
+                <p className="t-caption mt-1">
+                  Une date par ligne au format YYYY-MM-DD. Les doublons et formats invalides sont ignorés.
+                </p>
+              </div>
+              <Textarea
+                id="import-dates"
+                rows={5}
+                placeholder={'2026-01-01\n2026-05-01\n2026-07-30'}
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                className="font-mono text-sm"
+              />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Button variant="ghost" size="sm" onClick={handleSeedDefaults} disabled={isImporting}>
+                  Calendrier marocain par défaut
+                </Button>
+                <Button variant="outline" onClick={handleImport} disabled={!importText.trim() || isImporting} loading={isImporting}>
+                  Importer
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Section>
+      </div>
+
+      <Dialog open={addOpen} onOpenChange={(open) => { if (!isAdding) setAddOpen(open); }}>
+        <DialogContent className="lg:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Ajouter un jour férié</DialogTitle>
+            <DialogDescription>La date sera exclue du compteur de délais.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="new-date" className="t-label">Date</Label>
             <Input
               id="new-date"
               type="date"
               value={newDate}
               onChange={(e) => setNewDate(e.target.value)}
-              className="h-9"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newDate && !isAdding) {
+                  e.preventDefault();
+                  void handleAdd();
+                }
+              }}
+              autoFocus
             />
           </div>
-          <Button onClick={handleAdd} disabled={!newDate || isAdding} className="gap-1.5">
-            {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Ajouter
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-ink-3" aria-hidden />
-            Importer depuis une image (IA)
-          </CardTitle>
-          <CardDescription>
-            Choisissez une capture d'écran listant les jours fériés de l'année.
-            L'IA extrait automatiquement les dates et les ajoute à la liste.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void handleImageImport(f);
-            }}
-          />
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isScanning}
-            className="gap-1.5"
-          >
-            {isScanning ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <ImageIcon className="h-4 w-4" />
-            )}
-            {isScanning ? 'Analyse en cours...' : 'Choisir une image'}
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            Formats: PNG, JPG, WEBP. Les doublons sont ignorés.
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Importer des dates</CardTitle>
-          <CardDescription>
-            Une date par ligne au format YYYY-MM-DD. Les doublons et formats invalides sont ignorés.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Textarea
-            rows={5}
-            placeholder={'2026-01-01\n2026-05-01\n2026-07-30'}
-            value={importText}
-            onChange={(e) => setImportText(e.target.value)}
-            className="font-mono text-sm"
-          />
-          <div className="flex justify-between">
-            <Button variant="outline" size="sm" onClick={handleSeedDefaults} disabled={isImporting} className="gap-1.5">
-              Importer le calendrier marocain par défaut
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button type="button" variant="ghost" onClick={() => setAddOpen(false)} disabled={isAdding}>Annuler</Button>
+            <Button type="button" onClick={handleAdd} disabled={!newDate || isAdding} loading={isAdding}>
+              Ajouter
             </Button>
-            <Button onClick={handleImport} disabled={!importText.trim() || isImporting} className="gap-1.5">
-              {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              Importer
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Liste actuelle
-            <Badge variant="secondary" className="text-[11px] font-mono">{options.length}</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Chargement...</p>
-          ) : sorted.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">
-              Aucune date enregistrée. Utilisez «Importer le calendrier marocain par défaut» pour démarrer.
-            </p>
-          ) : (
-            <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-              {sorted.map((o) => (
-                <li key={o.id} className="flex items-center justify-between px-3 py-1.5 rounded-md border bg-card">
-                  <span className="font-mono text-sm tabular-nums">{o.label}</span>
-                  {canDelete && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      disabled={deletingId === o.id}
-                      onClick={() => handleDelete(o.id)}
-                      title="Supprimer"
-                    >
-                      {deletingId === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

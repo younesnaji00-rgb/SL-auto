@@ -5,22 +5,20 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Bug,
   Paperclip,
-  Send,
-  Loader2,
   FileIcon,
   Download,
   X,
   Inbox,
   ArrowLeft,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { PageLoader } from '@/components/ui/page-loader';
 import { EmptyState } from '@/components/ui/empty-state';
 import { InlineLoader } from '@/components/ui/inline-loader';
-import { Badge } from '@/components/ui/badge';
 import {
   collection,
   query,
@@ -79,6 +77,13 @@ type Conversation = {
   unreadByAdmin: number;
 };
 
+/** Neutral pill for roles; status pairs only where a state is conveyed. */
+const Chip = ({ className, children }: { className?: string; children: React.ReactNode }) => (
+  <span className={cn('inline-flex h-5 max-w-full items-center truncate rounded-full px-2 text-[11px] font-medium', className)}>
+    {children}
+  </span>
+);
+
 /* ------------------------------------------------------------------ */
 /*  Main Page                                                          */
 /* ------------------------------------------------------------------ */
@@ -98,14 +103,17 @@ export default function SignalerBugPage() {
     <div className="space-y-6">
       <PageHeader
         title="Signaler un bug"
-        icon={<Bug />}
         subtitle="Décrivez le problème rencontré. Vous pouvez envoyer des messages, joindre des fichiers ou enregistrer un message vocal."
       />
-      <ChatThread
-        conversationUid={firebaseUser.uid}
-        currentUser={firebaseUser}
-        profile={profile}
-      />
+      {/* The thread is the page's one paper block; the primary « Envoyer »
+          lives at the right end of the compose bar (where the eye lands). */}
+      <Card variant="tonal" className="flex flex-col overflow-hidden">
+        <ChatThread
+          conversationUid={firebaseUser.uid}
+          currentUser={firebaseUser}
+          profile={profile}
+        />
+      </Card>
     </div>
   );
 }
@@ -141,88 +149,94 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Signaler un bug" icon={<Bug />} count={conversations?.length || 0} subtitle="Conversations des utilisateurs" />
+      <PageHeader title="Signaler un bug" count={loading ? undefined : (conversations?.length || 0)} subtitle="Conversations des utilisateurs" />
 
       <div className="grid min-h-[calc((100dvh-200px)/var(--app-zoom))] grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
-        {/* Conversations list */}
-        <Card className="overflow-hidden">
-          <CardContent className="p-0">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <InlineLoader label="Chargement…" size="md" />
-              </div>
-            ) : !conversations || conversations.length === 0 ? (
-              <EmptyState
-                icon={<Inbox />}
-                title="Aucun rapport de bug"
-                description="Les conversations apparaîtront ici dès qu'un utilisateur signalera un problème."
-                dashed={false}
-                className="border-0 bg-transparent py-12"
-              />
-            ) : (
-              <div className="divide-y divide-hairline">
-                {conversations.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedUid(c.id)}
-                    className={cn(
-                      'w-full px-4 py-3 text-left transition-colors hover:bg-surface-2',
-                      selectedUid === c.id && 'bg-accent/50'
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9 shrink-0 border">
-                        <AvatarFallback className="bg-surface-2 text-xs text-ink-2">
-                          {(c.recipientNom || 'U').charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-semibold truncate">{c.recipientNom}</span>
-                          <span className="whitespace-nowrap text-[11px] text-ink-3">
-                            {formatDate(c.lastMessageAt)}
-                          </span>
+        {/* Conversations list — hairline rows, selected row on surface-3. */}
+        <Card variant="tonal" className="overflow-hidden">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <InlineLoader label="Chargement…" size="md" />
+            </div>
+          ) : !conversations || conversations.length === 0 ? (
+            <EmptyState
+              icon={<Inbox />}
+              title="Aucun rapport de bug"
+              description="Les conversations apparaîtront ici dès qu'un utilisateur signalera un problème."
+              dashed={false}
+              className="bg-transparent py-12"
+            />
+          ) : (
+            <ul className="divide-y divide-hairline" aria-label="Conversations">
+              {conversations.map((c) => {
+                const active = selectedUid === c.id;
+                return (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedUid(c.id)}
+                      aria-current={active ? 'true' : undefined}
+                      className={cn(
+                        'w-full px-4 py-3 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                        active && 'bg-surface-3 hover:bg-surface-3',
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9 shrink-0 shadow-rim">
+                          <AvatarFallback className="bg-surface-3 text-xs text-ink-2">
+                            {(c.recipientNom || 'U').charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-semibold text-ink">{c.recipientNom}</span>
+                            <span className="t-caption whitespace-nowrap tabular-nums">
+                              {formatDate(c.lastMessageAt)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="t-caption truncate">{c.lastMessage || 'Message vocal'}</p>
+                            {c.unreadByAdmin > 0 && (
+                              <Chip className="min-w-[20px] justify-center bg-status-info-bg tabular-nums text-status-info-fg">
+                                {c.unreadByAdmin}
+                              </Chip>
+                            )}
+                          </div>
+                          {c.recipientRole && <Chip className="mt-1 bg-surface-3 text-ink-2">{c.recipientRole}</Chip>}
                         </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="t-caption truncate">{c.lastMessage || 'Message vocal'}</p>
-                          {c.unreadByAdmin > 0 && (
-                            <Badge className="h-5 min-w-[20px] justify-center bg-ink-solid text-[11px] text-on-ink hover:bg-ink-solid">
-                              {c.unreadByAdmin}
-                            </Badge>
-                          )}
-                        </div>
-                        <Badge variant="outline" className="text-[11px] px-1 py-0 mt-1">{c.recipientRole}</Badge>
                       </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </CardContent>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </Card>
 
         {/* Chat area */}
-        <Card className="overflow-hidden flex flex-col">
+        <Card variant="tonal" className="flex flex-col overflow-hidden">
           {selectedUid ? (
             <>
-              <div className="flex items-center gap-3 border-b border-hairline bg-surface-2 px-4 py-3">
+              <div className="flex min-h-[48px] items-center gap-3 border-b border-hairline px-4 py-2">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="lg:hidden h-8 w-8"
+                  className="h-8 w-8 lg:hidden"
                   onClick={() => setSelectedUid(null)}
+                  aria-label="Retour aux conversations"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <Avatar className="h-8 w-8 border">
-                  <AvatarFallback className="bg-surface-2 text-xs text-ink-2">
+                <Avatar className="h-8 w-8 shadow-rim">
+                  <AvatarFallback className="bg-surface-3 text-xs text-ink-2">
                     {(selected?.recipientNom || 'U').charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <div>
-                  <p className="text-sm font-semibold">{selected?.recipientNom}</p>
-                  <p className="t-caption">{selected?.recipientEmail}</p>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink">{selected?.recipientNom}</p>
+                  <p className="t-mono truncate text-xs text-ink-3">{selected?.recipientEmail}</p>
                 </div>
+                {selected?.recipientRole && <Chip className="ml-auto bg-surface-3 text-ink-2">{selected.recipientRole}</Chip>}
               </div>
               <ChatThread
                 conversationUid={selectedUid}
@@ -231,10 +245,13 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
               />
             </>
           ) : (
-            <CardContent className="flex flex-1 flex-col items-center justify-center text-ink-3">
-              <Bug className="mb-3 h-12 w-12 text-ink-4" />
-              <p className="text-sm">Sélectionnez une conversation</p>
-            </CardContent>
+            <EmptyState
+              icon={<MessageSquare />}
+              title="Sélectionnez une conversation"
+              description="Les messages de l'utilisateur s'afficheront ici."
+              dashed={false}
+              className="flex-1 bg-transparent"
+            />
           )}
         </Card>
       </div>
@@ -403,7 +420,7 @@ function ChatThread({
   const currentEmail = currentUser.email || '';
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div className="flex min-h-0 flex-1 flex-col">
       <input
         type="file"
         className="hidden"
@@ -413,7 +430,7 @@ function ChatThread({
       />
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc((100dvh-340px)/var(--app-zoom))]">
+      <div className="max-h-[calc((100dvh-340px)/var(--app-zoom))] flex-1 space-y-4 overflow-y-auto p-4">
         {loading ? (
           <div className="flex justify-center py-10">
             <InlineLoader label="Chargement…" size="md" />
@@ -424,25 +441,23 @@ function ChatThread({
             title="Aucun message pour le moment"
             description="Décrivez le problème rencontré ci-dessous."
             dashed={false}
-            className="border-0 bg-transparent py-10"
+            className="bg-transparent py-10"
           />
         ) : (
           messages.map((msg) => {
             const isOwn = msg.auteur === currentEmail;
             return (
               <div key={msg.id} className={cn('flex gap-3', isOwn && 'flex-row-reverse')}>
-                <Avatar className="h-8 w-8 shrink-0 border">
-                  <AvatarFallback className={cn('text-xs', isOwn ? 'bg-ink-solid text-on-ink' : 'bg-surface-2 text-ink-2')}>
+                <Avatar className="h-8 w-8 shrink-0 shadow-rim">
+                  <AvatarFallback className={cn('text-xs', isOwn ? 'bg-accent text-accent-foreground' : 'bg-surface-3 text-ink-2')}>
                     {(msg.auteurNom || 'U').charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <div className={cn('max-w-[75%] space-y-1', isOwn && 'items-end')}>
-                  <div className={cn('flex items-center gap-2 flex-wrap', isOwn && 'flex-row-reverse')}>
-                    <span className="text-xs font-semibold">{msg.auteurNom}</span>
-                    {msg.auteurRole && (
-                      <Badge variant="outline" className="text-[11px] px-1 py-0">{msg.auteurRole}</Badge>
-                    )}
-                    <span className="text-[11px] text-ink-3">{formatDate(msg.date)}</span>
+                <div className={cn('max-w-[75%] space-y-1', isOwn && 'flex flex-col items-end')}>
+                  <div className={cn('flex flex-wrap items-center gap-2', isOwn && 'flex-row-reverse')}>
+                    <span className="text-xs font-semibold text-ink">{msg.auteurNom}</span>
+                    {msg.auteurRole && <Chip className="bg-surface-3 text-ink-2">{msg.auteurRole}</Chip>}
+                    <span className="t-caption text-[11px] tabular-nums">{formatDate(msg.date)}</span>
                   </div>
 
                   {/* Voice message */}
@@ -455,7 +470,7 @@ function ChatThread({
                   {/* Text content */}
                   {msg.contenu && (
                     <div className={cn(
-                      'rounded-2xl p-3 text-sm whitespace-pre-wrap',
+                      'whitespace-pre-wrap rounded-2xl p-3 text-sm',
                       isOwn
                         ? 'rounded-tr-none bg-accent text-accent-foreground'
                         : 'rounded-tl-none bg-surface-2 text-ink'
@@ -474,7 +489,7 @@ function ChatThread({
                     >
                       <FileIcon className="h-3 w-3 text-ink-3" />
                       <span className="max-w-[120px] truncate">{msg.pieceJointe.nom}</span>
-                      <Download className="h-3 w-3 text-ink-4" />
+                      <Download className="h-3 w-3 text-ink-3" />
                     </Button>
                   )}
                 </div>
@@ -485,43 +500,45 @@ function ChatThread({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Compose area */}
-      <div className="border-t p-4 space-y-3">
+      {/* Compose area — inputs are solid inside the paper (nested-solid rule). */}
+      <div className="space-y-3 border-t border-hairline p-4">
         {selectedFile && (
           <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary" className="gap-1 pr-1">
-              <span className="truncate max-w-[150px]">{selectedFile.name}</span>
+            <span className="inline-flex h-7 max-w-[240px] items-center gap-1 rounded-full bg-surface-2 pl-3 pr-1 text-xs text-ink-2 shadow-rim">
+              <span className="truncate">{selectedFile.name}</span>
               <button
                 type="button"
-                className="h-4 w-4 rounded-full hover:bg-muted"
+                className="rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink"
                 onClick={() => setSelectedFile(null)}
+                aria-label="Retirer la pièce jointe"
               >
                 <X className="h-3 w-3" />
               </button>
-            </Badge>
+            </span>
           </div>
         )}
 
         {voiceBlob ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm text-ink-2">
               <span>Message vocal prêt ({voiceBlob.duration}s)</span>
               <Button variant="ghost" size="sm" onClick={() => setVoiceBlob(null)}>
-                <X className="h-3 w-3 mr-1" /> Annuler
+                Annuler
               </Button>
             </div>
-            <Button onClick={handleSend} loading={isSending} size="sm">
-              {isSending ? 'Envoi...' : <><Send className="h-4 w-4 mr-2" /> Envoyer</>}
+            <Button onClick={handleSend} loading={isSending}>
+              {isSending ? 'Envoi…' : 'Envoyer'}
             </Button>
           </div>
         ) : (
           <>
             <Textarea
-              placeholder="Décrivez le problème..."
+              placeholder="Décrivez le problème…"
               className="min-h-[80px] resize-none"
               value={text}
               onChange={(e) => setText(e.target.value)}
               disabled={isSending}
+              aria-label="Votre message"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -529,7 +546,7 @@ function ChatThread({
                 }
               }}
             />
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-1">
                 <Button
                   variant="ghost"
@@ -538,6 +555,7 @@ function ChatThread({
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isSending}
                   title="Joindre un fichier"
+                  aria-label="Joindre un fichier"
                   type="button"
                 >
                   <Paperclip className="h-5 w-5" />
@@ -554,7 +572,7 @@ function ChatThread({
                 disabled={!text.trim() && !selectedFile}
                 className="px-6"
               >
-                {isSending ? 'Envoi...' : <>Envoyer<Send className="ml-2 h-4 w-4" /></>}
+                {isSending ? 'Envoi…' : 'Envoyer'}
               </Button>
             </div>
           </>
