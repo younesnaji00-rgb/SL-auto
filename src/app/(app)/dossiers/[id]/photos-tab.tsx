@@ -493,6 +493,10 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
   return (
     <div className="space-y-6">
       <Tabs defaultValue={onlyCategory ?? initialCategory ?? 'avant'} className="w-full">
+        {/* Inside a step facet the phase is already named by the step title
+            (« Planification en cours ») — no category strip, no repeated
+            « Photos en cours » heading (user ruling). */}
+        {!onlyCategory && (
         <TabsList>
           {visibleCategories.map((cat) => {
             const count = photosForCategory(cat.id).length;
@@ -507,19 +511,24 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
             );
           })}
         </TabsList>
+        )}
 
         {visibleCategories.map((cat) => {
           const catPhotos = photosForCategory(cat.id);
           return (
-            <TabsContent key={cat.id} value={cat.id} className="mt-4">
+            <TabsContent key={cat.id} value={cat.id} className={onlyCategory ? 'mt-0' : 'mt-4'}>
               {/* Upload header */}
               <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+                {onlyCategory ? (
+                  <span className="t-caption tabular-nums">{catPhotos.length}/{photoCap} photos</span>
+                ) : (
                 <h3 className="t-heading flex items-center gap-2">
                   {cat.fullLabel}
                   <span className="rounded-full bg-surface-3 px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-2">
                     {catPhotos.length}/{photoCap}
                   </span>
                 </h3>
+                )}
                 <div className="flex items-center gap-2">
                   <input
                     type="file"
