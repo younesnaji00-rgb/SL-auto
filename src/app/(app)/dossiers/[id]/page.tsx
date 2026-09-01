@@ -245,6 +245,16 @@ export default function DossierDetailPage({
     },
     [id, setActiveStep],
   );
+  // Deep link: `/dossiers/{id}#step-N` (Suivi d'équipe drawer, rappels) lands
+  // on that step once the timeline is mounted. Runs once per dossier load.
+  const hashHandledRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (loading || !dossier) return;
+    const m = /^#step-(d+)$/.exec(window.location.hash);
+    if (!m || hashHandledRef.current === id) return;
+    hashHandledRef.current = id;
+    goToStep(Number(m[1]));
+  }, [loading, dossier, id, goToStep]);
 
   // Per-step status computed from dossier data — drives the stepper, the
   // section chips and the record bar's primary action.

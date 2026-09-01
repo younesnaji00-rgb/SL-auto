@@ -394,6 +394,21 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
         }
       }
 
+      // Completion stamp for the final step: the first Note d'honoraire
+      // deposited marks the stage done (read by lib/dossier-steps and the
+      // Suivi d'équipe funnel — it was the one stage with no date).
+      if (successCount > 0 && slot === NOTE_HONORAIRE_LABEL) {
+        try {
+          await updateDoc(doc(db, 'dossiers', dossierId), {
+            dateNoteHonoraire: serverTimestamp(),
+            authorNoteHonoraire: userEmail,
+            updatedAt: serverTimestamp(),
+          });
+        } catch (e) {
+          console.warn('[typed-documents-grid] dateNoteHonoraire stamp failed', e);
+        }
+      }
+
       // Log one batch entry rather than N per-file entries.
       if (successCount > 0) {
         await logHistorique(

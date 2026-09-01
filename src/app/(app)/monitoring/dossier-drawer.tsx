@@ -17,19 +17,21 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { STEP_LABELS, type DossierForStep, type StepKey } from './funnel';
 
 // Map each funnel step to the dossier-timeline section it belongs in.
-// The dossier detail page renders `<section id="step-N">` (1..7), so a
-// hash navigation lands directly on the right step.
+// The dossier page renders `<section id="step-N">` with the ids of
+// `lib/dossier-steps.ts` (1 mission · 4 visite avant · 6 1er accord ·
+// 9 visite en cours · 11 2ème accord · 10 visite après · 7 rapport ·
+// 8 honoraires); `#step-N` lands on that section.
 const STEP_TO_TIMELINE: Record<StepKey, number> = {
-  creation: 3,        // Information
-  photosAvant: 5,     // Pièces jointes
-  accord1er: 6,       // Chiffrage
-  photosEnCours: 5,   // Pièces jointes
-  photosApres: 5,     // Pièces jointes
-  accord: 6,          // Chiffrage
-  facture: 7,         // Rapport (facturation lives here)
-  rapportValide: 7,   // Rapport
-  rapport: 7,         // Rapport
-  noteHonoraire: 7,   // Rapport (placeholder — no tracking yet)
+  creation: 1,
+  photosAvant: 4,
+  accord1er: 6,
+  photosEnCours: 9,
+  photosApres: 10,
+  accord: 11,
+  facture: 7,
+  rapportValide: 7,
+  rapport: 7,
+  noteHonoraire: 8,
 };
 
 export interface UserLookup {
