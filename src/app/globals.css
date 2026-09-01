@@ -367,17 +367,18 @@ body::after {
     background-color: hsl(var(--card));
   }
 
-  /* Top-lit primary control (Markazi): a light-to-shade overlay riding the
+  /* Top-lit primary control (Markazi, toned down 2026-09-01 — user: gradients
+     less obvious, keep the edge light + shadow): a faint overlay riding the
      control's own background colour, so a `bg-destructive` override still
      comes out top-lit in ITS colour. --btn-glow tints the drop shadow. */
   .btn-primary-glow {
-    background-image: linear-gradient(to bottom, hsl(0 0% 100% / 0.14), hsl(0 0% 0% / 0.16));
+    background-image: linear-gradient(to bottom, hsl(0 0% 100% / 0.05), hsl(0 0% 0% / 0.05));
     box-shadow:
       inset 0 1px 0 hsl(0 0% 100% / 0.24),
       0 6px 16px -4px var(--btn-glow, hsl(var(--primary) / 0.4));
   }
   .dark .btn-primary-glow {
-    background-image: linear-gradient(to bottom, hsl(0 0% 100% / 0.12), hsl(0 0% 0% / 0.2));
+    background-image: linear-gradient(to bottom, hsl(0 0% 100% / 0.04), hsl(0 0% 0% / 0.07));
     box-shadow:
       inset 0 1px 0 hsl(0 0% 100% / 0.3),
       0 6px 16px -4px var(--btn-glow, hsl(var(--primary) / 0.3));
