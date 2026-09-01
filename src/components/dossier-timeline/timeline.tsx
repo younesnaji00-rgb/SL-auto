@@ -51,8 +51,8 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
         <span
           className={cn(
             'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold tabular-nums ring-4 ring-background',
-            done && 'bg-status-success-bg text-status-success-fg',
-            step.status === 'in_progress' && 'bg-primary text-primary-foreground',
+            done && 'bg-status-success-bg text-status-success-fg shadow-rim',
+            step.status === 'in_progress' && 'bg-primary text-primary-foreground shadow-rim-filled',
             step.status === 'todo' && 'bg-card text-ink-3 shadow-[inset_0_0_0_1.5px_hsl(var(--hairline-strong))]',
             blocked && 'bg-card text-ink-4 shadow-[inset_0_0_0_1.5px_hsl(var(--hairline-strong))]',
           )}

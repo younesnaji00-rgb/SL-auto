@@ -67,8 +67,8 @@ export function StepStatusChip({ status, label }: { status: StepStatus; label: s
 }
 
 function StepDot({ step, index, isActive }: { step: StepState; index: number; isActive: boolean }) {
-  const base = 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[12px] font-semibold tabular-nums transition-colors';
-  if (isActive) return <span className={cn(base, 'border-primary bg-primary text-primary-foreground')}>{index + 1}</span>;
+  const base = 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[12px] font-semibold tabular-nums shadow-rim transition-colors';
+  if (isActive) return <span className={cn(base, 'border-primary bg-primary text-primary-foreground shadow-rim-filled')}>{index + 1}</span>;
   switch (step.status) {
     case 'done':
       return (
@@ -135,7 +135,7 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                   'group flex h-9 shrink-0 items-center rounded-full py-0.5 pl-0.5 pr-2 text-left',
                   'transition-colors duration-150 ease-standard motion-reduce:transition-none',
                   'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  isActive ? 'bg-accent/50' : 'hover:bg-surface-2 focus-visible:bg-surface-2',
+                  isActive ? 'bg-accent/50 shadow-rim' : 'hover:bg-surface-2 focus-visible:bg-surface-2',
                   blocked && 'cursor-not-allowed hover:bg-transparent',
                 )}
               >

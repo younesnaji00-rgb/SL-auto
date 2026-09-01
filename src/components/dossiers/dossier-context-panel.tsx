@@ -24,13 +24,13 @@ import type { RequiredDocsStatus } from '@/lib/required-docs';
 import { cn } from '@/lib/utils';
 
 /**
- * Flat context block (DESIGN.md §10): no card, no border — a `t-label`
- * header and hairline-separated rows; blocks are separated by spacing so the
- * column reads as one quiet aside next to the paper steps.
+ * Flat context block (DESIGN.md §10): no card — a `t-label` header and
+ * hairline-separated rows; blocks are separated by a hairline + spacing
+ * (user ruling 2026-09-01) so the column reads as one quiet aside.
  */
 function Block({ title, icon, action, children }: { title: string; icon: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="space-y-2">
+    <section className="space-y-2 border-t border-hairline pt-5 first:border-t-0 first:pt-0">
       <header className="flex h-6 items-center gap-2">
         <span className="text-ink-3 [&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
         <h3 className="t-label flex-1">{title}</h3>
@@ -135,7 +135,7 @@ export function DossierContextPanel({
   const openRappels = (rappels || []).filter((r: any) => !r.resolvedAt);
 
   return (
-    <aside className={cn('flex flex-col gap-8 px-2', className)} aria-label="Contexte du dossier">
+    <aside className={cn('flex flex-col gap-5 px-2', className)} aria-label="Contexte du dossier">
       {dossier && steps && (
         <Block
           title="À faire"

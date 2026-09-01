@@ -118,6 +118,14 @@
       0 0 0 1px hsl(178 30% 30% / 0.08),
       0 24px 60px hsl(178 35% 14% / 0.2);
     --scrim: hsl(var(--ink-solid) / 0.35);           /* lighter than before: the blur separates the layers */
+    /* Light contour (user ruling 2026-09-01: on every control, icon button
+       and step pill): inner 1px light ring + brighter top edge + a faint
+       outer hairline/shadow. Two strengths: on light surfaces / on fills. */
+    --rim-in: hsl(0 0% 100% / 0.75);
+    --rim-top: hsl(0 0% 100% / 0.95);
+    --rim-out: hsl(var(--shadow-color) / 0.08);
+    --rim-fill-in: hsl(0 0% 100% / 0.3);
+    --rim-fill-top: hsl(0 0% 100% / 0.55);
     --grain-opacity: 0.03;
   }
   .dark {
@@ -205,6 +213,11 @@
       0 28px 70px hsl(0 0% 0% / 0.6);
     --scrim: hsl(0 0% 0% / 0.55);
     --grain-opacity: 0.05;
+    --rim-in: hsl(0 0% 100% / 0.1);
+    --rim-top: hsl(0 0% 100% / 0.18);
+    --rim-out: hsl(0 0% 0% / 0.35);
+    --rim-fill-in: hsl(0 0% 100% / 0.2);
+    --rim-fill-top: hsl(0 0% 100% / 0.4);
   }
 }
 
@@ -368,34 +381,8 @@ body::after {
     background-color: hsl(var(--card));
   }
 
-  /* Top-lit primary control (Markazi, toned down 2026-09-01 — user: gradients
-     less obvious, keep the edge light + shadow): a faint overlay riding the
-     control's own background colour, so a `bg-destructive` override still
-     comes out top-lit in ITS colour. --btn-glow tints the drop shadow. */
-  .btn-primary-glow {
-    background-image: linear-gradient(to bottom, hsl(0 0% 100% / 0.05), hsl(0 0% 0% / 0.05));
-    /* Light rim: a 1px translucent ring on every edge, brighter along the
-       top (the glass edge the cards have), over the tinted glow. */
-    box-shadow:
-      inset 0 0 0 1px hsl(0 0% 100% / 0.28),
-      inset 0 1.5px 0 hsl(0 0% 100% / 0.55),
-      0 6px 16px -4px var(--btn-glow, hsl(var(--primary) / 0.45));
-  }
-  .dark .btn-primary-glow {
-    background-image: linear-gradient(to bottom, hsl(0 0% 100% / 0.04), hsl(0 0% 0% / 0.07));
-    box-shadow:
-      inset 0 0 0 1px hsl(0 0% 100% / 0.22),
-      inset 0 1.5px 0 hsl(0 0% 100% / 0.45),
-      0 6px 16px -4px var(--btn-glow, hsl(var(--primary) / 0.3));
-  }
-}
-@media (hover: hover) {
-  .btn-primary-glow:hover {
-    filter: brightness(1.06);
-  }
-}
-.btn-primary-glow:active {
-  filter: brightness(0.94);
+  /* Filled controls carry NO gradient (user ruling 2026-09-01): only the
+     light rim (`shadow-rim-filled` in tailwind.config) + hover brightness. */
 }
 /* Below lg: lighter blur on the bars (GPU), overlays keep theirs. */
 @media (max-width: 1023px) {
