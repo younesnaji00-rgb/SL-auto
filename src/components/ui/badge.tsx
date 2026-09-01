@@ -17,7 +17,9 @@ const STATUS_PAIR = {
 } as const
 
 const badgeVariants = cva(
-  "inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  // Optional 12 px leading icon (Carbon tag: "decorative icons are optional
+  // and support the tag title"; element-specs §11).
+  "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:shrink-0",
   {
     variants: {
       variant: {

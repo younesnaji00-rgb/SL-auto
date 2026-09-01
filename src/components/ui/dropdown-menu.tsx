@@ -162,7 +162,9 @@ const DropdownMenuSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Separator
     ref={ref}
-    className={cn("-mx-1 my-1 h-px bg-muted", className)}
+    // Hairline separator, same as SelectSeparator (element-specs §13: menus
+    // are `glass-strong` panels with hairline dividers, never a tinted band).
+    className={cn("-mx-1 my-1 h-px bg-hairline", className)}
     {...props}
   />
 ))

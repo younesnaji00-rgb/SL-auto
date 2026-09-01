@@ -109,7 +109,8 @@ const SheetTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Title
     ref={ref}
-    className={cn("text-lg font-semibold text-ink", className)}
+    // Same header type as Dialog (element-specs §13): t-title / t-caption.
+    className={cn("t-title", className)}
     {...props}
   />
 ))
@@ -121,7 +122,7 @@ const SheetDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-ink-3", className)}
+    className={cn("t-caption", className)}
     {...props}
   />
 ))

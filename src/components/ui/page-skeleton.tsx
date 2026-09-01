@@ -39,14 +39,16 @@ export function PageSkeleton({
       {variant === 'list' && (
         // Solid paper frame (no glass on skeletons), header on card like Table.
         <div className="overflow-hidden rounded-xl border border-hairline bg-card">
-          <div className="flex h-10 items-center gap-4 border-b border-hairline bg-card px-4">
+          {/* Header row at the table's 44 px, then 6 rows at 44 px
+              (element-specs §15: "table = header row + 6 rows at 44 px"). */}
+          <div className="flex h-11 items-center gap-4 border-b border-hairline bg-card px-4">
             <Skeleton className="h-4 w-24" />
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-4 w-28" />
             <Skeleton className="h-4 w-20" />
             <Skeleton className="h-4 w-20" />
           </div>
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: 6 }).map((_, i) => (
             <SkeletonRow key={i} />
           ))}
         </div>

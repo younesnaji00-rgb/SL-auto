@@ -1,5 +1,6 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
+import { AlertCircle, AlertTriangle, CheckCircle2, Info } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -24,19 +25,6 @@ const alertVariants = cva(
   }
 )
 
-const Alert = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
->(({ className, variant, ...props }, ref) => (
-  <div
-    ref={ref}
-    role="alert"
-    className={cn(alertVariants({ variant }), className)}
-    {...props}
-  />
-))
-Alert.displayName = "Alert"
-
 const AlertTitle = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLHeadingElement>
@@ -60,5 +48,47 @@ const AlertDescription = React.forwardRef<
   />
 ))
 AlertDescription.displayName = "AlertDescription"
+
+/**
+ * Status icon per variant (Carbon notification: "every status has its icon
+ * — info / success / warning / error"; element-specs §14: colour never
+ * without an icon). Injected automatically when the caller did not pass one.
+ */
+const STATUS_ICON = {
+  destructive: AlertCircle,
+  danger: AlertCircle,
+  warning: AlertTriangle,
+  success: CheckCircle2,
+  info: Info,
+} as const
+
+function hasIconChild(children: React.ReactNode): boolean {
+  return React.Children.toArray(children).some(
+    (child) =>
+      React.isValidElement(child) &&
+      typeof child.type !== "string" &&
+      child.type !== AlertTitle &&
+      child.type !== AlertDescription
+  )
+}
+
+const Alert = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
+>(({ className, variant, children, ...props }, ref) => {
+  const Icon = variant ? STATUS_ICON[variant as keyof typeof STATUS_ICON] : undefined
+  return (
+    <div
+      ref={ref}
+      role="alert"
+      className={cn(alertVariants({ variant }), className)}
+      {...props}
+    >
+      {Icon && !hasIconChild(children) ? <Icon aria-hidden="true" /> : null}
+      {children}
+    </div>
+  )
+})
+Alert.displayName = "Alert"
 
 export { Alert, AlertTitle, AlertDescription }

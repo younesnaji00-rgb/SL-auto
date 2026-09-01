@@ -28,9 +28,10 @@ const ErrorState = React.forwardRef<HTMLDivElement, ErrorStateProps>(
         ref={ref}
         role="alert"
         className={cn(
-          // Quiet like EmptyState; the danger pair is spent on the icon chip
-          // only (blueprint §1: semantic colour is never decorative).
-          "flex flex-col items-center justify-center gap-3 rounded-xl border border-hairline bg-card px-6 py-10 text-center",
+          // Same quiet surface-2 well as EmptyState (element-specs §12); the
+          // danger pair is spent on the icon chip only (blueprint §1:
+          // semantic colour is never decorative).
+          "flex flex-col items-center justify-center gap-3 rounded-xl bg-surface-2 px-6 py-10 text-center",
           className
         )}
         {...props}

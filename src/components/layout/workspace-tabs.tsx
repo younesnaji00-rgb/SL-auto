@@ -105,7 +105,10 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
         ref={scrollerRef}
         role="tablist"
         aria-label={api.kind === 'dossier' ? 'Dossiers ouverts' : 'Chiffrages ouverts'}
-        className="flex min-w-0 items-end gap-1 overflow-x-auto px-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        // Underline tabs (element-specs §7 / NN/g Tabs Used Right: two
+        // selection indicators — ink text + 2 px primary underline; no pill,
+        // no boxed trigger). The strip's hairline is the shared baseline.
+        className="flex min-w-0 items-stretch gap-1 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {api.displayTabs.map((tab, idx) => {
           const isActive = tab.id === api.activeTabId;
@@ -133,10 +136,10 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
                 if ((e.key === 'Delete' || e.key === 'Backspace') && !isList) { e.preventDefault(); close(tab.id); }
               }}
               className={cn(
-                'group relative flex h-8 min-w-0 max-w-[220px] shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-t-md border border-b-0 px-2.5 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'group relative -mb-px flex h-9 min-w-0 max-w-[220px] shrink-0 cursor-pointer select-none items-center gap-1.5 border-b-2 px-2.5 text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 isActive
-                  ? 'border-hairline bg-background font-medium text-ink shadow-[0_1px_0_0_hsl(var(--background))]'
-                  : 'border-transparent text-ink-3 hover:bg-background/60 hover:text-ink',
+                  ? 'border-primary font-medium text-ink'
+                  : 'border-transparent text-ink-3 hover:text-ink',
                 tab.preview && 'italic',
               )}
             >
@@ -151,6 +154,8 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
                   type="button"
                   aria-label={`Fermer ${tab.label}`}
                   onClick={(e) => { e.stopPropagation(); close(tab.id); }}
+                  // Ghost-style close (surface-3 hover, no rim at 16 px);
+                  // revealed on hover/focus of inactive tabs.
                   className={cn(
                     'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink focus:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                     !isActive && 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',

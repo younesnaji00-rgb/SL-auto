@@ -11,6 +11,7 @@ import {
   isSameDay,
   isSameMonth,
   isToday,
+  isWeekend,
   format,
   addMonths,
   subMonths,
@@ -55,28 +56,33 @@ function Calendar({
   }
 
   return (
+    // 7 × 40 px cells (element-specs §17 / Material 3 date picker: 40–48 dp
+    // day cells; NN/g date input: show today, spell the month out).
     <div className={cn("w-[280px] p-4", className)}>
-      {/* Header: navigation + month label (ink, not accent) */}
-      <div className="mb-3 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={handlePrevMonth}
-          aria-label="Mois précédent"
-          className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <span className="text-sm font-semibold capitalize text-ink">
+      {/* Header: month spelled out (t-heading) at the left, ‹ › ghost icon
+          buttons at the right end. */}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="t-heading capitalize">
           {format(currentMonth, "MMMM yyyy", { locale: fr })}
         </span>
-        <button
-          type="button"
-          onClick={handleNextMonth}
-          aria-label="Mois suivant"
-          className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handlePrevMonth}
+            aria-label="Mois précédent"
+            className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleNextMonth}
+            aria-label="Mois suivant"
+            className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Weekday headers — t-label, sentence case (never uppercase) */}
@@ -95,29 +101,31 @@ function Calendar({
           const isCurrentMonth = isSameMonth(day, currentMonth)
           const isDayToday = isToday(day)
           const isDisabled = disabled?.(day) ?? false
+          const isWeekendDay = isWeekend(day)
 
           return (
-            <div key={day.toISOString()} className="p-0.5">
-              <button
-                type="button"
-                onClick={() => handleDayClick(day)}
-                disabled={isDisabled}
-                className={cn(
-                  // Day cells: selected = accent fill (+ rim), today = ring,
-                  // hover on the surface ladder. No palette colours.
-                  "h-9 w-full rounded-md text-sm font-normal tabular-nums transition-colors",
-                  "hover:bg-surface-3 hover:text-ink",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  !isCurrentMonth && "text-ink-4",
-                  isCurrentMonth && "text-ink",
-                  isDayToday && !isSelected && "font-semibold ring-1 ring-inset ring-primary",
-                  isSelected && "bg-primary font-semibold text-primary-foreground shadow-rim-filled hover:bg-primary hover:text-primary-foreground hover:brightness-[1.06]",
-                  isDisabled && "cursor-not-allowed opacity-40 hover:bg-transparent"
-                )}
-              >
-                {format(day, "d")}
-              </button>
-            </div>
+            <button
+              key={day.toISOString()}
+              type="button"
+              onClick={() => handleDayClick(day)}
+              disabled={isDisabled}
+              className={cn(
+                // Day cell 40 px, t-body-sm tabular; today = 1 px primary
+                // ring; selected = accent pair (the one accent use);
+                // weekends ink-3, other-month days ink-4; hover on the
+                // surface ladder. No palette colours, no terracotta.
+                "h-10 w-full rounded-md text-[13px] font-normal tabular-nums transition-colors",
+                "hover:bg-surface-3 hover:text-ink",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                !isCurrentMonth && "text-ink-4",
+                isCurrentMonth && (isWeekendDay ? "text-ink-3" : "text-ink"),
+                isDayToday && !isSelected && "font-semibold ring-1 ring-inset ring-primary",
+                isSelected && "bg-accent font-semibold text-accent-foreground shadow-rim hover:bg-accent hover:text-accent-foreground",
+                isDisabled && "cursor-not-allowed opacity-40 hover:bg-transparent"
+              )}
+            >
+              {format(day, "d")}
+            </button>
           )
         })}
       </div>

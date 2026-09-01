@@ -63,8 +63,13 @@ const Breadcrumb = () => {
   if (crumbs.length <= 1) return null;
 
   return (
+    // NN/g breadcrumbs (https://www.nngroup.com/articles/breadcrumbs/):
+    // hierarchy not history; "the last breadcrumb (denoting the current
+    // page) should not be a link"; ">"-style separators; never wrap; on
+    // phones only the parent level (see MobileUpCrumb in header.tsx).
+    // Type = t-caption (12 px ink-3) so it never competes with the H1.
     <nav aria-label="Fil d'Ariane" className="flex min-w-0">
-      <ol className="flex min-w-0 items-center gap-1.5 text-sm text-ink-3">
+      <ol className="t-caption flex min-w-0 items-center gap-1.5 whitespace-nowrap">
         {crumbs.map((c, index) => (
           <React.Fragment key={c.href}>
             {index > 0 && (
@@ -78,7 +83,7 @@ const Breadcrumb = () => {
                   {c.label}
                 </span>
               ) : (
-                <Link href={c.href} className="block truncate transition-colors hover:text-ink">
+                <Link href={c.href} className="block truncate rounded-sm py-1 transition-colors hover:text-ink">
                   {c.label}
                 </Link>
               )}

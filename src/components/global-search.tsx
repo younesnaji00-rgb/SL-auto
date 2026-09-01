@@ -9,7 +9,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { Bell, Calculator, FolderOpen, Keyboard, Moon, Plus, Sparkles, Sun, ArrowRight, Clock } from 'lucide-react';
+import { Bell, Calculator, FolderOpen, Keyboard, MessageSquare, Moon, Plus, Sun, ArrowRight, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command';
 import { Badge } from '@/components/ui/badge';
@@ -270,7 +270,8 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
                 <CommandSeparator />
                 <CommandGroup heading="Assistant">
                   <CommandItem value="ai:ask" onSelect={askAssistant} className="gap-3" disabled={aiLoading}>
-                    <Sparkles className="h-4 w-4 text-ink-3" />
+                    {/* Neutral icon: sparkle/AI glyphs are banned on actions (element-specs §8). */}
+                    <MessageSquare className="h-4 w-4 text-ink-3" />
                     <span className="min-w-0 flex-1 truncate">
                       {aiLoading ? 'Réflexion…' : <>Demander à l&apos;assistant : « {q} »</>}
                     </span>

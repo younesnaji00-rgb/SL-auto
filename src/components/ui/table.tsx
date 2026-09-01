@@ -10,6 +10,18 @@ import { cn } from "@/lib/utils"
  * and no zebra, hover = `surface-2`, selected row = accent tint,
  * `scope="col"` on every header cell, and a focusable labelled scroll region
  * so keyboard users can pan wide tables.
+ *
+ * Alignment contract (Polaris data table: "numerical data right aligned,
+ * textual left, headers must align with their related data, don't center
+ * align"; element-specs §3). There is no `numeric` prop — callers put the
+ * SAME class on the head and its cells:
+ *
+ *   <TableHead className="text-right">Montant</TableHead>
+ *   <TableCell className="text-right">1 250,00</TableCell>
+ *
+ * Digits are already tabular on every cell. Refs/plates use `t-mono`. The
+ * first (identifier) column is frozen with `sticky left-0 bg-card` on both
+ * the head and the cells when the table can overflow.
  */
 
 const Table = React.forwardRef<
@@ -90,7 +102,10 @@ const TableHead = React.forwardRef<
     scope={scope}
     className={cn(
       // Sticky inside the scroll region; solid card so rows scroll under it.
-      "t-label sticky top-0 z-[1] h-10 whitespace-nowrap bg-card px-3 text-left align-middle font-normal normal-case tracking-normal tabular-nums [&:has([role=checkbox])]:pr-0",
+      // 44 px like the body rows (Carbon data table: "the column header row
+      // should always match the row size of the table"); compact density
+      // drops both to 36 px via globals.css.
+      "t-label sticky top-0 z-[1] h-11 whitespace-nowrap bg-card px-3 text-left align-middle font-normal normal-case tracking-normal tabular-nums [&:has([role=checkbox])]:pr-0",
       className
     )}
     {...props}

@@ -19,7 +19,9 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+      // Field, not button (element-specs §9): solid `bg-card`, hairline
+      // `input` border, 40 px, no rim — identical to Input / Textarea.
+      "flex h-10 w-full items-center justify-between rounded-md border border-input bg-card px-3 py-2 text-base text-ink md:text-sm ring-offset-background placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
       className
     )}
     {...props}

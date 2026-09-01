@@ -41,7 +41,9 @@ export function DatePicker({
           variant="outline"
           disabled={disabled}
           className={cn(
-            "h-10 w-full min-w-0 justify-start px-3 text-left font-normal",
+            // Reads as a field, not a button (element-specs §9 / §17): 40 px,
+            // flat, hairline `input` border, solid card, no rim, no hover tint.
+            "h-10 w-full min-w-0 justify-start border border-input bg-card px-3 text-left font-normal shadow-none hover:bg-card",
             !value && "text-ink-3",
             className
           )}

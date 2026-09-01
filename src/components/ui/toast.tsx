@@ -83,7 +83,9 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-2 top-2 rounded-md p-1 text-ink-3 opacity-0 transition-opacity hover:text-ink focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring group-hover:opacity-100 group-[.destructive]:text-current group-[.destructive]:hover:text-current group-[.destructive]:focus:ring-status-danger-fg",
+      // Always visible (Carbon notification: toasts auto-dismiss AND carry a
+      // close button — a hover-only close is invisible on touch; §14).
+      "absolute right-2 top-2 rounded-md p-1 text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink focus:outline-none focus:ring-2 focus:ring-ring group-[.destructive]:text-current group-[.destructive]:hover:text-current group-[.destructive]:focus:ring-status-danger-fg",
       className
     )}
     toast-close=""

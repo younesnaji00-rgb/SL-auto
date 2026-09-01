@@ -134,7 +134,8 @@ export function CellNumberInput({
             onClick={stepUp}
             aria-label="Augmenter"
             className={cn(
-              "flex items-center justify-center h-3 w-4 text-muted-foreground hover:text-foreground",
+              // Ink ladder (element-specs §8 icon controls): ink-3 at rest, ink on hover.
+              "flex items-center justify-center h-3 w-4 text-ink-3 hover:text-ink",
               "disabled:opacity-40 disabled:cursor-not-allowed",
             )}
           >
@@ -148,7 +149,7 @@ export function CellNumberInput({
             onClick={stepDown}
             aria-label="Diminuer"
             className={cn(
-              "flex items-center justify-center h-3 w-4 text-muted-foreground hover:text-foreground",
+              "flex items-center justify-center h-3 w-4 text-ink-3 hover:text-ink",
               "disabled:opacity-40 disabled:cursor-not-allowed",
             )}
           >

@@ -499,10 +499,13 @@ const SidebarMenuItem = React.forwardRef<
 SidebarMenuItem.displayName = "SidebarMenuItem"
 
 const sidebarMenuButtonVariants = cva(
-  // DESIGN.md §10: the nav is the navy 30 % surface. Items `sidebar-foreground/85`,
-  // icons `sidebar-muted`; hover/pressed walk the navy ladder (`sidebar-accent`,
-  // `sidebar-active`); the active row adds a 2 px light-teal bar + icon — the
-  // only teal in the nav.
+  // Element-specs §19 (Apple HIG sidebars: selection tint, succinct groups):
+  // the nav sits on the cream ladder (`sidebar-*` tokens). Items
+  // `sidebar-foreground/85`, icons `sidebar-muted`; hover/pressed walk the
+  // ladder (`sidebar-accent`, `sidebar-active`); the active row adds a 2 px
+  // `sidebar-primary` (teal) bar + icon — the only teal in the nav. Row height
+  // stays the original 36 px (no published number to cite for a desktop rail);
+  // `sm` = 32 px for the "Récents" sub-list.
   "peer/menu-button relative flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-[13px] leading-[1.45] text-sidebar-foreground/85 outline-none ring-sidebar-ring transition-colors duration-150 ease-out hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 active:bg-sidebar-active active:text-sidebar-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 before:absolute before:bottom-1.5 before:left-0 before:top-1.5 before:w-0.5 before:rounded-full before:bg-transparent before:content-[''] data-[active=true]:bg-sidebar-active data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground data-[active=true]:before:bg-sidebar-primary data-[active=true]:[&>svg]:text-sidebar-primary group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!p-3 group-data-[collapsible=icon]:before:hidden [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-muted",
   {
     variants: {

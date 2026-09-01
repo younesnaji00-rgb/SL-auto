@@ -123,7 +123,11 @@ function NotificationsInner() {
             />
           </div>
         ) : (
-          <ul className="max-h-80 overflow-y-auto p-1.5">
+          // List rows (element-specs §4 / Material 3 lists): hairline
+          // dividers only, 16 px horizontal padding, ≥ 44 px, whole row
+          // clickable; unread = info dot + heavier label (§14: never colour
+          // alone — the dot pairs with the bold label and the header count).
+          <ul className="max-h-80 divide-y divide-hairline overflow-y-auto">
             {items.map((r) => {
               const d = toDate(r.createdAt);
               const isUnread = !r.read && !r.resolvedAt;
@@ -133,7 +137,7 @@ function NotificationsInner() {
                     type="button"
                     onClick={() => openRappel(r)}
                     className={cn(
-                      'grid w-full grid-cols-[10px_1fr_auto] items-start gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none',
+                      'grid min-h-11 w-full grid-cols-[10px_1fr_auto] items-start gap-2 px-4 py-2 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none',
                     )}
                   >
                     <span className={cn('mt-1.5 h-2 w-2 rounded-full', isUnread ? 'bg-status-info-fg' : 'bg-surface-4')} aria-hidden />
