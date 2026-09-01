@@ -4,9 +4,10 @@ import { cn } from "@/lib/utils"
 
 /**
  * Card variants (DESIGN.md §10):
- *  - `tonal`    (default) paper on the cream canvas — no border in light mode,
- *               level-1 shadow; hairline ring in dark mode where tone steps
- *               are too weak on their own.
+ *  - `tonal`    (default) a glass pane (`.glass`, Markazi): translucent card
+ *               with a 1px light edge and inset top highlight. Never add a
+ *               Tailwind `shadow-*` — it wipes the highlight. Inside another
+ *               glass surface it flattens to solid card automatically.
  *  - `outline`  hairline only, no shadow — for cards nested inside a paper
  *               surface (inner radius = outer − padding).
  *  - `flat`     surface-2 fill, no border, no shadow — grouping boxes, wells.
@@ -15,7 +16,7 @@ import { cn } from "@/lib/utils"
 export type CardVariant = 'tonal' | 'outline' | 'flat' | 'featured'
 
 const CARD_VARIANT: Record<CardVariant, string> = {
-  tonal: 'rounded-xl bg-card text-card-foreground shadow-card dark:ring-1 dark:ring-hairline',
+  tonal: 'glass rounded-xl text-card-foreground',
   outline: 'rounded-lg border border-hairline bg-card text-card-foreground',
   flat: 'rounded-lg bg-surface-2 text-card-foreground',
   featured: 'rounded-xl bg-tertiary text-tertiary-foreground shadow-raised',
