@@ -1,24 +1,26 @@
 'use client';
 
 /**
- * Documents browser — the single Documents surface of the Pièces step,
- * rebuilt on the structured document list (GOV.UK task list / Carbon
- * structured list — see `@/components/documents/document-list`).
+ * Pièces tab — the documents surface of the step-1 card, built on the same
+ * inventory **sockets** as the accord board (`SlotCard`) so the dossier has
+ * one visual language.
  *
  * Reading order, top → bottom:
  *   1. Toolbar: t-heading "Documents" + count pill · search ·
- *      Importer (outline) · Sélectionner (ghost) · types settings ·
- *      the ONE filled primary passed by the caller.
- *   2. "N pièces requises manquantes" summary line (links focus their row).
- *   3. One outline card of hairline groups:
- *        Pièces requises → Devis / Factures garage → Autres documents
- *      Each slot is a 44 px row (status tag · label · files · Déposer /
- *      Ajouter), a drop target for files, with a final quiet "Autre type…"
- *      row that opens the existing typed upload dialog.
+ *      Sélectionner (ghost) · types settings · the ONE filled primary passed
+ *      by the caller. No "Importer" here — the SmartInbox « Ajouter des
+ *      pièces » above the tab is the picker; empty sockets cover typed
+ *      uploads.
+ *   2. "N pièces requises manquantes" summary line (links scroll to the socket).
+ *   3. Two socket grids under quiet `t-label` section labels:
+ *        Pièces requises — one socket per required source slot + the two
+ *        garage slots (either-or: once one is filled the other reads
+ *        "Optionnel" while empty);
+ *        Autres documents — one socket per other type holding files + a
+ *        dashed "Autre type…" socket → the existing typed upload dialog.
  *
- * Import paths: row "Déposer/Ajouter" and row drag-drop upload straight into
- * that slot type; the toolbar "Importer" / "Autre type…" keep the typed
- * dialog (with the Devis original / contre-devis variant flow).
+ * Socket states are the status (filled / empty / locked) — no chips, no
+ * tick/cross column.
  */
 
 import React, { useState, useMemo, useRef } from 'react';
@@ -31,7 +33,6 @@ import {
   Plus,
   Search,
   Settings,
-  Upload,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,7 +77,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { parseAccordeParent, parseAccordDocType } from '@/lib/docType-accorde';
 import {
   REQUIRED_SOURCE_SLOTS,
   GARAGE_DOC_SLOTS,
@@ -84,18 +84,9 @@ import {
   computeRequiredDocsStatus,
   requiredDocChip,
 } from '@/lib/required-docs';
+import { SlotCard, SOCKET_BASE_CLASS, SOCKET_OPEN_CLASS } from '@/components/dossier-timeline/slot-card';
 import {
-  DocumentGroup,
-  DocumentItem,
-  DocumentList,
-  QuietRow,
-  SlotRow,
-  type SlotStatus,
-} from '@/components/documents/document-list';
-import {
-  accordRowLabel,
   docDisplayName,
-  docMetaLine,
   downloadFileFromUrl,
   type TypedDoc,
 } from '@/components/documents/typed-doc';
@@ -110,25 +101,27 @@ type DocumentsTabProps = {
    * Hidden while selection mode is on — the batch well carries its own primary.
    */
   primaryAction?: React.ReactNode;
-  /** Required chips + "pièces requises manquantes" line. */
+  /** Required hints + "pièces requises manquantes" line. */
   showRequirements?: boolean;
 };
 
-/** One slot row of the browser. */
-type BrowserRow = {
+/** One socket of the Pièces tab. */
+type SocketSpec = {
   type: string;
-  label: string;
   hint?: string;
-  status: SlotStatus;
+  emptyCaption?: string;
   docs: TypedDoc[];
-  canAdd: boolean;
-  required?: boolean;
 };
 
 // Broader accept than image/PDF — the typed dialog always allowed office docs.
 const ACCEPT_ATTR = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp';
 const acceptBrowserFile = (f: File) =>
   f.type.startsWith('image/') || /\.(pdf|docx?|xlsx?)$/i.test(f.name);
+
+const SECTION_LABEL_CLASS = 't-label';
+const SOCKET_GRID_CLASS = 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4';
+
+const noop = () => {};
 
 export default function DocumentsTab({ dossierId, title = 'Documents', primaryAction, showRequirements = true }: DocumentsTabProps) {
   const db = useFirestore();
@@ -144,10 +137,8 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
     [dbDocTypes]
   );
 
-  // Toolbar "Importer" / quiet row → typed dialog. Row "Déposer" → direct.
+  // "Autre type…" socket → native picker → typed dialog.
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const rowFileInputRef = useRef<HTMLInputElement>(null);
-  const rowTypeRef = useRef<string>('');
 
   const [search, setSearch] = useState('');
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
@@ -158,7 +149,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadType, setUploadType] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
-  /** Slot type currently receiving a direct (row) upload. */
+  /** Slot type currently receiving a direct (socket) upload. */
   const [uploadingType, setUploadingType] = useState<string | null>(null);
 
   // Devis-specific variant (only shown when uploadType === 'Devis')
@@ -211,113 +202,63 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
   // Required-slot awareness (shared predicate with the step gate).
   const requiredStatus = useMemo(() => computeRequiredDocsStatus(allDocuments ?? null), [allDocuments]);
 
-  // ── Row model ──────────────────────────────────────────────────────────────
+  // ── Socket model ───────────────────────────────────────────────────────────
 
-  const groups = useMemo(() => {
-    // 1. Pièces requises — always listed, even (especially) while empty.
-    const requiredRows: BrowserRow[] = REQUIRED_SOURCE_SLOTS.map((t) => {
-      const filled = requiredStatus.filledTypes.has(t);
+  const sockets = useMemo(() => {
+    // Pièces requises — the five required sources + the either-or garage pair.
+    const required: SocketSpec[] = REQUIRED_SOURCE_SLOTS.map((t) => ({
+      type: t,
+      hint: showRequirements ? 'obligatoire' : undefined,
+      docs: docsByType[t] || [],
+    }));
+    const garage: SocketSpec[] = GARAGE_DOC_SLOTS.map((t) => {
+      const chip = showRequirements ? requiredDocChip(t, requiredStatus) : null;
+      // `null` chip on an empty garage slot = the other one is filled → optional.
+      const optional = showRequirements && chip === null;
       return {
         type: t,
-        label: t,
-        hint: showRequirements ? 'obligatoire' : undefined,
-        status: filled ? 'received' : (showRequirements ? 'missing' : 'optional'),
-        docs: docsByType[t] || [],
-        canAdd: canEdit,
-        required: showRequirements && !filled,
-      };
-    });
-
-    // 2. Devis / Factures garage — the either-or pair, then every garage
-    //    family type observed on live docs (extras, accords, propositions).
-    const garageRows: BrowserRow[] = GARAGE_DOC_SLOTS.map((t) => {
-      const chip = showRequirements
-        ? requiredDocChip(t, requiredStatus)
-        : ((docsByType[t]?.length || 0) > 0 ? 'received' : null);
-      return {
-        type: t,
-        label: t,
         hint: showRequirements ? 'au moins un des deux' : undefined,
-        status: chip === 'received' ? 'received' : chip === 'missing' ? 'missing' : 'optional',
+        emptyCaption: optional ? 'Optionnel' : 'Déposer',
         docs: docsByType[t] || [],
-        canAdd: canEdit,
-        required: chip === 'missing',
       };
     });
-    const famRows: (BrowserRow & { sort: number[] })[] = [];
-    for (const t of Object.keys(docsByType)) {
-      if ((GARAGE_DOC_SLOTS as ReadonlyArray<string>).includes(t)) continue;
-      const asParent = parseAccordeParent(t);
-      if (asParent && asParent.ordinal >= 2) {
-        famRows.push({
-          type: t, label: t, hint: 'garage supplémentaire', status: 'received',
-          docs: docsByType[t], canAdd: false,
-          sort: [asParent.sourceDocType === 'Devis Garage' ? 0 : 1, asParent.ordinal, -1, 0],
-        });
-        continue;
-      }
-      const parsed = parseAccordDocType(t);
-      if (parsed) {
-        famRows.push({
-          type: t,
-          label: parsed.parentOrdinal >= 2 ? `${accordRowLabel(parsed)} — ${parsed.parent}` : accordRowLabel(parsed),
-          hint: t,
-          status: 'received',
-          // Accord / proposition outputs are produced by the chiffrage flow —
-          // never uploaded manually from the browser.
-          docs: docsByType[t], canAdd: false,
-          sort: [parsed.sourceDocType === 'Devis Garage' ? 0 : 1, parsed.parentOrdinal, parsed.ordinal, parsed.kind === 'accord' ? 0 : 1],
-        });
-      }
-    }
-    famRows.sort((a, b) => a.sort[0] - b.sort[0] || a.sort[1] - b.sort[1] || a.sort[2] - b.sort[2] || a.sort[3] - b.sort[3]);
 
-    // 3. Autres documents — every other type that holds at least one file.
-    const handled = new Set<string>([
-      ...REQUIRED_SOURCE_SLOTS,
-      ...GARAGE_DOC_SLOTS,
-      ...famRows.map((r) => r.type),
-    ]);
-    const otherRows: BrowserRow[] = Object.keys(docsByType)
+    // Autres documents — every other type holding at least one file.
+    const handled = new Set<string>([...REQUIRED_SOURCE_SLOTS, ...GARAGE_DOC_SLOTS]);
+    const others: SocketSpec[] = Object.keys(docsByType)
       .filter((t) => !handled.has(t) && (docsByType[t]?.length || 0) > 0)
-      .map((t) => ({
-        type: t, label: t, status: 'received' as SlotStatus,
-        docs: docsByType[t], canAdd: canEdit,
-      }))
-      .sort((a, b) => b.docs.length - a.docs.length || a.label.localeCompare(b.label, 'fr'));
+      .map((t) => ({ type: t, docs: docsByType[t] }))
+      .sort((a, b) => b.docs.length - a.docs.length || a.type.localeCompare(b.type, 'fr'));
 
-    return { requiredRows, garageRows: [...garageRows, ...famRows], otherRows };
-  }, [docsByType, requiredStatus, canEdit, showRequirements]);
+    return { required: [...required, ...garage], others };
+  }, [docsByType, requiredStatus, showRequirements]);
 
-  // ── Search (file name OR type) ─────────────────────────────────────────────
+  // ── Search (type OR file name) ─────────────────────────────────────────────
+  // Required sockets always show (their state must stay truthful): a type
+  // match shows every file; otherwise only matching files — and when nothing
+  // matches inside a filled socket, all its files stay so it never reads as
+  // empty. The Autres group is filtered to matching sockets.
 
   const q = search.trim().toLowerCase();
   const isSearching = q.length > 0;
-  const filterRows = (rows: BrowserRow[]): Array<{ row: BrowserRow; docs: TypedDoc[] }> =>
-    rows
-      .map((r) => {
-        if (!q) return { row: r, docs: r.docs };
-        const typeMatch = r.label.toLowerCase().includes(q) || r.type.toLowerCase().includes(q);
-        if (typeMatch) return { row: r, docs: r.docs };
-        const matched = r.docs.filter((d) => docDisplayName(d).toLowerCase().includes(q));
-        return matched.length > 0 ? { row: r, docs: matched } : null;
-      })
-      .filter((x): x is { row: BrowserRow; docs: TypedDoc[] } => x !== null);
+  const matchDocs = (s: SocketSpec): TypedDoc[] => {
+    if (!q) return s.docs;
+    if (s.type.toLowerCase().includes(q)) return s.docs;
+    const matched = s.docs.filter((d) => docDisplayName(d).toLowerCase().includes(q));
+    return matched.length > 0 ? matched : s.docs;
+  };
+  const socketMatches = (s: SocketSpec): boolean =>
+    !q || s.type.toLowerCase().includes(q) || s.docs.some((d) => docDisplayName(d).toLowerCase().includes(q));
 
-  const visRequired = filterRows(groups.requiredRows);
-  const visGarage = filterRows(groups.garageRows);
-  const visOthers = filterRows(groups.otherRows);
-  const nothingMatches = isSearching && visRequired.length + visGarage.length + visOthers.length === 0;
-  const visibleDocsFlat = [...visRequired, ...visGarage, ...visOthers].flatMap((x) => x.docs);
+  const visRequired = sockets.required.map((s) => ({ spec: s, docs: matchDocs(s) }));
+  const visOthers = sockets.others.filter(socketMatches).map((s) => ({ spec: s, docs: matchDocs(s) }));
+  const visibleDocsFlat = [...visRequired, ...visOthers].flatMap((x) => x.docs);
   const selectableVisible = visibleDocsFlat.filter((d) => d.url && !d.pendingUpload);
-
-  const countReceived = (rows: Array<{ row: BrowserRow }>) =>
-    rows.filter((x) => x.row.status === 'received').length;
 
   // ── Upload ─────────────────────────────────────────────────────────────────
 
   // Upload dialog type list: admin options ∪ required slots ∪ the preset so a
-  // slot type preselected from a row is always selectable.
+  // slot type preselected from a socket is always selectable.
   const uploadTypeOptions = useMemo(() => {
     const seen = new Set<string>();
     const labels: string[] = [];
@@ -365,8 +306,9 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
   };
 
   /**
-   * The single upload routine (dialog + row paths): per-file offline-capable
-   * upload, historique + workflow logs, toast. Returns true on success.
+   * The single upload routine (dialog + socket paths): per-file
+   * offline-capable upload, historique + workflow logs, toast. Returns true
+   * on success.
    */
   const uploadFiles = async (
     files: File[],
@@ -460,7 +402,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
     }
   };
 
-  /** Row "Déposer / Ajouter" + row drop → straight into that slot type. */
+  /** Socket click / socket drop → straight into that slot type. */
   const addFilesToType = (files: File[], type: string) => {
     if (files.length === 0) return;
     if (type === 'Devis') {
@@ -473,19 +415,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
     void uploadFiles(files, type);
   };
 
-  const openRowPicker = (type: string) => {
-    rowTypeRef.current = type;
-    rowFileInputRef.current?.click();
-  };
-
-  const handleRowFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files ? Array.from(e.target.files) : [];
-    const type = rowTypeRef.current;
-    if (files.length > 0 && type) addFilesToType(files, type);
-    if (rowFileInputRef.current) rowFileInputRef.current.value = '';
-  };
-
-  // ── Delete / download / preview ────────────────────────────────────────────
+  // ── Delete / preview ───────────────────────────────────────────────────────
 
   const handleDelete = async (document: any) => {
     const userEmail = auth?.currentUser?.email || 'Admin';
@@ -519,17 +449,20 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
   const openDoc = (d: TypedDoc) => {
     if (!d.pendingUpload && d.url) setPreviewDoc({ url: d.url, nom: docDisplayName(d) });
   };
-  const downloadDoc = (d: TypedDoc) => {
-    if (!d.pendingUpload && d.url) void downloadFileFromUrl(d.url, docDisplayName(d));
-  };
 
   // ── Selection / batch download ─────────────────────────────────────────────
 
-  const toggleSelectDoc = (id: string) => {
+  /** Tile-level selection: the checkbox toggles every file of that socket. */
+  const isSocketSelected = (docs: TypedDoc[]) => {
+    const selectable = docs.filter((d) => d.url && !d.pendingUpload);
+    return selectable.length > 0 && selectable.every((d) => selectedIds.has(d.id));
+  };
+  const toggleSocketSelection = (docs: TypedDoc[]) => {
+    const selectable = docs.filter((d) => d.url && !d.pendingUpload);
+    const allIn = isSocketSelected(docs);
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      selectable.forEach((d) => { if (allIn) next.delete(d.id); else next.add(d.id); });
       return next;
     });
   };
@@ -683,65 +616,59 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
   const missingCount = requiredStatus.missingLabels.length;
   const showSummary = showRequirements && !loading && !!allDocuments;
 
-  // ── Row focus (missing-summary links) ──────────────────────────────────────
+  // ── Socket focus (missing-summary links) ───────────────────────────────────
 
-  const rowId = (t: string) => `docrow-${dossierId}-${t.replace(/[^a-zA-Z0-9]+/g, '-')}`;
-  const focusRow = (missingLabel: string) => {
+  const socketId = (t: string) => `docslot-${dossierId}-${t.replace(/[^a-zA-Z0-9]+/g, '-')}`;
+  const focusSocket = (missingLabel: string) => {
     const target = missingLabel === GARAGE_PAIR_LABEL ? GARAGE_DOC_SLOTS[0] : missingLabel;
     if (search) setSearch('');
-    // Let a cleared search re-render the row first.
+    // Let a cleared search re-render first.
     window.setTimeout(() => {
-      const el = document.getElementById(rowId(target));
+      const el = document.getElementById(socketId(target));
       if (!el) return;
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
-      el.focus({ preventScroll: true });
+      (el.querySelector<HTMLElement>('button') ?? el).focus({ preventScroll: true });
     }, 50);
   };
 
   // ── Rendering ──────────────────────────────────────────────────────────────
 
-  const renderBrowserRow = (row: BrowserRow, docs: TypedDoc[]) => (
-    <SlotRow
-      key={row.type}
-      id={rowId(row.type)}
-      label={row.label}
-      hint={row.hint}
-      title={row.type}
-      status={row.status}
-      emptyText="Aucun document"
-      onAdd={row.canAdd ? () => openRowPicker(row.type) : undefined}
-      addLabel={docs.length > 0 ? 'Ajouter' : 'Déposer'}
-      addVisible={row.required && docs.length === 0 ? 'always' : 'reveal'}
-      adding={uploadingType === row.type}
-      onFilesDropped={row.canAdd ? (files) => addFilesToType(files, row.type) : undefined}
+  const renderSocket = (spec: SocketSpec, docs: TypedDoc[]) => (
+    <SlotCard
+      key={spec.type}
+      id={socketId(spec.type)}
+      slot={spec.type}
+      docs={docs}
+      canEdit={canEdit}
+      canDeleteDoc={() => canEdit}
+      userRole={profile?.role}
+      isUploading={uploadingType === spec.type}
+      deletingId={isDeleting}
+      canManageExtraSlots={false}
+      onUpload={(files) => addFilesToType(files, spec.type)}
+      onDelete={(d) => setDeleteTarget(d)}
+      onCreateNextCardinal={noop}
+      onCreateExtraSlot={noop}
+      onRenameExtraSlot={noop}
+      onPreview={openDoc}
+      hideCardinalPlus
+      hideExtraSlotPlus
+      hint={spec.hint}
+      emptyCaption={spec.emptyCaption}
+      accept={ACCEPT_ATTR}
       acceptFile={acceptBrowserFile}
-    >
-      {docs.map((d) => (
-        <DocumentItem
-          key={d.id}
-          name={docDisplayName(d)}
-          url={d.url}
-          pending={!!d.pendingUpload}
-          meta={docMetaLine(d)}
-          onOpen={() => openDoc(d)}
-          onDownload={d.url ? () => downloadDoc(d) : undefined}
-          onDelete={canEdit ? () => setDeleteTarget(d) : undefined}
-          deleting={isDeleting === d.id}
-          selectable={selectionMode}
-          selected={selectedIds.has(d.id)}
-          onToggleSelect={() => toggleSelectDoc(d.id)}
-        />
-      ))}
-    </SlotRow>
+      selectable={selectionMode}
+      selected={isSocketSelected(docs)}
+      onToggleSelect={() => toggleSocketSelection(docs)}
+    />
   );
 
-  const otherDocCount = visOthers.reduce((acc, x) => acc + x.docs.length, 0);
   const showOthersGroup = visOthers.length > 0 || (canEdit && !isSearching);
 
   return (
     <div className="space-y-4">
-      {/* Toolbar "Importer" → typed dialog */}
+      {/* "Autre type…" socket → typed dialog */}
       <input
         type="file"
         ref={fileInputRef}
@@ -750,17 +677,8 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
         accept={ACCEPT_ATTR}
         onChange={handleFileSelect}
       />
-      {/* Row "Déposer / Ajouter" → straight into the row's slot */}
-      <input
-        type="file"
-        ref={rowFileInputRef}
-        multiple
-        className="hidden"
-        accept={ACCEPT_ATTR}
-        onChange={handleRowFileSelect}
-      />
 
-      {/* Toolbar: title · count · search ─ Importer · Sélectionner · types · primary */}
+      {/* Toolbar: title · count · search ─ Sélectionner · types · primary */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <h3 className="t-heading">{title}</h3>
@@ -780,12 +698,6 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
         </div>
         {!selectionMode && (
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
-            {canEdit && (
-              <Button variant="outline" size="sm" onClick={() => openImport()}>
-                <Upload className="h-4 w-4" />
-                Importer
-              </Button>
-            )}
             <Button variant="ghost" size="sm" onClick={() => setSelectionMode(true)}>
               <CheckSquare className="h-4 w-4" />
               Sélectionner
@@ -845,7 +757,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
         </Card>
       )}
 
-      {/* Missing-required summary — links focus their row. */}
+      {/* Missing-required summary — links scroll to the socket. */}
       {showSummary && (
         <div
           role="status"
@@ -867,7 +779,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
                     {i > 0 && ', '}
                     <button
                       type="button"
-                      onClick={() => focusRow(label)}
+                      onClick={() => focusSocket(label)}
                       className="rounded-sm underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
                     >
                       {label}
@@ -889,49 +801,46 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
         <div className="flex h-48 items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
         </div>
-      ) : nothingMatches ? (
-        <p className="t-caption py-8 text-center">
-          Aucun document ni type ne correspond à «&nbsp;{search.trim()}&nbsp;».
-        </p>
       ) : (
-        <DocumentList>
-          {visRequired.length > 0 && (
-            <DocumentGroup
-              title="Pièces requises"
-              received={countReceived(visRequired)}
-              total={visRequired.length}
-            >
-              {visRequired.map((x) => renderBrowserRow(x.row, x.docs))}
-            </DocumentGroup>
-          )}
+        <div className="space-y-6">
+          {/* Pièces requises — always shown, sockets carry the state. */}
+          <section className="space-y-3" aria-label="Pièces requises">
+            <h4 className={SECTION_LABEL_CLASS}>Pièces requises</h4>
+            <div className={SOCKET_GRID_CLASS}>
+              {visRequired.map((x) => renderSocket(x.spec, x.docs))}
+            </div>
+          </section>
 
-          {visGarage.length > 0 && (
-            <DocumentGroup
-              title="Devis / Factures garage"
-              subtitle={showRequirements ? 'au moins un des deux est requis' : undefined}
-              received={countReceived(visGarage)}
-              total={visGarage.length}
-            >
-              {visGarage.map((x) => renderBrowserRow(x.row, x.docs))}
-            </DocumentGroup>
-          )}
-
+          {/* Autres documents — types holding files + the "Autre type…" socket. */}
           {showOthersGroup && (
-            <DocumentGroup
-              title="Autres documents"
-              summary={otherDocCount > 0 ? `${otherDocCount} document${otherDocCount > 1 ? 's' : ''}` : undefined}
-            >
-              {visOthers.map((x) => renderBrowserRow(x.row, x.docs))}
-              {canEdit && !isSearching && (
-                <QuietRow
-                  label="Autre type…"
-                  icon={<Plus className="h-4 w-4" aria-hidden />}
-                  onClick={() => openImport()}
-                />
-              )}
-            </DocumentGroup>
+            <section className="space-y-3 border-t border-hairline pt-5" aria-label="Autres documents">
+              <h4 className={SECTION_LABEL_CLASS}>Autres documents</h4>
+              <div className={SOCKET_GRID_CLASS}>
+                {visOthers.map((x) => renderSocket(x.spec, x.docs))}
+                {canEdit && !isSearching && (
+                  <button
+                    type="button"
+                    onClick={() => openImport()}
+                    className={cn(SOCKET_BASE_CLASS, SOCKET_OPEN_CLASS)}
+                    aria-label="Ajouter un document d'un autre type"
+                  >
+                    <Plus className="h-5 w-5 text-ink-3 transition-colors duration-150 group-hover/socket:text-ink" aria-hidden />
+                    <span className="t-body-sm font-medium text-ink-2 transition-colors duration-150 group-hover/socket:text-ink">
+                      Autre type…
+                    </span>
+                    <span className="t-caption">Choisir la catégorie</span>
+                  </button>
+                )}
+              </div>
+            </section>
           )}
-        </DocumentList>
+
+          {isSearching && visOthers.length === 0 && (
+            <p className="t-caption">
+              Aucun autre document ne correspond à «&nbsp;{search.trim()}&nbsp;».
+            </p>
+          )}
+        </div>
       )}
 
       {/* Upload modal */}

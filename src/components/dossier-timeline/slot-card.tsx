@@ -5,11 +5,14 @@
  * convention: a uniform grid of sockets with unmistakable filled / empty /
  * locked states), translated into the app tokens — no fantasy chrome.
  *
+ * Used by the accord board (families, réforme, rapport, note d'honoraire,
+ * ATG) AND by the step-1 Pièces tab, so the dossier has one visual language.
+ *
  * Three states:
  *  1. Filled ("item in slot") — raised paper tile, the document visual
- *     dominant, hover lift (`shadow-raised` + `scale-[1.02]`), actions as a
- *     hover/focus overlay. A 2 px success top edge is the only received
- *     signal — no "Reçu" chip.
+ *     dominant (image cover / first PDF page), hover lift (`shadow-raised` +
+ *     `scale-[1.02]`), actions as a hover/focus overlay. A 2 px success top
+ *     edge is the only received signal — no "Reçu" chip.
  *  2. Empty uploadable ("open socket") — recessed dashed well; the whole tile
  *     is the upload button AND the drop target.
  *  3. Locked — recessed, non-interactive, `Lock` icon: chiffreur-only
@@ -19,12 +22,14 @@
  * All behaviour is the original slot-card contract: cardinal `+` pimple with
  * chain gating, extra-garage `+` picker, rename pencil on extras, 1-doc cap on
  * extras, per-doc delete rules, chiffreur "Éditer" on pending accords,
- * session-replay highlighting.
+ * session-replay highlighting. Optional extras for the Pièces tab: `hint`,
+ * `emptyCaption`, `accept`/`acceptFile`, selection overlay, `id`.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Download, Eye, FileText, Loader2, Lock, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from './replay-highlight';
@@ -81,6 +86,20 @@ export interface SlotCardProps {
    * to this specific slot.
    */
   onEdit?: () => void;
+  /** DOM id on the tile root (summary-line links scroll/focus to it). */
+  id?: string;
+  /** `t-caption` under the slot name in the empty / locked states ("obligatoire"). */
+  hint?: string;
+  /** Caption of the empty uploadable socket (default "Déposer"; "Optionnel"…). */
+  emptyCaption?: string;
+  /** `accept` attribute of the file inputs (default `image/*,.pdf`). */
+  accept?: string;
+  /** Drop filter matching `accept` (default images + PDF). */
+  acceptFile?: (f: File) => boolean;
+  /** Selection mode: checkbox overlay on the filled tile. */
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 // 24 px ghost icon control used for the slot controls (rename pencil, cardinal
@@ -92,10 +111,18 @@ const HEADER_ICON_BUTTON_CLASS =
   'hover:bg-surface-3 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
   'disabled:cursor-not-allowed disabled:text-ink-4 disabled:hover:bg-transparent';
 
-// Recessed socket base — shared by the empty and locked states.
-const SOCKET_BASE_CLASS =
+/** Recessed socket base — shared by the empty and locked states (exported for sibling tiles). */
+export const SOCKET_BASE_CLASS =
   'flex min-h-[120px] w-full flex-col items-center justify-center gap-1 rounded-lg bg-surface-2 px-3 py-4 text-center ' +
   'shadow-[inset_0_1px_3px_hsl(var(--shadow-color)/0.08)]';
+
+/** Interactive dashed variant of the socket (empty uploadable / "add" tiles). */
+export const SOCKET_OPEN_CLASS =
+  'group/socket border border-dashed border-hairline-strong transition-colors duration-150 ' +
+  'hover:border-primary/50 hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+const DEFAULT_ACCEPT = 'image/*,.pdf';
+const defaultAcceptFile = (f: File) => f.type.startsWith('image/') || /\.pdf$/i.test(f.name);
 
 export function SlotCard({
   slot,
@@ -116,6 +143,14 @@ export function SlotCard({
   hideCardinalPlus,
   hideExtraSlotPlus,
   onEdit,
+  id,
+  hint,
+  emptyCaption = 'Déposer',
+  accept = DEFAULT_ACCEPT,
+  acceptFile = defaultAcceptFile,
+  selectable,
+  selected,
+  onToggleSelect,
 }: SlotCardProps) {
   void userRole; // accepted for prop compatibility; roles gate via callbacks
   const inputRef = useRef<HTMLInputElement>(null);
@@ -217,9 +252,7 @@ export function SlotCard({
     e.stopPropagation();
     dragDepth.current = 0;
     setIsDragOver(false);
-    const files = Array.from(e.dataTransfer.files || []).filter(
-      (f) => f.type.startsWith('image/') || /\.pdf$/i.test(f.name),
-    );
+    const files = Array.from(e.dataTransfer.files || []).filter(acceptFile);
     if (files.length > 0) onUpload(files);
   };
 
@@ -264,7 +297,7 @@ export function SlotCard({
           <input
             ref={extraSlotInputRef}
             type="file"
-            accept="image/*,.pdf"
+            accept={accept}
             multiple
             className="hidden"
             onChange={handleExtraSlotPick}
@@ -289,7 +322,7 @@ export function SlotCard({
     <input
       ref={inputRef}
       type="file"
-      accept="image/*,.pdf"
+      accept={accept}
       multiple
       className="hidden"
       onChange={handlePick}
@@ -314,11 +347,13 @@ export function SlotCard({
 
     return (
       <div
+        id={id}
         className={cn(
           'group relative flex min-h-[120px] flex-col overflow-hidden rounded-lg bg-card shadow-card dark:ring-1 dark:ring-hairline',
           'transition-[transform,box-shadow] duration-150 hover:scale-[1.02] hover:shadow-raised motion-reduce:transform-none motion-reduce:hover:scale-100',
           justFilled && 'animate-scale-in',
           isDragOver && 'bg-accent/40 ring-2 ring-primary/50',
+          selectable && selected && 'ring-2 ring-primary',
         )}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
@@ -345,6 +380,16 @@ export function SlotCard({
           ) : (
             <div className="flex h-full items-center justify-center text-ink-3" aria-hidden>
               <FileText className="h-6 w-6" />
+            </div>
+          )}
+          {selectable && (
+            <div className="absolute left-1.5 top-1.5 z-10 rounded bg-card p-0.5 shadow-card">
+              <Checkbox
+                checked={!!selected}
+                onCheckedChange={onToggleSelect}
+                disabled={!primaryClickable}
+                aria-label={`Sélectionner ${slot}`}
+              />
             </div>
           )}
           <div className="absolute inset-0 flex items-center justify-center gap-1 bg-ink-solid/60 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
@@ -482,6 +527,7 @@ export function SlotCard({
   if (uploadAllowed) {
     return (
       <div
+        id={id}
         className="relative"
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
@@ -496,8 +542,7 @@ export function SlotCard({
           aria-label={`Déposer un document — ${slot}`}
           className={cn(
             SOCKET_BASE_CLASS,
-            'group/socket border border-dashed border-hairline-strong transition-colors duration-150',
-            'hover:border-primary/50 hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            SOCKET_OPEN_CLASS,
             'disabled:cursor-wait',
             isDragOver && 'bg-accent/40 ring-2 ring-primary/50',
           )}
@@ -513,7 +558,8 @@ export function SlotCard({
           >
             {slot}
           </span>
-          <span className="t-caption">{isUploading ? 'Envoi…' : 'Déposer'}</span>
+          <span className="t-caption">{isUploading ? 'Envoi…' : emptyCaption}</span>
+          {hint && !isUploading && <span className="t-caption w-full truncate text-ink-4" title={hint}>{hint}</span>}
         </button>
         {controls && (
           <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-0.5">{controls}</div>
@@ -531,11 +577,12 @@ export function SlotCard({
         : 'Aucun document';
 
   return (
-    <div className="relative">
+    <div id={id} className="relative">
       <div className={cn(SOCKET_BASE_CLASS, 'border border-hairline')}>
         <Lock className="h-5 w-5 text-ink-4" aria-hidden />
         <span className="t-body-sm w-full truncate font-medium text-ink-3" title={slot}>{slot}</span>
         <span className="t-caption text-ink-4">{lockText}</span>
+        {hint && <span className="t-caption w-full truncate text-ink-4" title={hint}>{hint}</span>}
         {/* Round 9 item 004 — per-slot Éditer button on pending
             accord/proposition slots (chiffreur side). */}
         {onEdit && !!parsedAccord && (
