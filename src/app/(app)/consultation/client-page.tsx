@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Search, AlertCircle, X, FolderOpen } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -18,31 +18,42 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 
-/**
- * Status family → semantic status pair (DESIGN.md §10). Local stand-in for
- * `lib/status-colors` (hand-picked sky/indigo/amber hues — a shared file
- * outside this page's scope); same family split, token pairs only.
- */
-function statusPair(status: string): { chip: string; dot: string } {
+// ── Status chip (element-specs §11: Carbon tag / dataviz "status colours are
+//    reserved… ship with a label, never colour alone"): one helper maps a
+//    status family to the same Badge status pair everywhere on this page.
+//    Local stand-in for `lib/status-colors` (hand-picked hues, shared file
+//    outside this page's scope) — the duplication is flagged in the report. ──
+type StatusVariant = 'info' | 'warning' | 'success' | 'neutral';
+
+function statusPair(status: string): { variant: StatusVariant; dot: string } {
   const s = (status || '').trim();
-  if (s.startsWith('Planification')) return { chip: 'bg-status-info-bg text-status-info-fg', dot: 'bg-status-info-fg' };
-  if (s === 'Chiffrage en cours') return { chip: 'bg-status-warning-bg text-status-warning-fg', dot: 'bg-status-warning-fg' };
-  if (/accord/i.test(s)) return { chip: 'bg-status-success-bg text-status-success-fg', dot: 'bg-status-success-fg' };
-  return { chip: 'bg-surface-3 text-ink-2', dot: 'bg-ink-4' };
+  if (s.startsWith('Planification')) return { variant: 'info', dot: 'bg-status-info-fg' };
+  if (s === 'Chiffrage en cours') return { variant: 'warning', dot: 'bg-status-warning-fg' };
+  if (/accord/i.test(s)) return { variant: 'success', dot: 'bg-status-success-fg' };
+  return { variant: 'neutral', dot: 'bg-ink-4' };
 }
 
 function StatusChip({ status }: { status?: string }) {
   const label = status || 'Nouveau';
-  return (
-    <span className={cn('inline-flex h-5 items-center whitespace-nowrap rounded-full px-2 text-[11px] font-medium', statusPair(label).chip)}>
-      {label}
-    </span>
-  );
+  return <Badge variant={statusPair(label).variant}>{label}</Badge>;
 }
 
+/** Empty cell = « — » in ink-4 (blueprint §9), never a fake value. */
 function EmptyCell() {
   return <span className="text-ink-4">—</span>;
 }
+
+/** `yyyy-MM-dd` (the persisted filter value) → `dd/MM/yyyy` for display. */
+function fmtIsoDay(iso: string): string {
+  const d = parseISO(iso);
+  return isValid(d) ? format(d, 'dd/MM/yyyy') : iso;
+}
+
+// ── First column frozen (element-specs §3: NN/g "freeze header rows and header
+//    columns if the table is larger than the screen"; Polaris "fix the first
+//    column when many columns"): eight columns pan sideways on narrow screens. ──
+const STICKY_HEAD = 'sticky left-0 z-[2] min-w-[9rem] border-r border-hairline bg-card';
+const STICKY_CELL = 'sticky left-0 z-[1] border-r border-hairline bg-card [tr:hover_&]:bg-surface-2';
 
 export default function ConsultationClientPage() {
   const { options: dbCompagnies } = useOptions('compagnies');
@@ -141,33 +152,65 @@ export default function ConsultationClientPage() {
   const hasActiveFilters = filters.search || filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.dateFrom || filters.dateTo;
   const hasChipFilters = filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.dateFrom || filters.dateTo;
 
-  const removeChipClass = 'ml-1 rounded-full p-0.5 text-ink-3 hover:bg-surface-3 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  const clearAll = () => {
+    clearFilter('search');
+    clearFilter('nature');
+    clearFilter('status');
+    clearFilter('compagnie');
+    clearFilter('dateFrom');
+    clearFilter('dateTo');
+  };
+
+  // No-results copy (§12: the filtered variant says WHICH filter to clear).
+  const activeFilterNames: string[] = [];
+  if (filters.search) activeFilterNames.push(`la recherche « ${filters.search} »`);
+  if (filters.nature !== 'Toutes') activeFilterNames.push(`la nature « ${filters.nature} »`);
+  if (filters.status !== 'Tous') activeFilterNames.push(`le statut « ${filters.status} »`);
+  if (filters.compagnie !== 'Toutes') activeFilterNames.push(`la compagnie « ${filters.compagnie} »`);
+  if (filters.dateFrom || filters.dateTo) {
+    activeFilterNames.push(
+      `la période du ${filters.dateFrom ? fmtIsoDay(filters.dateFrom) : '—'} au ${filters.dateTo ? fmtIsoDay(filters.dateTo) : '—'}`,
+    );
+  }
+
+  // Real range printed in the footer caption (§6 / §23: never "· période").
+  const rangeCaption = filters.dateFrom || filters.dateTo
+    ? ` · du ${filters.dateFrom ? fmtIsoDay(filters.dateFrom) : '—'} au ${filters.dateTo ? fmtIsoDay(filters.dateTo) : '—'}`
+    : '';
+
+  const removeChipClass = 'ml-0.5 rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
   return (
     <div className="space-y-6">
+      {/* Inline alert (element-specs §14: Carbon notification — inline persists
+          until acted on, status pair + its icon; NN/g — errors never in toasts).
+          Sits at the top of the block it concerns. */}
       {fetchError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Erreur</AlertTitle>
+        <Alert variant="danger">
+          <AlertCircle />
+          <AlertTitle>Erreur de chargement</AlertTitle>
           <AlertDescription>{fetchError}</AlertDescription>
         </Alert>
       )}
 
-      {/* Toolbar: solid search field first, quiet selects after it. */}
+      {/* Filter toolbar (element-specs §2: Polaris filters — search first,
+          clearly labelled, ≤ 3 promoted filters, applied filters as chips with
+          clear-all; NN/g — order by importance; Carbon — search below the
+          title). Placeholder is a FORMAT cue, not a sample name (GOV.UK). */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative max-w-sm flex-grow max-sm:w-full">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
           <Input
-            className="bg-card pl-9"
-            placeholder="Rechercher..."
-            aria-label="Rechercher un dossier"
+            className="pl-9"
+            placeholder="Réf., assuré, matricule…"
+            aria-label="Rechercher un dossier par référence, assuré ou matricule"
             value={filters.search}
             onChange={e => setFilters({ search: e.target.value })}
           />
         </div>
 
         <Select value={filters.nature} onValueChange={v => setFilters({ nature: v })}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Nature du dossier" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]" aria-label="Nature du dossier"><SelectValue placeholder="Nature du dossier" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="Toutes">Toutes les natures</SelectItem>
             {filterNatures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
@@ -175,11 +218,12 @@ export default function ConsultationClientPage() {
         </Select>
 
         <Select value={filters.status} onValueChange={v => setFilters({ status: v })}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Statut" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]" aria-label="Statut"><SelectValue placeholder="Statut" /></SelectTrigger>
           <SelectContent className="max-h-[300px]">
             <SelectItem value="Tous">Tous les statuts</SelectItem>
             {filterStatuses.map(s => (
               <SelectItem key={s.id} value={s.label}>
+                {/* Status dot always beside its label (§11: never colour alone). */}
                 <span className="flex items-center gap-2">
                   <span className={cn('h-2 w-2 shrink-0 rounded-full', statusPair(s.label).dot)} aria-hidden />
                   {s.label}
@@ -190,7 +234,7 @@ export default function ConsultationClientPage() {
         </Select>
 
         <Select value={filters.compagnie} onValueChange={v => setFilters({ compagnie: v })}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Compagnie" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]" aria-label="Compagnie"><SelectValue placeholder="Compagnie" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
             {filterCompagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
@@ -205,53 +249,55 @@ export default function ConsultationClientPage() {
         />
       </div>
 
+      {/* Applied filters (§2: Polaris — chips grouped by category with ×, then
+          a clear-all link at the end; §11 — informational chips are neutral). */}
       {hasChipFilters && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2" aria-label="Filtres actifs">
           <span className="t-label">Filtres actifs</span>
           {filters.nature !== 'Toutes' && (
-            <Badge variant="outline" className="gap-1 pr-1 font-medium">
+            <Badge variant="neutral" className="gap-1 pr-1">
               Nature : {filters.nature}
-              <button onClick={() => clearFilter('nature')} className={removeChipClass} aria-label="Retirer le filtre nature">
+              <button type="button" onClick={() => clearFilter('nature')} className={removeChipClass} aria-label="Retirer le filtre nature">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
           )}
           {filters.status !== 'Tous' && (
-            <Badge variant="outline" className="gap-1 pr-1 font-medium">
+            <Badge variant="neutral" className="gap-1 pr-1">
               Statut : {filters.status}
-              <button onClick={() => clearFilter('status')} className={removeChipClass} aria-label="Retirer le filtre statut">
+              <button type="button" onClick={() => clearFilter('status')} className={removeChipClass} aria-label="Retirer le filtre statut">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
           )}
           {filters.compagnie !== 'Toutes' && (
-            <Badge variant="outline" className="gap-1 pr-1 font-medium">
+            <Badge variant="neutral" className="gap-1 pr-1">
               Compagnie : {filters.compagnie}
-              <button onClick={() => clearFilter('compagnie')} className={removeChipClass} aria-label="Retirer le filtre compagnie">
+              <button type="button" onClick={() => clearFilter('compagnie')} className={removeChipClass} aria-label="Retirer le filtre compagnie">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
           )}
           {filters.dateFrom && (
-            <Badge variant="outline" className="gap-1 pr-1 font-medium">
-              Du : {filters.dateFrom}
-              <button onClick={() => clearFilter('dateFrom')} className={removeChipClass} aria-label="Retirer la date de début">
+            <Badge variant="neutral" className="gap-1 pr-1">
+              Du : {fmtIsoDay(filters.dateFrom)}
+              <button type="button" onClick={() => clearFilter('dateFrom')} className={removeChipClass} aria-label="Retirer la date de début">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
           )}
           {filters.dateTo && (
-            <Badge variant="outline" className="gap-1 pr-1 font-medium">
-              Au : {filters.dateTo}
-              <button onClick={() => clearFilter('dateTo')} className={removeChipClass} aria-label="Retirer la date de fin">
+            <Badge variant="neutral" className="gap-1 pr-1">
+              Au : {fmtIsoDay(filters.dateTo)}
+              <button type="button" onClick={() => clearFilter('dateTo')} className={removeChipClass} aria-label="Retirer la date de fin">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
           )}
           <Button
-            variant="ghost"
+            variant="link"
             size="sm"
-            className="h-7 text-xs text-ink-3 hover:text-ink"
+            className="h-7 px-1 text-xs"
             onClick={() => {
               clearFilter('nature');
               clearFilter('status');
@@ -265,13 +311,15 @@ export default function ConsultationClientPage() {
         </div>
       )}
 
-      {/* Results: one glass pane, quiet table (t-label heads, hairline rows,
-          tabular figures, status pair chips, surface-2 hover). */}
+      {/* Data table (element-specs §3: Polaris — text left, headers aligned
+          with their data, first column fixed when many columns; Carbon — 44 px
+          rows, skeleton rows while loading; NN/g — sticky header, hover tint,
+          no zebra). Refs and plates in t-mono; status as a chip; empty = « — ». */}
       <Card className="overflow-hidden">
         <Table regionLabel="Dossiers en consultation">
           <TableHeader>
             <TableRow>
-              <TableHead>Réf. expert</TableHead>
+              <TableHead className={STICKY_HEAD}>Réf. expert</TableHead>
               <TableHead>Assuré</TableHead>
               <TableHead>Compagnie</TableHead>
               <TableHead>Nature du dossier</TableHead>
@@ -283,7 +331,7 @@ export default function ConsultationClientPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 8 }).map((_, i) => (
+              Array.from({ length: 6 }).map((_, i) => (
                 <TableRow key={`sk-${i}`}>
                   <TableCell colSpan={8} className="p-0">
                     <SkeletonRow />
@@ -292,11 +340,24 @@ export default function ConsultationClientPage() {
               ))
             ) : dossierList.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={8} className="p-0">
+                <TableCell colSpan={8} className="whitespace-normal p-0">
+                  {/* Empty state (§12: NN/g — state + reason + a direct pathway;
+                      Polaris — one action). Filtered variant names the filters
+                      to clear; the plain variant has nothing to offer on a
+                      read-only page, so no action. */}
                   <EmptyState
                     icon={<FolderOpen />}
-                    title="Aucun dossier trouvé"
-                    description={hasActiveFilters ? "Essayez d'ajuster les filtres pour voir plus de résultats." : 'Aucun dossier dans le système.'}
+                    title={hasActiveFilters ? 'Aucun dossier ne correspond aux filtres' : 'Aucun dossier'}
+                    description={
+                      hasActiveFilters
+                        ? `Aucun résultat pour ${activeFilterNames.join(', ')}.`
+                        : 'Aucun dossier n’a encore été créé.'
+                    }
+                    action={
+                      hasActiveFilters ? (
+                        <Button variant="tonal" onClick={clearAll}>Effacer les filtres</Button>
+                      ) : undefined
+                    }
                     dashed={false}
                     className="rounded-none bg-transparent py-10"
                   />
@@ -305,14 +366,14 @@ export default function ConsultationClientPage() {
             ) : (
               dossierList.slice(0, rowsPerPage).map(d => (
                 <TableRow key={d.id}>
-                  <TableCell className="t-mono font-semibold">{d.refExpert || <EmptyCell />}</TableCell>
+                  <TableCell className={cn(STICKY_CELL, 't-mono font-semibold')}>{d.refExpert || <EmptyCell />}</TableCell>
                   <TableCell className="font-medium">{renderAssure(d.assure) || <EmptyCell />}</TableCell>
                   <TableCell className="text-ink-2">{d.compagnie || <EmptyCell />}</TableCell>
                   <TableCell className="text-ink-2">{d.nature || <EmptyCell />}</TableCell>
                   <TableCell className="text-ink-2">{d.typeDossier || <EmptyCell />}</TableCell>
                   <TableCell><StatusChip status={d.statut} /></TableCell>
                   <TableCell className="t-mono">{d.matricule || <EmptyCell />}</TableCell>
-                  <TableCell className="tabular-nums text-ink-2">{formatDate(d.dateRequete) || <EmptyCell />}</TableCell>
+                  <TableCell className="text-ink-2">{formatDate(d.dateRequete) || <EmptyCell />}</TableCell>
                 </TableRow>
               ))
             )}
@@ -320,18 +381,20 @@ export default function ConsultationClientPage() {
         </Table>
       </Card>
 
+      {/* Table footer (§3 Polaris: totals display only; §8: 36 px control only
+          inside a dense row) — rows per page + the total with its real range. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-2">
         <div className="flex items-center gap-2">
           <span className="t-label">Afficher</span>
           <Select value={String(rowsPerPage)} onValueChange={v => setFilters({ rowsPerPage: Number(v) })}>
-            <SelectTrigger className="h-8 w-[70px]" aria-label="Lignes par page"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-[70px]" aria-label="Lignes par page"><SelectValue /></SelectTrigger>
             <SelectContent>
               {[10, 25, 50, 100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
         <span className="t-caption tabular-nums">
-          Total : <span className="font-semibold text-ink">{dossierList.length}</span> dossier{dossierList.length > 1 ? 's' : ''}
+          Total : <span className="font-semibold text-ink">{dossierList.length}</span> dossier{dossierList.length > 1 ? 's' : ''}{rangeCaption}
         </span>
       </div>
     </div>

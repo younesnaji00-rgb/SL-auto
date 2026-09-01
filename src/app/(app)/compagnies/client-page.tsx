@@ -3,7 +3,7 @@
 import { PageHeader } from '@/components/layout/page-header';
 import React, { useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Building2, ChevronRight, Inbox, Upload } from 'lucide-react';
+import { Building2, ChevronRight, FileText, Inbox, Plus, Upload } from 'lucide-react';
 import { useCompagnies, type Compagnie } from '@/hooks/use-compagnies';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { hasPermission } from '@/lib/permissions';
@@ -11,7 +11,8 @@ import { useDossiers } from '@/hooks/use-dossiers';
 import { useStorage, useFirestore } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -25,7 +26,7 @@ import { useToast } from '@/hooks/use-toast';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { NAV_ITEMS, titleForRoute } from '@/lib/nav-groups';
-import { format } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -34,16 +35,15 @@ import { isClosedStatus } from '@/lib/status-machine';
 import { cn } from '@/lib/utils';
 import { CreateDossierDialog } from '@/components/dossiers/create-dossier-dialog';
 
-/**
- * Status family → semantic status pair (DESIGN.md §10). Local stand-in for
- * `lib/status-colors` (hand-picked hues, shared file outside this page).
- */
-function statusChipClass(status: string): string {
+// ── Status chip (element-specs §11: Carbon tag / dataviz — status colours
+//    reserved, always with a label; one helper per domain). Local stand-in for
+//    `lib/status-colors` (hand-picked hues, shared file outside this page). ──
+function statusVariant(status: string): 'info' | 'warning' | 'success' | 'neutral' {
   const s = (status || '').trim();
-  if (s.startsWith('Planification')) return 'bg-status-info-bg text-status-info-fg';
-  if (s === 'Chiffrage en cours') return 'bg-status-warning-bg text-status-warning-fg';
-  if (/accord/i.test(s)) return 'bg-status-success-bg text-status-success-fg';
-  return 'bg-surface-3 text-ink-2';
+  if (s.startsWith('Planification')) return 'info';
+  if (s === 'Chiffrage en cours') return 'warning';
+  if (/accord/i.test(s)) return 'success';
+  return 'neutral';
 }
 
 function isEnCours(statut?: string): boolean {
@@ -51,9 +51,16 @@ function isEnCours(statut?: string): boolean {
   return s.includes('cours') || s.includes('programmée');
 }
 
+/** `yyyy-MM-dd` (the persisted filter value) → `dd/MM/yyyy` for captions. */
+function fmtIsoDay(iso: string): string {
+  const d = parseISO(iso);
+  return isValid(d) ? format(d, 'dd/MM/yyyy') : iso;
+}
+
 /**
- * Logo tile — also the upload control (one plain click target, no banner;
- * the hover veil is the only cue). `size` = card tile or dashboard tile.
+ * Logo tile — also the upload control (element-specs §21: the picker is ONE
+ * plain button, no banner, no dashed panel; the hover veil is the only cue).
+ * `size` = card tile (48 px) or the detail header tile (112 px, as at 3d5629a).
  */
 function LogoTile({
   compagnie,
@@ -92,7 +99,7 @@ function LogoTile({
       aria-label={`Importer le logo de ${compagnie.nom}`}
       className={cn(
         'group/logo relative flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2 shadow-rim transition-colors hover:bg-surface-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        lg ? 'h-16 w-16' : 'h-12 w-12',
+        lg ? 'h-28 w-28' : 'h-12 w-12',
         className,
       )}
     >
@@ -104,12 +111,28 @@ function LogoTile({
           onError={onFail}
         />
       ) : (
-        <Building2 className={cn('text-ink-4', lg ? 'h-8 w-8' : 'h-6 w-6')} aria-hidden />
+        <Building2 className={cn('text-ink-4', lg ? 'h-14 w-14' : 'h-6 w-6')} aria-hidden />
       )}
       <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-[color:var(--scrim)] text-on-ink opacity-0 transition-opacity group-hover/logo:opacity-100 group-focus-visible/logo:opacity-100">
         <Upload className={lg ? 'h-4 w-4' : 'h-3.5 w-3.5'} aria-hidden />
       </span>
     </button>
+  );
+}
+
+// ── Grid skeleton (element-specs §15: mirror the final layout) — the same
+//    card anatomy: logo tile + chevron row, title, description, affordance pill. ──
+function CompagnieCardSkeleton() {
+  return (
+    <div className="rounded-xl border border-hairline border-l-4 border-l-surface-4 bg-card p-6">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-12 w-12 rounded-lg" />
+        <Skeleton className="h-5 w-5" />
+      </div>
+      <Skeleton className="mt-4 h-6 w-40" />
+      <Skeleton className="mt-2 h-3 w-44" />
+      <Skeleton className="mt-4 h-7 w-36 rounded-full" />
+    </div>
   );
 }
 
@@ -197,21 +220,6 @@ export default function CompagniesClientPage() {
     };
   }, [dossiers]);
 
-  // Grid view: with no compagnie selected, `useDossiers()` already streams
-  // every dossier, so per-compagnie counts come free (no extra query).
-  const countsByCompagnie = useMemo(() => {
-    const map = new Map<string, { total: number; enCours: number }>();
-    if (selectedCompagnie) return map;
-    for (const d of allDossiers) {
-      const key = d.compagnie || '';
-      const entry = map.get(key) ?? { total: 0, enCours: 0 };
-      entry.total++;
-      if (isEnCours(d.statut)) entry.enCours++;
-      map.set(key, entry);
-    }
-    return map;
-  }, [allDossiers, selectedCompagnie]);
-
   const nav = NAV_ITEMS.find((i) => i.href === '/compagnies');
   const pageTitle = titleForRoute('/compagnies') ?? 'Compagnies';
 
@@ -222,16 +230,7 @@ export default function CompagniesClientPage() {
         <PageHeader title={pageTitle} subtitle={nav?.subtitle} noAutoFocus />
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="paper p-6">
-              <div className="flex items-center gap-4">
-                <Skeleton className="h-12 w-12 rounded-lg" />
-                <Skeleton className="h-5 w-32" />
-              </div>
-              <div className="mt-5 grid grid-cols-2 gap-x-6">
-                <Skeleton className="h-9 w-16" />
-                <Skeleton className="h-9 w-16" />
-              </div>
-            </div>
+            <CompagnieCardSkeleton key={i} />
           ))}
         </div>
       </div>
@@ -241,89 +240,109 @@ export default function CompagniesClientPage() {
   if (!selectedCompagnie) {
     return (
       <div className="space-y-8">
+        {/* Page header (element-specs §1: Polaris Page — plural object as the
+            title, count pill; no page primary: compagnies are seeded, not
+            created here). Title and subtitle come from nav-groups. */}
         <PageHeader title={pageTitle} subtitle={nav?.subtitle} count={compagnies.length} />
 
         {compagnies.length === 0 ? (
+          // Empty state (§12): state + reason; no action the reader can take
+          // (access is granted by an admin on /utilisateurs).
           <EmptyState
             icon={<Building2 />}
             title="Aucune compagnie accessible"
             description="Aucune compagnie partenaire n'est visible avec vos permissions actuelles."
+            dashed={false}
           />
         ) : (
-          // Glass panes with the light edge: logo tile + name as the row
-          // anchor, counts as quiet label / bold value pairs (blueprint §6).
+          // Card grid as at 3d5629a (element-specs §5: Material 3 — the container
+          // is the only required element, whole card clickable when it links;
+          // NN/g cards — heterogeneous browsing → cards; Carbon tile — no
+          // decorative shadow, do not mix variants in a group). Anatomy: 4 px
+          // left edge in the company's own colour (per-company DATA, not a
+          // design hue), faded watermark, logo tile + chevron row, name as the
+          // card title, one-line description, "Gérer les sinistres" affordance.
           <ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3" aria-label="Compagnies partenaires">
-            {compagnies.map((c) => {
-              const counts = countsByCompagnie.get(c.nom);
-              return (
-                <li key={c.id} className="min-w-0">
-                  <Card
-                    role="link"
-                    tabIndex={0}
-                    aria-label={`Ouvrir ${c.nom}`}
-                    className="group relative cursor-pointer p-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    onClick={() => router.push(`/compagnies?selected=${c.id}`)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        router.push(`/compagnies?selected=${c.id}`);
-                      }
-                    }}
-                  >
-                    <div className="flex items-center gap-4">
+            {compagnies.map((c) => (
+              <li key={c.id} className="min-w-0">
+                <Card
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`Ouvrir ${c.nom}`}
+                  className="group relative cursor-pointer overflow-hidden border-l-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  style={{ borderLeftColor: c.couleur }}
+                  onClick={() => router.push(`/compagnies?selected=${c.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      router.push(`/compagnies?selected=${c.id}`);
+                    }
+                  }}
+                >
+                  {/* Decorative watermark: ink-4 at low opacity (never a hue). */}
+                  <div className="pointer-events-none absolute right-0 top-0 p-4 text-ink-4 opacity-20 transition-opacity group-hover:opacity-40 motion-reduce:transition-none" aria-hidden>
+                    <Building2 className="h-20 w-20" />
+                  </div>
+                  <CardHeader className="gap-4 space-y-0 pb-4">
+                    <div className="flex items-center justify-between">
                       <LogoTile
                         compagnie={c}
                         failed={logoErrors.has(c.id)}
                         onFail={() => markLogoFailed(c.id)}
                         onUpload={(file) => handleLogoUpload(c.id, file)}
                       />
-                      <h2 className="t-heading min-w-0 flex-1 truncate">{c.nom}</h2>
                       <ChevronRight className="h-5 w-5 shrink-0 text-ink-4 transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-ink motion-reduce:transition-none" aria-hidden />
                     </div>
-                    <dl className="mt-5 grid grid-cols-2 gap-x-6">
-                      <div>
-                        <dt className="t-label">Dossiers</dt>
-                        <dd className="t-title mt-1 tabular-nums">
-                          {loadingDossiers ? <Skeleton className="h-6 w-10" /> : counts?.total ?? 0}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="t-label">En cours</dt>
-                        <dd className="t-title mt-1 tabular-nums">
-                          {loadingDossiers ? <Skeleton className="h-6 w-10" /> : counts?.enCours ?? 0}
-                        </dd>
-                      </div>
-                    </dl>
-                  </Card>
-                </li>
-              );
-            })}
+                    <div className="min-w-0">
+                      {/* Card title = t-title (20/600 Outfit — a title, not a number). */}
+                      <h2 className="t-title truncate">{c.nom}</h2>
+                      <CardDescription className="t-caption mt-1">Visualiser l&apos;activité globale</CardDescription>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {/* Affordance pill (§11 count-pill surface + the light rim
+                        on a raised pill): the card itself is the link. */}
+                    <span className="t-caption inline-flex w-fit items-center gap-2 rounded-full bg-surface-3 px-3 py-1.5 font-medium text-ink-2 shadow-rim">
+                      <FileText className="h-3 w-3" aria-hidden />
+                      Gérer les sinistres
+                    </span>
+                  </CardContent>
+                </Card>
+              </li>
+            ))}
           </ul>
         )}
       </div>
     );
   }
 
-  // First entry is the headline → the page's single featured (terracotta) surface.
-  const statCards = [
-    { label: 'Total dossiers', val: stats.total, featured: true },
-    { label: 'Nouveaux', val: stats.nouveau, featured: false },
-    { label: 'En cours', val: stats.enCours, featured: false },
-    { label: 'Terminés', val: stats.clos, featured: false },
+  // Stat tiles (element-specs §6): four figures on neutral paper — no featured
+  // tile in a KPI row (Few: bright colour only for an exception; a zero is ink).
+  const statTiles = [
+    { label: 'Total dossiers', val: stats.total },
+    { label: 'Nouveaux', val: stats.nouveau },
+    { label: 'En cours', val: stats.enCours },
+    { label: 'Terminés', val: stats.clos },
   ];
+  // Real range printed under each figure (§6 / §23: never "· période").
+  const rangeCaption = dateFrom || dateTo
+    ? `du ${dateFrom ? fmtIsoDay(dateFrom) : '—'} au ${dateTo ? fmtIsoDay(dateTo) : '—'}`
+    : 'toutes périodes';
 
   return (
-    <div className="space-y-8 animate-fade-in motion-reduce:animate-none">
-      {/* Record-style header: logo tile beside the compact PageHeader; the
-          ONE solid primary (Nouveau dossier) sits in the actions slot. */}
-      <div className="flex items-start gap-4">
+    <div className="space-y-8">
+      {/* Detail header as at 3d5629a: a band closed by a hairline holding the
+          112 px logo tile and the compact PageHeader (element-specs §1:
+          breadcrumb/back to the parent, title, one filled primary at the right
+          end of `actions`, the other action `outline`). The 6×1 colour bar is
+          the company's own colour (data, not a design hue). */}
+      <div className="flex items-start gap-4 border-b border-hairline pb-6">
         <LogoTile
           compagnie={selectedCompagnie}
           failed={logoErrors.has(selectedCompagnie.id)}
           onFail={() => markLogoFailed(selectedCompagnie.id)}
           onUpload={(file) => handleLogoUpload(selectedCompagnie.id, file)}
           size="lg"
-          className="mt-0.5"
         />
         <PageHeader
           className="min-w-0 flex-1"
@@ -331,41 +350,58 @@ export default function CompagniesClientPage() {
           backHref="/compagnies"
           backLabel={pageTitle}
           title={selectedCompagnie.nom}
+          icon={<span className="block h-6 w-1 rounded-full" style={{ backgroundColor: selectedCompagnie.couleur }} aria-hidden />}
           subtitle="Tableau de bord opérationnel"
           actions={
             <>
               <Button variant="outline" asChild>
                 <Link href="/dossiers">Tous les dossiers</Link>
               </Button>
-              <Button onClick={() => setCreateOpen(true)}>Nouveau dossier</Button>
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus aria-hidden />
+                Nouveau dossier
+              </Button>
             </>
           }
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat, i) => (
-          <Card key={i} variant={stat.featured ? 'featured' : 'tonal'} className="p-6">
-            <p className={cn('t-label', stat.featured && 'text-tertiary-foreground')}>{stat.label}</p>
-            <p className={cn('mt-1 tabular-nums', stat.featured ? 't-display text-tertiary-foreground' : 't-title')}>{stat.val}</p>
+      {/* KPI row (element-specs §6: dataviz stat-tile contract — label sentence
+          case, value in the UI sans semibold with proportional digits, caption
+          with the real range; Carbon tile — padding 16, no decorative shadow;
+          NN/g dashboards — at-a-glance). 36 px headline tier, Inter, never Outfit. */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {statTiles.map((stat) => (
+          <Card key={stat.label} className="min-w-0 p-4">
+            <p className="t-label">{stat.label}</p>
+            <div className="mt-2 text-[36px] font-semibold leading-none text-ink">
+              {loadingDossiers ? <Skeleton className="h-9 w-12" /> : stat.val}
+            </div>
+            <p className="t-caption mt-2 truncate">{rangeCaption}</p>
           </Card>
         ))}
       </div>
 
-      {/* Portfolio: Section pattern (information-tab) — hairline header row
-          with the block title and the date filter, table body below. */}
+      {/* Portfolio card (element-specs §5: Material 3 — filter controls sit in
+          the card header, outside the collection; one frame around the table,
+          no second frame). Hairline header row: t-heading + caption + the
+          date-range filter; the table below follows §3. */}
       <Card role="region" aria-label="Portefeuille dossiers" className="overflow-hidden">
-        <header className="flex min-h-[48px] flex-wrap items-center justify-between gap-3 border-b border-hairline px-6 py-3">
+        <header className="flex min-h-[48px] flex-wrap items-center justify-between gap-4 border-b border-hairline px-6 py-4">
           <div className="min-w-0">
             <h2 className="t-heading truncate">Portefeuille dossiers</h2>
             <p className="t-caption truncate">Extraction en temps réel des missions {selectedCompagnie.nom}.</p>
           </div>
           <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
         </header>
+        {/* Data table (§3: Polaris — text left, headers aligned with their
+            data, first column fixed when the table overflows; Carbon — 44 px
+            rows, skeleton rows; NN/g — row is the link, chevron at the row
+            end, sticky header, hover tint). Refs and plates in t-mono. */}
         <Table regionLabel={`Dossiers ${selectedCompagnie.nom}`}>
           <TableHeader>
             <TableRow>
-              <TableHead>Réf. expert</TableHead>
+              <TableHead className="sticky left-0 z-[2] min-w-[9rem] border-r border-hairline bg-card">Réf. expert</TableHead>
               <TableHead>Assuré</TableHead>
               <TableHead>Matricule</TableHead>
               <TableHead>Statut</TableHead>
@@ -375,7 +411,7 @@ export default function CompagniesClientPage() {
           </TableHeader>
           <TableBody>
             {loadingDossiers ? (
-              Array.from({ length: 5 }).map((_, i) => (
+              Array.from({ length: 6 }).map((_, i) => (
                 <TableRow key={`sk-${i}`}>
                   <TableCell colSpan={6} className="p-0">
                     <SkeletonRow />
@@ -384,11 +420,25 @@ export default function CompagniesClientPage() {
               ))
             ) : dossiers.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={6} className="p-0">
+                <TableCell colSpan={6} className="whitespace-normal p-0">
+                  {/* Empty state (§12): state + reason + ONE `tonal` action —
+                      clear the period when one is set, else create the first
+                      dossier (the header's filled button stays the page primary). */}
                   <EmptyState
                     icon={<Inbox />}
-                    title={`Aucun dossier pour ${selectedCompagnie.nom}`}
-                    description="Aucun dossier n'est actuellement associé à cette compagnie sur la période sélectionnée."
+                    title={dateFrom || dateTo ? 'Aucun dossier sur cette période' : `Aucun dossier pour ${selectedCompagnie.nom}`}
+                    description={
+                      dateFrom || dateTo
+                        ? `Aucun dossier ${selectedCompagnie.nom} ${rangeCaption}.`
+                        : "Aucun dossier n'est encore associé à cette compagnie."
+                    }
+                    action={
+                      dateFrom || dateTo ? (
+                        <Button variant="tonal" onClick={() => setFilters({ dateFrom: '', dateTo: '' })}>Effacer la période</Button>
+                      ) : (
+                        <Button variant="tonal" onClick={() => setCreateOpen(true)}>Créer un dossier</Button>
+                      )
+                    }
                     dashed={false}
                     className="rounded-none bg-transparent py-10"
                   />
@@ -399,19 +449,19 @@ export default function CompagniesClientPage() {
                 const assure = typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim();
                 return (
                   <TableRow key={d.id} className="group cursor-pointer" onClick={() => router.push(`/dossiers/${d.id}`)}>
-                    <TableCell className="t-mono font-semibold">{d.refExpert || <span className="text-ink-4">—</span>}</TableCell>
+                    <TableCell className="t-mono sticky left-0 z-[1] border-r border-hairline bg-card font-semibold [tr:hover_&]:bg-surface-2">
+                      {d.refExpert || <span className="text-ink-4">—</span>}
+                    </TableCell>
                     <TableCell className="font-medium">{assure || <span className="text-ink-4">—</span>}</TableCell>
                     <TableCell className="t-mono">{d.matricule || <span className="text-ink-4">—</span>}</TableCell>
                     <TableCell>
-                      <span className={cn('inline-flex h-5 items-center whitespace-nowrap rounded-full px-2 text-[11px] font-medium', statusChipClass(d.statut || 'Nouveau'))}>
-                        {d.statut || 'Nouveau'}
-                      </span>
+                      <Badge variant={statusVariant(d.statut || 'Nouveau')}>{d.statut || 'Nouveau'}</Badge>
                     </TableCell>
-                    <TableCell className="tabular-nums text-ink-2">
+                    <TableCell className="text-ink-2">
                       {d.dateRequete ? format(d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete), 'dd MMM yyyy', { locale: fr }) : <span className="text-ink-4">—</span>}
                     </TableCell>
                     <TableCell className="text-right">
-                      {/* Row = link, chevron at the row end (DESIGN.md §4). */}
+                      {/* Row = link, chevron at the row end (§3 / DESIGN.md §4). */}
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-ink-3 hover:text-ink" asChild onClick={(e) => e.stopPropagation()}>
                         <Link href={`/dossiers/${d.id}`} title="Ouvrir le dossier" aria-label={`Ouvrir le dossier ${d.refExpert || ''}`}>
                           <ChevronRight className="h-4 w-4" />

@@ -1,8 +1,10 @@
 import { Skeleton } from '@/components/ui/skeleton';
 
 /**
- * Mirrors the compagnies grid: title + subtitle, then glass panes with a logo
- * tile, a name and two label/value pairs (DESIGN.md §7).
+ * Loading skeleton (element-specs §15: NN/g — mirror the final layout). Same
+ * anatomy as the compagnies grid at 3d5629a: title + subtitle, then cards with
+ * a coloured left edge, a logo tile + chevron row, the name, a one-line
+ * description and the affordance pill. Solid paper, pulse only.
  */
 export default function Loading() {
   return (
@@ -13,21 +15,14 @@ export default function Loading() {
       </div>
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="paper p-6">
-            <div className="flex items-center gap-4">
+          <div key={i} className="rounded-xl border border-hairline border-l-4 border-l-surface-4 bg-card p-6">
+            <div className="flex items-center justify-between">
               <Skeleton className="h-12 w-12 rounded-lg" />
-              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-5 w-5" />
             </div>
-            <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3">
-              <div className="space-y-1.5">
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-4 w-10" />
-              </div>
-              <div className="space-y-1.5">
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-4 w-10" />
-              </div>
-            </div>
+            <Skeleton className="mt-4 h-6 w-40" />
+            <Skeleton className="mt-2 h-3 w-44" />
+            <Skeleton className="mt-4 h-7 w-36 rounded-full" />
           </div>
         ))}
       </div>

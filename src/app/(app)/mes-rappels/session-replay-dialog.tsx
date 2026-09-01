@@ -9,7 +9,8 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, CalendarClock, CheckCircle2, Eye, AlertTriangle, Info } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, CalendarClock, Check, CheckCircle2, Eye, AlertTriangle, Info } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useFirestore, useDoc, useCollection } from '@/firebase';
@@ -58,7 +59,16 @@ function fmtDateTime(ts: any): string {
   }
 }
 
-/** Replica of the dossier TimelineBar — clickable step pills, scrolls to a step. */
+/**
+ * Replica of the dossier TimelineBar — clickable steps, scrolls to a step.
+ *
+ * Stepper (element-specs §16: Carbon progress indicator — status indicator +
+ * a 1–2-word label, states complete / current / not started, numbering makes
+ * the progression obvious; blueprint §5 — horizontal bar, 28 px medallions,
+ * active = primary fill + rim-filled, done = ink-3 outline with a check).
+ * Sits on `.glass-bar` since the replica scrolls under it (§23: one sticky
+ * bar, ≤ 48 px content).
+ */
 function ReplayStepBar({
   steps,
   activeId,
@@ -70,10 +80,8 @@ function ReplayStepBar({
 }) {
   const activeIdx = steps.findIndex((s) => s.id === activeId);
   return (
-    // Chrome the content scrolls under → glass-bar; medallions carry the
-    // light contour like the dossier stepper dots (DESIGN.md §3).
     <div data-replay-bar className="glass-bar sticky top-0 z-30 w-full border-b border-hairline">
-      <div className="flex items-start gap-2 overflow-x-auto px-3 py-3 sm:px-6">
+      <div className="flex items-start gap-2 overflow-x-auto px-3 py-2 sm:px-6">
         {steps.map((step, idx) => {
           const isActive = step.id === activeId;
           const isPast = activeIdx >= 0 && idx < activeIdx;
@@ -89,11 +97,11 @@ function ReplayStepBar({
                   className={cn(
                     'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums transition-colors',
                     isActive && 'bg-primary text-primary-foreground shadow-rim-filled',
-                    !isActive && isPast && 'bg-surface-3 text-ink shadow-rim',
+                    !isActive && isPast && 'border border-ink-3 bg-transparent text-ink-3',
                     !isActive && !isPast && 'bg-card text-ink-3 shadow-rim',
                   )}
                 >
-                  {idx + 1}
+                  {!isActive && isPast ? <Check className="h-3.5 w-3.5" aria-hidden /> : idx + 1}
                 </span>
                 <span className={cn('whitespace-nowrap text-xs', isActive ? 'font-semibold text-ink' : 'text-ink-3')}>
                   {step.label}
@@ -324,35 +332,43 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
   };
 
   return (
+    // Dialog (element-specs §13: Material 3 — brief, clear headline; the panel
+    // is `.glass-strong` from the primitive, bottom sheet below `lg`). This one
+    // is a full replica of a dossier — a read view that cannot fit in a row —
+    // so it takes the wide, tall frame; no footer actions (nothing to confirm).
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl w-[calc(97vw/var(--app-zoom))] h-[calc(94vh/var(--app-zoom))] p-0 gap-0 flex flex-col overflow-hidden">
-        <DialogHeader className="shrink-0 space-y-1.5 border-b border-hairline px-5 py-3">
-          <DialogTitle className="t-heading flex flex-wrap items-center gap-2">
+        {/* Header: `t-title` headline (the ref stays in t-mono — numbers never
+            in the display face) + one `t-caption` line of session facts. */}
+        <DialogHeader className="shrink-0 space-y-1.5 border-b border-hairline px-6 py-4">
+          <DialogTitle className="t-title flex flex-wrap items-center gap-2">
             Traitement du dossier{' '}
-            <span className="t-mono font-semibold">{rappel?.dossierRef || id}</span>
-            <Badge variant="outline" className="ml-1 gap-1 text-[11px] font-medium text-ink-3">
-              <Eye className="h-3 w-3" /> Lecture seule
+            <span className="t-mono text-base font-semibold">{rappel?.dossierRef || id}</span>
+            {/* Read-only marker (§11): neutral pair, icon + label. */}
+            <Badge variant="neutral" className="ml-1 gap-1 font-normal">
+              <Eye className="h-3 w-3" aria-hidden /> Lecture seule
             </Badge>
           </DialogTitle>
           <DialogDescription asChild>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <div className="t-caption flex flex-wrap items-center gap-x-4 gap-y-1">
               {rappel?.recipientNom && (
                 <span>
                   Gestionnaire : <span className="font-medium text-ink">{rappel.recipientNom}</span>
                 </span>
               )}
               <span className="inline-flex items-center gap-1">
-                <CalendarClock className="h-3.5 w-3.5 text-ink-3" />
+                <CalendarClock className="h-3.5 w-3.5" aria-hidden />
                 Début : <span className="font-medium text-ink">{fmtDateTime(startTs)}</span>
               </span>
               <span className="inline-flex items-center gap-1">
                 {endTs ? (
                   <>
-                    <CheckCircle2 className="h-3.5 w-3.5 text-status-success-fg" />
+                    <CheckCircle2 className="h-3.5 w-3.5 text-status-success-fg" aria-hidden />
                     Sauvegardé : <span className="font-medium text-ink">{fmtDateTime(endTs)}</span>
                   </>
                 ) : (
-                  <Badge className="border-transparent bg-status-warning-bg text-status-warning-fg hover:bg-status-warning-bg">Traitement en cours</Badge>
+                  // Status pair with its label (§11) — the treatment is still open.
+                  <Badge variant="warning">Traitement en cours</Badge>
                 )}
               </span>
             </div>
@@ -360,7 +376,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
         </DialogHeader>
 
         {loading || !dossier ? (
-          // Skeleton shaped like the replica (step bar + first step paper).
+          // Skeleton shaped like the replica (§15): step bar + first step paper.
           <div className="flex-1 space-y-4 overflow-hidden px-3 py-4 sm:px-6" aria-busy="true" aria-live="polite">
             <div className="flex gap-4">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -373,41 +389,39 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
         ) : (
           <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
             <ReplayStepBar steps={DOSSIER_TIMELINE_STEPS} activeId={activeStep} onStepClick={scrollToStep} />
-            <div className="px-3 sm:px-6 pt-3">
+            {/* Change summary (§14: Carbon notification — inline, persists,
+                every status with its icon; §11 counts as status-pair chips
+                with their label). */}
+            <div className="px-3 pt-3 sm:px-6">
               {snapsLoading ? (
-                <div className="flex items-center gap-2 rounded-md bg-surface-2 px-3 py-2 text-xs text-ink-3">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyse des modifications du gestionnaire…
+                <div className="t-caption flex items-center gap-2 rounded-[10px] bg-surface-2 px-3 py-2" aria-busy="true">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden /> Analyse des modifications du gestionnaire…
                 </div>
               ) : !hasBaseline ? (
-                <div className="flex items-start gap-2 rounded-md bg-status-warning-bg px-3 py-2 text-xs text-status-warning-fg">
-                  <AlertTriangle className="h-4 w-4 shrink-0 mt-px" />
-                  <span>
-                    Aucun instantané de départ n'a été enregistré pour ce traitement&nbsp;: les modifications
+                <Alert variant="warning">
+                  <AlertTriangle />
+                  <AlertDescription>
+                    Aucun instantané de départ n&apos;a été enregistré pour ce traitement&nbsp;: les modifications
                     ne peuvent pas être mises en évidence. Le gestionnaire doit ouvrir le dossier depuis
                     «&nbsp;Mes rappels&nbsp;» pour démarrer une session.
-                  </span>
-                </div>
+                  </AlertDescription>
+                </Alert>
               ) : summary.total === 0 ? (
-                <div className="flex items-center gap-2 rounded-md bg-surface-2 px-3 py-2 text-xs text-ink-3">
-                  <Info className="h-3.5 w-3.5 shrink-0" /> Aucune modification détectée pendant ce traitement.
-                </div>
+                <Alert>
+                  <Info />
+                  <AlertDescription>Aucune modification détectée pendant ce traitement.</AlertDescription>
+                </Alert>
               ) : (
-                <div className="flex flex-wrap items-center gap-2 rounded-md bg-surface-2 px-3 py-2 text-xs">
+                <div className="t-caption flex flex-wrap items-center gap-2 rounded-[10px] bg-surface-2 px-3 py-2">
                   <span className="font-medium text-ink-2">Modifications du gestionnaire&nbsp;:</span>
                   {summary.added > 0 && (
-                    <span className="inline-flex h-5 items-center gap-1 rounded-full bg-status-success-bg px-1.5 py-0.5 font-semibold text-status-success-fg">
-                      <span className="h-2 w-2 rounded-full bg-status-success-fg" /> {summary.added} ajout{summary.added > 1 ? 's' : ''}
-                    </span>
+                    <Badge variant="success">{summary.added} ajout{summary.added > 1 ? 's' : ''}</Badge>
                   )}
                   {summary.modified > 0 && (
-                    <span className="inline-flex h-5 items-center gap-1 rounded-full bg-status-warning-bg px-1.5 py-0.5 font-semibold text-status-warning-fg">
-                      <span className="h-2 w-2 rounded-full bg-status-warning-fg" /> {summary.modified} modification{summary.modified > 1 ? 's' : ''}
-                    </span>
+                    <Badge variant="warning">{summary.modified} modification{summary.modified > 1 ? 's' : ''}</Badge>
                   )}
                   {summary.removed > 0 && (
-                    <span className="inline-flex h-5 items-center gap-1 rounded-full bg-status-danger-bg px-1.5 py-0.5 font-semibold text-status-danger-fg">
-                      <span className="h-2 w-2 rounded-full bg-status-danger-fg" /> {summary.removed} suppression{summary.removed > 1 ? 's' : ''}
-                    </span>
+                    <Badge variant="danger">{summary.removed} suppression{summary.removed > 1 ? 's' : ''}</Badge>
                   )}
                 </div>
               )}
@@ -424,8 +438,9 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                         id={`replay-step-${step.id}`}
                         className="scroll-mt-20 border-b border-hairline py-6 last:border-b-0"
                       >
+                        {/* Section title: ordinal medallion (surface-3 + rim, Inter
+                            tabular digit) beside the step name in t-title. */}
                         <div className="mb-4 flex items-center gap-2">
-                          {/* Ordinal medallion (dossier rail pattern): tinted + rim. */}
                           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-surface-3 text-[11px] font-semibold tabular-nums text-ink-2 shadow-rim">
                             {idx + 1}
                           </span>
