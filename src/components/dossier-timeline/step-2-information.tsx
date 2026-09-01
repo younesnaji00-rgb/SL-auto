@@ -18,7 +18,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { setFocusMode } from '@/hooks/use-focus-mode';
 import { usePresence } from '@/hooks/use-presence';
 import { cn } from '@/lib/utils';
-import { AlertCircle, Columns2, Maximize2, X } from 'lucide-react';
+import { AlertCircle, Columns2, Eye, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { collection, type DocumentReference } from 'firebase/firestore';
 
 import InformationTab from '@/app/(app)/dossiers/[id]/information-tab';
@@ -72,6 +72,11 @@ export default function Step2Information({
   // Width of the source pane → render the PDF page at that width.
   const paneRef = useRef<HTMLDivElement>(null);
   const [paneWidth, setPaneWidth] = useState(480);
+  // Viewer zoom: 1 = fit to pane width. Reset whenever another scan is shown.
+  const [zoom, setZoom] = useState(1);
+  useEffect(() => {
+    setZoom(1);
+  }, [selectedScanId]);
   const db = useFirestore();
   const docsQuery = useMemo(
     () => (db ? collection(db, 'dossiers', dossierId, 'documents') : null),
@@ -199,17 +204,22 @@ export default function Step2Information({
       </div>
       <aside
         className={cn(
-          'hidden min-w-0 overflow-clip transition-[opacity,transform] duration-200 ease-standard motion-reduce:transition-none lg:block',
+          'relative hidden min-w-0 overflow-clip transition-[opacity,transform] duration-200 ease-standard motion-reduce:transition-none lg:block',
           paneShown ? 'translate-x-0 opacity-100 delay-150' : 'translate-x-3 opacity-0',
         )}
         aria-hidden={!paneShown || undefined}
       >
+        {/* The pane is absolutely positioned so it never adds height of its
+            own: it fills the step's row (whose height the form drives) and
+            hugs the document when that is shorter — a landscape scan gives a
+            short wide window, a portrait scan a tall one. Documents taller
+            than the row scroll inside; zooming past fit-width adds the
+            horizontal scrollbar. */}
         <Card
           variant="outline"
-          className="sticky top-20 flex max-h-[calc(100dvh-6rem)] flex-col gap-3 overflow-hidden p-3"
+          className="absolute inset-x-0 top-0 flex max-h-full flex-col gap-2 overflow-hidden p-3"
         >
-          {/* Pane header — label + file name; the scan Select only when there
-              are several scans to choose from. */}
+          {/* Pane header — label + file name · zoom · eye (lightbox) · close. */}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="t-label">Document source</p>
@@ -217,16 +227,39 @@ export default function Step2Information({
                 <p className="t-caption truncate" title={selectedFileName}>{selectedFileName}</p>
               )}
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0 text-ink-3 hover:text-ink"
-              onClick={toggleCompare}
-              aria-label="Fermer la comparaison"
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
+            <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="Zoom">
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-ink-3 hover:text-ink" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} disabled={!selectedUrl || zoom <= 0.5} aria-label="Zoom arrière">
+                <ZoomOut className="h-3.5 w-3.5" />
+              </Button>
+              <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-2" onClick={() => setZoom(1)} title="Ajuster à la largeur" aria-label={`Zoom ${Math.round(zoom * 100)} % — ajuster à la largeur`}>
+                {Math.round(zoom * 100)} %
+              </button>
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-ink-3 hover:text-ink" onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))} disabled={!selectedUrl || zoom >= 4} aria-label="Zoom avant">
+                <ZoomIn className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="ml-1 h-7 w-7 text-ink-3 hover:text-ink"
+                onClick={() => selectedUrl && setPreview({ url: selectedUrl, nom: selectedFileName || 'scan' })}
+                disabled={!selectedUrl}
+                aria-label="Ouvrir en plein écran"
+                title="Ouvrir en plein écran"
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-ink-3 hover:text-ink"
+                onClick={toggleCompare}
+                aria-label="Fermer la comparaison"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
           {scanDocs.length > 1 && (
             <Select value={selectedScanId ?? undefined} onValueChange={(v) => setSelectedScanId(v)}>
@@ -244,16 +277,13 @@ export default function Step2Information({
           )}
           <div
             ref={paneRef}
-            className="min-h-0 flex-1 overflow-auto rounded-md border border-hairline bg-surface-2"
+            className="min-h-0 flex-1 overflow-auto overscroll-contain rounded-md border border-hairline bg-surface-2 scrollbar-thin"
           >
             {selectedUrl ? (
-              // Inline preview at pane width; click → shared lightbox.
-              <button
-                type="button"
-                onClick={() => setPreview({ url: selectedUrl, nom: selectedFileName || 'scan' })}
-                className="group relative block w-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label={`Agrandir ${selectedFileName || 'le document source'}`}
-              >
+              // Inline viewer. Zoom 100 % = fit to the pane width; beyond it
+              // the document overflows and scrolls on both axes. Clicking the
+              // document does nothing — the eye icon opens the lightbox.
+              <div style={{ width: `${zoom * 100}%` }} className="min-w-full">
                 {isImage ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -265,15 +295,12 @@ export default function Step2Information({
                 ) : (
                   <PdfThumbnail
                     url={selectedUrl}
-                    width={paneWidth}
+                    width={Math.round(paneWidth * zoom)}
                     lazy={false}
                     className="block h-auto min-h-[12rem] w-full object-contain"
                   />
                 )}
-                <span className="pointer-events-none absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-md bg-card/90 text-ink-3 opacity-0 shadow-card transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                  <Maximize2 className="h-3.5 w-3.5" />
-                </span>
-              </button>
+              </div>
             ) : (
               <div className="t-caption flex h-full min-h-[12rem] items-center justify-center p-6 text-center">
                 {scanDocs.length === 0
