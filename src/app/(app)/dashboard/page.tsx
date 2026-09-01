@@ -14,7 +14,6 @@ import {
   PieChart as PieChartIcon,
   BarChart3,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
@@ -46,11 +45,11 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { collection, onSnapshot, query, orderBy, collectionGroup } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
-import { format, startOfDay, endOfDay, isWithinInterval, startOfToday, startOfWeek, startOfMonth } from 'date-fns';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart } from 'recharts';
+import { format, startOfDay, endOfDay, isWithinInterval, isSameDay, startOfToday, startOfWeek, startOfMonth } from 'date-fns';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, LabelList, Pie, PieChart } from 'recharts';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { getStatusBadgeStyles, getStatusHeaderStyles } from '@/lib/status-colors';
+import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 import { statuses as ALL_STATUSES } from '@/lib/dossiers-data';
@@ -297,13 +296,30 @@ function DashboardPageInner() {
     return statusBarData.filter((item) => item.value > 0);
   }, [statusBarData]);
 
+  // dataviz anti-patterns: a pie reads part-to-whole only up to ~6 segments;
+  // beyond that the 6th+ series fold into one neutral « Autres » segment
+  // (the fold is not a series, so it wears the neutral ink-4, not a chart hue).
+  const pieData = useMemo(() => {
+    if (statusChartData.length <= 6) return statusChartData;
+    const top = statusChartData.slice(0, 5);
+    const rest = statusChartData.slice(5);
+    return [
+      ...top,
+      {
+        name: 'Autres',
+        value: rest.reduce((sum, item) => sum + item.value, 0),
+        fill: 'hsl(var(--ink-4))',
+      },
+    ];
+  }, [statusChartData]);
+
   const statusBarConfig = useMemo(() => {
     const config: any = { value: { label: 'Dossiers' } };
-    statusChartData.forEach((item, index) => {
-      config[item.name] = { label: item.name, color: chartColors[index % chartColors.length] };
+    pieData.forEach((item) => {
+      config[item.name] = { label: item.name, color: item.fill };
     });
     return config;
-  }, [statusChartData]);
+  }, [pieData]);
 
   // Default to first status when data loads
   useEffect(() => {
@@ -330,29 +346,34 @@ function DashboardPageInner() {
       const key = d.compagnie || 'Inconnue';
       byCompagnie[key] = (byCompagnie[key] || 0) + 1;
     });
+    // dataviz "compare magnitude → bar, ONE hue": identity is on the axis,
+    // so colour has no job here — every bar is the same series colour.
     return Object.entries(byCompagnie)
       .sort((a, b) => b[1] - a[1])
-      .map(([name, value], index) => ({
+      .map(([name, value]) => ({
         name,
         value,
-        fill: chartColors[index % chartColors.length],
+        fill: 'hsl(var(--chart-1))',
       }));
   }, [filteredDossiers]);
 
   const barChartConfig = useMemo(() => {
-    const config: any = { value: { label: 'Dossiers' } };
-    compagnieData.forEach((item, index) => {
-      config[item.name] = { label: item.name, color: chartColors[index % chartColors.length] };
+    const config: any = { value: { label: 'Dossiers', color: 'hsl(var(--chart-1))' } };
+    compagnieData.forEach((item) => {
+      config[item.name] = { label: item.name, color: 'hsl(var(--chart-1))' };
     });
     return config;
   }, [compagnieData]);
 
   // Status badge styles are imported from @/lib/status-colors
 
-  const renderAssure = (assure: any) => {
-    if (!assure) return '-';
+  // Empty table cells read « — » in ink-4 (blueprint §9: empty = — muted).
+  const emptyCell = <span className="text-ink-4">—</span>;
+
+  const renderAssure = (assure: any): string | null => {
+    if (!assure) return null;
     if (typeof assure === 'string') return assure;
-    return `${assure.nom || ''} ${assure.prenom || ''}`.trim() || '-';
+    return `${assure.nom || ''} ${assure.prenom || ''}`.trim() || null;
   };
 
   const formatDate = (val: any) => {
@@ -377,17 +398,18 @@ function DashboardPageInner() {
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="space-y-3">
                 <Skeleton className="h-3 w-24 bg-on-ink/15" />
-                <Skeleton className="h-8 w-20 bg-on-ink/15" />
+                <Skeleton className={cn('w-20 bg-on-ink/15', i === 0 ? 'h-12' : 'h-7')} />
+                <Skeleton className="h-3 w-32 bg-on-ink/15" />
               </div>
             ))}
           </div>
         </div>
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="paper p-5 space-y-4">
+          <div className="paper space-y-4 p-6">
             <Skeleton className="h-4 w-40" />
             <Skeleton className="mx-auto h-[240px] w-[240px] rounded-full" />
           </div>
-          <div className="paper p-5 space-y-3">
+          <div className="paper space-y-3 p-6">
             <Skeleton className="h-4 w-40" />
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} className="h-9 w-full" />
@@ -408,13 +430,16 @@ function DashboardPageInner() {
   ) => (
     <Card className="h-fit">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        {/* Activity feed header (Atlassian activity feed / Material list header):
+            t-heading title, filter label quiet, count as a NEUTRAL pill (no status colour). */}
+        <CardTitle className="t-heading flex items-center gap-2">
           <Activity className="h-4 w-4 text-ink-3" aria-hidden />
           <span>Changements récents <span className="font-normal text-ink-3">/ {actionFilterLabels[actionFilter]}</span></span>
-          <Badge variant="secondary" className="ml-1 text-[11px] tabular-nums">{logs.length}</Badge>
+          <span className="ml-1 rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium tabular-nums text-ink-2">{logs.length}</span>
         </CardTitle>
       </CardHeader>
-      <div className="mx-5 rounded-lg bg-surface-2 p-3">
+      {/* Nested-solid rule (blueprint §3): a flat surface-2 well inside paper, solid h-8 controls. */}
+      <div className="mx-6 rounded-lg bg-surface-2 p-3">
         <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
           <DatePicker
             value={dateFilter ? new Date(dateFilter) : null}
@@ -502,10 +527,13 @@ function DashboardPageInner() {
               const dossierLabel = log.dossierRef || dossier?.refExpert || '';
               const isNew = isNewLog(log);
               return (
+                // GOV.UK / MOJ "timeline" pattern: vertical rule, marker, title,
+                // byline "par X · date", details. "New" = the one accent use here.
                 <div key={`${panelKey}-${log.id}`} className={cn(
                   "relative ml-2 border-l border-hairline pl-5 pb-5 last:pb-0",
                   isNew && "-ml-0.5 rounded-lg border-l-primary bg-accent/40 p-2 pl-5"
                 )}>
+                  {/* Marker 12 px, ring-4 ring-card; status colours carry meaning (done / pending). */}
                   <div className={cn(
                     "absolute top-1 h-3 w-3 rounded-full ring-4 ring-card",
                     isNew ? "-left-1" : "-left-1.5",
@@ -513,7 +541,7 @@ function DashboardPageInner() {
                   )} />
                   <div className="flex flex-col gap-1">
                     <div className="flex items-start justify-between">
-                      <p className="flex items-center gap-1.5 text-xs font-semibold leading-tight text-ink">
+                      <p className="t-body-sm flex items-center gap-1.5 font-semibold leading-tight text-ink">
                         {isNew && (
                           <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                             <Plus className="h-2.5 w-2.5" strokeWidth={3} />
@@ -521,22 +549,23 @@ function DashboardPageInner() {
                         )}
                         {log.action}
                       </p>
-                      <span className="ml-2 whitespace-nowrap rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-ink-3">
+                      <span className="t-caption ml-2 whitespace-nowrap rounded bg-surface-2 px-1.5 py-0.5 font-medium tabular-nums text-ink-3">
                         {formatDate(log.date)}
                       </span>
                     </div>
                     {dossierLabel && (
-                      <div className="flex items-center gap-1.5 text-[11px] text-ink-2">
-                        <FolderOpen className="h-2.5 w-2.5 text-ink-3" />
-                        <span className="font-mono font-semibold tabular-nums text-ink">{dossierLabel}</span>
+                      <div className="flex items-center gap-1.5 text-xs text-ink-2">
+                        <FolderOpen className="h-3 w-3 text-ink-3" />
+                        <span className="t-mono text-xs font-semibold">{dossierLabel}</span>
                       </div>
                     )}
+                    {/* Refactoring UI: de-emphasise with tone (ink-3), not italics. */}
                     {log.details && (
-                      <p className="text-[11px] italic leading-snug text-ink-3">{log.details}</p>
+                      <p className="t-caption leading-snug">{log.details}</p>
                     )}
-                    <div className="flex items-center gap-1.5 text-[11px] text-ink-3">
-                      <UserIcon className="h-2.5 w-2.5" />
-                      <span>par <span className="font-semibold text-ink-2">{log.user || 'Admin'}</span></span>
+                    <div className="t-caption flex items-center gap-1.5">
+                      <UserIcon className="h-3 w-3" />
+                      <span>par <b className="font-semibold text-ink-2">{log.user || 'Admin'}</b></span>
                     </div>
                   </div>
                 </div>
@@ -558,70 +587,76 @@ function DashboardPageInner() {
     ? 'au total'
     : `du ${dateFromFilter ? format(dateFromFilter, 'dd/MM/yyyy', { locale: fr }) : '—'} au ${dateToFilter ? format(dateToFilter, 'dd/MM/yyyy', { locale: fr }) : '—'}`;
 
-  // The ONE featured (navy) surface on this page: the headline figures for
-  // the selected period. Everything below reads against it.
+  // Period presets — which one (if any) matches the current range exactly.
+  // Apple HIG segmented control / Material 3 segmented buttons: exactly one
+  // segment reads as selected when the range equals a preset.
+  const today = startOfToday();
+  const activePreset: 'jour' | 'semaine' | 'mois' | null = (() => {
+    if (!dateFromFilter || !dateToFilter) return null;
+    if (!isSameDay(dateToFilter, today)) return null;
+    if (isSameDay(dateFromFilter, today)) return 'jour';
+    if (isSameDay(dateFromFilter, startOfWeek(today, { locale: fr }))) return 'semaine';
+    if (isSameDay(dateFromFilter, startOfMonth(today))) return 'mois';
+    return null;
+  })();
+  const periodSegments: { key: 'jour' | 'semaine' | 'mois'; label: string; apply: () => void }[] = [
+    { key: 'jour', label: "Aujourd'hui", apply: () => { setDateFromFilter(today); setDateToFilter(today); } },
+    { key: 'semaine', label: 'Semaine', apply: () => { setDateFromFilter(startOfWeek(today, { locale: fr })); setDateToFilter(today); } },
+    { key: 'mois', label: 'Mois', apply: () => { setDateFromFilter(startOfMonth(today)); setDateToFilter(today); } },
+  ];
+
+  // The ONE featured (terracotta) surface on this page: the headline figures
+  // for the selected period. Everything below reads against it.
   const headlineCard = (
     <Card variant="featured">
       <CardContent className="p-5">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          {/* Stat tile contract (dataviz "stat tile" / Carbon KPI tiles / Refactoring UI):
+              label light, sentence case, no colon · value heavy, PROPORTIONAL figures
+              (never tabular on a standalone number) · caption. Exactly one hero per view,
+              ≥ 48 px in the UI sans (Inter), never the display face. */}
           <div className="grid flex-1 grid-cols-1 gap-5 sm:grid-cols-3 sm:divide-x sm:divide-on-ink/15">
             <div className="sm:pr-6">
               <p className="t-label text-on-ink/70">Dossiers créés</p>
-              <p className="t-display mt-1 text-on-ink tabular-nums">{filteredCount}</p>
+              <p className="mt-1 font-body text-[48px] font-semibold leading-none text-on-ink">{filteredCount}</p>
               <p className="t-caption mt-1 text-on-ink/70">{rangeLabel}</p>
             </div>
             <div className="sm:px-6">
               <p className="t-label text-on-ink/70">Statuts actifs</p>
-              <p className="t-title mt-1 text-on-ink tabular-nums">{statusChartData.length}</p>
+              <p className="mt-1 text-[28px] font-semibold leading-none text-on-ink">{statusChartData.length}</p>
               <p className="t-caption mt-1 text-on-ink/70">sur {statusBarData.length} statuts</p>
             </div>
             <div className="sm:pl-6">
               <p className="t-label text-on-ink/70">Compagnies</p>
-              <p className="t-title mt-1 text-on-ink tabular-nums">{compagnieData.length}</p>
+              <p className="mt-1 text-[28px] font-semibold leading-none text-on-ink">{compagnieData.length}</p>
               <p className="t-caption mt-1 text-on-ink/70">
                 {compagnieData[0] ? `${compagnieData[0].name} en tête` : 'aucune donnée'}
               </p>
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-end gap-2">
-            <div className="flex items-center gap-1 rounded-md bg-on-ink/10 p-0.5">
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-8 text-on-ink hover:bg-on-ink/15 hover:text-on-ink"
-                onClick={() => {
-                  const today = startOfToday();
-                  setDateFromFilter(today);
-                  setDateToFilter(today);
-                }}
-              >
-                Aujourd'hui
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-8 text-on-ink hover:bg-on-ink/15 hover:text-on-ink"
-                onClick={() => {
-                  setDateFromFilter(startOfWeek(new Date(), { locale: fr }));
-                  setDateToFilter(startOfToday());
-                }}
-              >
-                Semaine
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-8 text-on-ink hover:bg-on-ink/15 hover:text-on-ink"
-                onClick={() => {
-                  setDateFromFilter(startOfMonth(new Date()));
-                  setDateToFilter(startOfToday());
-                }}
-              >
-                Mois
-              </Button>
+            {/* Segmented control (Apple HIG / Material 3 segmented buttons): equal
+                segments in one track, the selected one is the raised light pane. */}
+            <div className="grid grid-cols-3 items-center gap-0.5 rounded-md bg-on-ink/10 p-0.5" role="group" aria-label="Période">
+              {periodSegments.map((segment) => {
+                const isActive = activePreset === segment.key;
+                return (
+                  <button
+                    key={segment.key}
+                    type="button"
+                    aria-pressed={isActive}
+                    onClick={segment.apply}
+                    className={cn(
+                      'h-8 whitespace-nowrap rounded-[5px] px-3 text-sm font-medium transition-[color,background-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-tertiary',
+                      isActive
+                        ? 'bg-card text-ink shadow-rim'
+                        : 'text-on-ink hover:bg-on-ink/15',
+                    )}
+                  >
+                    {segment.label}
+                  </button>
+                );
+              })}
             </div>
             <div className="space-y-1">
               <label className="t-label text-on-ink/70">Du</label>
@@ -665,13 +700,15 @@ function DashboardPageInner() {
     <Card className="h-fit overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle>Dossiers par état</CardTitle>
+        {/* Blueprint §6: inputs are solid fields, never underline / transparent. */}
         <div className="relative w-[180px] max-w-full">
-          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" />
+          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" aria-hidden />
           <Input
             placeholder="Rechercher..."
+            aria-label="Rechercher un statut"
             value={statusFilterSearch}
             onChange={(e) => setStatusFilterSearch(e.target.value)}
-            className="h-8 rounded-none border-0 border-b bg-transparent pl-7 text-xs focus-visible:border-primary focus-visible:ring-0"
+            className="h-8 rounded-md border border-input bg-card pl-7 text-xs"
           />
         </div>
       </CardHeader>
@@ -701,9 +738,12 @@ function DashboardPageInner() {
                     )}
                   >
                     <span className={cn('truncate', isSelected ? 'font-semibold text-ink' : isEmpty ? 'text-ink-3' : 'text-ink-2')}>{item.name}</span>
+                    {/* Material 3 list trailing supporting text / NN/g faceted filter counts:
+                        the count is a status-pair chip (blueprint status pairs), neutral when empty. */}
                     <span className={cn(
-                      'shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums',
-                      isEmpty ? 'bg-surface-2 text-ink-3' : getStatusHeaderStyles(item.name),
+                      STATUS_BADGE_CLASS,
+                      'shrink-0',
+                      isEmpty ? 'border-transparent bg-surface-2 text-ink-3' : getStatusBadgeStyles(item.name),
                     )}>
                       {item.value}
                     </span>
@@ -733,11 +773,14 @@ function DashboardPageInner() {
           />
         ) : (
           <>
+            {/* dataviz: pie for part-to-whole at a glance, ≤ 6 segments (top 5 + « Autres »);
+                2 px surface gap between fills; selective direct labels (≥ 8 % only);
+                text wears text tokens (ink-2 outside, card-on-slice inside), never the series hue. */}
             <ChartContainer config={statusBarConfig} className="mx-auto aspect-square max-h-[280px]">
               <PieChart>
                 <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
                 <Pie
-                  data={statusChartData}
+                  data={pieData}
                   dataKey="value"
                   nameKey="name"
                   cx="50%"
@@ -751,9 +794,10 @@ function DashboardPageInner() {
                   animationDuration={600}
                   animationEasing="ease-out"
                   label={({ cx, cy, midAngle, outerRadius, percent }) => {
+                    if (percent < 0.08) return null;
                     const RADIAN = Math.PI / 180;
                     const pct = `${(percent * 100).toFixed(0)}%`;
-                    const outside = statusChartData.length > 4;
+                    const outside = pieData.length > 4;
                     const radius = outside ? outerRadius + 24 : outerRadius * 0.55;
                     const x = cx + radius * Math.cos(-midAngle * RADIAN);
                     const y = cy + radius * Math.sin(-midAngle * RADIAN);
@@ -771,16 +815,17 @@ function DashboardPageInner() {
                       </text>
                     );
                   }}
-                  labelLine={statusChartData.length > 4 ? { stroke: 'hsl(var(--hairline-strong))' } : false}
+                  labelLine={pieData.length > 4 ? { stroke: 'hsl(var(--hairline-strong))' } : false}
                 >
-                  {statusChartData.map((entry, index) => (
+                  {pieData.map((entry, index) => (
                     <Cell key={`cell-status-${index}`} fill={entry.fill} />
                   ))}
                 </Pie>
               </PieChart>
             </ChartContainer>
+            {/* Legend always present for ≥ 2 series; a column of counts → tabular figures. */}
             <ul className="mt-4 flex flex-wrap justify-center gap-x-3 gap-y-1.5">
-              {statusChartData.map((item) => (
+              {pieData.map((item) => (
                 <li key={item.name} className="t-caption flex items-center gap-1.5">
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.fill }} aria-hidden />
                   <span>{item.name}</span>
@@ -797,12 +842,13 @@ function DashboardPageInner() {
   const filteredTableCard = (
     <Card className="h-fit overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="flex items-center gap-2">
+        {/* NN/g data tables: the title names the table once; status as a chip; count quiet. */}
+        <CardTitle className="t-heading flex items-center gap-2">
           <span>Dossiers</span>
           {selectedStatus && (
-            <Badge variant="outline" className={cn('rounded-full border px-2 py-0.5 text-[11px] font-semibold', getStatusBadgeStyles(selectedStatus))}>
+            <span className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(selectedStatus))}>
               {selectedStatus}
-            </Badge>
+            </span>
           )}
           <span className="t-caption tabular-nums">{dossiersByStatus.length}</span>
         </CardTitle>
@@ -811,6 +857,7 @@ function DashboardPageInner() {
         </Button>
       </CardHeader>
       <CardContent className="p-0">
+        {/* Sticky bg-card header comes from the Table primitive; px max-h needs no zoom division. */}
         <div className="max-h-[560px] overflow-y-auto">
           <Table>
             <TableHeader>
@@ -837,24 +884,26 @@ function DashboardPageInner() {
                   </TableCell>
                 </TableRow>
               ) : (
+                // NN/g data tables / Carbon: quiet header (primitive), alignment by type
+                // (text left, dates right + tabular), status as a chip, empty = « — » in ink-4.
                 dossiersByStatus.map((dossier) => (
                   <TableRow key={dossier.id} className="group">
                     <TableCell>
                       <Link href={`/dossiers/${dossier.id}`} className="t-mono font-semibold hover:underline">
-                        {dossier.refExpert || 'N/A'}
+                        {dossier.refExpert || emptyCell}
                       </Link>
                     </TableCell>
-                    <TableCell className="max-w-[160px] truncate font-medium text-ink">{renderAssure(dossier.assure)}</TableCell>
-                    <TableCell className="text-ink-2">{dossier.compagnie || '-'}</TableCell>
-                    <TableCell className="text-ink-2">{dossier.nature || '-'}</TableCell>
-                    <TableCell className="font-mono text-ink-2">{dossier.matricule || '-'}</TableCell>
+                    <TableCell className="max-w-[160px] truncate font-medium text-ink">{renderAssure(dossier.assure) ?? emptyCell}</TableCell>
+                    <TableCell className="text-ink-2">{dossier.compagnie || emptyCell}</TableCell>
+                    <TableCell className="text-ink-2">{dossier.nature || emptyCell}</TableCell>
+                    <TableCell className="t-mono text-ink-2">{dossier.matricule || emptyCell}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={cn('rounded-full border px-2 py-0.5 text-[11px] font-semibold', getStatusBadgeStyles(dossier.statut))}>
+                      <span className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(dossier.statut))}>
                         {!dossier.statut || dossier.statut === 'Création dossier' ? 'Création de mission' : dossier.statut}
-                      </Badge>
+                      </span>
                     </TableCell>
-                    <TableCell className="text-right text-ink-3">
-                      {formatDate(dossier.createdAt)}
+                    <TableCell className="text-right tabular-nums text-ink-3">
+                      {dossier.createdAt ? formatDate(dossier.createdAt) : emptyCell}
                     </TableCell>
                   </TableRow>
                 ))
@@ -925,27 +974,28 @@ function DashboardPageInner() {
                     barCategoryGap={8}
                     margin={{ top: 4, right: 24, left: 8, bottom: 4 }}
                   >
+                    {/* dataviz marks: thin bars, 4 px rounded data-ends, recessive dashed
+                        hairline grid, ONE hue (identity lives on the axis), selective
+                        direct value labels in ink — values are text, not series colour. */}
                     <CartesianGrid horizontal={false} stroke="hsl(var(--hairline))" strokeDasharray="3 3" />
                     <YAxis
                       dataKey="name"
                       type="category"
                       tickLine={false}
                       axisLine={false}
-                      tick={{ fontSize: 11, fill: 'hsl(var(--ink-2))' }}
+                      tick={{ fontSize: 12, fill: 'hsl(var(--ink-2))' }}
                       width={104}
                     />
                     <XAxis
                       type="number"
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fontSize: 11, fill: 'hsl(var(--ink-3))' }}
+                      tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }}
                       allowDecimals={false}
                     />
                     <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
-                    <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={22} isAnimationActive={true} animationBegin={100} animationDuration={600} animationEasing="ease-out">
-                      {compagnieData.map((entry, index) => (
-                        <Cell key={`cell-comp-${index}`} fill={entry.fill} />
-                      ))}
+                    <Bar dataKey="value" fill="hsl(var(--chart-1))" radius={[0, 4, 4, 0]} barSize={18} isAnimationActive={true} animationBegin={100} animationDuration={600} animationEasing="ease-out">
+                      <LabelList dataKey="value" position="right" fill="hsl(var(--ink-2))" fontSize={12} />
                     </Bar>
                   </BarChart>
                 </ChartContainer>
