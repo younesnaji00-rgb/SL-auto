@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, use, useEffect, useRef } from 'react';
+import React, { useState, useMemo, use, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -29,6 +29,7 @@ import { StepTabs } from '@/components/dossier-timeline/step-tabs';
 import { useRequiredDocsStatus } from '@/hooks/use-required-docs-status';
 import { getMissingRequiredFields } from '@/lib/required-fields';
 import { useFocusMode } from '@/hooks/use-focus-mode';
+import { gotoStep, stepTabsKey } from '@/lib/step-navigation';
 import { useSidebar } from '@/components/ui/sidebar';
 import { ClipboardList, FolderOpen, CalendarDays, Camera, MessageSquare } from 'lucide-react';
 import { getStepStatuses } from '@/lib/dossier-steps';
@@ -235,6 +236,15 @@ export default function DossierDetailPage({
 
   // Tab registration + label sync live in <RecordBar> (one label everywhere).
   const [activeStep, setActiveStep] = useLastStep(id);
+  // The one way to jump to a step from the record bar / context column: the
+  // Timeline unfolds + scrolls it, StepTabs switches tab (lib/step-navigation).
+  const goToStep = useCallback(
+    (stepId: number, tab?: string) => {
+      setActiveStep(stepId);
+      gotoStep(id, stepId, tab);
+    },
+    [id, setActiveStep],
+  );
 
   // Per-step status computed from dossier data — drives the stepper, the
   // section chips and the record bar's primary action.
@@ -321,10 +331,7 @@ export default function DossierDetailPage({
         onHistorique={() => setHistoriqueOpen(true)}
         onPlanifier={(type) => handleNewPlanification(type)}
         onChiffrage={() => setChiffrageModalOpen(true)}
-        onGoToStep={(stepId) => {
-          setActiveStep(stepId);
-          document.getElementById(`step-${stepId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }}
+        onGoToStep={goToStep}
       />
 
       {/* TIMELINE CONTENT (+ context column on wide screens) */}
@@ -342,7 +349,7 @@ export default function DossierDetailPage({
           sections={{
             1: (
               <StepTabs
-                storageKey={`dossier:${id}:step1`}
+                storageKey={stepTabsKey(id, 1)}
                 tabs={[
                   {
                     value: 'informations', label: 'Informations', icon: <ClipboardList />,
@@ -372,7 +379,7 @@ export default function DossierDetailPage({
             ),
             4: (
               <StepTabs
-                storageKey={`dossier:${id}:step4`}
+                storageKey={stepTabsKey(id, 4)}
                 tabs={[
                   { value: 'planification', label: 'Planification', icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" /> },
                   { value: 'photos', label: 'Photos', icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="avant" /> },
@@ -382,7 +389,7 @@ export default function DossierDetailPage({
             ),
             6: (
               <StepTabs
-                storageKey={`dossier:${id}:step6`}
+                storageKey={stepTabsKey(id, 6)}
                 tabs={[
                   { value: 'documents', label: 'Documents', icon: <FolderOpen />, content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots /> },
                   { value: 'observations', label: 'Observations', icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextAccord="1er accord" /> },
@@ -391,7 +398,7 @@ export default function DossierDetailPage({
             ),
             9: (
               <StepTabs
-                storageKey={`dossier:${id}:step9`}
+                storageKey={stepTabsKey(id, 9)}
                 tabs={[
                   { value: 'planification', label: 'Planification', icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="En cours" /> },
                   { value: 'photos', label: 'Photos', icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="en_cours" /> },
@@ -401,7 +408,7 @@ export default function DossierDetailPage({
             ),
             11: (
               <StepTabs
-                storageKey={`dossier:${id}:step11`}
+                storageKey={stepTabsKey(id, 11)}
                 tabs={[
                   { value: 'documents', label: 'Documents', icon: <FolderOpen />, content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" /> },
                   { value: 'observations', label: 'Observations', icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextAccord="2ème accord ou +" /> },
@@ -410,7 +417,7 @@ export default function DossierDetailPage({
             ),
             10: (
               <StepTabs
-                storageKey={`dossier:${id}:step10`}
+                storageKey={stepTabsKey(id, 10)}
                 tabs={[
                   { value: 'planification', label: 'Planification', icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" /> },
                   { value: 'photos', label: 'Photos', icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="apres" /> },
@@ -429,11 +436,14 @@ export default function DossierDetailPage({
         <div className="hidden min-w-0 overflow-clip xl:sticky xl:top-[60px] xl:block xl:self-start" aria-hidden={focusMode || undefined}>
         <DossierContextPanel
           dossierId={id}
+          dossier={viewDossier}
+          steps={stepStates}
+          requiredDocs={requiredDocs.status}
+          readOnly={readOnly}
           onOpenHistorique={() => setHistoriqueOpen(true)}
-          onGoToStep={(stepId) => {
-            setActiveStep(stepId);
-            document.getElementById(`step-${stepId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }}
+          onGoToStep={goToStep}
+          onPlanifier={(type) => handleNewPlanification(type)}
+          onChiffrage={() => setChiffrageModalOpen(true)}
           className={cn(
             'flex w-[280px] max-h-[calc(100svh-7rem)] overflow-y-auto pt-4 transition-[opacity,transform] duration-200 ease-standard motion-reduce:transition-none',
             focusMode ? '-translate-x-3 opacity-0' : 'translate-x-0 opacity-100 delay-150',

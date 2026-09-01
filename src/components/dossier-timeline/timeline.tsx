@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { TimelineBar, StepStamp, StepStatusChip } from './timeline-bar';
 import { useCollapsedSteps } from '@/hooks/use-collapsed-steps';
 import { DOSSIER_STEP_DEFS, type StepState } from '@/lib/dossier-steps';
+import { GOTO_STEP_EVENT, type GotoStepDetail } from '@/lib/step-navigation';
 
 export interface TimelineSectionProps {
   step: StepState;
@@ -151,6 +152,21 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
     },
     [onActiveStepChange, scrollToStep],
   );
+
+  // External navigation (`gotoStep` from the record bar / context column):
+  // unfold the step if it is collapsed, then scroll to it once its content
+  // has rendered (two frames: React commit, then layout).
+  useEffect(() => {
+    const onGoto = (e: Event) => {
+      const { dossierId: target, stepId } = (e as CustomEvent<GotoStepDetail>).detail;
+      if (target !== dossierId) return;
+      if (isCollapsed(stepId)) toggle(stepId);
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      requestAnimationFrame(() => requestAnimationFrame(() => scrollToStep(stepId, reduce ? 'auto' : 'smooth')));
+    };
+    window.addEventListener(GOTO_STEP_EVENT, onGoto);
+    return () => window.removeEventListener(GOTO_STEP_EVENT, onGoto);
+  }, [dossierId, isCollapsed, toggle, scrollToStep]);
 
   // Scroll-spy: the active step is the last section whose top has passed the
   // sticky bars. IntersectionObserver with a top rootMargin equal to the sticky

@@ -2,21 +2,25 @@
 
 /**
  * Right-hand context column for the dossier page on wide screens (HubSpot /
- * Jira pattern): compact summaries of Observations, Rappels and Historique so
- * they are visible without opening sheets. Below `xl` the page keeps its
- * existing sheets/dialogs — this column simply isn't rendered.
+ * Jira pattern): « À faire » (what still blocks the dossier — GOV.UK task-list
+ * summary, each row a link into the step/tab where it gets done), then
+ * compact summaries of Observations, Rappels and Historique so they are
+ * visible without opening sheets. Below `xl` the page keeps its existing
+ * sheets/dialogs — this column simply isn't rendered.
  */
 
 import React, { useMemo } from 'react';
 import { collection, limit, orderBy, query, where } from 'firebase/firestore';
 import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Bell, History, MessageSquare } from 'lucide-react';
+import { Bell, Check, ChevronRight, History, ListChecks, MessageSquare } from 'lucide-react';
 import { useCollection, useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { Button } from '@/components/ui/button';
 import { UserNameLink } from '@/components/user-name-link';
-import { toDate } from '@/lib/dossier-steps';
+import { toDate, type StepState } from '@/lib/dossier-steps';
+import { getDossierTodos, type DossierTodo, type VisitType } from '@/lib/dossier-todos';
+import type { RequiredDocsStatus } from '@/lib/required-docs';
 import { cn } from '@/lib/utils';
 
 /**
@@ -41,19 +45,72 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <p className="t-caption py-1">{children}</p>;
 }
 
+/**
+ * One « À faire » row: label (ink) over detail (caption), destination on the
+ * right. Rows the reader is only waiting on (chiffreur, agent) are toned to
+ * ink-2 — still a link, but not a call to action.
+ */
+function TodoRow({ todo, onSelect }: { todo: DossierTodo; onSelect: (todo: DossierTodo) => void }) {
+  return (
+    <li className="min-w-0">
+      <button
+        type="button"
+        onClick={() => onSelect(todo)}
+        className="group -mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="min-w-0 flex-1">
+          <span className={cn('t-body-sm block truncate', todo.waiting ? 'text-ink-2' : 'font-medium text-ink')}>{todo.label}</span>
+          {todo.detail && <span className="t-caption block truncate">{todo.detail}</span>}
+        </span>
+        <span className="t-caption inline-flex shrink-0 items-center gap-0.5 text-ink-3 transition-colors group-hover:text-ink">
+          {todo.target}
+          <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+        </span>
+      </button>
+    </li>
+  );
+}
+
 export function DossierContextPanel({
   dossierId,
+  dossier,
+  steps,
+  requiredDocs,
+  readOnly = false,
   onOpenHistorique,
   onGoToStep,
+  onPlanifier,
+  onChiffrage,
   className,
 }: {
   dossierId: string;
+  /** The dossier document (or its rappel overlay) — drives « À faire ». */
+  dossier?: any;
+  steps?: StepState[];
+  /** Live required-pieces status; `null` while loading. */
+  requiredDocs?: RequiredDocsStatus | null;
+  readOnly?: boolean;
   onOpenHistorique: () => void;
-  onGoToStep: (stepId: number) => void;
+  /** Go to a step, optionally on one of its tabs. */
+  onGoToStep: (stepId: number, tab?: string) => void;
+  onPlanifier?: (type: VisitType) => void;
+  onChiffrage?: () => void;
   className?: string;
 }) {
   const db = useFirestore();
   const { profile } = useCurrentUser();
+
+  const todos = useMemo(
+    () => (dossier && steps ? getDossierTodos(dossier, steps, requiredDocs ?? null) : []),
+    [dossier, steps, requiredDocs],
+  );
+  const runTodo = (todo: DossierTodo) => {
+    const a = todo.action;
+    // Read-only readers can look but not act: every row becomes a plain jump.
+    if (a.kind === 'planifier' && !readOnly && onPlanifier) return onPlanifier(a.type);
+    if (a.kind === 'chiffrage' && !readOnly && onChiffrage) return onChiffrage();
+    onGoToStep(a.stepId, a.kind === 'goto' ? a.tab : a.kind === 'planifier' ? 'planification' : 'documents');
+  };
 
   const obsQuery = useMemo(
     () => (db && dossierId ? query(collection(db, 'dossiers', dossierId, 'observations'), orderBy('createdAt', 'desc'), limit(3)) : null),
@@ -79,6 +136,33 @@ export function DossierContextPanel({
 
   return (
     <aside className={cn('flex flex-col gap-8', className)} aria-label="Contexte du dossier">
+      {dossier && steps && (
+        <Block
+          title="À faire"
+          icon={<ListChecks />}
+          action={
+            todos.length > 0 ? (
+              <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-status-warning-bg px-1.5 text-[11px] font-medium tabular-nums text-status-warning-fg">
+                {todos.length}
+              </span>
+            ) : undefined
+          }
+        >
+          {todos.length === 0 ? (
+            <p className="t-caption inline-flex items-center gap-1.5 py-1 text-status-success-fg">
+              <Check className="h-3.5 w-3.5" aria-hidden />
+              Rien à faire — dossier à jour.
+            </p>
+          ) : (
+            <ul className="divide-y divide-hairline">
+              {todos.map((t) => (
+                <TodoRow key={t.id} todo={t} onSelect={runTodo} />
+              ))}
+            </ul>
+          )}
+        </Block>
+      )}
+
       <Block
         title="Observations"
         icon={<MessageSquare />}

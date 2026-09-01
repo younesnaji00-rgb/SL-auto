@@ -3,6 +3,7 @@
 import * as React from 'react';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import { cn } from '@/lib/utils';
+import { GOTO_STEP_EVENT, type GotoStepDetail } from '@/lib/step-navigation';
 
 export interface StepTab {
   value: string;
@@ -60,6 +61,22 @@ export function StepTabs({ tabs, defaultValue, storageKey, className }: StepTabs
       }
     }
   };
+
+  // External navigation (`lib/step-navigation.ts` gotoStep): switch to the
+  // requested tab when the event targets this step. `tabs` is an inline array
+  // on the page, so read it through a ref instead of re-subscribing per render.
+  const tabsRef = React.useRef(tabs);
+  tabsRef.current = tabs;
+  React.useEffect(() => {
+    if (!storageKey) return;
+    const onGoto = (e: Event) => {
+      const { key, tab } = (e as CustomEvent<GotoStepDetail>).detail;
+      if (key !== storageKey || !tab) return;
+      if (tabsRef.current.some((t) => t.value === tab)) setValue(tab);
+    };
+    window.addEventListener(GOTO_STEP_EVENT, onGoto);
+    return () => window.removeEventListener(GOTO_STEP_EVENT, onGoto);
+  }, [storageKey]);
 
   if (tabs.length === 0) return null;
 
