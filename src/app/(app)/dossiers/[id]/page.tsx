@@ -26,6 +26,8 @@ import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 // ── Timeline ─────────────────────────────────────────────────────────────────
 import { Timeline } from '@/components/dossier-timeline/timeline';
 import { StepTabs } from '@/components/dossier-timeline/step-tabs';
+import { useRequiredDocsStatus } from '@/hooks/use-required-docs-status';
+import { getMissingRequiredFields } from '@/lib/required-fields';
 import { ClipboardList, FolderOpen, CalendarDays, Camera, MessageSquare } from 'lucide-react';
 import { getStepStatuses } from '@/lib/dossier-steps';
 import { RecordBar, RECORD_BAR_HEIGHT } from '@/components/dossiers/record-bar';
@@ -61,6 +63,9 @@ export default function DossierDetailPage({
   const db = useFirestore();
   const dossierRef = useMemo(() => doc(db, 'dossiers', id), [db, id]);
   const { data: dossier, loading } = useDoc(dossierRef);
+  // Badges the Pièces tab (n/m required pieces) so its state is visible
+  // without opening it.
+  const requiredDocs = useRequiredDocsStatus(id);
   const { canWrite, profile } = useCurrentUser();
   const readOnly = !canWrite('dossiers');
   const { toast } = useToast();
@@ -266,6 +271,8 @@ export default function DossierDetailPage({
   // Non-null view of the dossier for the render tree (`dossier` is non-null
   // past the guard above; the overlay of a non-null doc is non-null).
   const viewDossier = effectiveDossier ?? dossier;
+  // Badges the Informations tab with the number of still-empty required fields.
+  const missingFields = getMissingRequiredFields(viewDossier);
 
   return (
     <RappelDraftContext.Provider value={draftStore}>
@@ -315,16 +322,23 @@ export default function DossierDetailPage({
                 tabs={[
                   {
                     value: 'informations', label: 'Informations', icon: <ClipboardList />,
+                    badge: missingFields.length > 0
+                      ? { kind: 'warn', label: `${missingFields.length} champ${missingFields.length > 1 ? 's' : ''} manquant${missingFields.length > 1 ? 's' : ''}` }
+                      : undefined,
                     content: (
                       <div className="space-y-6">
-                        {/* AI pre-fill drop strip + source document — feeds the form below. */}
-                        <Step1Import dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} />
+                        {/* One-line pre-fill row (picker + source status); the source
+                            document itself is shown beside the form by Step2Information. */}
+                        <Step1Import dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} compact />
                         <Step2Information dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />
                       </div>
                     ),
                   },
                   {
-                    value: 'documents', label: 'Documents', icon: <FolderOpen />,
+                    value: 'documents', label: 'Pièces', icon: <FolderOpen />,
+                    badge: requiredDocs.loading
+                      ? undefined
+                      : { kind: requiredDocs.received >= requiredDocs.total ? 'ok' : 'progress', label: `${requiredDocs.received}/${requiredDocs.total}` },
                     content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos hideAccordSlots showBaseGarageSlots hideOtherSlots showAllNonAccordSlots />,
                   },
                 ]}

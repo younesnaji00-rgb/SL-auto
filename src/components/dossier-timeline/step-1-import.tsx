@@ -9,7 +9,7 @@ import {
   Timestamp,
   type DocumentReference,
 } from 'firebase/firestore';
-import { Eye, FileIcon, FileText, Loader2, ScanSearch, Trash2, Upload } from 'lucide-react';
+import { Check, Eye, FileIcon, FileText, Loader2, ScanSearch, Trash2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -39,6 +39,13 @@ export interface Step1ImportProps {
   dossier: Record<string, any> | null | undefined;
   dossierRef: DocumentReference;
   readOnly?: boolean;
+  /**
+   * One-row mode for the "Création de mission" step: the SmartInbox picker
+   * plus a one-line status (no card, no thumbnail — the Informations pane
+   * shows the source document beside the form). Default `false` keeps the
+   * full card for other callers.
+   */
+  compact?: boolean;
 }
 
 // Date fields that must be stored as Firestore Timestamps to stay consistent
@@ -113,12 +120,12 @@ function isEmpty(v: any): boolean {
   return false;
 }
 
-function formatDate(ts: any): string {
+function formatDate(ts: any, pattern = 'dd/MM/yyyy HH:mm'): string {
   if (!ts) return '';
   try {
     const date = ts?.toDate ? ts.toDate() : new Date(ts);
     if (Number.isNaN(date.getTime())) return '';
-    return format(date, 'dd/MM/yyyy HH:mm', { locale: fr });
+    return format(date, pattern, { locale: fr });
   } catch {
     return '';
   }
@@ -129,6 +136,7 @@ export default function Step1Import({
   dossier,
   dossierRef,
   readOnly,
+  compact = false,
 }: Step1ImportProps) {
   const db = useFirestore();
   const storage = useStorage();
@@ -383,6 +391,88 @@ export default function Step1Import({
   const busy = isUploading || isScanning;
   const hasImportDoc = Boolean(importDocId);
 
+  const lightbox = (
+    <DocumentPreviewLightbox
+      doc={previewDoc}
+      onClose={() => setPreviewDoc(null)}
+      onDelete={() => {
+        handleDeleteImportDoc();
+        setPreviewDoc(null);
+      }}
+    />
+  );
+
+  if (compact) {
+    const d: any = importDoc;
+    const name: string = d?.nom || d?.fileName || 'document';
+    const day = formatDate(d?.dateUpload || d?.uploadedAt, 'dd/MM/yyyy');
+    const url: string | undefined = d?.url || undefined;
+    const canPreview = Boolean(url) && !d?.pendingUpload;
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        {canEdit && (
+          <SmartInbox
+            dossierId={dossierId}
+            dossier={dossier}
+            readOnly={readOnly}
+            prefilling={isScanning}
+            buttonLabel="Pré-remplir depuis un document"
+            onPrefill={async (files, sourceDocId) => {
+              const userEmail = auth?.currentUser?.email || 'Admin';
+              await runScanAndMerge(files, userEmail, sourceDocId);
+            }}
+          />
+        )}
+        {!hasImportDoc ? (
+          <span className="t-caption text-ink-3">
+            Déposez la lettre de mission pour pré-remplir les informations.
+          </span>
+        ) : importDocLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin text-ink-3" aria-label="Chargement du document source" />
+        ) : !importDoc ? (
+          <span className="t-caption text-ink-3">Document source introuvable.</span>
+        ) : (
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <Check className="h-4 w-4 shrink-0 text-status-success-fg" aria-hidden />
+            <span className="t-caption truncate" title={name}>
+              Pré-rempli depuis {name}
+              {day ? ` · ${day}` : ''}
+            </span>
+            {d?.pendingUpload && (
+              <span className="rounded-full bg-status-warning-bg px-1.5 py-0.5 text-[11px] text-status-warning-fg">En attente</span>
+            )}
+            {canPreview && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs text-ink-3 hover:text-ink"
+                onClick={() => setPreviewDoc({ url: url as string, nom: name })}
+              >
+                <Eye className="h-3.5 w-3.5" /> Aperçu
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs text-ink-3 hover:text-destructive"
+                onClick={handleDeleteImportDoc}
+                disabled={isDeletingImport || busy}
+                title="Supprimer pour nouveau scan"
+              >
+                {isDeletingImport ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                Retirer
+              </Button>
+            )}
+          </div>
+        )}
+        {lightbox}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {canEdit && (
@@ -522,14 +612,7 @@ export default function Step1Import({
         </CardContent>
       </Card>
 
-      <DocumentPreviewLightbox
-        doc={previewDoc}
-        onClose={() => setPreviewDoc(null)}
-        onDelete={() => {
-          handleDeleteImportDoc();
-          setPreviewDoc(null);
-        }}
-      />
+      {lightbox}
     </div>
   );
 }

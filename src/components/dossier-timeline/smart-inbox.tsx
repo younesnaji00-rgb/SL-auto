@@ -71,6 +71,8 @@ export interface SmartInboxProps {
   className?: string;
   title?: string;
   description?: string;
+  /** Label of the picker button — name it by purpose (« Pré-remplir depuis un document », « Ajouter des pièces »). */
+  buttonLabel?: string;
 }
 
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -102,7 +104,7 @@ async function runPool<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
   );
 }
 
-export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, prefilling, className }: SmartInboxProps) {
+export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, prefilling, className, buttonLabel = 'Choisir des fichiers' }: SmartInboxProps) {
   const db = useFirestore();
   const storage = useStorage();
   const auth = useAuth();
@@ -392,7 +394,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           onDrop={onZoneDrop}
         >
           {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-          {busy ? 'Analyse en cours…' : 'Choisir des fichiers'}
+          {busy ? 'Analyse en cours…' : buttonLabel}
         </Button>
         <input
           ref={inputRef}

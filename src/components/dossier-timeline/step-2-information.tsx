@@ -1,32 +1,22 @@
 'use client';
 
 /**
- * Audit (task #18): required fields flagged to the user via the banner below.
- * Cross-referenced with checkEmptyFields in the deleted
- * src/app/(app)/dossiers/new/creation-form.tsx prior to its removal in task #16.
- * The list is now inlined here (see REQUIRED_FIELDS) so the banner remains
- * self-contained after the wizard deletion.
+ * Informations step: the editable form (information-tab.tsx) with the
+ * required-fields banner and a side-by-side "Document source" pane.
  *
- * - Compagnie                  -> dossier.compagnie
- * - Nature du dossier          -> dossier.nature
- * - Marque vehicule            -> dossier.vehicule.marque / dossier.vehicule.brand
- * - Matricule vehicule         -> dossier.matricule
- *                                 / dossier.vehicule.immatriculation
- *                                 / dossier.vehicule.registration
- * - Nom de l'assure            -> dossier.assure.nom
- *                                 / dossier.assure (legacy string form)
- * - Date sinistre              -> dossier.dateSinistre
- * - Date requete               -> dossier.dateRequete
+ * Why a pane and not a tab (NN/g): checking AI-extracted values against the
+ * lettre de mission is a simultaneous task — the user needs both at once —
+ * so the source document sits BESIDE the form and opens by default at ≥ lg
+ * whenever a scanned source exists. Tabs are reserved for independent facets
+ * (Informations | Pièces).
  *
- * Editable inputs live in src/app/(app)/dossiers/[id]/information-tab.tsx.
- * This wrapper only surfaces the warning banner and the optional side-by-side
- * scan comparer; it does not add per-field asterisks.
+ * Required-field list + helper live in `lib/required-fields.ts` (shared with
+ * the step-tab badge). This wrapper does not add per-field asterisks.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Columns2, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, Columns2, Maximize2, X } from 'lucide-react';
 import { collection, type DocumentReference } from 'firebase/firestore';
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
 import InformationTab from '@/app/(app)/dossiers/[id]/information-tab';
 import { Button } from '@/components/ui/button';
@@ -38,7 +28,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
+import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { useCollection, useFirestore } from '@/firebase';
+import { getMissingRequiredFields } from '@/lib/required-fields';
+
+// Back-compat: callers that imported the helper from this module keep working.
+export { getMissingRequiredFields } from '@/lib/required-fields';
+
+const COMPARE_MEDIA_QUERY = '(min-width: 1024px)'; // Tailwind `lg`
 
 export interface Step2InformationProps {
   dossierId: string;
@@ -47,58 +45,6 @@ export interface Step2InformationProps {
   readOnly?: boolean;
   onEditPlanification: (data: any) => void;
   onNewPlanification: () => void;
-}
-
-// Helper: read a possibly-dotted path from an object.
-function readPath(obj: any, path: string): any {
-  if (!obj) return undefined;
-  const parts = path.split('.');
-  let cur: any = obj;
-  for (const p of parts) {
-    if (cur === null || cur === undefined) return undefined;
-    cur = cur[p];
-  }
-  return cur;
-}
-
-function isEmpty(v: any): boolean {
-  if (v === null || v === undefined) return true;
-  if (typeof v === 'string') return v.trim() === '';
-  return false;
-}
-
-// Fields that were required at creation time (legacy soft-warning list from
-// the retired creation wizard). Each entry maps a human-readable French label
-// to the Firestore dossier path where the value is stored.
-const REQUIRED_FIELDS: { label: string; paths: string[] }[] = [
-  { label: 'Compagnie', paths: ['compagnie'] },
-  { label: 'Nature du dossier', paths: ['nature'] },
-  { label: 'Marque véhicule', paths: ['vehicule.marque', 'vehicule.brand'] },
-  {
-    label: 'Matricule véhicule',
-    paths: ['matricule', 'vehicule.immatriculation', 'vehicule.registration'],
-  },
-  {
-    label: "Nom de l'assuré",
-    paths: ['assure.nom', 'assure'],
-  },
-  { label: 'Date sinistre', paths: ['dateSinistre'] },
-  { label: 'Date requête', paths: ['dateRequete'] },
-];
-
-export function getMissingRequiredFields(dossier: any): string[] {
-  if (!dossier) return [];
-  const missing: string[] = [];
-  for (const { label, paths } of REQUIRED_FIELDS) {
-    const hasValue = paths.some((p) => {
-      const v = readPath(dossier, p);
-      // `assure` alone may be a legacy string — accept it if non-empty.
-      if (p === 'assure' && typeof v === 'string') return !isEmpty(v);
-      return !isEmpty(v);
-    });
-    if (!hasValue) missing.push(label);
-  }
-  return missing;
 }
 
 export default function Step2Information({
@@ -112,7 +58,13 @@ export default function Step2Information({
   const missing = useMemo(() => getMissingRequiredFields(dossier), [dossier]);
 
   const [showCompare, setShowCompare] = useState(false);
+  // Once the user toggles the pane by hand, stop auto-opening it.
+  const compareTouched = useRef(false);
   const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ url: string; nom: string } | null>(null);
+  // Width of the source pane → render the PDF page at that width.
+  const paneRef = useRef<HTMLDivElement>(null);
+  const [paneWidth, setPaneWidth] = useState(480);
   const db = useFirestore();
   const docsQuery = useMemo(
     () => (db ? collection(db, 'dossiers', dossierId, 'documents') : null),
@@ -142,6 +94,36 @@ export default function Step2Information({
     }
   }, [showCompare, scanDocs, selectedScanId]);
 
+  // Comparison pane ON by default at ≥ lg as soon as a scanned source document
+  // resolves (verifying extracted fields against the source is simultaneous
+  // work). Below lg it stays closed; a manual toggle wins from then on.
+  useEffect(() => {
+    if (compareTouched.current || scanDocs.length === 0) return;
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    if (window.matchMedia(COMPARE_MEDIA_QUERY).matches) setShowCompare(true);
+  }, [scanDocs.length]);
+
+  // Track the pane width so the PDF page is rasterised at the right size.
+  useEffect(() => {
+    if (!showCompare) return;
+    const el = paneRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = Math.round(el.clientWidth);
+      if (w > 0) setPaneWidth(w);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [showCompare]);
+
+  const toggleCompare = () => {
+    compareTouched.current = true;
+    setShowCompare((v) => !v);
+  };
+
   // One-line notice (state + reason); the labels wrap inline instead of a
   // bullet list so the banner costs a single row.
   const banner = missing.length > 0 && (
@@ -160,7 +142,7 @@ export default function Step2Information({
       type="button"
       variant={showCompare ? 'default' : 'outline'}
       size="sm"
-      onClick={() => setShowCompare((v) => !v)}
+      onClick={toggleCompare}
       className="h-7 gap-1.5 px-2.5 text-xs"
     >
       {showCompare ? (
@@ -194,10 +176,9 @@ export default function Step2Information({
   }
 
   const selectedScan = scanDocs.find((d: any) => d.id === selectedScanId);
-  const selectedName = (selectedScan?.nom || selectedScan?.fileName || '')
-    .toString()
-    .toLowerCase();
-  const isImage = /\.(jpe?g|png|gif|webp|bmp)$/i.test(selectedName);
+  const selectedFileName = (selectedScan?.nom || selectedScan?.fileName || '') as string;
+  const isImage = /\.(jpe?g|png|gif|webp|bmp)$/i.test(selectedFileName.toLowerCase());
+  const selectedUrl: string | undefined = selectedScan?.url || undefined;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
@@ -210,67 +191,84 @@ export default function Step2Information({
           variant="outline"
           className="sticky top-20 flex max-h-[calc(100dvh-6rem)] flex-col gap-3 overflow-hidden p-3"
         >
-          <Select
-            value={selectedScanId ?? undefined}
-            onValueChange={(v) => setSelectedScanId(v)}
-            disabled={scanDocs.length === 0}
+          {/* Pane header — label + file name; the scan Select only when there
+              are several scans to choose from. */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="t-label">Document source</p>
+              {selectedFileName && (
+                <p className="t-caption truncate" title={selectedFileName}>{selectedFileName}</p>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 text-ink-3 hover:text-ink"
+              onClick={toggleCompare}
+              aria-label="Fermer la comparaison"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          {scanDocs.length > 1 && (
+            <Select value={selectedScanId ?? undefined} onValueChange={(v) => setSelectedScanId(v)}>
+              <SelectTrigger className="h-8 w-full text-xs">
+                <SelectValue placeholder="Sélectionner un scan" />
+              </SelectTrigger>
+              <SelectContent>
+                {scanDocs.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {(d.nom || d.fileName || d.id) as string}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <div
+            ref={paneRef}
+            className="min-h-0 flex-1 overflow-auto rounded-md border border-hairline bg-surface-2"
           >
-            <SelectTrigger className="w-full">
-              <SelectValue
-                placeholder={
-                  scanDocs.length === 0
-                    ? 'Aucun scan disponible'
-                    : 'Sélectionner un scan'
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {scanDocs.map((d: any) => (
-                <SelectItem key={d.id} value={d.id}>
-                  {(d.nom || d.fileName || d.id) as string}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex-1 min-h-0 rounded-md border border-hairline bg-surface-2 overflow-hidden">
-            {selectedScan && selectedScan.url ? (
-              isImage ? (
-                <TransformWrapper
-                  minScale={1}
-                  maxScale={5}
-                  doubleClick={{ mode: 'zoomIn', step: 0.7 }}
-                  wheel={{ step: 0.2 }}
-                >
-                  <TransformComponent
-                    wrapperClass="!w-full !h-full"
-                    contentClass="!w-full !h-full flex items-center justify-center"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={selectedScan.url}
-                      alt={(selectedScan.nom || selectedScan.fileName || 'scan') as string}
-                      className="max-w-full max-h-full object-contain select-none"
-                      draggable={false}
-                    />
-                  </TransformComponent>
-                </TransformWrapper>
-              ) : (
-                <iframe
-                  src={selectedScan.url}
-                  title={(selectedScan.nom || selectedScan.fileName || 'scan') as string}
-                  className="w-full h-full border-0"
-                />
-              )
+            {selectedUrl ? (
+              // Inline preview at pane width; click → shared lightbox.
+              <button
+                type="button"
+                onClick={() => setPreview({ url: selectedUrl, nom: selectedFileName || 'scan' })}
+                className="group relative block w-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label={`Agrandir ${selectedFileName || 'le document source'}`}
+              >
+                {isImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selectedUrl}
+                    alt={selectedFileName || 'scan'}
+                    className="block h-auto w-full select-none"
+                    draggable={false}
+                  />
+                ) : (
+                  <PdfThumbnail
+                    url={selectedUrl}
+                    width={paneWidth}
+                    lazy={false}
+                    className="block h-auto min-h-[12rem] w-full object-contain"
+                  />
+                )}
+                <span className="pointer-events-none absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-md bg-card/90 text-ink-3 opacity-0 shadow-card transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <Maximize2 className="h-3.5 w-3.5" />
+                </span>
+              </button>
             ) : (
-              <div className="t-caption flex h-full items-center justify-center p-6 text-center">
+              <div className="t-caption flex h-full min-h-[12rem] items-center justify-center p-6 text-center">
                 {scanDocs.length === 0
-                  ? 'Aucun scan dans ce dossier.'
+                  ? 'Aucun document source dans ce dossier.'
                   : 'Sélectionnez un scan pour le visualiser.'}
               </div>
             )}
           </div>
         </Card>
       </aside>
+
+      <DocumentPreviewLightbox doc={preview} onClose={() => setPreview(null)} />
     </div>
   );
 }

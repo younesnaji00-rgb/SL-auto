@@ -205,6 +205,7 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
     <div className="space-y-8">
       {!readOnly && !hideInbox && (
         <SmartInbox
+          buttonLabel="Ajouter des pièces"
           dossierId={dossierId}
           dossier={dossier}
           readOnly={readOnly}

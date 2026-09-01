@@ -10,6 +10,12 @@ export interface StepTab {
   icon?: React.ReactNode;
   /** Optional count pill (documents, photos, observations…). */
   count?: number;
+  /**
+   * Optional state badge so the tab tells what's inside without switching
+   * (M3 tab badges): `{ kind: 'progress', label: '3/5' }` or
+   * `{ kind: 'warn', label: '2 champs manquants' }`.
+   */
+  badge?: { kind: 'progress' | 'warn' | 'ok'; label: string };
   content: React.ReactNode;
 }
 
@@ -78,6 +84,18 @@ export function StepTabs({ tabs, defaultValue, storageKey, className }: StepTabs
             {typeof t.count === 'number' && t.count > 0 && (
               <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
                 {t.count}
+              </span>
+            )}
+            {t.badge && (
+              <span
+                className={cn(
+                  'inline-flex h-5 items-center whitespace-nowrap rounded-full px-1.5 text-[11px] font-medium tabular-nums',
+                  t.badge.kind === 'progress' && 'bg-surface-3 text-ink-2',
+                  t.badge.kind === 'warn' && 'bg-status-warning-bg text-status-warning-fg',
+                  t.badge.kind === 'ok' && 'bg-status-success-bg text-status-success-fg',
+                )}
+              >
+                {t.badge.label}
               </span>
             )}
           </TabsPrimitive.Trigger>
