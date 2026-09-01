@@ -135,7 +135,7 @@ export function DossierContextPanel({
   const openRappels = (rappels || []).filter((r: any) => !r.resolvedAt);
 
   return (
-    <aside className={cn('flex flex-col gap-8', className)} aria-label="Contexte du dossier">
+    <aside className={cn('flex flex-col gap-8 px-2', className)} aria-label="Contexte du dossier">
       {dossier && steps && (
         <Block
           title="À faire"
