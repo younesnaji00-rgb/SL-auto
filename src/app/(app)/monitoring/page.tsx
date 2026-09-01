@@ -433,10 +433,10 @@ export default function MonitoringPage() {
 
         <TabsContent value="global" className="space-y-6">
           {loading ? (
-            <div className="paper p-6" aria-busy="true">
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div aria-busy="true">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {Array.from({ length: STEP_KEYS.length }).map((_, i) => (
-                  <div key={i} className="space-y-3">
+                  <div key={i} className="paper space-y-3 p-5">
                     <Skeleton className="h-3 w-24" />
                     <Skeleton className="h-7 w-16" />
                     <Skeleton className="h-2 w-full" />
@@ -544,10 +544,10 @@ function GlobalView({
 
   return (
     <>
-      {/* KPI row = stat tiles on a neutral paper (dataviz stat-tile contract, Carbon KPI tiles).
-          Not the featured surface: that is for ONE element per page, never a row of tiles (user ruling). */}
-      <Card>
-        <CardContent className="grid gap-x-0 gap-y-6 p-6 sm:grid-cols-2 lg:grid-cols-4 lg:gap-y-0 lg:divide-x lg:divide-hairline">
+      {/* KPI tiles: one paper card per step in a 16 px gutter grid (Carbon KPI tiles,
+          Material cards) — the card edge is the separation (user ruling: a clear
+          separation on each card). Never the featured surface for a row of tiles. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STEP_KEYS.map((key, idx) => {
           const realiseEnDelai = counts[key];
           const horsDelai = horsDelaiCounts[key] ?? 0;
@@ -569,8 +569,7 @@ function GlobalView({
             />
           );
         })}
-        </CardContent>
-      </Card>
+      </div>
 
       <Card>
         <CardHeader>
@@ -626,7 +625,7 @@ function KpiCard({
   const pctNonRealise = nonRealise != null ? (nonRealise / denominator) * 100 : 0;
 
   return (
-    <div className="min-w-0 lg:px-5 lg:first:pl-0 lg:last:pr-0">
+    <Card className="min-w-0 p-5">
       <div className="flex items-center gap-2">
         <span
           className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[11px] font-semibold text-ink-2 shadow-rim"
@@ -666,7 +665,7 @@ function KpiCard({
           />
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
