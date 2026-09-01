@@ -1,12 +1,19 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PageHeader } from '@/components/layout/page-header';
-import { Card } from '@/components/ui/card';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Form,
@@ -32,15 +39,9 @@ import {
   TableBody,
   TableCell,
 } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Search, Trash2, Eye, EyeOff, X, User as UserIcon, ChevronRight } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Search, Pencil, Trash2, Eye, EyeOff, X, User as UserIcon } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
 import {
@@ -105,19 +106,9 @@ function generateEmail(nom: string): string {
   return `${sanitized}@sl-auto.app`;
 }
 
-/** Small pill (role, zone, compagnie, statut). Status pairs carry meaning;
- *  everything else sits on the neutral ladder (DESIGN.md §10). */
-const Chip = ({ className, children, title }: { className?: string; children: React.ReactNode; title?: string }) => (
-  <span
-    title={title}
-    className={cn('inline-flex h-5 max-w-full items-center truncate rounded-full px-2 text-[11px] font-medium', className)}
-  >
-    {children}
-  </span>
-);
-const ROLE_CHIP = 'bg-surface-3 text-ink-2';
-const statutChip = (statut: string) =>
-  statut === 'Actif' ? 'bg-status-success-bg text-status-success-fg' : 'bg-status-danger-bg text-status-danger-fg';
+// Status chip helper — element-specs §11 (Carbon tag / dataviz: the same state
+// always maps to the same status pair, text label always, never colour alone).
+const statutVariant = (statut: string) => (statut === 'Actif' ? 'success' : 'danger');
 
 export default function UtilisateursClientPage() {
   const db = useFirestore();
@@ -167,9 +158,6 @@ export default function UtilisateursClientPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  // The creation form lives in a dialog opened by the page's single primary
-  // action (bottom sheet below lg — DESIGN.md §2).
-  const [createOpen, setCreateOpen] = useState(false);
 
   const form = useForm<UserFormData>({
     resolver: zodResolver(userFormSchema),
@@ -284,7 +272,6 @@ export default function UtilisateursClientPage() {
         description: `${data.nom} a été ajouté avec succès.`,
       });
       form.reset();
-      setCreateOpen(false);
     } catch (error: any) {
       console.error(error);
       if (error.code === 'auth/email-already-in-use') {
@@ -344,404 +331,480 @@ export default function UtilisateursClientPage() {
   }, [userList, filters]);
 
   const hasActiveFilters = !!filters.search || filters.role !== 'Tous';
+  const clearAllFilters = () => {
+    clearFilter('role');
+    setFilters({ search: '' });
+  };
+
+  // Empty cell = « — » in ink-4 (element-specs §10: empty = "—", never a fake value).
+  const emptyCell = <span className="text-ink-4">—</span>;
 
   return (
     <div className="space-y-6">
+      {/* Page header — element-specs §1 (Polaris Page: title = plural object,
+          count pill). No action here: the inline form's submit is the page
+          primary (GOV.UK button: one default button per page). */}
       <PageHeader
         title="Utilisateurs"
         subtitle="Ajouter, gérer et assigner des rôles aux utilisateurs."
         count={loading ? undefined : filteredUsers.length}
-        actions={
-          <Button onClick={() => setCreateOpen(true)}>Nouvel utilisateur</Button>
-        }
-        filters={
-          <>
-            <div className="relative w-full max-w-sm flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
-              <Input
-                placeholder="Rechercher par nom ou email"
-                className="h-9 pl-9"
-                value={filters.search}
-                onChange={e => setFilters({ search: e.target.value })}
-                aria-label="Rechercher un utilisateur"
-              />
-            </div>
-            <Select value={filters.role} onValueChange={value => setFilters({ role: value })}>
-              <SelectTrigger className="h-9 w-full sm:w-[200px]" aria-label="Filtrer par rôle">
-                <SelectValue placeholder="Filtrer par rôle" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Tous">Tous les rôles</SelectItem>
-                {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {filters.role !== 'Tous' && (
-              <Chip className="h-7 gap-1 bg-surface-3 pr-1 text-ink-2">
-                Rôle : {filters.role}
-                <button
-                  type="button"
-                  onClick={() => clearFilter('role')}
-                  className="rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink"
-                  aria-label="Retirer le filtre rôle"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Chip>
-            )}
-          </>
-        }
       />
 
-      {/* One paper block for the list: hairline rows, quiet column heads,
-          row = link with a chevron, hover-revealed row actions (DESIGN.md §4). */}
-      <Card variant="tonal" className="overflow-hidden">
-        <Table regionLabel="Utilisateurs">
-          <TableHeader className="sticky top-0 z-10 bg-card">
-            <TableRow className="hover:bg-transparent">
-              <TableHead>Nom</TableHead>
-              <TableHead>Mot de passe</TableHead>
-              <TableHead>Rôle</TableHead>
-              <TableHead>Zone</TableHead>
-              <TableHead>Compagnies</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead className="w-24 text-right"><span className="sr-only">Actions</span></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={`sk-${i}`}>
-                  <TableCell colSpan={7} className="p-0">
-                    <SkeletonRow />
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : filteredUsers.length === 0 ? (
-              <TableRow key="empty-users" className="hover:bg-transparent">
-                <TableCell colSpan={7} className="p-0">
-                  <EmptyState
-                    icon={<UserIcon />}
-                    title="Aucun utilisateur trouvé"
-                    description={hasActiveFilters ? "Essayez d'ajuster les filtres." : 'Commencez par ajouter un utilisateur.'}
-                    action={
-                      hasActiveFilters ? (
-                        <Button variant="outline" size="sm" onClick={() => { clearFilter('role'); setFilters({ search: '' }); }}>
-                          Effacer les filtres
-                        </Button>
-                      ) : (
-                        <Button variant="tonal" size="sm" onClick={() => setCreateOpen(true)}>Nouvel utilisateur</Button>
-                      )
-                    }
-                    dashed={false}
-                    className="bg-transparent py-12"
-                  />
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredUsers.map((user: any) => {
-                const displayName = `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Sans nom';
-                const statut = user.statut || 'Actif';
-                const compagnies: string[] = user.compagnies || [];
-                return (
-                  <TableRow
-                    key={user.id}
-                    className="group cursor-pointer"
-                    onClick={() => router.push(`/utilisateurs/${user.id}`)}
-                  >
-                    <TableCell>
-                      <span className="block truncate font-semibold text-ink">{displayName}</span>
-                      {user.email && <span className="t-caption block truncate font-mono">{user.email}</span>}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-1">
-                        <span className="t-mono text-ink-2">
-                          {showPasswords[user.id] ? (user.password || '—') : '••••••'}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-ink-3 hover:text-ink"
-                          onClick={() => togglePasswordVisibility(user.id)}
-                          aria-label={showPasswords[user.id] ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                        >
-                          {showPasswords[user.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {user.role ? <Chip className={ROLE_CHIP}>{user.role}</Chip> : <span className="text-ink-4">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      {user.role === 'Agent de Terrain' && user.zone ? (
-                        <span className="text-ink">{user.zone}</span>
-                      ) : (
-                        <span className="text-ink-4">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="whitespace-normal">
-                      <div className="flex max-w-[260px] flex-wrap gap-1">
-                        {compagnies.length === 0 ? (
-                          <span className="t-caption">Toutes</span>
-                        ) : compagnies.map((c: string, i: number) => (
-                          <Chip key={i} className="bg-surface-2 text-ink-2" title={c}>{c}</Chip>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Chip className={statutChip(statut)}>{statut}</Chip>
-                    </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        {canDelete && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-ink-3 opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
-                            onClick={() => setDeleteTarget({ id: user.id, nom: displayName === 'Sans nom' ? 'cet utilisateur' : displayName })}
-                            aria-label={`Supprimer ${displayName}`}
-                            title="Supprimer"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <ChevronRight className="h-4 w-4 text-ink-4 transition-colors group-hover:text-ink" aria-hidden />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </Card>
-
-      <Dialog open={createOpen} onOpenChange={(open) => { if (!isSubmitting) setCreateOpen(open); }}>
-        <DialogContent className="lg:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Nouvel utilisateur</DialogTitle>
-            <DialogDescription>Créez un nouveau profil utilisateur. L&apos;identifiant de connexion est dérivé du nom complet.</DialogDescription>
-          </DialogHeader>
+      {/* Original two-column layout (3d5629a): inline creation form left,
+          « Gérer » card right. */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="md:col-span-1">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="nom"
-                  render={({ field }) => (
-                    <FormItem className="sm:col-span-2">
-                      <FormLabel className="t-label">Nom complet</FormLabel>
-                      <FormControl><Input {...field} autoFocus /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="t-label">Mot de passe</FormLabel>
-                      <FormControl><Input type="password" placeholder="Minimum 6 caractères" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="confirmPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="t-label">Confirmez le mot de passe</FormLabel>
-                      <FormControl><Input type="password" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem className="sm:col-span-2">
-                      <div className="flex items-center justify-between">
-                        <FormLabel className="t-label">Rôle</FormLabel>
-                        <OptionsManagerModal collectionName="options_roles" title="Rôles" />
-                      </div>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Sélectionnez un rôle" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="compagnies"
-                  render={({ field }) => (
-                    <FormItem className="sm:col-span-2">
-                      <div className="flex items-center justify-between">
-                        <FormLabel className="t-label">Compagnies d&apos;assurance</FormLabel>
-                        <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
-                      </div>
-                      <MultiSelect
-                        options={companyOptions}
-                        selected={field.value}
-                        onChange={field.onChange}
-                        className="w-full"
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="sites"
-                  render={({ field }) => (
-                    <FormItem className="sm:col-span-2">
-                      <div className="flex items-center justify-between">
-                        <FormLabel className="t-label">Sites</FormLabel>
-                        <OptionsManagerModal collectionName="options_sites" title="Sites" />
-                      </div>
-                      <MultiSelect
-                        options={sitesOptions}
-                        selected={field.value ?? []}
-                        onChange={field.onChange}
-                        className="w-full"
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {form.watch('role') === 'Agent de Terrain' && (
+            <form onSubmit={form.handleSubmit(onSubmit)}>
+              {/* Content card — element-specs §5 (Material 3 cards: container +
+                  one topic; NN/g cards: "a few short, related pieces"): glass
+                  edge, 24 px padding, t-heading title, 16 px between blocks. */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="t-heading">Ajouter un utilisateur</CardTitle>
+                </CardHeader>
+                {/* Form — element-specs §9 (GOV.UK text input: visible label
+                    above, hint between label and field "a single short
+                    sentence, without full stops"; NN/g web-form design: single
+                    column, labels above, avoid placeholder text, one submit).
+                    Rows 16 apart; placeholders are format cues only. */}
+                <CardContent className="space-y-4">
                   <FormField
                     control={form.control}
-                    name="zone"
-                    render={({ field }) => {
-                      const trimmedQuery = zoneQuery.trim();
-                      const normalize = (s: string) =>
-                        s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-                      const qNorm = normalize(trimmedQuery);
-                      const sortedZones = [...zones].sort((a, b) =>
-                        a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })
-                      );
-                      const filteredZones = qNorm
-                        ? sortedZones.filter(z => normalize(z.label).startsWith(qNorm))
-                        : sortedZones;
-                      const exactMatch = trimmedQuery
-                        ? zones.some(z => normalize(z.label) === qNorm)
-                        : true;
-                      const selected = field.value || '';
-                      return (
-                        <FormItem className="flex flex-col sm:col-span-2">
-                          <div className="flex items-center justify-between">
-                            <FormLabel className="t-label">Zone</FormLabel>
-                            <OptionsManagerModal collectionName="options_zones" title="Zones" />
-                          </div>
-                          <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  role="combobox"
-                                  aria-expanded={zonePopoverOpen}
-                                  className={cn("w-full justify-between font-normal", !selected && "text-ink-3")}
-                                >
-                                  {selected || 'Sélectionnez ou saisissez une zone'}
-                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-ink-3" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                              <Command shouldFilter={false}>
-                                <div className="flex items-center border-b border-hairline px-3" cmdk-input-wrapper="">
-                                  <Search className="mr-2 h-4 w-4 shrink-0 text-ink-3" />
-                                  <input
-                                    value={zoneQuery}
-                                    onChange={(e) => setZoneQuery(e.target.value)}
-                                    placeholder="Tapez pour rechercher ou créer..."
-                                    className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-ink-3"
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' && trimmedQuery) {
-                                        e.preventDefault();
-                                        field.onChange(trimmedQuery);
-                                        setZonePopoverOpen(false);
-                                        setZoneQuery('');
-                                      }
-                                    }}
-                                  />
-                                </div>
-                                <CommandList>
-                                  {filteredZones.length === 0 && !trimmedQuery && (
-                                    <CommandEmpty>Aucune zone enregistrée. Tapez pour créer.</CommandEmpty>
-                                  )}
-                                  {filteredZones.length > 0 && (
-                                    <CommandGroup>
-                                      {filteredZones.map(z => (
+                    name="nom"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel>Nom complet</FormLabel>
+                        <FormControl><Input {...field} autoComplete="off" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel>Mot de passe</FormLabel>
+                        <p className="t-caption">Au moins 6 caractères</p>
+                        <FormControl><Input type="password" autoComplete="new-password" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel>Confirmez le mot de passe</FormLabel>
+                        <FormControl><Input type="password" autoComplete="new-password" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Rôle</FormLabel>
+                          <OptionsManagerModal collectionName="options_roles" title="Rôles" />
+                        </div>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger><SelectValue placeholder="Sélectionnez un rôle" /></SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="compagnies"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Compagnies d&apos;assurance</FormLabel>
+                          <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
+                        </div>
+                        <MultiSelect
+                          options={companyOptions}
+                          selected={field.value}
+                          onChange={field.onChange}
+                          className="w-full"
+                        />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="sites"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Sites <span className="text-ink-4">(facultatif)</span></FormLabel>
+                          <OptionsManagerModal collectionName="options_sites" title="Sites" />
+                        </div>
+                        <MultiSelect
+                          options={sitesOptions}
+                          selected={field.value ?? []}
+                          onChange={field.onChange}
+                          className="w-full"
+                        />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {form.watch('role') === 'Agent de Terrain' && (
+                    <FormField
+                      control={form.control}
+                      name="zone"
+                      render={({ field }) => {
+                        const trimmedQuery = zoneQuery.trim();
+                        const normalize = (s: string) =>
+                          s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+                        const qNorm = normalize(trimmedQuery);
+                        const sortedZones = [...zones].sort((a, b) =>
+                          a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })
+                        );
+                        const filteredZones = qNorm
+                          ? sortedZones.filter(z => normalize(z.label).startsWith(qNorm))
+                          : sortedZones;
+                        const exactMatch = trimmedQuery
+                          ? zones.some(z => normalize(z.label) === qNorm)
+                          : true;
+                        const selected = field.value || '';
+                        return (
+                          <FormItem className="flex flex-col space-y-1">
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Zone</FormLabel>
+                              <OptionsManagerModal collectionName="options_zones" title="Zones" />
+                            </div>
+                            <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={zonePopoverOpen}
+                                    className={cn("w-full justify-between font-normal", !selected && "text-ink-3")}
+                                  >
+                                    {selected || 'Sélectionnez ou saisissez une zone'}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-ink-3" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                <Command shouldFilter={false}>
+                                  <div className="flex items-center border-b border-hairline px-3" cmdk-input-wrapper="">
+                                    <Search className="mr-2 h-4 w-4 shrink-0 text-ink-3" />
+                                    <input
+                                      value={zoneQuery}
+                                      onChange={(e) => setZoneQuery(e.target.value)}
+                                      placeholder="Rechercher ou créer une zone"
+                                      className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-ink-3"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && trimmedQuery) {
+                                          e.preventDefault();
+                                          field.onChange(trimmedQuery);
+                                          setZonePopoverOpen(false);
+                                          setZoneQuery('');
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                  <CommandList>
+                                    {filteredZones.length === 0 && !trimmedQuery && (
+                                      <CommandEmpty>Aucune zone enregistrée. Tapez pour créer.</CommandEmpty>
+                                    )}
+                                    {filteredZones.length > 0 && (
+                                      <CommandGroup>
+                                        {filteredZones.map(z => (
+                                          <CommandItem
+                                            key={z.id}
+                                            value={z.label}
+                                            onSelect={() => {
+                                              field.onChange(z.label);
+                                              setZonePopoverOpen(false);
+                                              setZoneQuery('');
+                                            }}
+                                          >
+                                            <Check className={cn("mr-2 h-4 w-4", selected === z.label ? "opacity-100" : "opacity-0")} />
+                                            {z.label}
+                                          </CommandItem>
+                                        ))}
+                                      </CommandGroup>
+                                    )}
+                                    {trimmedQuery && !exactMatch && (
+                                      <CommandGroup heading="Créer">
                                         <CommandItem
-                                          key={z.id}
-                                          value={z.label}
+                                          value={`__create__${trimmedQuery}`}
                                           onSelect={() => {
-                                            field.onChange(z.label);
+                                            field.onChange(trimmedQuery);
                                             setZonePopoverOpen(false);
                                             setZoneQuery('');
                                           }}
                                         >
-                                          <Check className={cn("mr-2 h-4 w-4", selected === z.label ? "opacity-100" : "opacity-0")} />
-                                          {z.label}
+                                          <Plus className="mr-2 h-4 w-4" />
+                                          Créer «{trimmedQuery}»
                                         </CommandItem>
-                                      ))}
-                                    </CommandGroup>
-                                  )}
-                                  {trimmedQuery && !exactMatch && (
-                                    <CommandGroup heading="Créer">
-                                      <CommandItem
-                                        value={`__create__${trimmedQuery}`}
-                                        onSelect={() => {
-                                          field.onChange(trimmedQuery);
-                                          setZonePopoverOpen(false);
-                                          setZoneQuery('');
-                                        }}
-                                      >
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Créer «{trimmedQuery}»
-                                      </CommandItem>
-                                    </CommandGroup>
-                                  )}
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      );
-                    }}
-                  />
-                )}
-              </div>
-              <DialogFooter className="gap-2 sm:gap-2">
-                <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)} disabled={isSubmitting}>
-                  Annuler
-                </Button>
-                <Button type="submit" loading={isSubmitting}>
-                  {isSubmitting ? 'Création…' : "Créer l'utilisateur"}
-                </Button>
-              </DialogFooter>
+                                      </CommandGroup>
+                                    )}
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+                  )}
+                </CardContent>
+                {/* Submit — element-specs §8 (GOV.UK: "use a default button for
+                    the main call to action on a page"; Material 3: one filled
+                    button per screen). THE page primary; label verb + noun. */}
+                <CardFooter>
+                  <Button type="submit" className="w-full" loading={isSubmitting}>
+                    {isSubmitting ? 'Création…' : "Ajouter l'utilisateur"}
+                  </Button>
+                </CardFooter>
+              </Card>
             </form>
           </Form>
-        </DialogContent>
-      </Dialog>
+        </div>
 
+        <div className="md:col-span-2">
+          <Card className="overflow-hidden">
+            <CardHeader>
+              <CardTitle className="t-heading">Gérer les utilisateurs</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Filter toolbar — element-specs §2 (Polaris filters: labelled
+                  search first, ≤ 3 promoted filters, applied filters as chips
+                  + clear-all; NN/g: general → specific). No filled button. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-0 flex-1 basis-56">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
+                  <Input
+                    placeholder="Nom, prénom ou email"
+                    className="pl-9"
+                    value={filters.search}
+                    onChange={e => setFilters({ search: e.target.value })}
+                    aria-label="Rechercher un utilisateur"
+                  />
+                </div>
+                <Select value={filters.role} onValueChange={value => setFilters({ role: value })}>
+                  <SelectTrigger className="w-full sm:w-[200px]" aria-label="Filtrer par rôle">
+                    <SelectValue placeholder="Filtrer par rôle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Tous">Tous les rôles</SelectItem>
+                    {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {hasActiveFilters && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {filters.role !== 'Tous' && (
+                    <Badge variant="neutral" className="h-6 gap-1 pr-1">
+                      Rôle : {filters.role}
+                      <button
+                        type="button"
+                        onClick={() => clearFilter('role')}
+                        className="rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label="Retirer le filtre rôle"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {filters.search && (
+                    <Badge variant="neutral" className="h-6 gap-1 pr-1">
+                      Recherche : {filters.search}
+                      <button
+                        type="button"
+                        onClick={() => setFilters({ search: '' })}
+                        className="rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label="Effacer la recherche"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  <Button variant="link" size="sm" className="h-6 px-1" onClick={clearAllFilters}>
+                    Effacer
+                  </Button>
+                </div>
+              )}
+
+              {/* Data table — element-specs §3 (Polaris: text left, headers
+                  aligned with their data; NN/g: first column = human identifier,
+                  hover highlight, 1–2 inline row actions; Carbon: sticky header,
+                  skeleton instead of spinner). No numeric columns here. The
+                  table sits in the card WITHOUT a second frame (§5): it bleeds
+                  to the card edges under a hairline. */}
+              <div className="-mx-6 -mb-6 border-t border-hairline">
+                <Table regionLabel="Utilisateurs">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="pl-6">Nom</TableHead>
+                      <TableHead>Mot de passe</TableHead>
+                      <TableHead>Rôle</TableHead>
+                      <TableHead>Zone</TableHead>
+                      <TableHead>Compagnies</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead className="w-24 pr-6 text-right"><span className="sr-only">Actions</span></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <TableRow key={`sk-${i}`}>
+                          <TableCell colSpan={7} className="p-0">
+                            <SkeletonRow />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : filteredUsers.length === 0 ? (
+                      <TableRow key="empty-users" className="hover:bg-transparent">
+                        <TableCell colSpan={7} className="p-0">
+                          {/* Empty state — element-specs §12 (NN/g: state + reason
+                              + one pathway; Polaris: one action, no-results variant
+                              says which filter to clear). */}
+                          <EmptyState
+                            icon={<UserIcon />}
+                            title={hasActiveFilters ? 'Aucun utilisateur ne correspond' : 'Ajouter le premier utilisateur'}
+                            description={hasActiveFilters ? 'Effacez la recherche ou le filtre de rôle.' : 'Le formulaire « Ajouter un utilisateur » crée le compte et son identifiant.'}
+                            action={
+                              hasActiveFilters ? (
+                                <Button variant="tonal" onClick={clearAllFilters}>Effacer les filtres</Button>
+                              ) : (
+                                <Button variant="tonal" onClick={() => form.setFocus('nom')}>Remplir le formulaire</Button>
+                              )
+                            }
+                            dashed={false}
+                            className="bg-transparent py-10"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredUsers.map((user: any) => {
+                        const displayName = `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Sans nom';
+                        const statut = user.statut || 'Actif';
+                        const compagnies: string[] = user.compagnies || [];
+                        return (
+                          <TableRow
+                            key={user.id}
+                            className="cursor-pointer"
+                            onClick={() => router.push(`/utilisateurs/${user.id}`)}
+                          >
+                            <TableCell className="pl-6">
+                              <span className="block truncate font-semibold text-ink">{displayName}</span>
+                              {user.email && <span className="t-caption block truncate font-mono">{user.email}</span>}
+                            </TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center gap-1">
+                                <span className="t-mono text-ink-2">
+                                  {showPasswords[user.id] ? (user.password || '—') : '••••••'}
+                                </span>
+                                {/* NN/g password masking: an explicit show/hide toggle. */}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-ink-3 hover:text-ink"
+                                  onClick={() => togglePasswordVisibility(user.id)}
+                                  aria-pressed={!!showPasswords[user.id]}
+                                  aria-label={showPasswords[user.id] ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                                >
+                                  {showPasswords[user.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                </Button>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {/* Chips — §11: neutral for informational categories (role). */}
+                              {user.role ? <Badge variant="neutral">{user.role}</Badge> : emptyCell}
+                            </TableCell>
+                            <TableCell>
+                              {user.role === 'Agent de Terrain' && user.zone ? (
+                                <span className="text-ink">{user.zone}</span>
+                              ) : emptyCell}
+                            </TableCell>
+                            <TableCell className="whitespace-normal">
+                              <div className="flex max-w-[260px] flex-wrap gap-1">
+                                {compagnies.length === 0 ? (
+                                  <span className="t-caption">Toutes</span>
+                                ) : compagnies.map((c: string, i: number) => (
+                                  <Badge key={i} variant="neutral" title={c}>{c}</Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {/* Status pair with a text label — never colour alone (§11). */}
+                              <Badge variant={statutVariant(statut)}>{statut}</Badge>
+                            </TableCell>
+                            <TableCell className="pr-6 text-right" onClick={(e) => e.stopPropagation()}>
+                              {/* Row actions — §3/§8: ≤ 2 inline `ghost` icon buttons
+                                  with tooltips (Apple HIG toolbars: edit is one of the
+                                  actions "not well-represented by symbols" → tooltip);
+                                  Supprimer last. */}
+                              <div className="flex items-center justify-end gap-1">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-ink-3 hover:text-ink" asChild>
+                                      <Link href={`/utilisateurs/${user.id}`} aria-label={`Modifier ${displayName}`}>
+                                        <Pencil className="h-4 w-4" />
+                                      </Link>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Modifier</TooltipContent>
+                                </Tooltip>
+                                {canDelete && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-ink-3 hover:text-destructive"
+                                        onClick={() => setDeleteTarget({ id: user.id, nom: displayName === 'Sans nom' ? 'cet utilisateur' : displayName })}
+                                        aria-label={`Supprimer ${displayName}`}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Supprimer</TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Confirmation dialog — element-specs §13 (Material 3 dialogs: headline
+          names the object, ≤ 2 actions, confirm closest to the edge). */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer cet utilisateur ?</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer « {deleteTarget?.nom} » ?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.nom && <span className="font-semibold text-ink">{deleteTarget.nom}</span>} sera définitivement supprimé. Son compte Firebase, sa fiche et ses entrées dans les collections liées (options_agents / chiffreurs) seront retirés. Cette action est irréversible.
+              Son compte, sa fiche et ses entrées dans les collections liées (agents / chiffreurs) seront retirés. Cette action est irréversible.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -754,7 +817,7 @@ export default function UtilisateursClientPage() {
                 if (deleteTarget) handleDelete(deleteTarget.id);
               }}
             >
-              Supprimer
+              {isDeleting ? 'Suppression…' : 'Supprimer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

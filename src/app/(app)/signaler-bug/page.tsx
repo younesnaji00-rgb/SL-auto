@@ -13,12 +13,14 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { PageLoader } from '@/components/ui/page-loader';
 import { EmptyState } from '@/components/ui/empty-state';
-import { InlineLoader } from '@/components/ui/inline-loader';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   collection,
   query,
@@ -77,11 +79,20 @@ type Conversation = {
   unreadByAdmin: number;
 };
 
-/** Neutral pill for roles; status pairs only where a state is conveyed. */
-const Chip = ({ className, children }: { className?: string; children: React.ReactNode }) => (
-  <span className={cn('inline-flex h-5 max-w-full items-center truncate rounded-full px-2 text-[11px] font-medium', className)}>
-    {children}
-  </span>
+/** Row-shaped loading placeholder — element-specs §15 (Carbon: skeleton
+ *  instead of a spinner; NN/g: mirror the final layout). */
+const RowsSkeleton = ({ rows, bubbles }: { rows: number; bubbles?: boolean }) => (
+  <div className={cn('space-y-4', !bubbles && 'divide-y divide-hairline space-y-0')} aria-busy="true">
+    {Array.from({ length: rows }).map((_, i) => (
+      <div key={i} className={cn('flex gap-3', bubbles ? (i % 2 ? 'flex-row-reverse' : '') : 'items-center px-4 py-3')}>
+        <Skeleton className={cn('shrink-0 rounded-full', bubbles ? 'h-8 w-8' : 'h-9 w-9')} />
+        <div className="flex-1 space-y-1.5">
+          <Skeleton className="h-3 w-32" />
+          <Skeleton className={cn(bubbles ? 'h-12 w-64 max-w-full rounded-2xl' : 'h-3 w-48')} />
+        </div>
+      </div>
+    ))}
+  </div>
 );
 
 /* ------------------------------------------------------------------ */
@@ -101,13 +112,15 @@ export default function SignalerBugPage() {
 
   return (
     <div className="space-y-6">
+      {/* Page header — element-specs §1: title + one-line subtitle, no action
+          (the primary « Envoyer » lives at the end of the compose bar). */}
       <PageHeader
         title="Signaler un bug"
         subtitle="Décrivez le problème rencontré. Vous pouvez envoyer des messages, joindre des fichiers ou enregistrer un message vocal."
       />
-      {/* The thread is the page's one paper block; the primary « Envoyer »
-          lives at the right end of the compose bar (where the eye lands). */}
-      <Card variant="tonal" className="flex flex-col overflow-hidden">
+      {/* Content card — element-specs §5: the thread is the page's one glass
+          block; the compose bar sits inside it under a hairline. */}
+      <Card className="flex flex-col overflow-hidden">
         <ChatThread
           conversationUid={firebaseUser.uid}
           currentUser={firebaseUser}
@@ -152,12 +165,12 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
       <PageHeader title="Signaler un bug" count={loading ? undefined : (conversations?.length || 0)} subtitle="Conversations des utilisateurs" />
 
       <div className="grid min-h-[calc((100dvh-200px)/var(--app-zoom))] grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
-        {/* Conversations list — hairline rows, selected row on surface-3. */}
-        <Card variant="tonal" className="overflow-hidden">
+        {/* Inbox rows — element-specs §4 (Material 3 lists: leading avatar,
+            label, supporting text, trailing text; two-line 56 px rows,
+            hairlines only, whole row clickable, selected row on surface-3). */}
+        <Card className="overflow-hidden">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <InlineLoader label="Chargement…" size="md" />
-            </div>
+            <RowsSkeleton rows={5} />
           ) : !conversations || conversations.length === 0 ? (
             <EmptyState
               icon={<Inbox />}
@@ -189,20 +202,26 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
                         </Avatar>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="truncate text-sm font-semibold text-ink">{c.recipientNom}</span>
+                            <span className="t-body truncate font-semibold">{c.recipientNom}</span>
                             <span className="t-caption whitespace-nowrap tabular-nums">
                               {formatDate(c.lastMessageAt)}
                             </span>
                           </div>
                           <div className="flex items-center justify-between gap-2">
-                            <p className="t-caption truncate">{c.lastMessage || 'Message vocal'}</p>
+                            <p className={cn('t-caption truncate', c.unreadByAdmin > 0 && 'font-medium text-ink-2')}>{c.lastMessage || 'Message vocal'}</p>
+                            {/* Unread count — §11 count pill (surface-3 / ink-2,
+                                tabular digits), labelled for assistive tech. */}
                             {c.unreadByAdmin > 0 && (
-                              <Chip className="min-w-[20px] justify-center bg-status-info-bg tabular-nums text-status-info-fg">
+                              <span
+                                className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-semibold tabular-nums text-ink-2"
+                                aria-label={`${c.unreadByAdmin} non lu${c.unreadByAdmin > 1 ? 's' : ''}`}
+                              >
                                 {c.unreadByAdmin}
-                              </Chip>
+                              </span>
                             )}
                           </div>
-                          {c.recipientRole && <Chip className="mt-1 bg-surface-3 text-ink-2">{c.recipientRole}</Chip>}
+                          {/* Role chip — §11: neutral for informational categories. */}
+                          {c.recipientRole && <Badge variant="neutral" className="mt-1">{c.recipientRole}</Badge>}
                         </div>
                       </div>
                     </button>
@@ -213,8 +232,8 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
           )}
         </Card>
 
-        {/* Chat area */}
-        <Card variant="tonal" className="flex flex-col overflow-hidden">
+        {/* Chat area — §5 content card with a 48 px identity row on top. */}
+        <Card className="flex flex-col overflow-hidden">
           {selectedUid ? (
             <>
               <div className="flex min-h-[48px] items-center gap-3 border-b border-hairline px-4 py-2">
@@ -233,10 +252,10 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink">{selected?.recipientNom}</p>
+                  <p className="t-body truncate font-semibold">{selected?.recipientNom}</p>
                   <p className="t-mono truncate text-xs text-ink-3">{selected?.recipientEmail}</p>
                 </div>
-                {selected?.recipientRole && <Chip className="ml-auto bg-surface-3 text-ink-2">{selected.recipientRole}</Chip>}
+                {selected?.recipientRole && <Badge variant="neutral" className="ml-auto">{selected.recipientRole}</Badge>}
               </div>
               <ChatThread
                 conversationUid={selectedUid}
@@ -429,12 +448,14 @@ function ChatThread({
         disabled={isSending}
       />
 
-      {/* Messages */}
+      {/* Messages — element-specs §4 (Material 3 lists: leading avatar as the
+          anchor, headline = author 14/600, supporting = role chip + t-caption
+          timestamp, then the body). Own messages are told apart by alignment
+          and the surface step, not by the accent (rule 4: teal is for the
+          primary action, active nav, links and focus only). */}
       <div className="max-h-[calc((100dvh-340px)/var(--app-zoom))] flex-1 space-y-4 overflow-y-auto p-4">
         {loading ? (
-          <div className="flex justify-center py-10">
-            <InlineLoader label="Chargement…" size="md" />
-          </div>
+          <RowsSkeleton rows={3} bubbles />
         ) : !messages || messages.length === 0 ? (
           <EmptyState
             icon={<Bug />}
@@ -449,15 +470,15 @@ function ChatThread({
             return (
               <div key={msg.id} className={cn('flex gap-3', isOwn && 'flex-row-reverse')}>
                 <Avatar className="h-8 w-8 shrink-0 shadow-rim">
-                  <AvatarFallback className={cn('text-xs', isOwn ? 'bg-accent text-accent-foreground' : 'bg-surface-3 text-ink-2')}>
+                  <AvatarFallback className={cn('text-xs', isOwn ? 'bg-surface-4 text-ink' : 'bg-surface-3 text-ink-2')}>
                     {(msg.auteurNom || 'U').charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className={cn('max-w-[75%] space-y-1', isOwn && 'flex flex-col items-end')}>
                   <div className={cn('flex flex-wrap items-center gap-2', isOwn && 'flex-row-reverse')}>
-                    <span className="text-xs font-semibold text-ink">{msg.auteurNom}</span>
-                    {msg.auteurRole && <Chip className="bg-surface-3 text-ink-2">{msg.auteurRole}</Chip>}
-                    <span className="t-caption text-[11px] tabular-nums">{formatDate(msg.date)}</span>
+                    <span className="t-body font-semibold">{msg.auteurNom}</span>
+                    {msg.auteurRole && <Badge variant="neutral">{msg.auteurRole}</Badge>}
+                    <span className="t-caption tabular-nums">{formatDate(msg.date)}</span>
                   </div>
 
                   {/* Voice message */}
@@ -470,10 +491,10 @@ function ChatThread({
                   {/* Text content */}
                   {msg.contenu && (
                     <div className={cn(
-                      'whitespace-pre-wrap rounded-2xl p-3 text-sm',
+                      'whitespace-pre-wrap rounded-2xl p-3 text-sm text-ink',
                       isOwn
-                        ? 'rounded-tr-none bg-accent text-accent-foreground'
-                        : 'rounded-tl-none bg-surface-2 text-ink'
+                        ? 'rounded-tr-none bg-surface-3'
+                        : 'rounded-tl-none bg-surface-2'
                     )}>
                       {msg.contenu}
                     </div>
@@ -500,7 +521,11 @@ function ChatThread({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Compose area — inputs are solid inside the paper (nested-solid rule). */}
+      {/* Compose bar — element-specs §18 (Apple HIG toolbars: leading = the
+          quiet tool group as `ghost` icon buttons with tooltips, trailing =
+          the ONE primary « Envoyer »); §9: the textarea is a flat solid field.
+          The primary stays enabled (GOV.UK: avoid disabled buttons) — an empty
+          send is simply a no-op. */}
       <div className="space-y-3 border-t border-hairline p-4">
         {selectedFile && (
           <div className="flex flex-wrap gap-2">
@@ -548,30 +573,29 @@ function ChatThread({
             />
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-ink-3 hover:text-ink"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isSending}
-                  title="Joindre un fichier"
-                  aria-label="Joindre un fichier"
-                  type="button"
-                >
-                  <Paperclip className="h-5 w-5" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-ink-3 hover:text-ink"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isSending}
+                      aria-label="Joindre un fichier"
+                      type="button"
+                    >
+                      <Paperclip className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Joindre un fichier</TooltipContent>
+                </Tooltip>
                 <VoiceRecorder
                   onRecorded={(blob, duration) => setVoiceBlob({ blob, duration })}
                   maxDuration={120}
                   disabled={isSending}
                 />
               </div>
-              <Button
-                onClick={handleSend}
-                loading={isSending}
-                disabled={!text.trim() && !selectedFile}
-                className="px-6"
-              >
+              <Button onClick={handleSend} loading={isSending}>
                 {isSending ? 'Envoi…' : 'Envoyer'}
               </Button>
             </div>

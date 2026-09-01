@@ -1,19 +1,16 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft,
   User as UserIcon,
   Clock,
   ShieldCheck,
   ChevronRight,
   ChevronDown,
   FolderOpen,
-  AlertTriangle,
-  MoreHorizontal,
-  Pencil,
   Trash2,
   LogOut,
   Smartphone,
@@ -30,8 +27,17 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -57,14 +63,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -94,89 +92,11 @@ import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import { useRegisterPageTitle } from '@/components/layout/page-chrome';
 import { UserRecordSkeleton } from './loading';
 
-// ── Presentation helpers (mirrors dossiers/[id]/information-tab.tsx) ──
-
-/** Top-level block on the canvas: hairline header (icon + title + actions),
- *  24 px body. `tonal` because nothing wraps it (DESIGN.md §10). */
-const Section = ({
-  title,
-  icon,
-  actions,
-  children,
-  className,
-}: {
-  title: string;
-  icon?: React.ReactNode;
-  actions?: React.ReactNode;
-  children: React.ReactNode;
-  className?: string;
-}) => (
-  <Card variant="tonal" role="region" aria-label={title} className={cn('min-w-0', className)}>
-    <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
-      <div className="flex min-w-0 items-center gap-2">
-        {icon && <span className="shrink-0 text-ink-3 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
-        <h2 className="t-heading truncate">{title}</h2>
-      </div>
-      {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
-    </header>
-    <div className="px-6 py-5">{children}</div>
-  </Card>
-);
-
-/** Definition-list cell: quiet label over a bold value; in edit mode the
- *  value is swapped for the control in place. */
-const Field = ({
-  label,
-  value,
-  edit,
-  editing,
-  className,
-}: {
-  label: string;
-  value?: React.ReactNode;
-  edit?: React.ReactNode;
-  editing: boolean;
-  className?: string;
-}) => {
-  const empty = value === undefined || value === null || value === '';
-  return (
-    <div className={cn('min-w-0', className)}>
-      <dt className="t-label truncate">{label}</dt>
-      <dd className="mt-1 min-h-[20px]">
-        {editing && edit ? (
-          <div className="w-full">{edit}</div>
-        ) : typeof value === 'string' || empty ? (
-          <span className={cn('t-body break-words', empty ? 'text-ink-4' : 'font-semibold text-ink')}>{empty ? '—' : value}</span>
-        ) : (
-          value
-        )}
-      </dd>
-    </div>
-  );
-};
-
-const Chip = ({ className, children, title }: { className?: string; children: React.ReactNode; title?: string }) => (
-  <span title={title} className={cn('inline-flex h-5 max-w-full items-center truncate rounded-full px-2 text-[11px] font-medium', className)}>
-    {children}
-  </span>
-);
-const ROLE_CHIP = 'bg-surface-3 text-ink-2';
-const statutChip = (statut: string) =>
-  statut === 'Actif' ? 'bg-status-success-bg text-status-success-fg' : 'bg-status-danger-bg text-status-danger-fg';
-
-const ChipList = ({ items, emptyLabel }: { items: string[]; emptyLabel: React.ReactNode }) =>
-  items.length === 0 ? (
-    <span className="t-body text-ink-4">{emptyLabel}</span>
-  ) : (
-    <span className="flex flex-wrap gap-1">
-      {items.map((c) => (
-        <Chip key={c} className="bg-surface-2 text-ink-2" title={c}>{c}</Chip>
-      ))}
-    </span>
-  );
+// Status chip helper — element-specs §11 (Carbon tag / dataviz: one helper per
+// domain so the same state always maps to the same status pair; label always).
+const statutVariant = (statut: string) => (statut === 'Actif' ? 'success' : 'danger');
 
 type UserForm = {
   nom: string;
@@ -217,6 +137,90 @@ function formFromUser(userData: any): UserForm {
     sites: userData.sites || [],
     zone: userData.zone || '',
   };
+}
+
+/**
+ * Permission row — Material 3 lists ("container and label text are required";
+ * trailing element = "selection control"; "switches: toggle settings on/off")
+ * + Material 3 switch ("the effects of a switch should start immediately,
+ * without needing to save"; label "short and direct", describes what is on).
+ * Anatomy: optional expand chevron, label t-body 600 + override chip (§11),
+ * supporting t-caption (the route), trailing "Enregistrement…" + Switch.
+ * 48 px min, hairlines only (element-specs §4).
+ */
+function PermissionRow({
+  label,
+  id,
+  allowed,
+  roleDefault,
+  saving,
+  onToggle,
+  child,
+  expandable,
+  expanded,
+  onExpand,
+}: {
+  label: string;
+  id: string;
+  allowed: boolean;
+  roleDefault: boolean;
+  saving: boolean;
+  onToggle: (next: boolean) => void;
+  child?: boolean;
+  expandable?: boolean;
+  expanded?: boolean;
+  onExpand?: () => void;
+}) {
+  const isOverride = (allowed && !roleDefault) || (!allowed && roleDefault);
+  const head = (
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className={cn('t-body leading-tight', child ? 'font-medium' : 'font-semibold')}>{label}</p>
+        {isOverride && (
+          <Badge variant={allowed ? 'success' : 'warning'} title={allowed ? 'Accordé en plus du rôle' : 'Retiré du rôle'}>
+            {allowed ? 'Accordé' : 'Retiré'}
+          </Badge>
+        )}
+        {!roleDefault && !isOverride && (
+          <Badge variant="neutral" title="Non inclus dans le rôle par défaut">Hors rôle</Badge>
+        )}
+      </div>
+      <p className="t-caption font-mono">{id}</p>
+    </div>
+  );
+  return (
+    <div className={cn('flex min-h-[48px] items-center justify-between gap-3 py-2', child && 'pl-10')}>
+      {expandable ? (
+        <button
+          type="button"
+          onClick={onExpand}
+          aria-expanded={expanded}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left transition-colors hover:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {expanded ? (
+            <ChevronDown className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
+          ) : (
+            <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
+          )}
+          {head}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {!child && <span className="w-4 shrink-0" aria-hidden />}
+          {head}
+        </div>
+      )}
+      <div className="flex shrink-0 items-center gap-2">
+        {saving && <span className="t-label">Enregistrement…</span>}
+        <Switch
+          checked={allowed}
+          disabled={saving}
+          onCheckedChange={onToggle}
+          aria-label={child ? `Autoriser ${label}` : `Autoriser l'accès à ${label}`}
+        />
+      </div>
+    </div>
+  );
 }
 
 export default function UserDetailPage({ params }: { params: Promise<{ uid: string }> }) {
@@ -265,10 +269,6 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  // Edit-in-place (information-tab pattern): read-only definition lists by
-  // default; « Modifier » swaps values for controls, the record bar carries
-  // the single « Enregistrer ».
-  const [editing, setEditing] = useState(false);
   // Per-user permission overrides. `deniedNavItems` = hrefs hidden despite the
   // role allowing them (revoke). `grantedNavItems` = hrefs visible despite the
   // role denying them (grant). Both mirror Firestore fields. The toggle UI
@@ -341,7 +341,6 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const dirty = useMemo(() => JSON.stringify(formData) !== JSON.stringify(initialForm), [formData, initialForm]);
 
   const displayName = `${formData.prenom ?? ''} ${formData.nom ?? ''}`.trim() || 'Utilisateur';
-  useRegisterPageTitle(userLoading ? null : displayName);
 
   // Permission tree shown in the card. Top-level entries are sidebar items
   // (except `/signaler-bug` which is universally accessible). Some entries
@@ -560,18 +559,12 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       }
 
       toast({ title: "Profil mis à jour", description: "Les informations ont été enregistrées avec succès." });
-      setEditing(false);
     } catch (error) {
       console.error(error);
       toast({ variant: 'destructive', title: "Erreur", description: "Impossible de sauvegarder les modifications." });
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const handleCancelEdit = () => {
-    setFormData(initialForm);
-    setEditing(false);
   };
 
   const handleDeleteUser = async () => {
@@ -623,9 +616,14 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   };
 
   const formatTimestamp = (ts: any) => {
-    if (!ts) return '-';
+    if (!ts) return '—';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
     return format(date, "d MMMM yyyy 'à' HH:mm", { locale: fr });
+  };
+  const toDate = (ts: any): Date | null => {
+    if (!ts) return null;
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return isNaN(d.getTime()) ? null : d;
   };
 
   if (userLoading) {
@@ -633,6 +631,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   }
 
   if (!userData) {
+    // Empty state — element-specs §12 (state + reason + one pathway).
     return (
       <EmptyState
         icon={<UserIcon />}
@@ -650,498 +649,460 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const showSessionCard = isAdmin && isSingleSessionRole(userData.role);
   const statut = formData.statut || 'Actif';
 
-  const passwordValue = (
-    <span className="flex items-center gap-1">
-      <span className="t-mono text-ink-2">{showPassword ? (formData.password || '—') : '••••••'}</span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7 text-ink-3 hover:text-ink"
-        onClick={() => setShowPassword(v => !v)}
-        aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-      >
-        {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-      </Button>
-    </span>
-  );
-
-  const zoneEdit = (() => {
-    const trimmedQuery = zoneQuery.trim();
-    const qLower = trimmedQuery.toLowerCase();
-    const filteredZones = qLower
-      ? zoneOptions.filter(z => z.label.toLowerCase().startsWith(qLower))
-      : zoneOptions;
-    const exactMatch = trimmedQuery
-      ? zoneOptions.some(z => z.label.toLowerCase() === qLower)
-      : true;
-    const selected = formData.zone || '';
-    return (
-      <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            role="combobox"
-            aria-expanded={zonePopoverOpen}
-            className={cn("w-full justify-between font-normal", !selected && "text-ink-3")}
-          >
-            {selected || 'Sélectionnez ou saisissez une zone'}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-ink-3" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-          <Command shouldFilter={false}>
-            <div className="flex items-center border-b border-hairline px-3" cmdk-input-wrapper="">
-              <Search className="mr-2 h-4 w-4 shrink-0 text-ink-3" />
-              <input
-                value={zoneQuery}
-                onChange={(e) => setZoneQuery(e.target.value)}
-                placeholder="Tapez pour rechercher ou créer..."
-                className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-ink-3"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && trimmedQuery) {
-                    e.preventDefault();
-                    setFormData(p => ({ ...p, zone: trimmedQuery }));
-                    setZonePopoverOpen(false);
-                    setZoneQuery('');
-                  }
-                }}
-              />
-            </div>
-            <CommandList>
-              {filteredZones.length === 0 && !trimmedQuery && (
-                <CommandEmpty>Aucune zone enregistrée. Tapez pour créer.</CommandEmpty>
-              )}
-              {filteredZones.length > 0 && (
-                <CommandGroup>
-                  {filteredZones.map(z => (
-                    <CommandItem
-                      key={z.id}
-                      value={z.label}
-                      onSelect={() => {
-                        setFormData(p => ({ ...p, zone: z.label }));
-                        setZonePopoverOpen(false);
-                        setZoneQuery('');
-                      }}
-                    >
-                      <Check className={cn("mr-2 h-4 w-4", selected === z.label ? "opacity-100" : "opacity-0")} />
-                      {z.label}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
-              {trimmedQuery && !exactMatch && (
-                <CommandGroup heading="Créer">
-                  <CommandItem
-                    value={`__create__${trimmedQuery}`}
-                    onSelect={() => {
-                      setFormData(p => ({ ...p, zone: trimmedQuery }));
-                      setZonePopoverOpen(false);
-                      setZoneQuery('');
-                    }}
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Créer «{trimmedQuery}»
-                  </CommandItem>
-                </CommandGroup>
-              )}
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    );
-  })();
-
   return (
     <div className="space-y-6">
-      {/* Sticky identity bar — same tokens as components/dossiers/record-bar.tsx:
-          identity · role · statut · email, ONE primary (Enregistrer while editing),
-          ⋯ menu. Bleeds into the layout padding so it spans the inset. */}
-      <div
-        className="sticky top-0 z-30 -mx-4 -mt-4 flex min-h-[48px] items-center gap-2 glass-bar border-b border-hairline px-4 md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8"
-        data-record-bar
-      >
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink" asChild>
-          <Link href="/utilisateurs" aria-label="Retour aux utilisateurs" title="Utilisateurs">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
-          <h1 className="t-heading min-w-0 truncate" tabIndex={-1}>{displayName}</h1>
-          {formData.role && <Chip className={ROLE_CHIP}>{formData.role}</Chip>}
-          <Chip className={statutChip(statut)}>{statut}</Chip>
-          {formData.email && <span className="t-mono hidden truncate text-ink-3 md:inline">{formData.email}</span>}
-        </div>
-
-        {editing && (
+      {/* Page header — element-specs §1 (Polaris Page: "always provide
+          breadcrumbs when a page has a parent"; record pages use the compact
+          t-title). Meta = role (neutral) + statut (status pair, §11). No
+          action here: the form's « Sauvegarder » is the page primary. */}
+      <PageHeader
+        size="compact"
+        backHref="/utilisateurs"
+        backLabel="Utilisateurs"
+        title={displayName}
+        meta={
           <>
-            <Button size="sm" variant="ghost" className="h-8" onClick={handleCancelEdit} disabled={isSaving}>
-              Annuler
-            </Button>
-            <Button size="sm" className="h-8" onClick={handleSave} loading={isSaving} disabled={!dirty && !isSaving}>
-              {isSaving ? 'Enregistrement…' : 'Enregistrer'}
-            </Button>
+            {formData.role && <Badge variant="neutral">{formData.role}</Badge>}
+            <Badge variant={statutVariant(statut)}>{statut}</Badge>
           </>
-        )}
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Plus d'actions">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuLabel className="t-caption truncate font-normal">{displayName}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {!editing && (
-              <DropdownMenuItem onSelect={() => setEditing(true)}>
-                <Pencil className="mr-2 h-4 w-4" /> Modifier les informations
-              </DropdownMenuItem>
-            )}
-            {showSessionCard && (
-              <DropdownMenuItem onSelect={handleForceDisconnect} disabled={!userData.currentSessionId || isDisconnecting}>
-                <LogOut className="mr-2 h-4 w-4" /> Déconnecter la session
-              </DropdownMenuItem>
-            )}
-            {canDelete && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setShowDeleteDialog(true)} className="text-destructive focus:text-destructive">
-                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer l&apos;utilisateur
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <Section
-            title="Informations"
-            icon={<UserIcon />}
-            actions={
-              !editing ? (
-                <Button type="button" size="sm" variant="outline" className="h-7 gap-1.5 px-2.5 text-xs" onClick={() => setEditing(true)}>
-                  <Pencil className="h-3.5 w-3.5" /> Modifier
-                </Button>
-              ) : undefined
-            }
-          >
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
-              <Field
-                label="Prénom"
-                editing={editing}
-                value={formData.prenom}
-                edit={<Input value={formData.prenom} onChange={e => setFormData(p => ({ ...p, prenom: e.target.value }))} />}
-              />
-              <Field
-                label="Nom"
-                editing={editing}
-                value={formData.nom}
-                edit={<Input value={formData.nom} onChange={e => setFormData(p => ({ ...p, nom: e.target.value }))} />}
-              />
-              <Field
-                label="Email"
-                editing={editing}
-                value={formData.email ? <span className="t-mono break-all font-semibold">{formData.email}</span> : ''}
-                edit={<Input className="font-mono" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />}
-              />
-              <Field
-                label="Téléphone"
-                editing={editing}
-                value={formData.telephone ? <span className="t-body font-semibold tabular-nums text-ink">{formData.telephone}</span> : ''}
-                edit={<Input type="tel" inputMode="tel" placeholder="+212 6 00 00 00 00" value={formData.telephone} onChange={e => setFormData(p => ({ ...p, telephone: e.target.value }))} />}
-              />
-              <Field label="Mot de passe" editing={editing} value={passwordValue} />
-              <Field
-                label="Rôle"
-                editing={editing}
-                value={formData.role ? <Chip className={ROLE_CHIP}>{formData.role}</Chip> : ''}
-                edit={
+          {/* Content card — element-specs §5 (Material 3 cards; NN/g cards):
+              24 px padding, t-heading title, no restated description. */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="t-heading flex items-center gap-2">
+                <UserIcon className="h-4 w-4 text-ink-3" aria-hidden />
+                Informations personnelles
+              </CardTitle>
+            </CardHeader>
+            {/* Always-editable form — element-specs §9 (GOV.UK text input:
+                visible label above every input, hint between label and field,
+                placeholder = format cue only; NN/g web-form design: labels
+                above, field width matches the input, one clearly labelled
+                submit). The two-column grid is the original layout (3d5629a);
+                16 px gaps. */}
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="u-prenom">Prénom</Label>
+                  <Input
+                    id="u-prenom"
+                    value={formData.prenom}
+                    onChange={e => setFormData(p => ({ ...p, prenom: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="u-nom">Nom</Label>
+                  <Input
+                    id="u-nom"
+                    value={formData.nom}
+                    onChange={e => setFormData(p => ({ ...p, nom: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="u-email">Email</Label>
+                  <Input
+                    id="u-email"
+                    type="email"
+                    inputMode="email"
+                    className="font-mono"
+                    value={formData.email}
+                    onChange={e => setFormData(p => ({ ...p, email: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="u-tel">Téléphone</Label>
+                  {/* Moroccan format cue (owner rule 8), never a sample number. */}
+                  <Input
+                    id="u-tel"
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="+212 6 00 00 00 00"
+                    className="tabular-nums"
+                    value={formData.telephone}
+                    onChange={e => setFormData(p => ({ ...p, telephone: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="u-password">Mot de passe</Label>
+                  {/* NN/g password masking: masked by default + explicit toggle
+                      (`ghost` icon button, aria-pressed). Read-only value. */}
+                  <div className="relative">
+                    <Input
+                      id="u-password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={formData.password}
+                      readOnly
+                      className="bg-surface-2 pr-10 font-mono"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-ink-3 shadow-none hover:text-ink"
+                      onClick={() => setShowPassword(v => !v)}
+                      aria-pressed={showPassword}
+                      aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="u-role">Rôle</Label>
                   <Select value={formData.role} onValueChange={v => setFormData(p => ({ ...p, role: v as Role }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="u-role"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {roles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                }
-              />
-              <Field
-                label="Statut"
-                editing={editing}
-                value={<Chip className={statutChip(statut)}>{statut}</Chip>}
-                edit={
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="u-statut">Statut</Label>
                   <Select value={formData.statut} onValueChange={v => setFormData(p => ({ ...p, statut: v as 'Actif' | 'Inactif' }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="u-statut"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Actif">Actif</SelectItem>
                       <SelectItem value="Inactif">Inactif</SelectItem>
                     </SelectContent>
                   </Select>
-                }
-              />
-              {formData.role === 'Agent de Terrain' && (
-                <Field label="Zone" editing={editing} value={formData.zone} edit={zoneEdit} />
-              )}
-            </dl>
-
-            <div className="mt-5 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-hairline pt-5 lg:grid-cols-2">
-              <div className="min-w-0">
-                <dt className="t-label">Compagnies d&apos;assurance affiliées</dt>
-                <dd className="mt-1">
-                  {editing ? (
-                    <>
-                      <MultiSelect
-                        options={companyOptions}
-                        selected={formData.compagnies}
-                        onChange={(vals) => setFormData(p => ({ ...p, compagnies: vals }))}
-                        className="w-full"
-                      />
-                      <p className="t-caption mt-1.5">
-                        L&apos;utilisateur ne verra que les dossiers des compagnies sélectionnées. Si aucune n&apos;est sélectionnée, il verra tous les dossiers.
-                      </p>
-                    </>
-                  ) : (
-                    <ChipList items={formData.compagnies} emptyLabel="Toutes" />
-                  )}
-                </dd>
-              </div>
-              <div className="min-w-0">
-                <dt className="t-label">Sites</dt>
-                <dd className="mt-1">
-                  {editing ? (
-                    <>
-                      <MultiSelect
-                        options={siteOptions}
-                        selected={formData.sites}
-                        onChange={(vals) => setFormData(p => ({ ...p, sites: vals }))}
-                        className="w-full"
-                      />
-                      <p className="t-caption mt-1.5">
-                        Villes dans lesquelles l&apos;utilisateur intervient. Plusieurs choix possibles.
-                      </p>
-                    </>
-                  ) : (
-                    <ChipList items={formData.sites} emptyLabel="—" />
-                  )}
-                </dd>
-              </div>
-            </div>
-
-            <dl className="mt-5 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-hairline pt-5 sm:grid-cols-2">
-              <div className="min-w-0">
-                <dt className="t-label">Créé le</dt>
-                <dd className="t-body mt-1 tabular-nums text-ink-2">{formatTimestamp(userData.createdAt)}</dd>
-              </div>
-              <div className="min-w-0">
-                <dt className="t-label">Dernière connexion</dt>
-                <dd className="t-body mt-1 tabular-nums text-ink-2">{formatTimestamp(userData.lastLogin)}</dd>
-              </div>
-            </dl>
-          </Section>
-
-          <Section title="Accès aux pages" icon={<ShieldCheck />}>
-            <p className="t-caption mb-3 max-w-[65ch]">
-              Accordez ou retirez l&apos;accès à n&apos;importe quelle page pour cet utilisateur, indépendamment de son rôle. Utile pour des privilèges temporaires. «&nbsp;Signaler un bug&nbsp;» reste toujours accessible.
-            </p>
-            {permissionTree.length === 0 ? (
-              <p className="t-caption py-2">Aucun menu configurable.</p>
-            ) : (
-              <ul className="divide-y divide-hairline">
-                {permissionTree.map((item) => {
-                  const allowed = effectiveAllowed(item.id, item.roleDefault);
-                  const isOverride =
-                    (allowed && !item.roleDefault) || (!allowed && item.roleDefault);
-                  const saving = !!permissionsSaving[item.id];
-                  const hasChildren = !!item.children && item.children.length > 0;
-                  const isExpanded = expandedPerms.has(item.id);
+                </div>
+                {/* Zone only exists for an Agent de Terrain (original gating). */}
+                {formData.role === 'Agent de Terrain' && (() => {
+                  const trimmedQuery = zoneQuery.trim();
+                  const qLower = trimmedQuery.toLowerCase();
+                  const filteredZones = qLower
+                    ? zoneOptions.filter(z => z.label.toLowerCase().startsWith(qLower))
+                    : zoneOptions;
+                  const exactMatch = trimmedQuery
+                    ? zoneOptions.some(z => z.label.toLowerCase() === qLower)
+                    : true;
+                  const selected = formData.zone || '';
                   return (
-                    <li key={item.id}>
-                      <div className="flex items-center justify-between gap-3 py-2.5">
-                        <button
-                          type="button"
-                          disabled={!hasChildren}
-                          onClick={() => hasChildren && toggleExpand(item.id)}
-                          className={cn(
-                            'flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                            hasChildren && 'transition-colors hover:text-ink-2',
-                          )}
-                          aria-expanded={hasChildren ? isExpanded : undefined}
-                        >
-                          {hasChildren ? (
-                            isExpanded ? (
-                              <ChevronDown className="h-4 w-4 shrink-0 text-ink-3" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" />
-                            )
-                          ) : (
-                            <span className="w-4 shrink-0" aria-hidden />
-                          )}
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="t-body font-semibold leading-tight">{item.label}</p>
-                              {isOverride && (
-                                <Chip
-                                  className={allowed ? 'bg-status-success-bg text-status-success-fg' : 'bg-status-warning-bg text-status-warning-fg'}
-                                  title={allowed ? 'Accordé en plus du rôle' : 'Retiré du rôle'}
-                                >
-                                  {allowed ? 'Accordé' : 'Retiré'}
-                                </Chip>
-                              )}
-                              {!item.roleDefault && !isOverride && (
-                                <Chip className="bg-surface-2 text-ink-3" title="Non inclus dans le rôle par défaut">
-                                  Hors rôle
-                                </Chip>
-                              )}
+                    <div className="space-y-1">
+                      <Label htmlFor="u-zone">Zone</Label>
+                      <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            id="u-zone"
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={zonePopoverOpen}
+                            className={cn("w-full justify-between font-normal", !selected && "text-ink-3")}
+                          >
+                            {selected || 'Sélectionnez ou saisissez une zone'}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-ink-3" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                          <Command shouldFilter={false}>
+                            <div className="flex items-center border-b border-hairline px-3" cmdk-input-wrapper="">
+                              <Search className="mr-2 h-4 w-4 shrink-0 text-ink-3" />
+                              <input
+                                value={zoneQuery}
+                                onChange={(e) => setZoneQuery(e.target.value)}
+                                placeholder="Rechercher ou créer une zone"
+                                className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-ink-3"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && trimmedQuery) {
+                                    e.preventDefault();
+                                    setFormData(p => ({ ...p, zone: trimmedQuery }));
+                                    setZonePopoverOpen(false);
+                                    setZoneQuery('');
+                                  }
+                                }}
+                              />
                             </div>
-                            <p className="font-mono text-[11px] text-ink-3">{item.id}</p>
-                          </div>
-                        </button>
-                        <div className="flex shrink-0 items-center gap-2">
-                          {saving && <span className="t-label">Enregistrement…</span>}
-                          <Switch
-                            checked={allowed}
-                            disabled={saving}
-                            onCheckedChange={(v) =>
-                              hasChildren
-                                ? handleToggleParent(
-                                    { id: item.id, roleDefault: item.roleDefault },
-                                    item.children!.map((c) => ({ id: c.id, roleDefault: c.roleDefault })),
-                                    v,
-                                  )
-                                : handleTogglePermission(item.id, v, item.roleDefault)
-                            }
-                            aria-label={`Autoriser l'accès à ${item.label}`}
-                          />
-                        </div>
-                      </div>
-                      {hasChildren && isExpanded && (
-                        <ul className="divide-y divide-hairline border-t border-hairline">
-                          {item.children!.map((child) => {
-                            const cAllowed = effectiveAllowed(child.id, child.roleDefault);
-                            const cIsOverride =
-                              (cAllowed && !child.roleDefault) || (!cAllowed && child.roleDefault);
-                            const cSaving = !!permissionsSaving[child.id];
-                            return (
-                              <li
-                                key={child.id}
-                                className="flex items-center justify-between gap-3 py-2 pl-6"
-                              >
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <p className="t-body leading-tight">{child.label}</p>
-                                    {cIsOverride && (
-                                      <Chip className={cAllowed ? 'bg-status-success-bg text-status-success-fg' : 'bg-status-warning-bg text-status-warning-fg'}>
-                                        {cAllowed ? 'Accordé' : 'Retiré'}
-                                      </Chip>
-                                    )}
-                                  </div>
-                                  <p className="font-mono text-[11px] text-ink-3">{child.id}</p>
-                                </div>
-                                <div className="flex shrink-0 items-center gap-2">
-                                  {cSaving && <span className="t-label">Enregistrement…</span>}
-                                  <Switch
-                                    checked={cAllowed}
-                                    disabled={cSaving}
-                                    onCheckedChange={(v) =>
-                                      handleTogglePermission(child.id, v, child.roleDefault)
-                                    }
-                                    aria-label={`Autoriser ${child.label}`}
-                                  />
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                    </li>
+                            <CommandList>
+                              {filteredZones.length === 0 && !trimmedQuery && (
+                                <CommandEmpty>Aucune zone enregistrée. Tapez pour créer.</CommandEmpty>
+                              )}
+                              {filteredZones.length > 0 && (
+                                <CommandGroup>
+                                  {filteredZones.map(z => (
+                                    <CommandItem
+                                      key={z.id}
+                                      value={z.label}
+                                      onSelect={() => {
+                                        setFormData(p => ({ ...p, zone: z.label }));
+                                        setZonePopoverOpen(false);
+                                        setZoneQuery('');
+                                      }}
+                                    >
+                                      <Check className={cn("mr-2 h-4 w-4", selected === z.label ? "opacity-100" : "opacity-0")} />
+                                      {z.label}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              )}
+                              {trimmedQuery && !exactMatch && (
+                                <CommandGroup heading="Créer">
+                                  <CommandItem
+                                    value={`__create__${trimmedQuery}`}
+                                    onSelect={() => {
+                                      setFormData(p => ({ ...p, zone: trimmedQuery }));
+                                      setZonePopoverOpen(false);
+                                      setZoneQuery('');
+                                    }}
+                                  >
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Créer «{trimmedQuery}»
+                                  </CommandItem>
+                                </CommandGroup>
+                              )}
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   );
-                })}
-              </ul>
-            )}
-          </Section>
+                })()}
+              </div>
 
-          <Section title="Dossiers assignés" icon={<FolderOpen />}>
-            {dossiersLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
+              <div className="space-y-1">
+                <Label>Compagnies d&apos;assurance affiliées</Label>
+                <p className="t-caption">Vide = accès à tous les dossiers ; sinon uniquement ceux des compagnies choisies</p>
+                <MultiSelect
+                  options={companyOptions}
+                  selected={formData.compagnies}
+                  onChange={(vals) => setFormData(p => ({ ...p, compagnies: vals }))}
+                  className="w-full"
+                />
               </div>
-            ) : !assignedDossiers || assignedDossiers.length === 0 ? (
-              <EmptyState
-                icon={<FolderOpen />}
-                title="Aucun dossier assigné"
-                description="Les dossiers créés par ou confiés à cet utilisateur apparaîtront ici."
-                dashed={false}
-              />
-            ) : (
-              <div className="-mx-6 -mb-5">
-                <Table regionLabel="Dossiers assignés">
-                  <TableHeader className="bg-card">
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="pl-6">Réf expert</TableHead>
-                      <TableHead>Assuré</TableHead>
-                      <TableHead>Nature</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead className="w-12 pr-6 text-right"><span className="sr-only">Ouvrir</span></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {assignedDossiers.map((d: any) => {
-                      const assureName = typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim() || 'N/A';
-                      return (
-                        <TableRow key={d.id} className="group cursor-pointer" onClick={() => router.push(`/dossiers/${d.id}`)}>
-                          <TableCell className="t-mono pl-6 font-semibold">{d.refExpert || '—'}</TableCell>
-                          <TableCell className="font-medium">{assureName}</TableCell>
-                          <TableCell className="text-ink-2">{d.nature || '—'}</TableCell>
-                          <TableCell>
-                            <span className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{d.statut || 'Nouveau'}</span>
-                          </TableCell>
-                          <TableCell className="pr-6 text-right" onClick={(e) => e.stopPropagation()}>
-                            <Link href={`/dossiers/${d.id}`} aria-label={`Ouvrir le dossier ${d.refExpert || ''}`} className="inline-flex text-ink-4 transition-colors group-hover:text-ink">
-                              <ChevronRight className="h-4 w-4" />
-                            </Link>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+
+              <div className="space-y-1">
+                <Label>Sites <span className="text-ink-4">(facultatif)</span></Label>
+                <p className="t-caption">Villes dans lesquelles l&apos;utilisateur intervient, plusieurs choix possibles</p>
+                <MultiSelect
+                  options={siteOptions}
+                  selected={formData.sites}
+                  onChange={(vals) => setFormData(p => ({ ...p, sites: vals }))}
+                  className="w-full"
+                />
               </div>
-            )}
-          </Section>
+
+              {/* Read-only facts — element-specs §10 (GOV.UK summary list:
+                  key over value; Refactoring UI: labels quiet, values primary). */}
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-4 border-t border-hairline pt-4 md:grid-cols-2">
+                <div className="min-w-0">
+                  <dt className="t-label">Créé le</dt>
+                  <dd className="t-body mt-1 font-semibold tabular-nums text-ink">{formatTimestamp(userData.createdAt)}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="t-label">Dernière connexion</dt>
+                  <dd className={cn('t-body mt-1 tabular-nums', userData.lastLogin ? 'font-semibold text-ink' : 'text-ink-4')}>
+                    {formatTimestamp(userData.lastLogin)}
+                  </dd>
+                </div>
+              </dl>
+            </CardContent>
+            {/* Footer — element-specs §8 (GOV.UK: one default button; "disabled
+                buttons have poor contrast… avoid them" → the button stays
+                enabled and the unsaved state is said in words next to it). */}
+            <CardFooter className="flex flex-wrap items-center justify-end gap-3 border-t border-hairline pt-6">
+              {dirty && !isSaving && (
+                <span className="t-caption" aria-live="polite">Modifications non enregistrées</span>
+              )}
+              <Button onClick={handleSave} loading={isSaving}>
+                {isSaving ? 'Enregistrement…' : 'Sauvegarder'}
+              </Button>
+            </CardFooter>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="t-heading flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-ink-3" aria-hidden />
+                Permissions
+              </CardTitle>
+              <CardDescription className="t-caption max-w-[65ch]">
+                Accordez ou retirez l&apos;accès à n&apos;importe quelle page pour cet utilisateur, indépendamment de son rôle. Utile pour des privilèges temporaires. «&nbsp;Signaler un bug&nbsp;» reste toujours accessible.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {permissionTree.length === 0 ? (
+                <p className="t-caption py-2">Aucun menu configurable.</p>
+              ) : (
+                // Toggle rows — Material 3 lists + switch (see PermissionRow);
+                // hairlines only, no box around the list (§4: no boxes inside rows).
+                <ul className="divide-y divide-hairline border-t border-hairline">
+                  {permissionTree.map((item) => {
+                    const allowed = effectiveAllowed(item.id, item.roleDefault);
+                    const hasChildren = !!item.children && item.children.length > 0;
+                    const isExpanded = expandedPerms.has(item.id);
+                    return (
+                      <li key={item.id}>
+                        <PermissionRow
+                          label={item.label}
+                          id={item.id}
+                          allowed={allowed}
+                          roleDefault={item.roleDefault}
+                          saving={!!permissionsSaving[item.id]}
+                          expandable={hasChildren}
+                          expanded={isExpanded}
+                          onExpand={() => toggleExpand(item.id)}
+                          onToggle={(v) =>
+                            hasChildren
+                              ? handleToggleParent(
+                                  { id: item.id, roleDefault: item.roleDefault },
+                                  item.children!.map((c) => ({ id: c.id, roleDefault: c.roleDefault })),
+                                  v,
+                                )
+                              : handleTogglePermission(item.id, v, item.roleDefault)
+                          }
+                        />
+                        {hasChildren && isExpanded && (
+                          <ul className="divide-y divide-hairline border-t border-hairline">
+                            {item.children!.map((child) => (
+                              <li key={child.id}>
+                                <PermissionRow
+                                  child
+                                  label={child.label}
+                                  id={child.id}
+                                  allowed={effectiveAllowed(child.id, child.roleDefault)}
+                                  roleDefault={child.roleDefault}
+                                  saving={!!permissionsSaving[child.id]}
+                                  onToggle={(v) => handleTogglePermission(child.id, v, child.roleDefault)}
+                                />
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <CardHeader>
+              <CardTitle className="t-heading flex items-center gap-2">
+                <FolderOpen className="h-4 w-4 text-ink-3" aria-hidden />
+                Dossiers assignés
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dossiersLoading ? (
+                // Row-shaped skeleton (§15), not a spinner.
+                <div className="space-y-2">
+                  <Skeleton className="h-11 w-full" />
+                  <Skeleton className="h-11 w-full" />
+                </div>
+              ) : !assignedDossiers || assignedDossiers.length === 0 ? (
+                <EmptyState
+                  icon={<FolderOpen />}
+                  title="Aucun dossier assigné"
+                  description="Les dossiers créés par ou confiés à cet utilisateur apparaîtront ici."
+                  dashed={false}
+                />
+              ) : (
+                // Data table — element-specs §3 (Polaris: text left; NN/g: first
+                // column = the human identifier, row = link with the chevron at
+                // the row end; Carbon: sticky header). The table sits in the card
+                // without a second frame (§5) — it bleeds to the card edges.
+                <div className="-mx-6 -mb-6 border-t border-hairline">
+                  <Table regionLabel="Dossiers assignés">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="pl-6">Réf. expert</TableHead>
+                        <TableHead>Assuré</TableHead>
+                        <TableHead>Nature du dossier</TableHead>
+                        <TableHead>Statut</TableHead>
+                        <TableHead className="w-12 pr-6 text-right"><span className="sr-only">Ouvrir</span></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {assignedDossiers.map((d: any) => {
+                        const assureName = typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim();
+                        return (
+                          <TableRow key={d.id} className="group cursor-pointer" onClick={() => router.push(`/dossiers/${d.id}`)}>
+                            <TableCell className="t-mono pl-6 font-semibold">{d.refExpert || <span className="text-ink-4">—</span>}</TableCell>
+                            <TableCell className="font-medium">{assureName || <span className="text-ink-4">—</span>}</TableCell>
+                            <TableCell className="text-ink-2">{d.nature || <span className="text-ink-4">—</span>}</TableCell>
+                            <TableCell>
+                              <span className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{d.statut || 'Nouveau'}</span>
+                            </TableCell>
+                            <TableCell className="pr-6 text-right" onClick={(e) => e.stopPropagation()}>
+                              <Link href={`/dossiers/${d.id}`} aria-label={`Ouvrir le dossier ${d.refExpert || ''}`} className="inline-flex rounded-sm text-ink-4 transition-colors group-hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                <ChevronRight className="h-4 w-4" />
+                              </Link>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <div className="space-y-6">
-          <Section title="Historique d'activité" icon={<Clock />}>
-            {historyLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : !activityHistory || activityHistory.length === 0 ? (
-              <p className="t-caption py-2">Aucune activité récente</p>
-            ) : (
-              // Hairline rows, date as the quiet caption, action as the value.
-              <ol className="divide-y divide-hairline">
-                {activityHistory.map((entry: any) => (
-                  <li key={entry.id} className="space-y-1 py-2.5 first:pt-0 last:pb-0">
-                    <p className="t-caption tabular-nums">{formatTimestamp(entry.changedAt)}</p>
-                    <p className="t-body-sm font-medium text-ink">{entry.action}</p>
-                    {entry.newStatut && (
-                      <span className={cn(STATUS_BADGE_CLASS, 'inline-block', getStatusBadgeStyles(entry.newStatut))}>
-                        {entry.newStatut}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            )}
-          </Section>
+          <Card>
+            <CardHeader>
+              <CardTitle className="t-heading flex items-center gap-2">
+                <Clock className="h-4 w-4 text-ink-3" aria-hidden />
+                Historique d&apos;activité
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {historyLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-14 w-full" />
+                  <Skeleton className="h-14 w-full" />
+                  <Skeleton className="h-14 w-full" />
+                </div>
+              ) : !activityHistory || activityHistory.length === 0 ? (
+                <EmptyState
+                  icon={<Clock />}
+                  title="Aucune activité récente"
+                  description="Les changements effectués par cet utilisateur apparaîtront ici."
+                  dashed={false}
+                />
+              ) : (
+                // Event rows — element-specs §4 (Material 3 lists: leading
+                // element + label + supporting text; GOV.UK summary list rows):
+                // 56 px two-line rows, hairlines only, the date block is the
+                // anchor. History is PAST, so no row gets the third colour —
+                // every block stays neutral (surface-3 + rim). Day number in
+                // Inter 600 (numbers never in Outfit).
+                <ol className="divide-y divide-hairline border-t border-hairline">
+                  {activityHistory.map((entry: any) => {
+                    const d = toDate(entry.changedAt);
+                    return (
+                      <li key={entry.id} className="flex min-h-[56px] items-center gap-3 py-2">
+                        <div className="flex w-10 shrink-0 flex-col items-center justify-center rounded-md bg-surface-3 py-1 text-center text-ink-2 shadow-rim">
+                          <span className="text-[11px] font-medium leading-none">
+                            {d ? format(d, 'MMM', { locale: fr }).replace('.', '') : '—'}
+                          </span>
+                          <span className="text-base font-semibold leading-tight tabular-nums">{d ? format(d, 'd') : '—'}</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="t-body truncate font-semibold">{entry.action}</p>
+                          <p className="t-caption flex flex-wrap items-center gap-x-2 tabular-nums">
+                            <span>{d ? format(d, 'yyyy · HH:mm', { locale: fr }) : '—'}</span>
+                            {entry.newStatut && (
+                              <span className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(entry.newStatut))}>
+                                {entry.newStatut}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </CardContent>
+          </Card>
 
           {showSessionCard && (() => {
             // A session is "active" while its heartbeat is fresh. A held slot
@@ -1152,84 +1113,102 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             const sessionStale = hasSession && isSessionStale(timestampToMillis(userData.currentSessionSeenAt), Date.now());
             const sessionActive = hasSession && !sessionStale;
             return (
-              <Section title="Session / Appareil" icon={<Smartphone />}>
-                <p className="t-caption mb-3">
-                  Ce rôle est limité à un seul appareil à la fois. Déconnectez sa session
-                  pour lui permettre de se connecter depuis un autre appareil.
-                </p>
-                <div className="flex items-center gap-2 text-sm">
-                  <span
-                    className={cn(
-                      'h-2 w-2 shrink-0 rounded-full',
-                      sessionActive
-                        ? 'bg-status-success-fg'
+              <Card>
+                <CardHeader>
+                  <CardTitle className="t-heading flex items-center gap-2">
+                    <Smartphone className="h-4 w-4 text-ink-3" aria-hidden />
+                    Session / Appareil
+                  </CardTitle>
+                  <CardDescription className="t-caption">
+                    Ce rôle est limité à un seul appareil à la fois. Déconnectez sa session
+                    pour lui permettre de se connecter depuis un autre appareil.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* State line — §11: status colour always with a text label. */}
+                  <div className="flex items-center gap-2 text-sm">
+                    <span
+                      className={cn(
+                        'h-2 w-2 shrink-0 rounded-full',
+                        sessionActive ? 'bg-status-success-fg' : sessionStale ? 'bg-status-warning-fg' : 'bg-ink-4',
+                      )}
+                      aria-hidden
+                    />
+                    <span className={cn(sessionActive ? 'font-semibold text-ink' : 'text-ink-3')}>
+                      {sessionActive
+                        ? 'Connecté sur un appareil'
                         : sessionStale
-                          ? 'bg-status-warning-fg'
-                          : 'bg-ink-4',
-                    )}
-                    aria-hidden
-                  />
-                  <span className={cn(sessionActive ? 'font-semibold text-ink' : 'text-ink-3')}>
-                    {sessionActive
-                      ? 'Connecté sur un appareil'
-                      : sessionStale
-                        ? 'Session inactive (se libère automatiquement)'
-                        : 'Aucune session active'}
-                  </span>
-                </div>
-                {userData.currentSessionId && (
-                  <dl className="mt-3 divide-y divide-hairline border-t border-hairline">
-                    <div className="flex items-center justify-between gap-3 py-2">
-                      <dt className="t-label flex items-center gap-1.5"><Smartphone className="h-3.5 w-3.5" /> Appareil</dt>
-                      <dd className="t-body-sm truncate text-right font-semibold text-ink">{sessionMeta?.device || 'Inconnu'}</dd>
-                    </div>
-                    <div className="flex items-center justify-between gap-3 py-2">
-                      <dt className="t-label flex items-center gap-1.5"><Globe className="h-3.5 w-3.5" /> Adresse IP</dt>
-                      <dd className="t-mono text-right">{sessionMeta?.ip || 'Inconnue'}</dd>
-                    </div>
-                    {sessionMeta?.at && (
+                          ? 'Session inactive (se libère automatiquement)'
+                          : 'Aucune session active'}
+                    </span>
+                  </div>
+                  {/* Definition list — element-specs §10 (GOV.UK summary list:
+                      key / value rows; empty = "—", never a fake value). */}
+                  {userData.currentSessionId && (
+                    <dl className="divide-y divide-hairline border-t border-hairline">
                       <div className="flex items-center justify-between gap-3 py-2">
-                        <dt className="t-label flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Connecté depuis</dt>
-                        <dd className="t-body-sm text-right tabular-nums text-ink">{formatTimestamp(sessionMeta.at)}</dd>
+                        <dt className="t-label flex items-center gap-1.5"><Smartphone className="h-3.5 w-3.5" aria-hidden /> Appareil</dt>
+                        <dd className={cn('t-body-sm truncate text-right', sessionMeta?.device ? 'font-semibold text-ink' : 'text-ink-4')}>{sessionMeta?.device || '—'}</dd>
                       </div>
-                    )}
-                  </dl>
-                )}
-                <Button
-                  variant="outline"
-                  className="mt-4 w-full"
-                  disabled={!userData.currentSessionId || isDisconnecting}
-                  loading={isDisconnecting}
-                  onClick={handleForceDisconnect}
-                >
-                  Déconnecter la session
-                </Button>
-              </Section>
+                      <div className="flex items-center justify-between gap-3 py-2">
+                        <dt className="t-label flex items-center gap-1.5"><Globe className="h-3.5 w-3.5" aria-hidden /> Adresse IP</dt>
+                        <dd className={cn('t-mono text-right', !sessionMeta?.ip && 'text-ink-4')}>{sessionMeta?.ip || '—'}</dd>
+                      </div>
+                      {sessionMeta?.at && (
+                        <div className="flex items-center justify-between gap-3 py-2">
+                          <dt className="t-label flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" aria-hidden /> Connecté depuis</dt>
+                          <dd className="t-body-sm text-right font-semibold tabular-nums text-ink">{formatTimestamp(sessionMeta.at)}</dd>
+                        </div>
+                      )}
+                    </dl>
+                  )}
+                  {/* One `outline` action (§8) — reversible, so not destructive. */}
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={!userData.currentSessionId || isDisconnecting}
+                    loading={isDisconnecting}
+                    onClick={handleForceDisconnect}
+                  >
+                    {!isDisconnecting && <LogOut className="h-4 w-4" aria-hidden />}
+                    {isDisconnecting ? 'Déconnexion…' : 'Déconnecter la session'}
+                  </Button>
+                </CardContent>
+              </Card>
             );
           })()}
 
           {canDelete && (
-            // Destructive zone: kept apart from the record's data, one
-            // `destructive` control only (GOV.UK: dangerous actions stand alone).
-            <Section title="Zone sensible" icon={<AlertTriangle />}>
-              <p className="t-caption mb-4">
-                L&apos;utilisateur sera retiré du système. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
-              </p>
-              <Button variant="destructive" className="w-full" onClick={() => setShowDeleteDialog(true)}>
-                Supprimer l&apos;utilisateur
-              </Button>
-            </Section>
+            // Destructive card — element-specs §8 (GOV.UK button: warning
+            // buttons only for actions with "serious destructive consequences
+            // that cannot be easily undone"): one `destructive` button, the
+            // consequence said in a caption above it.
+            <Card>
+              <CardHeader>
+                <CardTitle className="t-heading">Supprimer cet utilisateur</CardTitle>
+                <CardDescription className="t-caption">
+                  L&apos;utilisateur sera retiré du système. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="destructive" className="w-full" onClick={() => setShowDeleteDialog(true)}>
+                  <Trash2 className="h-4 w-4" aria-hidden /> Supprimer l&apos;utilisateur
+                </Button>
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>
 
+      {/* Confirmation dialog — element-specs §13 (Material 3 dialogs: headline
+          names the object, "avoid apologies, alarm, or ambiguity", ≤ 2 actions,
+          confirm closest to the edge). */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer « {displayName} » ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer définitivement l&apos;utilisateur <strong className="text-ink">{formData.prenom} {formData.nom}</strong> ?
-              Cette action est irréversible. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
+              Son compte et sa fiche seront définitivement supprimés. Les journaux d&apos;activité (historique, workflow) qui lui sont attribués seront conservés. Cette action est irréversible.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1239,7 +1218,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
               className={buttonVariants({ variant: 'destructive' })}
               disabled={isDeleting}
             >
-              {isDeleting ? 'Suppression…' : 'Confirmer la suppression'}
+              {isDeleting ? 'Suppression…' : 'Supprimer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -2,22 +2,15 @@
 
 import { PageHeader } from '@/components/layout/page-header';
 import React, { useMemo, useRef, useState } from 'react';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Trash2, Loader2, CalendarDays, Upload } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Trash2, Loader2, CalendarDays, ImageIcon, AlertCircle } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { useOptions } from '@/hooks/use-options';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -36,32 +29,6 @@ import { JoursFeriesSkeleton } from './loading';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Top-level block: hairline header (icon + title + actions), 24 px body. */
-const Section = ({
-  title,
-  icon,
-  actions,
-  children,
-  className,
-}: {
-  title: string;
-  icon?: React.ReactNode;
-  actions?: React.ReactNode;
-  children: React.ReactNode;
-  className?: string;
-}) => (
-  <Card variant="tonal" role="region" aria-label={title} className={cn('min-w-0', className)}>
-    <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
-      <div className="flex min-w-0 items-center gap-2">
-        {icon && <span className="shrink-0 text-ink-3 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
-        <h2 className="t-heading truncate">{title}</h2>
-      </div>
-      {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
-    </header>
-    <div className="px-6 py-5">{children}</div>
-  </Card>
-);
-
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 export default function JoursFeriesSettingsPage() {
@@ -71,8 +38,8 @@ export default function JoursFeriesSettingsPage() {
   const { options, loading } = useOptions('options_holidays');
 
   const [newDate, setNewDate] = useState('');
+  const [addError, setAddError] = useState('');
   const [isAdding, setIsAdding] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -84,23 +51,24 @@ export default function JoursFeriesSettingsPage() {
     [options],
   );
 
-  // Calendar view: months as hairline-separated groups (planification-tab
-  // rows); the next upcoming holiday is the page's one terracotta element.
-  const { groups, nextId } = useMemo(() => {
+  // Parse each ISO label once: real Date, `past` flag, and the id of the next
+  // upcoming holiday (the page's one third-colour element — §4 "next event").
+  // Items are sorted by date (unparseable labels last).
+  const { items, nextId } = useMemo(() => {
     const today = startOfDay(new Date());
-    let next: string | null = null;
-    const byMonth = new Map<string, { month: Date | null; items: { id: string; label: string; date: Date | null; past: boolean }[] }>();
-    for (const o of sorted) {
+    const parsed = sorted.map((o) => {
       const d = ISO_DATE.test(o.label) ? parseISO(o.label) : null;
       const date = d && isValid(d) ? d : null;
-      const past = date ? isBefore(date, today) : false;
-      if (date && !past && !next) next = o.id;
-      const key = date ? format(date, 'yyyy-MM') : 'invalid';
-      const g = byMonth.get(key) ?? { month: date ? new Date(date.getFullYear(), date.getMonth(), 1) : null, items: [] };
-      g.items.push({ id: o.id, label: o.label, date, past });
-      byMonth.set(key, g);
-    }
-    return { groups: Array.from(byMonth.entries()).map(([key, g]) => ({ key, ...g })), nextId: next };
+      return { id: o.id, label: o.label, date, past: date ? isBefore(date, today) : false };
+    });
+    parsed.sort((a, b) => {
+      if (a.date && b.date) return a.date.getTime() - b.date.getTime();
+      if (a.date) return -1;
+      if (b.date) return 1;
+      return a.label.localeCompare(b.label);
+    });
+    const next = parsed.find((p) => p.date && !p.past)?.id ?? null;
+    return { items: parsed, nextId: next };
   }, [sorted]);
 
   const router = useRouter();
@@ -145,12 +113,21 @@ export default function JoursFeriesSettingsPage() {
   };
 
   const handleAdd = async () => {
-    if (!newDate) return;
+    // Inline validation next to the field (NN/g web-form design) instead of a
+    // disabled button (GOV.UK: avoid disabled buttons).
+    if (!newDate) {
+      setAddError('Choisissez une date');
+      return;
+    }
+    if (options.some((o) => o.label === newDate)) {
+      setAddError('Cette date est déjà dans la liste');
+      return;
+    }
+    setAddError('');
     setIsAdding(true);
     try {
       await addOne(newDate);
       setNewDate('');
-      setAddOpen(false);
       toast({ title: 'Jour férié ajouté' });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: err.message });
@@ -238,7 +215,7 @@ export default function JoursFeriesSettingsPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         const msg = (json && json.error) || `Erreur HTTP ${res.status}`;
-        toast({ variant: 'destructive', title: "Échec de l'analyse IA", description: msg });
+        toast({ variant: 'destructive', title: "Échec de l'analyse", description: msg });
         return;
       }
       const dates: string[] = Array.isArray(json.dates) ? json.dates : [];
@@ -246,7 +223,7 @@ export default function JoursFeriesSettingsPage() {
         toast({
           variant: 'destructive',
           title: 'Aucune date détectée',
-          description: "L'IA n'a trouvé aucune date dans l'image. Essayez une capture plus nette.",
+          description: "Aucune date n'a été trouvée dans l'image. Essayez une capture plus nette.",
         });
         return;
       }
@@ -310,7 +287,7 @@ export default function JoursFeriesSettingsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <input
         ref={fileInputRef}
         type="file"
@@ -322,32 +299,136 @@ export default function JoursFeriesSettingsPage() {
         }}
       />
 
+      {/* Page header — element-specs §1 (Polaris Page: plural object, count
+          pill). No header action: « Ajouter » in the first card is the page
+          primary (GOV.UK: one default button per page). */}
       <PageHeader
         title="Jours fériés"
         subtitle="Dates pendant lesquelles les délais ne sont pas comptés (compteur hors délai)."
         count={loading ? undefined : options.length}
-        actions={<Button onClick={() => setAddOpen(true)}>Ajouter un jour férié</Button>}
       />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Section title="Calendrier" icon={<CalendarDays />}>
+      {/* Card 1 — element-specs §5; inline add row is the original layout. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="t-heading">Ajouter une date</CardTitle>
+        </CardHeader>
+        {/* Form — element-specs §9 (GOV.UK text input: visible label above;
+            NN/g date input: typed input always allowed; NN/g web-form design:
+            inline error under the field with icon + red text). The field and
+            its button sit side by side as in the original. */}
+        <CardContent>
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="min-w-0 flex-1 basis-56 space-y-1">
+              <Label htmlFor="new-date">Date</Label>
+              <Input
+                id="new-date"
+                type="date"
+                value={newDate}
+                onChange={(e) => { setNewDate(e.target.value); if (addError) setAddError(''); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isAdding) {
+                    e.preventDefault();
+                    void handleAdd();
+                  }
+                }}
+                aria-invalid={addError ? true : undefined}
+                aria-describedby={addError ? 'new-date-error' : undefined}
+                className="max-w-xs"
+              />
+            </div>
+            {/* THE page primary (§8): `default`, verb label, never disabled. */}
+            <Button onClick={handleAdd} loading={isAdding}>
+              {isAdding ? 'Ajout…' : 'Ajouter'}
+            </Button>
+          </div>
+          {addError && (
+            <p id="new-date-error" role="alert" className="mt-2 flex items-center gap-1.5 text-sm font-medium text-status-danger-fg">
+              <AlertCircle className="h-4 w-4" aria-hidden /> {addError}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Card 2 — image import (title without the sparkle icon: owner rule 7). */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="t-heading">Importer depuis une image</CardTitle>
+        </CardHeader>
+        {/* File picker — element-specs §21 (ONE plain button, no banner, no
+            dashed panel, no copy beyond a t-caption format hint). `outline`:
+            not the page primary (§8). */}
+        <CardContent className="flex flex-wrap items-center gap-4">
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isScanning} loading={isScanning}>
+            {!isScanning && <ImageIcon className="h-4 w-4" aria-hidden />}
+            {isScanning ? 'Analyse en cours…' : 'Choisir une image'}
+          </Button>
+          <p className="t-caption">Capture listant les jours fériés de l&apos;année · PNG, JPG, WEBP · les doublons sont ignorés</p>
+        </CardContent>
+      </Card>
+
+      {/* Card 3 — list import. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="t-heading">Importer des dates</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Form — §9: label above, hint between label and field (GOV.UK:
+              "a single short sentence, without full stops"), placeholder as
+              a format cue only. */}
+          <div className="space-y-1">
+            <Label htmlFor="import-dates">Dates</Label>
+            <p className="t-caption">Une date par ligne au format AAAA-MM-JJ, les doublons et formats invalides sont ignorés</p>
+            <Textarea
+              id="import-dates"
+              rows={5}
+              placeholder={'2026-01-01\n2026-05-01\n2026-07-30'}
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              className="font-mono text-sm"
+            />
+          </div>
+          {/* Emphasis ladder (§8, Material 3): the section's own action is
+              `tonal` (not the page primary); the seed shortcut is `outline`. */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Button variant="outline" onClick={handleSeedDefaults} loading={isImporting}>
+              Importer le calendrier marocain par défaut
+            </Button>
+            <Button variant="tonal" onClick={handleImport} loading={isImporting}>
+              Importer
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Card 4 — the current list as a pill grid (original layout). */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="t-heading flex items-center gap-2">
+            Liste actuelle
+            {/* Count pill — §11: neutral surface-3 / ink-2, tabular digits. */}
+            <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
+              {options.length}
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
           {loading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <Skeleton className="h-12 w-14 rounded-md" />
-                  <div className="flex-1 space-y-1.5">
-                    <Skeleton className="h-4 w-48" />
-                    <Skeleton className="h-3 w-24" />
-                  </div>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex h-14 items-center gap-3 rounded-lg border border-hairline px-3">
+                  <Skeleton className="h-10 w-12 rounded-md" />
+                  <Skeleton className="h-4 flex-1" />
                 </div>
               ))}
             </div>
-          ) : sorted.length === 0 ? (
+          ) : items.length === 0 ? (
+            // Empty state — element-specs §12 (NN/g: state + reason + one
+            // pathway; Polaris: verb-led heading, ONE action, `tonal` in a card).
             <EmptyState
               icon={<CalendarDays />}
-              title="Aucune date enregistrée"
-              description="Importez le calendrier marocain par défaut pour démarrer, ou ajoutez vos dates une par une."
+              title="Importer le calendrier marocain"
+              description="Aucune date n'est enregistrée : les délais sont comptés tous les jours."
               action={
                 <Button variant="tonal" onClick={handleSeedDefaults} loading={isImporting}>
                   Importer le calendrier marocain par défaut
@@ -356,141 +437,70 @@ export default function JoursFeriesSettingsPage() {
               dashed={false}
             />
           ) : (
-            <div className="divide-y divide-hairline">
-              {groups.map((g) => (
-                <section key={g.key} className="py-4 first:pt-0 last:pb-0" aria-label={g.month ? format(g.month, 'LLLL yyyy', { locale: fr }) : 'Dates invalides'}>
-                  <h3 className="t-label mb-2">
-                    {g.month ? capitalize(format(g.month, 'LLLL yyyy', { locale: fr })) : 'Format non reconnu'}
-                  </h3>
-                  <ol className="divide-y divide-hairline">
-                    {g.items.map((o) => {
-                      const upcoming = o.id === nextId;
-                      return (
-                        <li key={o.id} className="group flex items-center gap-4 py-2.5">
-                          {/* Date block — the row's anchor (planification-tab). */}
-                          <div
-                            className={cn(
-                              'flex w-14 shrink-0 flex-col items-center justify-center rounded-md py-1.5 text-center tabular-nums',
-                              upcoming ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled' : 'bg-surface-3 text-ink-2 shadow-rim',
-                            )}
+            // Pills = §4 mini rows (Material 3 lists: leading element + label +
+            // trailing icon button; GOV.UK summary list: the row's border ties
+            // it to its action): date block as the anchor (surface-3 + rim;
+            // the NEXT holiday is the page's one terracotta element; past ones
+            // in ink-3), the full French date, delete `ghost`. Day number in
+            // Inter 600 (numbers never in Outfit), weekday ≥ 11 px.
+            <ul className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3" aria-label="Jours fériés">
+              {items.map((o) => {
+                const upcoming = o.id === nextId;
+                return (
+                  <li
+                    key={o.id}
+                    className={cn(
+                      'flex min-h-[56px] items-center gap-3 rounded-lg bg-card px-3 py-2 shadow-rim',
+                      o.past && 'text-ink-3',
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'flex w-12 shrink-0 flex-col items-center justify-center rounded-md py-1 text-center',
+                        upcoming
+                          ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled'
+                          : o.past
+                            ? 'bg-surface-2 text-ink-3 shadow-rim'
+                            : 'bg-surface-3 text-ink-2 shadow-rim',
+                      )}
+                    >
+                      <span className="text-[11px] font-medium leading-none">
+                        {o.date ? format(o.date, 'EEE', { locale: fr }).replace('.', '') : '—'}
+                      </span>
+                      <span className="text-lg font-semibold leading-tight tabular-nums">{o.date ? format(o.date, 'd') : '—'}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={cn('t-body truncate', o.past ? 'font-medium text-ink-3' : 'font-semibold text-ink')}>
+                        {o.date ? capitalize(format(o.date, 'EEEE d MMMM yyyy', { locale: fr })) : o.label}
+                      </p>
+                      <p className="t-caption truncate tabular-nums">
+                        {upcoming ? 'Prochain jour férié' : o.past ? 'Passé' : <span className="font-mono">{o.label}</span>}
+                      </p>
+                    </div>
+                    {canDelete && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 text-ink-3 hover:text-destructive"
+                            disabled={deletingId === o.id}
+                            onClick={() => handleDelete(o.id)}
+                            aria-label={`Supprimer ${o.label}`}
                           >
-                            <span className="text-[11px] font-medium leading-none">
-                              {o.date ? format(o.date, 'EEE', { locale: fr }).replace('.', '') : '—'}
-                            </span>
-                            <span className="font-headline text-xl font-semibold leading-tight">{o.date ? format(o.date, 'd') : '—'}</span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className={cn('t-body truncate', o.past ? 'font-medium text-ink-2' : 'font-semibold text-ink')}>
-                              {o.date ? capitalize(format(o.date, 'EEEE d MMMM yyyy', { locale: fr })) : o.label}
-                            </p>
-                            <p className="t-caption flex flex-wrap items-center gap-x-2 tabular-nums">
-                              <span className="font-mono">{o.label}</span>
-                              {upcoming && <span className="text-tertiary-deep">· Prochain jour férié</span>}
-                              {o.past && <span>· Passé</span>}
-                            </p>
-                          </div>
-                          {canDelete && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 shrink-0 text-ink-3 opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none data-[busy=true]:opacity-100"
-                              data-busy={deletingId === o.id}
-                              disabled={deletingId === o.id}
-                              onClick={() => handleDelete(o.id)}
-                              aria-label={`Supprimer ${o.label}`}
-                              title="Supprimer"
-                            >
-                              {deletingId === o.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                            </Button>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ol>
-                </section>
-              ))}
-            </div>
+                            {deletingId === o.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Supprimer</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
-        </Section>
-
-        <Section title="Importer" icon={<Upload />} className="self-start">
-          <div className="divide-y divide-hairline">
-            {/* One plain picker button — no banner, no dashed panel. */}
-            <div className="space-y-3 pb-5">
-              <div>
-                <p className="t-label">Depuis une image</p>
-                <p className="t-caption mt-1">
-                  Choisissez une capture d&apos;écran listant les jours fériés de l&apos;année : les dates sont extraites automatiquement. PNG, JPG, WEBP ; les doublons sont ignorés.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isScanning}
-                loading={isScanning}
-              >
-                {isScanning ? 'Analyse en cours…' : 'Choisir une image'}
-              </Button>
-            </div>
-
-            <div className="space-y-3 pt-5">
-              <div>
-                <Label htmlFor="import-dates" className="t-label">Depuis une liste</Label>
-                <p className="t-caption mt-1">
-                  Une date par ligne au format YYYY-MM-DD. Les doublons et formats invalides sont ignorés.
-                </p>
-              </div>
-              <Textarea
-                id="import-dates"
-                rows={5}
-                placeholder={'2026-01-01\n2026-05-01\n2026-07-30'}
-                value={importText}
-                onChange={(e) => setImportText(e.target.value)}
-                className="font-mono text-sm"
-              />
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Button variant="ghost" size="sm" onClick={handleSeedDefaults} disabled={isImporting}>
-                  Calendrier marocain par défaut
-                </Button>
-                <Button variant="outline" onClick={handleImport} disabled={!importText.trim() || isImporting} loading={isImporting}>
-                  Importer
-                </Button>
-              </div>
-            </div>
-          </div>
-        </Section>
-      </div>
-
-      <Dialog open={addOpen} onOpenChange={(open) => { if (!isAdding) setAddOpen(open); }}>
-        <DialogContent className="lg:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Ajouter un jour férié</DialogTitle>
-            <DialogDescription>La date sera exclue du compteur de délais.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <Label htmlFor="new-date" className="t-label">Date</Label>
-            <Input
-              id="new-date"
-              type="date"
-              value={newDate}
-              onChange={(e) => setNewDate(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && newDate && !isAdding) {
-                  e.preventDefault();
-                  void handleAdd();
-                }
-              }}
-              autoFocus
-            />
-          </div>
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button type="button" variant="ghost" onClick={() => setAddOpen(false)} disabled={isAdding}>Annuler</Button>
-            <Button type="button" onClick={handleAdd} disabled={!newDate || isAdding} loading={isAdding}>
-              Ajouter
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </CardContent>
+      </Card>
     </div>
   );
 }

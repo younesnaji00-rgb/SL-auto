@@ -10,9 +10,10 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
-import { Keyboard, LifeBuoy, Monitor, Moon, Sun, Smartphone, SlidersHorizontal } from 'lucide-react';
+import { Keyboard, LifeBuoy, LogOut, Monitor, Moon, Sun, Smartphone, SlidersHorizontal } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -23,7 +24,11 @@ import { Kbd } from '@/components/ui/kbd';
 import { cn } from '@/lib/utils';
 import { applyDensity, readDensity, type Density } from '@/lib/density';
 
-/** Top-level block: hairline header (icon + title), 24 px body (information-tab Section). */
+/**
+ * Content card — element-specs §5 (Material 3 cards: container + one topic;
+ * NN/g cards: "a few short, related pieces"): glass edge, hairline header
+ * (icon + t-heading), 24 px body (`p-6` — 20 px is banned).
+ */
 const Section = ({
   title,
   icon,
@@ -35,30 +40,39 @@ const Section = ({
   children: React.ReactNode;
   className?: string;
 }) => (
-  <Card variant="tonal" role="region" aria-label={title} className={cn('min-w-0', className)}>
+  <Card role="region" aria-label={title} className={cn('min-w-0', className)}>
     <header className="flex min-h-[48px] items-center gap-2 border-b border-hairline px-6 py-3">
       {icon && <span className="shrink-0 text-ink-3 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
       <h2 className="t-heading truncate">{title}</h2>
     </header>
-    <div className="px-6 py-5">{children}</div>
+    <div className="p-6">{children}</div>
   </Card>
 );
 
-/** Preference row: label + helper on the left, the control on the right;
- *  rows separated by hairlines only. */
-const PrefRow = ({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) => (
+/**
+ * Preference row — Material 3 lists ("container and label text are
+ * required"; supporting text "one to three lines"; trailing element = text,
+ * icon button or selection control; "limit dividers to uncontained lists"):
+ * label t-body 600, helper t-caption (may carry <Kbd> hints), the control at
+ * the row end; rows separated by hairlines only, 16 px vertical padding.
+ */
+const PrefRow = ({ label, help, children }: { label: string; help?: React.ReactNode; children: React.ReactNode }) => (
   <div className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0 last:pb-0">
     <div className="min-w-0">
       <p className="t-body font-semibold">{label}</p>
-      {help && <p className="t-caption mt-0.5">{help}</p>}
+      {help && <p className="t-caption mt-0.5 flex flex-wrap items-center gap-x-1">{help}</p>}
     </div>
     {children}
   </div>
 );
 
-/** Segmented control on the neutral ladder: track surface-2, selected
- *  segment = raised card with the light rim (Apple segmented control). The
- *  accent stays reserved for the page primary / focus ring. */
+/**
+ * Segmented control — element-specs §7 (Apple HIG segmented controls: 2–5
+ * closely related, mutually exclusive choices; all-text or text+icon
+ * consistently; selected state distinct): equal segments in a `surface-2`
+ * track, selected = `bg-card shadow-rim text-ink`, 36 px segments, ≤ 2-word
+ * labels. Teal stays reserved for the primary / focus ring.
+ */
 function SegmentedChoice<T extends string>({
   value,
   options,
@@ -122,19 +136,20 @@ export default function ProfilPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      {/* Page header — element-specs §1: title only, no action (nothing on
+          this page is the one thing to do next). */}
       <PageHeader title="Profil" subtitle="Vos informations, vos préférences d'affichage et l'aide." />
 
-      {/* Identity: name is the value, role as a quiet chip, email in mono. */}
-      <Card variant="tonal" className="flex items-center gap-4 p-6">
+      {/* Identity card — element-specs §5 + §10 (GOV.UK summary list / Refactoring
+          UI: the name is the value, role a neutral chip §11, email t-mono quiet). */}
+      <Card className="flex items-center gap-4 p-6">
         <Avatar className="h-14 w-14 shadow-rim">
           <AvatarFallback className="bg-surface-3 text-lg font-semibold text-ink">{userInitials(profile)}</AvatarFallback>
         </Avatar>
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <p className="t-title truncate">{displayName}</p>
-            {profile?.role && (
-              <span className="inline-flex h-5 items-center rounded-full bg-surface-3 px-2 text-[11px] font-medium text-ink-2">{profile.role}</span>
-            )}
+            {profile?.role && <Badge variant="neutral">{profile.role}</Badge>}
           </div>
           {email && <p className="t-mono mt-0.5 truncate text-ink-3">{email}</p>}
         </div>
@@ -173,9 +188,22 @@ export default function ProfilPage() {
 
       <Section title="Aide" icon={<LifeBuoy />}>
         <div className="divide-y divide-hairline">
-          <PrefRow label="Raccourcis clavier" help={`Recherche rapide ${formatKeys('mod+k').join(' ')} · Nouveau dossier C`}>
-            <Button variant="outline" className="gap-2" onClick={openShortcuts}>
-              <Keyboard className="h-4 w-4" />
+          {/* Keyboard hints as <Kbd> keycaps (restored from 3d5629a). */}
+          <PrefRow
+            label="Raccourcis clavier"
+            help={
+              <>
+                <span>Recherche rapide</span>
+                <Kbd>{formatKeys('mod+k').join(' ')}</Kbd>
+                <span>· Nouveau dossier</span>
+                <Kbd>C</Kbd>
+              </>
+            }
+          >
+            {/* Buttons — element-specs §8: `outline` for a secondary action,
+                leading 16 px icon, verb + noun label. */}
+            <Button variant="outline" onClick={openShortcuts}>
+              <Keyboard className="h-4 w-4" aria-hidden />
               Voir les raccourcis
               <Kbd>?</Kbd>
             </Button>
@@ -190,6 +218,9 @@ export default function ProfilPage() {
 
       <Section title="Appareil" icon={<Smartphone />}>
         <PrefRow label={ua || 'Cet appareil'} help="Session en cours sur ce navigateur.">
+          {/* GOV.UK button: warning (destructive) buttons are for actions that
+              "cannot be easily undone". Logging out is reversible → `outline`,
+              with the LogOut icon restored from 3d5629a. */}
           <Button
             variant="outline"
             onClick={async () => {
@@ -197,6 +228,7 @@ export default function ProfilPage() {
               router.push('/login');
             }}
           >
+            <LogOut className="h-4 w-4" aria-hidden />
             Déconnexion
           </Button>
         </PrefRow>

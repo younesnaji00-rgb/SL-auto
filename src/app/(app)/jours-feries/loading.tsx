@@ -1,41 +1,53 @@
 import { Skeleton } from '@/components/ui/skeleton';
 
-/** Shaped like the jours fériés page: header + primary, calendar rows
- *  (date block · label), import column at ≥ xl. */
+/**
+ * Loading skeleton — element-specs §15 (NN/g skeleton screens: "mirror the
+ * final layout"). Shape = header line, then the four stacked cards of the
+ * page: add-a-date (field + button), image import (one button + hint), list
+ * import (textarea + two buttons), the current list (a 3-column pill grid).
+ */
 export function JoursFeriesSkeleton() {
   return (
-    <div className="space-y-6" aria-busy="true" aria-live="polite">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-44" />
-          <Skeleton className="h-4 w-80 max-w-full" />
-        </div>
-        <Skeleton className="h-10 w-48 rounded-md" />
+    <div className="space-y-8" aria-busy="true" aria-live="polite">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-44" />
+        <Skeleton className="h-4 w-80 max-w-full" />
       </div>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="paper p-6">
-          <Skeleton className="mb-4 h-5 w-32" />
-          {Array.from({ length: 2 }).map((_, g) => (
-            <div key={g} className="border-t border-hairline py-4 first:border-t-0 first:pt-0">
-              <Skeleton className="mb-3 h-3 w-28" />
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-4 border-b border-hairline py-2.5 last:border-0">
-                  <Skeleton className="h-12 w-14 rounded-md" />
-                  <div className="flex-1 space-y-1.5">
-                    <Skeleton className="h-4 w-48" />
-                    <Skeleton className="h-3 w-24" />
-                  </div>
-                </div>
-              ))}
+      <div className="space-y-4 rounded-xl border border-hairline bg-card p-6">
+        <Skeleton className="h-5 w-36" />
+        <div className="flex items-end gap-4">
+          <div className="flex-1 space-y-1">
+            <Skeleton className="h-3 w-12" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          <Skeleton className="h-10 w-24" />
+        </div>
+      </div>
+      <div className="space-y-4 rounded-xl border border-hairline bg-card p-6">
+        <Skeleton className="h-5 w-52" />
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-40" />
+          <Skeleton className="h-3 w-56 max-w-full" />
+        </div>
+      </div>
+      <div className="space-y-4 rounded-xl border border-hairline bg-card p-6">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-28 w-full" />
+        <div className="flex items-center justify-between gap-2">
+          <Skeleton className="h-10 w-72 max-w-[60%]" />
+          <Skeleton className="h-10 w-28" />
+        </div>
+      </div>
+      <div className="rounded-xl border border-hairline bg-card p-6">
+        <Skeleton className="mb-4 h-5 w-32" />
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex h-14 items-center gap-3 rounded-lg border border-hairline px-3">
+              <Skeleton className="h-10 w-12 rounded-md" />
+              <Skeleton className="h-4 flex-1" />
+              <Skeleton className="h-8 w-8" />
             </div>
           ))}
-        </div>
-        <div className="paper space-y-4 p-6">
-          <Skeleton className="h-5 w-24" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-10 w-40 rounded-md" />
-          <Skeleton className="h-28 w-full rounded-md" />
-          <Skeleton className="h-10 w-32 rounded-md" />
         </div>
       </div>
     </div>

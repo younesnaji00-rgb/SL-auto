@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageLoader } from '@/components/ui/page-loader';
-import { Eye, EyeOff } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff } from 'lucide-react';
 import Logo from '@/components/logo';
 import { useToast } from '@/hooks/use-toast';
 
@@ -407,7 +407,7 @@ export default function LoginPage() {
   if (checkingAuth || checkingSetup) {
     return (
       <div className={`flex min-h-screen items-center justify-center ${PAGE_BACKGROUND}`}>
-        <PageLoader label="Chargement..." />
+        <PageLoader label="Chargement…" />
       </div>
     );
   }
@@ -416,13 +416,13 @@ export default function LoginPage() {
   if (needsSetup) {
     return (
       <div className={`flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
-        {/* One paper card on the cream canvas; 24–32 px padding, max 400 px. */}
+        {/* Login card — element-specs §20 (GOV.UK create accounts: "solely about that task"; NN/g: single column, labels above, one submit): one glass card ≤ 400 px, 24–32 px padding. */}
         <Card className="w-full max-w-[400px] p-6 sm:p-8">
           <div className="flex flex-col items-center gap-4 text-center">
             <Logo />
             <div className="space-y-1">
               <h1 className="t-title">Configuration initiale</h1>
-              <p className="text-sm text-ink-3">
+              <p className="t-body-sm text-ink-3">
                 Aucun utilisateur n&apos;existe encore. Créez le compte administrateur pour commencer.
               </p>
             </div>
@@ -462,13 +462,14 @@ export default function LoginPage() {
             </div>
 
             {setupError && (
-              <Alert variant="destructive">
+              <Alert variant="danger">
+                <AlertCircle aria-hidden />
                 <AlertDescription>{setupError}</AlertDescription>
               </Alert>
             )}
 
-            <Button type="submit" className="w-full font-semibold" loading={setupLoading}>
-              {setupLoading ? 'Création...' : 'Créer le compte Admin'}
+            <Button type="submit" className="w-full" loading={setupLoading}>
+              {setupLoading ? 'Création…' : 'Créer le compte Admin'}
             </Button>
           </form>
         </Card>
@@ -479,13 +480,13 @@ export default function LoginPage() {
   // ===== NORMAL LOGIN =====
   return (
     <div className={`flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
-      {/* One paper card on the cream canvas; 24–32 px padding, max 400 px. */}
+      {/* Login card — element-specs §20 (GOV.UK create accounts: "solely about that task"; NN/g: single column, labels above, one submit): one glass card ≤ 400 px, 24–32 px padding. */}
       <Card className="w-full max-w-[400px] p-6 sm:p-8">
         <div className="flex flex-col items-center gap-4 text-center">
           <Logo />
           <div className="space-y-1">
             <h1 className="t-title">Connexion</h1>
-            <p className="text-sm text-ink-3">Entrez vos identifiants pour accéder au système.</p>
+            <p className="t-body-sm text-ink-3">Entrez vos identifiants pour accéder au système.</p>
           </div>
         </div>
         <form onSubmit={handleLogin} className="mt-6 space-y-4">
@@ -510,27 +511,32 @@ export default function LoginPage() {
                 required
                 className="pr-10"
               />
-              {/* Inline affordance inside the field (not a CTA): quiet ink, no rim. */}
-              <button
+              {/* Show/hide toggle — element-specs §20 + NN/g password masking ("offer a
+                  show-password toggle"): a `ghost` icon Button with aria-pressed, flat
+                  inside the field (no rim on an inline affordance). */}
+              <Button
                 type="button"
-                className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-sm text-ink-3 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-ink-3 shadow-none hover:text-ink"
                 onClick={() => setShowPassword(v => !v)}
                 aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                 aria-pressed={showPassword}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
-              </button>
+              </Button>
             </div>
           </div>
 
           {error && (
-            <Alert variant="destructive">
+            <Alert variant="danger">
+              <AlertCircle aria-hidden />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
-          <Button type="submit" className="w-full font-semibold" loading={loading}>
-            {loading ? 'Connexion...' : 'Se connecter'}
+          <Button type="submit" className="w-full" loading={loading}>
+            {loading ? 'Connexion…' : 'Se connecter'}
           </Button>
         </form>
       </Card>

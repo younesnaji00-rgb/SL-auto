@@ -1,37 +1,46 @@
 import { Skeleton } from '@/components/ui/skeleton';
 
-/** Shaped like the tampons page: header + primary, socket grid, assignment rows. */
+/**
+ * Loading skeleton — element-specs §15 (NN/g skeleton screens: "mirror the
+ * final layout"). Shape = header line, then the three stacked cards of the
+ * page: import (one button), registered stamps (rows with a 64 px thumbnail),
+ * assignment by chiffreur (rows with a 40 px preview + a 288 px select).
+ */
 export function TamponsSkeleton() {
   return (
-    <div className="space-y-6" aria-busy="true" aria-live="polite">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-40" />
-          <Skeleton className="h-4 w-72 max-w-full" />
-        </div>
-        <Skeleton className="h-10 w-44 rounded-md" />
+    <div className="space-y-8" aria-busy="true" aria-live="polite">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-4 w-80 max-w-full" />
       </div>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="paper overflow-hidden rounded-[10px]">
-            <Skeleton className="aspect-[4/3] w-full rounded-none" />
-            <div className="space-y-2 p-3">
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-3 w-1/2" />
+      <div className="space-y-4 rounded-xl border border-hairline bg-card p-6">
+        <Skeleton className="h-5 w-44" />
+        <Skeleton className="h-10 w-48" />
+      </div>
+      <div className="rounded-xl border border-hairline bg-card p-6">
+        <Skeleton className="mb-4 h-5 w-44" />
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 border-b border-hairline py-3 last:border-0">
+            <Skeleton className="h-16 w-16 rounded-[10px]" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-56 max-w-full" />
             </div>
+            <Skeleton className="h-6 w-11 rounded-full" />
+            <Skeleton className="h-8 w-8" />
           </div>
         ))}
       </div>
-      <div className="paper space-y-3 p-6">
-        <Skeleton className="h-5 w-48" />
+      <div className="rounded-xl border border-hairline bg-card p-6">
+        <Skeleton className="mb-4 h-5 w-52" />
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-3 border-b border-hairline py-3 last:border-0">
+          <div key={i} className="flex flex-wrap items-center gap-3 border-b border-hairline py-3 last:border-0">
             <Skeleton className="h-10 w-10 rounded-md" />
-            <div className="flex-1 space-y-1.5">
+            <div className="flex-1 basis-40 space-y-1.5">
               <Skeleton className="h-4 w-40" />
               <Skeleton className="h-3 w-24" />
             </div>
-            <Skeleton className="h-10 w-full rounded-md sm:w-72" />
+            <Skeleton className="h-10 w-full sm:w-72" />
           </div>
         ))}
       </div>
