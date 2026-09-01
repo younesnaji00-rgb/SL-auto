@@ -11,12 +11,14 @@ import {
   Search,
   ChevronDown,
   ChevronRight,
+  Upload,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Tooltip,
   TooltipContent,
@@ -161,13 +163,15 @@ const shortenAccordLabel = (parsed: ParsedAccordDocType): string => {
   return `${fem} proposition`;
 };
 
-/** Count chip: `bg-surface-3 text-ink-2`; inside a selected (accent) row it
- *  inherits the accent foreground on a quiet tint. */
+/** Count pill — element-specs §11 / NN/g faceted filter counts: neutral
+ *  (`bg-surface-3 text-ink-2`, tabular), a zero fades to ink-4 (a zero is
+ *  plain ink, never a status); inside the selected accent row it inherits the
+ *  accent foreground on a quiet tint. */
 function CountChip({ count, selected }: { count: number; selected?: boolean }) {
   return (
     <span
       className={cn(
-        'shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums',
+        'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums',
         selected ? 'bg-accent-foreground/10 text-accent-foreground' : count === 0 ? 'bg-surface-2 text-ink-4' : 'bg-surface-3 text-ink-2',
       )}
     >
@@ -176,8 +180,10 @@ function CountChip({ count, selected }: { count: number; selected?: boolean }) {
   );
 }
 
-/** One selectable filter row — the "chip" of the filter panel: quiet at rest,
- *  hover on surface-2, selected = accent tint (no left bar, no coloured band). */
+/** Filter row — element-specs §2 notes (NN/g filter categories: ordered by
+ *  importance, general → specific) rendered as a Material 3 list item (§4):
+ *  44 px, label + trailing count, hairlines only; quiet at rest, hover on
+ *  surface-2, selected = accent tint + aria-pressed (two cues). */
 function FilterRowButton({
   label,
   count,
@@ -202,7 +208,7 @@ function FilterRowButton({
       aria-pressed={selected}
       title={title}
       className={cn(
-        'flex w-full items-center justify-between gap-3 py-2.5 pr-4 text-left text-sm transition-colors duration-150',
+        'flex min-h-[44px] w-full items-center justify-between gap-3 py-2 pr-4 text-left text-sm transition-colors duration-150',
         indent ? 'pl-12' : 'pl-6',
         selected
           ? 'bg-accent font-semibold text-accent-foreground'
@@ -374,16 +380,22 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     });
   }, [documents, selectedType]);
 
-  // Section CTA: full-size solid primary, text only (no decorative icon).
+  // Section CTA — element-specs §8 (GOV.UK button: one default button for the
+  // main call to action; leading 16 px icon is fine — only sparkle/AI icons
+  // are banned). Restored `Upload` icon from 3d5629a.
   const importButton = onImportClick ? (
     canImport ? (
-      <Button onClick={onImportClick}>Importer</Button>
+      <Button onClick={onImportClick} className="gap-1.5">
+        <Upload className="h-4 w-4" /> Importer
+      </Button>
     ) : (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
             <span tabIndex={0}>
-              <Button disabled>Importer</Button>
+              <Button disabled className="gap-1.5">
+                <Upload className="h-4 w-4" /> Importer
+              </Button>
             </span>
           </TooltipTrigger>
           <TooltipContent>Import non disponible pour le chiffreur</TooltipContent>
@@ -418,15 +430,17 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
 
   return (
     <div className={cn('grid items-start gap-6 lg:grid-cols-3', className)}>
-      {/* LEFT: type filter — a glass pane (Card tonal); the nested-solid rule
-          flattens it when the host is already paper. */}
+      {/* LEFT: type filter — element-specs §5 content card (glass edge, no
+          Tailwind shadow; the nested-solid rule flattens it inside paper) with
+          a `t-heading` title and the §2 search field first (leading icon,
+          placeholder = format cue only). */}
       <Card className="overflow-hidden lg:col-span-1">
         <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
           <h3 className="t-heading truncate">Type de document</h3>
           <div className="relative w-[160px] max-w-full shrink-0">
             <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" aria-hidden />
             <Input
-              placeholder="Rechercher..."
+              placeholder="Devis, facture…"
               value={typeSearch}
               onChange={(e) => onTypeSearchChange(e.target.value)}
               className="h-8 pl-7 text-xs"
@@ -527,7 +541,8 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
         </div>
       </Card>
 
-      {/* RIGHT: preview grid */}
+      {/* RIGHT: preview grid — §5 card with a `t-heading` title naming the
+          filter once and the section CTA at the right end of its header. */}
       <Card className="overflow-hidden lg:col-span-2">
         {importButton && (
           <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
@@ -543,12 +558,15 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
               <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
             </div>
           ) : visibleDocs.length === 0 ? (
-            <div className="flex h-48 flex-col items-center justify-center text-center">
-              <FileText className="mb-2 h-10 w-10 text-ink-4" aria-hidden />
-              <p className="t-caption">
-                {selectedType === ALL_TYPES_KEY ? 'Aucun document.' : `Aucun document de type "${selectedType}".`}
-              </p>
-            </div>
+            // Empty state — element-specs §12 (NN/g: state + reason; Polaris:
+            // one line). Flat well inside the card (`dashed={false}` — dashed is
+            // the drop-target cue). The action lives in the header (Importer).
+            <EmptyState
+              dashed={false}
+              icon={<FileText />}
+              title={selectedType === ALL_TYPES_KEY ? 'Aucun document' : `Aucun document « ${selectedType} »`}
+              description={selectedType === ALL_TYPES_KEY ? 'Les documents importés apparaîtront ici.' : 'Choisissez un autre type ou « Tous les documents ».'}
+            />
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {visibleDocs.map((item) => {
@@ -559,14 +577,16 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                 const selectable = !item.pendingUpload && !!item.url;
                 const canOpen = !item.pendingUpload && !!item.url;
                 return (
-                  // Tile = raised socket (slot-card.tsx): hairline ring, 8 px radius
-                  // inside the 12 px card; no shadow-* on paper. Clicking the tile
-                  // only toggles selection — the eye icon is the only way into the
-                  // viewer (lightbox rule).
+                  // Tile — element-specs §21 (Carbon tile: no decorative
+                  // shadow, do not mix variants; owner sockets ruling): raised
+                  // tile, 10 px radius inside the 12 px card, thumbnail +
+                  // `t-body-sm`-weight name + `t-caption` meta, hover-revealed
+                  // actions. Clicking the tile only toggles selection — the eye
+                  // icon is the only way into the viewer (lightbox rule).
                   <div
                     key={item.id}
                     className={cn(
-                      'group relative overflow-hidden rounded-lg bg-card ring-1 ring-hairline transition-[box-shadow] duration-150 hover:ring-hairline-strong focus-within:ring-2 focus-within:ring-ring',
+                      'group relative overflow-hidden rounded-[10px] bg-card shadow-rim transition-[box-shadow] duration-150 focus-within:ring-2 focus-within:ring-ring',
                       selectionMode && isSelected && 'ring-2 ring-ring hover:ring-ring',
                       selectionMode && (selectable ? 'cursor-pointer' : 'cursor-not-allowed opacity-60')
                     )}
@@ -663,8 +683,9 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                         )}
                       </div>
 
+                      {/* Status badge §11: warning pair + label (pending IS an exception). */}
                       {item.pendingUpload && (
-                        <Badge variant="validation" className="absolute left-1 top-1 px-1.5 py-0 text-[11px]">
+                        <Badge variant="warning" className="absolute left-1 top-1">
                           En attente
                         </Badge>
                       )}

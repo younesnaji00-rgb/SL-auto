@@ -408,10 +408,14 @@ export function DevisPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* Dialog — element-specs §13 (M3 dialogs: `t-title` headline; confirm
+          closest to the edge, dismissive `outline` to its left, two actions).
+          Wide (4xl) because the body is a document viewer, not a form. */}
       <DialogContent className="lg:max-w-4xl">
         <DialogHeader className="flex flex-row items-center justify-between gap-3 space-y-0 pr-8">
-          <DialogTitle className="t-heading">Aperçu avant enregistrement</DialogTitle>
-          {/* Zoom pill — −/%/+, 25 % steps, % = fit (lightbox rules). */}
+          <DialogTitle className="t-title">Aperçu avant enregistrement</DialogTitle>
+          {/* Zoom pill — owner ruling: −/%/+, 25 % steps, % = fit, Ctrl + wheel
+              ≈ ×1.3 per notch. */}
           <div className="flex shrink-0 items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom" title="Ctrl + molette pour zoomer progressivement">
             <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière">
               <ZoomOut className="h-3.5 w-3.5" />
@@ -537,7 +541,9 @@ export function DevisPreviewDialog({
           </p>
         )}
 
-        {/* Footer row: stamp picker (t-label + solid select) · cancel ghost · ONE solid primary. */}
+        {/* Footer row — §13: stamp picker (§9: visible `t-label` + 40 px solid
+            select) on the left, then [Modifier outline] [Confirmer default]
+            right-aligned; the dismissive action is visible, not ghost. */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 sm:min-w-[320px]">
             <label className="t-label whitespace-nowrap" htmlFor="devis-preview-stamp">
@@ -547,7 +553,7 @@ export function DevisPreviewDialog({
               value={selectedStampId}
               onValueChange={setSelectedStampId}
             >
-              <SelectTrigger id="devis-preview-stamp" className="h-9 w-full">
+              <SelectTrigger id="devis-preview-stamp" className="w-full">
                 <SelectValue placeholder="Sans tampon" />
               </SelectTrigger>
               <SelectContent>
@@ -562,7 +568,7 @@ export function DevisPreviewDialog({
           </div>
 
           <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={handleEdit}>
+            <Button type="button" variant="outline" onClick={handleEdit}>
               Modifier
             </Button>
             <Button

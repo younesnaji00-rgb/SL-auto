@@ -7,7 +7,7 @@ import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTime
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
   ArrowLeft, ChevronDown, ChevronUp, Columns2, FileText, Loader2,
-  MoreHorizontal, Save, Trash2, X,
+  RefreshCw, Save, Trash2, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,10 +15,6 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { CellNumberInput } from '@/components/ui/cell-number-input';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -42,8 +38,6 @@ import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import { saveGestionnaireDevisAsPieceJointe } from '@/lib/send-to-chiffrage';
 import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
 import { deriveStatus } from '@/lib/status-machine';
-import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
-import { assureName } from '@/lib/dossier-label';
 import { cn } from '@/lib/utils';
 import ReferencePanel from '@/app/editor/reference-panel';
 import { useSidebar } from '@/components/ui/sidebar';
@@ -998,52 +992,53 @@ export function DevisEditor({
     );
   }
 
-  const statut: string | undefined = dossier?.statut || undefined;
-  const plaque: string = dossier?.matricule || header.matricule || '';
+  // The source caption is printed ONCE, in the title block (§18: no repeated
+  // caption). Gestionnaire = a new document; chiffreur = the merged sources.
   const sourceCaption = isGestionnaire
     ? `Nouveau ${typeLabel.lower} — sera ajouté aux pièces jointes du dossier.`
     : devisFileNames.length > 0
-      ? `${devisFileNames.length} ${typeLabel.lower}(s) fusionne(s) : ${devisFileNames.join(' · ')}`
+      ? `${typeLabel.lower}(s) fusionne(s) : ${devisFileNames.join(' · ')}`
       : `Aucun ${typeLabel.lower} dans cette assignation`;
-  // Emphasis follows the job (GOV.UK "the primary is the next thing to do"):
-  // while the scan is unreviewed « J'ai vérifié » is THE primary and
-  // « Enregistrer » drops to tonal; once reviewed, « Enregistrer » leads.
+  // Emphasis follows the job (GOV.UK button: "the primary is the next thing
+  // to do"): while the scan is unreviewed « J'ai vérifié » is THE filled
+  // button and « Enregistrer » drops to tonal; once reviewed, « Enregistrer »
+  // leads. Never two filled buttons in view (element-specs §8).
   const reviewPending = canEdit && !scanReviewed;
 
   return (
-    <div className="w-full">
-      {/* Sticky identity / tool bar — record-bar anatomy (components/dossiers/record-bar.tsx):
-          back · ref (mono) · assuré · plaque · statut · ONE solid primary · ⋯ menu.
-          The content scrolls under it (main is the scroll container). */}
-      <div className="sticky top-0 z-30 flex min-h-[48px] flex-wrap items-center gap-2 glass-bar border-b border-hairline px-3 sm:px-6">
+    <div className="w-full space-y-4 px-4 py-4 sm:px-6">
+      {/* Toolbar — original 3d5629a layout: a NON-sticky row (this page has
+          no other sticky chrome, so nothing needs to stick — §23). Anatomy per
+          element-specs §18 (Apple HIG toolbars: leading = navigation/title,
+          trailing = important items, ≤ 3 groups): back · title block · Comparer
+          (outline ⇄ tonal toggle) · « J'ai vérifié » · Ré-extraire (outline,
+          visible — it is an edit-type action, so a labelled button, not a
+          symbol or a ⋯ item) · ONE filled Enregistrer at the right end. */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         {!isGestionnaire && chiffrageId && (
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink" asChild>
-            <Link href={`/assignations-chiffrage/${chiffrageId}`} aria-label="Retour">
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" asChild>
+            <Link href={`/assignations-chiffrage/${chiffrageId}`} aria-label="Retour" title="Retour">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
         )}
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
-          {/* Reading order: ref (mono, ink) → assuré (ink) → plaque (ink-3) → statut → source caption. */}
-          <h1 className="t-mono min-w-0 truncate font-semibold tracking-tight" title={dossier?.refExpert || undefined}>
-            {dossier?.refExpert || 'Sans réf.'}
-          </h1>
-          {assureName(dossier?.assure) && (
-            <span className="t-body min-w-0 truncate font-medium">{assureName(dossier?.assure)}</span>
-          )}
-          {plaque && <span className="t-mono hidden text-ink-3 lg:inline">{plaque}</span>}
-          {statut && (
-            <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut), 'shrink-0')}>
-              {statut}
-            </Badge>
-          )}
-          <span className="hidden text-sm text-ink-3 md:inline">Editer les {typeLabel.plural}</span>
-          <span className="t-caption hidden min-w-0 truncate xl:inline" title={sourceCaption}>{sourceCaption}</span>
+        {/* Title block — element-specs §1 (Polaris page: the title names the
+            page in as few words as possible; compact `t-title` on a record /
+            editor page) + the one source caption in `t-caption`. The merged
+            count is a neutral count pill (§11: `bg-surface-3 text-ink-2`,
+            tabular digits — a count is information, not a status). */}
+        <div className="min-w-0 flex-1">
+          <h1 className="t-title truncate">Editer les {typeLabel.plural}</h1>
+          <div className="t-caption flex min-w-0 items-center gap-1.5" title={sourceCaption}>
+            {!isGestionnaire && devisFileNames.length > 0 && (
+              <Badge variant="neutral">{devisFileNames.length}</Badge>
+            )}
+            <span className="truncate">{sourceCaption}</span>
+          </div>
         </div>
         <Button
           variant={comparisonOpen ? 'tonal' : 'outline'}
           size="sm"
-          className="h-8 gap-1.5"
           onClick={() => {
             const opening = !comparisonOpen;
             setComparisonOpen(opening);
@@ -1053,7 +1048,7 @@ export function DevisEditor({
           aria-pressed={comparisonOpen}
           title={comparisonOpen ? 'Fermer la comparaison' : 'Ouvrir la comparaison'}
         >
-          <Columns2 className="h-3.5 w-3.5" />
+          <Columns2 className="h-4 w-4" />
           Comparer
         </Button>
         {/*
@@ -1067,41 +1062,32 @@ export function DevisEditor({
           <Button
             variant="default"
             size="sm"
-            className="h-8"
             onClick={() => setScanReviewed(true)}
             title="Confirmer la vérification du scan et déverrouiller le tableau"
           >
             J&apos;ai vérifié
           </Button>
         )}
-        <Button variant={reviewPending ? 'tonal' : 'default'} size="sm" className="h-8" onClick={handleSave} loading={saving} disabled={!canEdit}>
-          {saving ? null : <Save className="h-3.5 w-3.5" />}
+        {/* Ré-extraire — restored as a visible `outline` button (3d5629a);
+            RefreshCw instead of the banned sparkle icon (§8: no AI icons). */}
+        {!isGestionnaire && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => runExtraction(true)}
+            loading={extracting}
+            disabled={!canEdit || devisFileNames.length === 0}
+            title="Relancer l'extraction automatique (écrase les données)"
+          >
+            {extracting ? null : <RefreshCw className="h-4 w-4" />}
+            Ré-extraire
+          </Button>
+        )}
+        <Button variant={reviewPending ? 'tonal' : 'default'} size="sm" onClick={handleSave} loading={saving} disabled={!canEdit}>
+          {saving ? null : <Save className="h-4 w-4" />}
           Enregistrer
         </Button>
-        {!isGestionnaire && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Plus d'actions">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel className="t-caption truncate font-normal">{sourceCaption}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => runExtraction(true)}
-                disabled={!canEdit || devisFileNames.length === 0 || extracting}
-                title="Relancer l'extraction automatique (écrase les données)"
-              >
-                {extracting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Ré-extraire
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
       </div>
-
-      <div className="space-y-4 px-3 py-4 sm:px-6">
 
       {extracting && !saving && (
         <div className="t-caption flex items-center gap-2 rounded-lg bg-surface-2 px-4 py-2.5">
@@ -1124,42 +1110,53 @@ export function DevisEditor({
         )}
         <div className={cn(comparisonOpen ? 'flex-1 min-w-0 space-y-4' : 'space-y-4')}>
 
-      {/* Identity block — a glass pane with the definition-list rhythm of
-          information-tab FieldRow: t-label over the control, 16 px rows,
-          24 px padding. Field order is unchanged (left list, right list, N°, date). */}
+      {/* Identity block — original 3d5629a structure restored: a two-column
+          card (`md:grid-cols-2`), HEADER_FIELDS_LEFT in column 1,
+          HEADER_FIELDS_RIGHT + the nested N° / Date sub-grid in column 2.
+          Surface per element-specs §5 (M3 cards / NN/g cards: a container for
+          a few related facts; 24 px padding, 16 px between rows). Fields per
+          §9 (GOV.UK text input: visible labels, format-cue placeholders only —
+          "JJ/MM/AAAA"). */}
       <Card className="p-6">
-        <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {HEADER_FIELDS_LEFT.map((f) => (
-            <HeaderField
-              key={f.key}
-              label={f.label}
-              value={header[f.key] || ''}
-              onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
-              disabled={!isEditable}
-            />
-          ))}
-          {HEADER_FIELDS_RIGHT.map((f) => (
-            <HeaderField
-              key={f.key}
-              label={f.label}
-              value={header[f.key] || ''}
-              onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
-              disabled={!isEditable}
-            />
-          ))}
-          <HeaderField
-            label="Devis N°"
-            value={header.devisNumero}
-            onChange={(v) => setHeader((h) => ({ ...h, devisNumero: v }))}
-            disabled={!isEditable}
-          />
-          <HeaderField
-            label="Date"
-            value={header.dateDevis}
-            onChange={(v) => setHeader((h) => ({ ...h, dateDevis: v }))}
-            disabled={!isEditable}
-            placeholder="JJ/MM/AAAA"
-          />
+        <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+          <div className="space-y-4">
+            {HEADER_FIELDS_LEFT.map((f) => (
+              <HeaderField
+                key={f.key}
+                label={f.label}
+                value={header[f.key] || ''}
+                onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
+                disabled={!isEditable}
+              />
+            ))}
+          </div>
+          <div className="space-y-4">
+            {HEADER_FIELDS_RIGHT.map((f) => (
+              <HeaderField
+                key={f.key}
+                label={f.label}
+                value={header[f.key] || ''}
+                onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
+                disabled={!isEditable}
+              />
+            ))}
+            {/* Short related fields share a row (§9: "code postal / ville" rule). */}
+            <div className="grid grid-cols-2 gap-4">
+              <HeaderField
+                label="Devis N°"
+                value={header.devisNumero}
+                onChange={(v) => setHeader((h) => ({ ...h, devisNumero: v }))}
+                disabled={!isEditable}
+              />
+              <HeaderField
+                label="Date"
+                value={header.dateDevis}
+                onChange={(v) => setHeader((h) => ({ ...h, dateDevis: v }))}
+                disabled={!isEditable}
+                placeholder="JJ/MM/AAAA"
+              />
+            </div>
+          </div>
         </div>
       </Card>
 
@@ -1180,14 +1177,20 @@ export function DevisEditor({
           Rows are added only via AI scan, paste, or programmatic flows (no
           manual "add row" button). The table grows to its natural height —
           only horizontal scroll on overflow. */}
-      {/* Table = one glass pane: t-label column heads on the surface-2 step,
-          hairline rows only (no cell borders, no zebra, no background swaps),
-          tabular figures everywhere, totals on surface-2 in 600 ink. */}
+      {/* Line-item table — element-specs §3 (Polaris data table: "numerical
+          data right aligned, textual left, headers must align with their
+          related data, don't center align"; Carbon: header row matches the
+          row size; NN/g: freeze the header). Sticky `t-label` heads on the
+          surface-2 step, hairline rows only (no cell borders, no zebra),
+          tabular digits everywhere, Quantité / T.V.A / Vétusté right-aligned
+          like P.U. and the totals, totals row right-aligned. The table sits in
+          the card WITHOUT a second frame (§5). Rows are the 36 px compact size
+          (dense editing), not 44. */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto relative">
           <table className="min-w-[900px] w-full text-xs border-collapse">
             <thead className="sticky top-0 z-10 bg-surface-2">
-              <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:whitespace-nowrap [&>th]:text-xs [&>th]:font-normal [&>th]:text-ink-3 [&>th]:border-b [&>th]:border-hairline [&>th]:bg-surface-2">
+              <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:whitespace-nowrap [&>th]:text-xs [&>th]:font-normal [&>th]:text-ink-3 [&>th]:tabular-nums [&>th]:border-b [&>th]:border-hairline [&>th]:bg-surface-2">
                 <th style={{ width: '180px' }}>
                   <Popover open={refHeaderOpen} onOpenChange={setRefHeaderOpen}>
                     <PopoverTrigger asChild>
@@ -1253,16 +1256,17 @@ export function DevisEditor({
                     </PopoverContent>
                   </Popover>
                 </th>
-                <th style={{ width: '70px' }} className="text-center">Quantite</th>
+                {/* Numeric heads right-aligned with their data (§3). */}
+                <th style={{ width: '70px' }} className="text-right">Quantite</th>
                 <th style={{ width: '110px' }} className="text-right">P.U.H.T</th>
                 <th style={{ width: '120px' }} className="text-right">Total H.T</th>
-                <th style={{ width: '70px' }} className="text-center">
+                <th style={{ width: '70px' }} className="text-right">
                   <Popover open={tvaHeaderOpen} onOpenChange={setTvaHeaderOpen}>
                     <PopoverTrigger asChild>
                       <button
                         type="button"
                         disabled={!isEditable}
-                        className="flex w-full items-center justify-center gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex w-full items-center justify-end gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         title="Définir T.V.A pour toutes les lignes"
                       >
                         <span>T.V.A</span>
@@ -1275,7 +1279,7 @@ export function DevisEditor({
                         onChange={setTvaHeaderValue}
                         suffix="%"
                         decimals={0}
-                        align="center"
+                        align="right"
                         allowNull
                       />
                       <Button
@@ -1291,8 +1295,8 @@ export function DevisEditor({
                     </PopoverContent>
                   </Popover>
                 </th>
-                <th style={{ width: '80px' }} className="text-center">
-                  <div className="flex items-center justify-center gap-1">
+                <th style={{ width: '80px' }} className="text-right">
+                  <div className="flex items-center justify-end gap-1">
                     <span>Vetuste</span>
                     <button type="button" disabled={!isEditable}
                             className="flex h-4 w-4 items-center justify-center rounded text-ink-3 hover:bg-surface-3 hover:text-ink focus:bg-surface-3 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
@@ -1555,7 +1559,7 @@ export function DevisEditor({
                         const ceiling = cap === undefined ? (r.qte ?? 0) : (cap ?? 0);
                         if (scanReviewed && (v ?? 0) > ceiling) return;
                         updateRow(r.id, { qte: v });
-                      }} disabled={!isEditable} decimals={0} align="center" allowNull />
+                      }} disabled={!isEditable} decimals={0} align="right" allowNull />
                     </td>
                     <td>
                       <CellNumberInput value={r.puHT} onChange={(v) => updateRow(r.id, { puHT: v ?? 0 })} disabled={!isEditable} align="right" />
@@ -1563,17 +1567,23 @@ export function DevisEditor({
                     {/* Total H.T is computed — read-only, auto-updating. */}
                     <td className="pr-2 text-right font-semibold tabular-nums text-ink">{formatFr(total)}</td>
                     <td>
-                      <CellNumberInput value={r.tva} onChange={(v) => updateRow(r.id, { tva: v })} disabled={!isEditable} suffix="%" decimals={0} align="center" allowNull />
+                      <CellNumberInput value={r.tva} onChange={(v) => updateRow(r.id, { tva: v })} disabled={!isEditable} suffix="%" decimals={0} align="right" allowNull />
                     </td>
                     <td>
-                      <div className={cn("relative rounded-md", vetusteMissing && "ring-1 ring-status-danger-fg")}>
+                      {/* Missing-vétusté marker — §11 / NN/g validations: the
+                          danger colour never travels alone; the ring + `*`
+                          carry a text label (title + sr-only) too. */}
+                      <div
+                        className={cn("relative rounded-md", vetusteMissing && "ring-1 ring-status-danger-fg")}
+                        title={vetusteMissing ? 'Vétusté manquante' : undefined}
+                      >
                         <CellNumberInput
                           value={r.vetuste ?? null}
                           onChange={(v) => updateRow(r.id, { vetuste: v })}
                           disabled={!isEditable || r.type === 'Occasion'}
                           suffix="%"
                           decimals={0}
-                          align="center"
+                          align="right"
                           allowNull
                           step={5}
                           min={0}
@@ -1581,7 +1591,10 @@ export function DevisEditor({
                           showSteppers
                         />
                         {vetusteMissing && (
-                          <span className="pointer-events-none absolute -right-1 -top-1 text-[11px] leading-none text-status-danger-fg">*</span>
+                          <>
+                            <span aria-hidden className="pointer-events-none absolute -right-1 -top-1 text-[11px] leading-none text-status-danger-fg">*</span>
+                            <span className="sr-only">Vétusté manquante</span>
+                          </>
                         )}
                       </div>
                     </td>
@@ -1718,11 +1731,12 @@ export function DevisEditor({
                 <td className="font-normal text-ink-3">Total</td>
                 <td />
                 <td />
-                <td className="text-center">{formatFr(totalsRow.qteSum, 0)}</td>
+                {/* Totals row right-aligned under its numeric columns (§3). */}
+                <td className="text-right">{formatFr(totalsRow.qteSum, 0)}</td>
                 <td />
                 <td className="text-right">{formatFr(totalsRow.totalHt)}</td>
                 <td />
-                <td className="text-center font-normal text-ink-4">—</td>
+                <td className="text-right font-normal text-ink-4">—</td>
                 <td className="text-right">{totalTTCExpert == null ? '—' : formatFr(totalTTCExpert)}</td>
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
@@ -1783,7 +1797,6 @@ export function DevisEditor({
 
         </div>
       </div>
-      </div>
 
       {/*
         Task #23 — save-flow preview. Opened by the Enregistrer button (and
@@ -1834,17 +1847,21 @@ export function DevisEditor({
 function HeaderField({
   label, value, onChange, disabled, placeholder,
 }: { label: string; value: string; onChange: (v: string) => void; disabled?: boolean; placeholder?: string }) {
-  // information-tab FieldRow in edit mode: quiet t-label, the control takes
-  // the value's place (14/600 ink).
+  // Original 3d5629a layout restored: the label sits LEFT of the control in a
+  // 110 px column (`grid-cols-[110px_1fr]`). Element-specs §9 (GOV.UK text
+  // input: every input has a visible label; NN/g: labels quiet, the value is
+  // the star) — label `t-label` 12/400 ink-3, value 14/600 ink in a solid
+  // 36 px field (the identity block is dense reference data, so the compact
+  // end of the 36–40 px range).
   return (
-    <label className="block min-w-0">
-      <span className="t-label block truncate">{label}</span>
+    <label className="grid min-w-0 grid-cols-[110px_1fr] items-center gap-2">
+      <span className="t-label truncate">{label}</span>
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         placeholder={placeholder}
-        className="mt-1 h-8 font-semibold text-ink"
+        className="h-9 font-semibold text-ink"
       />
     </label>
   );

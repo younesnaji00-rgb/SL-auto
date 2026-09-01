@@ -114,9 +114,11 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
                   <span className="flex items-center gap-2">
                     <span>{c.nom}</span>
                     {count > 0 && (
-                      // Workload count — warning status pair (never hand-picked amber).
+                      // Workload count — element-specs §11: a plain count is
+                      // information, not an exception → neutral count pill
+                      // (`bg-surface-3 text-ink-2`, tabular), never a status pair.
                       <span
-                        className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-status-warning-bg px-1.5 text-[11px] font-semibold tabular-nums text-status-warning-fg"
+                        className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2"
                         title={`${count} dossier(s) en cours`}
                       >
                         {count}
@@ -136,20 +138,24 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
           </Button>
         </DialogTrigger>
 
+        {/* Dialog — element-specs §13 (M3: confirm at the edge, dismissive
+            `outline` to its left, ≤ 560 px for forms). */}
         <DialogContent className="lg:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="t-heading">
+            <DialogTitle className="t-title">
               {editTarget ? "Modifier le chiffreur" : "Nouveau chiffreur"}
             </DialogTitle>
           </DialogHeader>
 
-          {/* Form rows 16 px apart, t-label over the control (information-tab FieldRow). */}
+          {/* Form — element-specs §9 (GOV.UK: visible label above each 40 px
+              input, single column, rows 16 apart; placeholder = format cue
+              only — the Moroccan phone cue). */}
           <div className="space-y-4 py-1">
             <div>
               <Label htmlFor="chiffreur-nom" className="t-label">Nom *</Label>
               <Input
                 id="chiffreur-nom"
-                className="mt-1 h-9"
+                className="mt-1"
                 value={form.nom}
                 onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))}
               />
@@ -159,7 +165,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
               <Input
                 id="chiffreur-email"
                 type="email"
-                className="mt-1 h-9"
+                className="mt-1"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               />
@@ -168,10 +174,11 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
               <Label htmlFor="chiffreur-phone" className="t-label">Téléphone</Label>
               <Input
                 id="chiffreur-phone"
-                className="mt-1 h-9"
+                type="tel"
+                className="mt-1"
                 value={form.phone}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                placeholder="+212 6XX XX XX XX"
+                placeholder="+212 6 12 34 56 78"
               />
             </div>
             <div className="flex items-center gap-2">
@@ -185,7 +192,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
           </div>
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
               Annuler
             </Button>
             <Button onClick={handleSave} loading={saving}>
@@ -193,12 +200,14 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
             </Button>
           </DialogFooter>
 
-          {/* List management — hairline-separated rows, actions at the row end. */}
+          {/* List management — element-specs §4 (M3 lists / GOV.UK summary
+              list): 44 px hairline rows, `t-label` group heading, actions at
+              the row end as 36 px `ghost` icon buttons. */}
           <div className="mt-2 border-t border-hairline pt-4">
             <p className="t-label mb-1">Gestion de la liste</p>
             <div className="max-h-48 divide-y divide-hairline overflow-y-auto">
               {chiffreurs.map((c) => (
-                <div key={c.id} className="flex min-h-[36px] items-center justify-between gap-2 text-sm">
+                <div key={c.id} className="flex min-h-[44px] items-center justify-between gap-2 text-sm">
                   <span className={c.active ? "truncate font-medium text-ink" : "truncate text-ink-3 line-through"}>
                     {c.nom}
                   </span>

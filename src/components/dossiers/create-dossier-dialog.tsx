@@ -186,15 +186,19 @@ export function CreateDossierDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[calc(85vh/var(--app-zoom))] overflow-y-auto">
+      {/* Dialog — element-specs §13 (M3 dialogs: brief headline + one line of
+          supporting text; ≤ 560 px for a form; confirm at the edge with the
+          dismissive `outline` to its left; bottom sheet below `lg`). */}
+      <DialogContent className="max-h-[calc(85vh/var(--app-zoom))] overflow-y-auto lg:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nouveau dossier</DialogTitle>
+          <DialogTitle className="t-title">Nouveau dossier</DialogTitle>
           <DialogDescription>
             Choisissez la compagnie et votre rôle d'expert. Les informations des autres experts peuvent être renseignées ici ou plus tard dans le dossier.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Body: t-label labels over controls, 16 px between rows. */}
+        {/* Form — element-specs §9 (GOV.UK: visible label above each 40 px
+            control, rows 16 apart, placeholder only as a format cue). */}
         <div className="grid gap-4 py-2">
           <div className="grid gap-1">
             <Label htmlFor="create-compagnie">Compagnie</Label>
@@ -238,13 +242,15 @@ export function CreateDossierDialog({
             </RadioGroup>
           </div>
 
+          {/* Role sections — flat `surface-2` wells (nested-solid rule inside
+              the glass-strong dialog), `t-heading` title, 16 px between fields. */}
           {rolesToRender.map((role) => (
             <section
               key={role}
               aria-label={EXPERT_ROLE_LABELS[role]}
               className="grid gap-4 rounded-lg bg-surface-2 p-4"
             >
-              <div className="text-[13px] font-semibold text-ink">{EXPERT_ROLE_LABELS[role]}</div>
+              <h3 className="t-heading">{EXPERT_ROLE_LABELS[role]}</h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-1">
                   <Label htmlFor={`${role}-nom`}>Nom complet</Label>
@@ -259,6 +265,8 @@ export function CreateDossierDialog({
                   <Label htmlFor={`${role}-telephone`}>Téléphone</Label>
                   <Input
                     id={`${role}-telephone`}
+                    type="tel"
+                    placeholder="+212 6 12 34 56 78"
                     value={experts[role].telephone}
                     onChange={(e) => updateExpert(role, 'telephone', e.target.value)}
                     disabled={isCreating}
@@ -288,9 +296,10 @@ export function CreateDossierDialog({
           ))}
         </div>
 
-        {/* One solid primary, cancel ghost. */}
+        {/* Footer §13: [Annuler outline] [Créer default] — the dismissive
+            action stays visible (outline, not ghost). */}
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="ghost" onClick={handleCancel} disabled={isCreating}>
+          <Button variant="outline" onClick={handleCancel} disabled={isCreating}>
             Annuler
           </Button>
           <Button onClick={handleConfirm} loading={isCreating}>

@@ -16,13 +16,16 @@ function DevisEditorInner() {
   const accordSlot = searchParams.get('accordSlot') || undefined;
 
   if (!chiffrageId) {
+    // Empty state — element-specs §12 (NN/g: state + reason, no repeated
+    // title in the description; standalone on the canvas → dashed frame is
+    // fine). No action: the route is opened from an assignation.
     return (
-      <div className="mx-auto max-w-screen-lg py-10">
+      <div className="mx-auto max-w-screen-lg px-4 py-10 sm:px-6">
         <EmptyState
           role="alert"
           icon={<FileWarning />}
           title="Paramètres manquants"
-          description="Paramètres manquants : chiffrageId est requis."
+          description="Le paramètre chiffrageId est requis pour ouvrir l'éditeur."
         />
       </div>
     );

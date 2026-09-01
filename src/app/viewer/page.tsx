@@ -6,7 +6,11 @@ import {
   ArrowLeft, ZoomIn, ZoomOut, Columns2, RotateCw, RotateCcw, Loader2, Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Kbd } from '@/components/ui/kbd';
+import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import ReferencePanel from '../editor/reference-panel';
 import { useFirestore, useStorage } from '@/firebase';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
@@ -302,92 +306,123 @@ export default function ViewerPage() {
 
   return (
     <div className="flex h-screen select-none flex-col bg-background">
-      {/* Identity / tool bar — record-bar anatomy (components/dossiers/record-bar.tsx):
-          back · file identity · status chip · tools; read-only, so no primary. */}
-      <div className="flex min-h-[48px] shrink-0 flex-wrap items-center gap-2 glass-bar border-b border-hairline px-3 sm:px-5">
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink" onClick={() => router.back()} aria-label="Retour" title="Retour">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-
-        {/* Type filter */}
-        <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
-          <SelectTrigger className="h-8 w-[150px] text-xs">
-            <SelectValue placeholder="Type de document" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">Tous les types ({allFiles.length})</SelectItem>
-            {Object.entries(fileTypeGroups).map(([key, group]) => (
-              <SelectItem key={key} value={key}>
-                {group.label} ({group.indices.length})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* File switcher */}
-        <Select value={String(currentFileIndex)} onValueChange={(v) => setCurrentFileIndex(Number(v))}>
-          <SelectTrigger className="h-8 w-[220px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {filteredFileIndices.map((i) => (
-              <SelectItem key={i} value={String(i)}>
-                <span className="flex items-center gap-1.5 truncate">
-                  {allFiles[i].source === 'dossier' && <span className="shrink-0 rounded bg-surface-3 px-1 text-[11px] font-medium text-ink-2">Dossier</span>}
-                  {allFiles[i].name}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {pageCount > 0 && (
-          <span className="t-caption whitespace-nowrap tabular-nums">{pageCount} p.</span>
-        )}
-
-        {/* Read-only status chip (status pair, never a hand-picked amber). */}
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-status-warning-bg px-2 py-0.5 text-[11px] font-semibold text-status-warning-fg">
-          <Eye className="h-3 w-3" aria-hidden /> Lecture seule
-        </span>
-
-        <div className="flex-1" />
-
-        {/* Comparison toggle */}
-        {dossierId && (
-          <Button
-            variant={comparisonOpen ? 'tonal' : 'ghost'}
-            size="sm"
-            className="h-8 gap-1.5 px-2.5 text-xs"
-            onClick={() => setComparisonOpen(v => !v)}
-            aria-pressed={comparisonOpen}
-          >
-            <Columns2 className="h-3.5 w-3.5" />
-            Comparaison
+      {/* Toolbar — original 3d5629a layout (one bar; the back button keeps its
+          « Retour » label). Element-specs §18 (Apple HIG toolbars: leading =
+          navigation, centre = the view's controls, trailing = view controls;
+          ≤ 3 groups on hairline Separators) + §23 (one sticky bar ≤ 48 px,
+          `.glass-bar`, gutters 16/24). Read-only, so there is no filled button. */}
+      <TooltipProvider delayDuration={300}>
+        <div className="z-40 flex min-h-[48px] shrink-0 flex-wrap items-center gap-2 glass-bar border-b border-hairline px-4 sm:px-6">
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" /> Retour
           </Button>
-        )}
 
-        {/* Zoom pill — −/%/+, 25 % steps, % = fit (lightbox rules). */}
-        <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom" title="Ctrl + molette pour zoomer progressivement">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière">
-            <ZoomOut className="h-3.5 w-3.5" />
-          </Button>
-          <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — réinitialiser`}>
-            {Math.round(zoom * 100)} %
-          </button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom avant">
-            <ZoomIn className="h-3.5 w-3.5" />
-          </Button>
+          <Separator orientation="vertical" className="h-6" aria-hidden />
+
+          {/* Type filter */}
+          <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
+            <SelectTrigger className="h-9 w-[150px] text-xs" aria-label="Type de document">
+              <SelectValue placeholder="Type de document" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Tous les types ({allFiles.length})</SelectItem>
+              {Object.entries(fileTypeGroups).map(([key, group]) => (
+                <SelectItem key={key} value={key}>
+                  {group.label} ({group.indices.length})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* File switcher */}
+          <Select value={String(currentFileIndex)} onValueChange={(v) => setCurrentFileIndex(Number(v))}>
+            <SelectTrigger className="h-9 w-[220px] text-xs" aria-label="Fichier">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {filteredFileIndices.map((i) => (
+                <SelectItem key={i} value={String(i)}>
+                  <span className="flex items-center gap-1.5 truncate">
+                    {allFiles[i].source === 'dossier' && <span className="shrink-0 rounded bg-surface-3 px-1 text-[11px] font-medium text-ink-2">Dossier</span>}
+                    {allFiles[i].name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {pageCount > 0 && (
+            <span className="t-caption whitespace-nowrap tabular-nums">({pageCount} p.)</span>
+          )}
+
+          {/* Read-only chip — §11 (Carbon tag / dataviz: a status colour
+              always ships with its icon AND label; read-only IS the exception
+              here, so the warning pair is earned). */}
+          <Badge variant="warning" className="shrink-0 gap-1">
+            <Eye className="h-3 w-3" aria-hidden /> Lecture seule
+          </Badge>
+
+          <Separator orientation="vertical" className="h-6" aria-hidden />
+
+          {/* Comparison toggle — outline ⇄ tonal + aria-pressed (two cues). */}
+          {dossierId && (
+            <Button
+              variant={comparisonOpen ? 'tonal' : 'outline'}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setComparisonOpen(v => !v)}
+              aria-pressed={comparisonOpen}
+            >
+              <Columns2 className="h-4 w-4" />
+              Comparaison
+            </Button>
+          )}
+
+          <div className="flex-1" />
+
+          {/* Zoom pill — owner ruling: −/%/+, 25 % steps, % = fit,
+              Ctrl + wheel ≈ ×1.3 per notch; the shortcut is shown as a <Kbd>. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière">
+                  <ZoomOut className="h-3.5 w-3.5" />
+                </Button>
+                <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — réinitialiser`}>
+                  {Math.round(zoom * 100)} %
+                </button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom avant">
+                  <ZoomIn className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="flex items-center gap-2">
+              <span>Zoom — cliquer le % pour réinitialiser</span>
+              <Kbd>Ctrl</Kbd><span>+ molette</span>
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Rotation — 36 px `ghost` icon buttons with tooltips (§18 / M3
+              icon buttons: the tooltip names the action). */}
+          <div className="flex items-center gap-0.5" role="group" aria-label="Rotation">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setRotation(r => r - 90)} aria-label="Rotation −90°">
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Rotation −90°</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setRotation(r => r + 90)} aria-label="Rotation +90°">
+                  <RotateCw className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Rotation +90°</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
-
-        {/* Rotation */}
-        <div className="flex items-center gap-0.5" role="group" aria-label="Rotation">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRotation(r => r - 90)} title="Rotation -90°" aria-label="Rotation -90°">
-            <RotateCcw className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRotation(r => r + 90)} title="Rotation +90°" aria-label="Rotation +90°">
-            <RotateCw className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
+      </TooltipProvider>
 
       {/* Main content area */}
       <div className="flex flex-1 overflow-hidden">
@@ -454,16 +489,17 @@ export default function ViewerPage() {
         </div>
       </div>
 
-      {/* Status bar */}
-      <div className="flex shrink-0 items-center justify-between glass-bar border-t border-hairline px-4 py-1.5 text-xs text-ink-3">
+      {/* Status strip — `t-caption` on a glass bar (§23); the read-only word
+          keeps its status pair because the chip above already carries the icon. */}
+      <div className="t-caption flex shrink-0 items-center justify-between glass-bar border-t border-hairline px-4 py-1.5">
         <div className="flex items-center gap-4">
           <span className="tabular-nums">{annotations.length} annotation{annotations.length !== 1 ? 's' : ''}</span>
           <span className="truncate">{fileName}</span>
         </div>
         <div className="flex items-center gap-4 tabular-nums">
           <span className="font-semibold text-status-warning-fg">Lecture seule</span>
-          <span>Zoom : {Math.round(zoom * 100)}%</span>
-          {rotation !== 0 && <span>Rotation : {rotation}deg</span>}
+          <span>Zoom : {Math.round(zoom * 100)} %</span>
+          {rotation !== 0 && <span>Rotation : {rotation}°</span>}
         </div>
       </div>
     </div>

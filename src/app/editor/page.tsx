@@ -5,20 +5,16 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Save, Download, Type, Minus,
   MousePointer2, Trash2, ZoomIn, ZoomOut, Eraser,
-  RotateCw, RotateCcw, Columns2, Stamp, Plus, X, MoreHorizontal,
+  RotateCw, RotateCcw, Columns2, Stamp, Plus, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Kbd } from '@/components/ui/kbd';
+import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import ReferencePanel from './reference-panel';
 import { useFirestore, useStorage } from '@/firebase';
@@ -53,9 +49,11 @@ interface SavedStamp {
   dataUrl: string;
 }
 
-// Annotation ink colours are DOCUMENT content (burned into the exported PDF
-// via pdf-lib), not UI palette — the hexes stay.
-const COLORS = [
+// DOCUMENT ink, not UI colour: these hexes are what the user draws on the
+// page and they are burned into the exported PDF (pdf-lib), so they are
+// deliberately outside the token system. The one named constant every swatch
+// and stroke reads from.
+const DOCUMENT_INK_COLORS = [
   { name: 'Rouge', value: '#dc2626' },
   { name: 'Bleu', value: '#2563eb' },
   { name: 'Noir', value: '#000000' },
@@ -71,6 +69,49 @@ const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
 
 const STAMPS_STORAGE_KEY = 'editor-custom-stamps';
+
+type ToolButtonProps = Omit<React.ComponentProps<typeof Button>, 'variant' | 'size'> & {
+  /** Tooltip text — names the ACTION, not the icon (M3 icon buttons); doubles as the aria-label. */
+  label: string;
+  /** Optional shortcut hint rendered as a <Kbd> chip in the tooltip. */
+  kbd?: string;
+  /** Toggle state: pressed = tonal fill + aria-pressed (two cues, never colour alone). */
+  active?: boolean;
+};
+
+/**
+ * Toolbar icon button — element-specs §18 (Apple HIG toolbars: prefer
+ * symbols with a tooltip) + Material 3 icon buttons ("on hover, the icon
+ * button displays a tooltip describing its action"; selection shown by a
+ * fill, not colour alone): 36 px `ghost`, `tonal` when pressed.
+ */
+const ToolButton = React.forwardRef<HTMLButtonElement, ToolButtonProps>(function ToolButton(
+  { label, kbd, active, className, children, ...props },
+  ref,
+) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          ref={ref}
+          type="button"
+          variant={active ? 'tonal' : 'ghost'}
+          size="icon"
+          className={cn('h-9 w-9', className)}
+          aria-label={label}
+          aria-pressed={active}
+          {...props}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent className="flex items-center gap-2">
+        <span>{label}</span>
+        {kbd ? <Kbd>{kbd}</Kbd> : null}
+      </TooltipContent>
+    </Tooltip>
+  );
+});
 
 function loadStamps(): SavedStamp[] {
   try {
@@ -135,7 +176,7 @@ export default function EditorPage() {
   const [fileUrl, setFileUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [tool, setTool] = useState<Tool>('select');
-  const [color, setColor] = useState(COLORS[0].value);
+  const [color, setColor] = useState(DOCUMENT_INK_COLORS[0].value);
   const [fontSize, setFontSize] = useState(16);
   const [lineThickness, setLineThickness] = useState(3);
   const [zoom, setZoom] = useState(1);
@@ -169,6 +210,8 @@ export default function EditorPage() {
   const [savedStamps, setSavedStamps] = useState<SavedStamp[]>([]);
   const [activeStampUrl, setActiveStampUrl] = useState<string | null>(null);
   const stampInputRef = useRef<HTMLInputElement>(null);
+  // Drag-over ring for the stamp picker button (it is also the drop target).
+  const [stampDragOver, setStampDragOver] = useState(false);
 
   // Load stamps from localStorage on mount
   useEffect(() => {
@@ -532,11 +575,12 @@ export default function EditorPage() {
   };
 
   // ── Stamp helpers ─────────────────────────────────────────────────────────
-  const handleImportStamp = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
+  // Shared by the file input (click) and the picker button's drop handler.
+  const importStampFiles = async (files: File[]) => {
+    const images = files.filter((f) => f.type.startsWith('image/'));
+    if (images.length === 0) return;
     const newStamps: SavedStamp[] = [];
-    for (const file of files) {
+    for (const file of images) {
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
@@ -558,6 +602,10 @@ export default function EditorPage() {
       setActiveStampUrl(last.dataUrl);
       setTool('stamp');
     }
+  };
+
+  const handleImportStamp = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await importStampFiles(Array.from(e.target.files ?? []));
     e.target.value = '';
   };
 
@@ -800,16 +848,25 @@ export default function EditorPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   if (loading) {
     return (
+      // Skeleton §15 (NN/g: mirror the final layout) — the two restored bars,
+      // the dark canvas with one page, the status strip.
       <div className="flex h-screen flex-col bg-background" aria-busy="true">
-        <div className="glass-bar border-b border-hairline">
-          <div className="flex min-h-[48px] items-center gap-2 px-3 sm:px-5">
-            <Skeleton className="h-8 w-8 rounded-md" />
-            <Skeleton className="h-4 w-44" />
-            <div className="flex-1" />
-            <Skeleton className="h-8 w-24 rounded-md" />
-            <Skeleton className="h-8 w-28 rounded-md" />
-          </div>
-          <div className="h-10 border-t border-hairline" />
+        <div className="flex min-h-[48px] shrink-0 items-center gap-2 glass-bar border-b border-hairline px-4 sm:px-6">
+          <Skeleton className="h-8 w-20 rounded-md" />
+          <Skeleton className="h-9 w-[150px] rounded-md" />
+          <Skeleton className="h-9 w-[220px] rounded-md" />
+          <div className="flex-1" />
+          <Skeleton className="h-9 w-28 rounded-md" />
+          <Skeleton className="h-9 w-32 rounded-md" />
+        </div>
+        <div className="flex min-h-[40px] shrink-0 items-center gap-2 glass-bar border-b border-hairline px-4 sm:px-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-8 w-8 rounded-md" />
+          ))}
+          <div className="h-6 w-px bg-hairline" />
+          <Skeleton className="h-4 w-40" />
+          <div className="flex-1" />
+          <Skeleton className="h-7 w-24 rounded-md" />
         </div>
         <div className="flex flex-1 items-start justify-center overflow-hidden bg-ink-solid p-8">
           <Skeleton className="h-[calc(70vh/var(--app-zoom))] w-full max-w-3xl rounded-sm bg-card/80" />
@@ -823,125 +880,121 @@ export default function EditorPage() {
 
   return (
     <div className="flex h-screen select-none flex-col bg-background">
-      {/* ── Identity / tool bar ───────────────────────────────────────────────
-          Record-bar anatomy (components/dossiers/record-bar.tsx): one glass bar
-          with two rows — identity + primary action, then the dense tool strip
-          (16 px rhythm: tool panel). The canvas scrolls under it. */}
-      <div className="z-40 shrink-0 glass-bar border-b border-hairline">
-        {/* Row 1: navigation · file identity · status · ONE solid primary · ⋯ */}
-        <div className="flex min-h-[48px] flex-wrap items-center gap-2 px-3 sm:px-5">
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink" onClick={() => router.back()} aria-label="Retour" title="Retour">
-            <ArrowLeft className="h-4 w-4" />
+      {/* ── Bar 1: navigation · file · actions ───────────────────────────────
+          Original 3d5629a layout restored: TWO sibling bars. Element-specs §18
+          (Apple HIG toolbars: leading = navigation, centre = the view's
+          controls, trailing = the important items; "prefer symbols… except
+          for actions like edit" → the back button keeps its « Retour » label)
+          and §23 (the two bars together are this page's one sticky chrome:
+          ≤ 48 px + ≤ 40 px, `.glass-bar` + hairline, gutters 16/24). ONE
+          filled button (Exporter PDF) at the right end; Enregistrer is
+          `outline` and visible at every width. */}
+      <div className="z-40 flex min-h-[48px] shrink-0 flex-wrap items-center gap-2 glass-bar border-b border-hairline px-4 sm:px-6">
+        <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => router.back()}>
+          <ArrowLeft className="h-4 w-4" /> Retour
+        </Button>
+
+        <Separator orientation="vertical" className="h-6" aria-hidden />
+
+        {/* Type filter */}
+        <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
+          <SelectTrigger className="h-9 w-[150px] text-xs" aria-label="Type de document">
+            <SelectValue placeholder="Type de document" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">Tous les types ({allFiles.length})</SelectItem>
+            {Object.entries(fileTypeGroups).map(([key, group]) => (
+              <SelectItem key={key} value={key}>
+                {group.label} ({group.indices.length})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* File switcher */}
+        <Select value={String(currentFileIndex)} onValueChange={(v) => handleFileSwitch(Number(v))}>
+          <SelectTrigger className="h-9 w-[220px] text-xs" aria-label="Fichier">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {filteredFileIndices.map((i) => (
+              <SelectItem key={i} value={String(i)}>
+                <span className="flex items-center gap-1.5 truncate">
+                  {allFiles[i].source === 'dossier' && <span className="shrink-0 rounded bg-surface-3 px-1 text-[11px] font-medium text-ink-2">Dossier</span>}
+                  {allFiles[i].name}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {pageCount > 0 && (
+          <span className="t-caption whitespace-nowrap tabular-nums">({pageCount} p.)</span>
+        )}
+        {/* Read-only chip — §11 status pair + label (read-only IS the exception). */}
+        {!isChiffrageFile && (
+          <Badge variant="warning" className="shrink-0" title="Fichier du dossier : les annotations ne sont pas enregistrées">
+            Lecture seule
+          </Badge>
+        )}
+
+        <Separator orientation="vertical" className="h-6" aria-hidden />
+
+        {/* Comparison toggle — outline ⇄ tonal, aria-pressed (two cues). */}
+        {dossierId && (
+          <Button
+            variant={comparisonOpen ? 'tonal' : 'outline'}
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setComparisonOpen(v => !v)}
+            aria-pressed={comparisonOpen}
+          >
+            <Columns2 className="h-4 w-4" />
+            Comparaison
           </Button>
+        )}
 
-          {/* Type filter */}
-          <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
-            <SelectTrigger className="h-8 w-[150px] text-xs">
-              <SelectValue placeholder="Type de document" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">Tous les types ({allFiles.length})</SelectItem>
-              {Object.entries(fileTypeGroups).map(([key, group]) => (
-                <SelectItem key={key} value={key}>
-                  {group.label} ({group.indices.length})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex-1" />
 
-          {/* File switcher */}
-          <Select value={String(currentFileIndex)} onValueChange={(v) => handleFileSwitch(Number(v))}>
-            <SelectTrigger className="h-8 w-[220px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {filteredFileIndices.map((i) => (
-                <SelectItem key={i} value={String(i)}>
-                  <span className="flex items-center gap-1.5 truncate">
-                    {allFiles[i].source === 'dossier' && <span className="shrink-0 rounded bg-surface-3 px-1 text-[11px] font-medium text-ink-2">Dossier</span>}
-                    {allFiles[i].name}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {pageCount > 0 && (
-            <span className="t-caption whitespace-nowrap tabular-nums">{pageCount} p.</span>
-          )}
-          {!isChiffrageFile && (
-            <span className="shrink-0 rounded-full bg-status-warning-bg px-2 py-0.5 text-[11px] font-semibold text-status-warning-fg" title="Fichier du dossier : les annotations ne sont pas enregistrées">
-              Lecture seule
-            </span>
-          )}
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleSave} loading={isSaving} disabled={!isChiffrageFile} title={!isChiffrageFile ? 'Lecture seule (fichier dossier)' : undefined}>
+          {isSaving ? null : <Save className="h-4 w-4" />}
+          Enregistrer
+        </Button>
+        <Button variant="default" size="sm" className="gap-1.5" onClick={handleExport} loading={isExporting}>
+          {isExporting ? null : <Download className="h-4 w-4" />}
+          Exporter PDF
+        </Button>
+      </div>
 
-          {/* Comparison toggle */}
-          {dossierId && (
-            <Button
-              variant={comparisonOpen ? 'tonal' : 'ghost'}
-              size="sm"
-              className="h-8 gap-1.5 px-2.5 text-xs"
-              onClick={() => setComparisonOpen(v => !v)}
-              aria-pressed={comparisonOpen}
-            >
-              <Columns2 className="h-3.5 w-3.5" />
-              Comparaison
-            </Button>
-          )}
-
-          <div className="flex-1" />
-
-          {/* Save (tonal) & Export (THE primary) */}
-          <Button variant="tonal" size="sm" className="hidden h-8 md:inline-flex" onClick={handleSave} loading={isSaving} disabled={!isChiffrageFile} title={!isChiffrageFile ? 'Lecture seule (fichier dossier)' : ''}>
-            {isSaving ? null : <Save className="h-3.5 w-3.5" />}
-            Enregistrer
-          </Button>
-          <Button variant="default" size="sm" className="h-8" onClick={handleExport} loading={isExporting}>
-            {isExporting ? null : <Download className="h-3.5 w-3.5" />}
-            Exporter PDF
-          </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Plus d'actions">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60">
-              <DropdownMenuLabel className="t-caption truncate font-normal">{fileName}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={handleSave} disabled={!isChiffrageFile || isSaving} className="md:hidden">
-                <Save className="mr-2 h-4 w-4" /> Enregistrer
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={deleteSelected} disabled={!selectedId}>
-                <Trash2 className="mr-2 h-4 w-4" /> Supprimer la sélection
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={clearAll} disabled={annotations.length === 0} className="text-destructive focus:text-destructive">
-                <Eraser className="mr-2 h-4 w-4" /> Tout effacer
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* Row 2: tools — dense strip (16 px rhythm, tool panel). */}
-        <div className="flex flex-wrap items-center gap-2 border-t border-hairline px-3 py-1.5 sm:px-5">
-          {/* Tools — segmented group on the surface-2 step; active = tonal */}
-          <div className="flex items-center gap-0.5 rounded-md bg-surface-2 p-0.5" role="group" aria-label="Outils">
-            <Button variant={tool === 'select' ? 'tonal' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setTool('select')} title="Sélectionner / Déplacer" aria-pressed={tool === 'select'}>
-              <MousePointer2 className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant={tool === 'text' ? 'tonal' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setTool('text')} title="Ajouter du texte" aria-pressed={tool === 'text'}>
-              <Type className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant={tool === 'line' ? 'tonal' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setTool('line')} title="Tracer une ligne" aria-pressed={tool === 'line'}>
-              <Minus className="h-3.5 w-3.5" />
-            </Button>
+      {/* ── Bar 2: tools ─────────────────────────────────────────────────────
+          §18: ≤ 3 groups separated by hairline Separators — [tools] | [ink:
+          colour · text size · line weight] · spacer · [trailing: delete ·
+          clear · zoom · rotation]. Icon buttons are 36 px `ghost` with
+          tooltips (M3 icon buttons: the tooltip names the action; pressed =
+          tonal fill + aria-pressed — two cues, never colour alone). */}
+      <TooltipProvider delayDuration={300}>
+        <div className="z-30 flex min-h-[40px] shrink-0 flex-wrap items-center gap-2 glass-bar border-b border-hairline px-4 py-0.5 sm:px-6">
+          <div className="flex items-center gap-0.5" role="group" aria-label="Outils">
+            <ToolButton label="Sélectionner / déplacer" active={tool === 'select'} onClick={() => setTool('select')}>
+              <MousePointer2 className="h-4 w-4" />
+            </ToolButton>
+            <ToolButton label="Ajouter du texte" active={tool === 'text'} onClick={() => setTool('text')}>
+              <Type className="h-4 w-4" />
+            </ToolButton>
+            <ToolButton label="Tracer une ligne" active={tool === 'line'} onClick={() => setTool('line')}>
+              <Minus className="h-4 w-4" />
+            </ToolButton>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant={tool === 'stamp' ? 'tonal' : 'ghost'} size="icon" className="h-7 w-7" title="Tampon" aria-pressed={tool === 'stamp'}>
-                  <Stamp className="h-3.5 w-3.5" />
-                </Button>
+                <ToolButton label="Tampon" active={tool === 'stamp'}>
+                  <Stamp className="h-4 w-4" />
+                </ToolButton>
               </PopoverTrigger>
+              {/* Stamp popover — §13-lite: `glass-strong` (the PopoverContent
+                  default), `t-label` heading, 3-col tiles per §21 (raised
+                  tiles, 10 px radius, hover-revealed delete), and ONE plain
+                  « Ajouter un tampon » button that is also the drop target
+                  (blueprint §6 file-picker rule: ring on drag-over, no banner,
+                  no dashed panel). Empty = one line + that action (§12). */}
               <PopoverContent className="w-64 p-4" align="start">
                 <div className="space-y-3">
                   <p className="t-label">Tampons</p>
@@ -956,8 +1009,8 @@ export default function EditorPage() {
                             tabIndex={0}
                             aria-pressed={active}
                             className={cn(
-                              'group relative flex aspect-square cursor-pointer items-center justify-center rounded-md bg-surface-2 p-1 ring-1 ring-hairline transition-[box-shadow] duration-150 hover:ring-hairline-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                              active && 'ring-2 ring-ring hover:ring-ring'
+                              'group relative flex aspect-square cursor-pointer items-center justify-center rounded-[10px] bg-card p-1 shadow-rim transition-[box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                              active && 'ring-2 ring-ring'
                             )}
                             onClick={() => handleSelectStamp(s.dataUrl)}
                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectStamp(s.dataUrl); } }}
@@ -978,7 +1031,7 @@ export default function EditorPage() {
                       })}
                     </div>
                   ) : (
-                    <p className="t-caption py-3 text-center">Aucun tampon importé</p>
+                    <p className="t-caption py-2 text-center">Aucun tampon importé</p>
                   )}
                   <input
                     ref={stampInputRef}
@@ -988,124 +1041,142 @@ export default function EditorPage() {
                     className="hidden"
                     onChange={handleImportStamp}
                   />
-                  {/* One plain button is the picker (file-picker rule). */}
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full"
+                    className={cn('w-full gap-1.5', stampDragOver && 'ring-2 ring-ring')}
                     onClick={() => stampInputRef.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); setStampDragOver(true); }}
+                    onDragLeave={() => setStampDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setStampDragOver(false);
+                      void importStampFiles(Array.from(e.dataTransfer.files));
+                    }}
                   >
-                    <Plus className="h-3.5 w-3.5" /> Ajouter un tampon
+                    <Plus className="h-4 w-4" /> Ajouter un tampon
                   </Button>
                 </div>
               </PopoverContent>
             </Popover>
           </div>
 
-          <div className="h-5 w-px bg-hairline" aria-hidden />
+          <Separator orientation="vertical" className="h-6" aria-hidden />
 
-          {/* Colours — document ink, selected = focus-ring ring (no scale) */}
-          <div className="flex items-center gap-1.5" role="group" aria-label="Couleur">
-            {COLORS.map(c => (
-              <button
-                key={c.value}
-                type="button"
-                onClick={() => {
-                  setColor(c.value);
-                  if (selectedId) updateSelected({ color: c.value });
+          {/* Ink settings. Colour swatches — Apple HIG colour wells ("the
+              colour well updates to show the new colour") + M3 toggle icon
+              buttons (selection by two cues: ring + aria-pressed); the hexes
+              are DOCUMENT ink (see DOCUMENT_INK_COLORS), not UI colour. Sliders — M3
+              sliders (a label, immediate effect, the current value shown
+              beside the handle): `t-label` + live tabular readout. */}
+          <div className="flex flex-wrap items-center gap-3" role="group" aria-label="Encre">
+            <div className="flex items-center gap-1.5" role="group" aria-label="Couleur">
+              {DOCUMENT_INK_COLORS.map(c => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => {
+                    setColor(c.value);
+                    if (selectedId) updateSelected({ color: c.value });
+                  }}
+                  className={cn(
+                    'h-5 w-5 rounded-full shadow-rim transition-[box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    color === c.value && 'ring-2 ring-ring ring-offset-2 ring-offset-card'
+                  )}
+                  style={{ backgroundColor: c.value }}
+                  title={c.name}
+                  aria-label={c.name}
+                  aria-pressed={color === c.value}
+                />
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span id="editor-text-size-label" className="t-label">Texte</span>
+              <Slider
+                value={[selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize]}
+                onValueChange={([v]) => {
+                  setFontSize(v);
+                  if (selectedId && selectedAnnotation?.type === 'text') updateSelected({ fontSize: v });
                 }}
-                className={cn(
-                  'h-5 w-5 rounded-full shadow-rim transition-[box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                  color === c.value && 'ring-2 ring-ring ring-offset-2 ring-offset-card'
-                )}
-                style={{ backgroundColor: c.value }}
-                title={c.name}
-                aria-label={c.name}
-                aria-pressed={color === c.value}
+                min={10}
+                max={48}
+                step={1}
+                className="w-20"
+                aria-labelledby="editor-text-size-label"
               />
-            ))}
-          </div>
+              <span className="w-5 text-right text-xs tabular-nums text-ink-2">
+                {selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize}
+              </span>
+            </div>
 
-          <div className="h-5 w-px bg-hairline" aria-hidden />
-
-          {/* Font size */}
-          <div className="flex items-center gap-1.5" title="Taille du texte">
-            <Type className="h-3 w-3 text-ink-3" aria-hidden />
-            <Slider
-              value={[selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize]}
-              onValueChange={([v]) => {
-                setFontSize(v);
-                if (selectedId && selectedAnnotation?.type === 'text') updateSelected({ fontSize: v });
-              }}
-              min={10}
-              max={48}
-              step={1}
-              className="w-20"
-              aria-label="Taille du texte"
-            />
-            <span className="w-5 text-right font-mono text-[11px] tabular-nums text-ink-3">
-              {selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize}
-            </span>
-          </div>
-
-          <div className="h-5 w-px bg-hairline" aria-hidden />
-
-          {/* Line thickness */}
-          <div className="flex items-center gap-1.5" title="Épaisseur de la ligne">
-            <Minus className="h-3 w-3 text-ink-3" aria-hidden />
-            <Slider
-              value={[selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness]}
-              onValueChange={([v]) => {
-                setLineThickness(v);
-                if (selectedId && selectedAnnotation?.type === 'line') updateSelected({ thickness: v });
-              }}
-              min={1}
-              max={8}
-              step={1}
-              className="w-14"
-              aria-label="Épaisseur de la ligne"
-            />
-            <span className="w-3 font-mono text-[11px] tabular-nums text-ink-3">
-              {selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span id="editor-line-weight-label" className="t-label">Trait</span>
+              <Slider
+                value={[selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness]}
+                onValueChange={([v]) => {
+                  setLineThickness(v);
+                  if (selectedId && selectedAnnotation?.type === 'line') updateSelected({ thickness: v });
+                }}
+                min={1}
+                max={8}
+                step={1}
+                className="w-14"
+                aria-labelledby="editor-line-weight-label"
+              />
+              <span className="w-3 text-xs tabular-nums text-ink-2">
+                {selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness}
+              </span>
+            </div>
           </div>
 
           <div className="flex-1" />
 
-          {/* Delete selection — destructive intent stays a quiet ghost icon */}
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-ink-3 hover:text-destructive" onClick={deleteSelected} disabled={!selectedId} title="Supprimer" aria-label="Supprimer la sélection">
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          {/* Trailing group: delete / clear (restored Trash2 + Eraser, 3d5629a),
+              then the zoom pill (owner ruling: −/%/+, 25 % steps, % = fit,
+              Ctrl + wheel ≈ ×1.3 per notch) and rotation. */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-0.5" role="group" aria-label="Annotations">
+              <ToolButton label="Supprimer la sélection" className="text-ink-3 hover:text-destructive" onClick={deleteSelected} disabled={!selectedId}>
+                <Trash2 className="h-4 w-4" />
+              </ToolButton>
+              <ToolButton label="Tout effacer" className="text-ink-3 hover:text-destructive" onClick={clearAll} disabled={annotations.length === 0}>
+                <Eraser className="h-4 w-4" />
+              </ToolButton>
+            </div>
 
-          <div className="h-5 w-px bg-hairline" aria-hidden />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière">
+                    <ZoomOut className="h-3.5 w-3.5" />
+                  </Button>
+                  <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — réinitialiser`}>
+                    {Math.round(zoom * 100)} %
+                  </button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom avant">
+                    <ZoomIn className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="flex items-center gap-2">
+                <span>Zoom — cliquer le % pour réinitialiser</span>
+                <Kbd>Ctrl</Kbd><span>+ molette</span>
+              </TooltipContent>
+            </Tooltip>
 
-          {/* Zoom pill — −/%/+, 25 % steps, % = fit (lightbox rules) */}
-          <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom" title="Ctrl + molette pour zoomer progressivement">
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière">
-              <ZoomOut className="h-3 w-3" />
-            </Button>
-            <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — réinitialiser`}>
-              {Math.round(zoom * 100)} %
-            </button>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom avant">
-              <ZoomIn className="h-3 w-3" />
-            </Button>
-          </div>
-
-          <div className="h-5 w-px bg-hairline" aria-hidden />
-
-          {/* Rotation */}
-          <div className="flex items-center gap-0.5" role="group" aria-label="Rotation">
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRotation(r => (r - 90 + 360) % 360)} title="Rotation -90°" aria-label="Rotation -90°">
-              <RotateCcw className="h-3 w-3" />
-            </Button>
-            <span className="t-caption w-7 text-center tabular-nums">{rotation}°</span>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRotation(r => (r + 90) % 360)} title="Rotation +90°" aria-label="Rotation +90°">
-              <RotateCw className="h-3 w-3" />
-            </Button>
+            <div className="flex items-center gap-0.5" role="group" aria-label="Rotation">
+              <ToolButton label="Rotation −90°" onClick={() => setRotation(r => (r - 90 + 360) % 360)}>
+                <RotateCcw className="h-4 w-4" />
+              </ToolButton>
+              <span className="t-caption w-7 text-center tabular-nums">{rotation}°</span>
+              <ToolButton label="Rotation +90°" onClick={() => setRotation(r => (r + 90) % 360)}>
+                <RotateCw className="h-4 w-4" />
+              </ToolButton>
+            </div>
           </div>
         </div>
-      </div>
+      </TooltipProvider>
 
       {/* ── Main content area (comparison panel + canvas) ───────────────────── */}
       <div className="flex flex-1 overflow-hidden">

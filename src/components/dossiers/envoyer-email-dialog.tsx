@@ -200,15 +200,20 @@ export function EnvoyerEmailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      {/* Dialog — element-specs §13 (M3 dialogs: brief headline + one line;
+          confirm at the edge, dismissive `outline` to its left; bottom sheet
+          below `lg`). 2xl because the message body needs the width. */}
+      <DialogContent className="lg:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Envoyer un email</DialogTitle>
+          <DialogTitle className="t-title">Envoyer un email</DialogTitle>
           <DialogDescription>
             Sélectionnez les documents à joindre puis rédigez votre message.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Body: t-label labels over controls, 16 px between rows. */}
+        {/* Form — element-specs §9 (GOV.UK: visible label above each 40 px
+            control, single column, rows 16 apart; the address field carries
+            no sample value — an empty input, never a placeholder-as-label). */}
         <div className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="email-recipient">Destinataire</Label>
@@ -252,7 +257,9 @@ export function EnvoyerEmailDialog({
                 Aucun accord ou proposition d'accord disponible pour ce dossier.
               </p>
             ) : (
-              // Hairline-separated rows (no box-in-box inside the dialog).
+              // Attachment rows — element-specs §4 (M3 lists: 44 px one-line
+              // rows, hairlines only, leading control, headline 600 + supporting
+              // text in the row; no box-in-box inside the dialog).
               <div className="divide-y divide-hairline">
                 {sources.map((s) => {
                   const id = `email-source-${s.sourceId}`;
@@ -260,7 +267,7 @@ export function EnvoyerEmailDialog({
                     <label
                       key={s.sourceId}
                       htmlFor={id}
-                      className="flex cursor-pointer items-start gap-2.5 py-2 text-sm text-ink"
+                      className="flex min-h-[44px] cursor-pointer items-start gap-2.5 py-2.5 text-sm text-ink"
                     >
                       <Checkbox
                         id={id}
@@ -282,10 +289,11 @@ export function EnvoyerEmailDialog({
           </div>
         </div>
 
-        {/* One solid primary, cancel ghost. */}
+        {/* Footer §13: [Annuler outline] [Envoyer default] — the dismissive
+            action stays visible (outline, not ghost). */}
         <DialogFooter className="gap-2 sm:gap-2">
           <Button
-            variant="ghost"
+            variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isSubmitting}
           >

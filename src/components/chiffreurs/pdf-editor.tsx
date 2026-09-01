@@ -9,10 +9,12 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Kbd } from '@/components/ui/kbd';
+import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Download,
   Save,
-  Loader2,
   Type,
   Minus,
   MousePointer2,
@@ -54,20 +56,59 @@ interface PdfEditorProps {
   onClose: () => void;
 }
 
-// Annotation ink colours are DOCUMENT content (they are burned into the
-// exported PDF), not UI palette — the hexes stay.
-const COLORS = [
+// DOCUMENT ink, not UI colour: these hexes are what the chiffreur draws on the
+// scanned page and they are burned into the exported PDF (html2canvas →
+// jsPDF), so they are deliberately outside the token system. The one named
+// constant every swatch and stroke reads from.
+const DOCUMENT_INK_COLORS = [
   { name: 'Rouge', value: '#dc2626' },
   { name: 'Bleu', value: '#2563eb' },
   { name: 'Noir', value: '#000000' },
   { name: 'Vert', value: '#16a34a' },
 ];
 
-// Lightbox zoom rules (document-preview-lightbox): buttons step 25 %, the
-// percentage resets to fit (100 %).
+// Zoom — owner ruling: buttons step 25 %, the percentage resets to fit
+// (100 %), Ctrl + wheel ≈ ×1.3 per notch.
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 2;
 const ZOOM_STEP = 0.25;
+
+type ToolButtonProps = Omit<React.ComponentProps<typeof Button>, 'variant' | 'size'> & {
+  /** Tooltip text — names the ACTION (M3 icon buttons); doubles as the aria-label. */
+  label: string;
+  /** Toggle state: pressed = tonal fill + aria-pressed (two cues, never colour alone). */
+  active?: boolean;
+};
+
+/**
+ * Toolbar icon button — element-specs §18 (Apple HIG toolbars: symbols with
+ * a tooltip) + Material 3 icon buttons ("the tooltip describes its action"):
+ * 36 px `ghost`, `tonal` when pressed.
+ */
+const ToolButton = React.forwardRef<HTMLButtonElement, ToolButtonProps>(function ToolButton(
+  { label, active, className, children, ...props },
+  ref,
+) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          ref={ref}
+          type="button"
+          variant={active ? 'tonal' : 'ghost'}
+          size="icon"
+          className={cn('h-9 w-9', className)}
+          aria-label={label}
+          aria-pressed={active}
+          {...props}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+});
 
 export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }: PdfEditorProps) {
   const db = useFirestore();
@@ -78,7 +119,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const [tool, setTool] = useState<Tool>('select');
-  const [color, setColor] = useState(COLORS[0].value);
+  const [color, setColor] = useState(DOCUMENT_INK_COLORS[0].value);
   const [hasBorder, setHasBorder] = useState(true);
   const [zoom, setZoom] = useState(1);
 
@@ -316,106 +357,112 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
         hideCloseButton
         className="flex h-[calc(92dvh/var(--app-zoom))] w-full flex-col gap-0 overflow-hidden p-0 lg:h-[calc(96svh/var(--app-zoom))] lg:max-w-[calc(98vw/var(--app-zoom))]"
       >
-        {/* Identity / tool bar — record-bar anatomy: identity · tools · ONE solid primary. */}
-        <DialogHeader className="shrink-0 space-y-0 border-b border-hairline px-4 py-2 sm:px-5">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <div className="flex min-w-0 items-center gap-3">
-              <DialogTitle className="t-heading whitespace-nowrap">Correcteur Professionnel</DialogTitle>
-              <span className="t-mono min-w-0 truncate text-ink-3" title={fileName}>{fileName}</span>
+        {/* Toolbar — element-specs §18 (Apple HIG toolbars: leading =
+            identity, centre = ≤ 3 tool groups on hairline Separators —
+            [tools] | [ink: colour · bordure] | [edit: supprimer · annuler] —
+            trailing = Enregistrer `tonal` + the ONE filled Exporter PDF).
+            Icon buttons 36 px `ghost` with tooltips (M3 icon buttons).
+            Gutters 16/24 (no 20 px). */}
+        <DialogHeader className="shrink-0 space-y-0 border-b border-hairline px-4 py-2 sm:px-6">
+          <TooltipProvider delayDuration={300}>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <div className="flex min-w-0 items-center gap-3">
+                <DialogTitle className="t-heading whitespace-nowrap">Correcteur Professionnel</DialogTitle>
+                <span className="t-mono min-w-0 truncate text-ink-3" title={fileName}>{fileName}</span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-0.5" role="group" aria-label="Outils">
+                  <ToolButton label="Sélectionner" active={tool === 'select'} onClick={() => setTool('select')}>
+                    <MousePointer2 className="h-4 w-4" />
+                  </ToolButton>
+                  <ToolButton label="Barrer (horizontal)" active={tool === 'line'} onClick={() => setTool('line')}>
+                    <Minus className="h-4 w-4" />
+                  </ToolButton>
+                  <ToolButton label="Texte de correction" active={tool === 'text'} onClick={() => setTool('text')}>
+                    <Type className="h-4 w-4" />
+                  </ToolButton>
+                </div>
+
+                <Separator orientation="vertical" className="h-6" aria-hidden />
+
+                {/* Ink — colour swatches (Apple HIG colour wells: the well shows
+                    the current colour; M3 toggle buttons: selection by two cues,
+                    ring + aria-pressed) and the border toggle. */}
+                <div className="flex items-center gap-2" role="group" aria-label="Encre">
+                  <div className="flex items-center gap-1.5" role="group" aria-label="Couleur">
+                    {DOCUMENT_INK_COLORS.map(c => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => setColor(c.value)}
+                        className={cn(
+                          "h-5 w-5 rounded-full shadow-rim transition-[box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                          color === c.value && "ring-2 ring-ring ring-offset-2 ring-offset-card"
+                        )}
+                        style={{ backgroundColor: c.value }}
+                        title={c.name}
+                        aria-label={c.name}
+                        aria-pressed={color === c.value}
+                      />
+                    ))}
+                  </div>
+                  <Button
+                    variant={hasBorder ? 'tonal' : 'ghost'}
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setHasBorder(!hasBorder)}
+                    aria-pressed={hasBorder}
+                  >
+                    <Square className={cn("h-3.5 w-3.5", !hasBorder && "opacity-30")} />
+                    Bordure
+                  </Button>
+                </div>
+
+                <Separator orientation="vertical" className="h-6" aria-hidden />
+
+                <div className="flex items-center gap-0.5" role="group" aria-label="Annotations">
+                  <ToolButton label="Supprimer la sélection" className="text-ink-3 hover:text-destructive" onClick={deleteSelected} disabled={!selectedId}>
+                    <Trash2 className="h-4 w-4" />
+                  </ToolButton>
+                  <ToolButton label="Annuler la dernière annotation" onClick={() => setAnnotations(annotations.slice(0, -1))} disabled={annotations.length === 0}>
+                    <Undo2 className="h-4 w-4" />
+                  </ToolButton>
+                </div>
+              </div>
+
+              <div className="flex-1" />
+
+              <div className="flex items-center gap-2">
+                {/* Zoom pill — owner ruling: −/%/+, 25 % steps, % = fit,
+                    Ctrl + wheel ≈ ×1.3 per notch (shortcut shown as <Kbd>). */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(Math.max(ZOOM_MIN, +(zoom - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière"><ZoomOut className="h-3.5 w-3.5" /></Button>
+                      <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — réinitialiser`}>
+                        {Math.round(zoom * 100)} %
+                      </button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(Math.min(ZOOM_MAX, +(zoom + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom avant"><ZoomIn className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="flex items-center gap-2">
+                    <span>Zoom — cliquer le % pour réinitialiser</span>
+                    <Kbd>Ctrl</Kbd><span>+ molette</span>
+                  </TooltipContent>
+                </Tooltip>
+                {/* §8 emphasis ladder: Enregistrer `tonal`, Exporter PDF the ONE filled. */}
+                <Button variant="tonal" size="sm" className="gap-1.5" onClick={handleSave} loading={isSaving}>
+                  {isSaving ? null : <Save className="h-4 w-4" />}
+                  Enregistrer
+                </Button>
+                <Button variant="default" size="sm" className="gap-1.5" onClick={handleExportPdf} loading={isExporting}>
+                  {isExporting ? null : <Download className="h-4 w-4" />}
+                  Exporter PDF
+                </Button>
+              </div>
             </div>
-
-            {/* Dense tool strip: 16 px rhythm instead of 24 (tool panel). */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-0.5 rounded-md bg-surface-2 p-0.5" role="group" aria-label="Outils">
-                <Button
-                  variant={tool === 'select' ? 'tonal' : 'ghost'}
-                  size="icon" className="h-8 w-8"
-                  onClick={() => setTool('select')} title="Sélectionner" aria-pressed={tool === 'select'}
-                >
-                  <MousePointer2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={tool === 'line' ? 'tonal' : 'ghost'}
-                  size="icon" className="h-8 w-8"
-                  onClick={() => setTool('line')} title="Barrer (Horizontal)" aria-pressed={tool === 'line'}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={tool === 'text' ? 'tonal' : 'ghost'}
-                  size="icon" className="h-8 w-8"
-                  onClick={() => setTool('text')} title="Texte de correction" aria-pressed={tool === 'text'}
-                >
-                  <Type className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <div className="h-5 w-px bg-hairline" aria-hidden />
-
-              <div className="flex items-center gap-1.5" role="group" aria-label="Couleur">
-                {COLORS.map(c => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => setColor(c.value)}
-                    className={cn(
-                      "h-5 w-5 rounded-full shadow-rim transition-[box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                      color === c.value && "ring-2 ring-ring ring-offset-2 ring-offset-card"
-                    )}
-                    style={{ backgroundColor: c.value }}
-                    title={c.name}
-                    aria-label={c.name}
-                    aria-pressed={color === c.value}
-                  />
-                ))}
-              </div>
-
-              <div className="h-5 w-px bg-hairline" aria-hidden />
-
-              <Button
-                variant={hasBorder ? 'tonal' : 'ghost'}
-                size="sm"
-                className="h-8 px-2 text-xs"
-                onClick={() => setHasBorder(!hasBorder)}
-                aria-pressed={hasBorder}
-              >
-                <Square className={cn("h-3 w-3", !hasBorder && "opacity-30")} />
-                Bordure
-              </Button>
-
-              <div className="h-5 w-px bg-hairline" aria-hidden />
-
-              <div className="flex items-center gap-0.5">
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-ink-3 hover:text-destructive" onClick={deleteSelected} disabled={!selectedId} title="Supprimer" aria-label="Supprimer">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAnnotations(annotations.slice(0, -1))} title="Annuler" aria-label="Annuler">
-                  <Undo2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex-1" />
-
-            <div className="flex items-center gap-2">
-              {/* Zoom pill — lightbox rules: −/%/+, 25 % steps, % = fit. */}
-              <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom" title="Ctrl + molette pour zoomer progressivement">
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(Math.max(ZOOM_MIN, +(zoom - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière"><ZoomOut className="h-3.5 w-3.5" /></Button>
-                <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — réinitialiser`}>
-                  {Math.round(zoom * 100)} %
-                </button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(Math.min(ZOOM_MAX, +(zoom + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom avant"><ZoomIn className="h-3.5 w-3.5" /></Button>
-              </div>
-              <Button variant="tonal" size="sm" onClick={handleSave} disabled={isSaving}>
-                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                Enregistrer
-              </Button>
-              <Button variant="default" size="sm" onClick={handleExportPdf} disabled={isExporting}>
-                {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                Exporter PDF
-              </Button>
-            </div>
-          </div>
+          </TooltipProvider>
         </DialogHeader>
 
         {/* Dark functional backdrop (lightbox media area); the page is the document. */}
@@ -522,7 +569,9 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
           </div>
         </div>
 
-        <DialogFooter className="shrink-0 border-t border-hairline px-5 py-2 sm:justify-between">
+        {/* Footer — §13 dismissive action (`outline`) at the edge; the status
+            hint is a `t-caption`. Gutters 16/24. */}
+        <DialogFooter className="shrink-0 border-t border-hairline px-4 py-2 sm:justify-between sm:px-6">
           <div className="flex w-full flex-wrap items-center justify-between gap-3">
             <p className="t-caption text-ink-4">
               DashFlow Canvas Engine — Mode "Correction Native" Manuel
@@ -531,7 +580,7 @@ export function PdfEditor({ chiffrageId, fileIndex, fileName, fileUrl, onClose }
               <span className="t-caption hidden sm:inline">
                 Cliquez pour modifier un texte. Utilisez l'outil "Barre" pour corriger les prix originaux.
               </span>
-              <Button variant="ghost" size="sm" onClick={onClose}>Fermer</Button>
+              <Button variant="outline" size="sm" onClick={onClose}>Fermer</Button>
             </div>
           </div>
         </DialogFooter>

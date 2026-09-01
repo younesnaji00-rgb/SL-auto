@@ -44,7 +44,9 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className, 
 
   return (
     <div className={cn('flex shrink-0 flex-col bg-card', className ?? 'w-1/2 min-w-[300px] border-r border-hairline')}>
-      {/* Panel header — t-heading title, tool icons at the right end. */}
+      {/* Panel header — element-specs §18 side panels (flat surface, not glass
+          on glass) + §1: one `t-heading` naming the panel, tool icons
+          (`ghost`, aria-pressed on the split toggle) at the right end. */}
       <div className="flex min-h-[40px] shrink-0 items-center justify-between gap-2 border-b border-hairline px-4 py-1.5">
         <h2 className="t-heading truncate">Comparaison</h2>
         <div className="flex items-center gap-1">
@@ -78,8 +80,10 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className, 
   );
 }
 
-/** Underline tab (M3 primary tabs / step-tabs.tsx): accent underline is the
- *  only colour; inactive tabs are ink-3. */
+/** Underline tab — element-specs §7 (NN/g Tabs Used Right: short labels, one
+ *  row, at least two selection indicators; M3 primary tabs): 40 px, 13/500,
+ *  active = ink text + 2 px `primary` underline, inactive ink-3, hairline under
+ *  the list; the compact photo sub-tabs pass their own padding. */
 function PaneTab({
   active,
   onClick,
@@ -98,7 +102,7 @@ function PaneTab({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        'flex flex-1 items-center justify-center gap-1.5 border-b-2 px-3 py-2 text-[13px] font-medium transition-colors duration-150',
+        'flex min-h-[40px] flex-1 items-center justify-center gap-1.5 border-b-2 px-3 py-2 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         active ? 'border-primary text-ink' : 'border-transparent text-ink-3 hover:text-ink',
         className,
       )}
@@ -222,7 +226,9 @@ function ReferencePane({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Pane mini-header: label (if any) · eye (lightbox) · list toggle */}
+      {/* Pane mini-header: `t-label` (pane name · selected file) · eye button
+          opening the DocumentPreviewLightbox (net-new, kept) · list toggle —
+          `ghost` icon buttons with aria-pressed on the toggle (§18). */}
       <div className="flex min-h-[32px] shrink-0 items-center justify-between gap-2 border-b border-hairline px-3 py-0.5">
         <span className="t-label truncate">
           {label ?? ''}
@@ -276,7 +282,7 @@ function ReferencePane({
                 key={key}
                 active={photoSubTab === key}
                 onClick={() => setPhotoSubTab(key)}
-                className="py-1.5 text-xs"
+                className="min-h-[32px] py-1.5 text-xs"
               >
                 {categoryLabels[key]} ({groupedPhotos[key].length})
               </PaneTab>
@@ -351,7 +357,10 @@ function ReferencePane({
         </div>
       )}
 
-      {/* Full-height viewer — dark functional backdrop (lightbox media area). */}
+      {/* Full-height viewer — `bg-ink-solid` is the sanctioned functional
+          backdrop for document media (Apple HIG materials: the content layer
+          is not glass); the zoom pill inside ZoomableImage follows the owner's
+          zoom ruling (−/%/+, 25 % steps, wheel ≈ ×1.3). */}
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-ink-solid">
         {!selectedId ? (
           <div className="p-6 text-center">
