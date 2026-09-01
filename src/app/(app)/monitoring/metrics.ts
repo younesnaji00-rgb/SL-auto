@@ -6,22 +6,31 @@
  *   • summary + exception (Few): a headline row above the stage tiles;
  *   • flow metrics (Kanban: WIP, cycle time, throughput, work-item AGE):
  *     "hors délai" in the tiles is a LAGGING measure (counted once the step is
- *     done); `agingDossiers` is the LEADING one — what is past the SLA right
- *     now and not done;
+ *     done); `agingItems` is the LEADING one — what is past the SLA right now
+ *     and not done;
  *   • cycle time by stage (claims-operations KPI), in business hours;
  *   • one time base: every period measure here respects `range`.
  *
- * SLA = 24 business hours (weekends and Moroccan holidays excluded, see
- * `lib/business-days.ts`), same constant as the funnel.
+ * WHERE THE DEADLINES COME FROM (user ruling 2026-09-01): the real SLA
+ * clocks are the ASSIGNMENTS, not the dossier's photo dates —
+ *   • a chiffrage assignment (`chiffrages` doc): 24 business hours from its
+ *     `createdAt` to `completedAt`; the first assignment of a dossier is the
+ *     « 1er accord » step, the following ones « 2ème accord et + »;
+ *   • a terrain mission (`dossiers/{id}/planifications` doc): 24 business
+ *     hours from its `createdAt` (legacy: `dateRDV`) to the photos of that
+ *     mission type (`datePhotosAvant|EnCours|Apres` on the dossier);
+ *   • creation: 24 business hours between `dateRequete` and `createdAt`.
+ * Same rules as the Chiffrage and Terrain queues (`DEADLINE_HOURS`), same
+ * business-hours model (weekends + Moroccan holidays paused).
  */
 
 import { addDays, eachWeekOfInterval, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { businessHoursBetween } from '@/lib/business-days';
-import { ACCORD_BUCKET_MEMBERS } from '@/lib/dossiers-data';
 import {
   STEP_DEFS,
   STEP_KEYS,
+  type DossierForStep,
   type FunnelDossier,
   type FunnelRange,
   type StepKey,
@@ -34,7 +43,7 @@ export const SLA_BUSINESS_HOURS = 24;
 export const STAGE_HAS_SLA: Record<StepKey, boolean> = {
   creation: true,
   photosAvant: true,
-  accord1er: false,
+  accord1er: true,
   photosEnCours: true,
   accord: true,
   photosApres: true,
@@ -52,6 +61,7 @@ const toDate = (v: any): Date | null => {
     return isNaN(d.getTime()) ? null : d;
   }
   if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  if (typeof v?.seconds === 'number') return new Date(v.seconds * 1000);
   return null;
 };
 
@@ -69,51 +79,197 @@ const emptyCounts = (): Record<StepKey, number> =>
     return acc;
   }, {} as Record<StepKey, number>);
 
-/**
- * The event that starts a stage's SLA clock, or null when the stage has no
- * clock (or it has not started for this dossier).
- */
-export function stageTriggerAt(d: FunnelDossier, key: StepKey): Date | null {
-  switch (key) {
-    case 'creation':
-      return toDate(d.dateRequete);
-    case 'photosAvant':
-      return toDate(d.dateDemandeExpertiseAvant);
-    case 'photosEnCours':
-      return toDate(d.dateDemandeExpertiseEnCours);
-    case 'photosApres':
-      return toDate(d.dateDemandeExpertiseApres);
-    case 'accord': {
-      // The clock runs only while a chiffrage is pending (status in the
-      // chiffrage bucket, no later accord saved).
-      const status = d.lastStatusChange?.status ?? d.statut ?? '';
-      const done = STEP_DEFS.accord.doneAt(d);
-      if (done) return toDate(d.dateChiffrage);
-      if (/chiffrage/i.test(status) || ACCORD_BUCKET_MEMBERS.has(status)) return toDate(d.dateChiffrage);
-      return null;
-    }
-    default:
-      return null;
-  }
+// ── Assignment records (the SLA sources) ────────────────────────────────────
+
+/** `chiffrages/{id}` as read by the Chiffrage queue. */
+export interface ChiffrageAssignment {
+  id: string;
+  dossierId: string;
+  createdAt?: any;
+  completedAt?: any;
+  assignedChiffreurNom?: string;
+  assignedChiffreurId?: string;
 }
 
-/** Per-step count of dossiers that completed the step late AND in range. */
-export function computeHorsDelaiInRange(dossiers: FunnelDossier[], range: FunnelRange): Record<StepKey, number> {
-  const out = emptyCounts();
+/** `dossiers/{id}/planifications/{pid}` as read by the Terrain queue. */
+export interface TerrainMission {
+  id: string;
+  dossierId: string;
+  typeMission?: string;
+  createdAt?: any;
+  dateRDV?: any;
+  agentTerrain?: string;
+  active?: boolean;
+}
+
+export type SlaKind = 'creation' | 'chiffrage' | 'terrain';
+
+/** One SLA clock: a stage of one dossier owned by one person. */
+export interface SlaItem {
+  id: string;
+  kind: SlaKind;
+  step: StepKey;
+  dossier: FunnelDossier;
+  /** Who the clock belongs to (chiffreur, agent de terrain, créateur). */
+  owner: string | null;
+  start: Date;
+  doneAt: Date | null;
+  /** Business hours from start to done (null while open). */
+  hours: number | null;
+  /** Done AND over the SLA. */
+  late: boolean;
+}
+
+type MissionType = 'Avant' | 'En cours' | 'Après';
+const MISSION_STEP: Record<MissionType, StepKey> = { Avant: 'photosAvant', 'En cours': 'photosEnCours', Après: 'photosApres' };
+const MISSION_PHOTO_FIELD: Record<MissionType, keyof FunnelDossier> = {
+  Avant: 'datePhotosAvant',
+  'En cours': 'datePhotosEnCours',
+  Après: 'datePhotosApres',
+};
+
+export function normalizeMissionType(raw: string | undefined | null): MissionType | null {
+  const t = (raw || '').trim().toLowerCase();
+  if (!t) return null;
+  if (t.startsWith('avant')) return 'Avant';
+  if (t.startsWith('en cours') || t.startsWith('en_cours') || t.startsWith('encours')) return 'En cours';
+  if (t.startsWith('apr')) return 'Après';
+  return null;
+}
+
+/**
+ * Turn dossiers + assignment records into SLA items. Dossiers not in `dossiers`
+ * (out of the reader's compagnie scope) are ignored.
+ */
+export function buildSlaItems(
+  dossiers: FunnelDossier[],
+  chiffrages: ChiffrageAssignment[],
+  missions: TerrainMission[],
+  holidays?: ReadonlySet<string>,
+): SlaItem[] {
+  const byId = new Map(dossiers.map((d) => [d.id, d]));
+  const out: SlaItem[] = [];
+  const push = (id: string, kind: SlaKind, step: StepKey, dossier: FunnelDossier, owner: string | null, start: Date, doneAt: Date | null) => {
+    const hours = doneAt ? businessHoursBetween(start, doneAt, holidays) : null;
+    out.push({ id, kind, step, dossier, owner, start, doneAt, hours, late: hours != null && hours > SLA_BUSINESS_HOURS });
+  };
+
+  // Creation: requête → création (ordering-tolerant, like the funnel).
   for (const d of dossiers) {
-    for (const key of STEP_KEYS) {
-      const def = STEP_DEFS[key];
-      const at = def.doneAt(d);
-      if (!at || !inRange(at, range)) continue;
-      if (def.horsDelaiAt(d) != null) out[key] += 1;
-    }
+    const created = toDate(d.createdAt);
+    const requete = toDate(d.dateRequete);
+    if (!created || !requete) continue;
+    const [start, done] = created < requete ? [created, requete] : [requete, created];
+    push(`creation:${d.id}`, 'creation', 'creation', d, d.createdBy ?? null, start, done);
   }
+
+  // Chiffrage assignments: first per dossier = 1er accord, next ones = 2ème accord et +.
+  const byDossier = new Map<string, ChiffrageAssignment[]>();
+  for (const c of chiffrages) {
+    if (!c.dossierId || !byId.has(c.dossierId) || !toDate(c.createdAt)) continue;
+    const arr = byDossier.get(c.dossierId) || [];
+    arr.push(c);
+    byDossier.set(c.dossierId, arr);
+  }
+  for (const [dossierId, arr] of byDossier) {
+    const dossier = byId.get(dossierId)!;
+    arr.sort((a, b) => toDate(a.createdAt)!.getTime() - toDate(b.createdAt)!.getTime());
+    arr.forEach((c, idx) => {
+      push(
+        `chiffrage:${c.id}`,
+        'chiffrage',
+        idx === 0 ? 'accord1er' : 'accord',
+        dossier,
+        c.assignedChiffreurNom?.trim() || c.assignedChiffreurId || null,
+        toDate(c.createdAt)!,
+        toDate(c.completedAt),
+      );
+    });
+  }
+
+  // Terrain missions: planification → photos of that mission type.
+  for (const m of missions) {
+    if (m.active === false) continue;
+    const dossier = byId.get(m.dossierId);
+    const type = normalizeMissionType(m.typeMission);
+    if (!dossier || !type) continue;
+    const start = toDate(m.createdAt) ?? toDate(m.dateRDV);
+    if (!start) continue;
+    const photos = toDate((dossier as any)[MISSION_PHOTO_FIELD[type]]);
+    const doneAt = photos && photos >= start ? photos : null;
+    push(`terrain:${m.dossierId}:${m.id}`, 'terrain', MISSION_STEP[type], dossier, m.agentTerrain?.trim() || null, start, doneAt);
+  }
+
   return out;
 }
+
+// ── Tiles: one time base for green and amber ────────────────────────────────
+
+export interface StepMeasures {
+  enDelai: Record<StepKey, number>;
+  horsDelai: Record<StepKey, number>;
+}
+
+/**
+ * Per-step completions in range: SLA steps are measured on their SLA items
+ * (on time / late); a completion that has no assignment record (legacy
+ * dossiers) still counts, as on time by absence of a clock; steps without an
+ * SLA count every completion as "en délai".
+ */
+export function computeStepMeasures(dossiers: FunnelDossier[], range: FunnelRange, sla: SlaItem[]): StepMeasures {
+  const enDelai = emptyCounts();
+  const horsDelai = emptyCounts();
+  const covered = new Map<StepKey, Set<string>>();
+  for (const key of STEP_KEYS) covered.set(key, new Set());
+  for (const it of sla) {
+    if (!it.doneAt || !inRange(it.doneAt, range)) continue;
+    covered.get(it.step)!.add(it.dossier.id);
+    if (it.late) horsDelai[it.step] += 1;
+    else enDelai[it.step] += 1;
+  }
+  for (const d of dossiers) {
+    for (const key of STEP_KEYS) {
+      if (covered.get(key)!.has(d.id)) continue;
+      const at = STEP_DEFS[key].doneAt(d);
+      if (at && inRange(at, range)) enDelai[key] += 1;
+    }
+  }
+  return { enDelai, horsDelai };
+}
+
+/** Drawer rows matching `computeStepMeasures` for one step and one bar. */
+export function dossiersForStepMeasure(
+  dossiers: FunnelDossier[],
+  logs: WorkflowLog[],
+  sla: SlaItem[],
+  range: FunnelRange,
+  step: StepKey,
+  mode: 'enDelai' | 'horsDelai',
+): DossierForStep[] {
+  const out: DossierForStep[] = [];
+  const covered = new Set<string>();
+  for (const it of sla) {
+    if (it.step !== step || !it.doneAt || !inRange(it.doneAt, range)) continue;
+    covered.add(it.dossier.id);
+    if ((mode === 'horsDelai') === it.late) out.push({ dossier: it.dossier, doneAt: it.doneAt, author: it.owner });
+  }
+  if (mode === 'enDelai') {
+    for (const d of dossiers) {
+      if (covered.has(d.id)) continue;
+      const at = STEP_DEFS[step].doneAt(d);
+      if (at && inRange(at, range)) out.push({ dossier: d, doneAt: at, author: STEP_DEFS[step].authorOf(d, logs) });
+    }
+  }
+  return out.sort((a, b) => (b.doneAt?.getTime() ?? 0) - (a.doneAt?.getTime() ?? 0));
+}
+
+// ── Ageing (leading) ────────────────────────────────────────────────────────
 
 export interface AgingItem {
   dossier: FunnelDossier;
   step: StepKey;
+  kind: SlaKind;
+  owner: string | null;
   /** When the SLA clock started. */
   since: Date;
   /** Business hours elapsed since `since`, as of `now`. */
@@ -121,62 +277,54 @@ export interface AgingItem {
 }
 
 /**
- * Work-item age (leading indicator): SLA stages that have STARTED (trigger
- * present), are NOT done, and are already past the SLA as of `now`.
- * `creation` is skipped — a dossier that exists has been created.
- * Sorted oldest first.
+ * Work-item age: open SLA items (chiffrage assignments not chiffrés, missions
+ * without their photos) already past the SLA as of `now`. Oldest first.
  */
-export function agingDossiers(dossiers: FunnelDossier[], now: Date, slaHours = SLA_BUSINESS_HOURS): AgingItem[] {
+export function agingItems(sla: SlaItem[], now: Date, holidays?: ReadonlySet<string>, slaHours = SLA_BUSINESS_HOURS): AgingItem[] {
   const out: AgingItem[] = [];
-  for (const d of dossiers) {
-    for (const key of STEP_KEYS) {
-      if (!STAGE_HAS_SLA[key] || key === 'creation') continue;
-      if (STEP_DEFS[key].doneAt(d)) continue;
-      const since = stageTriggerAt(d, key);
-      if (!since || since > now) continue;
-      const ageHours = businessHoursBetween(since, now);
-      if (ageHours > slaHours) out.push({ dossier: d, step: key, since, ageHours });
-    }
+  for (const it of sla) {
+    if (it.doneAt || it.kind === 'creation' || it.start > now) continue;
+    const ageHours = businessHoursBetween(it.start, now, holidays);
+    if (ageHours > slaHours) out.push({ dossier: it.dossier, step: it.step, kind: it.kind, owner: it.owner, since: it.start, ageHours });
   }
   return out.sort((a, b) => b.ageHours - a.ageHours);
 }
+
+// ── Headline ────────────────────────────────────────────────────────────────
 
 export interface Headline {
   /** Dossiers created in range (inflow). */
   crees: number;
   /** Dossiers whose rapport was deposited in range (end-to-end throughput). */
   traites: number;
-  /** On-time share of SLA-stage completions in range; null when nothing completed. */
+  /** On-time share of SLA clocks closed in range; null when none closed. */
   respectPct: number | null;
   respectN: number;
   /** Open backlog: dossiers in scope with no rapport deposited (now, not period). */
   enAttente: number;
-  /** Dossiers with at least one stage past SLA right now (leading). */
+  /** Dossiers with at least one clock past SLA right now (leading). */
   enRetard: number;
 }
 
-export function computeHeadline(dossiers: FunnelDossier[], range: FunnelRange, now: Date): Headline {
+export function computeHeadline(dossiers: FunnelDossier[], range: FunnelRange, now: Date, sla: SlaItem[], holidays?: ReadonlySet<string>): Headline {
   let crees = 0;
   let traites = 0;
-  let onTime = 0;
-  let late = 0;
   let enAttente = 0;
   for (const d of dossiers) {
     if (inRange(toDate(d.createdAt), range)) crees += 1;
     const deposed = STEP_DEFS.rapport.doneAt(d);
     if (inRange(deposed, range)) traites += 1;
     if (!deposed) enAttente += 1;
-    for (const key of STEP_KEYS) {
-      if (!STAGE_HAS_SLA[key]) continue;
-      const def = STEP_DEFS[key];
-      const at = def.doneAt(d);
-      if (!at || !inRange(at, range)) continue;
-      if (def.horsDelaiAt(d) != null) late += 1;
-      else onTime += 1;
-    }
   }
-  const aging = new Set(agingDossiers(dossiers, now).map((a) => a.dossier.id));
+  let onTime = 0;
+  let late = 0;
+  for (const it of sla) {
+    if (!it.doneAt || !inRange(it.doneAt, range)) continue;
+    if (it.late) late += 1;
+    else onTime += 1;
+  }
   const respectN = onTime + late;
+  const aging = new Set(agingItems(sla, now, holidays).map((a) => a.dossier.id));
   return {
     crees,
     traites,
@@ -186,6 +334,8 @@ export function computeHeadline(dossiers: FunnelDossier[], range: FunnelRange, n
     enRetard: aging.size,
   };
 }
+
+// ── Cycle time ──────────────────────────────────────────────────────────────
 
 export interface CycleTimeRow {
   key: StepKey | 'total';
@@ -201,31 +351,22 @@ function median(values: number[]): number | null {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-/**
- * Median business hours per SLA stage (trigger → done, done in range) and
- * end-to-end (création → rapport déposé, deposited in range).
- */
-export function computeCycleTimes(dossiers: FunnelDossier[], range: FunnelRange): CycleTimeRow[] {
-  const rows: CycleTimeRow[] = [];
-  for (const key of STEP_KEYS) {
-    if (!STAGE_HAS_SLA[key]) continue;
-    const values: number[] = [];
-    for (const d of dossiers) {
-      const done = STEP_DEFS[key].doneAt(d);
-      if (!done || !inRange(done, range)) continue;
-      const start = stageTriggerAt(d, key);
-      if (!start) continue;
-      const [a, b] = start <= done ? [start, done] : [done, start];
-      values.push(businessHoursBetween(a, b));
-    }
-    rows.push({ key, medianHours: median(values), n: values.length });
+/** Median business hours per SLA stage (clock start → done, done in range) and création → rapport déposé. */
+export function computeCycleTimes(dossiers: FunnelDossier[], range: FunnelRange, sla: SlaItem[], holidays?: ReadonlySet<string>): CycleTimeRow[] {
+  const perStep = new Map<StepKey, number[]>();
+  for (const key of STEP_KEYS) if (STAGE_HAS_SLA[key]) perStep.set(key, []);
+  for (const it of sla) {
+    if (it.hours == null || !it.doneAt || !inRange(it.doneAt, range)) continue;
+    perStep.get(it.step)?.push(it.hours);
   }
+  const rows: CycleTimeRow[] = [];
+  for (const [key, values] of perStep) rows.push({ key, medianHours: median(values), n: values.length });
   const total: number[] = [];
   for (const d of dossiers) {
     const done = STEP_DEFS.rapport.doneAt(d);
     const start = toDate(d.createdAt);
     if (!done || !start || !inRange(done, range) || done < start) continue;
-    total.push(businessHoursBetween(start, done));
+    total.push(businessHoursBetween(start, done, holidays));
   }
   rows.push({ key: 'total', medianHours: median(total), n: total.length });
   return rows;
@@ -239,6 +380,8 @@ export function formatBusinessHours(h: number | null): string {
   return `${(Math.round(days * 10) / 10).toString().replace('.', ',')} j`;
 }
 
+// ── Weekly trend ────────────────────────────────────────────────────────────
+
 export interface WeekPoint {
   weekStart: Date;
   label: string;
@@ -246,7 +389,7 @@ export interface WeekPoint {
   deposes: number;
 }
 
-/** Created vs rapport déposé per ISO-fr week across the range (inclusive). */
+/** Created vs rapport déposé per fr-locale week across the range (inclusive). */
 export function computeWeeklyTrend(dossiers: FunnelDossier[], range: FunnelRange, now: Date): WeekPoint[] {
   const to = range.to ?? now;
   const from = range.from ?? addDays(to, -7 * 12);
@@ -270,51 +413,33 @@ export function computeWeeklyTrend(dossiers: FunnelDossier[], range: FunnelRange
   return points;
 }
 
+// ── Per compagnie / per user ────────────────────────────────────────────────
+
 export interface GroupMeasures {
   group: string;
   enDelai: Record<StepKey, number>;
   horsDelai: Record<StepKey, number>;
-  /** On-time share over SLA stages in range; null when none. */
+  /** On-time share of SLA clocks closed in range; null when none. */
   respectPct: number | null;
   /** Dossiers with no rapport deposited (open), now. */
   enAttente: number;
   totalEnDelai: number;
 }
 
-function measuresFor(group: string, arr: FunnelDossier[], range: FunnelRange): GroupMeasures {
-  const enDelai = emptyCounts();
-  const horsDelai = emptyCounts();
+const respectFrom = (enDelai: Record<StepKey, number>, horsDelai: Record<StepKey, number>): number | null => {
   let onTime = 0;
   let late = 0;
-  let enAttente = 0;
-  for (const d of arr) {
-    if (!STEP_DEFS.rapport.doneAt(d)) enAttente += 1;
-    for (const key of STEP_KEYS) {
-      const def = STEP_DEFS[key];
-      const at = def.doneAt(d);
-      if (!at || !inRange(at, range)) continue;
-      const isLate = def.horsDelaiAt(d) != null;
-      if (isLate) horsDelai[key] += 1;
-      else enDelai[key] += 1;
-      if (STAGE_HAS_SLA[key]) {
-        if (isLate) late += 1;
-        else onTime += 1;
-      }
-    }
+  for (const k of STEP_KEYS) {
+    if (!STAGE_HAS_SLA[k]) continue;
+    onTime += enDelai[k];
+    late += horsDelai[k];
   }
   const n = onTime + late;
-  return {
-    group,
-    enDelai,
-    horsDelai,
-    respectPct: n === 0 ? null : Math.round((onTime / n) * 100),
-    enAttente,
-    totalEnDelai: STEP_KEYS.reduce((acc, k) => acc + enDelai[k], 0),
-  };
-}
+  return n === 0 ? null : Math.round((onTime / n) * 100);
+};
 
 /** Per-compagnie measures, ALL respecting `range` (the old table ignored it). */
-export function computePerCompagnieMeasures(dossiers: FunnelDossier[], range: FunnelRange, allCompagnies?: string[]): GroupMeasures[] {
+export function computePerCompagnieMeasures(dossiers: FunnelDossier[], range: FunnelRange, sla: SlaItem[], allCompagnies?: string[]): GroupMeasures[] {
   const groups = new Map<string, FunnelDossier[]>();
   for (const d of dossiers) {
     const key = (d.compagnie || '').trim() || '— non précisé —';
@@ -330,55 +455,73 @@ export function computePerCompagnieMeasures(dossiers: FunnelDossier[], range: Fu
   }
   return Array.from(groups.entries())
     .sort(([a], [b]) => a.localeCompare(b, 'fr'))
-    .map(([g, arr]) => measuresFor(g, arr, range));
+    .map(([group, arr]) => {
+      const ids = new Set(arr.map((d) => d.id));
+      const { enDelai, horsDelai } = computeStepMeasures(arr, range, sla.filter((it) => ids.has(it.dossier.id)));
+      return {
+        group,
+        enDelai,
+        horsDelai,
+        respectPct: respectFrom(enDelai, horsDelai),
+        enAttente: arr.filter((d) => !STEP_DEFS.rapport.doneAt(d)).length,
+        totalEnDelai: STEP_KEYS.reduce((acc, k) => acc + enDelai[k], 0),
+      };
+    });
 }
 
 export interface UserMeasures extends GroupMeasures {
-  /** Open dossiers this user has touched (authored any completed stage). */
+  /** Open dossiers this user has a clock or a completed step on. */
   ouverts: number;
 }
 
 /**
- * Per-user measures: a user "owns" a stage completion when the funnel's
- * `authorOf` names them. `ouverts` = distinct open dossiers they touched —
- * an approximation of workload, labelled as such in the UI.
+ * Per-user measures. SLA steps are credited to the clock's OWNER (the
+ * chiffreur of the assignment, the agent of the mission, the creator);
+ * steps without a clock to the funnel's author. `ouverts` = distinct open
+ * dossiers the user touched — a workload approximation, labelled as such.
  */
-export function computePerUserMeasures(dossiers: FunnelDossier[], logs: WorkflowLog[], range: FunnelRange): UserMeasures[] {
-  const rows = new Map<string, UserMeasures & { openIds: Set<string>; onTime: number; late: number }>();
-  const ensure = (user: string) => {
+export function computePerUserMeasures(dossiers: FunnelDossier[], logs: WorkflowLog[], range: FunnelRange, sla: SlaItem[]): UserMeasures[] {
+  type Row = UserMeasures & { openIds: Set<string> };
+  const rows = new Map<string, Row>();
+  const ensure = (user: string): Row => {
     let r = rows.get(user);
     if (!r) {
-      r = { group: user, enDelai: emptyCounts(), horsDelai: emptyCounts(), respectPct: null, enAttente: 0, totalEnDelai: 0, ouverts: 0, openIds: new Set(), onTime: 0, late: 0 };
+      r = { group: user, enDelai: emptyCounts(), horsDelai: emptyCounts(), respectPct: null, enAttente: 0, totalEnDelai: 0, ouverts: 0, openIds: new Set() };
       rows.set(user, r);
     }
     return r;
   };
+  const isOpen = (d: FunnelDossier) => !STEP_DEFS.rapport.doneAt(d);
+  const covered = new Map<StepKey, Set<string>>();
+  for (const key of STEP_KEYS) covered.set(key, new Set());
+
+  for (const it of sla) {
+    if (!it.owner) continue;
+    const r = ensure(it.owner);
+    if (isOpen(it.dossier)) r.openIds.add(it.dossier.id);
+    if (!it.doneAt || !inRange(it.doneAt, range)) continue;
+    covered.get(it.step)!.add(it.dossier.id);
+    if (it.late) r.horsDelai[it.step] += 1;
+    else r.enDelai[it.step] += 1;
+  }
   for (const d of dossiers) {
-    const open = !STEP_DEFS.rapport.doneAt(d);
     for (const key of STEP_KEYS) {
-      const def = STEP_DEFS[key];
-      const at = def.doneAt(d);
+      if (covered.get(key)!.has(d.id)) continue;
+      const at = STEP_DEFS[key].doneAt(d);
       if (!at) continue;
-      const author = def.authorOf(d, logs);
+      const author = STEP_DEFS[key].authorOf(d, logs);
       if (!author) continue;
       const r = ensure(author);
-      if (open) r.openIds.add(d.id);
-      if (!inRange(at, range)) continue;
-      const isLate = def.horsDelaiAt(d) != null;
-      if (isLate) r.horsDelai[key] += 1;
-      else r.enDelai[key] += 1;
-      if (STAGE_HAS_SLA[key]) {
-        if (isLate) r.late += 1;
-        else r.onTime += 1;
-      }
+      if (isOpen(d)) r.openIds.add(d.id);
+      if (inRange(at, range)) r.enDelai[key] += 1;
     }
   }
   return Array.from(rows.values())
-    .map(({ openIds, onTime, late, ...r }) => ({
+    .map(({ openIds, ...r }) => ({
       ...r,
       ouverts: openIds.size,
       enAttente: openIds.size,
-      respectPct: onTime + late === 0 ? null : Math.round((onTime / (onTime + late)) * 100),
+      respectPct: respectFrom(r.enDelai, r.horsDelai),
       totalEnDelai: STEP_KEYS.reduce((acc, k) => acc + r.enDelai[k], 0),
     }))
     .sort((a, b) => b.totalEnDelai - a.totalEnDelai);

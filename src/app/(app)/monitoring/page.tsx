@@ -27,6 +27,7 @@ import { fr } from 'date-fns/locale';
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useCompagnies } from '@/hooks/use-compagnies';
+import { useHolidays } from '@/hooks/use-holidays';
 import { cn } from '@/lib/utils';
 import { assureName } from '@/lib/dossier-label';
 import {
@@ -72,10 +73,8 @@ import {
   STEP_KEYS,
   STEP_LABELS,
   STEP_LABELS_SHORT,
-  computeStepCounts,
   computeStepCountsRealiseAllTime,
   dossiersForStep,
-  dossiersHorsDelai,
   dossiersNotForStep,
   type FunnelDossier,
   type StepKey,
@@ -83,15 +82,19 @@ import {
 } from './funnel';
 import {
   STAGE_HAS_SLA,
-  agingDossiers,
+  agingItems,
+  buildSlaItems,
   computeCycleTimes,
   computeHeadline,
-  computeHorsDelaiInRange,
+  computeStepMeasures,
+  dossiersForStepMeasure,
   computePerCompagnieMeasures,
   computePerUserMeasures,
   computeWeeklyTrend,
   formatBusinessHours,
   type AgingItem,
+  type ChiffrageAssignment,
+  type TerrainMission,
   type CycleTimeRow,
   type GroupMeasures,
   type Headline,
@@ -197,6 +200,9 @@ export default function MonitoringPage() {
 
   const [dossiers, setDossiers] = useState<FunnelDossier[]>([]);
   const [workflowLogs, setWorkflowLogs] = useState<WorkflowLog[]>([]);
+  // The SLA sources (user ruling): chiffrage assignments + terrain missions.
+  const [chiffrages, setChiffrages] = useState<ChiffrageAssignment[]>([]);
+  const [missions, setMissions] = useState<TerrainMission[]>([]);
   const [users, setUsers] = useState<Array<{ id: string; nom?: string; email?: string; role?: string }>>([]);
   const [loading, setLoading] = useState(true);
 
@@ -258,10 +264,40 @@ export default function MonitoringPage() {
       },
     );
 
+    // Chiffrage assignments — same collection as the Chiffrage queue.
+    const unsubChiffrages = onSnapshot(
+      collection(db, 'chiffrages'),
+      (snap) => {
+        setChiffrages(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+      },
+      (err) => {
+        console.warn('Monitoring chiffrages sync error:', err);
+      },
+    );
+    // Terrain missions — the planifications of every dossier (collection group,
+    // read-only rule in firestore.rules).
+    const unsubMissions = onSnapshot(
+      collectionGroup(db, 'planifications'),
+      (snap) => {
+        setMissions(
+          snap.docs.map((d) => ({
+            id: d.id,
+            dossierId: d.ref.parent.parent?.id || '',
+            ...(d.data() as any),
+          })),
+        );
+      },
+      (err) => {
+        console.warn('Monitoring planifications sync error:', err);
+      },
+    );
+
     return () => {
       unsubDossiers();
       unsubWorkflow();
       unsubUsers();
+      unsubChiffrages();
+      unsubMissions();
     };
   }, [db, profile]);
 
@@ -328,19 +364,21 @@ export default function MonitoringPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const now = useMemo(() => new Date(), [dossiers, range]);
 
-  const globalCounts = useMemo(() => computeStepCounts(dossiers, range), [dossiers, range]);
-  // One time base for the tiles: the amber bar now respects the period like the green one.
-  const globalHorsDelaiCounts = useMemo(
-    () => computeHorsDelaiInRange(dossiers, range),
-    [dossiers, range],
-  );
+  const holidays = useHolidays();
+  // Every deadline on this page is one of these clocks (chiffrage assignment,
+  // terrain mission, création) — the Chiffrage/Terrain queues' own SLA rule.
+  const sla = useMemo(() => buildSlaItems(dossiers, chiffrages, missions, holidays), [dossiers, chiffrages, missions, holidays]);
+  // One time base for the tiles: green and amber both count completions in the period.
+  const stepMeasures = useMemo(() => computeStepMeasures(dossiers, range, sla), [dossiers, range, sla]);
+  const globalCounts = stepMeasures.enDelai;
+  const globalHorsDelaiCounts = stepMeasures.horsDelai;
   const globalRealiseAllTime = useMemo(
     () => computeStepCountsRealiseAllTime(dossiers),
     [dossiers],
   );
-  const headline = useMemo(() => computeHeadline(dossiers, range, now), [dossiers, range, now]);
-  const aging = useMemo(() => agingDossiers(dossiers, now), [dossiers, now]);
-  const cycleTimes = useMemo(() => computeCycleTimes(dossiers, range), [dossiers, range]);
+  const headline = useMemo(() => computeHeadline(dossiers, range, now, sla, holidays), [dossiers, range, now, sla, holidays]);
+  const aging = useMemo(() => agingItems(sla, now, holidays), [sla, now, holidays]);
+  const cycleTimes = useMemo(() => computeCycleTimes(dossiers, range, sla, holidays), [dossiers, range, sla, holidays]);
   const weeklyTrend = useMemo(() => computeWeeklyTrend(dossiers, range, now), [dossiers, range, now]);
   const scopedCompagnieNames = useMemo(() => {
     const allowed = (profile?.compagnies || []).map((c: string) => c.toLowerCase().trim());
@@ -349,12 +387,12 @@ export default function MonitoringPage() {
     return names.filter((n) => allowed.includes(n.toLowerCase().trim()));
   }, [allCompagnies, profile]);
   const perCompagnie = useMemo(
-    () => computePerCompagnieMeasures(dossiers, range, scopedCompagnieNames),
-    [dossiers, range, scopedCompagnieNames],
+    () => computePerCompagnieMeasures(dossiers, range, sla, scopedCompagnieNames),
+    [dossiers, range, sla, scopedCompagnieNames],
   );
   const perUser = useMemo(
-    () => computePerUserMeasures(dossiers, workflowLogs, range),
-    [dossiers, workflowLogs, range],
+    () => computePerUserMeasures(dossiers, workflowLogs, range, sla),
+    [dossiers, workflowLogs, range, sla],
   );
   // Merge rows that resolve to the same display name (e.g. one row keyed by
   // Firebase UID for `createdBy` + another row keyed by email for
@@ -429,13 +467,17 @@ export default function MonitoringPage() {
   const drawerRows = useMemo(() => {
     if (!selectedStep) return [];
     if (selectedStepMode === 'horsDelai') {
-      return dossiersHorsDelai(dossiers, workflowLogs, selectedStep);
+      return dossiersForStepMeasure(dossiers, workflowLogs, sla, range, selectedStep, 'horsDelai');
     }
     if (selectedStepMode === 'nonRealise') {
       return dossiersNotForStep(dossiers, workflowLogs, selectedStep);
     }
+    // Same rows as the green bar: SLA steps from the clocks, the rest from the funnel.
+    if (STAGE_HAS_SLA[selectedStep]) {
+      return dossiersForStepMeasure(dossiers, workflowLogs, sla, range, selectedStep, 'enDelai');
+    }
     return dossiersForStep(dossiers, workflowLogs, range, selectedStep);
-  }, [selectedStep, selectedStepMode, dossiers, workflowLogs, range]);
+  }, [selectedStep, selectedStepMode, dossiers, workflowLogs, range, sla]);
 
   const totalDossiersInScope = dossiers.length;
 
@@ -448,7 +490,7 @@ export default function MonitoringPage() {
     <div className="space-y-8">
       <PageHeader
         title="Suivi d'équipe"
-        subtitle="Funnel des étapes — combien de dossiers ont franchi chaque étape."
+        subtitle="Étapes franchies et délais tenus — les délais sont ceux des assignations chiffrage et terrain (24 h ouvrées)."
         filters={
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex h-10 items-center gap-1 self-end rounded-md bg-surface-2 p-0.5">
@@ -764,8 +806,8 @@ function HeadlineRow({ headline }: { headline: Headline }) {
         value={headline.respectPct == null ? '—' : `${headline.respectPct} %`}
         caption={
           headline.respectPct == null
-            ? 'aucune étape avec délai'
-            : `${headline.respectN} étapes avec délai · période`
+            ? 'aucune assignation clôturée · période'
+            : `${headline.respectN} assignation${headline.respectN > 1 ? 's' : ''} clôturée${headline.respectN > 1 ? 's' : ''} (chiffrage · terrain · création) · période`
         }
       />
       <HeadlineTile label="En attente" value={headline.enAttente} caption="sans rapport déposé · aujourd'hui" />
@@ -786,7 +828,7 @@ function HeadlineRow({ headline }: { headline: Headline }) {
           >
             {headline.enRetard}
           </p>
-          <p className="t-caption mt-2">au-delà de 24 h ouvrées · maintenant</p>
+          <p className="t-caption mt-2">assignations au-delà de 24 h ouvrées · maintenant</p>
         </button>
       </Card>
     </div>
@@ -993,10 +1035,12 @@ function AgingCard({ items, className }: { items: AgingItem[]; className?: strin
                           <span className="t-mono font-semibold">{dossierRef(item.dossier)}</span>
                           {assure && <span className="truncate text-sm text-ink-2">{assure}</span>}
                           <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-ink-2">
+                            {item.kind === 'chiffrage' ? 'Chiffrage · ' : 'Terrain · '}
                             {STEP_LABELS_SHORT[item.step]}
                           </span>
                         </div>
                         <p className="t-caption mt-0.5 truncate">
+                          {item.owner ? <>{item.kind === 'chiffrage' ? 'chiffreur' : 'agent'} <b className="font-medium text-ink-2">{item.owner}</b> · </> : null}
                           depuis {format(item.since, 'dd/MM HH:mm')}
                           {item.dossier.compagnie ? ` · ${item.dossier.compagnie}` : ''}
                         </p>
