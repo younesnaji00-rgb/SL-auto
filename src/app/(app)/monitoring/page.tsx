@@ -2,6 +2,7 @@
 
 import { PageHeader } from '@/components/layout/page-header';
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   collection,
   collectionGroup,
@@ -9,14 +10,25 @@ import {
   orderBy,
   query,
 } from 'firebase/firestore';
-import { Activity, Gauge, Building2, Users, RotateCcw, Search } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
-import { startOfDay, endOfDay, startOfWeek, startOfMonth, isSameDay } from 'date-fns';
+import {
+  Activity,
+  Gauge,
+  Building2,
+  Users,
+  RotateCcw,
+  Search,
+  ChevronRight,
+  CheckCircle2,
+} from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+import { startOfDay, endOfDay, startOfWeek, startOfMonth, isSameDay, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useCompagnies } from '@/hooks/use-compagnies';
+import { cn } from '@/lib/utils';
+import { assureName } from '@/lib/dossier-label';
 import {
   Card,
   CardContent,
@@ -60,10 +72,7 @@ import {
   STEP_KEYS,
   STEP_LABELS,
   STEP_LABELS_SHORT,
-  computePerCompagnieCounts,
-  computePerUserCounts,
   computeStepCounts,
-  computeStepCountsHorsDelai,
   computeStepCountsRealiseAllTime,
   dossiersForStep,
   dossiersHorsDelai,
@@ -72,6 +81,22 @@ import {
   type StepKey,
   type WorkflowLog,
 } from './funnel';
+import {
+  STAGE_HAS_SLA,
+  agingDossiers,
+  computeCycleTimes,
+  computeHeadline,
+  computeHorsDelaiInRange,
+  computePerCompagnieMeasures,
+  computePerUserMeasures,
+  computeWeeklyTrend,
+  formatBusinessHours,
+  type AgingItem,
+  type CycleTimeRow,
+  type GroupMeasures,
+  type Headline,
+  type WeekPoint,
+} from './metrics';
 
 type DrawerMode = 'realise' | 'nonRealise' | 'horsDelai';
 import { DossierDrawer } from './dossier-drawer';
@@ -89,9 +114,59 @@ const heatStyle = (value: number, max: number): React.CSSProperties | undefined 
   return { backgroundColor: `hsl(var(--chart-1) / ${alpha})` };
 };
 
+/** Funnel step → dossier timeline section (`#step-N` anchors in dossier-timeline/timeline.tsx). */
+const STEP_SECTION: Partial<Record<StepKey, number>> = {
+  photosAvant: 4,
+  photosEnCours: 9,
+  photosApres: 10,
+  accord: 11,
+};
+
+/** Cap for the exception list — beyond this the list is a report, not a to-do. */
+const AGING_LIST_CAP = 50;
+
+const emptyStepCounts = (): Record<StepKey, number> =>
+  STEP_KEYS.reduce((acc, k) => {
+    acc[k] = 0;
+    return acc;
+  }, {} as Record<StepKey, number>);
+
+/** On-time share over SLA stages (mirrors metrics.ts, recomputed after row merges). */
+const respectOf = (
+  enDelai: Record<StepKey, number>,
+  horsDelai: Record<StepKey, number>,
+): number | null => {
+  let onTime = 0;
+  let late = 0;
+  for (const k of STEP_KEYS) {
+    if (!STAGE_HAS_SLA[k]) continue;
+    onTime += enDelai[k];
+    late += horsDelai[k];
+  }
+  const n = onTime + late;
+  return n === 0 ? null : Math.round((onTime / n) * 100);
+};
+
+/** The dossier objects come straight from Firestore — they carry refExpert / assure at runtime. */
+const dossierRef = (d: FunnelDossier): string => {
+  const raw = (d as any).refExpert;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : d.id;
+};
+const dossierAssure = (d: FunnelDossier): string => assureName((d as any).assure);
+
 interface UserLookup {
   byKey: Map<string, string>;
   roleByKey: Map<string, string>;
+}
+
+interface UserRow {
+  user: string;
+  role?: string;
+  enDelai: Record<StepKey, number>;
+  horsDelai: Record<StepKey, number>;
+  ouverts: number;
+  totalEnDelai: number;
+  respectPct: number | null;
 }
 
 const ROLE_FILTER_ALL = 'Tous';
@@ -249,15 +324,24 @@ export default function MonitoringPage() {
     setDateTo(endOfDay(new Date()));
   };
 
+  // One "now" per data/range change so every "à ce jour" measure agrees.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const now = useMemo(() => new Date(), [dossiers, range]);
+
   const globalCounts = useMemo(() => computeStepCounts(dossiers, range), [dossiers, range]);
+  // One time base for the tiles: the amber bar now respects the period like the green one.
   const globalHorsDelaiCounts = useMemo(
-    () => computeStepCountsHorsDelai(dossiers),
-    [dossiers],
+    () => computeHorsDelaiInRange(dossiers, range),
+    [dossiers, range],
   );
   const globalRealiseAllTime = useMemo(
     () => computeStepCountsRealiseAllTime(dossiers),
     [dossiers],
   );
+  const headline = useMemo(() => computeHeadline(dossiers, range, now), [dossiers, range, now]);
+  const aging = useMemo(() => agingDossiers(dossiers, now), [dossiers, now]);
+  const cycleTimes = useMemo(() => computeCycleTimes(dossiers, range), [dossiers, range]);
+  const weeklyTrend = useMemo(() => computeWeeklyTrend(dossiers, range, now), [dossiers, range, now]);
   const scopedCompagnieNames = useMemo(() => {
     const allowed = (profile?.compagnies || []).map((c: string) => c.toLowerCase().trim());
     const names = allCompagnies.map((c) => c.nom).filter((n): n is string => !!n);
@@ -265,26 +349,21 @@ export default function MonitoringPage() {
     return names.filter((n) => allowed.includes(n.toLowerCase().trim()));
   }, [allCompagnies, profile]);
   const perCompagnie = useMemo(
-    () => computePerCompagnieCounts(dossiers, range, scopedCompagnieNames),
+    () => computePerCompagnieMeasures(dossiers, range, scopedCompagnieNames),
     [dossiers, range, scopedCompagnieNames],
   );
   const perUser = useMemo(
-    () => computePerUserCounts(dossiers, workflowLogs, range),
+    () => computePerUserMeasures(dossiers, workflowLogs, range),
     [dossiers, workflowLogs, range],
   );
   // Merge rows that resolve to the same display name (e.g. one row keyed by
   // Firebase UID for `createdBy` + another row keyed by email for
   // `lastStatusChange.by` are the same person).
   const dedupedPerUser = useMemo(() => {
-    const merged = new Map<string, {
-      user: string;
-      role?: string;
-      realise: Record<StepKey, number>;
-      totalRealise: number;
-    }>();
+    const merged = new Map<string, UserRow>();
     for (const r of perUser) {
-      const name = resolveUserName(r.user, userLookup);
-      const trimmed = (r.user || '').trim();
+      const name = resolveUserName(r.group, userLookup);
+      const trimmed = (r.group || '').trim();
       const role =
         userLookup.roleByKey.get(trimmed) ??
         userLookup.roleByKey.get(trimmed.toLowerCase()) ??
@@ -292,16 +371,23 @@ export default function MonitoringPage() {
       const existing = merged.get(name);
       if (existing) {
         for (const key of STEP_KEYS) {
-          existing.realise[key] += r.realise[key];
+          existing.enDelai[key] += r.enDelai[key];
+          existing.horsDelai[key] += r.horsDelai[key];
         }
-        existing.totalRealise += r.totalRealise;
+        existing.totalEnDelai += r.totalEnDelai;
+        // Same person under two keys: the open sets may overlap, the sum is an upper bound.
+        existing.ouverts += r.ouverts;
+        existing.respectPct = respectOf(existing.enDelai, existing.horsDelai);
         if (!existing.role && role) existing.role = role;
       } else {
         merged.set(name, {
           user: name,
           role,
-          realise: { ...r.realise },
-          totalRealise: r.totalRealise,
+          enDelai: { ...r.enDelai },
+          horsDelai: { ...r.horsDelai },
+          ouverts: r.ouverts,
+          totalEnDelai: r.totalEnDelai,
+          respectPct: r.respectPct,
         });
       }
     }
@@ -319,14 +405,14 @@ export default function MonitoringPage() {
       merged.set(name, {
         user: name,
         role: u.role,
-        realise: STEP_KEYS.reduce((acc, k) => {
-          acc[k] = 0;
-          return acc;
-        }, {} as Record<StepKey, number>),
-        totalRealise: 0,
+        enDelai: emptyStepCounts(),
+        horsDelai: emptyStepCounts(),
+        ouverts: 0,
+        totalEnDelai: 0,
+        respectPct: null,
       });
     }
-    return Array.from(merged.values()).sort((a, b) => b.totalRealise - a.totalRealise);
+    return Array.from(merged.values()).sort((a, b) => b.totalEnDelai - a.totalEnDelai);
   }, [perUser, userLookup, users]);
 
   const filteredPerUser = useMemo(() => {
@@ -433,7 +519,17 @@ export default function MonitoringPage() {
 
         <TabsContent value="global" className="space-y-6">
           {loading ? (
-            <div aria-busy="true">
+            <div aria-busy="true" className="space-y-6">
+              {/* Headline row (4 tiles) */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="paper space-y-3 p-5">
+                    <Skeleton className="h-3 w-28" />
+                    <Skeleton className="h-7 w-14" />
+                    <Skeleton className="h-3 w-32" />
+                  </div>
+                ))}
+              </div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {Array.from({ length: STEP_KEYS.length }).map((_, i) => (
                   <div key={i} className="paper space-y-3 p-5">
@@ -444,6 +540,36 @@ export default function MonitoringPage() {
                   </div>
                 ))}
               </div>
+              <div className="paper p-5">
+                <Skeleton className="mb-4 h-4 w-40" />
+                <Skeleton className="h-64 w-full" />
+              </div>
+              {/* À traiter + Délais par étape */}
+              <div className="grid gap-6 lg:grid-cols-3">
+                <div className="paper p-5 lg:col-span-2">
+                  <Skeleton className="mb-4 h-4 w-44" />
+                  <div className="space-y-3">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4">
+                        <Skeleton className="h-10 w-14 rounded-lg" />
+                        <Skeleton className="h-4 flex-1" />
+                        <Skeleton className="h-4 w-20" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="paper p-5">
+                  <Skeleton className="mb-4 h-4 w-32" />
+                  <div className="space-y-3">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4">
+                        <Skeleton className="h-4 flex-1" />
+                        <Skeleton className="h-4 w-10" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             <GlobalView
@@ -451,6 +577,10 @@ export default function MonitoringPage() {
               horsDelaiCounts={globalHorsDelaiCounts}
               realiseAllTimeCounts={globalRealiseAllTime}
               totalDossiers={totalDossiersInScope}
+              headline={headline}
+              aging={aging}
+              cycleTimes={cycleTimes}
+              trend={weeklyTrend}
               loading={loading}
               onSelectStep={openDrawer}
             />
@@ -513,6 +643,10 @@ function GlobalView({
   horsDelaiCounts,
   realiseAllTimeCounts,
   totalDossiers,
+  headline,
+  aging,
+  cycleTimes,
+  trend,
   loading,
   onSelectStep,
 }: {
@@ -520,6 +654,10 @@ function GlobalView({
   horsDelaiCounts: Record<StepKey, number>;
   realiseAllTimeCounts: Record<StepKey, number>;
   totalDossiers: number;
+  headline: Headline;
+  aging: AgingItem[];
+  cycleTimes: CycleTimeRow[];
+  trend: WeekPoint[];
   loading: boolean;
   onSelectStep: (step: StepKey, mode: DrawerMode) => void;
 }) {
@@ -544,6 +682,8 @@ function GlobalView({
 
   return (
     <>
+      <HeadlineRow headline={headline} />
+
       {/* KPI tiles: one paper card per step in a 16 px gutter grid (Carbon KPI tiles,
           Material cards) — the card edge is the separation (user ruling: a clear
           separation on each card). Never the featured surface for a row of tiles. */}
@@ -559,6 +699,7 @@ function GlobalView({
               key={key}
               index={idx + 1}
               label={STEP_LABELS[key]}
+              hasSla={STAGE_HAS_SLA[key]}
               realiseEnDelai={realiseEnDelai}
               horsDelai={horsDelai}
               nonRealise={nonRealise}
@@ -594,13 +735,87 @@ function GlobalView({
           )}
         </CardContent>
       </Card>
+
+      {/* NN/g dashboards: exceptions (what is late now) sit above trends. */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <AgingCard items={aging} className="lg:col-span-2" />
+        <CycleTimeCard rows={cycleTimes} />
+      </div>
+
+      <TrendCard points={trend} />
     </>
+  );
+}
+
+/**
+ * Headline row — Few: a dashboard is summary + exception on one screen; NN/g: the
+ * top-left carries the few numbers that matter (≤ 5–7 headline KPIs). Kanban flow
+ * metrics: throughput (période), SLA compliance (période), WIP (now), age (now).
+ */
+function HeadlineRow({ headline }: { headline: Headline }) {
+  const scrollToAging = () => {
+    document.getElementById('a-traiter')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <HeadlineTile label="Dossiers traités" value={headline.traites} caption="rapport déposé · période" />
+      <HeadlineTile
+        label="Respect des délais"
+        value={headline.respectPct == null ? '—' : `${headline.respectPct} %`}
+        caption={
+          headline.respectPct == null
+            ? 'aucune étape avec délai'
+            : `${headline.respectN} étapes avec délai · période`
+        }
+      />
+      <HeadlineTile label="En attente" value={headline.enAttente} caption="sans rapport déposé · aujourd'hui" />
+      {/* Exception tile — semantic colour with meaning (status pair), and a jump to the list. */}
+      <Card className="min-w-0 p-0">
+        <button
+          type="button"
+          onClick={scrollToAging}
+          className="block w-full rounded-xl p-5 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title="Voir la liste « À traiter aujourd'hui »"
+        >
+          <p className="t-label">En retard aujourd'hui</p>
+          <p
+            className={cn(
+              'mt-2 text-[28px] font-semibold leading-none',
+              headline.enRetard > 0 ? 'text-status-danger-fg' : 'text-status-success-fg',
+            )}
+          >
+            {headline.enRetard}
+          </p>
+          <p className="t-caption mt-2">au-delà de 24 h ouvrées · maintenant</p>
+        </button>
+      </Card>
+    </div>
+  );
+}
+
+/** Stat tile (dashboard headline pattern): label · 28 px proportional figure · caption. */
+function HeadlineTile({
+  label,
+  value,
+  caption,
+}: {
+  label: string;
+  value: number | string;
+  caption: string;
+}) {
+  return (
+    <Card className="min-w-0 p-5">
+      <p className="t-label">{label}</p>
+      <p className="mt-2 text-[28px] font-semibold leading-none text-ink">{value}</p>
+      <p className="t-caption mt-2">{caption}</p>
+    </Card>
   );
 }
 
 function KpiCard({
   index,
   label,
+  hasSla,
   realiseEnDelai,
   horsDelai,
   nonRealise,
@@ -611,6 +826,7 @@ function KpiCard({
 }: {
   index: number;
   label: string;
+  hasSla: boolean;
   realiseEnDelai: number;
   horsDelai: number;
   nonRealise: number | null;
@@ -648,16 +864,26 @@ function KpiCard({
           fillClass="bg-status-success-fg"
           onClick={onSelectRealise}
         />
-        <KpiBarRow
-          label="hors délai"
-          count={horsDelai}
-          pct={pctHorsDelai}
-          fillClass="bg-status-warning-fg"
-          onClick={onSelectHorsDelai}
-        />
-        {nonRealise != null && (
+        {hasSla ? (
           <KpiBarRow
-            label="non réalisé"
+            label="hors délai"
+            count={horsDelai}
+            pct={pctHorsDelai}
+            fillClass="bg-status-warning-fg"
+            onClick={onSelectHorsDelai}
+          />
+        ) : (
+          // No SLA on this stage: say so instead of a false amber zero (keeps tile height).
+          <div className="flex items-center gap-2 text-[11px] text-ink-4">
+            <span className="inline-block h-2 w-2 shrink-0 rounded-sm bg-surface-3" aria-hidden />
+            <span className="t-caption text-ink-4">Pas de délai défini</span>
+          </div>
+        )}
+        {nonRealise != null && (
+          // Backlog measure (Kanban WIP): counted as of today, not over the period.
+          <KpiBarRow
+            label="en attente"
+            title="Non réalisé à ce jour (hors période)"
             count={nonRealise}
             pct={pctNonRealise}
             fillClass="bg-ink-4"
@@ -671,19 +897,21 @@ function KpiCard({
 
 function KpiBarRow({
   label,
+  title,
   count,
   pct,
   fillClass,
   onClick,
 }: {
   label: string;
+  title?: string;
   count: number;
   pct: number;
   fillClass: string;
   onClick: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2 text-[11px] text-ink-3">
+    <div className="flex items-center gap-2 text-[11px] text-ink-3" title={title}>
       <span className="flex w-20 shrink-0 items-center gap-1.5">
         <span className={`inline-block h-2 w-2 shrink-0 rounded-sm ${fillClass}`} aria-hidden />
         <span className="truncate">{label}</span>
@@ -695,7 +923,7 @@ function KpiBarRow({
             onClick={onClick}
             className={`absolute inset-y-0 left-0 rounded-full ${fillClass} transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
             style={{ width: `${pct}%` }}
-            title={`${label} : ${count}`}
+            title={title ? `${title} : ${count}` : `${label} : ${count}`}
           />
         )}
       </div>
@@ -706,21 +934,203 @@ function KpiBarRow({
   );
 }
 
+/**
+ * « À traiter aujourd'hui » — Kanban work-item age (ProKanban): the LEADING
+ * indicator, what is past the SLA right now and not done. Row anatomy follows
+ * the planification date-block pattern (tinted block + rim as the row anchor).
+ */
+function AgingCard({ items, className }: { items: AgingItem[]; className?: string }) {
+  const shown = items.slice(0, AGING_LIST_CAP);
+  const rest = items.length - shown.length;
+  return (
+    <Card id="a-traiter" className={cn('overflow-hidden', className)}>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle className="flex items-center gap-2">
+          <span>À traiter aujourd'hui</span>
+          <span className="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium tabular-nums text-ink-2">
+            {items.length}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {items.length === 0 ? (
+          <EmptyState
+            icon={<CheckCircle2 />}
+            title="Rien en retard"
+            description="Aucune étape n'a dépassé 24 h ouvrées."
+            dashed={false}
+            className="border-0 bg-transparent py-8 [&>div:first-child]:bg-status-success-bg [&>div:first-child]:text-status-success-fg"
+          />
+        ) : (
+          <>
+            <ul className="divide-y divide-hairline">
+              {shown.map((item) => {
+                const danger = item.ageHours > 72;
+                const section = STEP_SECTION[item.step];
+                const href = section ? `/dossiers/${item.dossier.id}#step-${section}` : `/dossiers/${item.dossier.id}`;
+                const assure = dossierAssure(item.dossier);
+                return (
+                  <li key={`${item.dossier.id}-${item.step}`}>
+                    <Link
+                      href={href}
+                      className="flex items-center gap-4 px-6 py-3 transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    >
+                      <div
+                        className={cn(
+                          'flex w-16 shrink-0 flex-col items-center justify-center rounded-lg px-2 py-1.5 shadow-rim',
+                          danger
+                            ? 'bg-status-danger-bg text-status-danger-fg'
+                            : 'bg-status-warning-bg text-status-warning-fg',
+                        )}
+                      >
+                        <span className="font-headline text-lg font-semibold leading-none">
+                          {formatBusinessHours(item.ageHours)}
+                        </span>
+                        <span className="mt-1 text-[11px] leading-none">ouvrées</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="t-mono font-semibold">{dossierRef(item.dossier)}</span>
+                          {assure && <span className="truncate text-sm text-ink-2">{assure}</span>}
+                          <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-ink-2">
+                            {STEP_LABELS_SHORT[item.step]}
+                          </span>
+                        </div>
+                        <p className="t-caption mt-0.5 truncate">
+                          depuis {format(item.since, 'dd/MM HH:mm')}
+                          {item.dossier.compagnie ? ` · ${item.dossier.compagnie}` : ''}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" aria-hidden />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+            {rest > 0 && (
+              <p className="t-caption border-t border-hairline px-6 py-3 tabular-nums">+{rest} autres</p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** « Délais par étape » — claims-operations KPI: cycle time by stage (median, business hours). */
+function CycleTimeCard({ rows }: { rows: CycleTimeRow[] }) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader>
+        <CardTitle>Délais par étape</CardTitle>
+        <p className="t-caption">Heures ouvrées entre le déclencheur et la réalisation · période</p>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Étape</TableHead>
+              <TableHead className="text-right">Médiane</TableHead>
+              <TableHead className="text-right">Dossiers</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => (
+              <TableRow key={r.key}>
+                <TableCell className={cn(r.key === 'total' && 'font-medium')}>
+                  {r.key === 'total' ? 'Total (création → rapport)' : STEP_LABELS[r.key]}
+                </TableCell>
+                <TableCell className="text-right font-semibold tabular-nums">
+                  {r.medianHours == null ? (
+                    <span className="font-normal text-ink-4">—</span>
+                  ) : (
+                    formatBusinessHours(r.medianHours)
+                  )}
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-ink-2">{r.n}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** « Créés vs déposés par semaine » — dataviz: trend over time → line; ≥ 2 series → legend. */
+function TrendCard({ points }: { points: WeekPoint[] }) {
+  if (points.length < 2) return null;
+  const config = {
+    crees: { label: 'Créés', color: 'hsl(var(--chart-1))' },
+    deposes: { label: 'Rapports déposés', color: 'hsl(var(--chart-2))' },
+  };
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Créés vs déposés par semaine</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={config} className="h-64 w-full">
+          <LineChart data={points} margin={{ top: 8, right: 16, left: -8, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--hairline))" />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} />
+            <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} allowDecimals={false} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Line type="monotone" dataKey="crees" stroke="var(--color-crees)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+            <Line type="monotone" dataKey="deposes" stroke="var(--color-deposes)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+          </LineChart>
+        </ChartContainer>
+        {/* Legend always present for ≥ 2 series (same pattern as the dashboard). */}
+        <ul className="mt-4 flex flex-wrap justify-center gap-x-3 gap-y-1.5">
+          {(Object.keys(config) as Array<keyof typeof config>).map((k) => (
+            <li key={k} className="t-caption flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: config[k].color }} aria-hidden />
+              <span>{config[k].label}</span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Step cell shared by both tables: on-time count (heat) + late count on a second line. */
+function StepCell({
+  value,
+  late,
+  max,
+  emphasis,
+}: {
+  value: number;
+  late: number;
+  max: number;
+  emphasis?: boolean;
+}) {
+  return (
+    <TableCell
+      className={cn('text-center', emphasis && 'font-semibold')}
+      style={{ ...tabular, ...heatStyle(value, max) }}
+    >
+      <div>{value || <span className="font-normal text-ink-4">—</span>}</div>
+      {late > 0 && (
+        <div className="text-[11px] font-normal text-status-warning-fg tabular-nums">+{late} hors délai</div>
+      )}
+    </TableCell>
+  );
+}
+
 function CompagnieView({
   rows,
   loading,
 }: {
-  rows: Array<{ compagnie: string; counts: Record<StepKey, number> }>;
+  rows: GroupMeasures[];
   loading: boolean;
 }) {
   const columnMax = useMemo(() => {
-    const max: Record<StepKey, number> = STEP_KEYS.reduce((acc, k) => {
-      acc[k] = 0;
-      return acc;
-    }, {} as Record<StepKey, number>);
+    const max = emptyStepCounts();
     for (const r of rows) {
       for (const k of STEP_KEYS) {
-        if (r.counts[k] > max[k]) max[k] = r.counts[k];
+        if (r.enDelai[k] > max[k]) max[k] = r.enDelai[k];
       }
     }
     return max;
@@ -752,24 +1162,33 @@ function CompagnieView({
                   {STEP_LABELS_SHORT[key]}
                 </TableHead>
               ))}
+              <TableHead className="text-center text-xs" title="Part des étapes avec délai réalisées à temps · période">
+                Respect
+              </TableHead>
+              <TableHead className="text-center text-xs" title="Dossiers sans rapport déposé · à ce jour">
+                En attente
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map(({ compagnie, counts }) => (
-              <TableRow key={compagnie}>
-                <TableCell className="font-medium">{compagnie}</TableCell>
-                {STEP_KEYS.map((key) => {
-                  const v = counts[key];
-                  return (
-                    <TableCell
-                      key={key}
-                      className="text-center font-semibold"
-                      style={{ ...tabular, ...heatStyle(v, columnMax[key]) }}
-                    >
-                      {v || <span className="font-normal text-ink-4">—</span>}
-                    </TableCell>
-                  );
-                })}
+            {rows.map((r) => (
+              <TableRow key={r.group}>
+                <TableCell className="font-medium">{r.group}</TableCell>
+                {STEP_KEYS.map((key) => (
+                  <StepCell
+                    key={key}
+                    value={r.enDelai[key]}
+                    late={r.horsDelai[key]}
+                    max={columnMax[key]}
+                    emphasis
+                  />
+                ))}
+                <TableCell className="text-center font-semibold" style={tabular}>
+                  {r.respectPct == null ? <span className="font-normal text-ink-4">—</span> : `${r.respectPct} %`}
+                </TableCell>
+                <TableCell className="text-center" style={tabular}>
+                  {r.enAttente || <span className="text-ink-4">—</span>}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -784,25 +1203,18 @@ function UserView({
   loading,
   userLookup,
 }: {
-  rows: Array<{
-    user: string;
-    realise: Record<StepKey, number>;
-    totalRealise: number;
-  }>;
+  rows: UserRow[];
   loading: boolean;
   userLookup: UserLookup;
 }) {
   const columnMax = useMemo(() => {
-    const realiseMax: Record<StepKey, number> = STEP_KEYS.reduce((acc, k) => {
-      acc[k] = 0;
-      return acc;
-    }, {} as Record<StepKey, number>);
+    const realiseMax = emptyStepCounts();
     let totalMax = 0;
     for (const r of rows) {
       for (const k of STEP_KEYS) {
-        if (r.realise[k] > realiseMax[k]) realiseMax[k] = r.realise[k];
+        if (r.enDelai[k] > realiseMax[k]) realiseMax[k] = r.enDelai[k];
       }
-      if (r.totalRealise > totalMax) totalMax = r.totalRealise;
+      if (r.totalEnDelai > totalMax) totalMax = r.totalEnDelai;
     }
     return { realise: realiseMax, total: totalMax };
   }, [rows]);
@@ -834,6 +1246,15 @@ function UserView({
                 </TableHead>
               ))}
               <TableHead className="text-center text-xs">Total</TableHead>
+              <TableHead className="text-center text-xs" title="Part des étapes avec délai réalisées à temps · période">
+                Respect
+              </TableHead>
+              <TableHead
+                className="text-center text-xs"
+                title="Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape"
+              >
+                Ouverts (touchés)
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -842,23 +1263,29 @@ function UserView({
               return (
                 <TableRow key={r.user}>
                   <TableCell className="font-medium">{displayName}</TableCell>
-                  {STEP_KEYS.map((key) => {
-                    const v = r.realise[key];
-                    return (
-                      <TableCell
-                        key={key}
-                        className="text-center"
-                        style={{ ...tabular, ...heatStyle(v, columnMax.realise[key]) }}
-                      >
-                        {v || <span className="text-ink-4">—</span>}
-                      </TableCell>
-                    );
-                  })}
+                  {STEP_KEYS.map((key) => (
+                    <StepCell
+                      key={key}
+                      value={r.enDelai[key]}
+                      late={r.horsDelai[key]}
+                      max={columnMax.realise[key]}
+                    />
+                  ))}
                   <TableCell
                     className="text-center font-semibold"
-                    style={{ ...tabular, ...heatStyle(r.totalRealise, columnMax.total) }}
+                    style={{ ...tabular, ...heatStyle(r.totalEnDelai, columnMax.total) }}
                   >
-                    {r.totalRealise}
+                    {r.totalEnDelai}
+                  </TableCell>
+                  <TableCell className="text-center font-semibold" style={tabular}>
+                    {r.respectPct == null ? <span className="font-normal text-ink-4">—</span> : `${r.respectPct} %`}
+                  </TableCell>
+                  <TableCell
+                    className="text-center"
+                    style={tabular}
+                    title="Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape"
+                  >
+                    {r.ouverts || <span className="text-ink-4">—</span>}
                   </TableCell>
                 </TableRow>
               );
