@@ -208,9 +208,11 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
     <div ref={containerRef} className="w-full">
       {/* Horizontal stepper: sticky under the record bar (hidden on 2xl where the rail takes over). */}
       <div
-        className={cn("sticky z-30 flex items-center border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 2xl:hidden", focus && "hidden")}
+        className={cn('sticky z-30 grid transition-[grid-template-rows] duration-300 ease-standard motion-reduce:transition-none 2xl:hidden', focus ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]')}
         style={{ top: stickyTop }}
+        aria-hidden={focus || undefined}
       >
+      <div className={cn('flex min-h-0 items-center overflow-hidden border-b bg-background/95 backdrop-blur transition-opacity duration-150 ease-standard supports-[backdrop-filter]:bg-background/85 motion-reduce:transition-none', focus ? 'opacity-0' : 'opacity-100 delay-150')}>
         <TimelineBar steps={steps} activeId={activeStep} onStepClick={handleStepClick} className="min-w-0 flex-1" />
         <div className="shrink-0 border-l px-1.5">
           <Button
@@ -225,11 +227,20 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
           </Button>
         </div>
       </div>
+      </div>
 
-      <div className={cn("mx-auto px-3 sm:px-6", focus ? "max-w-none" : "max-w-screen-xl 2xl:grid 2xl:max-w-none 2xl:grid-cols-[240px_minmax(0,1fr)] 2xl:gap-8")}>
+      <div
+        className={cn(
+          'mx-auto px-3 transition-[max-width,grid-template-columns,gap] duration-300 ease-standard motion-reduce:transition-none sm:px-6 2xl:grid 2xl:max-w-none',
+          focus ? 'max-w-[100%] 2xl:grid-cols-[0px_minmax(0,1fr)] 2xl:gap-0' : 'max-w-[1280px] 2xl:grid-cols-[240px_minmax(0,1fr)] 2xl:gap-8',
+        )}
+      >
         {/* Vertical rail on very wide screens: never clips, never scrolls. */}
-        <aside className={cn("hidden", !focus && "2xl:block")}>
-          <div className="sticky pt-4" style={{ top: stickyTop + 8 }}>
+        <aside className="hidden min-w-0 overflow-clip 2xl:block" aria-hidden={focus || undefined}>
+          <div
+            className={cn('sticky w-[240px] pt-4 transition-[opacity,transform] duration-200 ease-standard motion-reduce:transition-none', focus ? '-translate-x-3 opacity-0' : 'translate-x-0 opacity-100 delay-150')}
+            style={{ top: stickyTop + 8 }}
+          >
             <TimelineBar steps={steps} activeId={activeStep} onStepClick={handleStepClick} orientation="vertical" />
             <Button
               variant="ghost"

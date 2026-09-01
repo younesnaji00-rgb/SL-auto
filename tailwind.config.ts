@@ -17,6 +17,11 @@ export default {
         code: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
+      // Material "standard" easing — every layout choreography (focus mode,
+      // sidebar, panels) shares it so motion reads as one system.
+      transitionTimingFunction: {
+        standard: 'cubic-bezier(0.2, 0, 0, 1)',
+      },
       // Elevation (Stripe levels 1–2): tonal cards get level 1, popovers level 2.
       boxShadow: {
         card: '0 1px 2px hsl(var(--shadow-color) / 0.05), 0 1px 3px hsl(var(--shadow-color) / 0.06)',

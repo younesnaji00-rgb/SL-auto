@@ -58,7 +58,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
       <SkipToContent />
       <CompagnieLogosPreload />
       <AppSidebar />
-      <SidebarInset className="flex h-svh flex-col overflow-hidden transition-[margin,width] duration-200 ease-out motion-reduce:transition-none">
+      <SidebarInset className="flex h-svh flex-col overflow-hidden transition-[margin,width] duration-300 ease-standard motion-reduce:transition-none">
         <Header />
         <OfflineIndicator />
         <GpsPublisherHost />

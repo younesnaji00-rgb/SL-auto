@@ -328,7 +328,12 @@ export default function DossierDetailPage({
       />
 
       {/* TIMELINE CONTENT (+ context column on wide screens) */}
-      <div className={cn("flex-1", !focusMode && "xl:grid xl:grid-cols-[minmax(0,1fr)_280px] xl:gap-6 xl:pr-5")}>
+      <div
+        className={cn(
+          'flex-1 transition-[grid-template-columns,gap,padding] duration-300 ease-standard motion-reduce:transition-none xl:grid',
+          focusMode ? 'xl:grid-cols-[minmax(0,1fr)_0px] xl:gap-0 xl:pr-0' : 'xl:grid-cols-[minmax(0,1fr)_280px] xl:gap-6 xl:pr-5',
+        )}
+      >
         <Timeline
           focus={focusMode}
           dossierId={id}
@@ -419,15 +424,20 @@ export default function DossierDetailPage({
           activeStep={activeStep}
           onActiveStepChange={setActiveStep}
         />
-        {!focusMode && <DossierContextPanel
+        <div className="hidden min-w-0 overflow-clip xl:sticky xl:top-[60px] xl:block xl:self-start" aria-hidden={focusMode || undefined}>
+        <DossierContextPanel
           dossierId={id}
           onOpenHistorique={() => setHistoriqueOpen(true)}
           onGoToStep={(stepId) => {
             setActiveStep(stepId);
             document.getElementById(`step-${stepId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }}
-          className="hidden xl:flex xl:sticky xl:top-[60px] xl:max-h-[calc(100svh-7rem)] xl:self-start xl:overflow-y-auto xl:pt-4"
-        />}
+          className={cn(
+            'flex w-[280px] max-h-[calc(100svh-7rem)] overflow-y-auto pt-4 transition-[opacity,transform] duration-200 ease-standard motion-reduce:transition-none',
+            focusMode ? '-translate-x-3 opacity-0' : 'translate-x-0 opacity-100 delay-150',
+          )}
+        />
+        </div>
       </div>
 
       {/* MODALS */}

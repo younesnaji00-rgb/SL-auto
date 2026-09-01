@@ -16,6 +16,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { setFocusMode } from '@/hooks/use-focus-mode';
+import { usePresence } from '@/hooks/use-presence';
+import { cn } from '@/lib/utils';
 import { AlertCircle, Columns2, Maximize2, X } from 'lucide-react';
 import { collection, type DocumentReference } from 'firebase/firestore';
 
@@ -173,7 +175,13 @@ export default function Step2Information({
     />
   );
 
-  if (!showCompare) {
+  // Keep the pane mounted while it animates out; the columns animate from
+  // 0fr to 1fr and back (grid-template-columns is animatable), the pane
+  // fades/slides in after the layout has made room (Material choreography:
+  // outgoing first, then layout, then incoming).
+  const { mounted: paneMounted, shown: paneShown } = usePresence(showCompare, 300);
+
+  if (!paneMounted) {
     return (
       <div className="space-y-4">
         {banner}
@@ -188,12 +196,23 @@ export default function Step2Information({
   const selectedUrl: string | undefined = selectedScan?.url || undefined;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div
+      className={cn(
+        'grid transition-[grid-template-columns,gap] duration-300 ease-standard motion-reduce:transition-none',
+        paneShown ? 'gap-6 lg:grid-cols-[minmax(0,1fr)_1fr]' : 'gap-0 lg:grid-cols-[minmax(0,1fr)_0fr]',
+      )}
+    >
       <div className="min-w-0 space-y-4">
         {banner}
         {informationContent}
       </div>
-      <aside className="hidden lg:block">
+      <aside
+        className={cn(
+          'hidden min-w-0 overflow-clip transition-[opacity,transform] duration-200 ease-standard motion-reduce:transition-none lg:block',
+          paneShown ? 'translate-x-0 opacity-100 delay-150' : 'translate-x-3 opacity-0',
+        )}
+        aria-hidden={!paneShown || undefined}
+      >
         <Card
           variant="outline"
           className="sticky top-20 flex max-h-[calc(100dvh-6rem)] flex-col gap-3 overflow-hidden p-3"
