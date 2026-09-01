@@ -393,7 +393,7 @@ function DashboardPageInner() {
     return (
       <div className="flex-1 space-y-8" aria-busy="true">
         <PageHeader title="Tableau de bord" size="compact" />
-        <div className="paper-featured p-5">
+        <div className="paper-featured p-6">
           <div className="grid gap-6 sm:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="space-y-3">
@@ -609,7 +609,7 @@ function DashboardPageInner() {
   // for the selected period. Everything below reads against it.
   const headlineCard = (
     <Card variant="featured">
-      <CardContent className="p-5">
+      <CardContent className="p-6">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           {/* Stat tile contract (dataviz "stat tile" / Carbon KPI tiles / Refactoring UI):
               label light, sentence case, no colon · value heavy, PROPORTIONAL figures
@@ -623,12 +623,12 @@ function DashboardPageInner() {
             </div>
             <div className="sm:px-6">
               <p className="t-label text-on-ink/70">Statuts actifs</p>
-              <p className="mt-1 text-[28px] font-semibold leading-none text-on-ink">{statusChartData.length}</p>
+              <p className="mt-1 text-[36px] font-semibold leading-none text-on-ink">{statusChartData.length}</p>
               <p className="t-caption mt-1 text-on-ink/70">sur {statusBarData.length} statuts</p>
             </div>
             <div className="sm:pl-6">
               <p className="t-label text-on-ink/70">Compagnies</p>
-              <p className="mt-1 text-[28px] font-semibold leading-none text-on-ink">{compagnieData.length}</p>
+              <p className="mt-1 text-[36px] font-semibold leading-none text-on-ink">{compagnieData.length}</p>
               <p className="t-caption mt-1 text-on-ink/70">
                 {compagnieData[0] ? `${compagnieData[0].name} en tête` : 'aucune donnée'}
               </p>
@@ -733,7 +733,7 @@ function DashboardPageInner() {
                     onClick={() => setSelectedStatus((prev) => (prev === item.name ? null : item.name))}
                     aria-pressed={isSelected}
                     className={cn(
-                      'flex w-full items-center justify-between px-5 py-2.5 text-left text-sm transition-colors',
+                      'flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition-colors',
                       isSelected ? 'border-l-2 border-l-primary bg-accent/50' : 'border-l-2 border-l-transparent hover:bg-surface-2',
                     )}
                   >
