@@ -65,7 +65,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
         <WorkspaceTabs />
         <main
           id="main-content"
-          className="min-h-0 flex-1 overflow-y-auto bg-background/50 pb-[calc(60px+env(safe-area-inset-bottom))] lg:pb-0"
+          className="min-h-0 flex-1 overflow-y-auto bg-background/35 pb-[calc(60px+env(safe-area-inset-bottom))] lg:pb-0"
           tabIndex={-1}
         >
           <div className={cn(fullWidth ? 'w-full' : 'mx-auto max-w-[1600px] p-4 md:p-6 lg:p-8')}>

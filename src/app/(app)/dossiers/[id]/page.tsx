@@ -304,7 +304,7 @@ export default function DossierDetailPage({
 
   return (
     <RappelDraftContext.Provider value={draftStore}>
-    <div className="flex min-h-full flex-col bg-background">
+    <div className="flex min-h-full flex-col">
       {/* RECORD BAR — the only sticky row above the stepper */}
       <RecordBar
         dossierId={id}
