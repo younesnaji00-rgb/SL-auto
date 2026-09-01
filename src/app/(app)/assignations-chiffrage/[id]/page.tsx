@@ -1,25 +1,14 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useEffect, useState, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { useCollection, useFirestore } from '@/firebase';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { ArrowLeft, Mail, MoreHorizontal, Scale } from 'lucide-react';
+import { Mail, Scale } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { buildDocFamilies } from '@/lib/doc-family';
@@ -30,7 +19,6 @@ import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { deriveStatus } from '@/lib/status-machine';
 import { assureName } from '@/lib/dossier-label';
-import { useRegisterPageTitle } from '@/components/layout/page-chrome';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
 import { useChiffrageTabs } from '@/hooks/use-chiffrage-tabs';
 import { addObservation } from '@/app/(app)/dossiers/[id]/log-observation';
@@ -48,6 +36,7 @@ import {
 import { FamilyRow } from '@/components/dossier-timeline/family-row';
 import type { ExtraSlotKind, TypedDoc } from '@/components/dossier-timeline/slot-card';
 import { apiFetch } from '@/lib/api-fetch';
+import Loading from './loading';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -73,23 +62,6 @@ const CATEGORY_TO_TYPE: Record<string, string> = {
   en_cours: 'Photos en cours',
   apres: 'Photos après',
 };
-
-// Sticky record bar bleeds through the layout padding (p-4 md:p-6 lg:p-8) —
-// this route is not in FLUSH_ROUTE_PATTERNS, so the bar reclaims the gutter itself.
-const BAR_BLEED = '-mx-4 -mt-4 md:-mx-6 md:-mt-6 lg:-mx-8 lg:-mt-8';
-
-/** Paper section (information-tab `Section`): hairline header row + 24 px body. */
-function Section({ title, actions, children, className }: { title: string; actions?: React.ReactNode; children: React.ReactNode; className?: string }) {
-  return (
-    <Card role="region" aria-label={title} className={cn('min-w-0 overflow-hidden', className)}>
-      <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
-        <h2 className="t-heading truncate">{title}</h2>
-        {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
-      </header>
-      <div className="p-6">{children}</div>
-    </Card>
-  );
-}
 
 export default function AssignationChiffrageDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -148,9 +120,6 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     });
     return () => unsub();
   }, [db, chiffrage?.dossierId]);
-
-  // Breadcrumb / document.title (PageHeader used to register it).
-  useRegisterPageTitle(chiffrage ? chiffrage.dossierNom || `Chiffrage ${id.slice(0, 6)}` : null);
 
   // Task #29 — Subscribe to the parent dossier's `documents` subcollection so we can
   // surface cardinal-accord + proposition-accord docTypes as their own groups (with
@@ -423,35 +392,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   };
 
   if (loading || !chiffrage) {
-    return (
-      <div className="space-y-6" aria-busy="true">
-        <div className={cn('flex h-12 items-center gap-3 border-b border-hairline px-3 sm:px-5', BAR_BLEED)}>
-          <Skeleton className="h-8 w-8" />
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-4 w-40" />
-          <Skeleton className="ml-auto h-8 w-32" />
-        </div>
-        <div className="mx-auto max-w-5xl space-y-6">
-          <div className="paper p-6">
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="space-y-1.5">
-                  <Skeleton className="h-3 w-16" />
-                  <Skeleton className="h-4 w-28" />
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="paper p-6">
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-[120px] rounded-[10px]" />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    // Loading (element-specs §15): the route skeleton mirrors this exact layout.
+    return <Loading />;
   }
 
   const showMailPrimary = canSendMail && !!chiffrage.dossierId;
@@ -461,173 +403,130 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const chiffrageDone = chiffrage.status === 'done';
 
   return (
-    <div className="space-y-6">
-      {/* Sticky identity bar — mirrors components/dossiers/record-bar.tsx
-          (its props expect dossier steps, which a chiffrage record doesn't have). */}
-      <div className={cn('sticky top-0 z-40 flex min-h-[48px] items-center gap-2 glass-bar border-b border-hairline px-3 sm:px-5', BAR_BLEED)} data-record-bar>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink" asChild>
-              <Link href="/assignations-chiffrage" aria-label="Retour aux assignations au chiffrage">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Assignations au chiffrage</TooltipContent>
-        </Tooltip>
-
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
-          <h1 className="t-mono min-w-0 truncate font-semibold tracking-tight" title={chiffrage.dossierNom || undefined}>
-            {chiffrage.dossierNom || 'Sans réf.'}
-          </h1>
-          {assure && <span className="t-body min-w-0 truncate font-medium">{assure}</span>}
-          {dossier?.compagnie && <span className="hidden truncate text-sm text-ink-3 md:inline">{dossier.compagnie}</span>}
-          {plate && <span className="t-mono hidden text-ink-3 lg:inline">{plate}</span>}
-          <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(dossierStatut), 'shrink-0')}>
-            {dossierStatut}
-          </Badge>
-        </div>
-
-        {showMailPrimary && (
-          <Button size="sm" className="hidden h-8 shrink-0 gap-1.5 md:inline-flex" onClick={() => setMailDialogOpen(true)}>
-            <Mail className="h-3.5 w-3.5" />
-            Envoyer par mail
-          </Button>
-        )}
-        {showReforme && (
-          <Button size="sm" variant="outline" className="hidden h-8 shrink-0 gap-1.5 md:inline-flex" onClick={() => setReformeOpen(true)}>
-            <Scale className="h-3.5 w-3.5" />
-            Réforme
-          </Button>
-        )}
-
-        {(showMailPrimary || showReforme) && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0 md:hidden" aria-label="Plus d'actions">
-                <MoreHorizontal className="h-4 w-4" />
+    <div className="mx-auto max-w-5xl space-y-8">
+      {/* Page header (element-specs §1: Polaris Page ✓ "always provide
+          breadcrumbs when a page has a parent", the primary as ONE filled
+          button at the right end; GOV.UK button ✓ no second default button).
+          Compact record header: back link · t-title · subtitle · meta chips;
+          Réforme is `outline`, "Envoyer par mail" is the page's only `default`
+          and sits LAST. Chips (§11): dossier status pair, plate (neutral,
+          mono), correction state (success once done, info while open). */}
+      <PageHeader
+        size="compact"
+        backHref="/assignations-chiffrage"
+        backLabel="Assignations au chiffrage"
+        title={chiffrage.dossierNom || 'Sans réf.'}
+        subtitle={
+          <>
+            Correcteur : <span className="font-semibold text-ink">{chiffrage.assignedChiffreurNom || '—'}</span>
+            {assure && <> · {assure}</>}
+            {dossier?.compagnie && <> · {dossier.compagnie}</>}
+          </>
+        }
+        meta={
+          <>
+            <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(dossierStatut))}>
+              {dossierStatut}
+            </Badge>
+            {plate && <Badge variant="neutral" className="font-mono">{plate}</Badge>}
+            <Badge variant={chiffrageDone ? 'success' : 'info'}>
+              {chiffrageDone ? 'Correction terminée' : 'Correction en cours'}
+            </Badge>
+          </>
+        }
+        actions={
+          <>
+            {showReforme && (
+              <Button variant="outline" onClick={() => setReformeOpen(true)}>
+                <Scale />
+                Réforme
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60">
-              <DropdownMenuLabel className="t-caption truncate font-normal">{chiffrage.dossierNom || 'Sans réf.'}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {showMailPrimary && (
-                <DropdownMenuItem onSelect={() => setMailDialogOpen(true)}>
-                  <Mail className="mr-2 h-4 w-4" /> Envoyer par mail
-                </DropdownMenuItem>
-              )}
-              {showReforme && (
-                <DropdownMenuItem onSelect={() => setReformeOpen(true)}>
-                  <Scale className="mr-2 h-4 w-4" /> Réforme
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
+            )}
+            {showMailPrimary && (
+              <Button variant="default" onClick={() => setMailDialogOpen(true)}>
+                <Mail />
+                Envoyer par mail
+              </Button>
+            )}
+          </>
+        }
+      />
 
-      <div className="mx-auto max-w-5xl space-y-6">
-        {/* Assignation facts not already in the bar — label/value pairs (Refactoring UI: labels quiet, values bold). */}
-        <Section title="Assignation">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-            <div className="min-w-0">
-              <dt className="t-label">Chiffreur</dt>
-              <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{chiffrage.assignedChiffreurNom || <span className="font-normal text-ink-3">—</span>}</dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="t-label">État du chiffrage</dt>
-              <dd className="mt-0.5">
-                <span className={cn('inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium', chiffrageDone ? 'bg-status-success-bg text-status-success-fg' : 'bg-status-info-bg text-status-info-fg')}>
-                  {chiffrageDone ? 'Terminé' : 'En cours'}
-                </span>
-              </dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="t-label">Nature du dossier</dt>
-              <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{dossier?.nature || <span className="font-normal text-ink-3">—</span>}</dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="t-label">Type de réforme</dt>
-              <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{dossier?.reforme?.typeReforme || <span className="font-normal text-ink-3">—</span>}</dd>
-            </div>
-          </dl>
-        </Section>
+      {/* Observations section (shared component — untouched). */}
+      <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />
 
-        {/* Observations section */}
-        <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />
+      {/* Devis & Factures — one horizontal row per parent garage (base or
+          gestionnaire-created extra). Each row has a sticky "Éditer web"
+          button pinned to the left that opens the structured devis editor
+          for that family's source. Mirrors the gestionnaire's step-4 layout
+          in read-only mode. Plain section: `t-heading` title (element-specs
+          §5 — no card around rows that are already papers; sections 32 apart
+          from the page `space-y-8`, 16 between rows). */}
+      {(devisFamilies.length > 0 || factureFamilies.length > 0) && (
+        <section className="space-y-4" aria-label="Devis et factures">
+          <h2 className="t-heading">Devis &amp; factures</h2>
+          {devisFamilies.map((group) => (
+            <FamilyRow
+              key={group.parent}
+              group={group}
+              docsByType={familyDocsByType}
+              canEdit={false}
+              canDeleteDoc={chiffreurNeverDelete}
+              userRole={profile?.role}
+              canManageExtraSlots={false}
+              isUploading={() => false}
+              deletingId={null}
+              extraSlotKindForSlot={() => undefined}
+              onUpload={chiffreurNoOpUpload}
+              onDelete={chiffreurNoOpDelete}
+              onCreateNextCardinal={chiffreurNoOpCreateNextCardinal}
+              onCreateExtraSlot={chiffreurNoOpCreateExtraSlot}
+              onRenameExtraSlot={chiffreurNoOpRename}
+              onPreview={handleFamilyDocPreview}
+              onEditSlot={(slot) => handleEditSlot(group.parent, slot)}
+            />
+          ))}
+          {factureFamilies.map((group) => (
+            <FamilyRow
+              key={group.parent}
+              group={group}
+              docsByType={familyDocsByType}
+              canEdit={false}
+              canDeleteDoc={chiffreurNeverDelete}
+              userRole={profile?.role}
+              canManageExtraSlots={false}
+              isUploading={() => false}
+              deletingId={null}
+              extraSlotKindForSlot={() => undefined}
+              onUpload={chiffreurNoOpUpload}
+              onDelete={chiffreurNoOpDelete}
+              onCreateNextCardinal={chiffreurNoOpCreateNextCardinal}
+              onCreateExtraSlot={chiffreurNoOpCreateExtraSlot}
+              onRenameExtraSlot={chiffreurNoOpRename}
+              onPreview={handleFamilyDocPreview}
+              onEditSlot={(slot) => handleEditSlot(group.parent, slot)}
+            />
+          ))}
+        </section>
+      )}
 
-        {/* Devis & Factures — one horizontal row per parent garage (base or
-            gestionnaire-created extra). Each row has a sticky "Éditer web"
-            button pinned to the left that opens the structured devis editor
-            for that family's source. Mirrors the gestionnaire's step-4 layout
-            in read-only mode. */}
-        {(devisFamilies.length > 0 || factureFamilies.length > 0) && (
-          <Section title="Devis & factures">
-            <div className="space-y-4">
-              {devisFamilies.map((group) => (
-                <FamilyRow
-                  key={group.parent}
-                  group={group}
-                  docsByType={familyDocsByType}
-                  canEdit={false}
-                  canDeleteDoc={chiffreurNeverDelete}
-                  userRole={profile?.role}
-                  canManageExtraSlots={false}
-                  isUploading={() => false}
-                  deletingId={null}
-                  extraSlotKindForSlot={() => undefined}
-                  onUpload={chiffreurNoOpUpload}
-                  onDelete={chiffreurNoOpDelete}
-                  onCreateNextCardinal={chiffreurNoOpCreateNextCardinal}
-                  onCreateExtraSlot={chiffreurNoOpCreateExtraSlot}
-                  onRenameExtraSlot={chiffreurNoOpRename}
-                  onPreview={handleFamilyDocPreview}
-                  onEditSlot={(slot) => handleEditSlot(group.parent, slot)}
-                />
-              ))}
-              {factureFamilies.map((group) => (
-                <FamilyRow
-                  key={group.parent}
-                  group={group}
-                  docsByType={familyDocsByType}
-                  canEdit={false}
-                  canDeleteDoc={chiffreurNeverDelete}
-                  userRole={profile?.role}
-                  canManageExtraSlots={false}
-                  isUploading={() => false}
-                  deletingId={null}
-                  extraSlotKindForSlot={() => undefined}
-                  onUpload={chiffreurNoOpUpload}
-                  onDelete={chiffreurNoOpDelete}
-                  onCreateNextCardinal={chiffreurNoOpCreateNextCardinal}
-                  onCreateExtraSlot={chiffreurNoOpCreateExtraSlot}
-                  onRenameExtraSlot={chiffreurNoOpRename}
-                  onPreview={handleFamilyDocPreview}
-                  onEditSlot={(slot) => handleEditSlot(group.parent, slot)}
-                />
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {/* Task #31 — Documents filter panel (mirrors the dossier documents-tab's
-            "second page" / import view). Import is disabled for chiffreurs; the
-            disabled button + tooltip render per task #30's contract. */}
-        <DocumentsFilterPanel
-          documents={combinedSortedDocs}
-          docTypes={docTypes}
-          selectedType={selectedType}
-          onSelectedTypeChange={setSelectedType}
-          typeSearch={typeSearch}
-          onTypeSearchChange={setTypeSearch}
-          loading={docsLoading}
-          canImport={false}
-          onImportClick={handleImportClick}
-          canDelete={false}
-          onOpenDocument={handleOpenDocument}
-          onDownloadDocument={handleDownloadDocument}
-        />
-      </div>
+      {/* Task #31 — Documents filter panel (mirrors the dossier documents-tab's
+          "second page" / import view). Import is disabled for chiffreurs; the
+          disabled button + tooltip render per task #30's contract. */}
+      <DocumentsFilterPanel
+        documents={combinedSortedDocs}
+        docTypes={docTypes}
+        selectedType={selectedType}
+        onSelectedTypeChange={setSelectedType}
+        typeSearch={typeSearch}
+        onTypeSearchChange={setTypeSearch}
+        loading={docsLoading}
+        canImport={false}
+        onImportClick={handleImportClick}
+        canDelete={false}
+        onOpenDocument={handleOpenDocument}
+        onDownloadDocument={handleDownloadDocument}
+      />
 
       {/* Réforme Modal */}
       {chiffrage.dossierId && (

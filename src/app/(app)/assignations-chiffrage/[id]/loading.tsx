@@ -1,33 +1,27 @@
 import { Skeleton } from '@/components/ui/skeleton';
 
-/** Mirrors the chiffrage record: sticky identity bar → assignation pairs → document sockets. */
+/**
+ * Mirrors the chiffrage record (element-specs §15: NN/g skeleton screens ✓
+ * mirror the final layout): compact header line (back button · title +
+ * subtitle · action pill) → observations collapsible bar → section title +
+ * two family rows.
+ */
 export default function Loading() {
   return (
-    <div className="space-y-6" aria-busy="true" aria-live="polite">
-      <div className="-mx-4 -mt-4 flex h-12 items-center gap-3 border-b border-hairline px-3 sm:px-5 md:-mx-6 md:-mt-6 lg:-mx-8 lg:-mt-8">
-        <Skeleton className="h-8 w-8" />
-        <Skeleton className="h-4 w-32" />
-        <Skeleton className="h-4 w-40" />
-        <Skeleton className="ml-auto h-8 w-32" />
+    <div className="mx-auto max-w-5xl space-y-8" aria-busy="true" aria-live="polite">
+      <div className="flex items-start gap-3">
+        <Skeleton className="h-9 w-9 shrink-0" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-64 max-w-full" />
+        </div>
+        <Skeleton className="h-10 w-40" />
       </div>
-      <div className="mx-auto max-w-5xl space-y-6">
-        <div className="paper p-6">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="space-y-1.5">
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-4 w-28" />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="paper p-6">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-[120px] rounded-[10px]" />
-            ))}
-          </div>
-        </div>
+      <Skeleton className="h-12 w-full rounded-xl" />
+      <div className="space-y-4">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="h-40 w-full rounded-xl" />
       </div>
     </div>
   );

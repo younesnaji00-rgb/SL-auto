@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { use, useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -9,19 +10,14 @@ import { ref, getDownloadURL, uploadBytes, deleteObject } from 'firebase/storage
 import { useFirestore, useStorage, useAuth, useDoc, useCollection } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
-  Dialog, DialogContent,
+  Dialog, DialogContent, DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  ArrowLeft, Loader2, Eye, ImageIcon, Camera, Trash2, MoreHorizontal, Phone,
+  Loader2, Eye, ImageIcon, Camera, Trash2, FileText, ChevronDown, MapPin,
 } from 'lucide-react';
-import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -30,9 +26,7 @@ import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { watermarkAtgPhoto } from '@/lib/photo-watermark';
 import { logHistorique, logWorkflow } from '../../dossiers/[id]/log-historique';
 import { addObservation } from '../../dossiers/[id]/log-observation';
-import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { useRegisterPageTitle } from '@/components/layout/page-chrome';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { assureName } from '@/lib/dossier-label';
 import ObservationsTab from '@/components/observations-tab';
@@ -43,6 +37,7 @@ import { useOptions } from '@/hooks/use-options';
 import { deriveStatus, isPlanificationStatus } from '@/lib/status-machine';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
 import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-grid';
+import Loading from './loading';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -104,30 +99,6 @@ function normalizeType(type: string): string {
   return type;
 }
 
-// Sticky record bar bleeds through the layout padding (p-4 md:p-6 lg:p-8) —
-// this route is not in FLUSH_ROUTE_PATTERNS, so the bar reclaims the gutter itself.
-const BAR_BLEED = '-mx-4 -mt-4 md:-mx-6 md:-mt-6 lg:-mx-8 lg:-mt-8';
-
-/** Paper section (information-tab `Section`): hairline header row + 24 px body. */
-function Section({ title, count, actions, children, className }: { title: string; count?: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode; className?: string }) {
-  return (
-    <Card role="region" aria-label={title} className={cn('min-w-0 overflow-hidden', className)}>
-      <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <h2 className="t-heading truncate">{title}</h2>
-          {count !== undefined && count !== null && (
-            <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium tabular-nums text-ink-2">{count}</span>
-          )}
-        </div>
-        {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
-      </header>
-      <div className="p-6">{children}</div>
-    </Card>
-  );
-}
-
-type Facet = 'photos' | 'documents';
-
 export default function ATGDossierDetailPage({ params }: { params: Promise<{ dossierId: string }> }) {
   const { dossierId } = use(params);
   const router = useRouter();
@@ -169,8 +140,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const [selectedDocFile, setSelectedDocFile] = useState<File | null>(null);
   const [docUploadType, setDocUploadType] = useState<string>('');
   const [documents, setDocuments] = useState<any[]>([]);
-  // Photos | Documents facet (underline tabs, DESIGN.md §9) — photos first: camera-first page.
-  const [facet, setFacet] = useState<Facet>('photos');
+  // Section toggles (mutually exclusive)
+  const [isPhotosOpen, setIsPhotosOpen] = useState(false);
+  const [isDocsOpen, setIsDocsOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState<string | null>(null);
   const [isDeletingDoc, setIsDeletingDoc] = useState<string | null>(null);
@@ -255,10 +227,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   );
 
   const formatDate = (ts: any) => {
-    if (!ts) return '-';
+    if (!ts) return null;
     const date = ts.toDate ? ts.toDate() : new Date(ts);
     try { return format(date, "d MMM yyyy HH:mm", { locale: fr }); }
-    catch { return '-'; }
+    catch { return null; }
   };
 
   const toDate = (ts: any): Date | null => {
@@ -600,11 +572,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     return hasPlus ? `+${digits}` : digits;
   })();
 
-  // Breadcrumb / document.title (PageHeader used to register it).
-  useRegisterPageTitle(dossier ? (dossier.refExpert || dossierId) : null);
-
   // Proposition réforme (item 021). AT-only toggle; lifts photo cap from 30 to
-  // 60 per section. Does NOT change dossier statut.
+  // 60 per section. Does NOT change dossier statut. Reversible → never `destructive`.
   const togglePropositionReforme = async () => {
     if (!dossierRef || !db) return;
     const next = !(dossier as any)?.propositionReforme;
@@ -626,29 +595,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   };
 
   if (dossierLoading || plansLoading) {
-    return (
-      <div className="space-y-6" aria-busy="true">
-        <div className={cn('flex h-12 items-center gap-3 border-b border-hairline px-3 sm:px-5', BAR_BLEED)}>
-          <Skeleton className="h-8 w-8" />
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-4 w-40" />
-          <Skeleton className="ml-auto h-8 w-40" />
-        </div>
-        <div className="mx-auto max-w-5xl space-y-6">
-          <Skeleton className="h-12 w-full md:hidden" />
-          <div className="paper p-6">
-            <div className="flex items-start gap-4">
-              <Skeleton className="h-14 w-14 shrink-0" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-4 w-40" />
-                <Skeleton className="h-3.5 w-72 max-w-full" />
-              </div>
-            </div>
-          </div>
-          <Skeleton className="h-64 w-full rounded-xl" />
-        </div>
-      </div>
-    );
+    // Loading (element-specs §15): the route skeleton mirrors this exact layout.
+    return <Loading />;
   }
 
   const statut: string = dossier?.statut || 'Nouveau';
@@ -657,7 +605,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const cameraLabel = isUploading ? 'Upload en cours...' : 'Prendre des photos';
   const propositionReforme = !!(dossier as any)?.propositionReforme;
   const nextPlanId = (() => {
-    // The next upcoming RDV wears the third colour (planification-tab convention).
+    // The next upcoming RDV of this mission gets the "Prochain" info chip.
     const now = Date.now();
     let best: { id: string; t: number } | null = null;
     for (const p of filteredPlans as any[]) {
@@ -668,241 +616,227 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     return best?.id ?? null;
   })();
 
+  const openMapsFor = (adresse: string) =>
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(adresse)}`, '_blank', 'noopener,noreferrer');
+
+  // Telephone as a `link` (§8): the only coloured text on the page.
+  const phoneValue = assureTelephoneRaw ? (
+    <a href={`tel:${assureTelephoneHref}`} className="font-semibold tabular-nums text-primary underline-offset-4 hover:underline">
+      {assureTelephoneRaw}
+    </a>
+  ) : (
+    <span className="font-normal text-ink-4">—</span>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Sticky identity bar — mirrors components/dossiers/record-bar.tsx
-          (its props expect dossier steps + gestionnaire actions). */}
-      <div className={cn('sticky top-0 z-40 flex min-h-[48px] items-center gap-2 glass-bar border-b border-hairline px-3 sm:px-5', BAR_BLEED)} data-record-bar>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink" asChild>
-              <Link href="/assignations-atg" aria-label="Retour aux missions terrain">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Missions terrain</TooltipContent>
-        </Tooltip>
+      {/* Header stack */}
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1 space-y-4">
+          {/* Page header (element-specs §1: Polaris Page ✓ breadcrumb back to
+              the parent, compact t-title on a record page; meta chips §11 —
+              dossier status pair, plate (neutral, mono), expert rank (neutral)).
+              No filled button here: the page primary sits in the Photos panel. */}
+          <PageHeader
+            size="compact"
+            backHref="/assignations-atg"
+            backLabel="Missions terrain"
+            title={dossier?.refExpert || dossierId}
+            subtitle={[assure, dossier?.compagnie].filter(Boolean).join(' — ') || undefined}
+            meta={
+              <>
+                <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut))}>{statut}</Badge>
+                {plate && <Badge variant="neutral" className="font-mono">{plate}</Badge>}
+                {dossier?.expertRank && <Badge variant="neutral">{dossier.expertRank}</Badge>}
+              </>
+            }
+          />
 
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
-          <h1 className="t-mono min-w-0 truncate font-semibold tracking-tight" title={dossier?.refExpert || undefined}>
-            {dossier?.refExpert || dossierId}
-          </h1>
-          {assure && <span className="t-body min-w-0 truncate font-medium">{assure}</span>}
-          {dossier?.compagnie && <span className="hidden truncate text-sm text-ink-3 md:inline">{dossier.compagnie}</span>}
-          {plate && <span className="t-mono hidden text-ink-3 lg:inline">{plate}</span>}
-          <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut), 'shrink-0')}>
-            {statut}
-          </Badge>
-          {dossier?.expertRank && (
-            <span className="hidden rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-ink-2 xl:inline">{dossier.expertRank}</span>
+          {/* Plan facts as a definition list (element-specs §10: GOV.UK summary
+              list ✓ key / value; Refactoring UI — labels quiet, values 14/600;
+              empty = "—" in ink-4). One row per planification of this mission:
+              Rendez-vous · Zone · Adresse (Maps `link`) · Téléphone (`tel:` link). */}
+          {filteredPlans.length === 0 ? (
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+              <div className="min-w-0">
+                <dt className="t-label">Téléphone</dt>
+                <dd className="mt-0.5 text-sm font-semibold text-ink">{phoneValue}</dd>
+              </div>
+            </dl>
+          ) : (
+            <div className="space-y-4">
+              {filteredPlans.map((p: any) => (
+                <dl key={p.id} className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+                  <div className="min-w-0">
+                    <dt className="t-label">Rendez-vous</dt>
+                    <dd className="mt-0.5 flex flex-wrap items-center gap-2 text-sm font-semibold tabular-nums text-ink">
+                      <span>{formatDate(p.dateRDV) ?? <span className="font-normal text-ink-4">—</span>}</span>
+                      {p.id === nextPlanId && <Badge variant="info">Prochain</Badge>}
+                    </dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="t-label">Zone</dt>
+                    <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{p.zone || <span className="font-normal text-ink-4">—</span>}</dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="t-label">Adresse</dt>
+                    <dd className="mt-0.5 text-sm font-semibold text-ink">
+                      {p.adresse ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); openMapsFor(p.adresse); }}
+                          title={p.adresse}
+                          className="block max-w-full truncate text-left text-primary underline-offset-4 hover:underline"
+                        >
+                          {p.adresse}
+                        </button>
+                      ) : (
+                        <span className="font-normal text-ink-4">—</span>
+                      )}
+                    </dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="t-label">Téléphone</dt>
+                    <dd className="mt-0.5 text-sm font-semibold text-ink">{phoneValue}</dd>
+                  </div>
+                </dl>
+              ))}
+            </div>
           )}
         </div>
-
-        {/* The ONE primary of the mission: capture. Full-width twin below md (see content). */}
-        {canEdit && (
-          <Button size="sm" className="hidden h-8 shrink-0 gap-1.5 md:inline-flex" disabled={isUploading} loading={isUploading} onClick={() => setIsCameraOpen(true)}>
-            {!isUploading && <Camera className="h-3.5 w-3.5" />}
-            {cameraLabel}
-          </Button>
-        )}
-
-        {(canEdit || assureTelephoneRaw) && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Plus d'actions">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60">
-              <DropdownMenuLabel className="t-caption truncate font-normal">{dossier?.refExpert || dossierId}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {canEdit && (
-                <DropdownMenuItem onSelect={() => setIsCameraOpen(true)} disabled={isUploading} className="md:hidden">
-                  <Camera className="mr-2 h-4 w-4" /> {cameraLabel}
-                </DropdownMenuItem>
-              )}
-              {assureTelephoneRaw && (
-                <DropdownMenuItem asChild>
-                  <a href={`tel:${assureTelephoneHref}`}>
-                    <Phone className="mr-2 h-4 w-4" /> Appeler l&apos;assuré
-                  </a>
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {/* Zone of the active mission's first planification — sits on the
+            right of the title row, independent of the rest (neutral chip §11). */}
+        {filteredPlans[0]?.zone && (
+          <Badge variant="neutral" className="mt-1 shrink-0 gap-1">
+            <MapPin className="h-3 w-3" aria-hidden />
+            {filteredPlans[0].zone}
+          </Badge>
         )}
       </div>
 
-      <div className="mx-auto max-w-5xl space-y-6">
-        {/* Phones: the capture CTA is solid, full width and thumb-sized. */}
-        {canEdit && (
-          <Button className="h-12 w-full gap-2 font-semibold md:hidden" disabled={isUploading} loading={isUploading} onClick={() => setIsCameraOpen(true)}>
-            {!isUploading && <Camera />}
-            {cameraLabel}
-          </Button>
-        )}
+      {/* Observations section — scoped to the AT's current mission tab. The
+          panel auto-tags new obs with phaseATG=activeTab (round 8 Q-3 → A)
+          and only shows obs (or legacy un-tagged AT/dossiers obs) for that
+          phase. */}
+      <ObservationsTab
+        dossierId={dossierId}
+        section="assignations-atg"
+        variant="collapsible"
+        contextPhase={activeTab as 'Avant' | 'En cours' | 'Après'}
+      />
 
-        {/* Mission facts — planification-tab rows: date block anchor, labels quiet, values bold. */}
-        <Section title={`Mission ${activeTab.toLowerCase()}`} count={filteredPlans.length}>
-          {filteredPlans.length === 0 ? (
-            <p className="t-caption">Aucune planification pour cette mission.</p>
-          ) : (
-            <ol className="-my-4 divide-y divide-hairline">
-              {filteredPlans.map((p: any) => {
-                const rdv = toDate(p.dateRDV);
-                const upcoming = p.id === nextPlanId;
-                return (
-                  <li key={p.id} className="flex items-start gap-4 py-4">
-                    <div
-                      className={cn(
-                        'flex w-14 shrink-0 flex-col items-center justify-center rounded-md py-1.5 text-center tabular-nums',
-                        upcoming ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled' : 'bg-surface-3 text-ink-2 shadow-rim',
-                      )}
-                    >
-                      <span className="text-[11px] font-medium leading-none">{rdv ? format(rdv, 'MMM', { locale: fr }).replace('.', '') : '—'}</span>
-                      <span className="font-headline text-xl font-semibold leading-tight">{rdv ? format(rdv, 'd') : '—'}</span>
-                      <span className="text-[11px] leading-none">{rdv ? format(rdv, 'HH:mm') : ''}</span>
-                    </div>
-                    <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
-                      <div className="min-w-0">
-                        <dt className="t-label">Rendez-vous</dt>
-                        <dd className="mt-0.5 truncate text-sm font-semibold tabular-nums text-ink">{formatDate(p.dateRDV)}</dd>
-                      </div>
-                      <div className="min-w-0">
-                        <dt className="t-label">Zone</dt>
-                        <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{p.zone || <span className="font-normal text-ink-3">—</span>}</dd>
-                      </div>
-                      <div className="min-w-0">
-                        <dt className="t-label">Téléphone assuré</dt>
-                        <dd className="mt-0.5 text-sm">
-                          {assureTelephoneRaw ? (
-                            <a href={`tel:${assureTelephoneHref}`} className="font-semibold tabular-nums text-primary hover:underline">
-                              {assureTelephoneRaw}
-                            </a>
-                          ) : (
-                            <span className="text-ink-3">—</span>
-                          )}
-                        </dd>
-                      </div>
-                      <div className="min-w-0">
-                        <dt className="t-label">Agent de terrain</dt>
-                        <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{p.agentTerrain || <span className="font-normal text-ink-3">—</span>}</dd>
-                      </div>
-                      <div className="col-span-2 min-w-0 sm:col-span-4">
-                        <dt className="t-label">Adresse</dt>
-                        <dd className="mt-0.5 text-sm text-ink">
-                          {p.adresse ? (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                window.open(
-                                  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.adresse)}`,
-                                  '_blank',
-                                  'noopener,noreferrer',
-                                );
-                              }}
-                              className="max-w-full truncate text-left font-semibold text-primary hover:underline"
-                            >
-                              {p.adresse}
-                            </button>
-                          ) : (
-                            <span className="text-ink-3">—</span>
-                          )}
-                        </dd>
-                      </div>
-                    </dl>
-                  </li>
-                );
-              })}
-            </ol>
+      {/* Photos & Documents toggle row — selectable tiles (Carbon tile ✓
+          "single-select tiles when the user can only select one tile from a
+          tile group", states enabled / hover / selected / focus, no drop
+          shadow, "do not mix tile variants in groups"; NN/g accordions ✓
+          heading AND icon both toggle). Padding 16, rim, selected = 2 px
+          `primary` ring, count as a neutral pill (§11). */}
+      <div className="grid grid-cols-2 gap-4" role="group" aria-label="Photos ou documents">
+        <button
+          type="button"
+          onClick={() => { setIsPhotosOpen((v) => !v); setIsDocsOpen(false); }}
+          aria-expanded={isPhotosOpen}
+          aria-controls="atg-photos-panel"
+          className={cn(
+            'flex items-center gap-3 rounded-xl bg-card p-4 text-left shadow-rim transition-[color,background-color,box-shadow] duration-150 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            isPhotosOpen && 'ring-2 ring-primary',
           )}
-        </Section>
+        >
+          <ImageIcon className={cn('h-5 w-5 shrink-0', isPhotosOpen ? 'text-ink' : 'text-ink-3')} aria-hidden />
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">Photos</span>
+          <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">{photos.length}</span>
+          <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform', isPhotosOpen ? 'rotate-180' : 'rotate-0')} aria-hidden />
+        </button>
 
-        {/* Observations section — scoped to the AT's current mission tab. The
-            panel auto-tags new obs with phaseATG=activeTab (round 8 Q-3 → A)
-            and only shows obs (or legacy un-tagged AT/dossiers obs) for that
-            phase. */}
-        <ObservationsTab
-          dossierId={dossierId}
-          section="assignations-atg"
-          variant="collapsible"
-          contextPhase={activeTab as 'Avant' | 'En cours' | 'Après'}
-        />
+        <button
+          type="button"
+          onClick={() => { setIsDocsOpen((v) => !v); setIsPhotosOpen(false); }}
+          aria-expanded={isDocsOpen}
+          aria-controls="atg-documents-panel"
+          className={cn(
+            'flex items-center gap-3 rounded-xl bg-card p-4 text-left shadow-rim transition-[color,background-color,box-shadow] duration-150 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            isDocsOpen && 'ring-2 ring-primary',
+          )}
+        >
+          <FileText className={cn('h-5 w-5 shrink-0', isDocsOpen ? 'text-ink' : 'text-ink-3')} aria-hidden />
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">Documents</span>
+          <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">{documents.length}</span>
+          <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform', isDocsOpen ? 'rotate-180' : 'rotate-0')} aria-hidden />
+        </button>
+      </div>
 
-        {/* Photos | Documents as underline facet tabs (step-tabs convention) — replaces the two toggle cards. */}
-        <Card role="region" aria-label="Photos et documents" className="overflow-hidden">
-          <div role="tablist" aria-label="Photos et documents" className="flex border-b border-hairline px-6">
-            {([
-              { id: 'photos' as Facet, label: 'Photos', count: photos.length },
-              { id: 'documents' as Facet, label: 'Documents', count: documents.length },
-            ]).map((tab) => {
-              const isActive = facet === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  onClick={() => setFacet(tab.id)}
-                  className={cn(
-                    'flex h-12 flex-1 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:flex-none',
-                    isActive ? 'border-primary text-ink' : 'border-transparent text-ink-2 hover:bg-surface-2 hover:text-ink',
-                  )}
-                >
-                  {tab.label}
-                  <span className={cn('inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-medium tabular-nums', isActive ? 'bg-accent text-accent-foreground' : 'bg-surface-3 text-ink-3')}>
-                    {tab.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {facet === 'photos' && (
-            <div className="space-y-4 p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="t-label">
-                  <span className="text-sm font-semibold tabular-nums text-ink">{filteredPhotos.length}/{photoCap}</span> photos — {activeTab}
-                </span>
-                {/* Proposition réforme (item 021). AT-only toggle; lifts photo
-                    cap from 30 to 60 per section. Does NOT change dossier statut. */}
+      {/* Photos panel (revealed when toggled) */}
+      {isPhotosOpen && (
+        // Content card (element-specs §5: Material 3 cards ✓ container only,
+        // padding 24, 16 between blocks; toolbar at the top with the page's ONE
+        // `default` button at the right end — §8 GOV.UK "one default button").
+        <Card id="atg-photos-panel" role="region" aria-label={`Photos — ${activeTab}`}>
+          <CardContent className="space-y-4 p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <h3 className="t-heading">Photos — {activeTab}</h3>
+                {/* Cap counter as a caption (§6: figures in Inter, tabular in a caption). */}
+                <span className="t-caption tabular-nums">{filteredPhotos.length}/{photoCap} photos</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                {/* Proposition réforme (item 021). AT-only toggle; lifts photo cap
+                    from 30 to 60 per section. Reversible → `outline` when off,
+                    `tonal` (pressed) when on — never `destructive` (§8 GOV.UK:
+                    warning buttons only for irreversible destruction). */}
                 {isATG && (
                   <Button
-                    variant={propositionReforme ? 'destructive' : 'outline'}
-                    size="sm"
+                    variant={propositionReforme ? 'tonal' : 'outline'}
+                    aria-pressed={propositionReforme}
                     disabled={!dossierRef}
                     onClick={togglePropositionReforme}
                   >
-                    {propositionReforme ? 'Réforme proposée — annuler' : 'Proposition réforme'}
+                    {propositionReforme ? 'Annuler la réforme proposée' : 'Proposer une réforme'}
+                  </Button>
+                )}
+                {canEdit && (
+                  <Button
+                    variant="default"
+                    disabled={isUploading}
+                    loading={isUploading}
+                    onClick={() => setIsCameraOpen(true)}
+                  >
+                    {!isUploading && <Camera />}
+                    {cameraLabel}
                   </Button>
                 )}
               </div>
+            </div>
 
-              {filteredPhotos.length === 0 ? (
-                <EmptyState
-                  icon={<ImageIcon />}
-                  title={`Aucune photo ${activeTab.toLowerCase()} pour le moment.`}
-                  description={<>Utilisez le bouton &quot;Prendre une photo&quot; pour capturer.</>}
-                  dashed={false}
-                />
-              ) : (
-                <CollapsedByDayList
-                  items={filteredPhotos}
-                  getDate={(photo) => (photo.uploadedAt?.toDate ? photo.uploadedAt.toDate() : null)}
-                  keyOf={(photo) => photo.id}
-                  defaultExpanded={false}
-                  gridItems
-                  groupLabel={(day, count) =>
-                    `${format(day, 'd MMMM yyyy', { locale: fr })} — ${count} photo${count > 1 ? 's' : ''}`
-                  }
-                  renderItem={(photo) => (
-                    // Filled socket: raised tile (slot-card convention), 10 px radius inside the 12 px paper.
-                    <div
-                      className="group relative aspect-square cursor-pointer overflow-hidden rounded-[10px] bg-card shadow-card dark:ring-1 dark:ring-hairline"
+            {filteredPhotos.length === 0 ? (
+              // Empty state (§12: NN/g ✓ state + reason + pathway; the pathway is
+              // the toolbar primary above, so no second button here).
+              <EmptyState
+                icon={<ImageIcon />}
+                title={`Aucune photo ${activeTab.toLowerCase()} pour le moment`}
+                description="Utilisez « Prendre des photos » pour capturer la première."
+                dashed={false}
+              />
+            ) : (
+              <CollapsedByDayList
+                items={filteredPhotos}
+                getDate={(photo) => (photo.uploadedAt?.toDate ? photo.uploadedAt.toDate() : null)}
+                keyOf={(photo) => photo.id}
+                defaultExpanded={false}
+                gridItems
+                groupLabel={(day, count) =>
+                  `${format(day, 'd MMMM yyyy', { locale: fr })} — ${count} photo${count > 1 ? 's' : ''}`
+                }
+                renderItem={(photo) => (
+                  // Photo tile (element-specs §21: filled socket = raised tile,
+                  // radius 10 inside the 12 px paper, hover-revealed actions —
+                  // always visible on touch, where there is no hover). Solid
+                  // scrim for the filename (no gradients).
+                  <div className="group relative aspect-square overflow-hidden rounded-[10px] bg-card shadow-card dark:ring-1 dark:ring-hairline">
+                    <button
+                      type="button"
                       onClick={() => setPreviewPhoto(photo)}
+                      aria-label={`Agrandir ${photo.name}`}
+                      className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                     >
                       <img
                         src={photo.url}
@@ -911,54 +845,63 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                         decoding="async"
                         className="h-full w-full object-cover"
                       />
-                      <div className="absolute inset-0 flex items-center justify-center bg-ink-solid/40 opacity-0 transition-opacity group-hover:opacity-100">
-                        <Eye className="h-5 w-5 text-on-ink" />
-                      </div>
-                      {canDeletePhoto(photo) && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (window.confirm('Supprimer cette photo ?')) handleDeletePhoto(photo);
-                          }}
-                          disabled={isDeletingPhoto === photo.id}
-                          className="absolute right-1 top-1 z-10 rounded-full bg-destructive p-1 text-destructive-foreground shadow-rim-filled hover:brightness-[1.06]"
-                          aria-label="Supprimer la photo"
-                        >
-                          {isDeletingPhoto === photo.id
-                            ? <Loader2 className="h-3 w-3 animate-spin" />
-                            : <Trash2 className="h-3 w-3" />}
-                        </button>
-                      )}
-                      {/* Solid scrim (no gradients — DESIGN.md §3). */}
-                      <div className="absolute inset-x-0 bottom-0 bg-ink-solid/60 p-1.5">
-                        <p className="truncate text-[11px] text-on-ink">{photo.name}</p>
-                      </div>
+                      <span className="absolute inset-0 flex items-center justify-center bg-ink-solid/40 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                        <Eye className="h-5 w-5 text-on-ink" aria-hidden />
+                      </span>
+                    </button>
+                    {canDeletePhoto(photo) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1 z-10 h-8 w-8 bg-card/90 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm('Supprimer cette photo ?')) handleDeletePhoto(photo);
+                        }}
+                        disabled={isDeletingPhoto === photo.id}
+                        aria-label="Supprimer la photo"
+                      >
+                        {isDeletingPhoto === photo.id
+                          ? <Loader2 className="animate-spin" />
+                          : <Trash2 />}
+                      </Button>
+                    )}
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink-solid/60 p-1.5">
+                      <p className="truncate text-[11px] text-on-ink">{photo.name}</p>
                     </div>
-                  )}
-                />
-              )}
-            </div>
-          )}
-
-          {facet === 'documents' && (
-            <div className="p-6">
-              <TypedDocumentsGrid
-                dossierId={dossierId}
-                hideCardinalPlus
-                hideExtraSlotPlus
-                hideAccordSlots
-                showBaseGarageSlots
-                hideReformeSlots
+                  </div>
+                )}
               />
-            </div>
-          )}
+            )}
+          </CardContent>
         </Card>
-      </div>
+      )}
 
-      {/* Photo preview dialog */}
+      {/* Documents panel (revealed when toggled) */}
+      {isDocsOpen && (
+        <Card id="atg-documents-panel" role="region" aria-label="Pièces jointes">
+          <CardContent className="space-y-4 p-6">
+            <h3 className="t-heading">Pièces jointes</h3>
+            {/* Document sockets — shared component (§21), untouched. */}
+            <TypedDocumentsGrid
+              dossierId={dossierId}
+              hideCardinalPlus
+              hideExtraSlotPlus
+              hideAccordSlots
+              showBaseGarageSlots
+              hideReformeSlots
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Photo preview dialog (element-specs §13: Material 3 dialogs ✓ one
+          focused thing; the glass panel + scrim come from the primitive,
+          bottom sheet below lg). Title is visually hidden but announced. */}
       {previewPhoto && (
         <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
-          <DialogContent className="flex h-[calc(60vh/var(--app-zoom))] max-w-2xl flex-col p-0">
+          <DialogContent className="flex h-[calc(60vh/var(--app-zoom))] flex-col p-0 lg:max-w-2xl">
+            <DialogTitle className="sr-only">{previewPhoto.name}</DialogTitle>
             <div className="flex flex-1 items-center justify-center overflow-hidden bg-ink-solid">
               <img src={previewPhoto.url} className="max-h-full max-w-full object-contain" alt={previewPhoto.name} />
             </div>
@@ -969,7 +912,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       {/* Preuve preview dialog */}
       {previewPreuvePhotos && (
         <Dialog open onOpenChange={() => setPreviewPreuvePhotos(null)}>
-          <DialogContent className="flex h-[calc(60vh/var(--app-zoom))] max-w-2xl flex-col p-0">
+          <DialogContent className="flex h-[calc(60vh/var(--app-zoom))] flex-col p-0 lg:max-w-2xl">
+            <DialogTitle className="sr-only">Photos de preuve</DialogTitle>
             <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-ink-solid">
               <img
                 src={previewPreuvePhotos.urls[previewPreuvePhotos.index]}
@@ -982,10 +926,13 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                 {previewPreuvePhotos.urls.map((url, idx) => (
                   <button
                     key={idx}
+                    type="button"
                     onClick={() => setPreviewPreuvePhotos({ ...previewPreuvePhotos, index: idx })}
+                    aria-label={`Preuve ${idx + 1}`}
+                    aria-current={idx === previewPreuvePhotos.index}
                     className={cn(
-                      "h-14 w-14 overflow-hidden rounded-md transition-opacity",
-                      idx === previewPreuvePhotos.index ? "ring-2 ring-ring" : "shadow-rim opacity-60 hover:opacity-100"
+                      'h-14 w-14 overflow-hidden rounded-md transition-opacity',
+                      idx === previewPreuvePhotos.index ? 'ring-2 ring-ring' : 'shadow-rim opacity-60 hover:opacity-100'
                     )}
                   >
                     <img src={url} className="h-full w-full object-cover" alt="" />

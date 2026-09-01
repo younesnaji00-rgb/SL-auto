@@ -34,14 +34,6 @@ interface ScanState {
   fuzzy: any[];
 }
 
-// Status pairs only (DESIGN.md §10) for the scan outcome — never a coloured banner.
-type ChipTone = 'success' | 'warning' | 'danger';
-const CHIP_TONE: Record<ChipTone, string> = {
-  success: 'bg-status-success-bg text-status-success-fg',
-  warning: 'bg-status-warning-bg text-status-warning-fg',
-  danger: 'bg-status-danger-bg text-status-danger-fg',
-};
-
 /**
  * The single AT self-service entry point: « Scanner la plaque » opens the
  * phone camera directly; once the dossier is identified the agent chooses
@@ -49,7 +41,14 @@ const CHIP_TONE: Record<ChipTone, string> = {
  * the former separate "Nouvelle planification" / "Ajouter photos" buttons.
  * Scan-only by design: no manual matricule entry.
  */
-export default function AtScanPlaqueFlow({ buttonClassName }: { buttonClassName?: string }) {
+export default function AtScanPlaqueFlow({
+  buttonClassName,
+  buttonSize = 'default',
+}: {
+  buttonClassName?: string;
+  /** `lg` on phones (thumb-sized target); `default` (40 px) in the desktop header. */
+  buttonSize?: 'default' | 'lg';
+}) {
   const db = useFirestore();
   const { profile } = useCurrentUser();
   const router = useRouter();
@@ -148,11 +147,12 @@ export default function AtScanPlaqueFlow({ buttonClassName }: { buttonClassName?
 
   const busy = scanning || (!!pendingPlate && !loaded);
 
-  // Scan outcome as a status-pair chip + one caption (no coloured banner).
+  // Scan outcome as a status-pair chip + one caption (element-specs §11 /
+  // §14: status colour always with a text label; no coloured banner).
   const scanOutcome = () => {
     if (!scan || chosen) return null;
     const uncertain = scan.confidence === 'low' ? ' (lecture incertaine — vérifiez)' : '';
-    let tone: ChipTone = 'success';
+    let tone: 'success' | 'warning' | 'danger' = 'success';
     let short: string;
     let msg: string;
     if (scan.matches.length > 1) {
@@ -168,11 +168,11 @@ export default function AtScanPlaqueFlow({ buttonClassName }: { buttonClassName?
       msg = `Aucun dossier ne correspond à cette plaque${uncertain}. Le dossier n'existe peut-être pas encore — reprenez la photo ou contactez votre gestionnaire.`;
     }
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" aria-live="polite">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="t-label">Plaque détectée</span>
           <span className="t-mono font-semibold">{scan.plate}</span>
-          <span className={cn('inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium', CHIP_TONE[tone])}>{short}</span>
+          <Badge variant={tone}>{short}</Badge>
         </div>
         <p className="t-caption">{msg}</p>
       </div>
@@ -183,18 +183,24 @@ export default function AtScanPlaqueFlow({ buttonClassName }: { buttonClassName?
     <>
       {inputNode}
 
-      {/* The ONE solid primary of the AT list: camera-first, full size. */}
+      {/* The ONE filled button of the missions list (element-specs §8: GOV.UK
+          "use a default button for the main call to action"; verb + noun,
+          leading 16 px icon). Camera-first — the icon is the action. */}
       <Button
         type="button"
+        size={buttonSize}
         onClick={handleScanClick}
         disabled={scanning}
         loading={scanning}
-        className={cn('gap-2 font-semibold', buttonClassName)}
+        className={cn('gap-2', buttonClassName)}
       >
         {!scanning && <Camera />}
         Scanner la plaque
       </Button>
 
+      {/* Dialog (element-specs §13: Material 3 dialogs ✓ brief headline + one
+          line, confirmation nearest the edge, ≤ 2 footer actions; bottom sheet
+          below lg and `lg:max-w-lg` come from the primitive). */}
       <Dialog
         open={resultOpen}
         onOpenChange={(o) => {
@@ -202,7 +208,7 @@ export default function AtScanPlaqueFlow({ buttonClassName }: { buttonClassName?
           else setResultOpen(true);
         }}
       >
-        <DialogContent className="sm:max-w-[520px]">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Scanner la plaque</DialogTitle>
             <DialogDescription>
@@ -212,13 +218,15 @@ export default function AtScanPlaqueFlow({ buttonClassName }: { buttonClassName?
 
           {busy ? (
             <div className="flex items-center justify-center gap-2 py-6 text-sm text-ink-3" aria-live="polite">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               {scanning ? 'Lecture de la plaque...' : 'Chargement des dossiers...'}
             </div>
           ) : chosen ? (
             <>
-              {/* Action stage — dossier identified: label/value pairs in a flat well. */}
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg bg-surface-2 p-4">
+              {/* Action stage — dossier identified: definition list (§10: quiet
+                  labels, 14/600 values, empty = —) in a flat `surface-2` well
+                  (nested-solid rule inside the glass dialog). */}
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-lg bg-surface-2 p-4">
                 {scan && (
                   <div className="min-w-0">
                     <dt className="t-label">Plaque détectée</dt>
@@ -235,15 +243,16 @@ export default function AtScanPlaqueFlow({ buttonClassName }: { buttonClassName?
                 </div>
                 <div className="min-w-0">
                   <dt className="t-label">Compagnie</dt>
-                  <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{chosen.compagnie || '—'}</dd>
+                  <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{chosen.compagnie || <span className="font-normal text-ink-4">—</span>}</dd>
                 </div>
                 <div className="min-w-0">
                   <dt className="t-label">Immatriculation</dt>
-                  <dd className="t-mono mt-0.5 font-semibold">{chosen.matricule || chosen.vehicule?.immatriculation || '—'}</dd>
+                  <dd className="t-mono mt-0.5 font-semibold">{chosen.matricule || chosen.vehicule?.immatriculation || <span className="font-normal text-ink-4">—</span>}</dd>
                 </div>
                 <div className="min-w-0">
                   <dt className="t-label">Statut</dt>
                   <dd className="mt-0.5">
+                    {/* Status chip (§11) — same helper/pair as everywhere else. */}
                     <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(chosen.statut || 'Nouveau'))}>
                       {chosen.statut || 'Nouveau'}
                     </Badge>
@@ -251,8 +260,10 @@ export default function AtScanPlaqueFlow({ buttonClassName }: { buttonClassName?
                 </div>
               </dl>
 
+              {/* Buttons (§8: ONE `default` per stage — the camera-first action;
+                  the alternative is `outline`; back / retry are `ghost`). */}
               <div className="grid grid-cols-1 gap-2">
-                <Button type="button" onClick={() => handlePhotos(chosen)} className="h-12 gap-2 font-semibold">
+                <Button type="button" onClick={() => handlePhotos(chosen)} className="w-full gap-2">
                   <Camera />
                   Ajouter photos / documents
                 </Button>
@@ -260,7 +271,7 @@ export default function AtScanPlaqueFlow({ buttonClassName }: { buttonClassName?
                   type="button"
                   variant="outline"
                   onClick={() => handlePlanifier(chosen)}
-                  className="h-12 gap-2"
+                  className="w-full gap-2"
                 >
                   <Calendar />
                   Planifier la mission
@@ -296,36 +307,39 @@ export default function AtScanPlaqueFlow({ buttonClassName }: { buttonClassName?
             </>
           ) : (
             <>
+              {/* Inline error (§14: errors next to the block, never a toast). */}
               {error && <p role="alert" className="text-sm text-status-danger-fg">{error}</p>}
               {scanOutcome()}
 
               {displayed.length > 0 && (
+                // Candidate rows (element-specs §4: Material 3 lists ✓ label +
+                // supporting text + trailing meta; ≥ 56 px two-line rows on
+                // hairlines; whole row is the control; status chip §11).
                 <div className="max-h-[280px] overflow-y-auto rounded-md border border-hairline">
                   <ul className="divide-y divide-hairline">
                     {scan && scan.matches.length === 0 && scan.fuzzy.length > 0 && (
-                      <li className="t-label px-3 py-2">
+                      <li className="t-label px-4 py-2">
                         Correspondances possibles
                       </li>
                     )}
                     {displayed.map((d) => (
                       <li key={d.id}>
-                        {/* Thumb-friendly rows (≥ 56 px) on hairlines. */}
                         <button
                           type="button"
                           onClick={() => setChosen(d)}
-                          className="flex min-h-[56px] w-full flex-col justify-center px-3 py-2 text-left hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
+                          className="flex min-h-[56px] w-full flex-col justify-center px-4 py-2 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
                         >
-                          <div className="flex items-baseline justify-between gap-2">
+                          <div className="flex items-center justify-between gap-2">
                             <span className="t-mono font-semibold">
                               {d.refExpert || d.id}
                             </span>
-                            <span className="t-caption truncate">
-                              {d.compagnie || '—'}
-                            </span>
+                            <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'), 'shrink-0')}>
+                              {d.statut || 'Nouveau'}
+                            </Badge>
                           </div>
                           <div className="mt-0.5 flex items-baseline justify-between gap-2 text-sm text-ink-2">
-                            <span className="truncate">{assureLabel(d)}</span>
-                            <span className="t-mono text-ink-2">
+                            <span className="truncate">{assureLabel(d)}{d.compagnie ? ` · ${d.compagnie}` : ''}</span>
+                            <span className="t-mono shrink-0 text-ink-2">
                               {d.matricule || d.vehicule?.immatriculation || '—'}
                             </span>
                           </div>
@@ -336,15 +350,18 @@ export default function AtScanPlaqueFlow({ buttonClassName }: { buttonClassName?
                 </div>
               )}
 
-              <Button type="button" variant="outline" onClick={trigger} className="h-12 w-full gap-2">
+              {/* Retry is `ghost` (§8) — no filled button at this stage: the
+                  agent is choosing, not committing. */}
+              <Button type="button" variant="ghost" onClick={trigger} className="w-full gap-2">
                 <Camera />
                 Reprendre la photo
               </Button>
             </>
           )}
 
+          {/* Footer (§13): a single dismissive `outline` action nearest the edge. */}
           <DialogFooter>
-            <Button variant="ghost" onClick={closeAll}>
+            <Button variant="outline" onClick={closeAll}>
               Fermer
             </Button>
           </DialogFooter>

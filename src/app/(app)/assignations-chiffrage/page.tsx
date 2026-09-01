@@ -7,10 +7,14 @@ import { collection, onSnapshot, query, orderBy, doc } from 'firebase/firestore'
 import { useFirestore } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
-import { Calculator, ChevronRight, MessageSquare } from 'lucide-react';
+import { Calculator, MessageSquare } from 'lucide-react';
+import { DeadlineBar } from '@/components/deadline-bar';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Skeleton } from '@/components/ui/skeleton';
+import { SkeletonRow } from '@/components/ui/skeleton';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -44,28 +48,20 @@ interface ChiffrageItem {
   completedAt?: any;
 }
 
-// Status pairs only (DESIGN.md §10) — never hand-picked amber/red classes.
-type ChipTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
-const CHIP_TONE: Record<ChipTone, string> = {
-  neutral: 'bg-surface-3 text-ink-2',
-  success: 'bg-status-success-bg text-status-success-fg',
-  warning: 'bg-status-warning-bg text-status-warning-fg',
-  danger: 'bg-status-danger-bg text-status-danger-fg',
-  info: 'bg-status-info-bg text-status-info-fg',
-};
-function StatusChip({ tone, className, children }: { tone: ChipTone; className?: string; children: React.ReactNode }) {
-  return (
-    <span className={cn('inline-flex h-5 items-center whitespace-nowrap rounded-full px-2 text-[11px] font-medium tabular-nums', CHIP_TONE[tone], className)}>
-      {children}
-    </span>
-  );
-}
-
 const DEADLINE_HOURS = 24;
 
 function formatRemaining(hours: number): string {
   if (hours >= 1) return `${Math.floor(hours)} h restantes`;
   return `${Math.max(1, Math.round(hours * 60))} min restantes`;
+}
+
+/** Status chip (element-specs §11): one helper per domain, same state → same pair app-wide. */
+function StatusChip({ status, className }: { status: string; className?: string }) {
+  return (
+    <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(status), className)}>
+      {status}
+    </Badge>
+  );
 }
 
 export default function AssignationsChiffragePage() {
@@ -227,7 +223,7 @@ export default function AssignationsChiffragePage() {
     }
     if (deadlineSort) {
       // Sort by deadline end time (createdAt + 24h). Ascending = most urgent first.
-      const DEADLINE_MS = 24 * 3600 * 1000;
+      const DEADLINE_MS = DEADLINE_HOURS * 3600 * 1000;
       results.sort((a, b) => {
         const aCreated = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : null);
         const bCreated = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : null);
@@ -249,38 +245,31 @@ export default function AssignationsChiffragePage() {
     return results;
   }, [chiffrages, compagnieFilter, chiffreurFilter, typeReformeFilter, dossierCompagnies, dossierReformeTypes, dateFrom, dateTo, deadlineSort]);
 
-  // The single most urgent open item gets the third colour on its date block
-  // (planification-tab "next visit" convention): nearest deadline, not yet
-  // overdue, not yet chiffré.
-  const urgentId = useMemo(() => {
-    let best: { id: string; end: number } | null = null;
-    for (const c of filteredChiffrages) {
-      if (c.completedAt || !c.createdAt) continue;
-      const nature = dossierNatures[c.dossierId] || '';
-      const d = getDeadlineInfo(c.createdAt, nature);
-      if (d.overdue) continue;
-      const created = c.createdAt.toDate ? c.createdAt.toDate().getTime() : new Date(c.createdAt).getTime();
-      const end = created + DEADLINE_HOURS * 3_600_000;
-      if (!best || end < best.end) best = { id: c.id, end };
-    }
-    return best?.id ?? null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredChiffrages, dossierNatures, holidays]);
-
   const toDate = (ts: any): Date | null => {
     if (!ts) return null;
     return ts.toDate ? ts.toDate() : new Date(ts);
   };
 
-  const renderAssure = (assure: any): string => {
-    if (!assure) return 'N/A';
-    if (typeof assure === 'string') return assure;
-    return `${assure.nom || ''} ${assure.prenom || ''}`.trim() || 'N/A';
+  const formatDate = (ts: any) => {
+    const date = toDate(ts);
+    if (!date) return null;
+    try { return format(date, "d MMM yyyy 'à' HH:mm", { locale: fr }); }
+    catch { return null; }
   };
+
+  const renderAssure = (assure: any): string | null => {
+    if (!assure) return null;
+    if (typeof assure === 'string') return assure;
+    return `${assure.nom || ''} ${assure.prenom || ''}`.trim() || null;
+  };
+
+  // Empty table cells read « — » in ink-4 (blueprint §9: empty = — muted).
+  const emptyCell = <span className="text-ink-4">—</span>;
 
   const isChiffreur = profile?.role === 'Chiffreur';
   const canSeeNameFilter = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
-  const showChiffreur = !isChiffreur;
+  const showChiffreurColumn = !isChiffreur;
+  const colCount = showChiffreurColumn ? 10 : 9;
   const hasActiveFilter =
     compagnieFilter !== 'Toutes' || chiffreurFilter !== 'Tous' || typeReformeFilter !== 'Tous' || !!dateFrom || !!dateTo;
 
@@ -294,11 +283,18 @@ export default function AssignationsChiffragePage() {
 
   return (
     <div className="space-y-6">
+      {/* Page header (element-specs §1: Polaris Page ✓ — plural object title,
+          count pill, filters row below; no filled button because this queue
+          has no page-level action). */}
       <PageHeader
         title={titleForRoute('/assignations-chiffrage') ?? 'Assignations au chiffrage'}
         count={filteredChiffrages.length}
         filters={
-          // Quiet toolbar: solid selects under `t-label` labels, one ghost reset.
+          // Filter toolbar (element-specs §2: Polaris filters ✓ ≤ 3 promoted
+          // filters + clear-all; NN/g filter categories ✓ general → specific;
+          // Carbon data table ✓ toolbar ≤ 5 controls). Labels are `t-label`
+          // sentence case above each control; the sort lives in the column
+          // header, not here; ONE ghost "Réinitialiser" at the end.
           <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
             <div className="flex flex-col gap-1">
               <span className="t-label">Compagnie</span>
@@ -334,7 +330,7 @@ export default function AssignationsChiffragePage() {
               <span className="t-label">Type de réforme</span>
               <Select value={typeReformeFilter} onValueChange={v => setFilters({ typeReformeFilter: v })}>
                 <SelectTrigger className="h-9 w-[160px]" aria-label="Type de réforme">
-                  <SelectValue placeholder="Type réforme" />
+                  <SelectValue placeholder="Type de réforme" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Tous">Tous les types</SelectItem>
@@ -348,12 +344,6 @@ export default function AssignationsChiffragePage() {
               <span className="t-label">Période</span>
               <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="t-label">Tri</span>
-              <div className="flex h-9 items-center">
-                <SortableHeader label="Délai" sort={deadlineSort} onChange={setDeadlineSort} className="text-sm" />
-              </div>
-            </div>
             {hasActiveFilter && (
               <Button variant="ghost" size="sm" onClick={resetFilters}>
                 Réinitialiser
@@ -363,135 +353,145 @@ export default function AssignationsChiffragePage() {
         }
       />
 
-      {/* Queue rows on hairlines with a date block anchor (planification-tab
-          convention) — no table, no card-per-item. */}
+      {/* Data table (element-specs §3: Polaris data table ✓ text left, headers
+          aligned with their data, "fix the first column when many columns";
+          NN/g data tables ✓ freeze header + first column when wider than the
+          screen, hover highlight, first column = human identifier; Carbon ✓
+          skeleton rows, only the sorted column shows its icon). The Card is
+          the table's only frame (§5: no second frame around a single table). */}
       <Card className="overflow-hidden">
-        {loading ? (
-          <ul className="divide-y divide-hairline" aria-busy="true">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <li key={`sk-${i}`} className="flex items-start gap-4 px-6 py-4">
-                <Skeleton className="h-14 w-14 shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-40" />
-                  <Skeleton className="h-3.5 w-72 max-w-full" />
-                </div>
-                <Skeleton className="h-5 w-24 rounded-full" />
-              </li>
-            ))}
-          </ul>
-        ) : filteredChiffrages.length === 0 ? (
-          <EmptyState
-            icon={<Calculator />}
-            title="Aucun chiffrage assigné"
-            description="Les nouvelles assignations de chiffrage apparaîtront ici."
-            dashed={false}
-            className="rounded-none bg-transparent py-12"
-          />
-        ) : (
-          <ol className="divide-y divide-hairline">
-            {filteredChiffrages.map((c) => {
-              const statut = dossierStatuts[c.dossierId] || 'Nouveau';
-              const nature = dossierNatures[c.dossierId] || '';
-              const today = isToday(c.createdAt);
-              const deadline = getDeadlineInfo(c.createdAt, nature);
-              const created = toDate(c.createdAt);
-              const completed = toDate(c.completedAt);
-              const urgent = c.id === urgentId;
-              const obs = dossierObs[c.dossierId];
-              const obsCount = obs?.count ?? 0;
-              const obsText = obs?.text || '';
-              const obsTruncated = obsText.length > 60 ? obsText.slice(0, 60) + '…' : obsText;
-              const remainingHours = Math.max(0, DEADLINE_HOURS - deadline.elapsedHours);
-              const deadlineTone: ChipTone = deadline.overdue ? 'danger' : deadline.percent > 80 ? 'danger' : deadline.percent > 50 ? 'warning' : 'neutral';
-              const href = `/assignations-chiffrage/${c.id}`;
+        <Table regionLabel="Assignations au chiffrage">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="sticky left-0 z-[2] border-r border-hairline">Dossier</TableHead>
+              <TableHead>Nom d&apos;assuré</TableHead>
+              <TableHead>Immatriculation</TableHead>
+              {showChiffreurColumn && <TableHead>Chiffreur</TableHead>}
+              <TableHead>Nature du dossier</TableHead>
+              <TableHead>Statut</TableHead>
+              <TableHead>Assigné par</TableHead>
+              <TableHead>Observations</TableHead>
+              <TableHead className="w-[172px]">
+                <SortableHeader label="Délai" sort={deadlineSort} onChange={setDeadlineSort} />
+              </TableHead>
+              <TableHead>Date</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              // Loading (element-specs §15: NN/g skeleton screens ✓ mirror the
+              // final layout — row-shaped, 44 px, pulse only).
+              Array.from({ length: 6 }).map((_, i) => (
+                <TableRow key={`sk-${i}`}>
+                  <TableCell colSpan={colCount} className="p-0">
+                    <SkeletonRow />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : filteredChiffrages.length === 0 ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={colCount} className="p-0">
+                  {/* Empty state (element-specs §12: NN/g ✓ state + reason +
+                      pathway; Polaris ✓ one action). The filtered variant names
+                      the fix — clear the filters — as its ONE `tonal` action. */}
+                  <EmptyState
+                    icon={<Calculator />}
+                    title={hasActiveFilter ? 'Aucun chiffrage pour ces filtres' : 'Aucun chiffrage assigné'}
+                    description={hasActiveFilter
+                      ? 'Élargissez la période ou réinitialisez les filtres pour revoir la file.'
+                      : 'Les nouvelles assignations de chiffrage apparaîtront ici.'}
+                    action={hasActiveFilter ? (
+                      <Button variant="tonal" onClick={resetFilters}>Réinitialiser les filtres</Button>
+                    ) : undefined}
+                    dashed={false}
+                    className="border-0 bg-transparent py-10"
+                  />
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredChiffrages.map((c) => {
+                const statut = dossierStatuts[c.dossierId] || 'Nouveau';
+                const nature = dossierNatures[c.dossierId] || '';
+                const today = isToday(c.createdAt);
+                const deadline = getDeadlineInfo(c.createdAt, nature);
+                const completed = toDate(c.completedAt);
+                const obs = dossierObs[c.dossierId];
+                const obsCount = obs?.count ?? 0;
+                const remainingHours = Math.max(0, DEADLINE_HOURS - deadline.elapsedHours);
+                const dateLabel = formatDate(c.createdAt);
 
-              return (
-                <li key={c.id} className="relative flex items-start gap-4 px-6 py-4 transition-colors hover:bg-surface-2">
-                  {/* Date block — the row's anchor; the most urgent open item wears the third colour. */}
-                  <div
-                    className={cn(
-                      'flex w-14 shrink-0 flex-col items-center justify-center rounded-md py-1.5 text-center tabular-nums',
-                      urgent ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled' : 'bg-surface-3 text-ink-2 shadow-rim',
-                    )}
-                  >
-                    <span className="text-[11px] font-medium leading-none">{created ? format(created, 'MMM', { locale: fr }).replace('.', '') : '—'}</span>
-                    <span className="font-headline text-xl font-semibold leading-tight">{created ? format(created, 'd') : '—'}</span>
-                    <span className="text-[11px] leading-none">{created ? format(created, 'HH:mm') : ''}</span>
-                  </div>
-
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      {/* Stretched link: the ref names the row and covers it; other controls sit above (z-10). */}
+                return (
+                  <TableRow key={c.id} className="group">
+                    {/* Frozen identifier column: sticky left, solid card so rows
+                        scroll under it, hairline on its right edge (§3). */}
+                    <TableCell className="sticky left-0 z-[1] border-r border-hairline bg-card group-hover:bg-surface-2">
                       <Link
-                        href={href}
+                        href={`/assignations-chiffrage/${c.id}`}
                         onClick={() => openTab(c.id, c.dossierNom || `Chiffrage ${c.id.slice(0, 6)}`)}
-                        className="t-mono font-semibold after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
+                        className="t-mono font-semibold hover:underline"
                       >
-                        {c.dossierNom || 'Sans ref.'}
+                        {c.dossierNom || 'Sans réf.'}
                       </Link>
-                      <span className="text-sm font-semibold text-ink">{renderAssure(dossierAssure[c.dossierId])}</span>
-                      {today && <StatusChip tone="info">Aujourd&apos;hui</StatusChip>}
-                      <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut), 'shrink-0')}>{statut}</Badge>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-3">
-                      <span className="truncate">{dossierCompagnies[c.dossierId] || '—'}</span>
-                      <span className="t-mono text-ink-3">{dossierMatricule[c.dossierId] || '—'}</span>
-                      {nature && <span className="truncate">{nature}</span>}
-                    </div>
-                    <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 xl:grid-cols-4">
-                      {showChiffreur && (
-                        <div className="min-w-0">
-                          <dt className="t-label">Chiffreur</dt>
-                          <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{c.assignedChiffreurNom || <span className="font-normal text-ink-3">—</span>}</dd>
-                        </div>
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate font-medium text-ink">{renderAssure(dossierAssure[c.dossierId]) ?? emptyCell}</TableCell>
+                    <TableCell className="t-mono text-ink-2">{dossierMatricule[c.dossierId] || emptyCell}</TableCell>
+                    {showChiffreurColumn && <TableCell className="text-ink">{c.assignedChiffreurNom || emptyCell}</TableCell>}
+                    <TableCell className="text-ink-2">{nature || emptyCell}</TableCell>
+                    <TableCell>
+                      {/* Status chip (§11: Carbon tag ✓ read-only category; label always, one pair per state). */}
+                      <StatusChip status={statut} />
+                    </TableCell>
+                    <TableCell className="text-ink-2">{c.sentByNom || c.sentByEmail || emptyCell}</TableCell>
+                    <TableCell>
+                      {/* Row action (§3/§8: 1–2 inline row actions as `ghost`
+                          buttons; the count is the trailing figure). Opens the
+                          observation history sheet. */}
+                      {obsCount === 0 ? emptyCell : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setObsHistoryDossier({ id: c.dossierId, refExpert: c.dossierNom })}
+                          title={obs?.text || "Voir l'historique des observations"}
+                          aria-label={`Voir les ${obsCount} observation${obsCount > 1 ? 's' : ''}`}
+                        >
+                          <MessageSquare />
+                          <span className="tabular-nums">{obsCount}</span>
+                        </Button>
                       )}
-                      <div className="min-w-0">
-                        <dt className="t-label">Assigné par</dt>
-                        <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{c.sentByNom || c.sentByEmail || <span className="font-normal text-ink-3">—</span>}</dd>
-                      </div>
-                      <div className="min-w-0">
-                        <dt className="t-label">Délai</dt>
-                        <dd className="mt-0.5">
-                          {completed ? (
-                            <StatusChip tone="success">Chiffré le {format(completed, 'dd/MM/yyyy HH:mm')}</StatusChip>
-                          ) : deadline.overdue ? (
-                            <StatusChip tone="danger">En retard {formatBusinessLateness(deadline.elapsedHours - DEADLINE_HOURS)}</StatusChip>
-                          ) : (
-                            <StatusChip tone={deadlineTone}>{formatRemaining(remainingHours)}</StatusChip>
-                          )}
-                        </dd>
-                      </div>
-                      <div className="col-span-2 min-w-0 sm:col-span-3 xl:col-span-1">
-                        <dt className="t-label">Observations</dt>
-                        <dd className="mt-0.5">
-                          {obsCount === 0 ? (
-                            <span className="text-sm text-ink-3">—</span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setObsHistoryDossier({ id: c.dossierId, refExpert: c.dossierNom });
-                              }}
-                              title="Voir l'historique des observations"
-                              className="relative z-10 inline-flex max-w-full items-center gap-1.5 rounded-md text-left text-sm text-ink-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            >
-                              <MessageSquare className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-                              <span className="truncate">{obsTruncated}</span>
-                              {obsCount > 1 && <span className="t-caption shrink-0 tabular-nums">({obsCount})</span>}
-                            </button>
-                          )}
-                        </dd>
-                      </div>
-                    </dl>
-                  </div>
-
-                  <ChevronRight className="mt-4 h-4 w-4 shrink-0 text-ink-4" aria-hidden />
-                </li>
-              );
-            })}
-          </ol>
-        )}
+                    </TableCell>
+                    <TableCell>
+                      {/* Deadline meter (§6) — chart-1 fill; warning/danger only
+                          when late/overdue; a stopped clock is ✓ + date in ink. */}
+                      {completed ? (
+                        <DeadlineBar
+                          percent={100}
+                          overdue={false}
+                          completedLabel={`Chiffré le ${format(completed, 'dd/MM/yyyy HH:mm')}`}
+                        />
+                      ) : (
+                        <DeadlineBar
+                          percent={deadline.percent}
+                          overdue={deadline.overdue}
+                          lateness={deadline.overdue ? formatBusinessLateness(deadline.elapsedHours - DEADLINE_HOURS) : undefined}
+                          label={formatRemaining(remainingHours)}
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell className="text-ink-3">
+                      {/* Date is text → left-aligned like the other text columns,
+                          tabular digits (§3). Today = an info chip with a label
+                          (§11) instead of tinting the whole row (accent budget). */}
+                      <span className="inline-flex flex-wrap items-center gap-2">
+                        <span>{dateLabel ?? emptyCell}</span>
+                        {today && <Badge variant="info">Aujourd&apos;hui</Badge>}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
       </Card>
       <ObservationHistorySheet
         open={!!obsHistoryDossier}
