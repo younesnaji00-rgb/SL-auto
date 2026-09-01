@@ -433,14 +433,14 @@ export default function MonitoringPage() {
 
         <TabsContent value="global" className="space-y-6">
           {loading ? (
-            <div className="paper-featured p-5" aria-busy="true">
+            <div className="paper p-6" aria-busy="true">
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 {Array.from({ length: STEP_KEYS.length }).map((_, i) => (
                   <div key={i} className="space-y-3">
-                    <Skeleton className="h-3 w-24 bg-on-ink/15" />
-                    <Skeleton className="h-7 w-16 bg-on-ink/15" />
-                    <Skeleton className="h-2 w-full bg-on-ink/15" />
-                    <Skeleton className="h-2 w-full bg-on-ink/15" />
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-7 w-16" />
+                    <Skeleton className="h-2 w-full" />
+                    <Skeleton className="h-2 w-full" />
                   </div>
                 ))}
               </div>
@@ -544,8 +544,10 @@ function GlobalView({
 
   return (
     <>
-      <Card variant="featured">
-        <CardContent className="grid gap-x-0 gap-y-6 p-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-y-0 lg:divide-x lg:divide-on-ink/15">
+      {/* KPI row = stat tiles on a neutral paper (dataviz stat-tile contract, Carbon KPI tiles).
+          Not the featured surface: that is for ONE element per page, never a row of tiles (user ruling). */}
+      <Card>
+        <CardContent className="grid gap-x-0 gap-y-6 p-6 sm:grid-cols-2 lg:grid-cols-4 lg:gap-y-0 lg:divide-x lg:divide-hairline">
         {STEP_KEYS.map((key, idx) => {
           const realiseEnDelai = counts[key];
           const horsDelai = horsDelaiCounts[key] ?? 0;
@@ -627,30 +629,31 @@ function KpiCard({
     <div className="min-w-0 lg:px-5 lg:first:pl-0 lg:last:pr-0">
       <div className="flex items-center gap-2">
         <span
-          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-on-ink/15 text-[11px] font-semibold text-on-ink"
+          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[11px] font-semibold text-ink-2 shadow-rim"
           style={tabular}
         >
           {index}
         </span>
-        <p className="t-label truncate text-on-ink/70">{label}</p>
+        <p className="t-label truncate">{label}</p>
       </div>
-      <p className="t-title mt-2 text-on-ink" style={tabular}>
+      {/* Stat-tile value: sans semibold, proportional figures (tabular only in columns). */}
+      <p className="mt-2 text-[28px] font-semibold leading-none text-ink">
         {realiseEnDelai}
-        <span className="t-caption ml-1.5 text-on-ink/70">en délai</span>
+        <span className="t-caption ml-1.5 font-normal">en délai</span>
       </p>
       <div className="mt-3 space-y-1.5">
         <KpiBarRow
           label="en délai"
           count={realiseEnDelai}
           pct={pctEnDelai}
-          fillClass="bg-status-success-bg dark:bg-status-success-fg"
+          fillClass="bg-status-success-fg"
           onClick={onSelectRealise}
         />
         <KpiBarRow
           label="hors délai"
           count={horsDelai}
           pct={pctHorsDelai}
-          fillClass="bg-status-warning-bg dark:bg-status-warning-fg"
+          fillClass="bg-status-warning-fg"
           onClick={onSelectHorsDelai}
         />
         {nonRealise != null && (
@@ -658,7 +661,7 @@ function KpiCard({
             label="non réalisé"
             count={nonRealise}
             pct={pctNonRealise}
-            fillClass="bg-on-ink/40"
+            fillClass="bg-ink-4"
             onClick={onSelectNonRealise}
           />
         )}
@@ -681,23 +684,23 @@ function KpiBarRow({
   onClick: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2 text-[11px] text-on-ink/80">
+    <div className="flex items-center gap-2 text-[11px] text-ink-3">
       <span className="flex w-20 shrink-0 items-center gap-1.5">
         <span className={`inline-block h-2 w-2 shrink-0 rounded-sm ${fillClass}`} aria-hidden />
         <span className="truncate">{label}</span>
       </span>
-      <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-on-ink/15">
+      <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-surface-3">
         {pct > 0 && (
           <button
             type="button"
             onClick={onClick}
-            className={`absolute inset-y-0 left-0 rounded-full ${fillClass} transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-ink`}
+            className={`absolute inset-y-0 left-0 rounded-full ${fillClass} transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
             style={{ width: `${pct}%` }}
             title={`${label} : ${count}`}
           />
         )}
       </div>
-      <span className="w-6 shrink-0 text-right font-semibold tabular-nums text-on-ink">
+      <span className="w-6 shrink-0 text-right font-semibold tabular-nums text-ink">
         {count}
       </span>
     </div>
