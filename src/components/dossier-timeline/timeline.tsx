@@ -44,7 +44,7 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
       // medallion in a left gutter, joined by a thin rail, with 32 px of
       // canvas between cards. Boundaries come from the rail + whitespace, not
       // from heavy rules (Refactoring UI: separate with space and tone first).
-      className="relative scroll-mt-[112px] pb-8 pl-12 last:pb-0 sm:pl-14 2xl:scroll-mt-[64px]"
+      className="relative scroll-mt-[112px] pb-8 pl-12 last:pb-0 sm:pl-14"
     >
       <div aria-hidden className="absolute bottom-0 left-0 top-2.5 flex w-9 flex-col items-center sm:w-10">
         <span
@@ -206,9 +206,9 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
 
   return (
     <div ref={containerRef} className="w-full">
-      {/* Horizontal stepper: sticky under the record bar (hidden on 2xl where the rail takes over). */}
+      {/* Horizontal stepper: sticky under the record bar at every width (user decision: one stepper, the in-content medallion rail is the vertical wayfinding). */}
       <div
-        className={cn('sticky z-30 grid transition-[grid-template-rows] duration-300 ease-standard motion-reduce:transition-none 2xl:hidden', focus ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]')}
+        className={cn('sticky z-30 grid transition-[grid-template-rows] duration-300 ease-standard motion-reduce:transition-none', focus ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]')}
         style={{ top: stickyTop }}
         aria-hidden={focus || undefined}
       >
@@ -231,28 +231,10 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
 
       <div
         className={cn(
-          'mx-auto px-3 transition-[max-width,grid-template-columns,gap] duration-300 ease-standard motion-reduce:transition-none sm:px-6 2xl:grid 2xl:max-w-none',
-          focus ? 'max-w-[100%] 2xl:grid-cols-[0px_minmax(0,1fr)] 2xl:gap-0' : 'max-w-[1280px] 2xl:grid-cols-[240px_minmax(0,1fr)] 2xl:gap-8',
+          'mx-auto px-3 transition-[max-width] duration-300 ease-standard motion-reduce:transition-none sm:px-6',
+          focus ? 'max-w-[100%]' : 'max-w-[1280px]',
         )}
       >
-        {/* Vertical rail on very wide screens: never clips, never scrolls. */}
-        <aside className="hidden min-w-0 overflow-clip 2xl:block" aria-hidden={focus || undefined}>
-          <div
-            className={cn('sticky w-[240px] pt-4 transition-[opacity,transform] duration-200 ease-standard motion-reduce:transition-none', focus ? '-translate-x-3 opacity-0' : 'translate-x-0 opacity-100 delay-150')}
-            style={{ top: stickyTop + 8 }}
-          >
-            <TimelineBar steps={steps} activeId={activeStep} onStepClick={handleStepClick} orientation="vertical" />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-3 h-7 w-full justify-start gap-1 px-2 text-xs text-muted-foreground"
-              onClick={() => setAll(!allCollapsed)}
-            >
-              {allCollapsed ? <ChevronsUpDown className="h-3.5 w-3.5" /> : <ChevronsDownUp className="h-3.5 w-3.5" />}
-              {allCollapsed ? 'Tout déplier' : 'Tout replier'}
-            </Button>
-          </div>
-        </aside>
 
         <div className="min-w-0 py-4">
           {steps.map((step, idx) => (
