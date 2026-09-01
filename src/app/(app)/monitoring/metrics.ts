@@ -22,6 +22,13 @@
  *   • creation: 24 business hours between `dateRequete` and `createdAt`.
  * Same rules as the Chiffrage and Terrain queues (`DEADLINE_HOURS`), same
  * business-hours model (weekends + Moroccan holidays paused).
+ *
+ * LATENESS (user ruling 2026-09-01): a clock is « hors délai » the moment 24
+ * business hours pass without completion — closing it later does not clear
+ * it. « En délai » = closed within the window; open and inside the window =
+ * pending (counted nowhere yet). Every clock belongs to the PERIOD OF ITS
+ * START (the assignment date), so a period reads "of the assignments made
+ * then, how many were late".
  */
 
 import { addDays, eachWeekOfInterval, startOfWeek } from 'date-fns';
@@ -114,10 +121,12 @@ export interface SlaItem {
   owner: string | null;
   start: Date;
   doneAt: Date | null;
-  /** Business hours from start to done (null while open). */
-  hours: number | null;
-  /** Done AND over the SLA. */
+  /** Business hours from start to done — or to `now` while open. */
+  hours: number;
+  /** Over the SLA, closed or not. Never clears once true. */
   late: boolean;
+  /** Open and still inside the window (not yet decided). */
+  pending: boolean;
 }
 
 type MissionType = 'Avant' | 'En cours' | 'Après';
@@ -146,12 +155,14 @@ export function buildSlaItems(
   chiffrages: ChiffrageAssignment[],
   missions: TerrainMission[],
   holidays?: ReadonlySet<string>,
+  now: Date = new Date(),
 ): SlaItem[] {
   const byId = new Map(dossiers.map((d) => [d.id, d]));
   const out: SlaItem[] = [];
   const push = (id: string, kind: SlaKind, step: StepKey, dossier: FunnelDossier, owner: string | null, start: Date, doneAt: Date | null) => {
-    const hours = doneAt ? businessHoursBetween(start, doneAt, holidays) : null;
-    out.push({ id, kind, step, dossier, owner, start, doneAt, hours, late: hours != null && hours > SLA_BUSINESS_HOURS });
+    const hours = businessHoursBetween(start, doneAt ?? now, holidays);
+    const late = hours > SLA_BUSINESS_HOURS;
+    out.push({ id, kind, step, dossier, owner, start, doneAt, hours, late, pending: !doneAt && !late });
   };
 
   // Creation: requête → création (ordering-tolerant, like the funnel).
@@ -211,10 +222,11 @@ export interface StepMeasures {
 }
 
 /**
- * Per-step completions in range: SLA steps are measured on their SLA items
- * (on time / late); a completion that has no assignment record (legacy
- * dossiers) still counts, as on time by absence of a clock; steps without an
- * SLA count every completion as "en délai".
+ * Per-step measures. SLA steps: the clocks STARTED in range — « en délai »
+ * when closed inside the window, « hors délai » when breached (closed or
+ * not), pending ones counted nowhere. A completion with no clock (legacy
+ * dossiers) still counts as en délai by its completion date; steps without
+ * an SLA count every completion in range as en délai.
  */
 export function computeStepMeasures(dossiers: FunnelDossier[], range: FunnelRange, sla: SlaItem[]): StepMeasures {
   const enDelai = emptyCounts();
@@ -222,10 +234,10 @@ export function computeStepMeasures(dossiers: FunnelDossier[], range: FunnelRang
   const covered = new Map<StepKey, Set<string>>();
   for (const key of STEP_KEYS) covered.set(key, new Set());
   for (const it of sla) {
-    if (!it.doneAt || !inRange(it.doneAt, range)) continue;
+    if (!inRange(it.start, range)) continue;
     covered.get(it.step)!.add(it.dossier.id);
     if (it.late) horsDelai[it.step] += 1;
-    else enDelai[it.step] += 1;
+    else if (it.doneAt) enDelai[it.step] += 1;
   }
   for (const d of dossiers) {
     for (const key of STEP_KEYS) {
@@ -249,8 +261,9 @@ export function dossiersForStepMeasure(
   const out: DossierForStep[] = [];
   const covered = new Set<string>();
   for (const it of sla) {
-    if (it.step !== step || !it.doneAt || !inRange(it.doneAt, range)) continue;
+    if (it.step !== step || !inRange(it.start, range)) continue;
     covered.add(it.dossier.id);
+    if (it.pending) continue;
     if ((mode === 'horsDelai') === it.late) out.push({ dossier: it.dossier, doneAt: it.doneAt, author: it.owner });
   }
   if (mode === 'enDelai') {
@@ -260,7 +273,8 @@ export function dossiersForStepMeasure(
       if (at && inRange(at, range)) out.push({ dossier: d, doneAt: at, author: STEP_DEFS[step].authorOf(d, logs) });
     }
   }
-  return out.sort((a, b) => (b.doneAt?.getTime() ?? 0) - (a.doneAt?.getTime() ?? 0));
+  // Open (late) rows first, then most recent completions.
+  return out.sort((a, b) => (b.doneAt?.getTime() ?? Number.MAX_SAFE_INTEGER) - (a.doneAt?.getTime() ?? Number.MAX_SAFE_INTEGER));
 }
 
 // ── Ageing (leading) ────────────────────────────────────────────────────────
@@ -297,7 +311,7 @@ export interface Headline {
   crees: number;
   /** Dossiers whose rapport was deposited in range (end-to-end throughput). */
   traites: number;
-  /** On-time share of SLA clocks closed in range; null when none closed. */
+  /** On-time share of the clocks STARTED in range (pending excluded); null when none decided. */
   respectPct: number | null;
   respectN: number;
   /** Open backlog: dossiers in scope with no rapport deposited (now, not period). */
@@ -319,7 +333,7 @@ export function computeHeadline(dossiers: FunnelDossier[], range: FunnelRange, n
   let onTime = 0;
   let late = 0;
   for (const it of sla) {
-    if (!it.doneAt || !inRange(it.doneAt, range)) continue;
+    if (!inRange(it.start, range) || it.pending) continue;
     if (it.late) late += 1;
     else onTime += 1;
   }
@@ -351,12 +365,12 @@ function median(values: number[]): number | null {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-/** Median business hours per SLA stage (clock start → done, done in range) and création → rapport déposé. */
+/** Median business hours per SLA stage (closed clocks started in range) and création → rapport déposé (deposited in range). */
 export function computeCycleTimes(dossiers: FunnelDossier[], range: FunnelRange, sla: SlaItem[], holidays?: ReadonlySet<string>): CycleTimeRow[] {
   const perStep = new Map<StepKey, number[]>();
   for (const key of STEP_KEYS) if (STAGE_HAS_SLA[key]) perStep.set(key, []);
   for (const it of sla) {
-    if (it.hours == null || !it.doneAt || !inRange(it.doneAt, range)) continue;
+    if (!it.doneAt || !inRange(it.start, range)) continue;
     perStep.get(it.step)?.push(it.hours);
   }
   const rows: CycleTimeRow[] = [];
@@ -419,7 +433,7 @@ export interface GroupMeasures {
   group: string;
   enDelai: Record<StepKey, number>;
   horsDelai: Record<StepKey, number>;
-  /** On-time share of SLA clocks closed in range; null when none. */
+  /** On-time share of the clocks started in range (pending excluded); null when none. */
   respectPct: number | null;
   /** Dossiers with no rapport deposited (open), now. */
   enAttente: number;
@@ -499,10 +513,10 @@ export function computePerUserMeasures(dossiers: FunnelDossier[], logs: Workflow
     if (!it.owner) continue;
     const r = ensure(it.owner);
     if (isOpen(it.dossier)) r.openIds.add(it.dossier.id);
-    if (!it.doneAt || !inRange(it.doneAt, range)) continue;
+    if (!inRange(it.start, range)) continue;
     covered.get(it.step)!.add(it.dossier.id);
     if (it.late) r.horsDelai[it.step] += 1;
-    else r.enDelai[it.step] += 1;
+    else if (it.doneAt) r.enDelai[it.step] += 1;
   }
   for (const d of dossiers) {
     for (const key of STEP_KEYS) {

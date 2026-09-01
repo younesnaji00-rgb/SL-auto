@@ -367,7 +367,9 @@ export default function MonitoringPage() {
   const holidays = useHolidays();
   // Every deadline on this page is one of these clocks (chiffrage assignment,
   // terrain mission, création) — the Chiffrage/Terrain queues' own SLA rule.
-  const sla = useMemo(() => buildSlaItems(dossiers, chiffrages, missions, holidays), [dossiers, chiffrages, missions, holidays]);
+  // A clock is late the moment 24 h ouvrées pass without completion — closing it
+  // later never clears it (user ruling); each clock belongs to the period of its start.
+  const sla = useMemo(() => buildSlaItems(dossiers, chiffrages, missions, holidays, now), [dossiers, chiffrages, missions, holidays, now]);
   // One time base for the tiles: green and amber both count completions in the period.
   const stepMeasures = useMemo(() => computeStepMeasures(dossiers, range, sla), [dossiers, range, sla]);
   const globalCounts = stepMeasures.enDelai;
@@ -806,8 +808,8 @@ function HeadlineRow({ headline }: { headline: Headline }) {
         value={headline.respectPct == null ? '—' : `${headline.respectPct} %`}
         caption={
           headline.respectPct == null
-            ? 'aucune assignation clôturée · période'
-            : `${headline.respectN} assignation${headline.respectN > 1 ? 's' : ''} clôturée${headline.respectN > 1 ? 's' : ''} (chiffrage · terrain · création) · période`
+            ? 'aucune assignation décidée · période'
+            : `${headline.respectN} assignation${headline.respectN > 1 ? 's' : ''} de la période (chiffrage · terrain · création) · en attente exclues`
         }
       />
       <HeadlineTile label="En attente" value={headline.enAttente} caption="sans rapport déposé · aujourd'hui" />
@@ -909,6 +911,7 @@ function KpiCard({
         {hasSla ? (
           <KpiBarRow
             label="hors délai"
+            title="Délai de 24 h ouvrées dépassé — assignation clôturée ou non"
             count={horsDelai}
             pct={pctHorsDelai}
             fillClass="bg-status-warning-fg"

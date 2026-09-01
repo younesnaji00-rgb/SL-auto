@@ -51,6 +51,8 @@ test('buildSlaItems: creation clock, first chiffrage = 1er accord, next = 2ème+
       { id: 'm0', dossierId: 'd', typeMission: 'Avant', createdAt: T(9, 2), agentTerrain: 'Younes' }, // planned AFTER the photos → open
       { id: 'm2', dossierId: 'd', typeMission: 'En cours', createdAt: T(9, 2), agentTerrain: 'Younes', active: false },
     ],
+    undefined,
+    T(12, 5),
   );
   const kinds = sla.map((s) => `${s.kind}:${s.step}`).sort();
   assert.deepEqual(kinds, ['chiffrage:accord', 'chiffrage:accord1er', 'creation:creation', 'terrain:photosAvant', 'terrain:photosAvant']);
@@ -66,6 +68,8 @@ test('buildSlaItems: creation clock, first chiffrage = 1er accord, next = 2ème+
   const m0 = sla.find((s) => s.id === 'terrain:d:m0')!;
   assert.equal(m0.doneAt, null);
   assert.equal(m0.owner, 'Younes');
+  assert.equal(m0.late, true); // open since Thu 09:00, now Mon 12:00 → breached, and it stays breached
+  assert.equal(m0.pending, false);
 });
 
 test('aging: an open assignment past 24 business hours is late NOW; done or fresh ones are not', () => {
@@ -77,7 +81,10 @@ test('aging: an open assignment past 24 business hours is late NOW; done or fres
       { id: 'fresh', dossierId: 'd', createdAt: T(9, 1), assignedChiffreurNom: 'Sara' },
     ],
     [{ id: 'm', dossierId: 'd', typeMission: 'Avant', createdAt: T(9), agentTerrain: 'Younes' }],
+    undefined,
+    T(12, 1),
   );
+  assert.equal(sla.find((s) => s.id === 'chiffrage:fresh')!.pending, true);
   const items = agingItems(sla, T(12, 1)); // 27 h since T(9)
   assert.deepEqual(items.map((i) => `${i.kind}:${i.owner}`).sort(), ['chiffrage:Sara', 'terrain:Younes']);
   assert.ok(items.every((i) => i.ageHours > 24));
@@ -90,6 +97,8 @@ test('tiles: SLA steps measured on assignments, uncovered completions still coun
     [withAssignment, legacy],
     [{ id: 'c', dossierId: 'a', createdAt: T(10), completedAt: T(9, 3), assignedChiffreurNom: 'Sara' }],
     [{ id: 'm', dossierId: 'a', typeMission: 'Avant', createdAt: T(11), agentTerrain: 'Younes' }],
+    undefined,
+    T(12, 5),
   );
   const m = computeStepMeasures([withAssignment, legacy], range, sla);
   assert.equal(m.horsDelai.photosAvant, 1); // a: 28 h
@@ -103,7 +112,7 @@ test('tiles: SLA steps measured on assignments, uncovered completions still coun
   assert.deepEqual(okRows.map((r) => r.dossier.id), ['b']);
 });
 
-test('headline: respect % over closed clocks, backlog and late-now', () => {
+test('headline: respect % over clocks started in range (a breached open one is late), backlog and late-now', () => {
   const ok = base('ok', { dateRapportDepose: T(9, 3) });
   const stuck = base('st');
   const sla = buildSlaItems(
@@ -113,15 +122,17 @@ test('headline: respect % over closed clocks, backlog and late-now', () => {
       { id: 'c2', dossierId: 'st', createdAt: T(10), assignedChiffreurNom: 'Sara' },
     ],
     [],
+    undefined,
+    T(12, 5),
   );
   const h = computeHeadline([ok, stuck], range, T(12, 5), sla);
   assert.equal(h.crees, 2);
   assert.equal(h.traites, 1);
   assert.equal(h.enAttente, 1);
   assert.equal(h.enRetard, 1);
-  // closed clocks in range: creation ×2 (1 h) + chiffrage c1 (2 h) → 3 on time
-  assert.equal(h.respectN, 3);
-  assert.equal(h.respectPct, 100);
+  // clocks started in range: creation ×2 (1 h) + c1 (2 h) on time; c2 open since Tue 10:00 → breached → late (closed or not)
+  assert.equal(h.respectN, 4);
+  assert.equal(h.respectPct, 75);
 });
 
 test('cycle time: median business hours per SLA stage from the clocks, and end-to-end', () => {
@@ -134,6 +145,8 @@ test('cycle time: median business hours per SLA stage from the clocks, and end-t
       { id: 'cb', dossierId: 'b', createdAt: T(9), completedAt: T(15) },
     ],
     [],
+    undefined,
+    T(12, 5),
   );
   const rows = computeCycleTimes([a, b], range, sla);
   const accord = rows.find((r) => r.key === 'accord1er')!;
@@ -167,6 +180,8 @@ test('per-compagnie measures respect the range; per-user credits the clock owner
     [axa, old],
     [{ id: 'c', dossierId: 'i', createdAt: T(10), completedAt: T(12), assignedChiffreurNom: 'Sara' }],
     [{ id: 'm', dossierId: 'i', typeMission: 'Avant', createdAt: T(9), agentTerrain: 'Younes' }],
+    undefined,
+    T(12, 5),
   );
   const rows = computePerCompagnieMeasures([axa, old], range, sla, ['AXA', 'Sanlam']);
   const row = rows.find((r) => r.group === 'AXA')!;
