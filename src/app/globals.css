@@ -69,11 +69,17 @@
     --destructive-foreground: 45 30% 98%;
     --radius: 0.5rem;
 
-    --chart-1: 215 42% 28%;
-    --chart-2: 178 45% 42%;
-    --chart-3: 215 14% 62%;
-    --chart-4: 16 55% 52%;
-    --chart-5: 172 30% 72%;
+    /* Categorical chart palette — fixed order teal · terracotta · indigo ·
+       plum · olive, validated 2026-09-01 with the dataviz six-check script
+       (lightness band, chroma floor, CVD ΔE ≥ 8, normal-vision ΔE ≥ 15,
+       ≥ 3:1 on the card surface) in BOTH themes. The previous navy/grey/mint
+       steps read as grey and two adjacent pairs were indistinguishable.
+       Status colours stay reserved; colour follows the entity, never rank. */
+    --chart-1: 176 78% 33%;
+    --chart-2: 14 55% 52%;
+    --chart-3: 232 62% 57%;
+    --chart-4: 312 37% 51%;
+    --chart-5: 72 55% 36%;
 
     /* Navigation sits on the cream ladder (user ruling: the third colour
        lives INSIDE pages, never on the nav). Active item = teal bar + icon. */
@@ -171,11 +177,11 @@
     --destructive: 0 55% 48%;
     --destructive-foreground: 40 15% 92%;
 
-    --chart-1: 215 55% 68%;
-    --chart-2: 172 50% 55%;
-    --chart-3: 218 10% 55%;
-    --chart-4: 16 55% 52%;
-    --chart-5: 172 30% 40%;
+    --chart-1: 176 55% 41%;
+    --chart-2: 15 58% 56%;
+    --chart-3: 227 73% 66%;
+    --chart-4: 327 58% 60%;
+    --chart-5: 79 46% 42%;
 
     --sidebar-background: 218 13% 9%;
     --sidebar-foreground: 40 15% 92%;
