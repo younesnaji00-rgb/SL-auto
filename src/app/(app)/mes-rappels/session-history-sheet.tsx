@@ -8,13 +8,14 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
-import { Loader2, Inbox, MessageSquare, ClipboardList, Workflow } from 'lucide-react';
+import { Inbox, MessageSquare, ClipboardList, Workflow } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFirestore } from '@/firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { getStatusHeaderStyles } from '@/lib/status-colors';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type Props = {
   open: boolean;
@@ -46,6 +47,15 @@ function formatDate(ts: any): string {
     return format(date, 'dd/MM/yyyy HH:mm', { locale: fr });
   } catch {
     return '-';
+  }
+}
+
+function formatHm(ms: number): string {
+  if (!ms) return '--:--';
+  try {
+    return format(new Date(ms), 'HH:mm', { locale: fr });
+  } catch {
+    return '--:--';
   }
 }
 
@@ -141,12 +151,12 @@ export default function SessionHistorySheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>Travail effectué</SheetTitle>
           <SheetDescription>
             {dossierRef ? (
-              <>Session ouverte sur le dossier <span className="font-mono font-semibold tabular-nums text-ink">{dossierRef}</span></>
+              <>Session ouverte sur le dossier <span className="t-mono font-semibold">{dossierRef}</span></>
             ) : (
               'Toutes les actions enregistrées pendant ce traitement de rappel.'
             )}
@@ -155,25 +165,33 @@ export default function SessionHistorySheet({
 
         <div className="mt-6">
           {loading ? (
-            <div className="flex justify-center py-10">
-              <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
-            </div>
+            <ul className="divide-y divide-hairline" aria-busy="true" aria-live="polite">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <li key={i} className="flex items-start gap-3 py-4 first:pt-0">
+                  <Skeleton className="h-9 w-12 rounded-md" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-3/4" />
+                  </div>
+                </li>
+              ))}
+            </ul>
           ) : merged.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-ink-3">
-              <Inbox className="mb-3 h-10 w-10 text-ink-4" />
-              <p className="text-sm">Aucune action enregistrée pour cette session.</p>
-            </div>
+            <EmptyState
+              icon={<Inbox />}
+              title="Aucune action enregistrée"
+              description="Rien n'a été enregistré pendant cette session."
+              dashed={false}
+            />
           ) : (
-            <div className="relative pl-8">
-              {/* Vertical rail */}
-              <div className="absolute bottom-2 left-3 top-2 w-px bg-hairline-strong" />
-
-              <div className="space-y-4">
-                {merged.map((e) => (
-                  <TimelineCard key={e.id} entry={e} />
-                ))}
-              </div>
-            </div>
+            // Event list (planification-tab pattern): hairline rows, the time
+            // block as the anchor, labels quiet / values bold — no coloured
+            // header bands, no card per entry.
+            <ol className="divide-y divide-hairline">
+              {merged.map((e) => (
+                <TimelineRow key={e.id} entry={e} />
+              ))}
+            </ol>
           )}
         </div>
       </SheetContent>
@@ -181,109 +199,80 @@ export default function SessionHistorySheet({
   );
 }
 
-function TimelineCard({ entry }: { entry: Entry }) {
-  const { kind, raw } = entry;
+// Entry kind → semantic status pair for the kind chip (DESIGN.md §10).
+const KIND_META: Record<Entry['kind'], { label: string; chip: string; icon: React.ReactNode }> = {
+  observation: { label: 'Observation', chip: 'bg-status-info-bg text-status-info-fg', icon: <MessageSquare className="h-3 w-3" /> },
+  historique: { label: 'Modification', chip: 'bg-surface-3 text-ink-2', icon: <ClipboardList className="h-3 w-3" /> },
+  workflow: { label: 'Workflow', chip: 'bg-status-success-bg text-status-success-fg', icon: <Workflow className="h-3 w-3" /> },
+};
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="t-label">{label}</dt>
+      <dd className="mt-0.5 text-sm font-semibold text-ink">{children}</dd>
+    </div>
+  );
+}
+
+function TimelineRow({ entry }: { entry: Entry }) {
+  const { kind, raw, ts } = entry;
+  const meta = KIND_META[kind];
+
+  let title: string;
+  let who: string;
+  let when: string;
+  let body: string | null = null;
+  let bodyLabel = 'Détails';
+  let statut: string | null = null;
 
   if (kind === 'observation') {
-    const author = raw.author || raw.authorEmail || 'Utilisateur inconnu';
-    return (
-      <div className="relative">
-        <div className="absolute -left-[22px] top-3 h-3 w-3 rounded-full bg-status-warning-fg ring-4 ring-background" />
-        <div className="overflow-hidden rounded-lg border border-hairline bg-card">
-          <div className="flex items-center gap-2 bg-status-warning-bg px-4 py-2 text-sm font-semibold text-status-warning-fg">
-            <MessageSquare className="h-3.5 w-3.5" /> Observation
-            {raw.type && (
-              <span className="ml-auto text-[11px] font-medium uppercase tracking-[0.06em]">
-                {String(raw.type)}
-              </span>
-            )}
-          </div>
-          <div className="p-4 space-y-1.5 text-sm">
-            <div>
-              <span className="font-semibold">Auteur :</span>{' '}
-              <span className="text-ink-2">{author}</span>
-            </div>
-            <div>
-              <span className="font-semibold">Date :</span>{' '}
-              <span className="text-ink-2">{formatDate(raw.createdAt)}</span>
-            </div>
-            {raw.text && (
-              <div>
-                <span className="font-semibold">Texte :</span>{' '}
-                <span className="whitespace-pre-wrap text-ink-2">{raw.text}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+    title = raw.type ? String(raw.type) : 'Observation';
+    who = raw.author || raw.authorEmail || 'Utilisateur inconnu';
+    when = formatDate(raw.createdAt);
+    body = raw.text || null;
+    bodyLabel = 'Texte';
+  } else if (kind === 'historique') {
+    title = raw.action || raw.type || 'Modification';
+    who = raw.userNom || raw.user || '—';
+    when = formatDate(raw.date);
+    body = raw.details || null;
+    statut = raw.type === 'statut' && raw.action ? String(raw.action) : null;
+  } else {
+    title = raw.action || raw.status || 'Étape de workflow';
+    who = raw.userNom || raw.user || '—';
+    when = formatDate(raw.date);
+    statut = raw.status && raw.action && raw.status !== raw.action ? String(raw.status) : null;
   }
 
-  if (kind === 'historique') {
-    const isStatut = raw.type === 'statut';
-    const headerClass = isStatut
-      ? getStatusHeaderStyles(raw.action)
-      : 'bg-surface-2 text-ink';
-    return (
-      <div className="relative">
-        <div className="absolute -left-[22px] top-3 h-3 w-3 rounded-full bg-ink-3 ring-4 ring-background" />
-        <div className="overflow-hidden rounded-lg border border-hairline bg-card">
-          <div className={cn('px-4 py-2 text-sm font-semibold flex items-center gap-2', headerClass)}>
-            <ClipboardList className="h-3.5 w-3.5" />
-            <span>{raw.action || raw.type || 'Modification'}</span>
-            {raw.type && !isStatut && (
-              <span className="ml-auto text-[11px] font-medium uppercase tracking-[0.06em]">
-                {String(raw.type)}
-              </span>
-            )}
-          </div>
-          <div className="p-4 space-y-1.5 text-sm">
-            <div>
-              <span className="font-semibold">Par :</span>{' '}
-              <span className="text-ink-2">{raw.userNom || raw.user || '—'}</span>
-            </div>
-            <div>
-              <span className="font-semibold">Date :</span>{' '}
-              <span className="text-ink-2">{formatDate(raw.date)}</span>
-            </div>
-            {raw.details && (
-              <div>
-                <span className="font-semibold">Détails :</span>{' '}
-                <span className="whitespace-pre-wrap text-ink-2">{raw.details}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // workflow
   return (
-    <div className="relative">
-      <div className="absolute -left-[22px] top-3 h-3 w-3 rounded-full bg-status-success-fg ring-4 ring-background" />
-      <div className="overflow-hidden rounded-lg border border-hairline bg-card">
-        <div className="flex items-center gap-2 bg-status-success-bg px-4 py-2 text-sm font-semibold text-status-success-fg">
-          <Workflow className="h-3.5 w-3.5" />
-          <span>{raw.action || raw.status || 'Étape de workflow'}</span>
+    <li className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
+      {/* Time block — the row's anchor (tinted + light contour). */}
+      <div className="flex w-12 shrink-0 items-center justify-center rounded-md bg-surface-3 py-2 text-center text-sm font-semibold tabular-nums text-ink-2 shadow-rim">
+        {formatHm(ts)}
+      </div>
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span className={cn('inline-flex h-5 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium', meta.chip)}>
+            {meta.icon}
+            {meta.label}
+          </span>
+          <span className="min-w-0 truncate text-sm font-semibold text-ink">{title}</span>
         </div>
-        <div className="p-4 space-y-1.5 text-sm">
-          <div>
-            <span className="font-semibold">Par :</span>{' '}
-            <span className="text-ink-2">{raw.userNom || raw.user || '—'}</span>
-          </div>
-          <div>
-            <span className="font-semibold">Date :</span>{' '}
-            <span className="text-ink-2">{formatDate(raw.date)}</span>
-          </div>
-          {raw.status && raw.action && raw.status !== raw.action && (
-            <div>
-              <span className="font-semibold">Statut :</span>{' '}
-              <span className="text-ink-2">{String(raw.status)}</span>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-2">
+          <Field label="Par">{who}</Field>
+          <Field label="Date"><span className="tabular-nums">{when}</span></Field>
+          {statut && (
+            <Field label="Statut">{statut}</Field>
+          )}
+          {body && (
+            <div className="col-span-2 min-w-0">
+              <dt className="t-label">{bodyLabel}</dt>
+              <dd className="mt-0.5 whitespace-pre-wrap break-words text-sm text-ink">{body}</dd>
             </div>
           )}
-        </div>
+        </dl>
       </div>
-    </div>
+    </li>
   );
 }

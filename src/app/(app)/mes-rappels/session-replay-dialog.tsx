@@ -9,7 +9,8 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, CalendarClock, CheckCircle2, Play, Eye, AlertTriangle, Info } from 'lucide-react';
+import { Loader2, CalendarClock, CheckCircle2, Eye, AlertTriangle, Info } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useFirestore, useDoc, useCollection } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
@@ -69,8 +70,10 @@ function ReplayStepBar({
 }) {
   const activeIdx = steps.findIndex((s) => s.id === activeId);
   return (
-    <div data-replay-bar className="sticky top-0 z-30 w-full border-b border-hairline bg-background/95 backdrop-blur">
-      <div className="flex items-start gap-2 px-3 sm:px-6 py-3 overflow-x-auto">
+    // Chrome the content scrolls under → glass-bar; medallions carry the
+    // light contour like the dossier stepper dots (DESIGN.md §3).
+    <div data-replay-bar className="glass-bar sticky top-0 z-30 w-full border-b border-hairline">
+      <div className="flex items-start gap-2 overflow-x-auto px-3 py-3 sm:px-6">
         {steps.map((step, idx) => {
           const isActive = step.id === activeId;
           const isPast = activeIdx >= 0 && idx < activeIdx;
@@ -79,15 +82,15 @@ function ReplayStepBar({
               <button
                 type="button"
                 onClick={() => onStepClick(step.id)}
-                className="flex items-center gap-2 shrink-0 transition-colors hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary rounded"
+                className="flex shrink-0 items-center gap-2 rounded-md transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-current={isActive ? 'step' : undefined}
               >
                 <span
                   className={cn(
-                    'inline-flex items-center justify-center rounded-full border-2 text-xs font-bold h-7 w-7 shrink-0 transition-colors',
-                    isActive && 'bg-primary text-primary-foreground border-primary',
-                    !isActive && isPast && 'border-ink-3 bg-surface-2 text-ink',
-                    !isActive && !isPast && 'border-hairline-strong bg-surface-2 text-ink-3',
+                    'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums transition-colors',
+                    isActive && 'bg-primary text-primary-foreground shadow-rim-filled',
+                    !isActive && isPast && 'bg-surface-3 text-ink shadow-rim',
+                    !isActive && !isPast && 'bg-card text-ink-3 shadow-rim',
                   )}
                 >
                   {idx + 1}
@@ -324,11 +327,10 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl w-[calc(97vw/var(--app-zoom))] h-[calc(94vh/var(--app-zoom))] p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader className="shrink-0 space-y-1.5 border-b border-hairline px-5 py-3">
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <Play className="h-4 w-4 text-ink-3" />
+          <DialogTitle className="t-heading flex flex-wrap items-center gap-2">
             Traitement du dossier{' '}
-            <span className="font-mono tabular-nums text-ink">{rappel?.dossierRef || id}</span>
-            <Badge variant="outline" className="ml-1 gap-1 text-[11px] text-ink-3">
+            <span className="t-mono font-semibold">{rappel?.dossierRef || id}</span>
+            <Badge variant="outline" className="ml-1 gap-1 text-[11px] font-medium text-ink-3">
               <Eye className="h-3 w-3" /> Lecture seule
             </Badge>
           </DialogTitle>
@@ -358,8 +360,15 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
         </DialogHeader>
 
         {loading || !dossier ? (
-          <div className="flex-1 flex justify-center items-center">
-            <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
+          // Skeleton shaped like the replica (step bar + first step paper).
+          <div className="flex-1 space-y-4 overflow-hidden px-3 py-4 sm:px-6" aria-busy="true" aria-live="polite">
+            <div className="flex gap-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-7 w-28 rounded-full" />
+              ))}
+            </div>
+            <Skeleton className="h-9 w-full rounded-md" />
+            <Skeleton className="h-64 w-full rounded-xl" />
           </div>
         ) : (
           <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
@@ -386,17 +395,17 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                 <div className="flex flex-wrap items-center gap-2 rounded-md bg-surface-2 px-3 py-2 text-xs">
                   <span className="font-medium text-ink-2">Modifications du gestionnaire&nbsp;:</span>
                   {summary.added > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded bg-status-success-bg px-1.5 py-0.5 font-semibold text-status-success-fg">
+                    <span className="inline-flex h-5 items-center gap-1 rounded-full bg-status-success-bg px-1.5 py-0.5 font-semibold text-status-success-fg">
                       <span className="h-2 w-2 rounded-full bg-status-success-fg" /> {summary.added} ajout{summary.added > 1 ? 's' : ''}
                     </span>
                   )}
                   {summary.modified > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded bg-status-warning-bg px-1.5 py-0.5 font-semibold text-status-warning-fg">
+                    <span className="inline-flex h-5 items-center gap-1 rounded-full bg-status-warning-bg px-1.5 py-0.5 font-semibold text-status-warning-fg">
                       <span className="h-2 w-2 rounded-full bg-status-warning-fg" /> {summary.modified} modification{summary.modified > 1 ? 's' : ''}
                     </span>
                   )}
                   {summary.removed > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded bg-status-danger-bg px-1.5 py-0.5 font-semibold text-status-danger-fg">
+                    <span className="inline-flex h-5 items-center gap-1 rounded-full bg-status-danger-bg px-1.5 py-0.5 font-semibold text-status-danger-fg">
                       <span className="h-2 w-2 rounded-full bg-status-danger-fg" /> {summary.removed} suppression{summary.removed > 1 ? 's' : ''}
                     </span>
                   )}
@@ -415,8 +424,9 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                         id={`replay-step-${step.id}`}
                         className="scroll-mt-20 border-b border-hairline py-6 last:border-b-0"
                       >
-                        <div className="flex items-center gap-2 mb-4">
-                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-surface-2 text-[11px] font-semibold text-ink-2">
+                        <div className="mb-4 flex items-center gap-2">
+                          {/* Ordinal medallion (dossier rail pattern): tinted + rim. */}
+                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-surface-3 text-[11px] font-semibold tabular-nums text-ink-2 shadow-rim">
                             {idx + 1}
                           </span>
                           <h2 className="t-title">{step.label}</h2>
