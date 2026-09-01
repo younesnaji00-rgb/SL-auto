@@ -77,7 +77,7 @@ const FieldRow = ({
 }) => {
   const hl = useReplayHighlight();
   return (
-    <dl className={cn('grid grid-cols-1 gap-x-6 gap-y-3', FIELD_GRID[cols], className)}>
+    <dl className={cn('grid grid-cols-1 gap-x-6 gap-y-4', FIELD_GRID[cols], className)}>
       {fields.map((f, i) => {
         const status = !editing && f.path ? hl.statusForPath(f.path) : null;
         const empty = !editing && !f.value;
@@ -88,11 +88,11 @@ const FieldRow = ({
               {editing && f.modal}
               {status && <ChangeBadge status={status} className="ml-auto" />}
             </dt>
-            <dd className="mt-0.5 min-h-[20px]">
+            <dd className="mt-1 min-h-[20px]">
               {editing && f.edit ? (
                 <div className="w-full">{f.edit}</div>
               ) : (
-                <span className={cn('t-body-sm break-words', empty ? 'text-ink-4' : 'font-medium')}>{f.value || '—'}</span>
+                <span className={cn('t-body break-words', empty ? 'text-ink-4' : 'font-semibold text-ink')}>{f.value || '—'}</span>
               )}
             </dd>
           </div>
@@ -119,14 +119,14 @@ const Section = ({
   className?: string;
 }) => (
   <Card variant="outline" role="region" aria-label={title} className={cn('min-w-0', className)}>
-    <header className="flex min-h-[44px] items-center justify-between gap-3 border-b border-hairline px-5 py-2.5">
+    <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
       <div className="flex min-w-0 items-center gap-2">
         {icon && <span className="shrink-0 text-ink-3 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
         <h3 className="t-heading truncate">{title}</h3>
       </div>
       {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
     </header>
-    <div className="px-5 py-4">{children}</div>
+    <div className="px-6 py-5">{children}</div>
   </Card>
 );
 

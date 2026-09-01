@@ -77,7 +77,7 @@ Registry: `hooks/use-hotkeys.ts` (single keys and `g`-chords; ignored inside inp
 
 ## 9. Dossier content patterns (added with the documents / information redesign)
 
-- **Read-only forms** (Informations): `Section` (hairline header with icon + 14 px/600 title) containing definition lists — label 11 px uppercase muted over value 14 px/500; empty = `—` muted. No beige bands, no cell borders. Edit mode swaps the value for the control in place.
+- **Read-only forms** (Informations): `Section` (hairline header with icon + 15 px/600 title, 24 px padding) containing definition lists — label 12 px sentence-case muted (`t-label`) over value 14 px/600 ink (the value is the star; labels never uppercase — 2026-09-01 hierarchy pass), 16 px between rows; empty = `—` muted. No beige bands, no cell borders. Edit mode swaps the value for the control in place.
 - **Document board**: families as hairline-separated blocks with a 13 px/600 name + count pill; slots in a responsive grid (`sm:2 xl:3 2xl:4`), never a horizontal scroller. Slot header carries a status chip (Reçu / En attente / À déposer); document rows are 36 px with hover-revealed delete; "Ajouter un document" is a dashed full-width button.
 - **Planifications**: calendar-style list rows (date block · type chip · agent · zone/adresse · Modifier), newest first and emphasised; details in a dialog.
 - **Step facets are underline tabs** (`components/dossier-timeline/step-tabs.tsx`, M3 primary tabs / Carbon line tabs): every dossier step is a uniform `.paper` card; inside it, facets switch via tabs (step 1 Informations | Documents — the AI pre-fill strip lives in Informations with the form it feeds; visit steps Planification | Photos | Observations; accord steps Documents | Observations). Selected tab is remembered per step (sessionStorage). Never collapsibles for step facets — their chevrons are invisible to first-time users.
@@ -115,7 +115,7 @@ The third colour is **terracotta** (≈16°) — teal's warm complement and the 
 - Dossier page: the **active step is the only paper card**; other steps sit flat on the canvas with `t-heading text-ink-2` titles.
 
 ### Type roles (`globals.css` → `.t-*`)
-`t-display` 28/600 Outfit (page title) · `t-title` 20/600 Outfit (active step, card group title, KPI value) · `t-heading` 15/600 (block title) · `t-body` 14 · `t-body-sm` 13 (dense lists) · `t-caption` 12 ink-3 · `t-label` 11/500 caps +0.06em ink-3 · `t-mono` 13 mono. Two families max on a page; hierarchy comes from weight and ink level, not from adding sizes. Body measure ≤ 65ch.
+`t-display` 28/600 Outfit (page title) · `t-title` 20/600 Outfit (active step, card group title, KPI value) · `t-heading` 15/600 (block title) · `t-body` 14 · `t-body-sm` 13 (dense lists) · `t-caption` 12 ink-3 · `t-label` 12/400 sentence case ink-3 (never uppercase — 2026-09-01) · `t-mono` 13 mono. Two families max on a page; hierarchy comes from weight and ink level, not from adding sizes. Body measure ≤ 65ch.
 
 ### Spacing rhythm (8-pt)
 Page padding 24 (32 at ≥ xl) · between page sections 32 (`space-y-8`) · card padding 20 (`p-5`) · between blocks in a card 16 · label→value 4 · field grid `gap-x-6 gap-y-3`. Start with more space, then tighten; density mode shrinks rows, not padding.

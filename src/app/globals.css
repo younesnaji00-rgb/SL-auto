@@ -19,7 +19,7 @@
 @layer base {
   :root {
     /* 60 — canvas & paper */
-    --background: 42 28% 96%;          /* surface-container-low    */
+    --background: 42 24% 94.5%;        /* surface-container-low — one shade deeper than before so white cards lift (2026-09-01) */
     --card: 45 30% 99.4%;              /* surface-container-lowest */
     --card-foreground: 215 38% 14%;
     --popover: 45 30% 99.4%;
@@ -48,12 +48,12 @@
     --secondary-foreground: 215 38% 14%;
 
     /* 10 — accent */
-    --primary: 178 55% 28%;
+    --primary: 178 60% 24%;            /* one step deeper (2026-09-01) so the primary action leads */
     --primary-foreground: 45 30% 98%;
     --accent: 172 45% 86%;
     --accent-foreground: 178 55% 18%;
-    --ring: 178 55% 28%;
-    --focus: 178 55% 28%;
+    --ring: 178 60% 24%;
+    --focus: 178 60% 24%;
 
     /* Third colour — terracotta (user-picked; complementary to the teal
        accent, warm sibling of the cream canvas). Used sparingly INSIDE
@@ -80,13 +80,13 @@
     --sidebar-background: 42 26% 94%;
     --sidebar-foreground: 215 38% 14%;
     --sidebar-muted: 215 15% 42%;
-    --sidebar-primary: 178 55% 28%;
+    --sidebar-primary: 178 60% 24%;
     --sidebar-primary-foreground: 45 30% 98%;
     --sidebar-accent: 40 18% 90%;
     --sidebar-accent-foreground: 215 38% 14%;
     --sidebar-active: 40 16% 87%;
     --sidebar-border: 40 16% 86%;
-    --sidebar-ring: 178 55% 28%;
+    --sidebar-ring: 178 60% 24%;
     --heading-bg: 40 20% 93.5%;
     --heading-fg: 215 38% 14%;
 
@@ -103,7 +103,7 @@
     /* ── Glass (chrome layer only — Apple HIG Materials: bars, sidebars,
          menus and sheets are translucent; the content layer stays opaque
          paper). Derivatives of --card / --background, never new hues. ── */
-    --glass-bg: hsl(var(--card) / 0.55);             /* cards, step papers */
+    --glass-bg: hsl(var(--card) / 0.9);              /* cards, step papers — near-solid: the glass is the edge light + shadow, not the see-through (user ruling) */
     --glass-bg-strong: hsl(var(--card) / 0.84);      /* menus, dialogs, sheets */
     --glass-bg-bar: hsl(var(--card) / 0.72);         /* sticky bars content scrolls under */
     --glass-bg-sidebar: hsl(var(--sidebar-background) / 0.78);
@@ -191,7 +191,7 @@
     --status-info-bg: 216 45% 16%;
     --status-info-fg: 214 75% 78%;
 
-    --glass-bg: hsl(var(--card) / 0.5);
+    --glass-bg: hsl(var(--card) / 0.85);
     --glass-bg-strong: hsl(var(--card) / 0.86);
     --glass-bg-bar: hsl(var(--card) / 0.74);
     --glass-bg-sidebar: hsl(var(--sidebar-background) / 0.8);
@@ -273,7 +273,8 @@
     t-body     default                    14/400         ink
     t-body-sm  dense lists                13/400         ink
     t-caption  helper / meta              12/400         ink-3
-    t-label    field labels, column heads 11/500 caps +0.06em  ink-3
+    t-label    field labels, column heads 12/400 sentence case  ink-3
+               (values are the star: t-body 600 ink — Refactoring UI)
     t-mono     refs, plates               13 mono tabular ink
 */
 @layer components {
@@ -283,7 +284,7 @@
   .t-body    { @apply text-sm leading-[1.5] text-ink; }
   .t-body-sm { @apply text-[13px] leading-[1.45] text-ink; }
   .t-caption { @apply text-xs leading-[1.4] text-ink-3; }
-  .t-label   { @apply text-[11px] font-medium uppercase leading-[1.3] tracking-[0.06em] text-ink-3; }
+  .t-label   { @apply text-xs font-normal leading-[1.4] text-ink-3; }
   .t-mono    { @apply font-mono text-[13px] tabular-nums text-ink; }
 
   /* Step paper = a glass pane (Markazi): see `.glass` below for the shared
