@@ -2,9 +2,12 @@
 
 /**
  * Workspace tab strip — one component for every record kind (dossiers,
- * chiffrages). Hidden until at least one record is open; stays mounted on
- * every route so open work never disappears (kinds outside the current
- * section render dimmed).
+ * chiffrages). Hidden until at least one record is open, and each kind's
+ * strip renders ONLY inside its own section (owner ruling 2026-09-02: the
+ * dossier strip only on /dossiers pages, the chiffrage strip only on
+ * /assignations-chiffrage pages — elsewhere the bar disappears entirely).
+ * Open tabs survive regardless: the store keeps them, the strip just
+ * unmounts.
  *
  * Keyboard (Alt-based because Ctrl/⌘+W, Ctrl+Tab are browser-reserved):
  *   Alt+W close active · Alt+1…9 jump · Alt+←/→ previous/next · Alt+Shift+T reopen.
@@ -228,20 +231,21 @@ export default function WorkspaceTabs() {
   const dossier = useWorkspaceTabs('dossier');
   const chiffrage = useWorkspaceTabs('chiffrage');
 
-  const kinds = [dossier, chiffrage].filter((k) => k.tabs.length > 0);
+  // Only the kind whose SECTION the user is currently in renders its strip
+  // (owner ruling 2026-09-02) — on any other route the bar is absent.
+  const kinds = [dossier, chiffrage].filter(
+    (k) => k.tabs.length > 0 && (pathname === k.config.listHref || pathname.startsWith(`${k.config.listHref}/`)),
+  );
   if (kinds.length === 0) return null;
 
   return (
     <div className="flex h-10 w-full min-w-0 items-center gap-2 border-b border-hairline bg-surface-2" data-workspace-tabs>
-      {kinds.map((api, i) => {
-        const active = pathname === api.config.listHref || pathname.startsWith(`${api.config.listHref}/`);
-        return (
-          <React.Fragment key={api.kind}>
-            {i > 0 && <div className="my-1.5 w-px shrink-0 bg-hairline-strong" aria-hidden />}
-            <KindStrip api={api} active={active} />
-          </React.Fragment>
-        );
-      })}
+      {kinds.map((api, i) => (
+        <React.Fragment key={api.kind}>
+          {i > 0 && <div className="my-1.5 w-px shrink-0 bg-hairline-strong" aria-hidden />}
+          <KindStrip api={api} active />
+        </React.Fragment>
+      ))}
     </div>
   );
 }
