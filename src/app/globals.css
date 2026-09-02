@@ -525,7 +525,7 @@ html {
     isolation: isolate;
     background: transparent !important;
     box-shadow: none !important;
-    transition: --tab-fill 150ms, --tab-foot-rim 150ms, --tab-foot-line 150ms;
+    transition: --tab-fill 120ms ease-out, --tab-foot-rim 120ms ease-out, --tab-foot-line 120ms ease-out;
   }
   /* Hover (owner rulings 2026-09-02 quinquies + sexies, INACTIVE tabs
      only): the tab previews as a PILL filled ENTIRELY in teal — the light
@@ -536,9 +536,10 @@ html {
      morph (pill melts into the seated tab), which doubles as the
      between-selection animation. */
   .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active) {
-    /* Octies ruling: hover = the SEATED TAB SHAPE as a teal OUTLINE (the
-       pill grows its two slopes), still unfilled — grey arrives only on
-       click (active). */
+    /* Nonies ruling: hover = the seated tab shape FILLED with the teal
+       tint; clicking drains the fill (active is hollow) — hover→active is
+       then a pure background fade, buttery by construction. */
+    --tab-fill: hsl(var(--accent));
     --tab-foot-line: hsl(var(--primary) / 0.6);
     color: hsl(var(--accent-foreground)) !important;
     z-index: 1;
@@ -559,17 +560,12 @@ html {
   .tab-slope[data-state='active'],
   .tab-slope[aria-selected='true'],
   .tab-slope-active {
-    --tab-fill: hsl(var(--surface-4));
-    /* Owner ruling: the arc carries the highlight AND the normal line —
-       light band inside (--rim-in tone) over a faint dark line on the
-       outer edge, so it neither vanishes into the background nor reads as
-       a shadowed groove. */
-    --tab-foot-rim: hsl(0 0% 100% / 0.5);
-    /* Same apparent weight as the body's --rim-out ring (0.08 + a nudge for
-       curve antialiasing) — anything darker reads as a detached dark blob
-       at the corner instead of the same line bending (verified on a local
-       Chromium render). */
-    --tab-foot-line: hsl(var(--shadow-color) / 0.15);
+    /* Nonies ruling: the ACTIVE tab has NO background at all — the seated
+       shape as a pure teal outline; identity comes from the shape + accent
+       bar + ink label. */
+    --tab-fill: transparent;
+    --tab-foot-rim: var(--tab-fill);
+    --tab-foot-line: hsl(var(--primary) / 0.6);
     z-index: 2;
   }
   .tab-slope[data-state='active']::after,
@@ -589,7 +585,10 @@ html {
     border-radius: 9999px;
     background: var(--tab-fill);
     box-shadow: 0 0 0 1px hsl(var(--primary) / 0.6);
-    transition: box-shadow 150ms, border-radius 150ms, inset 150ms;
+    /* Colours only — transitioning inset/border-radius re-lays-out every
+       frame and stuttered badly (owner: "10 fps"). Geometry snaps; the
+       fill/outline fades. */
+    transition: background-color 120ms ease-out, border-color 120ms ease-out, box-shadow 120ms ease-out;
   }
   /* The outward feet: a 7×7 square outside each bottom corner, filled by a
      radial-gradient whose transparent quarter-circle sits at the top-outer
@@ -600,7 +599,7 @@ html {
   .tab-slope::after {
     content: '';
     position: absolute;
-    /* Feet exist only on the ACTIVE tab (inactive/hover are pills). */
+    /* Feet exist only on the seated shape (hover + active); pills hide them. */
     opacity: 0;
     left: calc(-1 * var(--tab-foot));
     right: calc(-1 * var(--tab-foot));
@@ -611,7 +610,7 @@ html {
     height: calc(var(--tab-foot) + 1px);
     z-index: -1;
     pointer-events: none;
-    transition: opacity 150ms;
+    transition: opacity 120ms ease-out;
     /* From the notch outward: transparent → ~1px dark line on the arc's
        outer edge (--tab-foot-line) → ~1px light highlight band inside it
        (--tab-foot-rim) → fill. Both layers default to invisible colours. */
@@ -623,19 +622,13 @@ html {
   .tab-slope[data-state='active']::before,
   .tab-slope[aria-selected='true']::before,
   .tab-slope-active::before {
-    /* Seated browser-tab body: stops where the feet begin (the ring ends at
-       the arc's tangent point); rounded top, square bottom into the feet. */
+    /* Same drawing as hover: seated geometry + 3-sided teal border (a ring
+       would draw a stray line across the hollow tab at the feet junction). */
     inset: 0 0 var(--tab-foot) 0;
     border-radius: 10px 10px 0 0;
-    box-shadow:
-      inset 0 0 0 1px var(--rim-in),
-      inset 0 1.5px 0 var(--rim-top),
-      0 0 0 1px var(--rim-out),
-      0 1px 2px hsl(var(--shadow-color) / 0.06),
-      /* Softer than the generic rim drop: the tab sits ON the separation
-         line, so a 12px offset spilled below the track as a floating blob
-         (seen on a local Chromium render). */
-      0 6px 14px -6px hsl(var(--shadow-color) / 0.10);
+    border: 1px solid hsl(var(--primary) / 0.6);
+    border-bottom: 0;
+    box-shadow: none;
   }
   /* Ease-in on activation (owner ruling 2026-09-02 bis): body and feet fade
      and settle together — one keyframe on both pseudo-elements now that the
