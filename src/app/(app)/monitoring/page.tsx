@@ -20,7 +20,7 @@ import {
   ChevronRight,
   CheckCircle2,
 } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { startOfDay, endOfDay, startOfWeek, startOfMonth, isSameDay, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -772,14 +772,7 @@ function GlobalView({
   loading: boolean;
   onSelectStep: (step: StepKey, mode: DrawerMode) => void;
 }) {
-  const chartData = STEP_KEYS.map((key) => ({
-    step: STEP_LABELS_SHORT[key],
-    value: counts[key],
-  }));
-
-  const chartConfig = {
-    value: { label: 'Dossiers', color: 'hsl(var(--chart-1))' },
-  };
+  const volumeMax = Math.max(0, ...STEP_KEYS.map((key) => counts[key]));
 
   if (totalDossiers === 0 && !loading) {
     return (
@@ -828,21 +821,63 @@ function GlobalView({
           <p className="t-caption">Étapes franchies en délai · {periodLabel}</p>
         </CardHeader>
         <CardContent>
-          {chartData.every((d) => d.value === 0) ? (
+          {volumeMax === 0 ? (
             <EmptyState
               title="Aucune activité dans cette plage"
               description="Aucun dossier n'a réalisé une étape dans la période sélectionnée."
             />
           ) : (
-            <ChartContainer config={chartConfig} className="h-72 w-full">
-              <BarChart data={chartData} margin={{ top: 8, right: 16, left: -8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--hairline))" />
-                <XAxis dataKey="step" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--ink-3))' }} allowDecimals={false} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="value" fill="var(--color-value)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
-              </BarChart>
-            </ChartContainer>
+            /* Horizontal bar list, pipeline order (owner ruling 2026-09-02;
+               Few / NN/g / Datawrapper): many categories with long French
+               labels → horizontal bars from a shared zero baseline, the count
+               printed at the bar tip instead of an axis + hover tooltip. The
+               faint full-width track carries the shared scale; the busiest
+               stage alone gets the deeper teal. */
+            <div className="space-y-0.5">
+              {STEP_KEYS.map((key) => {
+                const value = counts[key];
+                const frac = value / volumeMax;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => onSelectStep(key, 'realise')}
+                    title={`${STEP_LABELS[key]} : ${value} en délai — voir les dossiers`}
+                    className="flex w-full items-center gap-3 rounded-md px-2 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <span className="w-36 shrink-0 truncate text-xs text-ink-2 sm:w-56">
+                      {STEP_LABELS[key]}
+                    </span>
+                    <span className="relative block h-6 min-w-0 flex-1">
+                      {/* 2.25rem right reserve keeps the tip label inside the card at 100 %. */}
+                      <span
+                        className="absolute inset-y-[7px] left-0 right-9 rounded-full bg-surface-3/70"
+                        aria-hidden
+                      />
+                      {value > 0 && (
+                        <span
+                          className={cn(
+                            'absolute inset-y-[7px] left-0 rounded-full',
+                            value === volumeMax ? 'bg-primary' : 'bg-chart-1',
+                          )}
+                          style={{ width: `calc((100% - 2.25rem) * ${frac})` }}
+                          aria-hidden
+                        />
+                      )}
+                      <span
+                        className={cn(
+                          'absolute inset-y-0 flex items-center pl-2 text-xs font-semibold tabular-nums',
+                          value === 0 ? 'text-ink-4' : 'text-ink',
+                        )}
+                        style={{ left: `calc((100% - 2.25rem) * ${frac})` }}
+                      >
+                        {value}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
