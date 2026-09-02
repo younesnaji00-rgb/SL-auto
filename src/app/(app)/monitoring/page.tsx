@@ -1109,17 +1109,57 @@ function KpiBarRow({
  * the planification date-block pattern (tinted block + rim as the row anchor).
  */
 function AgingCard({ items, className }: { items: AgingItem[]; className?: string }) {
-  const shown = items.slice(0, AGING_LIST_CAP);
-  const rest = items.length - shown.length;
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
+  /* Owner rollup (owner ruling 2026-09-02, «À traiter» option 2 — support-desk
+     queue practice: the LIST stays flat and oldest-first, grouping lives in a
+     filter layer above it). '' keys the unassigned bucket. */
+  const owners = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const it of items) {
+      const k = it.owner ?? '';
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'fr'));
+  }, [items]);
+  // A stale filter (its owner cleared their queue) silently deactivates.
+  const activeOwner =
+    ownerFilter != null && owners.some(([k]) => k === ownerFilter) ? ownerFilter : null;
+  const filtered =
+    activeOwner == null ? items : items.filter((it) => (it.owner ?? '') === activeOwner);
+  const shown = filtered.slice(0, AGING_LIST_CAP);
+  const rest = filtered.length - shown.length;
   return (
     <Card id="a-traiter" className={cn('overflow-hidden', className)}>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+      <CardHeader className="gap-2 space-y-0">
         <CardTitle className="flex items-center gap-2">
           <span>À traiter aujourd'hui</span>
           <span className="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium tabular-nums text-ink-2">
             {items.length}
           </span>
         </CardTitle>
+        {/* One chip per porteur, click = filter (toggle). Rendered only when
+            there is something to discriminate. F0: no animation on filters. */}
+        {owners.length >= 2 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            {owners.map(([k, n]) => (
+              <button
+                key={k || '__none'}
+                type="button"
+                aria-pressed={activeOwner === k}
+                onClick={() => setOwnerFilter(activeOwner === k ? null : k)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  activeOwner === k
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-surface-2 text-ink-2 hover:bg-surface-3',
+                )}
+              >
+                <span className={cn(!k && 'italic')}>{k || 'non affecté'}</span>
+                <span className="font-semibold tabular-nums">{n}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </CardHeader>
       <CardContent className="p-0">
         {items.length === 0 ? (
