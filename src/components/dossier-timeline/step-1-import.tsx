@@ -33,6 +33,7 @@ import { useDossierDocWrite } from '@/app/(app)/dossiers/[id]/rappel-draft';
 import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 import SmartInbox from './smart-inbox';
+import { emitPrefillFlash } from '@/hooks/use-prefill-flash';
 
 export interface Step1ImportProps {
   dossierId: string;
@@ -324,6 +325,12 @@ export default function Step1Import({
           }
         }
         setLastFilledCount(written);
+        // Teal value-change fade on every field the scan just wrote
+        // (owner option B1; motion-spec §8).
+        emitPrefillFlash(dossierId, [
+          ...filledFields,
+          ...overwrittenFields.map((o) => o.field),
+        ]);
         const toastParts = [
           filledFields.length > 0
             ? `${filledFields.length} champ(s) pré-rempli(s)`

@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { LIST_TAB_ID, useWorkspaceTabs, type KindTabsApi, type TabKind, type WorkspaceTab } from '@/hooks/use-workspace-tabs';
 import { useHotkeys, type Hotkey } from '@/hooks/use-hotkeys';
+import { prefersReducedMotion } from '@/lib/motion';
 
 const KIND_ICON: Record<TabKind, React.ElementType> = { dossier: FolderOpen, chiffrage: Calculator };
 
@@ -43,6 +44,32 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
   const [overflowing, setOverflowing] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const Icon = KIND_ICON[api.kind];
+
+  // FLIP (measure in layout px via offsetLeft — scroll- and zoom-independent):
+  // when the tab ORDER changes (drag reorder, close), each surviving tab
+  // animates from its old slot to its new one as a pure transform
+  // (motion-spec §9, Paul Lewis FLIP; owner option H1 2026-09-02).
+  const nodeRefs = useRef(new Map<string, HTMLElement>());
+  const lastLeftsRef = useRef(new Map<string, number>());
+  const orderKey = api.displayTabs.map((t) => t.id).join('|');
+  React.useLayoutEffect(() => {
+    const prev = lastLeftsRef.current;
+    const next = new Map<string, number>();
+    const reduce = prefersReducedMotion();
+    nodeRefs.current.forEach((el, id) => {
+      if (!el.isConnected) return;
+      const left = el.offsetLeft;
+      next.set(id, left);
+      const old = prev.get(id);
+      if (!reduce && old !== undefined && Math.abs(old - left) > 1 && typeof el.animate === 'function') {
+        el.animate(
+          [{ transform: `translateX(${old - left}px)` }, { transform: 'none' }],
+          { duration: 200, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
+        );
+      }
+    });
+    lastLeftsRef.current = next;
+  }, [orderKey]);
 
   // Overflow detection → "N autres" menu.
   useEffect(() => {
@@ -72,8 +99,30 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
   const close = useCallback(
     (id: string) => {
       if (!confirmClose(api, id)) return;
-      const nextId = api.closeTab(id);
-      if (id === api.activeId) goTo(nextId ?? LIST_TAB_ID);
+      const finish = () => {
+        const nextId = api.closeTab(id);
+        if (id === api.activeId) goTo(nextId ?? LIST_TAB_ID);
+      };
+      // Exit = width collapse + fade, 150ms accelerate (owner option H1).
+      // ONLY for background closes: closing the ACTIVE tab navigates, and
+      // motion never gates input (motion-spec §1.3) — that close is instant.
+      const el = nodeRefs.current.get(id);
+      if (id === api.activeId || !el || prefersReducedMotion() || typeof el.animate !== 'function') {
+        finish();
+        return;
+      }
+      el.style.pointerEvents = 'none';
+      el.style.overflow = 'hidden';
+      el.style.minWidth = '0';
+      const anim = el.animate(
+        [
+          { width: `${el.offsetWidth}px`, opacity: 1, paddingLeft: '12px', paddingRight: '12px' },
+          { width: '0px', opacity: 0, paddingLeft: '0px', paddingRight: '0px' },
+        ],
+        { duration: 150, easing: 'cubic-bezier(0.3, 0, 1, 1)', fill: 'forwards' },
+      );
+      anim.onfinish = finish;
+      anim.oncancel = finish;
     },
     [api, goTo],
   );
@@ -124,6 +173,10 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
           return (
             <div
               key={tab.id}
+              ref={(el) => {
+                if (el) nodeRefs.current.set(tab.id, el);
+                else nodeRefs.current.delete(tab.id);
+              }}
               role="tab"
               aria-selected={isActive}
               tabIndex={isActive ? 0 : -1}
@@ -175,7 +228,7 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
                   ::after now draws the tab feet. */}
               <span
                 aria-hidden
-                className={cn('pointer-events-none absolute inset-x-2.5 bottom-[3px] h-0.5 rounded-full bg-primary', isActive ? 'opacity-100' : 'opacity-0')}
+                className={cn('pointer-events-none absolute inset-x-2.5 bottom-[3px] h-0.5 rounded-full bg-primary transition-opacity duration-150', isActive ? 'opacity-100' : 'opacity-0')}
               />
             </div>
           );

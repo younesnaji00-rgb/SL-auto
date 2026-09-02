@@ -29,6 +29,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useCompagnies } from '@/hooks/use-compagnies';
 import { useHolidays } from '@/hooks/use-holidays';
 import { cn } from '@/lib/utils';
+import { scrollBehavior } from '@/lib/motion';
 import { assureName } from '@/lib/dossier-label';
 import {
   Card,
@@ -254,7 +255,7 @@ export default function MonitoringPage() {
     changeVue('global');
     requestAnimationFrame(() =>
       requestAnimationFrame(() =>
-        document.getElementById('a-traiter')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+        document.getElementById('a-traiter')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' }),
       ),
     );
   };
@@ -830,7 +831,7 @@ function GlobalView({
                 <XAxis dataKey="step" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} />
                 <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--ink-3))' }} allowDecimals={false} />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="value" fill="var(--color-value)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" fill="var(--color-value)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
               </BarChart>
             </ChartContainer>
           )}
@@ -1197,8 +1198,8 @@ function TrendCard({ points }: { points: WeekPoint[] }) {
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} />
             <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} allowDecimals={false} />
             <ChartTooltip content={<ChartTooltipContent />} />
-            <Line type="monotone" dataKey="crees" stroke="var(--color-crees)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-            <Line type="monotone" dataKey="deposes" stroke="var(--color-deposes)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+            <Line type="monotone" dataKey="crees" stroke="var(--color-crees)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
+            <Line type="monotone" dataKey="deposes" stroke="var(--color-deposes)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
           </LineChart>
         </ChartContainer>
         {/* Legend always present for ≥ 2 series (same pattern as the dashboard). */}

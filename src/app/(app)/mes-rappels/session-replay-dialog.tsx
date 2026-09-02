@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CalendarClock, CheckCircle2, ChevronDown, Eye, AlertTriangle, History, Info, Pencil } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { scrollBehavior } from '@/lib/motion';
 import { useFirestore, useDoc, useCollection } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { format } from 'date-fns';
@@ -407,7 +408,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
         if (!container || !el) continue;
         const top =
           container.scrollTop + (el.getBoundingClientRect().top - container.getBoundingClientRect().top) - 8;
-        container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+        container.scrollTo({ top: Math.max(0, top), behavior: scrollBehavior() });
       }
     } else {
       const container = stackRef.current;
@@ -417,7 +418,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
         const barH = bar?.offsetHeight ?? 56;
         const top =
           container.scrollTop + (el.getBoundingClientRect().top - container.getBoundingClientRect().top) - barH - 8;
-        container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+        container.scrollTo({ top: Math.max(0, top), behavior: scrollBehavior() });
       }
     }
     window.setTimeout(() => {

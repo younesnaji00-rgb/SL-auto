@@ -226,7 +226,7 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
           onClick={handleCapture}
           disabled={!cameraReady || atCap}
           aria-label={atCap ? 'Limite de photos atteinte' : 'Prendre une photo'}
-          className="w-18 h-18 rounded-full border-4 border-white flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
+          className="w-18 h-18 rounded-full border-4 border-white flex items-center justify-center disabled:opacity-30 motion-safe:active:scale-90 transition-transform duration-150 ease-standard"
           style={{ width: 72, height: 72 }}
         >
           <div className="w-14 h-14 rounded-full bg-white" style={{ width: 58, height: 58 }} />

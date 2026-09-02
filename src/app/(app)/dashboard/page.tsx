@@ -789,10 +789,10 @@ function DashboardPageInner() {
                   paddingAngle={1}
                   stroke="hsl(var(--card))"
                   strokeWidth={2}
-                  isAnimationActive={true}
-                  animationBegin={100}
-                  animationDuration={600}
-                  animationEasing="ease-out"
+                  // Owner ruling 2026-09-02 (motion-spec option C1): no
+                  // entrance animation on functional charts — the data just
+                  // appears; recharts still morphs in place on data updates.
+                  isAnimationActive={false}
                   label={({ cx, cy, midAngle, outerRadius, percent }) => {
                     if (percent < 0.08) return null;
                     const RADIAN = Math.PI / 180;
@@ -916,7 +916,7 @@ function DashboardPageInner() {
   );
 
   return (
-    <div className="flex-1 space-y-8 animate-fade-in motion-reduce:animate-none">
+    <div className="flex-1 space-y-8">
       <PageHeader title="Tableau de bord" size="compact" />
 
       {/* 1 — the featured surface: headline figures + period */}
@@ -994,7 +994,7 @@ function DashboardPageInner() {
                       allowDecimals={false}
                     />
                     <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
-                    <Bar dataKey="value" fill="hsl(var(--chart-1))" radius={[0, 4, 4, 0]} barSize={18} isAnimationActive={true} animationBegin={100} animationDuration={600} animationEasing="ease-out">
+                    <Bar dataKey="value" fill="hsl(var(--chart-1))" radius={[0, 4, 4, 0]} barSize={18} isAnimationActive={false}>
                       <LabelList dataKey="value" position="right" fill="hsl(var(--ink-2))" fontSize={12} />
                     </Bar>
                   </BarChart>

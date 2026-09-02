@@ -418,7 +418,7 @@ export default function PhotosTab({
               alt={photo.name}
               loading="lazy"
               decoding="async"
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              className="w-full h-full object-cover transition-transform duration-150 ease-standard motion-safe:group-hover:scale-[1.02]"
             />
           )}
 

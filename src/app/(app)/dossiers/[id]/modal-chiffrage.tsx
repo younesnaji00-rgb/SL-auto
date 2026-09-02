@@ -16,7 +16,7 @@ import { useFirestore, useAuth, useDoc, useStorage } from '@/firebase';
 import { doc, collection, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { logHistorique, logWorkflow } from './log-historique';
-import { Loader2, Send, ImageIcon, FileText } from 'lucide-react';
+import { Check, Loader2, Send, ImageIcon, FileText } from 'lucide-react';
 import { sendToChiffrage, ChiffrageFile } from '@/lib/send-to-chiffrage';
 import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import { isEditableDocType, type EditableDocType } from '@/lib/devis-schema';
@@ -55,6 +55,12 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
   const [selectedChiffreurId, setSelectedChiffreurId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Success morph (owner option I1, motion-spec §5): spinner → ✓ « Envoyé »
+  // held ~1.2s before the dialog closes — reserved for this rare (F3) send.
+  const [sent, setSent] = useState(false);
+  useEffect(() => {
+    if (open) setSent(false);
+  }, [open]);
 
   // Files
   const [availablePhotos, setAvailablePhotos] = useState<FileItem[]>([]);
@@ -185,7 +191,8 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
       }
 
       toast({ title: "Dossier envoyé", description: `${selectedFiles.length} fichier(s) transmis au chiffreur.` });
-      onOpenChange(false);
+      setSent(true);
+      window.setTimeout(() => onOpenChange(false), 1200);
     } catch (error: any) {
       console.error('Assignment error:', error);
       toast({ variant: 'destructive', title: "Erreur lors de l'envoi", description: error.message || "Une erreur est survenue." });
@@ -250,9 +257,9 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
-          <Button onClick={handleAssign} disabled={isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-            Envoyer ({totalFileCount})
+          <Button onClick={handleAssign} disabled={sent || isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0}>
+            {sent ? <Check className="mr-2 h-4 w-4" /> : isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+            {sent ? 'Envoyé' : `Envoyer (${totalFileCount})`}
           </Button>
         </DialogFooter>
       </DialogContent>

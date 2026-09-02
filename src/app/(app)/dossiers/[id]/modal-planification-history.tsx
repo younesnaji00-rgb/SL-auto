@@ -164,7 +164,7 @@ export default function ModalPlanificationHistory({ open, onOpenChange, dossierI
                   </div>
 
                   {expandedId === entry.id && (
-                    <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-hairline pt-4 text-sm text-ink animate-in fade-in-0 duration-300">
+                    <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-hairline pt-4 text-sm text-ink animate-in fade-in-0 duration-150 ease-enter motion-reduce:animate-none">
                       <div className="space-y-1">
                         <p className="t-label">Date RDV</p>
                         <p className="flex items-center gap-2"><Calendar className="h-3 w-3 text-ink-3" /> {formatTimestamp(entry.dateRDV)}</p>

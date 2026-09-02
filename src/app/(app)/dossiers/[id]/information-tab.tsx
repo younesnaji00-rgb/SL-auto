@@ -22,6 +22,7 @@ import { apiFetch } from '@/lib/api-fetch';
 import { getStatusDotColor } from '@/lib/status-colors';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
+import { usePrefillFlash } from '@/hooks/use-prefill-flash';
 import {
   emptyExpertInfo,
   visibleExpertRoles,
@@ -76,13 +77,19 @@ const FieldRow = ({
   className?: string;
 }) => {
   const hl = useReplayHighlight();
+  const flash = usePrefillFlash();
   return (
     <dl className={cn('grid grid-cols-1 gap-x-6 gap-y-4', FIELD_GRID[cols], className)}>
       {fields.map((f, i) => {
         const status = !editing && f.path ? hl.statusForPath(f.path) : null;
         const empty = !editing && !f.value;
         return (
-          <div key={i} className={cn('min-w-0 rounded-md', highlightClass(status))}>
+          <div
+            key={i}
+            // Teal value-change fade on fields the AI scan just wrote
+            // (owner option B1; motion-spec §8) — colour-only, one-shot.
+            className={cn('min-w-0 rounded-md', highlightClass(status), flash(f.path) && 'animate-value-flash')}
+          >
             <dt className="t-label flex items-center gap-1">
               <span className="truncate">{f.label}</span>
               {editing && f.modal}

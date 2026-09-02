@@ -246,8 +246,11 @@ export default function Step2Information({
       </div>
       <aside
         className={cn(
-          'relative hidden min-w-0 overflow-clip transition-[opacity,transform] duration-200 ease-standard motion-reduce:transition-none lg:block',
-          paneShown ? 'translate-x-0 opacity-100 delay-150' : 'translate-x-3 opacity-0',
+          // Fade-through weighting (owner option D2, Material 90/210): the
+          // outgoing pane gets out of the way in 100ms; the incoming one
+          // fades in over 200ms once the tracks have made room (delay 100).
+          'relative hidden min-w-0 overflow-clip transition-[opacity,transform] ease-standard motion-reduce:transition-none lg:block',
+          paneShown ? 'translate-x-0 opacity-100 duration-200 delay-100' : 'translate-x-3 opacity-0 duration-100',
         )}
         aria-hidden={!paneShown || undefined}
       >

@@ -9,6 +9,7 @@ import { ref, getDownloadURL } from 'firebase/storage';
 import { useFirestore, useStorage, useDoc } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Loader2, FileText, CheckCircle2, FileType,
   Trash2, Eye, PencilLine, ChevronDown, ChevronRight, ImageIcon,
@@ -165,22 +166,22 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
       <div className="space-y-6">
         <div className="flex items-center justify-between border-b pb-4">
           <div className="space-y-2">
-            <div className="h-5 w-56 animate-pulse rounded bg-muted" />
-            <div className="h-3 w-40 animate-pulse rounded bg-muted" />
+            <Skeleton className="h-5 w-56" />
+            <Skeleton className="h-3 w-40" />
           </div>
           <div className="flex gap-3">
-            <div className="h-9 w-36 animate-pulse rounded-lg bg-muted" />
-            <div className="h-6 w-20 animate-pulse rounded-full bg-muted" />
+            <Skeleton className="h-9 w-36 rounded-lg" />
+            <Skeleton className="h-6 w-20 rounded-full" />
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="border rounded-xl p-4 flex gap-4 items-start bg-card">
-              <div className="w-24 h-24 rounded-lg animate-pulse bg-muted shrink-0" />
+              <Skeleton className="w-24 h-24 rounded-lg shrink-0" />
               <div className="flex-1 space-y-2">
-                <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-                <div className="h-3 w-full animate-pulse rounded bg-muted" />
-                <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-3/4" />
               </div>
             </div>
           ))}
@@ -280,7 +281,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
                 {group.files.map(({ file, index: i }) => (
                   <div
                     key={`${file.storagePath}-${i}`}
-                    className="border rounded-xl p-4 flex gap-4 items-start bg-card shadow-sm hover:shadow-md transition-all group cursor-pointer"
+                    className="border rounded-xl p-4 flex gap-4 items-start bg-card shadow-sm hover:shadow-md transition-shadow duration-150 group cursor-pointer"
                     onClick={() => router.push(`/viewer?chiffrageId=${chiffrageId}&dossierId=${dossierId}&fileIndex=${i}`)}
                   >
                     <div

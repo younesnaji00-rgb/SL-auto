@@ -123,7 +123,13 @@ export function StepTabs({ tabs, defaultValue, storageKey, className }: StepTabs
         ))}
       </TabsPrimitive.List>
       {tabs.map((t) => (
-        <TabsPrimitive.Content key={t.value} value={t.value} className="pt-5 focus-visible:outline-none">
+        <TabsPrimitive.Content
+          key={t.value}
+          value={t.value}
+          // Incoming panel only: 150ms fade + 3px rise, decelerate; no exit
+          // animation (owner option A1 2026-09-02, motion-spec §7).
+          className="pt-5 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-[3px] data-[state=active]:duration-150 data-[state=active]:ease-enter motion-reduce:animate-none"
+        >
           {t.content}
         </TabsPrimitive.Content>
       ))}

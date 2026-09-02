@@ -39,6 +39,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { scrollBehavior } from '@/lib/motion';
 import VoiceRecorder from '@/components/voice-recorder';
 import VoicePlayer from '@/components/voice-player';
 
@@ -316,7 +317,7 @@ function ChatThread({
 
   // Auto-scroll to bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: scrollBehavior() });
   }, [messages]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -13,7 +13,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 
 import { useFirestore } from '@/firebase';
 import { setDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
@@ -61,6 +61,12 @@ export function EnvoyerEmailDialog({
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Success morph (owner option I1, motion-spec §5): spinner → ✓ « Envoyé »
+  // held ~1.2s before the dialog closes — reserved for this rare (F3) send.
+  const [sent, setSent] = useState(false);
+  useEffect(() => {
+    if (open) setSent(false);
+  }, [open]);
 
   const refLabel = refExpert?.trim() || 'Sans Ref.';
 
@@ -175,7 +181,8 @@ export function EnvoyerEmailDialog({
             console.warn('[EnvoyerEmailDialog] failed to denorm dateEnvoiAccordDevis', err);
           }
         }
-        onOpenChange(false);
+        setSent(true);
+        window.setTimeout(() => onOpenChange(false), 1200);
         toast({ title: 'Email envoyé' });
         return;
       }
@@ -299,8 +306,9 @@ export function EnvoyerEmailDialog({
           >
             Annuler
           </Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit} loading={isSubmitting}>
-            {isSubmitting ? 'Envoi…' : 'Envoyer'}
+          <Button onClick={handleSubmit} disabled={sent || !canSubmit} loading={isSubmitting}>
+            {sent ? <Check className="h-4 w-4" /> : null}
+            {sent ? 'Envoyé' : isSubmitting ? 'Envoi…' : 'Envoyer'}
           </Button>
         </DialogFooter>
       </DialogContent>
