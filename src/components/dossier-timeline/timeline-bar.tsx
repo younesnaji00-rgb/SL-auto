@@ -150,6 +150,32 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
   const [inspectedId, setInspectedId] = React.useState<number | null>(null);
   const release = (id: number) => setInspectedId((h) => (h === id ? null : h));
   const inspectedIdx = inspectedId == null ? -1 : steps.findIndex((s) => s.id === inspectedId);
+  // The LAST step has no right side to grow into: it alone keeps the old
+  // behaviour (grows leftward, folding its left siblings).
+  const inspectedLast = inspectedIdx === steps.length - 1;
+
+  // The hovered step itself must also grow rightward only (owner 2026-09-02):
+  // all connectors are flex-1, so an expanding button would otherwise shrink
+  // the LEFT connectors too and drag the hovered step's left edge. While a
+  // non-last step is inspected, the connectors left of it are frozen at their
+  // current width; only the right-hand connectors absorb the reveal.
+  const connectorRefs = React.useRef<(HTMLElement | null)[]>([]);
+  React.useLayoutEffect(() => {
+    const cons = connectorRefs.current;
+    for (const el of cons) {
+      if (el) {
+        el.style.flex = '';
+        el.style.width = '';
+      }
+    }
+    if (inspectedIdx === -1 || inspectedIdx === steps.length - 1) return;
+    for (let j = 0; j < inspectedIdx; j++) {
+      const el = cons[j];
+      if (!el) continue;
+      el.style.width = `${el.offsetWidth}px`;
+      el.style.flex = '0 0 auto';
+    }
+  }, [inspectedIdx, steps.length]);
 
   // Symbiote morph for the step bar (owner 2026-09-02): the active pill's
   // surface (accent veil + rim) is ONE indicator that slides from the old
@@ -208,7 +234,8 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
           const isActive = step.id === activeId;
           const blocked = step.status === 'blocked';
           const inspected = inspectedId === step.id;
-          const quiet = inspectedIdx !== -1 && idx > inspectedIdx;
+          const quiet =
+            inspectedIdx !== -1 && (inspectedLast ? !inspected : idx > inspectedIdx);
           return (
             <React.Fragment key={step.id}>
               <button
@@ -259,6 +286,9 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
               </button>
               {idx < steps.length - 1 && (
                 <span
+                  ref={(el) => {
+                    connectorRefs.current[idx] = el;
+                  }}
                   className={cn('h-px min-w-[10px] flex-1 sm:min-w-[16px]', step.status === 'done' ? 'bg-status-success-fg/50' : 'bg-hairline-strong')}
                   aria-hidden
                 />

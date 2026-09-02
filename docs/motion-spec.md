@@ -597,7 +597,14 @@ Owner live-test rulings, rounds 3–5, implemented same day:
 5. **Step-bar space-stealing folds RIGHT ONLY** (owner 2026-09-02): hovering
    a step no longer contracts every sibling — only the steps to the RIGHT of
    the hovered one fold to their medallions; the left side never moves (the
-   reveal grows rightward, nothing the eye already passed shifts). A long
+   reveal grows rightward, nothing the eye already passed shifts). The
+   hovered step itself also grows rightward only: while a step is inspected
+   the connectors LEFT of it are frozen at their measured width
+   (`flex: 0 0 auto` + inline px, released on leave), so its left edge
+   can't drift — only the right-hand flex-1 connectors absorb the reveal.
+   Exception: the LAST step (8ᵉ, Honoraires) has no right side, so it alone
+   keeps the old behaviour and grows leftward, folding its left siblings.
+   A long
    doer name in the hover stamp stacks over two rows (prénom / nom,
    `StepStamp stackLongName`, threshold 14 chars) instead of stretching the
    row; steps 6/11 now surface `lastStatusChange.byNom` so real names render
