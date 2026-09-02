@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, CalendarClock, Check, CheckCircle2, ChevronDown, Eye, AlertTriangle, History, Info, Pencil } from 'lucide-react';
+import { Loader2, CalendarClock, CheckCircle2, ChevronDown, Eye, AlertTriangle, History, Info, Pencil } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useFirestore, useDoc, useCollection } from '@/firebase';
@@ -27,6 +27,8 @@ import {
   type ReplayHighlightValue,
 } from '@/components/dossier-timeline/replay-highlight';
 import { DOSSIER_TIMELINE_STEPS } from '@/components/dossier-timeline/timeline';
+import { TimelineBar } from '@/components/dossier-timeline/timeline-bar';
+import { getStepStatuses, type StepState } from '@/lib/dossier-steps';
 
 // The real dossier-timeline components — rendered read-only + live so the
 // AFTER pane is the exact detail page (every field, photo, table), not an
@@ -195,59 +197,27 @@ function mirrorTarget(
 }
 
 /**
- * Replica of the dossier TimelineBar — clickable steps, scrolls both panes to
- * the step.
- *
- * Stepper (element-specs §16: Carbon progress indicator — status indicator +
- * a 1–2-word label, states complete / current / not started, numbering makes
- * the progression obvious; blueprint §5 — horizontal bar, 28 px medallions,
- * active = primary fill + rim-filled, done = ink-3 outline with a check).
- * Sits on `.glass-bar`; below lg the stacked panes scroll under it (§23: one
- * sticky bar, ≤ 48 px content).
+ * Replay step bar = the REAL dossier TimelineBar (owner ruling 2026-09-02:
+ * « make it the exact same as in dossier where it expands on hover ») inside
+ * the replay's sticky glass shell — same 28 px medallions, same statuses,
+ * same CSS-only hover/focus slide-reveal of each step's details (stamp /
+ * status / blocked reason). Step statuses come from the LIVE dossier through
+ * `getStepStatuses` — exactly what the dossier page's bar shows. One bar
+ * above BOTH panes; clicks scroll the two panes in sync, and the
+ * `[data-replay-bar]` hook keeps feeding the offset math below lg.
  */
 function ReplayStepBar({
   steps,
   activeId,
   onStepClick,
 }: {
-  steps: { id: number; label: string }[];
+  steps: StepState[];
   activeId: number;
   onStepClick: (id: number) => void;
 }) {
-  const activeIdx = steps.findIndex((s) => s.id === activeId);
   return (
     <div data-replay-bar className="glass-bar sticky top-0 z-30 w-full shrink-0 border-b border-hairline">
-      <div className="flex items-start gap-2 overflow-x-auto px-3 py-2 sm:px-6">
-        {steps.map((step, idx) => {
-          const isActive = step.id === activeId;
-          const isPast = activeIdx >= 0 && idx < activeIdx;
-          return (
-            <React.Fragment key={step.id}>
-              <button
-                type="button"
-                onClick={() => onStepClick(step.id)}
-                className="flex shrink-0 items-center gap-2 rounded-md transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-current={isActive ? 'step' : undefined}
-              >
-                <span
-                  className={cn(
-                    'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums transition-colors',
-                    isActive && 'bg-primary text-primary-foreground shadow-rim-filled',
-                    !isActive && isPast && 'border border-ink-3 bg-transparent text-ink-3',
-                    !isActive && !isPast && 'bg-card text-ink-3 shadow-rim',
-                  )}
-                >
-                  {!isActive && isPast ? <Check className="h-3.5 w-3.5" aria-hidden /> : idx + 1}
-                </span>
-                <span className={cn('whitespace-nowrap text-xs', isActive ? 'font-semibold text-ink' : 'text-ink-3')}>
-                  {step.label}
-                </span>
-              </button>
-              {idx < steps.length - 1 && <div className="mt-3.5 h-px w-8 shrink-0 bg-hairline sm:w-12" aria-hidden />}
-            </React.Fragment>
-          );
-        })}
-      </div>
+      <TimelineBar steps={steps} activeId={activeId} onStepClick={onStepClick} />
     </div>
   );
 }
@@ -285,6 +255,9 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
 
   const dossierRef = useMemo(() => (db && id && open ? doc(db, 'dossiers', id) : null), [db, id, open]);
   const { data: dossier, loading } = useDoc(dossierRef as any);
+  // Real per-step statuses for the step bar — same computation as the dossier
+  // page (`getStepStatuses`), from the live (« après ») dossier.
+  const stepStates = useMemo(() => getStepStatuses(dossier), [dossier]);
 
   // ── Change awareness: diff the LIVE dossier against the session-start
   // snapshot so the real components can tint changed fields/entries. The
@@ -705,7 +678,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
             onScroll={handleStackScroll}
             className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden"
           >
-            <ReplayStepBar steps={DOSSIER_TIMELINE_STEPS} activeId={activeStep} onStepClick={scrollToStep} />
+            <ReplayStepBar steps={stepStates} activeId={activeStep} onStepClick={scrollToStep} />
             {/* Change summary (§14: Carbon notification — inline, persists,
                 every status with its icon; §11 counts as status-pair chips
                 with their label). Stays above BOTH panes. */}

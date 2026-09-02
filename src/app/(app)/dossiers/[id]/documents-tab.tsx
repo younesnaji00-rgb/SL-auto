@@ -25,8 +25,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import {
-  AlertTriangle,
-  Check,
   CheckSquare,
   Download,
   Loader2,
@@ -34,6 +32,7 @@ import {
   Search,
   Settings,
 } from 'lucide-react';
+import { RequiredSummaryLine } from '@/components/dossier-timeline/required-summary-line';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -811,44 +810,34 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
         </Card>
       )}
 
-      {/* Missing-required summary — links scroll to the socket. */}
+      {/* Missing-required summary — links scroll to the socket. Shell shared
+          with the Informations step's champs-requis line (owner ruling
+          2026-09-02: both warnings byte-for-byte identical). */}
       {showSummary && (
-        <div
-          role="status"
-          className={cn(
-            't-caption flex items-start gap-2',
-            missingCount > 0 ? 'text-status-warning-fg' : 'text-status-success-fg',
-          )}
-        >
+        <RequiredSummaryLine state={missingCount > 0 ? 'missing' : 'ok'}>
           {missingCount > 0 ? (
             <>
-              <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span>
-                <span className="font-medium">
-                  {missingCount} pièce{missingCount > 1 ? 's' : ''} requise{missingCount > 1 ? 's' : ''} manquante{missingCount > 1 ? 's' : ''}
-                </span>
-                {' : '}
-                {requiredStatus.missingLabels.map((label, i) => (
-                  <React.Fragment key={label}>
-                    {i > 0 && ', '}
-                    <button
-                      type="button"
-                      onClick={() => focusSocket(label)}
-                      className="rounded-sm underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
-                    >
-                      {label}
-                    </button>
-                  </React.Fragment>
-                ))}
+              <span className="font-medium">
+                {missingCount} pièce{missingCount > 1 ? 's' : ''} requise{missingCount > 1 ? 's' : ''} manquante{missingCount > 1 ? 's' : ''}
               </span>
+              {' : '}
+              {requiredStatus.missingLabels.map((label, i) => (
+                <React.Fragment key={label}>
+                  {i > 0 && ', '}
+                  <button
+                    type="button"
+                    onClick={() => focusSocket(label)}
+                    className="rounded-sm underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+                  >
+                    {label}
+                  </button>
+                </React.Fragment>
+              ))}
             </>
           ) : (
-            <>
-              <Check className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span>Toutes les pièces requises sont déposées.</span>
-            </>
+            <>Toutes les pièces requises sont déposées.</>
           )}
-        </div>
+        </RequiredSummaryLine>
       )}
 
       {loading ? (

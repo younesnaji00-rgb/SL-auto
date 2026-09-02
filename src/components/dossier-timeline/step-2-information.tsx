@@ -18,7 +18,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { setFocusMode } from '@/hooks/use-focus-mode';
 import { usePresence } from '@/hooks/use-presence';
 import { cn } from '@/lib/utils';
-import { AlertCircle, Columns2, Eye, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Columns2, Eye, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { RequiredSummaryLine } from '@/components/dossier-timeline/required-summary-line';
 import { collection, type DocumentReference } from 'firebase/firestore';
 
 import InformationTab from '@/app/(app)/dossiers/[id]/information-tab';
@@ -129,15 +130,19 @@ export default function Step2Information({
     setShowCompare((v) => !v);
   };
 
-  // One-line notice (state + reason); the labels wrap inline instead of a
-  // bullet list so the banner costs a single row.
+  // One-line notice — the SAME treatment as the Pièces tab's « N pièces
+  // requises manquantes » line (owner ruling 2026-09-02: identical style),
+  // via the shared RequiredSummaryLine shell. Labels are plain text: there is
+  // no per-field anchor to scroll to (the Pièces labels scroll to sockets),
+  // and an inert button would be a false affordance.
   const banner = missing.length > 0 && (
-    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-lg border border-status-danger-fg/30 bg-status-danger-bg px-4 py-2.5 text-sm text-status-danger-fg">
-      <span className="flex items-center gap-2 font-medium">
-        <AlertCircle className="h-4 w-4 shrink-0" aria-hidden /> Champs requis manquants
+    <RequiredSummaryLine state="missing">
+      <span className="font-medium">
+        {missing.length} champ{missing.length > 1 ? 's' : ''} requis manquant{missing.length > 1 ? 's' : ''}
       </span>
-      <span className="min-w-0 text-[13px]">{missing.join(' · ')}</span>
-    </div>
+      {' : '}
+      {missing.join(', ')}
+    </RequiredSummaryLine>
   );
 
   // The comparer toggle rides in the identity block header next to Modifier,
