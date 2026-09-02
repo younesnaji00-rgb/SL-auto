@@ -507,7 +507,9 @@ html {
        overflow-x-auto strip nor overhang a rounded track border. */
     --tab-foot: 7px;
     --tab-fill: hsl(var(--card));
-    --tab-foot-rim: transparent;
+    /* Defaults to the fill itself (an invisible band) so the arc geometry
+       is identical whether or not the highlight is showing. */
+    --tab-foot-rim: var(--tab-fill);
     position: relative;
     isolation: isolate;
     background: transparent !important;
@@ -541,10 +543,11 @@ html {
   .tab-slope[aria-selected='true'],
   .tab-slope-active {
     --tab-fill: hsl(var(--surface-4));
-    /* The contour continues along the feet's outward arc — noticeably
-       stronger than --rim-out: a 1.5px antialiased band on a curve loses
-       roughly half its apparent weight vs the body's crisp 1px ring. */
-    --tab-foot-rim: hsl(var(--shadow-color) / 0.28);
+    /* The contour continues along the feet's outward arc as a LIGHT
+       highlight (owner ruling: highlight, not darker) — the same light ring
+       tone the rim uses inset on the body (--rim-in), drawn just inside the
+       curve. */
+    --tab-foot-rim: var(--rim-in);
     z-index: 2;
   }
   .tab-slope::before {
@@ -575,12 +578,13 @@ html {
     z-index: -1;
     pointer-events: none;
     transition: opacity 150ms;
-    /* Each foot carries a ~1px --tab-foot-rim band hugging the outer side
-       of its arc (transparent when inactive) so the active contour follows
-       the downward flare instead of stopping at the body's corners. */
+    /* Each foot carries a ~1px --tab-foot-rim LIGHT band hugging the inner
+       side of its arc (defaults to the fill = invisible) so the active
+       contour highlight follows the downward flare instead of stopping at
+       the body's corners — mirroring the rim's inset light ring. */
     background:
-      radial-gradient(circle at top left, transparent calc(var(--tab-foot) - 2.5px), var(--tab-foot-rim) calc(var(--tab-foot) - 2px), var(--tab-foot-rim) calc(var(--tab-foot) - 0.5px), var(--tab-fill) var(--tab-foot)) left bottom / var(--tab-foot) var(--tab-foot) no-repeat,
-      radial-gradient(circle at top right, transparent calc(var(--tab-foot) - 2.5px), var(--tab-foot-rim) calc(var(--tab-foot) - 2px), var(--tab-foot-rim) calc(var(--tab-foot) - 0.5px), var(--tab-fill) var(--tab-foot)) right bottom / var(--tab-foot) var(--tab-foot) no-repeat,
+      radial-gradient(circle at top left, transparent calc(var(--tab-foot) - 0.5px), var(--tab-foot-rim) var(--tab-foot), var(--tab-foot-rim) calc(var(--tab-foot) + 1px), var(--tab-fill) calc(var(--tab-foot) + 1.5px)) left bottom / var(--tab-foot) var(--tab-foot) no-repeat,
+      radial-gradient(circle at top right, transparent calc(var(--tab-foot) - 0.5px), var(--tab-foot-rim) var(--tab-foot), var(--tab-foot-rim) calc(var(--tab-foot) + 1px), var(--tab-fill) calc(var(--tab-foot) + 1.5px)) right bottom / var(--tab-foot) var(--tab-foot) no-repeat,
       linear-gradient(var(--tab-fill), var(--tab-fill)) center bottom / calc(100% - 2 * var(--tab-foot)) 100% no-repeat;
   }
   .tab-slope[data-state='active']::before,
