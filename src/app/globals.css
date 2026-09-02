@@ -560,13 +560,33 @@ html {
   .tab-slope[data-state='active'],
   .tab-slope[aria-selected='true'],
   .tab-slope-active {
-    /* Nonies ruling: the ACTIVE tab has NO background at all — the seated
-       shape as a pure teal outline; identity comes from the shape + accent
-       bar + ink label. */
-    --tab-fill: transparent;
+    /* Decies ruling (chosen from the rendered comparison): ACTIVE = « teal
+       plein » — the deep identity teal fills the whole seated shape, label
+       in cream. Hover (accent tint) → active (primary) is a pure
+       background crossfade. */
+    --tab-fill: hsl(var(--primary));
     --tab-foot-rim: var(--tab-fill);
     --tab-foot-line: hsl(var(--primary) / 0.6);
+    color: hsl(var(--primary-foreground)) !important;
     z-index: 2;
+  }
+  /* On the teal fill, muted-ink descendants (close ×, pin, kind icon) and
+     the accent bar / dirty dot (bg-primary spans) would vanish — recolour
+     them to the cream foreground. Scoped utility overrides, deliberate. */
+  .tab-slope[data-state='active'] :is(.text-ink-3, .text-ink-4),
+  .tab-slope[aria-selected='true'] :is(.text-ink-3, .text-ink-4),
+  .tab-slope-active :is(.text-ink-3, .text-ink-4) {
+    color: hsl(var(--primary-foreground) / 0.8);
+  }
+  .tab-slope[data-state='active'] .hover:text-ink:hover,
+  .tab-slope[aria-selected='true'] .hover:text-ink:hover,
+  .tab-slope-active .hover:text-ink:hover {
+    color: hsl(var(--primary-foreground));
+  }
+  .tab-slope[data-state='active'] span.bg-primary,
+  .tab-slope[aria-selected='true'] span.bg-primary,
+  .tab-slope-active span.bg-primary {
+    background-color: hsl(var(--primary-foreground) / 0.9);
   }
   .tab-slope[data-state='active']::after,
   .tab-slope[aria-selected='true']::after,
