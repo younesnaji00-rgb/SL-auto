@@ -560,14 +560,14 @@ html {
   .tab-slope[data-state='active'],
   .tab-slope[aria-selected='true'],
   .tab-slope-active {
-    /* Decies ruling (chosen from the rendered comparison): ACTIVE = « teal
-       plein » — the deep identity teal fills the whole seated shape, label
-       in cream. Hover (accent tint) → active (primary) is a pure
-       background crossfade. */
-    --tab-fill: hsl(var(--primary));
+    /* Undecies ruling (owner revert from « teal plein »): ACTIVE = « voile
+       teal » — a whisper of the accent tint, LIGHTER than the hover fill,
+       so ink text/icons and the teal accent bar stay untouched and the
+       hover → active hierarchy reads (hover darker preview, active
+       settled). */
+    --tab-fill: hsl(var(--accent) / 0.45);
     --tab-foot-rim: var(--tab-fill);
     --tab-foot-line: hsl(var(--primary) / 0.6);
-    color: hsl(var(--primary-foreground)) !important;
     z-index: 2;
   }
   .tab-slope[data-state='active']::after,
@@ -671,32 +671,13 @@ html {
   }
 }
 
-/* Decies (« teal plein ») descendant recolours — DELIBERATELY OUTSIDE any
-   @layer: on the active tab's teal fill, muted-ink descendants (close ×,
-   pin, kind icon) and the accent bar / dirty dot (bg-primary spans) would
-   vanish, so they're recoloured to the cream foreground. These selectors
-   target Tailwind UTILITY class names — inside @layer components, Tailwind
-   v3 registers such classes as user components and re-emits the rules
-   variant-transformed whenever markup uses e.g. `focus:bg-primary`
-   (page-chrome's skip link), producing mangled selectors
-   (`:focusspan`) that LightningCSS/Turbopack fatally rejects. Outside the
-   layers they are plain CSS, which is what they were meant to be. Colons
-   in utility names must stay escaped (`.hover\:text-ink`). */
-.tab-slope[data-state='active'] :is(.text-ink-3, .text-ink-4),
-.tab-slope[aria-selected='true'] :is(.text-ink-3, .text-ink-4),
-.tab-slope-active :is(.text-ink-3, .text-ink-4) {
-  color: hsl(var(--primary-foreground) / 0.8);
-}
-.tab-slope[data-state='active'] .hover\:text-ink:hover,
-.tab-slope[aria-selected='true'] .hover\:text-ink:hover,
-.tab-slope-active .hover\:text-ink:hover {
-  color: hsl(var(--primary-foreground));
-}
-.tab-slope[data-state='active'] span.bg-primary,
-.tab-slope[aria-selected='true'] span.bg-primary,
-.tab-slope-active span.bg-primary {
-  background-color: hsl(var(--primary-foreground) / 0.9);
-}
+/* (The « teal plein » descendant recolours that lived here — needed while
+   the active tab had a dark primary fill — were removed with the undecies
+   revert to « voile teal »: ink text and the teal accent bar read fine on
+   the light tint. NOTE kept for the next dark-fill attempt: selectors that
+   target Tailwind utility class names must live OUTSIDE @layer components,
+   or Tailwind v3 re-emits them variant-transformed into selectors
+   LightningCSS/Turbopack fatally rejects.) */
 
 /* Lightbox/viewer entrances: handled structurally by the Dialog primitive's
    `calm` prop (components/ui/dialog.tsx) — the zoom/slide utilities are not
