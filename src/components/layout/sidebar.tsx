@@ -44,6 +44,74 @@ import { useShellUi } from '@/components/layout/shell-ui';
 import { formatKeys } from '@/hooks/use-hotkeys';
 import { cn } from '@/lib/utils';
 
+/**
+ * The single source of the active row's SURFACE (tint + light rim + 2px teal
+ * bar): one absolutely-positioned indicator that SLIDES from the old row to
+ * the new one (200ms, standard curve) instead of the highlight teleporting —
+ * owner ruling 2026-09-02 ("the contour highlight morphs into the other
+ * tab"). Rows keep their text/icon active treatment (ui/sidebar.tsx) and
+ * paint above the indicator. Measured with the offsetTop chain (layout px —
+ * CSS-zoom- and scroll-safe); re-measured when the container resizes
+ * (collapse/expand) via ResizeObserver. Reduced motion: it snaps.
+ */
+const ActiveRowIndicator = ({ deps }: { deps: React.DependencyList }) => {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [box, setBox] = React.useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const readyRef = React.useRef(false);
+
+  const measure = React.useCallback(() => {
+    const el = ref.current;
+    const container = el?.parentElement;
+    if (!el || !container) return;
+    const btn = container.querySelector<HTMLElement>('[data-sidebar="menu-button"][data-active="true"]');
+    if (!btn) {
+      setBox(null);
+      return;
+    }
+    let top = 0;
+    let left = 0;
+    let node: HTMLElement | null = btn;
+    while (node && node !== container) {
+      top += node.offsetTop;
+      left += node.offsetLeft;
+      node = node.offsetParent as HTMLElement | null;
+    }
+    setBox({ top, left, width: btn.offsetWidth, height: btn.offsetHeight });
+  }, []);
+
+  /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  React.useLayoutEffect(measure, deps);
+  React.useEffect(() => {
+    const container = ref.current?.parentElement;
+    if (!container) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [measure]);
+  // Transitions only AFTER the first placement — the indicator must not fly
+  // in from 0,0 on mount.
+  React.useEffect(() => {
+    if (box) readyRef.current = true;
+  }, [box]);
+
+  return (
+    <div
+      ref={ref}
+      aria-hidden
+      className={cn(
+        'pointer-events-none absolute z-0 rounded-md bg-sidebar-active shadow-rim',
+        readyRef.current && 'transition-[top,left,width,height,opacity] duration-200 ease-standard motion-reduce:transition-none',
+        box ? 'opacity-100' : 'opacity-0',
+      )}
+      style={box ?? undefined}
+    >
+      {/* The 2px teal bar rides the indicator; hidden in icon-collapsed mode
+          (same rule the old per-row bar had). */}
+      <span className="absolute bottom-1.5 left-0 top-1.5 w-0.5 rounded-full bg-sidebar-primary group-data-[collapsible=icon]:hidden" />
+    </div>
+  );
+};
+
 const AppSidebar = () => {
   const pathname = usePathname();
   const { state, toggleSidebar, isMobile, setOpenMobile } = useSidebar();
@@ -91,7 +159,8 @@ const AppSidebar = () => {
         </Tooltip>
       </SidebarHeader>
 
-      <SidebarContent className="bg-sidebar">
+      <SidebarContent className="relative bg-sidebar">
+        <ActiveRowIndicator deps={[pathname, isCollapsed, visibleRecents.length]} />
         {navGroups.map((group) => (
           <SidebarGroup key={group.label}>
             {!isCollapsed && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}

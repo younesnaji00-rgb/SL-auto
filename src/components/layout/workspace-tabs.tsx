@@ -30,6 +30,7 @@ import {
 import { LIST_TAB_ID, useWorkspaceTabs, type KindTabsApi, type TabKind, type WorkspaceTab } from '@/hooks/use-workspace-tabs';
 import { useHotkeys, type Hotkey } from '@/hooks/use-hotkeys';
 import { prefersReducedMotion } from '@/lib/motion';
+import { useTabSlopeMorph } from '@/hooks/use-tab-morph';
 
 const KIND_ICON: Record<TabKind, React.ElementType> = { dossier: FolderOpen, chiffrage: Calculator };
 
@@ -44,6 +45,9 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
   const [overflowing, setOverflowing] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const Icon = KIND_ICON[api.kind];
+
+  // The active seat FLIES between tabs (symbiote morph, owner 2026-09-02).
+  useTabSlopeMorph(scrollerRef);
 
   // FLIP (measure in layout px via offsetLeft — scroll- and zoom-independent):
   // when the tab ORDER changes (drag reorder, close), each surviving tab
@@ -163,7 +167,7 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
         // bar; NN/g Tabs Used Right: two selection indicators). items-end:
         // the tabs sit flush on the bar's bottom border so their outward
         // feet merge into the separation line (owner ruling ter).
-        className="flex min-w-0 items-end gap-1 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="relative flex min-w-0 items-end gap-1 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {api.displayTabs.map((tab, idx) => {
           const isActive = tab.id === api.activeTabId;

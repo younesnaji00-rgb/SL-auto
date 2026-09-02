@@ -649,11 +649,16 @@ html {
       animation: tab-slope-in 200ms cubic-bezier(0.2, 0, 0, 1);
     }
   }
-  /* Sidebar active-row entrance (same curve): the teal bar slides in. */
-  @keyframes nav-active-in {
-    from { opacity: 0; transform: translateX(-4px); }
-    to { opacity: 1; transform: none; }
+  /* The flying "symbiote" ghost (hooks/use-tab-morph.ts): a bare element
+     wearing the full active-tab paint that WAAPI slides from the old tab to
+     the new one. Its pseudos must not ALSO run the seat entrance. */
+  .tab-slope-ghost::before,
+  .tab-slope-ghost::after {
+    animation: none !important;
+    transition: none !important;
   }
+  /* (nav-active-in retired 2026-09-02: the sidebar's active surface is now a
+     single morphing indicator — components/layout/sidebar.tsx.) */
   @media (prefers-reduced-transparency: reduce) {
     .tab-slope,
     .tab-slope::before {

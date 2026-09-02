@@ -510,7 +510,13 @@ const sidebarMenuButtonVariants = cva(
   // `sm` = 32 px for the "Récents" sub-list. Every row carries the light rim
   // (owner ruling 2026-09-02, revised same day: the contour on EVERY row read
   // badly — it sits ONLY on the active row).
-  "peer/menu-button relative flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-[13px] leading-[1.45] text-sidebar-foreground/85 outline-none ring-sidebar-ring transition-[color,background-color,border-color,box-shadow] duration-150 ease-standard hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 active:bg-sidebar-active active:text-sidebar-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 before:absolute before:bottom-1.5 before:left-0 before:top-1.5 before:w-0.5 before:rounded-full before:bg-transparent before:content-[''] data-[active=true]:bg-sidebar-active data-[active=true]:shadow-rim data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground data-[active=true]:before:bg-sidebar-primary motion-safe:data-[active=true]:before:animate-[nav-active-in_200ms_cubic-bezier(0.2,0,0,1)] data-[active=true]:[&>svg]:text-sidebar-primary group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!p-3 group-data-[collapsible=icon]:before:hidden [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-muted",
+  // The active row's SURFACE (tint + rim + teal bar) is no longer painted by
+  // the button: it lives on the single morphing indicator rendered by
+  // components/layout/sidebar.tsx, which slides from the old row to the new
+  // one (owner ruling 2026-09-02 — "the contour highlight morphs into the
+  // other tab"). The button keeps only its text/icon active treatment, and
+  // suppresses its hover tint while active so the indicator stays visible.
+  "peer/menu-button relative z-[1] flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-[13px] leading-[1.45] text-sidebar-foreground/85 outline-none ring-sidebar-ring transition-[color,background-color,border-color,box-shadow] duration-150 ease-standard hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 active:bg-sidebar-active active:text-sidebar-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-transparent data-[active=true]:hover:bg-transparent data-[active=true]:active:bg-transparent data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground data-[active=true]:[&>svg]:text-sidebar-primary group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!p-3 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-muted",
   {
     variants: {
       variant: {

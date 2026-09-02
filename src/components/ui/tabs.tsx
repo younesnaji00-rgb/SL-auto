@@ -4,6 +4,7 @@ import * as React from "react"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
 
 import { cn } from "@/lib/utils"
+import { useTabSlopeMorph } from "@/hooks/use-tab-morph"
 
 /**
  * Tabs = a raised tab on a visible track (owner ruling 2026-09-02, replacing
@@ -23,18 +24,28 @@ const Tabs = TabsPrimitive.Root
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.List
-    ref={ref}
-    className={cn(
-      // Recessed track; tabs anchor to its bottom edge like browser tabs.
-      // px-2 (8px) keeps the tabs' 7px outward feet inside the track.
-      "inline-flex h-10 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1 text-ink-2",
-      className
-    )}
-    {...props}
-  />
-))
+>(({ className, ...props }, ref) => {
+  const localRef = React.useRef<HTMLDivElement | null>(null)
+  // The active seat FLIES between tabs (symbiote morph, owner 2026-09-02).
+  useTabSlopeMorph(localRef)
+  return (
+    <TabsPrimitive.List
+      ref={(node) => {
+        localRef.current = node
+        if (typeof ref === "function") ref(node)
+        else if (ref) ref.current = node
+      }}
+      className={cn(
+        // Recessed track; tabs anchor to its bottom edge like browser tabs.
+        // px-2 (8px) keeps the tabs' 7px outward feet inside the track.
+        // relative: the morph ghost is absolutely positioned in the track.
+        "relative inline-flex h-10 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1 text-ink-2",
+        className
+      )}
+      {...props}
+    />
+  )
+})
 TabsList.displayName = TabsPrimitive.List.displayName
 
 const TabsTrigger = React.forwardRef<

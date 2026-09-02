@@ -4,6 +4,7 @@ import * as React from 'react';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import { cn } from '@/lib/utils';
 import { GOTO_STEP_EVENT, type GotoStepDetail } from '@/lib/step-navigation';
+import { useTabSlopeMorph } from '@/hooks/use-tab-morph';
 
 export interface StepTab {
   value: string;
@@ -37,6 +38,22 @@ interface StepTabsProps {
  * 2 px accent underline (the accent budget's "active state"). Replaces the
  * previous collapsibles whose small chevrons were easy to miss.
  */
+/** The facet strip, with the flying active-seat morph (symbiote, owner
+ *  2026-09-02) attached to the scrollable track. */
+function StepTabsList({ children }: { children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  useTabSlopeMorph(ref);
+  return (
+    <TabsPrimitive.List
+      ref={ref}
+      aria-label="Sections de l'étape"
+      className="relative -mx-2 flex items-end gap-1 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
+    >
+      {children}
+    </TabsPrimitive.List>
+  );
+}
+
 export function StepTabs({ tabs, defaultValue, storageKey, className }: StepTabsProps) {
   const first = tabs[0]?.value;
   const [value, setValue] = React.useState<string>(() => {
@@ -82,10 +99,7 @@ export function StepTabs({ tabs, defaultValue, storageKey, className }: StepTabs
 
   return (
     <TabsPrimitive.Root value={value} onValueChange={onChange} className={cn('w-full', className)}>
-      <TabsPrimitive.List
-        aria-label="Sections de l'étape"
-        className="-mx-2 flex items-end gap-1 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
-      >
+      <StepTabsList>
         {tabs.map((t) => (
           <TabsPrimitive.Trigger
             key={t.value}
@@ -121,7 +135,7 @@ export function StepTabs({ tabs, defaultValue, storageKey, className }: StepTabs
             )}
           </TabsPrimitive.Trigger>
         ))}
-      </TabsPrimitive.List>
+      </StepTabsList>
       {tabs.map((t) => (
         <TabsPrimitive.Content
           key={t.value}
