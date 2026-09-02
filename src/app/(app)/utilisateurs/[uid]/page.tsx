@@ -85,6 +85,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { roles, isSingleSessionRole, type Role } from '@/lib/dossiers-data';
+import { ROLE_DESCRIPTIONS } from '@/lib/role-descriptions';
 import { isSessionStale, timestampToMillis } from '@/lib/session-meta';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useOptions } from '@/hooks/use-options';
@@ -571,6 +572,16 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const handleDeleteUser = async () => {
     setIsDeleting(true);
     try {
+      // Guard rail (addendum ter E): the last Admin can never be removed.
+      if (formData.role === 'Admin') {
+        const admins = await getDocs(query(collection(db, 'users'), where('role', '==', 'Admin')));
+        if (admins.docs.filter((d) => d.id !== uid).length === 0) {
+          toast({ variant: 'destructive', title: 'Suppression impossible', description: 'C’est le dernier compte Admin — créez-en un autre avant de supprimer celui-ci.' });
+          setIsDeleting(false);
+          setShowDeleteDialog(false);
+          return;
+        }
+      }
       // Clean up role-specific collections
       if (formData.role === 'Agent de Terrain' && formData.nom) {
         const snap = await getDocs(query(collection(db, 'options_agents'), where('label', '==', formData.nom)));
@@ -768,6 +779,11 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                       {roles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  {/* What this role can do, at the point of assignment
+                      (addendum ter E). */}
+                  {ROLE_DESCRIPTIONS[formData.role] && (
+                    <p className="t-caption max-w-[24rem]">{ROLE_DESCRIPTIONS[formData.role]}</p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="u-statut">Statut</Label>

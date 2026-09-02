@@ -59,6 +59,7 @@ import {
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { ROLE_DESCRIPTIONS } from '@/lib/role-descriptions';
 import { useFirestore, useCollection, useFirebaseApp } from '@/firebase';
 import { collection, setDoc, serverTimestamp, doc, deleteDoc, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -112,11 +113,12 @@ function generateEmail(nom: string): string {
 // always maps to the same status pair, text label always, never colour alone).
 const statutVariant = (statut: string) => (statut === 'Actif' ? 'success' : 'danger');
 
+
 export default function UtilisateursClientPage() {
   const db = useFirestore();
   const app = useFirebaseApp();
   const router = useRouter();
-  const { canDelete } = useCurrentUser();
+  const { canDelete, profile } = useCurrentUser();
 
   // Single source of truth: Firestore. Filter inactive entries client-side.
   const { options: dbRoles } = useOptions('options_roles');
@@ -158,7 +160,7 @@ export default function UtilisateursClientPage() {
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string; self?: boolean } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const form = useForm<UserFormData>({
@@ -286,7 +288,22 @@ export default function UtilisateursClientPage() {
     }
   }
 
+  // Guard rails (addendum ter E / SaaSUI): the last Admin can never be
+  // removed — prefer a disabled control with a reason over a failing action
+  // (Norman: constraints beat warnings).
+  const adminCount = useMemo(
+    () => (userList ?? []).filter((u: any) => u.role === 'Admin').length,
+    [userList],
+  );
+  const isLastAdmin = (user: any) => user?.role === 'Admin' && adminCount <= 1;
+
   const handleDelete = async (userId: string) => {
+    const target = userList?.find((u: any) => u.id === userId);
+    if (isLastAdmin(target)) {
+      toast({ variant: 'destructive', title: 'Suppression impossible', description: 'C’est le dernier compte Admin — créez-en un autre avant de supprimer celui-ci.' });
+      setDeleteTarget(null);
+      return;
+    }
     setIsDeleting(true);
     try {
       const user = userList?.find((u: any) => u.id === userId);
@@ -428,6 +445,11 @@ export default function UtilisateursClientPage() {
                             {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
                           </SelectContent>
                         </Select>
+                        {/* What the chosen role can do, in plain French, right
+                            where it is assigned (addendum ter E). */}
+                        {ROLE_DESCRIPTIONS[field.value] && (
+                          <p className="t-caption max-w-[24rem]">{ROLE_DESCRIPTIONS[field.value]}</p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -790,14 +812,24 @@ export default function UtilisateursClientPage() {
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 text-ink-3 hover:text-destructive"
-                                        onClick={() => setDeleteTarget({ id: user.id, nom: displayName === 'Sans nom' ? 'cet utilisateur' : displayName })}
+                                        className="h-8 w-8 text-ink-3 hover:text-destructive disabled:pointer-events-auto"
+                                        disabled={isLastAdmin(user)}
+                                        onClick={() => {
+                                          if (isLastAdmin(user)) return;
+                                          setDeleteTarget({
+                                            id: user.id,
+                                            nom: displayName === 'Sans nom' ? 'cet utilisateur' : displayName,
+                                            self: user.id === profile?.uid,
+                                          });
+                                        }}
                                         aria-label={`Supprimer ${displayName}`}
                                       >
                                         <Trash2 className="h-4 w-4" />
                                       </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Supprimer</TooltipContent>
+                                    <TooltipContent>
+                                      {isLastAdmin(user) ? 'Impossible : dernier compte Admin' : 'Supprimer'}
+                                    </TooltipContent>
                                   </Tooltip>
                                 )}
                               </div>
@@ -821,6 +853,9 @@ export default function UtilisateursClientPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer « {deleteTarget?.nom} » ?</AlertDialogTitle>
             <AlertDialogDescription>
+              {deleteTarget?.self && (
+                <span className="font-medium text-status-danger-fg">Il s’agit de votre propre compte — vous perdrez immédiatement l’accès. </span>
+              )}
               Son compte, sa fiche et ses entrées dans les collections liées (agents / chiffreurs) seront retirés. Cette action est irréversible.
             </AlertDialogDescription>
           </AlertDialogHeader>

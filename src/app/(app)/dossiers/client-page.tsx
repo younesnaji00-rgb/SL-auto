@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, STICKY_HEAD, STICKY_CELL, EmptyCell } from '@/components/ui/table';
 import { FilterChip } from '@/components/ui/filter-chip';
+import { SortableHeader } from '@/components/ui/sortable-header';
 import { findNavItem } from '@/lib/nav-groups';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -550,20 +551,9 @@ export default function DossiersClientPage() {
           onDateToChange={v => setFilters({ dateTo: v, datePreset: v ? 'personnalise' : null })}
         />
 
-        {/* Sort by creation date. Default `desc` matches the Firestore-side
-            ordering (newest-first); `clearFilter()` restores it. */}
-        <Select
-          value={filters.sortByCreation}
-          onValueChange={v => setFilters({ sortByCreation: v as 'desc' | 'asc' })}
-        >
-          <SelectTrigger className="w-[190px] [&>span]:truncate" aria-label="Tri par date de création">
-            <SelectValue placeholder={<span className="t-label">Tri par date</span>} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="desc">Plus récent d&apos;abord</SelectItem>
-            <SelectItem value="asc">Plus ancien d&apos;abord</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Sort moved into the « Date de création » column header
+            (element-specs §2: "sort lives in the column header, not the
+            toolbar"; the chiffrage/ATG queues already do this). */}
 
         {/* One-click reset — always visible so users learn it exists. */}
         <Button
@@ -978,7 +968,18 @@ export default function DossiersClientPage() {
                         2026-09-02): they belonged to the retired Excel
                         export and no longer had a function. */}
                     <div className="flex items-center gap-1">
-                      <span>{col.label}</span>
+                      {col.key === 'createdAt' ? (
+                        // Sort in the header (§2). State is binary desc/asc
+                        // (there is always an order): the null step of the
+                        // cycle re-enters as `asc` so the click toggles.
+                        <SortableHeader
+                          label={col.label}
+                          sort={filters.sortByCreation}
+                          onChange={(next) => setFilters({ sortByCreation: next === 'desc' ? 'desc' : 'asc' })}
+                        />
+                      ) : (
+                        <span>{col.label}</span>
+                      )}
                       {filterBtn}
                     </div>
                   </TableHead>
