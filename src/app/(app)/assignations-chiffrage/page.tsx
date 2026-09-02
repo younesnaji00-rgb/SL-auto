@@ -66,7 +66,12 @@ export default function AssignationsChiffragePage() {
   const [dossierObs, setDossierObs] = useState<Record<string, { text: string; count: number }>>({});
   const [dossierReformeTypes, setDossierReformeTypes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [deadlineSort, setDeadlineSort] = useState<SortDirection>(null);
+  // Default = most urgent first (addendum ter A, Pencil & Paper: a queue's
+  // default order is "entries most needing action" — under the 24 h deadline
+  // that is deadline ascending, so yesterday's nearly-expired dossiers sit on
+  // top, not under today's fresh ones). Cycling the Délai header to null
+  // restores the old today-first/newest order.
+  const [deadlineSort, setDeadlineSort] = useState<SortDirection>('asc');
   const [obsHistoryDossier, setObsHistoryDossier] = useState<{ id: string; refExpert?: string } | null>(null);
   const filterDefaults = { dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', chiffreurFilter: 'Tous', typeReformeFilter: 'Tous' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-chiffrage', filterDefaults);

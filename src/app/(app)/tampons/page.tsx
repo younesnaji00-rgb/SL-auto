@@ -21,7 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { ChevronDown, ImageIcon, Loader2, Stamp as StampIcon, Trash2, Users, X } from 'lucide-react';
+import { ChevronDown, ImageIcon, Stamp as StampIcon, Trash2, Users, X } from 'lucide-react';
 import { IconChip } from '@/components/ui/icon-chip';
 import { useFirestore, useStorage, useCollection } from '@/firebase';
 import { addDoc, collection, deleteDoc, deleteField, doc, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
@@ -341,8 +341,22 @@ export default function TamponsSettingsPage() {
               </Button>
             )}
             {isImporting && progress && (
+              // Determinate progress (addendum ter E, NN/g feedback budget:
+              // batch work shows percent-done, not a bare spinner): meter on a
+              // surface-3 track filled with chart-1 (§6), count as its label.
               <span className="t-caption inline-flex items-center gap-2 tabular-nums" aria-live="polite">
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                <span
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={progress.total}
+                  aria-valuenow={progress.done}
+                  className="h-1.5 w-28 overflow-hidden rounded-full bg-surface-3"
+                >
+                  <span
+                    className="block h-full rounded-full bg-chart-1 transition-[width] duration-200 ease-standard motion-reduce:transition-none"
+                    style={{ width: `${progress.total ? Math.round((progress.done / progress.total) * 100) : 0}%` }}
+                  />
+                </span>
                 {progress.done}/{progress.total} traités
                 {progress.failed > 0 ? ` · ${progress.failed} échec${progress.failed > 1 ? 's' : ''}` : ''}
               </span>

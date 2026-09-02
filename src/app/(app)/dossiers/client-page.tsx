@@ -1048,8 +1048,10 @@ export default function DossiersClientPage() {
                     </TableCell>
                   )}
                   <TableCell className={cn(!exportMode && STICKY_CELL, 't-mono font-semibold')}>{d.refExpert || <span className="font-sans font-normal text-ink-4">Sans réf.</span>}</TableCell>
-                  <TableCell className="font-medium">{cell(renderAssure(d.assure))}</TableCell>
-                  <TableCell>{cell(d.compagnie)}</TableCell>
+                  {/* Predictable strings truncate with a title tooltip
+                      (addendum ter A) — same 200 px cap as chiffrage/ATG. */}
+                  <TableCell className="max-w-[220px] truncate font-medium" title={renderAssure(d.assure) || undefined}>{cell(renderAssure(d.assure))}</TableCell>
+                  <TableCell className="max-w-[200px] truncate" title={d.compagnie || undefined}>{cell(d.compagnie)}</TableCell>
                   <TableCell>{cell(d.referenceCompagnie)}</TableCell>
                   <TableCell className="tabular-nums">{cell(formatDate((d as any).createdAt))}</TableCell>
                   <TableCell>{cell(d.nature)}</TableCell>
