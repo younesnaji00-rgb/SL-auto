@@ -9,7 +9,7 @@ import { useFirestore } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow, STICKY_HEAD, STICKY_CELL, EmptyCell,
 } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
 import { Calculator, MessageSquare } from 'lucide-react';
@@ -256,7 +256,7 @@ export default function AssignationsChiffragePage() {
   };
 
   // Empty table cells read « — » in ink-4 (blueprint §9: empty = — muted).
-  const emptyCell = <span className="text-ink-4">—</span>;
+  const emptyCell = <EmptyCell />;
 
   const isChiffreur = profile?.role === 'Chiffreur';
   const canSeeNameFilter = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
@@ -355,7 +355,7 @@ export default function AssignationsChiffragePage() {
         <Table regionLabel="Assignations au chiffrage">
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky left-0 z-[2] border-r border-hairline">Dossier</TableHead>
+              <TableHead className={STICKY_HEAD}>Dossier</TableHead>
               <TableHead>Nom d&apos;assuré</TableHead>
               <TableHead>Immatriculation</TableHead>
               {showChiffreurColumn && <TableHead>Chiffreur</TableHead>}
@@ -426,7 +426,7 @@ export default function AssignationsChiffragePage() {
                   >
                     {/* Frozen identifier column: sticky left, solid card so rows
                         scroll under it, hairline on its right edge (§3). */}
-                    <TableCell className="sticky left-0 z-[1] border-r border-hairline bg-card group-hover:bg-surface-2">
+                    <TableCell className={STICKY_CELL}>
                       <Link
                         href={`/assignations-chiffrage/${c.id}`}
                         onClick={(e) => {

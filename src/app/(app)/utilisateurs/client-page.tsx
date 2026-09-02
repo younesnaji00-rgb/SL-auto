@@ -38,6 +38,7 @@ import {
   TableHead,
   TableBody,
   TableCell,
+  EmptyCell,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -338,7 +339,7 @@ export default function UtilisateursClientPage() {
   };
 
   // Empty cell = « — » in ink-4 (element-specs §10: empty = "—", never a fake value).
-  const emptyCell = <span className="text-ink-4">—</span>;
+  const emptyCell = <EmptyCell />;
 
   return (
     <div className="space-y-6">

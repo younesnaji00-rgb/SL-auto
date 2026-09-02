@@ -224,3 +224,105 @@ tertiary role ("heightened attention to an element"), NN/g visual hierarchy
   before this ruling; it is the page's period summary, which is arguably
   temporal — flag to the owner rather than change silently).
 - Everything else stands: never on actions, status, chrome, or large areas.
+
+---
+
+# Addendum 2026-09-02 (ter) — theory pass: tables, hierarchy, colour, type, CRUD
+
+Five parallel research rounds per the §2 sourcing policy (practitioner blogs,
+books, HN; NOT the usual design systems). Full per-source reports with quotes
+live in the session scratchpad (`research/{tables,hierarchy,color,typography,
+intuitive-crud}.md`); ~100 sources fetched across the five. Rules below extend
+§1–§23 — nothing here contradicts a locked ruling. Sources marked here are the
+load-bearing ones; each report lists what could NOT be fetched (Reddit was
+blocked outright; Few's table chapter, Lyft's colour essay and Learn UI's
+hierarchy material reached us only secondhand — flagged in the reports).
+
+## A. Tables (extends §3)
+- **Hairlines + no zebra is empirically right** — two A List Apart studies
+  (244+ participants) found zebra gives no accuracy gain; stripes also eat the
+  grey ladder needed for hover/selected (Pencil & Paper). Keep as is.
+- **Default sort = action-needed order** on queue pages (Pencil & Paper:
+  "entries most needing action" at top), not creation date. The sorted column
+  shows its arrow; sort affordance lives in the column header (uxdesign.cc).
+- **Queues never paginate with page numbers** (uxdesign.cc "a table pattern…
+  is successful if there is no need to paginate"): show all rows for ≤ ~100;
+  a view that can overflow gets a cap + « Afficher plus » (explicit action)
+  + a visible total — never bare page controls, never infinite scroll.
+- **Frozen identifier column whenever the table can overflow sideways**, with
+  a soft shadow on the frozen edge "so it reads as a layer, not a seam"
+  (Pencil & Paper). The identifier is the row's ONLY bold cell.
+- **Emphasis budget: 2 cells per row** (identifier + status); everything else
+  one step down the ink ladder (Darkhorse "Clear off the table", Few via).
+- **Truncate predictable strings with ellipsis + `title`;** wrap only
+  decision-critical content. Units/currency named once in the header, not per
+  cell (Smashing, UX Movement).
+- **Search filters live from the 2nd character**; toolbar holds the 2–3
+  workflow filters, the rest behind « Plus de filtres » (P&P filtering).
+- Row = one unambiguous click (open); hover-revealed controls are never the
+  only path; bulk selection only where a real batch operation exists.
+
+## B. Hierarchy (extends the 2026-09-02 addendum)
+- **Three levels of dominance per view, no more** (Smashing/Bradley); verify
+  with the squint test — #1 page title/primary, #2 featured surface, #3 data.
+- **Text lever order: ink value first, weight second, size last** (Refactoring
+  UI). Never de-emphasise with <400 weights — lighten the ink instead.
+- **80 % of fixation time is left-of-centre** (NN/g eyetracking): identifying
+  data on the table's left edge; anything essential at the right edge needs
+  extra weight. Front-load the information-bearing word in French labels.
+- **Icons paired with text are dimmed** (Hobday) or they outshout the label.
+- **Proximity beats similarity** (NN/g Gestalt): outer padding ≥ inner
+  padding always (Hobday); groups are made by gaps, not boxes.
+- **Severity ≠ prominence**: destructive actions get quiet styling + spatial
+  quarantine (bottom of page/menu), never a big red button.
+
+## C. Colour deployment (extends §11; palette untouched)
+- **Few's rules verbatim** (Practical Rules for Using Color, fetched): colour
+  only for a communication goal; soft colours carry the page, bright/dark =
+  alarms only; one hue varying intensity for any quantitative scale (never
+  multi-hue a delay/aging meter).
+- **Terracotta's power is its exclusivity** (pop-out needs uniqueness in the
+  feature dimension — Healey/Ware): enforce the time-only rule harder than
+  the colour itself; one stray warm element kills the preattentive search.
+- **Soft-bg chip = passive state; solid fill = blocking urgency only.**
+- **Tint states**: hover = brightness ↓ + saturation ↑ one step, pressed two
+  (Learn UI); never lighten toward grey; on tinted backgrounds the text is a
+  dark ink of the SAME hue, never grey (Refactoring UI).
+- **A dead-feeling neutral table is fixed with weight/spacing, never a new
+  hue** — the grey table is what makes the one terracotta marker land.
+
+## D. Type & spacing (extends the type roles)
+- 4–5 sizes max app-wide (Learn UI); hierarchy within a size via weight+ink.
+- **600 is the emphasis weight at 12–14 px; 700 only ≥ 20 px** (Inter's
+  counters fill at small sizes — training-knowledge flag in the report).
+- **Reading prose (observations, comments) steps up to 15–16 px** (Butterick:
+  body text 15–25 px) — 13–14 px is for chrome and rows, not paragraphs.
+- Line-height by context: prose 1.5 · UI strings 1.2–1.3 · table cells
+  1.3–1.4 · buttons/display ~1–1.1 (Rutter, Pimp my Type).
+- `tabular-nums` on every live/columnar figure; proportional figures for
+  numbers inside sentences; mono ONLY for opaque identifiers (refs, plates).
+- **fr number/currency format**: comma decimals, narrow-nbsp thousands,
+  symbol AFTER with nbsp ("12 500,00 MAD"); nbsp before « : » and inside
+  « … » so values never wrap mid-figure (OQLF).
+- Squish insets are systemic (cell/button vertical padding ≈ ½ horizontal).
+
+## E. CRUD & intuitiveness (utilisateurs / tampons / jours fériés)
+- **Actionable elements look actionable at rest** (NN/g flat-UI study: weak
+  signifiers cost 22 % more time); in dense tables, row actions are visible,
+  not hover-only.
+- **Destructive friction ladder** (SaaSUI): reversible → undo, restorable →
+  light confirm, consequential → named-object confirm (our §13), catastrophic
+  → type-to-confirm. *Owner option, not applied*: holiday deletes are
+  trivially re-creatable — undo-toast instead of the confirm dialog would be
+  the theory-optimal rung, but the app has no undo infrastructure; the §13
+  dialog shipped 2026-09-02 for consistency. Raskin: "never use a warning
+  when you mean undo."
+- **Role descriptions in plain French at the point of assignment** (SaaSUI:
+  an admin who never read docs picks right first time); never allow removing
+  the last Admin or your own access silently.
+- **Feedback budget** (NN/g): < 0.1 s show the result itself; > 1 s spinner;
+  > 10 s percent-done. Inline status near the changed element beats a corner
+  toast; errors never auto-dismiss.
+- Smart defaults: pre-seed the standard holiday set as deletable suggestions
+  (already done via « Importer le calendrier marocain »).
+- First-use empty state = onboarding: outcome + how + ONE verb-led CTA.

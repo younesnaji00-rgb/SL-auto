@@ -1,12 +1,13 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, X, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check } from 'lucide-react';
+import { Search, Trash2, AlertCircle, Eye, History, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check } from 'lucide-react';
 import { format, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, STICKY_HEAD, STICKY_CELL, EmptyCell } from '@/components/ui/table';
+import { FilterChip } from '@/components/ui/filter-chip';
 import { findNavItem } from '@/lib/nav-groups';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -38,7 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ChevronRight as RowChevron, MoreHorizontal, ExternalLink } from 'lucide-react';
+import { MoreHorizontal, ExternalLink } from 'lucide-react';
 import { getStatusDotColor } from '@/lib/status-colors';
 import { StatusChip } from '@/components/ui/status-chip';
 import { cn } from '@/lib/utils';
@@ -47,7 +48,7 @@ import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import { type ExportColumn } from '@/lib/export-excel';
 import { CANONICAL_STATUTS } from '@/lib/dossiers-data';
 import { EmptyState } from '@/components/ui/empty-state';
-import { SkeletonRow } from '@/components/ui/skeleton';
+import { Skeleton, SkeletonRow } from '@/components/ui/skeleton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -78,23 +79,6 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'dateRequete', label: 'Date Requête' },
   { key: 'createdByName', label: 'Créé par' },
 ];
-
-/** Removable active-filter chip: surface-3 + ink-2, ghost × (no red hover). */
-function FilterChip({ label, onRemove, ariaLabel }: { label: string; onRemove: () => void; ariaLabel: string }) {
-  return (
-    <span className="inline-flex h-7 items-center gap-1 rounded-full bg-surface-3 pl-2.5 pr-1 text-xs text-ink-2">
-      {label}
-      <button
-        type="button"
-        onClick={onRemove}
-        className="flex h-5 w-5 items-center justify-center rounded-full text-ink-3 hover:bg-surface-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label={ariaLabel}
-      >
-        <X className="h-3 w-3" />
-      </button>
-    </span>
-  );
-}
 
 export default function DossiersClientPage() {
   const router = useRouter();
@@ -454,7 +438,7 @@ export default function DossiersClientPage() {
   };
 
   // Empty cell = quiet dash (blueprint §2: values are the star, empties recede).
-  const cell = (v: string | undefined | null) => (v ? v : <span className="text-ink-4">—</span>);
+  const cell = (v: string | undefined | null) => (v ? v : <EmptyCell />);
 
   // Names come from one place (DESIGN.md §1).
   const navItem = findNavItem('/dossiers');
@@ -980,7 +964,16 @@ export default function DossiersClientPage() {
                 };
                 const filterBtn = exportMode ? null : renderColumnFilter();
                 return (
-                  <TableHead key={col.key} className={col.key === 'statut' ? 'min-w-[200px]' : undefined}>
+                  <TableHead
+                    key={col.key}
+                    className={cn(
+                      col.key === 'statut' && 'min-w-[200px]',
+                      // Frozen identifier column (element-specs §3 + addendum
+                      // ter A) — 15 columns pan sideways; the ref stays put.
+                      // Not in exportMode: the checkbox column sits first there.
+                      !exportMode && col.key === 'refExpert' && STICKY_HEAD,
+                    )}
+                  >
                     {/* Column tick boxes removed in Rappeler mode (owner
                         2026-09-02): they belonged to the retired Excel
                         export and no longer had a function. */}
@@ -1035,7 +1028,7 @@ export default function DossiersClientPage() {
                   className={cn(
                     // Hover = surface-2 (table primitive); selected = accent tint.
                     // No row tint for observations — the warning chip carries it.
-                    "group [&_td]:!py-2",
+                    "group",
                     !exportMode && "cursor-pointer",
                     exportMode && selectedRows.has(d.id) && "bg-accent/40 hover:bg-accent/40",
                   )}
@@ -1053,7 +1046,7 @@ export default function DossiersClientPage() {
                       />
                     </TableCell>
                   )}
-                  <TableCell className="t-mono font-semibold">{d.refExpert || <span className="font-sans font-normal text-ink-4">Sans réf.</span>}</TableCell>
+                  <TableCell className={cn(!exportMode && STICKY_CELL, 't-mono font-semibold')}>{d.refExpert || <span className="font-sans font-normal text-ink-4">Sans réf.</span>}</TableCell>
                   <TableCell className="font-medium">{cell(renderAssure(d.assure))}</TableCell>
                   <TableCell>{cell(d.compagnie)}</TableCell>
                   <TableCell>{cell(d.referenceCompagnie)}</TableCell>
@@ -1144,7 +1137,8 @@ export default function DossiersClientPage() {
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
-                        <RowChevron className="h-4 w-4 text-ink-4 group-hover:text-ink" aria-hidden />
+                        {/* Decorative chevron removed 2026-09-02 — §3 says
+                            chevron OR ⋯ at the row end, never both. */}
                       </div>
                     </TableCell>
                   )}
@@ -1225,7 +1219,15 @@ export default function DossiersClientPage() {
             className="resize-none"
           />
           {gestLoading ? (
-            <p className="t-caption py-4 text-center" aria-busy="true">Chargement…</p>
+            // Skeleton in the list's own shape (element-specs §15), not text.
+            <div className="space-y-1 py-2" aria-busy="true" aria-live="polite">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-2 px-2 py-1.5">
+                  <Skeleton className="h-4 w-4 rounded" />
+                  <Skeleton className="h-4 w-40" />
+                </div>
+              ))}
+            </div>
           ) : gestionnaires.length === 0 ? (
             <p className="text-sm text-ink-3 py-4">Aucun gestionnaire disponible.</p>
           ) : (

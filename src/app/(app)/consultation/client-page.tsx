@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Search, AlertCircle, X, FolderOpen } from 'lucide-react';
+import { Search, AlertCircle, FolderOpen } from 'lucide-react';
 import { format, parseISO, isValid } from 'date-fns';
 import { Input } from '@/components/ui/input';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, STICKY_HEAD, STICKY_CELL, EmptyCell } from '@/components/ui/table';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -18,6 +17,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { StatusChip, statusTone } from '@/components/ui/status-chip';
+import { FilterChip } from '@/components/ui/filter-chip';
 
 // ── Status chip (element-specs §11): the shared app-wide mapping — the local
 //    stand-in was retired 2026-09-02 (it coloured « Proposition d'accord »
@@ -30,22 +30,12 @@ const DOT_BY_TONE: Record<ReturnType<typeof statusTone>, string> = {
   danger: 'bg-status-danger-fg',
 };
 
-/** Empty cell = « — » in ink-4 (blueprint §9), never a fake value. */
-function EmptyCell() {
-  return <span className="text-ink-4">—</span>;
-}
-
 /** `yyyy-MM-dd` (the persisted filter value) → `dd/MM/yyyy` for display. */
 function fmtIsoDay(iso: string): string {
   const d = parseISO(iso);
   return isValid(d) ? format(d, 'dd/MM/yyyy') : iso;
 }
 
-// ── First column frozen (element-specs §3: NN/g "freeze header rows and header
-//    columns if the table is larger than the screen"; Polaris "fix the first
-//    column when many columns"): eight columns pan sideways on narrow screens. ──
-const STICKY_HEAD = 'sticky left-0 z-[2] min-w-[9rem] border-r border-hairline bg-card';
-const STICKY_CELL = 'sticky left-0 z-[1] border-r border-hairline bg-card [tr:hover_&]:bg-surface-2';
 
 export default function ConsultationClientPage() {
   const { options: dbCompagnies } = useOptions('compagnies');
@@ -94,7 +84,13 @@ export default function ConsultationClientPage() {
 
   const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', dateFrom: '', dateTo: '', rowsPerPage: 25 };
   const [filters, setFilters, clearFilter] = usePersistedFilters('consultation', filterDefaults);
-  const rowsPerPage = filters.rowsPerPage;
+
+  // Overflow cap (addendum ter A): show 50, « Afficher plus » extends. The cap
+  // resets whenever a filter changes so a narrowed list starts from the top.
+  const [visibleCount, setVisibleCount] = React.useState(50);
+  React.useEffect(() => {
+    setVisibleCount(50);
+  }, [filters.search, filters.nature, filters.status, filters.compagnie, filters.dateFrom, filters.dateTo]);
 
   const dossierList = useMemo(() => {
     let results = [...allDossiers];
@@ -169,8 +165,6 @@ export default function ConsultationClientPage() {
   const rangeCaption = filters.dateFrom || filters.dateTo
     ? ` · du ${filters.dateFrom ? fmtIsoDay(filters.dateFrom) : '—'} au ${filters.dateTo ? fmtIsoDay(filters.dateTo) : '—'}`
     : '';
-
-  const removeChipClass = 'ml-0.5 rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
   return (
     // Sections 32 px apart (addendum §4); inside a section, related rows stay
@@ -251,44 +245,19 @@ export default function ConsultationClientPage() {
         <div className="flex flex-wrap items-center gap-2" aria-label="Filtres actifs">
           <span className="t-label">Filtres actifs</span>
           {filters.nature !== 'Toutes' && (
-            <Badge variant="neutral" className="gap-1 pr-1">
-              Nature : {filters.nature}
-              <button type="button" onClick={() => clearFilter('nature')} className={removeChipClass} aria-label="Retirer le filtre nature">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterChip label={`Nature : ${filters.nature}`} onRemove={() => clearFilter('nature')} ariaLabel="Retirer le filtre nature" />
           )}
           {filters.status !== 'Tous' && (
-            <Badge variant="neutral" className="gap-1 pr-1">
-              Statut : {filters.status}
-              <button type="button" onClick={() => clearFilter('status')} className={removeChipClass} aria-label="Retirer le filtre statut">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterChip label={`Statut : ${filters.status}`} onRemove={() => clearFilter('status')} ariaLabel="Retirer le filtre statut" />
           )}
           {filters.compagnie !== 'Toutes' && (
-            <Badge variant="neutral" className="gap-1 pr-1">
-              Compagnie : {filters.compagnie}
-              <button type="button" onClick={() => clearFilter('compagnie')} className={removeChipClass} aria-label="Retirer le filtre compagnie">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterChip label={`Compagnie : ${filters.compagnie}`} onRemove={() => clearFilter('compagnie')} ariaLabel="Retirer le filtre compagnie" />
           )}
           {filters.dateFrom && (
-            <Badge variant="neutral" className="gap-1 pr-1">
-              Du : {fmtIsoDay(filters.dateFrom)}
-              <button type="button" onClick={() => clearFilter('dateFrom')} className={removeChipClass} aria-label="Retirer la date de début">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterChip label={`Du : ${fmtIsoDay(filters.dateFrom)}`} onRemove={() => clearFilter('dateFrom')} ariaLabel="Retirer la date de début" />
           )}
           {filters.dateTo && (
-            <Badge variant="neutral" className="gap-1 pr-1">
-              Au : {fmtIsoDay(filters.dateTo)}
-              <button type="button" onClick={() => clearFilter('dateTo')} className={removeChipClass} aria-label="Retirer la date de fin">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterChip label={`Au : ${fmtIsoDay(filters.dateTo)}`} onRemove={() => clearFilter('dateTo')} ariaLabel="Retirer la date de fin" />
           )}
           <Button
             variant="link"
@@ -363,7 +332,7 @@ export default function ConsultationClientPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              dossierList.slice(0, rowsPerPage).map(d => (
+              dossierList.slice(0, visibleCount).map(d => (
                 <TableRow key={d.id}>
                   <TableCell className={cn(STICKY_CELL, 't-mono font-semibold')}>{d.refExpert || <EmptyCell />}</TableCell>
                   <TableCell className="font-medium">{renderAssure(d.assure) || <EmptyCell />}</TableCell>
@@ -382,20 +351,23 @@ export default function ConsultationClientPage() {
         </Table>
       </Card>
 
-      {/* Table footer (§3 Polaris: totals display only; §8: 36 px control only
-          inside a dense row) — rows per page + the total with its real range. */}
+      {/* Table footer — addendum ter A (uxdesign.cc: a queue "is successful if
+          there is no need to paginate"; overflow = cap + explicit « Afficher
+          plus » + a visible total, never page numbers). The old rows-per-page
+          select silently HID rows (choosing 25 dropped rows 26+ with no way to
+          reach them) — retired 2026-09-02. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-2">
-        <div className="flex items-center gap-2">
-          <span className="t-label">Afficher</span>
-          <Select value={String(rowsPerPage)} onValueChange={v => setFilters({ rowsPerPage: Number(v) })}>
-            <SelectTrigger className="h-9 w-[70px]" aria-label="Lignes par page"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {[10, 25, 50, 100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        {dossierList.length > visibleCount && (
+          <Button variant="outline" size="sm" onClick={() => setVisibleCount(c => c + 50)}>
+            Afficher plus ({dossierList.length - visibleCount} restants)
+          </Button>
+        )}
         <span className="t-caption tabular-nums">
-          Total : <span className="font-semibold text-ink">{dossierList.length}</span> dossier{dossierList.length > 1 ? 's' : ''}{rangeCaption}
+          {dossierList.length > visibleCount ? (
+            <>Affichés <span className="font-semibold text-ink">{visibleCount}</span> sur <span className="font-semibold text-ink">{dossierList.length}</span> dossiers{rangeCaption}</>
+          ) : (
+            <>Total : <span className="font-semibold text-ink">{dossierList.length}</span> dossier{dossierList.length > 1 ? 's' : ''}{rangeCaption}</>
+          )}
         </span>
       </div>
       </div>

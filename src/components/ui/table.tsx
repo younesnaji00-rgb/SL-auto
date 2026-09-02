@@ -24,6 +24,24 @@ import { cn } from "@/lib/utils"
  * the head and the cells when the table can overflow.
  */
 
+/**
+ * Frozen identifier column (element-specs §3 + addendum ter A: NN/g "freeze
+ * header rows and header columns if the table is larger than the screen";
+ * Pencil & Paper: a soft shadow on the frozen edge "so it reads as a layer,
+ * not a seam"). Put STICKY_HEAD on the first TableHead and STICKY_CELL on the
+ * first TableCell of every row — one spelling app-wide (the four page-local
+ * copies were retired 2026-09-02).
+ */
+export const STICKY_HEAD =
+  "sticky left-0 z-[2] min-w-[9rem] bg-card shadow-[4px_0_6px_-2px_hsl(var(--shadow-color)/0.08)]"
+export const STICKY_CELL =
+  "sticky left-0 z-[1] bg-card shadow-[4px_0_6px_-2px_hsl(var(--shadow-color)/0.08)] [tr:hover_&]:bg-surface-2"
+
+/** Empty cell = « — » in ink-4 (element-specs §10), never a fake value. */
+export function EmptyCell() {
+  return <span className="text-ink-4">—</span>
+}
+
 const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement> & { regionLabel?: string }

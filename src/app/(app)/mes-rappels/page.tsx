@@ -6,7 +6,7 @@ import { Inbox, ChevronDown, ChevronRight, Send, ScrollText, CheckCircle2 } from
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, STICKY_HEAD, STICKY_CELL, EmptyCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -169,10 +169,8 @@ function CountChip({ tone, value }: { tone: RappelState; value: number }) {
   );
 }
 
-/** Empty cell = « — » in ink-4 (blueprint §9), never a fake value. */
-function EmptyValue() {
-  return <span className="text-ink-4">—</span>;
-}
+/** Empty cell = « — » in ink-4 — the shared table primitive's spelling. */
+const EmptyValue = EmptyCell;
 
 // ── Loading skeleton (element-specs §15: NN/g skeleton screens "mirror the
 //    final layout"; Carbon data table "skeleton states instead of spinners"):
@@ -191,13 +189,6 @@ function TableSkeleton({ heads = 5 }: { heads?: number }) {
     </div>
   );
 }
-
-// ── First column frozen (element-specs §3: NN/g "freeze header rows and header
-//    columns if the table is larger than the screen"; Polaris "fix the first
-//    column when many columns"): the 8-column Reçus table pans sideways on
-//    narrow screens, so the human identifier stays put on solid card. ──
-const STICKY_HEAD = 'sticky left-0 z-[2] min-w-[11rem] border-r border-hairline bg-card';
-const STICKY_CELL = 'sticky left-0 z-[1] border-r border-hairline bg-card [tr:hover_&]:bg-surface-2';
 
 interface SessionTaggedProps {
   dossierId: string;
@@ -497,7 +488,7 @@ export default function MesRappelsPage() {
               <Table regionLabel="Rappels reçus">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className={STICKY_HEAD}>Référence dossier</TableHead>
+                    <TableHead className={cn(STICKY_HEAD, 'min-w-[11rem]')}>Référence dossier</TableHead>
                     <TableHead>Envoyé par</TableHead>
                     <TableHead>Observation</TableHead>
                     <TableHead>Date</TableHead>

@@ -7,7 +7,7 @@ import { collectionGroup, onSnapshot, query, orderBy, limit, doc, getDoc, getDoc
 import { useFirestore } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow, STICKY_HEAD, STICKY_CELL, EmptyCell,
 } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
 import { Calendar, ChevronDown, Navigation, Search, SlidersHorizontal } from 'lucide-react';
@@ -729,7 +729,7 @@ export default function AssignationsATGPage() {
   const visibleGroups = groups.filter(g => g.items.length > 0);
 
   // Empty table cells read « — » in ink-4 (blueprint §9: empty = — muted).
-  const emptyCell = <span className="text-ink-4">—</span>;
+  const emptyCell = <EmptyCell />;
 
   const openMapsFor = (adresse: string) =>
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(adresse)}`, '_blank', 'noopener,noreferrer');
@@ -809,7 +809,7 @@ export default function AssignationsATGPage() {
   const renderTableHeader = () => (
     <TableHeader>
       <TableRow>
-        <TableHead className="sticky left-0 z-[2] border-r border-hairline">Dossier</TableHead>
+        <TableHead className={STICKY_HEAD}>Dossier</TableHead>
         <TableHead>Assuré</TableHead>
         <TableHead>Immat.</TableHead>
         <TableHead>Compagnie</TableHead>
@@ -841,7 +841,7 @@ export default function AssignationsATGPage() {
       }}
     >
       {/* Frozen identifier column: sticky left, solid card, hairline on its right edge. */}
-      <TableCell className="sticky left-0 z-[1] border-r border-hairline bg-card group-hover:bg-surface-2">
+      <TableCell className={STICKY_CELL}>
         <span className="t-mono font-semibold">{p.dossierNom || p.dossierId}</span>
       </TableCell>
       <TableCell className="max-w-[200px] truncate font-medium text-ink">{p.assureNom || emptyCell}</TableCell>
