@@ -153,13 +153,28 @@ export default function PhotosTab({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState<Photo | null>(null);
-  // width / height of the previewed photo — null until the <img> reports its
-  // natural size (pre-load state: neutral window). Drives the
-  // orientation-aware lightbox sizing (same approach as
-  // document-preview-lightbox).
+  // width / height of the previewed photo — measured by PRELOADING the image
+  // (owner ruling 2026-09-02: the window must open AT its final size, no
+  // resize-and-snap after mount; same approach as document-preview-lightbox).
+  // The lightbox renders only once measured; while paging ‹ › the previous
+  // ratio is kept until the next photo's is known (smooth in-place resize).
   const [previewRatio, setPreviewRatio] = useState<number | null>(null);
+  const [previewMeasured, setPreviewMeasured] = useState(false);
+  const previewWasOpenRef = useRef(false);
+  if (!previewPhoto) previewWasOpenRef.current = false;
   useEffect(() => {
-    setPreviewRatio(null);
+    if (!previewPhoto?.url) { setPreviewRatio(null); setPreviewMeasured(false); return; }
+    setPreviewMeasured(false);
+    let alive = true;
+    const probe = new Image();
+    probe.onload = () => {
+      if (!alive) return;
+      if (probe.naturalWidth > 0 && probe.naturalHeight > 0) setPreviewRatio(probe.naturalWidth / probe.naturalHeight);
+      setPreviewMeasured(true);
+    };
+    probe.onerror = () => { if (alive) { setPreviewRatio(null); setPreviewMeasured(true); } };
+    probe.src = previewPhoto.url;
+    return () => { alive = false; };
   }, [previewPhoto?.url]);
   // How photos are partitioned in the planification view. "date" (default)
   // keeps the historical per-day grouping; "location" groups by an explicit
@@ -688,7 +703,8 @@ export default function PhotosTab({
           react-zoom-pan-pinch. Per Q-9 A photo opens fit-to-screen; per
           Q-10 A zoom buttons live in a bottom-center floating toolbar;
           per Q-6 A the X close button sits top-right. */}
-      {previewPhoto && (() => {
+      {previewPhoto && (previewMeasured || previewWasOpenRef.current) && (() => {
+        previewWasOpenRef.current = true;
         const siblings = photosForCategory(previewPhoto.category);
         const currentIdx = siblings.findIndex((p) => p.id === previewPhoto.id);
         const total = siblings.length;
@@ -714,8 +730,10 @@ export default function PhotosTab({
                 // document-preview-lightbox): below lg the dialog base is a
                 // bottom sheet; at lg+ the centred window follows the photo's
                 // orientation. Every vh/vw is divided by --app-zoom.
-                // `calm` = plain ease-in fade instead of the zoom+slide.
+                // `calm` = fade + centred zoom, nothing else; the size
+                // transition smooths paging onto a differently-oriented photo.
                 'flex h-[calc(85dvh/var(--app-zoom))] flex-col overflow-hidden border-0 bg-black/95 p-0',
+                'lg:transition-[width,height,max-width,max-height,min-width] lg:duration-200 motion-reduce:transition-none',
                 // Ratio unknown yet (image still loading): neutral box.
                 previewRatio === null && 'lg:h-[calc(85svh/var(--app-zoom))] lg:max-w-4xl',
                 // Portrait photo → tall window: height leads, width follows.
@@ -776,12 +794,6 @@ export default function PhotosTab({
                           className="max-w-full max-h-full object-contain select-none"
                           alt={previewPhoto.name}
                           draggable={false}
-                          onLoad={(e) => {
-                            const el = e.currentTarget;
-                            if (el.naturalWidth > 0 && el.naturalHeight > 0) {
-                              setPreviewRatio(el.naturalWidth / el.naturalHeight);
-                            }
-                          }}
                         />
                       </TransformComponent>
                       {hasPrev && (

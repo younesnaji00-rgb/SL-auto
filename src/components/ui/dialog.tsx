@@ -34,9 +34,15 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     hideCloseButton?: boolean
     /**
-     * Calm entrance (owner ruling 2026-09-02: the default zoom+slide reads
-     * "cartoonish" on media viewers): a plain ease-in fade — the zoom/slide
-     * utilities are simply not emitted, so nothing has to out-cascade them.
+     * Calm entrance (owner ruling 2026-09-02: the default entrance reads
+     * "cartoonish" on media viewers): fade + zoom from the CENTRE, nothing
+     * else. GOTCHA the first version hit: the animate-in keyframes REPLACE
+     * the element's transform, so the static translate(-50%,-50%) centring
+     * must be re-supplied INSIDE the animation via slide-in-from-left-1/2 +
+     * slide-in-from-top-1/2 — omit those and the box animates from an
+     * off-centre position (appears to come from the right) then snaps to
+     * the centre when the animation ends. The default variant's top-[48%]
+     * is its deliberate downward drift; calm uses exactly 1/2 = no drift.
      * Opt-in for lightboxes and full-screen viewers; every other dialog
      * keeps the default entrance. Below lg the bottom sheet keeps its slide.
      */
@@ -55,7 +61,7 @@ const DialogContent = React.forwardRef<
         // lg and up: centred modal
         "lg:left-[50%] lg:top-[50%] lg:max-w-lg lg:translate-x-[-50%] lg:translate-y-[-50%] lg:rounded-xl",
         calm
-          ? "lg:data-[state=open]:ease-in lg:data-[state=closed]:ease-out"
+          ? "lg:data-[state=open]:zoom-in-95 lg:data-[state=open]:slide-in-from-left-1/2 lg:data-[state=open]:slide-in-from-top-1/2 lg:data-[state=closed]:zoom-out-95 lg:data-[state=closed]:slide-out-to-left-1/2 lg:data-[state=closed]:slide-out-to-top-1/2"
           : "lg:data-[state=closed]:zoom-out-95 lg:data-[state=open]:zoom-in-95 lg:data-[state=closed]:slide-out-to-left-1/2 lg:data-[state=closed]:slide-out-to-top-[48%] lg:data-[state=open]:slide-in-from-left-1/2 lg:data-[state=open]:slide-in-from-top-[48%]",
         className
       )}

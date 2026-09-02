@@ -86,12 +86,36 @@ const A4_RATIO = 210 / 297;
 
 export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pages, onPageChange }: DocumentPreviewLightboxProps) {
   const isImage = doc ? isImageName(doc.nom) : false;
-  // width / height of the media; null until a raster image reports its
-  // natural size. Non-images assume A4 portrait immediately.
+  // width / height of the media. Owner ruling 2026-09-02: the window must
+  // open AT its final size — no zoom-past-and-snap-back. So the ratio is
+  // measured by PRELOADING the image (usually instant: the thumbnail the
+  // user clicked already put it in the browser cache) and the dialog is not
+  // rendered until it is known. Non-images assume A4 portrait immediately.
+  // While paging (‹ ›) the previous ratio is kept until the next page's is
+  // measured, so the open window never falls back to the neutral box.
   const [imgRatio, setImgRatio] = React.useState<number | null>(null);
+  // true once the current doc's measurement settled (success OR failure).
+  const [measured, setMeasured] = React.useState(false);
+  // true from the first fully-measured render until the lightbox closes —
+  // keeps the window mounted across page turns (no re-entrance animation).
+  const wasOpenRef = React.useRef(false);
+  if (!doc) wasOpenRef.current = false;
   React.useEffect(() => {
-    setImgRatio(null);
-  }, [doc?.url]);
+    if (!doc?.url) { setImgRatio(null); setMeasured(false); return; }
+    if (!isImageName(doc.nom)) { setImgRatio(null); setMeasured(true); return; }
+    setMeasured(false);
+    let alive = true;
+    const probe = new Image();
+    probe.onload = () => {
+      if (!alive) return;
+      if (probe.naturalWidth > 0 && probe.naturalHeight > 0) setImgRatio(probe.naturalWidth / probe.naturalHeight);
+      setMeasured(true);
+    };
+    // Unmeasurable (broken URL…): open anyway with the neutral box.
+    probe.onerror = () => { if (alive) { setImgRatio(null); setMeasured(true); } };
+    probe.src = doc.url;
+    return () => { alive = false; };
+  }, [doc?.url, doc?.nom]);
 
   // Paging across sibling files of the same document.
   const pageList = pages && pages.length > 1 ? pages : null;
@@ -137,6 +161,10 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
   }, [isImage, doc?.url]);
 
   if (!doc) return null;
+  // First open: wait for the measurement so the window mounts at its final
+  // size. Once open, stay mounted through page turns (ratio updates in place).
+  if (!measured && !wasOpenRef.current) return null;
+  wasOpenRef.current = true;
 
   const ratio = isImage ? imgRatio : A4_RATIO;
   const portrait = ratio !== null && ratio < 1;
@@ -151,8 +179,11 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
           // Below lg the dialog base renders a full-width bottom sheet; the
           // orientation-aware sizing only applies to the centred lg+ modal
           // (lg-prefixed so it outranks the base's `lg:max-w-lg`).
-          // `calm` = plain ease-in fade instead of the shadcn zoom+slide.
+          // `calm` = fade + centred zoom, nothing else. The size transition
+          // smooths the in-place resize when ‹ › pages onto a photo with a
+          // different orientation (first open already mounts at final size).
           'flex h-[calc(85dvh/var(--app-zoom))] flex-col overflow-hidden p-0',
+          'lg:transition-[width,height,max-width,max-height,min-width] lg:duration-200 motion-reduce:transition-none',
           // Ratio unknown yet (image still loading): the previous neutral box.
           ratio === null && 'lg:h-[calc(85svh/var(--app-zoom))] lg:max-w-4xl',
           // Portrait media → tall window: height leads, width follows the ratio.
@@ -242,12 +273,6 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
                   className="max-h-full max-w-full select-none object-contain"
                   alt={doc.nom}
                   draggable={false}
-                  onLoad={(e) => {
-                    const el = e.currentTarget;
-                    if (el.naturalWidth > 0 && el.naturalHeight > 0) {
-                      setImgRatio(el.naturalWidth / el.naturalHeight);
-                    }
-                  }}
                 />
               </TransformComponent>
             </TransformWrapper>
