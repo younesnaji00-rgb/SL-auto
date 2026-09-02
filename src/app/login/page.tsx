@@ -427,7 +427,10 @@ export default function LoginPage() {
               </p>
             </div>
           </div>
-          <form onSubmit={handleSetup} className="mt-6 space-y-4">
+          {/* Addendum 4: fields grouped tight (16 px rows), the submit a
+              group-gap (24 px) below; widths come from the ≤ 400 px card. */}
+          <form onSubmit={handleSetup} className="mt-6 space-y-6">
+            <div className="space-y-4">
             <div className="space-y-1">
               <FieldLabel htmlFor="setup-name">Nom complet de l&apos;administrateur</FieldLabel>
               <Input
@@ -460,6 +463,7 @@ export default function LoginPage() {
                 required
               />
             </div>
+            </div>
 
             {setupError && (
               <Alert variant="danger">
@@ -489,7 +493,10 @@ export default function LoginPage() {
             <p className="t-body-sm text-ink-3">Entrez vos identifiants pour accéder au système.</p>
           </div>
         </div>
-        <form onSubmit={handleLogin} className="mt-6 space-y-4">
+        {/* Addendum 4: fields grouped tight (16 px rows), the submit a
+            group-gap (24 px) below; widths come from the ≤ 400 px card. */}
+        <form onSubmit={handleLogin} className="mt-6 space-y-6">
+          <div className="space-y-4">
           <div className="space-y-1">
             <FieldLabel htmlFor="nom">Nom complet</FieldLabel>
             <Input
@@ -526,6 +533,7 @@ export default function LoginPage() {
                 {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
               </Button>
             </div>
+          </div>
           </div>
 
           {error && (

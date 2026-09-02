@@ -286,7 +286,7 @@
   Type roles (Carbon / Linear: few sizes; hierarchy through weight and ink
   level rather than size — Refactoring UI). Use these instead of ad-hoc
   text-[…] stacks.
-    t-display  page title                 28/600 Outfit  ink
+    t-display  page title                 30/700 Outfit  ink (2026-09-02: a step bigger + bolder — NN/g visual hierarchy)
     t-title    section / card title       20/600 Outfit  ink
     t-heading  block title                15/600 Inter   ink
     t-body     default                    14/400         ink
@@ -297,7 +297,7 @@
     t-mono     refs, plates               13 mono tabular ink
 */
 @layer components {
-  .t-display { @apply font-headline text-[28px] font-semibold leading-[1.2] tracking-[-0.02em] text-ink; }
+  .t-display { @apply font-headline text-[30px] font-bold leading-[1.2] tracking-[-0.02em] text-ink; }
   .t-title   { @apply font-headline text-xl font-semibold leading-[1.25] tracking-[-0.015em] text-ink; }
   .t-heading { @apply text-[15px] font-semibold leading-[1.35] text-ink; }
   .t-body    { @apply text-sm leading-[1.5] text-ink; }

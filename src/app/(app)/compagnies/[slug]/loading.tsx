@@ -35,9 +35,13 @@ export default function Loading() {
       </div>
       <div className="overflow-hidden rounded-xl border border-hairline bg-card">
         <div className="flex min-h-[48px] items-center justify-between gap-4 border-b border-hairline px-6 py-4">
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-3 w-56" />
+          {/* Mirrors the icon-chip + title header of the portfolio card. */}
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-7 w-7 rounded-md" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-56" />
+            </div>
           </div>
           <Skeleton className="h-9 w-72 max-w-full rounded-md" />
         </div>

@@ -181,7 +181,9 @@ export default function ConsultationClientPage() {
   const removeChipClass = 'ml-0.5 rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
   return (
-    <div className="space-y-6">
+    // Sections 32 px apart (addendum §4); inside a section, related rows stay
+    // tight (toolbar + its applied-filter chips; table + its footer caption).
+    <div className="space-y-8">
       {/* Inline alert (element-specs §14: Carbon notification — inline persists
           until acted on, status pair + its icon; NN/g — errors never in toasts).
           Sits at the top of the block it concerns. */}
@@ -196,7 +198,9 @@ export default function ConsultationClientPage() {
       {/* Filter toolbar (element-specs §2: Polaris filters — search first,
           clearly labelled, ≤ 3 promoted filters, applied filters as chips with
           clear-all; NN/g — order by importance; Carbon — search below the
-          title). Placeholder is a FORMAT cue, not a sample name (GOV.UK). */}
+          title). Placeholder is a FORMAT cue, not a sample name (GOV.UK).
+          Toolbar and its applied-filter chips form ONE group (12 px apart). */}
+      <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative max-w-sm flex-grow max-sm:w-full">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
@@ -310,11 +314,14 @@ export default function ConsultationClientPage() {
           </Button>
         </div>
       )}
+      </div>
 
       {/* Data table (element-specs §3: Polaris — text left, headers aligned
           with their data, first column fixed when many columns; Carbon — 44 px
           rows, skeleton rows while loading; NN/g — sticky header, hover tint,
-          no zebra). Refs and plates in t-mono; status as a chip; empty = « — ». */}
+          no zebra). Refs and plates in t-mono; status as a chip; empty = « — ».
+          Table and its footer caption form ONE group (12 px apart). */}
+      <div className="space-y-3">
       <Card className="overflow-hidden">
         <Table regionLabel="Dossiers en consultation">
           <TableHeader>
@@ -368,12 +375,14 @@ export default function ConsultationClientPage() {
                 <TableRow key={d.id}>
                   <TableCell className={cn(STICKY_CELL, 't-mono font-semibold')}>{d.refExpert || <EmptyCell />}</TableCell>
                   <TableCell className="font-medium">{renderAssure(d.assure) || <EmptyCell />}</TableCell>
-                  <TableCell className="text-ink-2">{d.compagnie || <EmptyCell />}</TableCell>
-                  <TableCell className="text-ink-2">{d.nature || <EmptyCell />}</TableCell>
-                  <TableCell className="text-ink-2">{d.typeDossier || <EmptyCell />}</TableCell>
+                  {/* Data cells are values → full ink (addendum §3: darker
+                      values; half the columns in ink-2 read as one gray sheet). */}
+                  <TableCell>{d.compagnie || <EmptyCell />}</TableCell>
+                  <TableCell>{d.nature || <EmptyCell />}</TableCell>
+                  <TableCell>{d.typeDossier || <EmptyCell />}</TableCell>
                   <TableCell><StatusChip status={d.statut} /></TableCell>
                   <TableCell className="t-mono">{d.matricule || <EmptyCell />}</TableCell>
-                  <TableCell className="text-ink-2">{formatDate(d.dateRequete) || <EmptyCell />}</TableCell>
+                  <TableCell>{formatDate(d.dateRequete) || <EmptyCell />}</TableCell>
                 </TableRow>
               ))
             )}
@@ -396,6 +405,7 @@ export default function ConsultationClientPage() {
         <span className="t-caption tabular-nums">
           Total : <span className="font-semibold text-ink">{dossierList.length}</span> dossier{dossierList.length > 1 ? 's' : ''}{rangeCaption}
         </span>
+      </div>
       </div>
     </div>
   );

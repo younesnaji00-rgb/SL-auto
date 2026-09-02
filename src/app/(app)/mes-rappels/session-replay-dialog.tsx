@@ -413,7 +413,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                 </Alert>
               ) : (
                 <div className="t-caption flex flex-wrap items-center gap-2 rounded-[10px] bg-surface-2 px-3 py-2">
-                  <span className="font-medium text-ink-2">Modifications du gestionnaire&nbsp;:</span>
+                  <span className="font-medium text-ink">Modifications du gestionnaire&nbsp;:</span>
                   {summary.added > 0 && (
                     <Badge variant="success">{summary.added} ajout{summary.added > 1 ? 's' : ''}</Badge>
                   )}

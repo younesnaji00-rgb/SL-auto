@@ -8,7 +8,8 @@ import { useCollection, useFirestore } from '@/firebase';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Mail, Scale } from 'lucide-react';
+import { IconChip } from '@/components/ui/icon-chip';
+import { FileText, Mail, Scale } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { buildDocFamilies } from '@/lib/doc-family';
@@ -464,7 +465,15 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           from the page `space-y-8`, 16 between rows). */}
       {(devisFamilies.length > 0 || factureFamilies.length > 0) && (
         <section className="space-y-4" aria-label="Devis et factures">
-          <h2 className="t-heading">Devis &amp; factures</h2>
+          {/* The page's ONE warm IconChip (addendum 1b) beside the title of the
+              section that anchors the chiffreur's work — away from the status
+              chips in the header meta. */}
+          <div className="flex items-center gap-2">
+            <IconChip>
+              <FileText />
+            </IconChip>
+            <h2 className="t-heading">Devis &amp; factures</h2>
+          </div>
           {devisFamilies.map((group) => (
             <FamilyRow
               key={group.parent}

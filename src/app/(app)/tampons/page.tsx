@@ -22,6 +22,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ChevronDown, ImageIcon, Loader2, Stamp as StampIcon, Trash2, Users, X } from 'lucide-react';
+import { IconChip } from '@/components/ui/icon-chip';
 import { useFirestore, useStorage, useCollection } from '@/firebase';
 import { addDoc, collection, deleteDoc, deleteField, doc, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
@@ -388,7 +389,12 @@ export default function TamponsSettingsPage() {
       {/* Card 2 — the registered stamps as a vertical LIST (original layout). */}
       <Card>
         <CardHeader>
-          <CardTitle className="t-heading">Tampons enregistrés</CardTitle>
+          <CardTitle className="t-heading flex items-center gap-2">
+            {/* Warm anchor chip — addendum 1b: ONE IconChip beside the
+                section that anchors the page. */}
+            <IconChip><StampIcon /></IconChip>
+            Tampons enregistrés
+          </CardTitle>
           <CardDescription className="t-caption">
             Activez, désactivez ou supprimez les tampons existants.
           </CardDescription>

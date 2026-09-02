@@ -80,10 +80,14 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className, 
   );
 }
 
-/** Underline tab — element-specs §7 (NN/g Tabs Used Right: short labels, one
- *  row, at least two selection indicators; M3 primary tabs): 40 px, 13/500,
- *  active = ink text + 2 px `primary` underline, inactive ink-3, hairline under
- *  the list; the compact photo sub-tabs pass their own padding. */
+/** Raised tab on a recessed track — addendum §2 (supersedes the underline
+ *  idiom; NN/g Flat design: text-only controls get missed by new users —
+ *  backgrounds/borders/shadows restore clickability; NN/g Tabs Used Right:
+ *  "at least two selection indicators"): the tab list is a `surface-2` track
+ *  (see PaneTabList), the active tab a raised `bg-card` card with `shadow-rim`
+ *  + a 2 px accent bar, inactive tabs quiet ink-2 with a surface-3 hover.
+ *  Mirrors `components/ui/tabs.tsx`; the compact photo sub-tabs pass their
+ *  own height. */
 function PaneTab({
   active,
   onClick,
@@ -102,8 +106,11 @@ function PaneTab({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        'flex min-h-[40px] flex-1 items-center justify-center gap-1.5 border-b-2 px-3 py-2 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        active ? 'border-primary text-ink' : 'border-transparent text-ink-3 hover:text-ink',
+        'relative flex min-h-[32px] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[3px] after:h-0.5 after:rounded-full after:bg-primary after:opacity-0 after:transition-opacity',
+        active
+          ? 'bg-card font-semibold text-ink shadow-rim after:opacity-100'
+          : 'text-ink-2 hover:bg-surface-3 hover:text-ink',
         className,
       )}
     >
@@ -111,6 +118,11 @@ function PaneTab({
     </button>
   );
 }
+
+/** The recessed track the raised tabs sit on (addendum §2): hairline border,
+ *  `surface-2` fill, 4 px inner padding, rounded-lg — visibly a control. */
+const PANE_TABLIST_CLASS =
+  'flex shrink-0 items-center gap-1 rounded-lg border border-hairline bg-surface-2 p-1';
 
 function ReferencePane({
   dossierId,
@@ -259,9 +271,9 @@ function ReferencePane({
         </div>
       </div>
 
-      {/* Mode toggle — underline tabs */}
+      {/* Mode toggle — raised tabs on a recessed track (addendum §2) */}
       {listOpen && (
-        <div className="flex shrink-0 border-b border-hairline" role="tablist">
+        <div className={cn(PANE_TABLIST_CLASS, 'mx-2 my-2')} role="tablist">
           <PaneTab active={mode === 'photos'} onClick={() => setMode('photos')}>
             <ImageIcon className="h-3.5 w-3.5" />
             Photos ({photos?.length || 0})
@@ -276,13 +288,13 @@ function ReferencePane({
       {/* Compact item selector */}
       {listOpen && mode === 'photos' && (
         <div className="flex shrink-0 flex-col border-b border-hairline">
-          <div className="flex shrink-0 border-b border-hairline" role="tablist">
+          <div className={cn(PANE_TABLIST_CLASS, 'mx-2 mb-2')} role="tablist">
             {(['avant', 'en_cours', 'apres'] as const).map((key) => (
               <PaneTab
                 key={key}
                 active={photoSubTab === key}
                 onClick={() => setPhotoSubTab(key)}
-                className="min-h-[32px] py-1.5 text-xs"
+                className="min-h-[28px] py-1 text-xs"
               >
                 {categoryLabels[key]} ({groupedPhotos[key].length})
               </PaneTab>

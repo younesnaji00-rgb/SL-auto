@@ -6,9 +6,10 @@ import Link from 'next/link';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
-  ArrowLeft, ChevronDown, ChevronUp, Columns2, FileText, Loader2,
+  ArrowLeft, Car, ChevronDown, ChevronUp, Columns2, FileText, Loader2,
   RefreshCw, Save, Trash2, X,
 } from 'lucide-react';
+import { IconChip } from '@/components/ui/icon-chip';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -72,21 +73,30 @@ interface DevisEditorProps {
   accordSlot?: string;
 }
 
-const HEADER_FIELDS_LEFT: Array<{ key: keyof DevisHeader; label: string }> = [
+/**
+ * Header identity fields — addendum §4 (GOV.UK text input: "size inputs to
+ * known lengths"; NN/g forms: field width matches the input). Known-length
+ * values get a content-sized input (`inputClassName`); genuinely long values
+ * (marque/modèle libres, client, adresse, assurances, expert) stay wide.
+ * `groupStart` opens a new visual group (vehicle → expert, client →
+ * assurance/document meta): rows sit 12 px apart inside a group, 24 px
+ * between groups — the wall of equal full-width inputs is banned.
+ */
+const HEADER_FIELDS_LEFT: Array<{ key: keyof DevisHeader; label: string; inputClassName?: string; groupStart?: boolean }> = [
   { key: 'marque', label: 'Marque' },
-  { key: 'matricule', label: 'Matricule' },
+  { key: 'matricule', label: 'Matricule', inputClassName: 'max-w-[14rem]' },
   { key: 'modele', label: 'Modèle' },
-  { key: 'kilometrage', label: 'Kilométrage' },
-  { key: 'chassis', label: 'N° de châssis' },
-  { key: 'expert', label: 'Expert' },
+  { key: 'kilometrage', label: 'Kilométrage', inputClassName: 'max-w-[10rem]' },
+  { key: 'chassis', label: 'N° de châssis', inputClassName: 'max-w-[14rem]' },
+  { key: 'expert', label: 'Expert', groupStart: true },
 ];
 
-const HEADER_FIELDS_RIGHT: Array<{ key: keyof DevisHeader; label: string }> = [
+const HEADER_FIELDS_RIGHT: Array<{ key: keyof DevisHeader; label: string; inputClassName?: string; groupStart?: boolean }> = [
   { key: 'client', label: 'Client' },
   { key: 'adresse', label: 'Adresse' },
-  { key: 'ice', label: 'ICE' },
-  { key: 'telephone', label: 'Téléphone' },
-  { key: 'assurances', label: 'Assurances' },
+  { key: 'ice', label: 'ICE', inputClassName: 'max-w-[14rem]' },
+  { key: 'telephone', label: 'Téléphone', inputClassName: 'max-w-[14rem]' },
+  { key: 'assurances', label: 'Assurances', groupStart: true },
 ];
 
 const DOC_TYPE_LABEL: Record<EditableBaseDocType, { plural: string; lower: string }> = {
@@ -1114,12 +1124,19 @@ export function DevisEditor({
           card (`md:grid-cols-2`), HEADER_FIELDS_LEFT in column 1,
           HEADER_FIELDS_RIGHT + the nested N° / Date sub-grid in column 2.
           Surface per element-specs §5 (M3 cards / NN/g cards: a container for
-          a few related facts; 24 px padding, 16 px between rows). Fields per
-          §9 (GOV.UK text input: visible labels, format-cue placeholders only —
-          "JJ/MM/AAAA"). */}
+          a few related facts; 24 px padding). Fields per §9 + addendum §4:
+          content-sized inputs, related rows 12 px apart, 24 px between groups
+          (véhicule → expert, client → assurance/meta) so the card reads as
+          chunks, not a slab; format-cue placeholders only — "JJ/MM/AAAA". */}
       <Card className="p-6">
-        <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
-          <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-6 md:grid-cols-2">
+          <div className="flex flex-col gap-3">
+            {/* Additive group label — addendum §1(b): ONE IconChip per screen,
+                the warm anchor beside the group title that anchors the page. */}
+            <div className="flex items-center gap-2">
+              <IconChip><Car /></IconChip>
+              <h3 className="t-heading">Véhicule</h3>
+            </div>
             {HEADER_FIELDS_LEFT.map((f) => (
               <HeaderField
                 key={f.key}
@@ -1127,10 +1144,14 @@ export function DevisEditor({
                 value={header[f.key] || ''}
                 onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
                 disabled={!isEditable}
+                inputClassName={f.inputClassName}
+                className={f.groupStart ? 'mt-3' : undefined}
               />
             ))}
           </div>
-          <div className="space-y-4">
+          <div className="flex flex-col gap-3">
+            {/* Second group label goes without a chip (terracotta is spent). */}
+            <h3 className="t-heading">Client</h3>
             {HEADER_FIELDS_RIGHT.map((f) => (
               <HeaderField
                 key={f.key}
@@ -1138,6 +1159,8 @@ export function DevisEditor({
                 value={header[f.key] || ''}
                 onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
                 disabled={!isEditable}
+                inputClassName={f.inputClassName}
+                className={f.groupStart ? 'mt-3' : undefined}
               />
             ))}
             {/* Short related fields share a row (§9: "code postal / ville" rule). */}
@@ -1147,6 +1170,7 @@ export function DevisEditor({
                 value={header.devisNumero}
                 onChange={(v) => setHeader((h) => ({ ...h, devisNumero: v }))}
                 disabled={!isEditable}
+                inputClassName="max-w-[14rem]"
               />
               <HeaderField
                 label="Date"
@@ -1154,6 +1178,7 @@ export function DevisEditor({
                 onChange={(v) => setHeader((h) => ({ ...h, dateDevis: v }))}
                 disabled={!isEditable}
                 placeholder="JJ/MM/AAAA"
+                inputClassName="max-w-[12rem]"
               />
             </div>
           </div>
@@ -1845,23 +1870,30 @@ export function DevisEditor({
 // ── sub-components ────────────────────────────────────────────────────────
 
 function HeaderField({
-  label, value, onChange, disabled, placeholder,
-}: { label: string; value: string; onChange: (v: string) => void; disabled?: boolean; placeholder?: string }) {
+  label, value, onChange, disabled, placeholder, inputClassName, className,
+}: {
+  label: string; value: string; onChange: (v: string) => void; disabled?: boolean; placeholder?: string;
+  /** Content-sizes the input (addendum §4: field width matches the known length of the value). */
+  inputClassName?: string;
+  /** Row-level spacing hook (`mt-3` on the first row of a new group). */
+  className?: string;
+}) {
   // Original 3d5629a layout restored: the label sits LEFT of the control in a
   // 110 px column (`grid-cols-[110px_1fr]`). Element-specs §9 (GOV.UK text
   // input: every input has a visible label; NN/g: labels quiet, the value is
   // the star) — label `t-label` 12/400 ink-3, value 14/600 ink in a solid
   // 36 px field (the identity block is dense reference data, so the compact
-  // end of the 36–40 px range).
+  // end of the 36–40 px range). Known-length fields cap the input width via
+  // `inputClassName` (GOV.UK: "size inputs to known lengths").
   return (
-    <label className="grid min-w-0 grid-cols-[110px_1fr] items-center gap-2">
+    <label className={cn('grid min-w-0 grid-cols-[110px_1fr] items-center gap-2', className)}>
       <span className="t-label truncate">{label}</span>
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         placeholder={placeholder}
-        className="h-9 font-semibold text-ink"
+        className={cn('h-9 font-semibold text-ink', inputClassName)}
       />
     </label>
   );

@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { IconChip } from '@/components/ui/icon-chip';
 import { Trash2, Loader2, CalendarDays, ImageIcon, AlertCircle } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { useOptions } from '@/hooks/use-options';
@@ -334,7 +335,7 @@ export default function JoursFeriesSettingsPage() {
                 }}
                 aria-invalid={addError ? true : undefined}
                 aria-describedby={addError ? 'new-date-error' : undefined}
-                className="max-w-xs"
+                className="max-w-[12rem]"
               />
             </div>
             {/* THE page primary (§8): `default`, verb label, never disabled. */}
@@ -405,6 +406,9 @@ export default function JoursFeriesSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="t-heading flex items-center gap-2">
+            {/* Warm anchor chip — addendum 1b: one IconChip beside the section
+                that anchors the page (the calendar list). */}
+            <IconChip><CalendarDays /></IconChip>
             Liste actuelle
             {/* Count pill — §11: neutral surface-3 / ink-2, tabular digits. */}
             <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
@@ -439,9 +443,9 @@ export default function JoursFeriesSettingsPage() {
           ) : (
             // Pills = §4 mini rows (Material 3 lists: leading element + label +
             // trailing icon button; GOV.UK summary list: the row's border ties
-            // it to its action): date block as the anchor (surface-3 + rim;
-            // the NEXT holiday is the page's one terracotta element; past ones
-            // in ink-3), the full French date, delete `ghost`. Day number in
+            // it to its action): date block as the warm anchor (addendum 1a:
+            // tertiary tint + rim on every pill; the NEXT holiday alone stays
+            // solid tertiary), the full French date, delete `ghost`. Day number in
             // Inter 600 (numbers never in Outfit), weekday ≥ 11 px.
             <ul className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3" aria-label="Jours fériés">
               {items.map((o) => {
@@ -459,9 +463,7 @@ export default function JoursFeriesSettingsPage() {
                         'flex w-12 shrink-0 flex-col items-center justify-center rounded-md py-1 text-center',
                         upcoming
                           ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled'
-                          : o.past
-                            ? 'bg-surface-2 text-ink-3 shadow-rim'
-                            : 'bg-surface-3 text-ink-2 shadow-rim',
+                          : 'bg-tertiary-bg text-tertiary-deep shadow-rim',
                       )}
                     >
                       <span className="text-[11px] font-medium leading-none">

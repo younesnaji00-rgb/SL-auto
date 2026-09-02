@@ -150,3 +150,53 @@ Tokens and primitives referenced: `globals.css` (`.t-*` type roles, `.glass`/
 1. List the page's elements (from the inventory) and map each to an entry above; for anything missing, fetch 2–3 sources the same way and add the paragraph to the report.
 2. Keep the page's ORIGINAL layout (restore it from `3d5629a` if the blueprint pass changed the structure) and restyle each element in place to its spec.
 3. Report per element: name → job → sources → spec → what changed → not verified.
+
+---
+
+# Addendum 2026-09-02 — "too gray" rework (owner-chosen direction)
+
+Owner feedback on the finished pass: the app reads as one beige-gray sheet with
+two teal buttons; tabs and other quiet controls are invisible to a new user;
+spacing/typography/colour hierarchy need work. Researched (NN/g "Visual
+hierarchy" ✓: hierarchy comes from contrast in value/saturation, ≤ 2 primary +
+2 secondary colours, "if everything is contrasted, nothing stands out"; NN/g
+"Flat design" ✓: text-only controls get skipped by new users — backgrounds,
+borders and shadows restore clickability; Stripe DESIGN.md ✓: one CTA colour +
+colour carried by non-button anchors — tinted pills, icon dots, one featured
+surface) and chosen by the owner on 2026-09-02. These rulings SUPERSEDE the
+entries above where they conflict.
+
+1. **Colour identity stays the muted dark teal — do not brighten it.** The
+   fix for the grayness is a SECOND voice: **terracotta, "anchors only"** —
+   (a) date blocks: every date block is now the warm anchor, `bg-tertiary-bg
+   text-tertiary-deep shadow-rim` (tint), and the *next/upcoming* one is solid
+   `bg-tertiary text-tertiary-foreground shadow-rim-filled`; (b) ONE small
+   `<IconChip>` (`components/ui/icon-chip.tsx`, 28 px tinted square + 16 px
+   icon + rim) beside a section/card title — at most one or two per screen,
+   on the sections that anchor the page; (c) at most one featured tile per
+   page; (d) the warm chart series. Still never on actions, status, chrome, or
+   a whole tile row. (Supersedes §4's "date in the third colour on at most one
+   row" — the tint may repeat; the SOLID block stays unique.)
+2. **Tabs = raised tab on a visible track** (supersedes the underline idiom in
+   §7 for tab strips): the list is a recessed `surface-2` track (hairline,
+   4 px padding, rounded-lg), the active tab a raised `bg-card` card with
+   `shadow-rim` + a 2 px accent bar under the label, inactive tabs quiet ink-2
+   with a `surface-3` hover. `components/ui/tabs.tsx` and the workspace strip
+   already do this — replace any LOCAL underline tab (MissionTabs, PaneTab,
+   local `role=tablist` rows…) with the primitive or the same classes.
+   Segmented controls already look like this and stay as they are.
+3. **Type: heavier anchors, darker values.** `t-display` is now **30/700**
+   (page titles). Section/card titles stay `t-heading`/`t-title` but must be
+   FULL ink (never ink-2) and are the only semibold line of their block;
+   values 14/600 ink; labels stay 12/400 ink-3. Squint test: title → section
+   titles → values, in that order.
+4. **Forms: chunked groups + content-sized fields** (GOV.UK text input ✓
+   "size inputs to known lengths"; NN/g forms ✓ "field width matches the
+   input"): a date field is date-wide (`max-w-[12rem]`), a plate/ref field
+   plate-wide (`max-w-[14rem]`), a phone field phone-wide; only genuinely
+   long values (adresse, désignation, email) stay wide. Related fields group
+   tight (rows 12–16 apart inside a group), groups 24–32 apart, sections
+   40 px apart (`space-y-10` between page sections where the page has
+   distinct sections). The "wall of equal full-width inputs" is banned.
+5. Everything else in §1–§23 still applies (one primary, status pairs with
+   labels, no uppercase, no gradients, glass rules, numbers never in Outfit).

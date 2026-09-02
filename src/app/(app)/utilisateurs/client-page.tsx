@@ -42,6 +42,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Search, Pencil, Trash2, Eye, EyeOff, X, User as UserIcon } from 'lucide-react';
+import { IconChip } from '@/components/ui/icon-chip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
 import {
@@ -363,12 +364,15 @@ export default function UtilisateursClientPage() {
                 <CardHeader>
                   <CardTitle className="t-heading">Ajouter un utilisateur</CardTitle>
                 </CardHeader>
-                {/* Form — element-specs §9 (GOV.UK text input: visible label
-                    above, hint between label and field "a single short
-                    sentence, without full stops"; NN/g web-form design: single
-                    column, labels above, avoid placeholder text, one submit).
-                    Rows 16 apart; placeholders are format cues only. */}
-                <CardContent className="space-y-4">
+                {/* Form — element-specs §9 + addendum 4 (GOV.UK: "size inputs
+                    to known lengths"; NN/g: field width matches the input):
+                    chunked groups — identité / accès / affectations — rows 16
+                    apart inside a group, 24 px between groups; password fields
+                    content-sized, selects at their natural width; only the
+                    name stays wide. Placeholders are format cues only. */}
+                <CardContent className="space-y-6">
+                  {/* Identité */}
+                  <div className="space-y-4">
                   <FormField
                     control={form.control}
                     name="nom"
@@ -380,6 +384,9 @@ export default function UtilisateursClientPage() {
                       </FormItem>
                     )}
                   />
+                  </div>
+                  {/* Accès */}
+                  <div className="space-y-4">
                   <FormField
                     control={form.control}
                     name="password"
@@ -387,7 +394,7 @@ export default function UtilisateursClientPage() {
                       <FormItem className="space-y-1">
                         <FormLabel>Mot de passe</FormLabel>
                         <p className="t-caption">Au moins 6 caractères</p>
-                        <FormControl><Input type="password" autoComplete="new-password" {...field} /></FormControl>
+                        <FormControl><Input type="password" autoComplete="new-password" className="max-w-[16rem]" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -398,7 +405,7 @@ export default function UtilisateursClientPage() {
                     render={({ field }) => (
                       <FormItem className="space-y-1">
                         <FormLabel>Confirmez le mot de passe</FormLabel>
-                        <FormControl><Input type="password" autoComplete="new-password" {...field} /></FormControl>
+                        <FormControl><Input type="password" autoComplete="new-password" className="max-w-[16rem]" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -414,7 +421,7 @@ export default function UtilisateursClientPage() {
                         </div>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger><SelectValue placeholder="Sélectionnez un rôle" /></SelectTrigger>
+                            <SelectTrigger className="max-w-[16rem]"><SelectValue placeholder="Sélectionnez un rôle" /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
                             {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
@@ -424,6 +431,9 @@ export default function UtilisateursClientPage() {
                       </FormItem>
                     )}
                   />
+                  </div>
+                  {/* Affectations */}
+                  <div className="space-y-4">
                   <FormField
                     control={form.control}
                     name="compagnies"
@@ -568,6 +578,7 @@ export default function UtilisateursClientPage() {
                       }}
                     />
                   )}
+                  </div>
                 </CardContent>
                 {/* Submit — element-specs §8 (GOV.UK: "use a default button for
                     the main call to action on a page"; Material 3: one filled
@@ -585,7 +596,12 @@ export default function UtilisateursClientPage() {
         <div className="md:col-span-2">
           <Card className="overflow-hidden">
             <CardHeader>
-              <CardTitle className="t-heading">Gérer les utilisateurs</CardTitle>
+              <CardTitle className="t-heading flex items-center gap-2">
+                {/* Warm anchor chip — addendum 1b: ONE IconChip beside the
+                    section that anchors the page. */}
+                <IconChip><UserIcon /></IconChip>
+                Gérer les utilisateurs
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Filter toolbar — element-specs §2 (Polaris filters: labelled
@@ -713,7 +729,7 @@ export default function UtilisateursClientPage() {
                             </TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center gap-1">
-                                <span className="t-mono text-ink-2">
+                                <span className="t-mono text-ink">
                                   {showPasswords[user.id] ? (user.password || '—') : '••••••'}
                                 </span>
                                 {/* NN/g password masking: an explicit show/hide toggle. */}

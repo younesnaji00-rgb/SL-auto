@@ -440,16 +440,18 @@ export default function MesRappelsPage() {
 
   return (
     // Layout as at 3d5629a: header → tabs → one card per tab holding a data
-    // table. The Tabs root wraps the header so the underline tab strip can sit
-    // in the PageHeader `tabs` slot (same position, under the title).
-    <Tabs value={activeVue} onValueChange={(v) => changeVue(v as Vue)} className="space-y-6">
+    // table. The Tabs root wraps the header so the tab strip can sit in the
+    // PageHeader `tabs` slot (same position, under the title). Sections 32 px
+    // apart (addendum 2026-09-02 §4).
+    <Tabs value={activeVue} onValueChange={(v) => changeVue(v as Vue)} className="space-y-8">
       {/* Page header (element-specs §1: Polaris Page — title only, no page
           primary here: rappels are sent from a dossier, not from this list). */}
       <PageHeader
         title={titleForRoute('/mes-rappels') ?? 'Mes rappels'}
         tabs={
-          // Underline tabs (§7): two indicators (ink text + 2 px primary
-          // underline) come from the primitive; labels ≤ 2 words, single row.
+          // Raised-tab-on-track tabs (addendum 2026-09-02 §2, supersedes the
+          // underline idiom): the recessed track, raised active card and 2 px
+          // accent bar all come from the primitive — no local overrides.
           <TabsList>
             {recusVisible && (
               <TabsTrigger value="recus" className="gap-1.5">
@@ -525,7 +527,9 @@ export default function MesRappelsPage() {
                         <TableCell className={cn('min-w-[14rem] max-w-[24rem] whitespace-normal', state === 'nouveau' ? 'font-medium text-ink' : 'text-ink-2')}>
                           {r.observation || <EmptyValue />}
                         </TableCell>
-                        <TableCell className="text-ink-2">{formatDate(r.createdAt)}</TableCell>
+                        {/* Dates are values → full ink (addendum §3). Only the
+                            read/unread dimming above is a state signal. */}
+                        <TableCell>{formatDate(r.createdAt)}</TableCell>
                         {/* Live cells: the text inside is selectable, so a click
                             here must not open the dossier. */}
                         <TableCell
@@ -654,7 +658,7 @@ export default function MesRappelsPage() {
                             </span>
                           </TableCell>
                           <TableCell className="text-right tabular-nums">{g.dossierCount}</TableCell>
-                          <TableCell className="text-ink-2">{formatDate(g.latest)}</TableCell>
+                          <TableCell>{formatDate(g.latest)}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
                               <CountChip tone="nouveau" value={g.newCount} />
@@ -690,7 +694,7 @@ export default function MesRappelsPage() {
                                           </Link>
                                         </TableCell>
                                         <TableCell>{r.recipientNom || <EmptyValue />}</TableCell>
-                                        <TableCell className="text-ink-2">{formatDate(r.createdAt)}</TableCell>
+                                        <TableCell>{formatDate(r.createdAt)}</TableCell>
                                         <TableCell className="t-body-sm">
                                           {r.resolvedAt ? (
                                             <span className="text-status-success-fg">Sauvegardé le {formatDate(r.resolvedAt)}</span>

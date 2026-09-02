@@ -105,10 +105,11 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
         ref={scrollerRef}
         role="tablist"
         aria-label={api.kind === 'dossier' ? 'Dossiers ouverts' : 'Chiffrages ouverts'}
-        // Underline tabs (element-specs §7 / NN/g Tabs Used Right: two
-        // selection indicators — ink text + 2 px primary underline; no pill,
-        // no boxed trigger). The strip's hairline is the shared baseline.
-        className="flex min-w-0 items-stretch gap-1 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        // Raised tab on a visible track (owner ruling 2026-09-02; NN/g "Flat
+        // design": quiet text-only tabs get skipped — the surface-2 strip is
+        // the recessed track, the active tab a raised card with an accent
+        // bar; NN/g Tabs Used Right: two selection indicators).
+        className="flex min-w-0 items-center gap-1 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {api.displayTabs.map((tab, idx) => {
           const isActive = tab.id === api.activeTabId;
@@ -136,10 +137,11 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
                 if ((e.key === 'Delete' || e.key === 'Backspace') && !isList) { e.preventDefault(); close(tab.id); }
               }}
               className={cn(
-                'group relative -mb-px flex h-9 min-w-0 max-w-[220px] shrink-0 cursor-pointer select-none items-center gap-1.5 border-b-2 px-2.5 text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'group relative flex h-8 min-w-0 max-w-[220px] shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-md px-2.5 text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'after:pointer-events-none after:absolute after:inset-x-2.5 after:bottom-[3px] after:h-0.5 after:rounded-full after:bg-primary after:opacity-0',
                 isActive
-                  ? 'border-primary font-medium text-ink'
-                  : 'border-transparent text-ink-3 hover:text-ink',
+                  ? 'bg-card font-semibold text-ink shadow-rim after:opacity-100'
+                  : 'text-ink-3 hover:bg-surface-3 hover:text-ink',
                 tab.preview && 'italic',
               )}
             >
@@ -171,7 +173,7 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
       {(overflowing || tabs.length > 1) && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="mb-0.5 h-7 shrink-0 gap-1 self-end px-1.5 text-xs text-ink-3" aria-label="Tous les onglets">
+            <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1 self-center px-1.5 text-xs text-ink-3" aria-label="Tous les onglets">
               <ChevronDown className="h-3.5 w-3.5" />
               {overflowing && <span className="tabular-nums">{tabs.length}</span>}
             </Button>
@@ -222,7 +224,7 @@ export default function WorkspaceTabs() {
   if (kinds.length === 0) return null;
 
   return (
-    <div className="flex h-9 w-full min-w-0 items-stretch gap-2 border-b border-hairline bg-surface-2" data-workspace-tabs>
+    <div className="flex h-10 w-full min-w-0 items-center gap-2 border-b border-hairline bg-surface-2" data-workspace-tabs>
       {kinds.map((api, i) => {
         const active = pathname === api.config.listHref || pathname.startsWith(`${api.config.listHref}/`);
         return (

@@ -20,6 +20,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { InlineLoader } from '@/components/ui/inline-loader';
+import { IconChip } from '@/components/ui/icon-chip';
+import { FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { doc, updateDoc, Timestamp, getDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
@@ -203,7 +205,12 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
           <div className="grid grid-cols-1 gap-x-8 gap-y-6 px-6 py-6 lg:grid-cols-2">
             <div className="space-y-6">
               <section className="space-y-4" aria-label="Dossier">
-                <h3 className="t-heading">Dossier</h3>
+                {/* Addendum §1(b): ONE warm anchor chip beside the section
+                    title that anchors the dialog — first section only. */}
+                <div className="flex items-center gap-2">
+                  <IconChip><FolderOpen /></IconChip>
+                  <h3 className="t-heading">Dossier</h3>
+                </div>
                 <div>
                   <Label className="t-label">Expert</Label>
                   <RadioGroup

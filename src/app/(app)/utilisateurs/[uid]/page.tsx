@@ -89,6 +89,7 @@ import { isSessionStale, timestampToMillis } from '@/lib/session-meta';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useOptions } from '@/hooks/use-options';
 import { cn } from '@/lib/utils';
+import { IconChip } from '@/components/ui/icon-chip';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
@@ -675,17 +676,21 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
           <Card>
             <CardHeader>
               <CardTitle className="t-heading flex items-center gap-2">
-                <UserIcon className="h-4 w-4 text-ink-3" aria-hidden />
+                {/* Warm anchor chip — addendum 1b: ONE IconChip beside the
+                    section that anchors the page; other card icons stay quiet. */}
+                <IconChip><UserIcon /></IconChip>
                 Informations personnelles
               </CardTitle>
             </CardHeader>
-            {/* Always-editable form — element-specs §9 (GOV.UK text input:
-                visible label above every input, hint between label and field,
-                placeholder = format cue only; NN/g web-form design: labels
-                above, field width matches the input, one clearly labelled
-                submit). The two-column grid is the original layout (3d5629a);
-                16 px gaps. */}
+            {/* Always-editable form — element-specs §9 + addendum 4 (GOV.UK:
+                "size inputs to known lengths"; NN/g: field width matches the
+                input): chunked groups — identité / accès / affectations — rows
+                16 apart inside a group, 24 px between groups; téléphone,
+                mot de passe and the selects are content-sized, only nom /
+                prénom / email stay wide. Two-column grid inside a group is
+                the original layout (3d5629a). */}
             <CardContent className="space-y-6">
+              {/* Identité */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="u-prenom">Prénom</Label>
@@ -722,16 +727,19 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                     type="tel"
                     inputMode="tel"
                     placeholder="+212 6 00 00 00 00"
-                    className="tabular-nums"
+                    className="max-w-[14rem] tabular-nums"
                     value={formData.telephone}
                     onChange={e => setFormData(p => ({ ...p, telephone: e.target.value }))}
                   />
                 </div>
+              </div>
+              {/* Accès */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="u-password">Mot de passe</Label>
                   {/* NN/g password masking: masked by default + explicit toggle
                       (`ghost` icon button, aria-pressed). Read-only value. */}
-                  <div className="relative">
+                  <div className="relative max-w-[16rem]">
                     <Input
                       id="u-password"
                       type={showPassword ? 'text' : 'password'}
@@ -755,7 +763,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 <div className="space-y-1">
                   <Label htmlFor="u-role">Rôle</Label>
                   <Select value={formData.role} onValueChange={v => setFormData(p => ({ ...p, role: v as Role }))}>
-                    <SelectTrigger id="u-role"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="u-role" className="max-w-[16rem]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {roles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                     </SelectContent>
@@ -764,13 +772,16 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 <div className="space-y-1">
                   <Label htmlFor="u-statut">Statut</Label>
                   <Select value={formData.statut} onValueChange={v => setFormData(p => ({ ...p, statut: v as 'Actif' | 'Inactif' }))}>
-                    <SelectTrigger id="u-statut"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="u-statut" className="max-w-[12rem]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Actif">Actif</SelectItem>
                       <SelectItem value="Inactif">Inactif</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              {/* Affectations */}
+              <div className="space-y-4">
                 {/* Zone only exists for an Agent de Terrain (original gating). */}
                 {formData.role === 'Agent de Terrain' && (() => {
                   const trimmedQuery = zoneQuery.trim();
@@ -793,7 +804,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                             variant="outline"
                             role="combobox"
                             aria-expanded={zonePopoverOpen}
-                            className={cn("w-full justify-between font-normal", !selected && "text-ink-3")}
+                            className={cn("w-full max-w-[16rem] justify-between font-normal", !selected && "text-ink-3")}
                           >
                             {selected || 'Sélectionnez ou saisissez une zone'}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-ink-3" />
@@ -862,7 +873,6 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                     </div>
                   );
                 })()}
-              </div>
 
               <div className="space-y-1">
                 <Label>Compagnies d&apos;assurance affiliées</Label>
@@ -884,6 +894,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   onChange={(vals) => setFormData(p => ({ ...p, sites: vals }))}
                   className="w-full"
                 />
+              </div>
               </div>
 
               {/* Read-only facts — element-specs §10 (GOV.UK summary list:
@@ -1071,15 +1082,16 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 // Event rows — element-specs §4 (Material 3 lists: leading
                 // element + label + supporting text; GOV.UK summary list rows):
                 // 56 px two-line rows, hairlines only, the date block is the
-                // anchor. History is PAST, so no row gets the third colour —
-                // every block stays neutral (surface-3 + rim). Day number in
+                // anchor — warm tint (addendum 1a: every date block is the
+                // terracotta anchor, tertiary tint + rim; only a next/upcoming
+                // block would be solid, and history has none). Day number in
                 // Inter 600 (numbers never in Outfit).
                 <ol className="divide-y divide-hairline border-t border-hairline">
                   {activityHistory.map((entry: any) => {
                     const d = toDate(entry.changedAt);
                     return (
                       <li key={entry.id} className="flex min-h-[56px] items-center gap-3 py-2">
-                        <div className="flex w-10 shrink-0 flex-col items-center justify-center rounded-md bg-surface-3 py-1 text-center text-ink-2 shadow-rim">
+                        <div className="flex w-10 shrink-0 flex-col items-center justify-center rounded-md bg-tertiary-bg py-1 text-center text-tertiary-deep shadow-rim">
                           <span className="text-[11px] font-medium leading-none">
                             {d ? format(d, 'MMM', { locale: fr }).replace('.', '') : '—'}
                           </span>

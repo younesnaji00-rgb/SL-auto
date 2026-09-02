@@ -3,7 +3,7 @@
 import { PageHeader } from '@/components/layout/page-header';
 import React, { useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Building2, ChevronRight, FileText, Inbox, Plus, Upload } from 'lucide-react';
+import { Building2, ChevronRight, FileText, FolderOpen, Inbox, Plus, Upload } from 'lucide-react';
 import { useCompagnies, type Compagnie } from '@/hooks/use-compagnies';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { hasPermission } from '@/lib/permissions';
@@ -30,6 +30,7 @@ import { format, parseISO, isValid } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
+import { IconChip } from '@/components/ui/icon-chip';
 import { Skeleton, SkeletonRow } from '@/components/ui/skeleton';
 import { isClosedStatus } from '@/lib/status-machine';
 import { cn } from '@/lib/utils';
@@ -388,9 +389,15 @@ export default function CompagniesClientPage() {
           date-range filter; the table below follows §3. */}
       <Card role="region" aria-label="Portefeuille dossiers" className="overflow-hidden">
         <header className="flex min-h-[48px] flex-wrap items-center justify-between gap-4 border-b border-hairline px-6 py-4">
-          <div className="min-w-0">
-            <h2 className="t-heading truncate">Portefeuille dossiers</h2>
-            <p className="t-caption truncate">Extraction en temps réel des missions {selectedCompagnie.nom}.</p>
+          {/* Warm anchor (addendum 2026-09-02 §1b: ONE small IconChip beside
+              the section title that anchors the page — terracotta as the
+              second voice; never on actions or status). Decorative. */}
+          <div className="flex min-w-0 items-center gap-3">
+            <IconChip><FolderOpen /></IconChip>
+            <div className="min-w-0">
+              <h2 className="t-heading truncate">Portefeuille dossiers</h2>
+              <p className="t-caption truncate">Extraction en temps réel des missions {selectedCompagnie.nom}.</p>
+            </div>
           </div>
           <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
         </header>
@@ -457,7 +464,9 @@ export default function CompagniesClientPage() {
                     <TableCell>
                       <Badge variant={statusVariant(d.statut || 'Nouveau')}>{d.statut || 'Nouveau'}</Badge>
                     </TableCell>
-                    <TableCell className="text-ink-2">
+                    {/* Dates are values → full ink (addendum §3: darker values;
+                        ink-2 columns were part of the "one gray sheet" read). */}
+                    <TableCell>
                       {d.dateRequete ? format(d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete), 'dd MMM yyyy', { locale: fr }) : <span className="text-ink-4">—</span>}
                     </TableCell>
                     <TableCell className="text-right">

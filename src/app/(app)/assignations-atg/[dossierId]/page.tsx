@@ -18,6 +18,7 @@ import {
   Loader2, Eye, ImageIcon, Camera, Trash2, FileText, ChevronDown, MapPin,
 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
+import { IconChip } from '@/components/ui/icon-chip';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -669,8 +670,24 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                 <dl key={p.id} className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
                   <div className="min-w-0">
                     <dt className="t-label">Rendez-vous</dt>
+                    {/* Date block = the warm anchor (addendum 1a): every RDV date
+                        is the terracotta tint; the NEXT upcoming one is the page's
+                        single SOLID block. Figures stay Inter 600 tabular (addendum 3). */}
                     <dd className="mt-0.5 flex flex-wrap items-center gap-2 text-sm font-semibold tabular-nums text-ink">
-                      <span>{formatDate(p.dateRDV) ?? <span className="font-normal text-ink-4">—</span>}</span>
+                      {formatDate(p.dateRDV) ? (
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-md px-2 py-0.5',
+                            p.id === nextPlanId
+                              ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled'
+                              : 'bg-tertiary-bg text-tertiary-deep shadow-rim',
+                          )}
+                        >
+                          {formatDate(p.dateRDV)}
+                        </span>
+                      ) : (
+                        <span className="font-normal text-ink-4">—</span>
+                      )}
                       {p.id === nextPlanId && <Badge variant="info">Prochain</Badge>}
                     </dd>
                   </div>
@@ -773,7 +790,12 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         <Card id="atg-photos-panel" role="region" aria-label={`Photos — ${activeTab}`}>
           <CardContent className="space-y-4 p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-baseline gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* The page's ONE warm IconChip (addendum 1b) beside the title of
+                    the section that anchors the AT's job here — taking photos. */}
+                <IconChip>
+                  <ImageIcon />
+                </IconChip>
                 <h3 className="t-heading">Photos — {activeTab}</h3>
                 {/* Cap counter as a caption (§6: figures in Inter, tabular in a caption). */}
                 <span className="t-caption tabular-nums">{filteredPhotos.length}/{photoCap} photos</span>

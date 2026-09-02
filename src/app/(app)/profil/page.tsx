@@ -21,6 +21,7 @@ import { useShellUi } from '@/components/layout/shell-ui';
 import { userInitials } from '@/components/layout/user-menu';
 import { formatKeys } from '@/hooks/use-hotkeys';
 import { Kbd } from '@/components/ui/kbd';
+import { IconChip } from '@/components/ui/icon-chip';
 import { cn } from '@/lib/utils';
 import { applyDensity, readDensity, type Density } from '@/lib/density';
 
@@ -85,7 +86,7 @@ function SegmentedChoice<T extends string>({
   label: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex h-10 items-center gap-0.5 rounded-md bg-surface-2 p-0.5">
+    <div role="radiogroup" aria-label={label} className="inline-flex h-10 items-center gap-0.5 rounded-md border border-hairline bg-surface-2 p-0.5">
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -155,7 +156,9 @@ export default function ProfilPage() {
         </div>
       </Card>
 
-      <Section title="Affichage" icon={<SlidersHorizontal />}>
+      {/* Warm anchor chip — addendum 1b: ONE IconChip on the anchoring
+          section; the other section icons stay quiet ink-3. */}
+      <Section title="Affichage" icon={<IconChip><SlidersHorizontal /></IconChip>}>
         <div className="divide-y divide-hairline">
           <PrefRow label="Thème" help="« Système » suit le réglage de votre appareil. Appliqué à cet appareil.">
             <SegmentedChoice

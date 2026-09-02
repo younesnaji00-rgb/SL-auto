@@ -434,9 +434,10 @@ export default function AssignationsChiffragePage() {
                       </Link>
                     </TableCell>
                     <TableCell className="max-w-[200px] truncate font-medium text-ink">{renderAssure(dossierAssure[c.dossierId]) ?? emptyCell}</TableCell>
-                    <TableCell className="t-mono text-ink-2">{dossierMatricule[c.dossierId] || emptyCell}</TableCell>
+                    {/* Values in full ink (addendum 5 — values stuck at ink-2 read gray). */}
+                    <TableCell className="t-mono text-ink">{dossierMatricule[c.dossierId] || emptyCell}</TableCell>
                     {showChiffreurColumn && <TableCell className="text-ink">{c.assignedChiffreurNom || emptyCell}</TableCell>}
-                    <TableCell className="text-ink-2">{nature || emptyCell}</TableCell>
+                    <TableCell className="text-ink">{nature || emptyCell}</TableCell>
                     <TableCell>
                       {/* Status chip (§11: Carbon tag ✓ read-only category; label always, one pair per state). */}
                       <StatusChip status={statut} />
@@ -477,12 +478,13 @@ export default function AssignationsChiffragePage() {
                         />
                       )}
                     </TableCell>
-                    <TableCell className="text-ink-3">
-                      {/* Date is text → left-aligned like the other text columns,
-                          tabular digits (§3). Today = an info chip with a label
-                          (§11) instead of tinting the whole row (accent budget). */}
+                    <TableCell className="text-ink">
+                      {/* Date is text → left-aligned like the other text columns;
+                          the figure is Inter 600 tabular (addendum 3). Today = an
+                          info chip with a label (§11) instead of tinting the row —
+                          and no warm anchor beside the Délai meter. */}
                       <span className="inline-flex flex-wrap items-center gap-2">
-                        <span>{dateLabel ?? emptyCell}</span>
+                        <span className="font-semibold tabular-nums">{dateLabel ?? emptyCell}</span>
                         {today && <Badge variant="info">Aujourd&apos;hui</Badge>}
                       </span>
                     </TableCell>

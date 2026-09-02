@@ -17,6 +17,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton, SkeletonRow } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { IconChip } from '@/components/ui/icon-chip';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -248,14 +249,17 @@ function getDeadlineInfo(
 }
 
 /**
- * Underline tabs (element-specs §7: NN/g Tabs Used Right ✓ "at least two
- * selection indicators", short labels, single row, list above the panel):
- * 40 px, 13/500, active = ink text + 2 px `primary` underline, inactive ink-3,
- * hairline under the list; counts are neutral pills (§11).
+ * Raised tab on a visible track (addendum 2026-09-02, supersedes the underline
+ * idiom: NN/g "Flat design" ✓ text-only controls get skipped by new users —
+ * backgrounds, borders and shadows restore clickability; NN/g Tabs Used Right ✓
+ * "at least two selection indicators"). Same anatomy as `components/ui/tabs.tsx`:
+ * recessed `surface-2` track (hairline, 4 px padding), active tab = raised
+ * `bg-card` card with the light rim + a 2 px accent bar under the label,
+ * inactive quiet ink-2 with a `surface-3` hover; counts stay neutral pills (§11).
  */
 function MissionTabs({ active, counts, onChange, className }: { active: string; counts: Record<string, number>; onChange: (id: string) => void; className?: string }) {
   return (
-    <div role="tablist" aria-label="Type de mission" className={cn('flex h-10 items-end gap-1 border-b border-hairline', className)}>
+    <div role="tablist" aria-label="Type de mission" className={cn('inline-flex h-10 items-center gap-1 rounded-lg border border-hairline bg-surface-2 p-1', className)}>
       {MISSION_TABS.map((tab) => {
         const isActive = active === tab.id;
         return (
@@ -266,8 +270,11 @@ function MissionTabs({ active, counts, onChange, className }: { active: string; 
             aria-selected={isActive}
             onClick={() => onChange(tab.id)}
             className={cn(
-              'relative -mb-px inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-3 text-[13px] font-medium transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              isActive ? 'border-primary text-ink' : 'border-transparent text-ink-3',
+              'relative inline-flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[3px] after:h-0.5 after:rounded-full after:bg-primary after:opacity-0 after:transition-opacity',
+              isActive
+                ? 'bg-card font-semibold text-ink shadow-rim after:opacity-100'
+                : 'text-ink-2 hover:bg-surface-3 hover:text-ink',
             )}
           >
             {tab.label}
@@ -289,7 +296,7 @@ function MissionTabs({ active, counts, onChange, className }: { active: string; 
  */
 function MissionSegments({ active, counts, onChange, className }: { active: string; counts: Record<string, number>; onChange: (id: string) => void; className?: string }) {
   return (
-    <div role="tablist" aria-label="Type de mission" className={cn('grid grid-cols-3 gap-0.5 rounded-md bg-surface-2 p-0.5', className)}>
+    <div role="tablist" aria-label="Type de mission" className={cn('grid grid-cols-3 gap-0.5 rounded-md border border-hairline bg-surface-2 p-0.5', className)}>
       {MISSION_TABS.map((tab) => {
         const isActive = active === tab.id;
         return (
@@ -611,6 +618,20 @@ export default function AssignationsATGPage() {
     ];
   }, [filteredPlanifications]);
 
+  // The single NEXT upcoming RDV across the filtered list — its date block is
+  // the one SOLID terracotta anchor of the mobile list (addendum 1a: the tint
+  // may repeat, the solid block stays unique).
+  const nextMissionKey = useMemo(() => {
+    const now = Date.now();
+    let best: { key: string; t: number } | null = null;
+    for (const p of filteredPlanifications) {
+      const rdv = toDate(p.dateRDV);
+      if (!rdv || rdv.getTime() < now) continue;
+      if (!best || rdv.getTime() < best.t) best = { key: `${p.dossierId}-${p.id}`, t: rdv.getTime() };
+    }
+    return best?.key ?? null;
+  }, [filteredPlanifications]);
+
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({ today: true, expired: true, future: true });
 
   // Per-section deadline sort. Each group ("today" / "expired" / "future") has
@@ -723,15 +744,24 @@ export default function AssignationsATGPage() {
   // Group header row — Material 3 list item ✓ (container + label text, trailing
   // text/controls at the end) + NN/g accordions ✓ ("ensure that both the
   // heading and icon are clickable and they both expand or collapse"; caret
-  // signifier). A plain hairline row: chevron · t-heading · count chip (§11 —
-  // no tinted band) · sort · "Start" as `secondary` (§8 — not the page primary).
+  // signifier). A `surface-2` header band (addendum 5 — table group headers
+  // may take bg-surface-2 so the group reads as a control, not a gray line):
+  // chevron · t-heading · count chip (§11 — tone on the COUNT chip only) ·
+  // sort · "Start" as `secondary` (§8 — not the page primary). The page's ONE
+  // warm IconChip sits beside « Aujourd'hui » (addendum 1b — the section that
+  // anchors the agent's day; never beside the En retard group).
   const renderGroupHeader = (group: (typeof groups)[number], dense: boolean) => {
     const addressableCount = group.items.filter(p => p.adresse?.trim()).length;
     const open = openSections[group.key];
     return (
-      <div className={cn('flex min-h-[48px] items-center gap-3 border-b border-hairline py-2', dense ? 'px-4' : 'px-6')}>
+      <div className={cn('flex min-h-[48px] items-center gap-3 bg-surface-2 py-2', dense ? 'rounded-lg border border-hairline px-4' : 'border-b border-hairline px-6')}>
         <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform', open ? 'rotate-0' : '-rotate-90')} aria-hidden />
+          {group.key === 'today' && (
+            <IconChip>
+              <Calendar />
+            </IconChip>
+          )}
           <h2 className="t-heading truncate">{group.label}</h2>
           <Badge variant={group.tone}>{group.items.length}</Badge>
         </CollapsibleTrigger>
@@ -805,17 +835,18 @@ export default function AssignationsATGPage() {
         <span className="t-mono font-semibold">{p.dossierNom || p.dossierId}</span>
       </TableCell>
       <TableCell className="max-w-[200px] truncate font-medium text-ink">{p.assureNom || emptyCell}</TableCell>
-      <TableCell className="t-mono text-ink-2">{dossierLive[p.dossierId]?.matricule || emptyCell}</TableCell>
-      <TableCell className="text-ink-2">{p.compagnie || emptyCell}</TableCell>
+      <TableCell className="t-mono text-ink">{dossierLive[p.dossierId]?.matricule || emptyCell}</TableCell>
+      <TableCell className="text-ink">{p.compagnie || emptyCell}</TableCell>
       {showAgentColumn && <TableCell className="text-ink">{p.agentTerrain || emptyCell}</TableCell>}
       <TableCell className="text-ink">
-        {/* Date RDV is text → left, tabular; the deadline chip (§11) sits inline after it. */}
+        {/* Date RDV is text → left; the figure is Inter 600 tabular (addendum 3).
+            The deadline chip (§11) sits inline after it — no warm anchor here. */}
         <span className="inline-flex flex-wrap items-center gap-2">
-          <span>{formatDate(p.dateRDV) ?? emptyCell}</span>
+          <span className="font-semibold tabular-nums">{formatDate(p.dateRDV) ?? emptyCell}</span>
           <DeadlineChip dateRDV={p.dateRDV} createdAt={p.createdAt} />
         </span>
       </TableCell>
-      <TableCell className="text-ink-2">{p.zone || emptyCell}</TableCell>
+      <TableCell className="text-ink">{p.zone || emptyCell}</TableCell>
       <TableCell className="max-w-[240px] text-ink-2">
         {p.adresse ? <span className="block truncate" title={p.adresse}>{p.adresse}</span> : emptyCell}
       </TableCell>
@@ -840,10 +871,15 @@ export default function AssignationsATGPage() {
   // card clickable). Padding 16, rim, everything the agent needs IN the tile:
   // ref + time / assuré + compagnie / zone · plate / address `link` / phone
   // `link` + deadline chip (§11). Cards stack with 12 px gaps — no dividers
-  // AND gaps.
-  const renderMissionCard = (p: PlanificationItem) => {
+  // AND gaps. The HH:mm figure is the warm date-block anchor (addendum 1a —
+  // tint for every scheduled card, solid ONCE for the next upcoming RDV);
+  // the En retard group keeps the plain figure so terracotta never sits
+  // beside the lateness signals.
+  const renderMissionCard = (p: PlanificationItem, groupKey: GroupKey) => {
     const rdv = toDate(p.dateRDV);
     const matricule = dossierLive[p.dossierId]?.matricule;
+    const isNext = groupKey !== 'expired' && `${p.dossierId}-${p.id}` === nextMissionKey;
+    const warmTime = groupKey !== 'expired' && !!rdv;
     return (
       <li key={`${p.dossierId}-${p.id}`}>
         <div
@@ -860,7 +896,20 @@ export default function AssignationsATGPage() {
         >
           <div className="flex items-center justify-between gap-2">
             <span className="t-mono truncate font-semibold">{p.dossierNom || p.dossierId}</span>
-            <span className="t-caption shrink-0 tabular-nums">{rdv ? format(rdv, 'HH:mm') : '—'}</span>
+            {warmTime ? (
+              <span
+                className={cn(
+                  'inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums',
+                  isNext
+                    ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled'
+                    : 'bg-tertiary-bg text-tertiary-deep shadow-rim',
+                )}
+              >
+                {format(rdv!, 'HH:mm')}
+              </span>
+            ) : (
+              <span className="t-caption shrink-0 tabular-nums">{rdv ? format(rdv, 'HH:mm') : '—'}</span>
+            )}
           </div>
           <div className="mt-1 flex items-center justify-between gap-2">
             <span className="truncate text-sm font-semibold text-ink">{p.assureNom || '—'}</span>
@@ -1051,7 +1100,7 @@ export default function AssignationsATGPage() {
                 {renderGroupHeader(group, true)}
                 <CollapsibleContent>
                   <ol className="space-y-3 pt-3">
-                    {sortGroupItems(group.items, deadlineSortByGroup[group.key]).map(renderMissionCard)}
+                    {sortGroupItems(group.items, deadlineSortByGroup[group.key]).map((p) => renderMissionCard(p, group.key))}
                   </ol>
                 </CollapsibleContent>
               </Collapsible>
