@@ -579,7 +579,10 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                       aria-selected={partitionMode === mode}
                       onClick={() => setPartitionMode(mode)}
                       className={cn(
-                        'relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-[13px] font-medium text-ink-3',
+                        // Browser-tab shape (owner ruling 2026-09-02):
+                        // `.tab-slope` draws the sloped card fill via
+                        // aria-selected; accent underline stays.
+                        'tab-slope relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3.5 text-[13px] font-medium text-ink-3',
                         'transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
                         partitionMode === mode && 'border-primary text-ink',
                       )}

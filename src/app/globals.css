@@ -471,3 +471,45 @@ html {
     border-radius: 9999px;
   }
 }
+
+/* ── Browser-style tab shape (owner ruling 2026-09-02, Chrome-tab screenshot):
+   every tab switch gets sloped edges. The trapezoid is drawn on a ::before
+   layer (perspective/rotateX trick) so the label stays undistorted; colours
+   are unchanged — active = card + light rim, hover = surface-3. Works with
+   Radix (data-state), plain tablists (aria-selected) or an explicit
+   .tab-slope-active. ── */
+@layer components {
+  .tab-slope {
+    position: relative;
+    isolation: isolate;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .tab-slope::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: 9px 9px 0 0;
+    transform: perspective(28px) rotateX(5deg);
+    transform-origin: bottom;
+    background: transparent;
+    transition: background-color 150ms, box-shadow 150ms;
+  }
+  .tab-slope:hover::before {
+    background: hsl(var(--surface-3));
+  }
+  .tab-slope[data-state='active']::before,
+  .tab-slope[aria-selected='true']::before,
+  .tab-slope-active::before {
+    background: hsl(var(--card));
+    box-shadow:
+      inset 0 0 0 1px var(--rim-in),
+      inset 0 1.5px 0 var(--rim-top),
+      0 0 0 1px var(--rim-out),
+      0 1px 2px hsl(var(--shadow-color) / 0.06);
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .tab-slope::before { transition: none; }
+  }
+}

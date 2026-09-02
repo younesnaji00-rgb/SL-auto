@@ -24,16 +24,20 @@ import type { RequiredDocsStatus } from '@/lib/required-docs';
 import { cn } from '@/lib/utils';
 
 /**
- * Flat context block (DESIGN.md §10): no card — a `t-label` header and
- * hairline-separated rows; blocks are separated by a hairline + spacing
- * (user ruling 2026-09-01) so the column reads as one quiet aside.
+ * Flat context block (DESIGN.md §10): no card — the title sits in a neutral
+ * PILL with the light contour (owner ruling 2026-09-02: « À faire »,
+ * « Observations » and every right-column title are pills, no colour, rim
+ * on), over hairline-separated rows; blocks separated by hairline + spacing.
  */
 function Block({ title, icon, action, children }: { title: string; icon: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="space-y-2 border-t border-hairline pt-5 first:border-t-0 first:pt-0">
-      <header className="flex h-6 items-center gap-2">
-        <span className="text-ink-3 [&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
-        <h3 className="t-label flex-1">{title}</h3>
+    <section className="space-y-2.5 border-t border-hairline pt-5 first:border-t-0 first:pt-0">
+      <header className="flex items-center gap-2">
+        <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-card px-3 shadow-rim">
+          <span className="text-ink-3 [&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
+          <h3 className="t-label leading-none text-ink-2">{title}</h3>
+        </span>
+        <span className="min-w-0 flex-1" />
         {action}
       </header>
       <div className="text-sm">{children}</div>

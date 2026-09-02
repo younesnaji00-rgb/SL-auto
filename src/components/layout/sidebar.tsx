@@ -73,22 +73,22 @@ const AppSidebar = () => {
         )}
       >
         <Logo collapsed={isCollapsed} />
-        {!isCollapsed && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                onClick={toggleSidebar}
-                aria-label="Réduire la barre latérale"
-              >
-                <PanelLeft className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">Réduire · {toggleKeys}</TooltipContent>
-          </Tooltip>
-        )}
+        {/* The toggle stays at the TOP in both states (owner ruling
+            2026-09-02 — it used to jump to the footer when collapsed). */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              onClick={toggleSidebar}
+              aria-label={isCollapsed ? 'Agrandir la barre latérale' : 'Réduire la barre latérale'}
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{isCollapsed ? 'Agrandir' : 'Réduire'} · {toggleKeys}</TooltipContent>
+        </Tooltip>
       </SidebarHeader>
 
       <SidebarContent className="bg-sidebar">
@@ -183,22 +183,6 @@ const AppSidebar = () => {
               })}
             </DropdownMenuContent>
           </DropdownMenu>
-          {isCollapsed && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  onClick={toggleSidebar}
-                  aria-label="Agrandir la barre latérale"
-                >
-                  <PanelLeft className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Agrandir · {toggleKeys}</TooltipContent>
-            </Tooltip>
-          )}
         </div>
       </SidebarFooter>
     </Sidebar>

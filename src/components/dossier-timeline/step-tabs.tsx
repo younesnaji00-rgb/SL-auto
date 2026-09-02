@@ -91,7 +91,10 @@ export function StepTabs({ tabs, defaultValue, storageKey, className }: StepTabs
             key={t.value}
             value={t.value}
             className={cn(
-              'relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-[13px] font-medium text-ink-3',
+              // Browser-tab shape (owner ruling 2026-09-02): `.tab-slope`
+              // (globals.css) draws the sloped card fill + rim on the active
+              // facet; the 2 px accent underline stays as the second cue.
+              'tab-slope relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3.5 text-[13px] font-medium text-ink-3',
               'transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
               'data-[state=active]:border-primary data-[state=active]:text-ink',
             )}

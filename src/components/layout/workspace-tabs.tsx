@@ -137,11 +137,11 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
                 if ((e.key === 'Delete' || e.key === 'Backspace') && !isList) { e.preventDefault(); close(tab.id); }
               }}
               className={cn(
-                'group relative flex h-8 min-w-0 max-w-[220px] shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-md px-2.5 text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                // Browser-tab shape (owner ruling 2026-09-02): `.tab-slope`
+                // draws the trapezoid (aria-selected drives the active fill).
+                'tab-slope group relative flex h-8 min-w-0 max-w-[220px] shrink-0 cursor-pointer select-none items-center gap-1.5 self-end px-3 text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 'after:pointer-events-none after:absolute after:inset-x-2.5 after:bottom-[3px] after:h-0.5 after:rounded-full after:bg-primary after:opacity-0',
-                isActive
-                  ? 'bg-card font-semibold text-ink shadow-rim after:opacity-100'
-                  : 'text-ink-3 hover:bg-surface-3 hover:text-ink',
+                isActive ? 'font-semibold text-ink after:opacity-100' : 'text-ink-3 hover:text-ink',
                 tab.preview && 'italic',
               )}
             >

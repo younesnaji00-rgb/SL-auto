@@ -259,7 +259,7 @@ function getDeadlineInfo(
  */
 function MissionTabs({ active, counts, onChange, className }: { active: string; counts: Record<string, number>; onChange: (id: string) => void; className?: string }) {
   return (
-    <div role="tablist" aria-label="Type de mission" className={cn('inline-flex h-10 items-center gap-1 rounded-lg border border-hairline bg-surface-2 p-1', className)}>
+    <div role="tablist" aria-label="Type de mission" className={cn('inline-flex h-10 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-1 pt-1', className)}>
       {MISSION_TABS.map((tab) => {
         const isActive = active === tab.id;
         return (
@@ -270,11 +270,11 @@ function MissionTabs({ active, counts, onChange, className }: { active: string; 
             aria-selected={isActive}
             onClick={() => onChange(tab.id)}
             className={cn(
-              'relative inline-flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              // Browser-tab shape (owner ruling 2026-09-02): `.tab-slope`
+              // draws the sloped fill; aria-selected drives the active card.
+              'tab-slope relative inline-flex h-[34px] items-center justify-center gap-2 whitespace-nowrap px-3.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               'after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[3px] after:h-0.5 after:rounded-full after:bg-primary after:opacity-0 after:transition-opacity',
-              isActive
-                ? 'bg-card font-semibold text-ink shadow-rim after:opacity-100'
-                : 'text-ink-2 hover:bg-surface-3 hover:text-ink',
+              isActive ? 'font-semibold text-ink after:opacity-100' : 'text-ink-2 hover:text-ink',
             )}
           >
             {tab.label}

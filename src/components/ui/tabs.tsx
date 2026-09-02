@@ -27,7 +27,8 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-10 items-center gap-1 rounded-lg border border-hairline bg-surface-2 p-1 text-ink-2",
+      // Recessed track; tabs anchor to its bottom edge like browser tabs.
+      "inline-flex h-10 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-1 pt-1 text-ink-2",
       className
     )}
     {...props}
@@ -42,10 +43,13 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "relative inline-flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-[13px] font-medium text-ink-2 ring-offset-background transition-colors hover:bg-surface-3 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-      // Active = raised card + accent bar (two indicators, NN/g).
+      // Browser-tab shape (owner ruling 2026-09-02): sloped edges via
+      // `.tab-slope` (globals.css) — the ::before trapezoid carries the card
+      // fill + rim when active and the surface-3 hover; colours unchanged.
+      "tab-slope inline-flex h-[34px] items-center justify-center gap-2 whitespace-nowrap px-3.5 text-[13px] font-medium text-ink-2 ring-offset-background transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      // Accent bar under the label (second indicator, NN/g).
       "after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[3px] after:h-0.5 after:rounded-full after:bg-primary after:opacity-0 after:transition-opacity",
-      "data-[state=active]:bg-card data-[state=active]:font-semibold data-[state=active]:text-ink data-[state=active]:shadow-rim data-[state=active]:after:opacity-100",
+      "data-[state=active]:font-semibold data-[state=active]:text-ink data-[state=active]:after:opacity-100",
       "[&_svg]:size-4 [&_svg]:shrink-0",
       className
     )}

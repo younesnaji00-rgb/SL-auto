@@ -106,11 +106,11 @@ function PaneTab({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        'relative flex min-h-[32px] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        // Browser-tab shape (owner ruling 2026-09-02): `.tab-slope` draws the
+        // sloped fill; aria-selected drives the active card + rim.
+        'tab-slope relative flex min-h-[32px] flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-3.5 py-1 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         'after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[3px] after:h-0.5 after:rounded-full after:bg-primary after:opacity-0 after:transition-opacity',
-        active
-          ? 'bg-card font-semibold text-ink shadow-rim after:opacity-100'
-          : 'text-ink-2 hover:bg-surface-3 hover:text-ink',
+        active ? 'font-semibold text-ink after:opacity-100' : 'text-ink-2 hover:text-ink',
         className,
       )}
     >
@@ -122,7 +122,7 @@ function PaneTab({
 /** The recessed track the raised tabs sit on (addendum §2): hairline border,
  *  `surface-2` fill, 4 px inner padding, rounded-lg — visibly a control. */
 const PANE_TABLIST_CLASS =
-  'flex shrink-0 items-center gap-1 rounded-lg border border-hairline bg-surface-2 p-1';
+  'flex shrink-0 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-1 pt-1';
 
 function ReferencePane({
   dossierId,
