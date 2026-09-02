@@ -124,7 +124,9 @@ const SidebarProvider = React.forwardRef<
 
     return (
       <SidebarContext.Provider value={contextValue}>
-        <TooltipProvider delayDuration={0}>
+        {/* Hover-intent warm-up (motion-spec §6): first tooltip waits 300ms;
+            within 300ms of one closing, the next opens instantly. */}
+        <TooltipProvider delayDuration={300} skipDelayDuration={300}>
           <div
             style={
               {
@@ -289,7 +291,7 @@ const SidebarRail = React.forwardRef<
       onClick={toggleSidebar}
       title="Toggle Sidebar"
       className={cn(
-        "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-colors ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex",
+        "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-colors ease-standard after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex",
         "[[data-side=left]_&]:cursor-w-resize [[data-side=right]_&]:cursor-e-resize",
         "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
         "group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full group-data-[collapsible=offcanvas]:hover:bg-sidebar",
@@ -427,7 +429,7 @@ const SidebarGroupLabel = React.forwardRef<
       ref={ref}
       data-sidebar="group-label"
       className={cn(
-        "t-label text-sidebar-muted duration-200 flex h-8 shrink-0 items-center rounded-md px-2 outline-none ring-sidebar-ring transition-[margin,opacity] ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "t-label text-sidebar-muted duration-200 flex h-8 shrink-0 items-center rounded-md px-2 outline-none ring-sidebar-ring transition-[margin,opacity] ease-standard focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
         className
       )}
@@ -508,7 +510,7 @@ const sidebarMenuButtonVariants = cva(
   // `sm` = 32 px for the "Récents" sub-list. Every row carries the light rim
   // (owner ruling 2026-09-02, revised same day: the contour on EVERY row read
   // badly — it sits ONLY on the active row).
-  "peer/menu-button relative flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-[13px] leading-[1.45] text-sidebar-foreground/85 outline-none ring-sidebar-ring transition-[color,background-color,border-color,box-shadow] duration-150 ease-out hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 active:bg-sidebar-active active:text-sidebar-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 before:absolute before:bottom-1.5 before:left-0 before:top-1.5 before:w-0.5 before:rounded-full before:bg-transparent before:content-[''] data-[active=true]:bg-sidebar-active data-[active=true]:shadow-rim data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground data-[active=true]:before:bg-sidebar-primary motion-safe:data-[active=true]:before:animate-[nav-active-in_200ms_cubic-bezier(0.2,0,0,1)] data-[active=true]:[&>svg]:text-sidebar-primary group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!p-3 group-data-[collapsible=icon]:before:hidden [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-muted",
+  "peer/menu-button relative flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-[13px] leading-[1.45] text-sidebar-foreground/85 outline-none ring-sidebar-ring transition-[color,background-color,border-color,box-shadow] duration-150 ease-standard hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 active:bg-sidebar-active active:text-sidebar-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 before:absolute before:bottom-1.5 before:left-0 before:top-1.5 before:w-0.5 before:rounded-full before:bg-transparent before:content-[''] data-[active=true]:bg-sidebar-active data-[active=true]:shadow-rim data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground data-[active=true]:before:bg-sidebar-primary motion-safe:data-[active=true]:before:animate-[nav-active-in_200ms_cubic-bezier(0.2,0,0,1)] data-[active=true]:[&>svg]:text-sidebar-primary group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!p-3 group-data-[collapsible=icon]:before:hidden [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-muted",
   {
     variants: {
       variant: {

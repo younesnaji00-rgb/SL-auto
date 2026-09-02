@@ -109,7 +109,7 @@ export function MultiSelect({
       </div>
       <div className="relative mt-2">
         {open && selectables.length > 0 ? (
-          <div className="absolute top-0 z-10 w-full glass-strong rounded-md text-popover-foreground outline-none animate-in fade-in-0 motion-reduce:animate-none">
+          <div className="absolute top-0 z-10 w-full glass-strong rounded-md text-popover-foreground outline-none animate-in fade-in-0 duration-150 ease-enter motion-reduce:animate-none">
             <CommandList>
               <CommandGroup className="h-full max-h-60 overflow-auto">
                 {selectables.map(option => {

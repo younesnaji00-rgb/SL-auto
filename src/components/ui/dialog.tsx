@@ -21,7 +21,9 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-[color:var(--scrim)] backdrop-blur-[6px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      // The blur itself never animates (motion-spec §4.2) — only the scrim's
+      // opacity fades. 200 in / 150 out (exits faster, motion-spec §2).
+      "fixed inset-0 z-50 bg-[color:var(--scrim)] backdrop-blur-[6px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-200 data-[state=closed]:duration-150 motion-reduce:animate-none",
       className
     )}
     {...props}
@@ -54,15 +56,20 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        // Shared
-        "fixed z-50 grid w-full glass-strong gap-4 text-card-foreground p-6 duration-200 overscroll-contain data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none",
+        // Shared. Enter 200ms on the decelerate curve; exit 150ms fade-only
+        // on the accelerate curve — exits run ~3/4 of the enter and carry no
+        // zoom (the user has already decided to leave; motion-spec §2, §6).
+        "fixed z-50 grid w-full glass-strong gap-4 text-card-foreground p-6 duration-200 ease-enter data-[state=closed]:duration-150 data-[state=closed]:ease-exit overscroll-contain data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none",
         // Below lg: bottom sheet — primary action lands in the thumb zone
         "max-lg:inset-x-0 max-lg:bottom-0 max-lg:top-auto max-lg:max-h-[calc(92dvh/var(--app-zoom))] max-lg:max-w-none max-lg:overflow-y-auto max-lg:rounded-t-xl max-lg:border-b-0 max-lg:pb-[max(1.5rem,env(safe-area-inset-bottom))] max-lg:data-[state=closed]:slide-out-to-bottom max-lg:data-[state=open]:slide-in-from-bottom",
         // lg and up: centred modal
         "lg:left-[50%] lg:top-[50%] lg:max-w-lg lg:translate-x-[-50%] lg:translate-y-[-50%] lg:rounded-xl",
+        // Exits are pure fades: the slide-out-to-*-1/2 pair only RE-SUPPLIES
+        // the static centring inside the exit keyframe (same gotcha as the
+        // enter side) — the box does not move or zoom on the way out.
         calm
-          ? "lg:data-[state=open]:zoom-in-95 lg:data-[state=open]:slide-in-from-left-1/2 lg:data-[state=open]:slide-in-from-top-1/2 lg:data-[state=closed]:zoom-out-95 lg:data-[state=closed]:slide-out-to-left-1/2 lg:data-[state=closed]:slide-out-to-top-1/2"
-          : "lg:data-[state=closed]:zoom-out-95 lg:data-[state=open]:zoom-in-95 lg:data-[state=closed]:slide-out-to-left-1/2 lg:data-[state=closed]:slide-out-to-top-[48%] lg:data-[state=open]:slide-in-from-left-1/2 lg:data-[state=open]:slide-in-from-top-[48%]",
+          ? "lg:data-[state=open]:zoom-in-95 lg:data-[state=open]:slide-in-from-left-1/2 lg:data-[state=open]:slide-in-from-top-1/2 lg:data-[state=closed]:slide-out-to-left-1/2 lg:data-[state=closed]:slide-out-to-top-1/2"
+          : "lg:data-[state=open]:zoom-in-95 lg:data-[state=open]:slide-in-from-left-1/2 lg:data-[state=open]:slide-in-from-top-[48%] lg:data-[state=closed]:slide-out-to-left-1/2 lg:data-[state=closed]:slide-out-to-top-1/2",
         className
       )}
       {...props}

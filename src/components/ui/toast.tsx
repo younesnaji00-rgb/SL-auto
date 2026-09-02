@@ -28,7 +28,10 @@ const toastVariants = cva(
   // Frosted panel (`glass-strong`, same layer as menus/dialogs), 10 px radius.
   // Status variants lay a semantic pair over the glass with a 30 % fg
   // hairline; only transform/opacity animate.
-  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden glass-strong rounded-[10px] p-4 pr-8 transition-[transform,opacity] data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full motion-reduce:animate-none",
+  // Ambient element: enter 300ms on plain `ease` (Sonner's deliberate
+  // exception to the sub-300 rule — a toast doesn't block anything and the
+  // softer curve reads more refined); exit 200ms accelerate (motion-spec §6).
+  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden glass-strong rounded-[10px] p-4 pr-8 transition-[transform,opacity] data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full data-[state=open]:duration-300 data-[state=open]:ease-soft data-[state=closed]:duration-200 data-[state=closed]:ease-exit motion-reduce:animate-none",
   {
     variants: {
       variant: {

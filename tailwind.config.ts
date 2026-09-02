@@ -17,10 +17,19 @@ export default {
         code: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
-      // Material "standard" easing — every layout choreography (focus mode,
-      // sidebar, panels) shares it so motion reads as one system.
+      // One curve family (docs/motion-spec.md §2). standard = Material 3
+      // "standard" token: on-screen movement, layout choreography, and exits
+      // of recallable panels (sheets). enter = decelerate-only (M3
+      // standard-decelerate) for anything appearing. exit = accelerate-only
+      // (M3 standard-accelerate) for permanent departures, always paired
+      // with an opacity fade. Never invent a per-feature curve.
       transitionTimingFunction: {
         standard: 'cubic-bezier(0.2, 0, 0, 1)',
+        enter: 'cubic-bezier(0, 0, 0, 1)',
+        exit: 'cubic-bezier(0.3, 0, 1, 1)',
+        // CSS `ease`, named: toast entrances only (Sonner's deliberate choice
+        // for ambient elements — motion-spec §6).
+        soft: 'cubic-bezier(0.25, 0.1, 0.25, 1)',
       },
       // Elevation (Stripe levels 1–2): tonal cards get level 1, popovers level 2.
       boxShadow: {
@@ -150,40 +159,43 @@ export default {
             height: '0',
           },
         },
-        'fade-in-up': {
-          '0%': { opacity: '0', transform: 'translateY(8px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
+        'collapsible-down': {
+          from: {
+            height: '0',
+          },
+          to: {
+            height: 'var(--radix-collapsible-content-height)',
+          },
         },
-        'fade-in': {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
+        'collapsible-up': {
+          from: {
+            height: 'var(--radix-collapsible-content-height)',
+          },
+          to: {
+            height: '0',
+          },
         },
-        'slide-in': {
-          '0%': { opacity: '0', transform: 'translateX(-4px)' },
-          '100%': { opacity: '1', transform: 'translateX(0)' },
-        },
-        'slide-in-down': {
-          '0%': { opacity: '0', transform: 'translateY(-8px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
-        },
+        // "Item lands in the socket" hero moment (slot-card). Never from
+        // scale(0) — 0.95 is the floor (motion-spec §1.7).
         'scale-in': {
           '0%': { opacity: '0', transform: 'scale(0.95)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
         },
-        'row-fade': {
-          '0%': { opacity: '0', transform: 'translateY(4px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
+        // Value-change flash (37signals yellow fade, teal-tinted): a just-
+        // changed element is tinted with the accent and decays to nothing
+        // over ~2s. One-shot; motion-spec §8.
+        'value-flash': {
+          '0%': { backgroundColor: 'hsl(var(--accent) / 0.55)' },
+          '100%': { backgroundColor: 'transparent' },
         },
       },
       animation: {
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
-        'fade-in-up': 'fade-in-up 0.4s ease-out',
-        'fade-in': 'fade-in 0.3s ease-out',
-        'slide-in': 'slide-in 0.3s ease-out',
-        'slide-in-down': 'slide-in-down 0.25s ease-out',
-        'scale-in': 'scale-in 0.3s ease-out',
-        'row-fade': 'row-fade 0.2s ease-out both',
+        'accordion-down': 'accordion-down 0.2s cubic-bezier(0.2, 0, 0, 1)',
+        'accordion-up': 'accordion-up 0.2s cubic-bezier(0.2, 0, 0, 1)',
+        'collapsible-down': 'collapsible-down 0.2s cubic-bezier(0.2, 0, 0, 1)',
+        'collapsible-up': 'collapsible-up 0.2s cubic-bezier(0.2, 0, 0, 1)',
+        'scale-in': 'scale-in 0.3s cubic-bezier(0, 0, 0, 1)',
+        'value-flash': 'value-flash 2s ease-out both',
       },
     },
   },
