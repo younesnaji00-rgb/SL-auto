@@ -81,6 +81,10 @@ export interface Step4PiecesProps {
    * the drop box with AI pre-fill above.
    */
   hideInbox?: boolean;
+  /** Replay: frozen documents list forwarded to the slot board / documents browser. */
+  docsOverride?: any[];
+  /** Replay: frozen photos list forwarded to the documents browser / photos section. */
+  photosOverride?: any[];
 }
 
 function useSectionOpen(dossierId: string, key: 'photos'): [boolean, (v: boolean) => void] {
@@ -97,7 +101,7 @@ function useSectionOpen(dossierId: string, key: 'photos'): [boolean, (v: boolean
   return [open, setOpen];
 }
 
-export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, requireFirstAccordFilled, showReformeSlots, hideInbox }: Step4PiecesProps) {
+export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, requireFirstAccordFilled, showReformeSlots, hideInbox, docsOverride, photosOverride }: Step4PiecesProps) {
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
   // Subscribe to documents so we can gate the "Envoyer / Assigner au
@@ -107,10 +111,12 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
   const db = useFirestore();
   const auth = useAuth();
   const docsQuery = useMemo(() => {
-    if (!db || !dossierId) return null;
+    if (!db || !dossierId || docsOverride !== undefined) return null;
     return collection(db, 'dossiers', dossierId, 'documents');
-  }, [db, dossierId]);
-  const { data: docs } = useCollection<any>(docsQuery);
+  }, [db, dossierId, docsOverride]);
+  const { data: liveDocs } = useCollection<any>(docsQuery);
+  // Replay override: frozen data — no live subscription.
+  const docs = docsOverride !== undefined ? docsOverride : liveDocs;
   const firstRoundFilled = useMemo(() => {
     if (!requireFirstAccordFilled) return true;
     if (!docs) return false;
@@ -188,6 +194,7 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
         )}
         <TypedDocumentsGrid
           dossierId={dossierId}
+          docsOverride={docsOverride}
           hideAccordSlots={hideAccordSlots}
           showOnlyAccordSlots={showOnlyAccordSlots}
           hideCardinalPlus={hideCardinalPlus}
@@ -208,6 +215,8 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
           missing, teal tint once all are in. */}
       <DocumentsTab
         dossierId={dossierId}
+        docsOverride={docsOverride}
+        photosOverride={photosOverride}
         primaryAction={
           !readOnly && (!hideInbox || onSendToChiffrage) ? (
             <>
@@ -238,7 +247,7 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <PhotosTab dossierId={dossierId} />
+            <PhotosTab dossierId={dossierId} photosOverride={photosOverride} />
           </CollapsibleContent>
         </Collapsible>
       )}

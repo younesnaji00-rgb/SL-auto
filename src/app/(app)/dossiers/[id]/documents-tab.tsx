@@ -108,6 +108,10 @@ type DocumentsTabProps = {
   primaryAction?: React.ReactNode;
   /** Required hints + "pièces requises manquantes" line. */
   showRequirements?: boolean;
+  /** Replay: frozen documents list rendered instead of the live subscription. */
+  docsOverride?: any[];
+  /** Replay: frozen photos list (used by the « Inclure photos » download variant). */
+  photosOverride?: any[];
 };
 
 /** One socket of the Pièces tab. */
@@ -128,7 +132,7 @@ const SOCKET_GRID_CLASS = 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 
 
 const noop = () => {};
 
-export default function DocumentsTab({ dossierId, title = 'Documents', primaryAction, showRequirements = true }: DocumentsTabProps) {
+export default function DocumentsTab({ dossierId, title = 'Documents', primaryAction, showRequirements = true, docsOverride, photosOverride }: DocumentsTabProps) {
   const db = useFirestore();
   const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('dossiers');
@@ -167,11 +171,14 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
   const [isBatchDownloading, setIsBatchDownloading] = useState<false | 'docs' | 'docs+photos'>(false);
 
   const collQuery = useMemo(() => {
-    if (!db) return null;
+    if (!db || docsOverride !== undefined) return null;
     return collection(db, 'dossiers', dossierId, 'documents');
-  }, [db, dossierId]);
+  }, [db, dossierId, docsOverride]);
 
-  const { data: allDocuments, loading } = useCollection<any>(collQuery);
+  const { data: liveDocuments, loading: liveDocsLoading } = useCollection<any>(collQuery);
+  // Replay override: frozen data — no live subscription.
+  const allDocuments = docsOverride !== undefined ? docsOverride : liveDocuments;
+  const loading = docsOverride !== undefined ? false : liveDocsLoading;
 
   // Fetch parent dossier (for master-folder name: refCompagnie / assuré / compagnie)
   const dossierRef = useMemo(() => (db ? doc(db, 'dossiers', dossierId) : null), [db, dossierId]);
@@ -179,10 +186,11 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
 
   // Photos subcollection — needed only for the "Inclure photos" variant.
   const photosQuery = useMemo(() => {
-    if (!db) return null;
+    if (!db || photosOverride !== undefined) return null;
     return collection(db, 'dossiers', dossierId, 'photos');
-  }, [db, dossierId]);
-  const { data: allPhotos } = useCollection<any>(photosQuery);
+  }, [db, dossierId, photosOverride]);
+  const { data: livePhotos } = useCollection<any>(photosQuery);
+  const allPhotos = photosOverride !== undefined ? photosOverride : livePhotos;
 
   const sortedDocs = useMemo<TypedDoc[]>(() => {
     if (!allDocuments) return [];

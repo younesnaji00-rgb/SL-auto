@@ -19,6 +19,8 @@ type PlanificationTabProps = {
   onEditPlanification: (data: any) => void;
   onNewPlanification: (defaultType?: 'Avant' | 'En cours' | 'Après') => void;
   typeFilter?: 'Avant' | 'En cours' | 'Après';
+  /** Replay: frozen list rendered instead of the live subscription. */
+  plansOverride?: any[];
 };
 
 function toDate(ts: any): Date | null {
@@ -44,6 +46,7 @@ export default function PlanificationTab({
   onEditPlanification,
   onNewPlanification,
   typeFilter,
+  plansOverride,
 }: PlanificationTabProps) {
   const db = useFirestore();
   const [plans, setPlans] = useState<any[] | null>(null);
@@ -53,6 +56,16 @@ export default function PlanificationTab({
   const hl = useReplayHighlight();
 
   useEffect(() => {
+    if (plansOverride !== undefined) {
+      // Replay override: frozen data, same newest-first order as the live query.
+      setPlans(
+        [...plansOverride].sort(
+          (a: any, b: any) => (toDate(b?.createdAt)?.getTime() || 0) - (toDate(a?.createdAt)?.getTime() || 0),
+        ),
+      );
+      setLoading(false);
+      return;
+    }
     const q = query(collection(db, 'dossiers', dossierId, 'planifications'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(
       q,
@@ -66,7 +79,7 @@ export default function PlanificationTab({
       },
     );
     return () => unsub();
-  }, [db, dossierId]);
+  }, [db, dossierId, plansOverride]);
 
   const formatTimestamp = (ts: any) => {
     const d = toDate(ts);

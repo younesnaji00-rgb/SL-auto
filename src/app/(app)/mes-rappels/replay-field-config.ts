@@ -188,10 +188,7 @@ export const REPLAY_STEPS: ReplayStepConfig[] = [
         ],
       },
     ],
-    subs: [
-      { kind: 'documents', slot: 'accord1', title: 'Documents accordés & réforme (1er accord)' },
-      { kind: 'observations', accordSlot: '1er accord', title: 'Observations (1er accord)' },
-    ],
+    subs: [{ kind: 'observations', accordSlot: '1er accord', title: 'Observations (1er accord)' }],
   },
   {
     id: 9,
@@ -227,10 +224,7 @@ export const REPLAY_STEPS: ReplayStepConfig[] = [
         ],
       },
     ],
-    subs: [
-      { kind: 'documents', slot: 'accord2plus', title: 'Documents accordés (2ème accord ou +)' },
-      { kind: 'observations', accordSlot: '2ème accord ou +', title: 'Observations (2ème accord ou +)' },
-    ],
+    subs: [{ kind: 'observations', accordSlot: '2ème accord ou +', title: 'Observations (2ème accord ou +)' }],
   },
   {
     id: 10,

@@ -109,7 +109,18 @@ export const MAX_PHOTOS_PER_SECTION = 30;
 /** Cap when proposition réforme is active. */
 export const MAX_PHOTOS_WITH_REFORME = 60;
 
-export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: { dossierId: string; initialCategory?: PhotoCategory; onlyCategory?: PhotoCategory }) {
+export default function PhotosTab({
+  dossierId,
+  initialCategory,
+  onlyCategory,
+  photosOverride,
+}: {
+  dossierId: string;
+  initialCategory?: PhotoCategory;
+  onlyCategory?: PhotoCategory;
+  /** Replay: frozen photo list rendered instead of the live subscription. */
+  photosOverride?: any[];
+}) {
   const visibleCategories = onlyCategory ? CATEGORIES.filter((c) => c.id === onlyCategory) : CATEGORIES;
   // Mounted inside a step facet tab (`onlyCategory` set): the photos already
   // have their own tab, so date/location groups open EXPANDED by default.
@@ -150,6 +161,12 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
   });
 
   useEffect(() => {
+    if (photosOverride !== undefined) {
+      // Replay override: frozen data — no live subscription.
+      setAllPhotos(photosOverride as Photo[]);
+      setLoading(false);
+      return;
+    }
     if (!db || !dossierId) return;
     setLoading(true);
     const photosRef = collection(db, 'dossiers', dossierId, 'photos');
@@ -166,7 +183,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
       },
     );
     return () => unsubscribe();
-  }, [db, dossierId]);
+  }, [db, dossierId, photosOverride]);
 
   const photosForCategory = (cat: PhotoCategory) =>
     allPhotos

@@ -46,6 +46,13 @@ export interface Step1ImportProps {
    * full card for other callers.
    */
   compact?: boolean;
+  /**
+   * Replay (« Avant » pane of the rappel comparison): the frozen import
+   * document to render instead of subscribing to the live one. `undefined`
+   * keeps the live behaviour (default); `null` means no import document
+   * existed at snapshot time.
+   */
+  importDocOverride?: any | null;
 }
 
 // Date fields that must be stored as Firestore Timestamps to stay consistent
@@ -137,6 +144,7 @@ export default function Step1Import({
   dossierRef,
   readOnly,
   compact = false,
+  importDocOverride,
 }: Step1ImportProps) {
   const db = useFirestore();
   const storage = useStorage();
@@ -165,10 +173,13 @@ export default function Step1Import({
   const importDocId: string | undefined = dossier?.importDocId || undefined;
 
   const importDocRef = useMemo(() => {
+    if (importDocOverride !== undefined) return null; // replay: frozen data, no live read
     if (!db || !dossierId || !importDocId) return null;
     return firestoreDoc(db, 'dossiers', dossierId, 'documents', importDocId);
-  }, [db, dossierId, importDocId]);
-  const { data: importDoc, loading: importDocLoading } = useDoc<any>(importDocRef);
+  }, [db, dossierId, importDocId, importDocOverride]);
+  const { data: liveImportDoc, loading: liveImportDocLoading } = useDoc<any>(importDocRef);
+  const importDoc = importDocOverride !== undefined ? importDocOverride : liveImportDoc;
+  const importDocLoading = importDocOverride !== undefined ? false : liveImportDocLoading;
 
   const runScanAndMerge = useCallback(
     async (

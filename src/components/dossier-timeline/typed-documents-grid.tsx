@@ -128,9 +128,11 @@ interface TypedDocumentsGridProps {
    * the fee note / invoice.
    */
   showOnlyNoteHonoraire?: boolean;
+  /** Replay: frozen documents list rendered instead of the live subscription. */
+  docsOverride?: any[];
 }
 
-export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, hideReformeSlots, showReformeSlots, showOnlyNoteHonoraire }: TypedDocumentsGridProps) {
+export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, hideReformeSlots, showReformeSlots, showOnlyNoteHonoraire, docsOverride }: TypedDocumentsGridProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -162,11 +164,14 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   const [preview, setPreview] = useState<{ doc: DocumentPreviewLightboxDoc; pages: DocumentPreviewLightboxDoc[] } | null>(null);
 
   const collQuery = useMemo(() => {
-    if (!db) return null;
+    if (!db || docsOverride !== undefined) return null;
     return collection(db, 'dossiers', dossierId, 'documents');
-  }, [db, dossierId]);
+  }, [db, dossierId, docsOverride]);
 
-  const { data: allDocs, loading } = useCollection<any>(collQuery);
+  const { data: liveDocs, loading: liveLoading } = useCollection<any>(collQuery);
+  // Replay override: frozen data — no live subscription.
+  const allDocs = docsOverride !== undefined ? docsOverride : liveDocs;
+  const loading = docsOverride !== undefined ? false : liveLoading;
 
   // Group live docs into Devis / Facture families (one row each). Non-family
   // slots are rendered in a separate grid above/below the family rows.

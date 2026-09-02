@@ -121,6 +121,8 @@ type ObservationsTabProps = {
   /** Scope the panel to an accord context. Filters list AND auto-tags new
    *  observations written from this panel. */
   contextAccord?: AccordSlot;
+  /** Replay: frozen observation list rendered instead of the live subscription. */
+  observationsOverride?: any[];
 };
 
 export default function ObservationsTab({
@@ -129,6 +131,7 @@ export default function ObservationsTab({
   variant = 'tab',
   contextPhase,
   contextAccord,
+  observationsOverride,
 }: ObservationsTabProps) {
   const db = useFirestore();
   const auth = useAuth();
@@ -199,14 +202,23 @@ export default function ObservationsTab({
   );
 
   const obsQuery = useMemo(() => {
-    if (!db) return null;
+    if (!db || observationsOverride !== undefined) return null;
     return query(
       collection(db, 'dossiers', dossierId, 'observations'),
       orderBy('createdAt', 'desc')
     );
-  }, [db, dossierId]);
+  }, [db, dossierId, observationsOverride]);
 
-  const { data: rawObservations, loading } = useCollection<Observation>(obsQuery as any);
+  const { data: liveObservations, loading: liveObsLoading } = useCollection<Observation>(obsQuery as any);
+  // Replay override: frozen data, same newest-first order as the live query.
+  const rawObservations = useMemo(() => {
+    if (observationsOverride === undefined) return liveObservations;
+    const ms = (v: any) => (v?.toDate ? v.toDate().getTime() : +new Date(v)) || 0;
+    return [...(observationsOverride as Observation[])].sort(
+      (a: any, b: any) => ms(b?.createdAt) - ms(a?.createdAt)
+    );
+  }, [observationsOverride, liveObservations]);
+  const loading = observationsOverride !== undefined ? false : liveObsLoading;
 
   // Dynamic "à propos de quel accord" options — populated from every chiffrage
   // round assigned to this chiffreur on this dossier. Keys of

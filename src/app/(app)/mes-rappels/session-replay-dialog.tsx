@@ -27,14 +27,14 @@ import {
   type ReplayHighlightValue,
 } from '@/components/dossier-timeline/replay-highlight';
 import { DOSSIER_TIMELINE_STEPS } from '@/components/dossier-timeline/timeline';
-import ReplayBeforePane from './replay-before-pane';
 
 // The real dossier-timeline components — rendered read-only + live so the
 // AFTER pane is the exact detail page (every field, photo, table), not an
 // approximation. Read-only is enforced by ReadOnlyUserScope + a disabled
-// fieldset, so the frozen tab components are untouched. The BEFORE pane is
-// rendered from the frozen session-start snapshot by ReplayBeforePane (no
-// live reads, no highlights).
+// fieldset, so the frozen tab components are untouched. The BEFORE pane
+// renders the SAME components (same cards, same anatomy) fed with the frozen
+// session-start snapshot through each component's `…Override` prop — and no
+// ReplayHighlightProvider, so it stays untinted.
 import Step1Import from '@/components/dossier-timeline/step-1-import';
 import Step2Information from '@/components/dossier-timeline/step-2-information';
 import Step3Planification from '@/components/dossier-timeline/step-3-planification';
@@ -86,6 +86,29 @@ function fmtDateTime(ts: any): string {
 
 const isLgViewport = () =>
   typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
+
+/**
+ * Deep-convert JSON-roundtripped timestamps ({seconds}/{_seconds} maps — the
+ * snapshot write-fallback format) into real Dates, so the live components'
+ * `ts.toDate ? … : new Date(ts)` / date-fns paths work on frozen data.
+ * Live Timestamp instances (structured snapshots) pass through untouched.
+ */
+function hydrateTimestamps<T>(value: T): T {
+  const walk = (v: any): any => {
+    if (v == null || typeof v !== 'object') return v;
+    if (typeof v.toDate === 'function' || v instanceof Date) return v;
+    if (Array.isArray(v)) return v.map(walk);
+    const keys = Object.keys(v);
+    if (typeof v.seconds === 'number' && keys.length <= 2)
+      return new Date(v.seconds * 1000 + Math.floor((v.nanoseconds || 0) / 1e6));
+    if (typeof v._seconds === 'number' && keys.length <= 2)
+      return new Date(v._seconds * 1000 + Math.floor((v._nanoseconds || 0) / 1e6));
+    const out: any = {};
+    for (const k of keys) out[k] = walk(v[k]);
+    return out;
+  };
+  return walk(value);
+}
 
 /**
  * Step-section anchor offsets inside a scroll container: the scrollTop at
@@ -260,6 +283,33 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
   }, [open, db, rappelId]);
   const before = snaps?.before ?? null;
   const storedDiff = snaps?.diff ?? null;
+
+  // ── « Avant » pane data: the frozen snapshot, hydrated so JSON-roundtripped
+  // timestamps behave like live Timestamps inside the embedded components.
+  // Memoised so the override props keep a stable identity (the components'
+  // effects depend on them). ──
+  const beforeDossier = useMemo(
+    () => (before?.dossier ? hydrateTimestamps(before.dossier) : null),
+    [before],
+  );
+  const { subs: beforeSubs, missing: beforeSubsMissing } = useMemo(() => {
+    const subs: Record<string, any[]> = {};
+    let missing = false;
+    for (const name of SNAP_SUBCOLLECTIONS) {
+      const list = before?.subs?.[name];
+      if (Array.isArray(list)) subs[name] = hydrateTimestamps(list);
+      else {
+        subs[name] = [];
+        missing = true;
+      }
+    }
+    return { subs, missing };
+  }, [before]);
+  const beforeImportDoc = useMemo(() => {
+    const iid = beforeDossier?.importDocId;
+    if (!iid) return null;
+    return beforeSubs.documents.find((d: any) => d?.id === iid) ?? null;
+  }, [beforeDossier, beforeSubs]);
 
   const ready = !!db && !!id && open;
   const obsQ = useMemo(() => (ready ? collection(db, 'dossiers', id!, 'observations') : null), [db, id, ready]);
@@ -489,6 +539,74 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
     }
   };
 
+  // « Avant » pane: the SAME composition, fed with the frozen snapshot via the
+  // components' `…Override` props (no live subscriptions, no highlights — the
+  // pane is rendered outside the ReplayHighlightProvider, so the highlight
+  // context stays inert). Keep in sync with renderStep above.
+  const renderStepBefore = (stepId: number) => {
+    if (!id || !beforeDossier || !dossierRef) return null;
+    const common = { dossierId: id, dossier: beforeDossier, dossierRef, readOnly: true };
+    const ov = beforeSubs;
+    switch (stepId) {
+      case 1:
+        return (
+          <>
+            <Step1Import {...common} importDocOverride={beforeImportDoc} />
+            <div className="mt-4">
+              <Step2Information {...common} onEditPlanification={noop} onNewPlanification={noop} />
+            </div>
+            <div className="mt-4">
+              <Step4Pieces {...common} onSendToChiffrage={noop} hidePhotos hideAccordSlots showBaseGarageSlots hideOtherSlots showAllNonAccordSlots docsOverride={ov.documents} photosOverride={ov.photos} />
+            </div>
+          </>
+        );
+      case 4:
+        return (
+          <>
+            <Step3Planification {...common} onEditPlanification={noop} onNewPlanification={noop} typeFilter="Avant" plansOverride={ov.planifications} />
+            <div className="mt-4"><PhotosTab dossierId={id} onlyCategory="avant" photosOverride={ov.photos} /></div>
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="Avant" observationsOverride={ov.observations} /></div>
+          </>
+        );
+      case 6:
+        return (
+          <>
+            <Step4Pieces {...common} onSendToChiffrage={noop} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots docsOverride={ov.documents} photosOverride={ov.photos} />
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="1er accord" observationsOverride={ov.observations} /></div>
+          </>
+        );
+      case 9:
+        return (
+          <>
+            <Step3Planification {...common} onEditPlanification={noop} onNewPlanification={noop} typeFilter="En cours" plansOverride={ov.planifications} />
+            <div className="mt-4"><PhotosTab dossierId={id} onlyCategory="en_cours" photosOverride={ov.photos} /></div>
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="En cours" observationsOverride={ov.observations} /></div>
+          </>
+        );
+      case 11:
+        return (
+          <>
+            <Step4Pieces {...common} onSendToChiffrage={noop} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" docsOverride={ov.documents} photosOverride={ov.photos} />
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="2ème accord ou +" observationsOverride={ov.observations} /></div>
+          </>
+        );
+      case 10:
+        return (
+          <>
+            <Step3Planification {...common} onEditPlanification={noop} onNewPlanification={noop} typeFilter="Après" plansOverride={ov.planifications} />
+            <div className="mt-4"><PhotosTab dossierId={id} onlyCategory="apres" photosOverride={ov.photos} /></div>
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="Après" observationsOverride={ov.observations} /></div>
+          </>
+        );
+      case 7:
+        return <Step6Rapport {...common} dossierOverride={beforeDossier} />;
+      case 8:
+        return <TypedDocumentsGrid dossierId={id} showOnlyNoteHonoraire docsOverride={ov.documents} />;
+      default:
+        return null;
+    }
+  };
+
   const paneHeaderPill = (label: string) => (
     <span className="t-label inline-flex items-center rounded-full bg-surface-3 px-2.5 py-1 shadow-rim">
       {label}
@@ -638,8 +756,51 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                       <Skeleton className="h-40 w-full rounded-xl" />
                       <Skeleton className="h-40 w-full rounded-xl" />
                     </div>
+                  ) : !beforeDossier ? (
+                    // Honest fallback: no start snapshot → no origin values.
+                    // The step shells stay so the scroll anchors still line up.
+                    <div className="px-3 py-4 sm:px-4">
+                      <p className="t-caption mb-2 text-ink-3">
+                        Aucun instantané de départ n&apos;a été enregistré pour cette session&nbsp;:
+                        les valeurs d&apos;origine ne sont pas disponibles.
+                      </p>
+                      {DOSSIER_TIMELINE_STEPS.map((step, idx) => (
+                        <section
+                          key={step.id}
+                          id={`${AVANT_PREFIX}${step.id}`}
+                          className="border-b border-hairline py-6 first:pt-2 last:border-b-0"
+                        >
+                          <StepSectionHeader position={idx + 1} label={step.label} />
+                          <p className="t-caption text-ink-3">—</p>
+                        </section>
+                      ))}
+                    </div>
                   ) : (
-                    <ReplayBeforePane bundle={before} steps={DOSSIER_TIMELINE_STEPS} idPrefix={AVANT_PREFIX} />
+                    <ReadOnlyUserScope>
+                      {/* Same hard read-only treatment as the right pane, so both
+                          sides show the same (inert) controls. NO highlight
+                          provider here — the « Avant » pane renders plain. */}
+                      <fieldset disabled className="m-0 min-w-0 border-0 p-0">
+                        <div className="px-3 py-4 sm:px-4">
+                          {beforeSubsMissing && (
+                            <p className="t-caption mb-2 text-ink-3">
+                              Certaines listes (documents, photos, planifications…) n&apos;ont pas
+                              été enregistrées dans l&apos;instantané de départ et apparaissent vides.
+                            </p>
+                          )}
+                          {DOSSIER_TIMELINE_STEPS.map((step, idx) => (
+                            <section
+                              key={step.id}
+                              id={`${AVANT_PREFIX}${step.id}`}
+                              className="border-b border-hairline py-6 first:pt-2 last:border-b-0"
+                            >
+                              <StepSectionHeader position={idx + 1} label={step.label} />
+                              {renderStepBefore(step.id)}
+                            </section>
+                          ))}
+                        </div>
+                      </fieldset>
+                    </ReadOnlyUserScope>
                   )}
                 </div>
               </div>

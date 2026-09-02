@@ -57,7 +57,14 @@ import { apiFetch } from '@/lib/api-fetch';
 const DIAGRAM_TAB_TRIGGER =
   'relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-[13px] font-medium text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card data-[state=active]:border-primary data-[state=active]:text-ink';
 
-export default function RapportTab({ dossierId }: { dossierId: string }) {
+export default function RapportTab({
+  dossierId,
+  dossierOverride,
+}: {
+  dossierId: string;
+  /** Replay: frozen dossier data rendered instead of the live subscription. */
+  dossierOverride?: Record<string, any> | null;
+}) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -104,6 +111,18 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
   const pointsChocInitialLoaded = useRef(false);
 
   useEffect(() => {
+    if (dossierOverride !== undefined) {
+      // Replay override: initialise from the frozen snapshot, no live subscription.
+      const data = dossierOverride ?? {};
+      if (data.pointsChoc) setPointsChoc(data.pointsChoc);
+      if (data.pointsChocDessous) setPointsChocDessous(data.pointsChocDessous);
+      if (data.typeChiffrage) setTypeChiffrage(data.typeChiffrage);
+      if (data.sousTypeChiffrage) setSousTypeChiffrage(data.sousTypeChiffrage);
+      setDirectorValidated(data.directorValidated ?? null);
+      setRapportAlreadyDepose(!!data.dateRapportDepose);
+      setLoading(false);
+      return;
+    }
     if (!db || !dossierId) return;
 
     const unsubscribeDossier = onSnapshot(doc(db, 'dossiers', dossierId), (snap) => {
@@ -135,7 +154,7 @@ export default function RapportTab({ dossierId }: { dossierId: string }) {
     return () => {
       unsubscribeDossier();
     };
-  }, [db, dossierId]);
+  }, [db, dossierId, dossierOverride]);
 
   const handleTypeChiffrageChange = async (value: 'Réparation' | 'Réforme') => {
     setTypeChiffrage(value);
