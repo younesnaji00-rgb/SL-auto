@@ -100,7 +100,7 @@ const ActiveRowIndicator = ({ deps }: { deps: React.DependencyList }) => {
       aria-hidden
       className={cn(
         'pointer-events-none absolute z-0 rounded-md bg-sidebar-active shadow-rim',
-        readyRef.current && 'transition-[top,left,width,height,opacity] duration-200 ease-standard motion-reduce:transition-none',
+        readyRef.current && 'transition-[top,left,width,height,opacity] duration-300 ease-standard motion-reduce:transition-none',
         box ? 'opacity-100' : 'opacity-0',
       )}
       style={box ?? undefined}

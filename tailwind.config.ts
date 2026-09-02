@@ -23,6 +23,13 @@ export default {
       // standard-decelerate) for anything appearing. exit = accelerate-only
       // (M3 standard-accelerate) for permanent departures, always paired
       // with an opacity fade. Never invent a per-feature curve.
+      // Owner pacing ruling 2026-09-02: state-change animations sit at the
+      // UPPER band of the researched ranges ("way too fast to the point they
+      // go unnoticed") — disclosures 250, mode flips / selection travel 300.
+      // Overlays/menus/hovers keep the spec values.
+      transitionDuration: {
+        '250': '250ms',
+      },
       transitionTimingFunction: {
         standard: 'cubic-bezier(0.2, 0, 0, 1)',
         enter: 'cubic-bezier(0, 0, 0, 1)',
@@ -190,10 +197,10 @@ export default {
         },
       },
       animation: {
-        'accordion-down': 'accordion-down 0.2s cubic-bezier(0.2, 0, 0, 1)',
-        'accordion-up': 'accordion-up 0.2s cubic-bezier(0.2, 0, 0, 1)',
-        'collapsible-down': 'collapsible-down 0.2s cubic-bezier(0.2, 0, 0, 1)',
-        'collapsible-up': 'collapsible-up 0.2s cubic-bezier(0.2, 0, 0, 1)',
+        'accordion-down': 'accordion-down 0.25s cubic-bezier(0.2, 0, 0, 1)',
+        'accordion-up': 'accordion-up 0.25s cubic-bezier(0.2, 0, 0, 1)',
+        'collapsible-down': 'collapsible-down 0.25s cubic-bezier(0.2, 0, 0, 1)',
+        'collapsible-up': 'collapsible-up 0.25s cubic-bezier(0.2, 0, 0, 1)',
         'scale-in': 'scale-in 0.3s cubic-bezier(0, 0, 0, 1)',
         'value-flash': 'value-flash 2s ease-out both',
       },

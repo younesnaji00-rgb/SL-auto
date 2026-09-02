@@ -634,7 +634,7 @@ export default function DossiersClientPage() {
         // solid primary (the header actions are hidden in this mode). Enters
         // with the standard 200ms fade + small rise (owner 2026-09-02:
         // everything that appears after « Rappeler » animates).
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface-2 px-4 py-2 animate-in fade-in-0 slide-in-from-top-1 duration-200 ease-enter motion-reduce:animate-none">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface-2 px-4 py-2 animate-in fade-in-0 slide-in-from-top-2 duration-300 ease-enter motion-reduce:animate-none">
           <span className="text-sm font-semibold tabular-nums text-ink">
             {selectedRows.size} / {dossierList.length} dossier(s) sélectionné(s)
           </span>
@@ -660,7 +660,7 @@ export default function DossiersClientPage() {
               {exportMode && (
                 <TableHead className="w-10">
                   <Checkbox
-                    className="animate-in fade-in-0 zoom-in-95 duration-200 ease-enter motion-reduce:animate-none"
+                    className="animate-in fade-in-0 zoom-in-75 duration-300 ease-enter motion-reduce:animate-none"
                     checked={allVisibleSelected}
                     onCheckedChange={() => allVisibleSelected ? setSelectedRows(new Set()) : handleSelectAll()}
                   />
@@ -1034,7 +1034,7 @@ export default function DossiersClientPage() {
                   {exportMode && (
                     <TableCell onClick={e => e.stopPropagation()}>
                       <Checkbox
-                        className="animate-in fade-in-0 zoom-in-95 duration-200 ease-enter motion-reduce:animate-none"
+                        className="animate-in fade-in-0 zoom-in-75 duration-300 ease-enter motion-reduce:animate-none"
                         checked={selectedRows.has(d.id)}
                         onCheckedChange={() => handleToggleRow(d.id)}
                       />

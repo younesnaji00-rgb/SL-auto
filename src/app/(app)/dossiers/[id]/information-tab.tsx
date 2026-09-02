@@ -92,8 +92,10 @@ const FieldRow = ({
       className={cn(
         'grid grid-cols-1 gap-x-6 gap-y-4',
         FIELD_GRID[cols],
-        'animate-in fade-in-0 ease-enter motion-reduce:animate-none',
-        editing ? 'duration-200' : 'duration-150',
+        // Fade alone was invisible (hairline borders on cream — owner
+        // 2026-09-02): the incoming mode also RISES 4px, 300ms in / 200 out.
+        'animate-in fade-in-0 slide-in-from-bottom-1 ease-enter motion-reduce:animate-none',
+        editing ? 'duration-300' : 'duration-200',
         className,
       )}
     >

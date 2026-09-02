@@ -142,7 +142,7 @@ export function StepTabs({ tabs, defaultValue, storageKey, className }: StepTabs
           value={t.value}
           // Incoming panel only: 150ms fade + 3px rise, decelerate; no exit
           // animation (owner option A1 2026-09-02, motion-spec §7).
-          className="pt-5 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-[3px] data-[state=active]:duration-150 data-[state=active]:ease-enter motion-reduce:animate-none"
+          className="pt-5 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 data-[state=active]:duration-200 data-[state=active]:ease-enter motion-reduce:animate-none"
         >
           {t.content}
         </TabsPrimitive.Content>

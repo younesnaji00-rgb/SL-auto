@@ -1146,7 +1146,7 @@ export function DevisEditor({
                 <IconChip><Car /></IconChip>
                 <span className="t-heading">Informations</span>
               </span>
-              <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform duration-200 ease-standard motion-reduce:transition-none', !infoCardOpen && '-rotate-90')} />
+              <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform duration-250 ease-standard motion-reduce:transition-none', !infoCardOpen && '-rotate-90')} />
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent>

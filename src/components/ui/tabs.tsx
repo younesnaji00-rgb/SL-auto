@@ -87,7 +87,7 @@ const TabsContent = React.forwardRef<
       // Incoming panel only: 150ms fade + 3px rise (same figure as the tab's
       // own seat animation), decelerate curve; NO exit animation and no
       // directional slide — peer tabs, not a sequence (motion-spec §7).
-      "mt-4 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-[3px] data-[state=active]:duration-150 data-[state=active]:ease-enter motion-reduce:animate-none",
+      "mt-4 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 data-[state=active]:duration-200 data-[state=active]:ease-enter motion-reduce:animate-none",
       className
     )}
     {...props}

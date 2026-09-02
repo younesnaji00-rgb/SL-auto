@@ -649,13 +649,24 @@ html {
       animation: tab-slope-in 200ms cubic-bezier(0.2, 0, 0, 1);
     }
   }
-  /* The flying "symbiote" ghost (hooks/use-tab-morph.ts): a bare element
-     wearing the full active-tab paint that WAAPI slides from the old tab to
-     the new one. Its pseudos must not ALSO run the seat entrance. */
-  .tab-slope-ghost::before,
-  .tab-slope-ghost::after {
-    animation: none !important;
-    transition: none !important;
+  /* The flying "symbiote" carrier (hooks/use-tab-morph.ts): a CLEAN pill —
+     no foot gradients, so nothing aliases mid-flight (the v1 ghost that
+     wore the full seated shape pixelated on the arcs; owner 2026-09-02).
+     Fill = the HOVER-strength accent with the primary outline (visible in
+     motion over the track); on landing it fades out over the tab's own
+     lighter « voile teal » seat. */
+  .tab-slope-ghost {
+    background: hsl(var(--accent));
+    border-radius: 10px 10px 0 0;
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.6);
+  }
+  /* Morph HOLD (owner 2026-09-02: "the tab transforms from the pill long
+     before the animation finishes"): while the carrier flies, the incoming
+     tab's seat paint stays hidden so it still looks unselected; the carrier
+     landing reveals it. */
+  .tab-slope.tab-morph-hold::before,
+  .tab-slope.tab-morph-hold::after {
+    visibility: hidden !important;
   }
   /* (nav-active-in retired 2026-09-02: the sidebar's active surface is now a
      single morphing indicator — components/layout/sidebar.tsx.) */
@@ -683,6 +694,13 @@ html {
    target Tailwind utility class names must live OUTSIDE @layer components,
    or Tailwind v3 re-emits them variant-transformed into selectors
    LightningCSS/Turbopack fatally rejects.) */
+
+/* Morph hold, part 2 — OUTSIDE the layers because the selector names a
+   Tailwind utility class (see the note above): the accent bar / dirty-dot
+   spans stay hidden until the carrier lands. */
+.tab-slope.tab-morph-hold span.bg-primary {
+  opacity: 0 !important;
+}
 
 /* Lightbox/viewer entrances: handled structurally by the Dialog primitive's
    `calm` prop (components/ui/dialog.tsx) — the zoom/slide utilities are not

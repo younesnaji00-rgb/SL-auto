@@ -123,9 +123,60 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
   // driven (CSS alone can't quiet the siblings).
   const [inspectedId, setInspectedId] = React.useState<number | null>(null);
   const release = (id: number) => setInspectedId((h) => (h === id ? null : h));
+
+  // Symbiote morph for the step bar (owner 2026-09-02): the active pill's
+  // surface (accent veil + rim) is ONE indicator that slides from the old
+  // step to the new one; buttons keep only their text/medallion treatment.
+  // Measured with the offset chain (zoom/scroll-safe); a ResizeObserver on
+  // the active button follows its width as the title unfolds.
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [box, setBox] = React.useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const readyRef = React.useRef(false);
+  const measure = React.useCallback(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const btn = container.querySelector<HTMLElement>('[data-step-active="true"]');
+    if (!btn) {
+      setBox(null);
+      return;
+    }
+    let top = 0;
+    let left = 0;
+    let node: HTMLElement | null = btn;
+    while (node && node !== container) {
+      top += node.offsetTop;
+      left += node.offsetLeft;
+      node = node.offsetParent as HTMLElement | null;
+    }
+    setBox({ top, left, width: btn.offsetWidth, height: btn.offsetHeight });
+  }, []);
+  /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  React.useLayoutEffect(measure, [activeId, inspectedId, steps.length]);
+  React.useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(container);
+    const btn = container.querySelector<HTMLElement>('[data-step-active="true"]');
+    if (btn) ro.observe(btn);
+    return () => ro.disconnect();
+  }, [measure, activeId]);
+  React.useEffect(() => {
+    if (box) readyRef.current = true;
+  }, [box]);
+
   return (
     <nav aria-label="Étapes du dossier" className={cn('relative w-full', className)}>
-      <div className="flex h-12 w-full items-center gap-0.5 overflow-x-auto px-3 [scrollbar-width:none] sm:px-5 [&::-webkit-scrollbar]:hidden">
+      <div ref={scrollRef} className="relative flex h-12 w-full items-center gap-0.5 overflow-x-auto px-3 [scrollbar-width:none] sm:px-5 [&::-webkit-scrollbar]:hidden">
+        <div
+          aria-hidden
+          className={cn(
+            'pointer-events-none absolute z-0 rounded-full bg-accent/50 shadow-rim',
+            readyRef.current && 'transition-[top,left,width,height,opacity] duration-300 ease-standard motion-reduce:transition-none',
+            box ? 'opacity-100' : 'opacity-0',
+          )}
+          style={box ?? undefined}
+        />
         {steps.map((step, idx) => {
           const isActive = step.id === activeId;
           const blocked = step.status === 'blocked';
@@ -144,11 +195,13 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                 onFocus={() => !blocked && setInspectedId(step.id)}
                 onBlur={() => release(step.id)}
                 aria-current={isActive ? 'step' : undefined}
+                data-step-active={isActive || undefined}
                 className={cn(
-                  'group flex h-9 shrink-0 items-center rounded-full py-0.5 pl-0.5 pr-2 text-left',
+                  'group relative flex h-9 shrink-0 items-center rounded-full py-0.5 pl-0.5 pr-2 text-left',
                   'transition-colors duration-150 ease-standard motion-reduce:transition-none',
                   'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  isActive ? 'bg-accent/50 shadow-rim' : 'hover:bg-surface-2 focus-visible:bg-surface-2',
+                  // The active surface is painted by the sliding indicator.
+                  !isActive && 'hover:bg-surface-2 focus-visible:bg-surface-2',
                   blocked && 'cursor-not-allowed hover:bg-transparent',
                 )}
               >

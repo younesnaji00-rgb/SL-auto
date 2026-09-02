@@ -526,3 +526,31 @@ dev server compiles and serves. NOT visually verified (owner's eyes):
 sidebar morph feel (esp. collapsed mode + Récents rows), ghost flight over
 the tab feet, step fold, space-stealing hover, edit-mode fade, rotation
 with zoom+pan combined, the 20-row cap height at zoom 0.9/1.1.
+
+## Addendum 2026-09-02 (ter) — carrier v2, step-bar morph, PACING ruling
+
+Owner live-test rulings, implemented same day:
+
+1. **Tab morph carrier v2.** The v1 ghost wore the full seated shape and its
+   foot arcs aliased mid-flight; the clicked tab also seated itself at
+   t=0. Now: the incoming tab goes ON HOLD (`.tab-morph-hold` — seat paint
+   hidden, accent-bar span hidden) while a CLEAN carrier pill
+   (`.tab-slope-ghost`: hover-strength accent fill + primary outline, 10px
+   top radius, no foot gradients → nothing to alias) flies 300ms; on
+   landing the hold lifts and the carrier fades out 100ms over the tab's
+   own seat. NOTE: another session's "undecies" ruling meanwhile made the
+   active tab a light « voile teal » (accent/0.45) — the carrier matches
+   that world (accent fill, not primary).
+2. **Step-bar morph.** The TimelineBar active pill's surface (accent veil +
+   rim) is now ONE sliding indicator (300ms, offset-chain measured, RO
+   follows the title unfold); buttons keep text/medallion treatment only.
+3. **PACING (owner: "way too fast to the point they go unnoticed").**
+   State-change animations move to the UPPER band of the researched
+   ranges: selection travel (sidebar/tab/step morphs) 300ms; disclosures
+   (accordion, collapsible, step fold, chevrons) 250ms (`duration-250`
+   token added); mode flips 300 in / 200 out **with a 4px rise** (fade
+   alone is invisible on hairline-on-cream content — the real cause of
+   "borders don't animate" / "no animation on the tick boxes"); Rappeler
+   toolbar 300ms + 8px rise, checkboxes 300ms fade + zoom from 75%; tab
+   panels 200ms + 4px rise. Overlays, menus, tooltips and hover feedback
+   keep the spec values (usability-critical speed).

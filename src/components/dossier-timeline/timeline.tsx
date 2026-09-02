@@ -38,7 +38,7 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
   // the standard curve — same gesture as Accordion/Collapsible, owner
   // 2026-09-02); children stay mounted through the collapse so the height
   // has something to animate over, then unmount.
-  const { mounted: contentMounted, shown: contentShown } = usePresence(!collapsed, 200);
+  const { mounted: contentMounted, shown: contentShown } = usePresence(!collapsed, 250);
   return (
     <section
       id={`step-${step.id}`}
@@ -69,7 +69,7 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
       </div>
 
       <div className="paper px-5 py-4">
-        <div className={cn('flex items-center gap-3 transition-[margin] duration-200 ease-standard motion-reduce:transition-none', collapsed ? 'mb-0' : 'mb-4')}>
+        <div className={cn('flex items-center gap-3 transition-[margin] duration-250 ease-standard motion-reduce:transition-none', collapsed ? 'mb-0' : 'mb-4')}>
           <button
             type="button"
             onClick={onToggle}
@@ -86,12 +86,12 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
               {step.doneAt && <StepStamp step={step} />}
               {blocked && step.blockedReason && <span className="text-xs text-muted-foreground">{step.blockedReason}</span>}
             </span>
-            <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ease-standard motion-reduce:transition-none', collapsed && '-rotate-90')} />
+            <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-250 ease-standard motion-reduce:transition-none', collapsed && '-rotate-90')} />
           </button>
         </div>
         <div
           className={cn(
-            'grid transition-[grid-template-rows] duration-200 ease-standard motion-reduce:transition-none',
+            'grid transition-[grid-template-rows] duration-250 ease-standard motion-reduce:transition-none',
             contentShown ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
           )}
         >

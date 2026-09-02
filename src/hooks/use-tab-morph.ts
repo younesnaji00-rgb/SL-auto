@@ -1,28 +1,29 @@
 'use client';
 
 /**
- * "Symbiote" active-tab morph (owner ruling 2026-09-02: the active highlight
- * must visibly travel from the old tab to the new one, on EVERY tab strip).
+ * "Symbiote" active-tab morph, v2 (owner rulings 2026-09-02: the active
+ * highlight must visibly travel to the clicked tab; v1's full seated shape
+ * aliased on the foot arcs mid-flight, and the clicked tab seated itself
+ * long before the carrier arrived).
  *
- * Mechanism: a GHOST element wearing `.tab-slope-ghost .tab-slope-active`
- * (globals.css draws the full seated teal shape — body, feet, contour — on
- * any element with the active class) is appended to the strip at the OLD
- * tab's position and flown to the NEW tab's over 200ms on the standard
- * curve, then removed. Underneath it the old tab's fill drains and the new
- * one fills (the existing 120ms crossfade), so when the ghost lands and
- * vanishes the real tab is already seated — the handoff reads as one
- * organism moving. This is the shared-element indicator pattern
- * (motion-spec §7: Motion.dev smooth tabs, Kowalski's clip-path tabs,
- * Vercel's animated active tab) built with WAAPI instead of a JS library.
+ * Mechanism now:
+ *  1. The incoming tab is put ON HOLD (`.tab-morph-hold`, globals.css): its
+ *     seat paint (::before/::after) is hidden and its label keeps the
+ *     inactive ink, so it still LOOKS unselected while the carrier flies.
+ *  2. A clean CARRIER pill (`.tab-slope-ghost` — solid teal, 10px top
+ *     radius, rim; no foot gradients, so nothing to alias) flies from the
+ *     old tab's rect to the new one over 300ms on the standard curve
+ *     (WAAPI, layout px via the offset chain — zoom- and scroll-safe).
+ *  3. On landing the hold is lifted (the tab paints its seat — the 120ms
+ *     fill crossfade — its own `tab-slope-in` has long finished while
+ *     hidden) and the carrier fades out over 100ms on top of it, so the
+ *     handoff reads as the blob settling INTO the tab.
  *
- * Positions are measured with the offsetTop/offsetLeft chain (layout px —
- * safe under the app's CSS zoom, unaffected by strip scrolling). The strip
- * must be `position: relative`.
- *
- * Selection is detected via a MutationObserver on `data-state` /
- * `aria-selected`, so the same hook serves Radix Tabs, the step facets and
- * the workspace strip without value plumbing. Reduced motion: no ghost —
- * the crossfade alone remains.
+ * Shared-element indicator pattern (motion-spec §7); selection detected via
+ * MutationObserver on data-state / aria-selected so Radix Tabs, the step
+ * facets and the workspace strip all use the same hook. The strip must be
+ * `position: relative`. Reduced motion: no carrier, no hold — the plain
+ * crossfade remains.
  */
 
 import * as React from 'react';
@@ -32,6 +33,10 @@ type Box = { top: number; left: number; width: number; height: number };
 
 const ACTIVE_SELECTOR =
   '.tab-slope[data-state="active"], .tab-slope[aria-selected="true"], .tab-slope.tab-slope-active';
+
+const FLIGHT_MS = 300;
+const LANDING_FADE_MS = 100;
+const EASE_STANDARD = 'cubic-bezier(0.2, 0, 0, 1)';
 
 function offsetWithin(el: HTMLElement, container: HTMLElement): Box {
   let top = 0;
@@ -45,13 +50,13 @@ function offsetWithin(el: HTMLElement, container: HTMLElement): Box {
   return { top, left, width: el.offsetWidth, height: el.offsetHeight };
 }
 
-function fly(container: HTMLElement, from: Box, to: Box) {
+function fly(container: HTMLElement, target: HTMLElement, from: Box, to: Box) {
+  target.classList.add('tab-morph-hold');
   const ghost = document.createElement('div');
-  ghost.className = 'tab-slope tab-slope-active tab-slope-ghost';
+  ghost.className = 'tab-slope-ghost pointer-events-none';
   ghost.setAttribute('aria-hidden', 'true');
   Object.assign(ghost.style, {
     position: 'absolute',
-    pointerEvents: 'none',
     zIndex: '3',
     top: `${to.top}px`,
     left: `${to.left}px`,
@@ -59,18 +64,35 @@ function fly(container: HTMLElement, from: Box, to: Box) {
     height: `${to.height}px`,
   });
   container.appendChild(ghost);
-  const anim = ghost.animate(
+
+  let done = false;
+  const land = () => {
+    if (done) return;
+    done = true;
+    // Reveal the real tab, then melt the carrier into it.
+    target.classList.remove('tab-morph-hold');
+    const fade = ghost.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: LANDING_FADE_MS,
+      easing: 'linear',
+      fill: 'forwards',
+    });
+    const remove = () => ghost.remove();
+    fade.onfinish = remove;
+    fade.oncancel = remove;
+    window.setTimeout(remove, LANDING_FADE_MS * 3);
+  };
+
+  const flight = ghost.animate(
     [
       { top: `${from.top}px`, left: `${from.left}px`, width: `${from.width}px`, height: `${from.height}px` },
       { top: `${to.top}px`, left: `${to.left}px`, width: `${to.width}px`, height: `${to.height}px` },
     ],
-    { duration: 200, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
+    { duration: FLIGHT_MS, easing: EASE_STANDARD },
   );
-  const done = () => ghost.remove();
-  anim.onfinish = done;
-  anim.oncancel = done;
-  // Safety net if WAAPI events never fire (detached document, etc.).
-  window.setTimeout(done, 400);
+  flight.onfinish = land;
+  flight.oncancel = land;
+  // Safety net: never leave a tab stuck on hold.
+  window.setTimeout(land, FLIGHT_MS * 2);
 }
 
 export function attachTabSlopeMorph(container: HTMLElement): () => void {
@@ -87,12 +109,13 @@ export function attachTabSlopeMorph(container: HTMLElement): () => void {
     }
     const box = el instanceof HTMLElement ? offsetWithin(el, container) : null;
     if (
+      el instanceof HTMLElement &&
       box &&
       prevBox &&
       !prefersReducedMotion() &&
       typeof HTMLElement.prototype.animate === 'function'
     ) {
-      fly(container, prevBox, box);
+      fly(container, el, prevBox, box);
     }
     prevEl = el;
     prevBox = box;
