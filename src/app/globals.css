@@ -514,10 +514,12 @@ html {
        overflow-x-auto strip nor overhang a rounded track border. */
     --tab-foot: 7px;
     --tab-fill: hsl(var(--card));
-    /* Defaults: highlight = the fill itself (invisible band), line =
-       transparent — so the arc geometry barely shifts between states. */
+    /* Defaults (= INACTIVE state): highlight = the fill itself (invisible
+       band); the arc line is TEAL — owner ruling 2026-09-02: inactive tabs
+       are wrapped in the same teal border as the hover pill, fill untouched.
+       Active overrides both with the neutral rim recipe. */
     --tab-foot-rim: var(--tab-fill);
-    --tab-foot-line: transparent;
+    --tab-foot-line: hsl(var(--primary) / 0.5);
     position: relative;
     isolation: isolate;
     background: transparent !important;
@@ -578,6 +580,10 @@ html {
        bottom corners now). */
     border-radius: 10px 10px 0 0;
     background: var(--tab-fill);
+    /* Inactive wrap (owner ruling 2026-09-02): the same teal border as the
+       hover pill, outline only — the fill stays the card tone. The active
+       and hover rules replace this box-shadow entirely. */
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.6);
     transition: box-shadow 150ms, border-radius 150ms, inset 150ms;
   }
   /* The outward feet: a 7×7 square outside each bottom corner, filled by a
