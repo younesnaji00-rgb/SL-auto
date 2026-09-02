@@ -437,11 +437,12 @@ body::after {
 }
 html {
   zoom: var(--app-zoom);
-  /* Reserve the scrollbar gutter permanently (owner 2026-09-02: changing a
-     filter made the whole page shift right — the content shrank below one
-     viewport, the scrollbar vanished, and the layout widened by its width).
-     With a stable gutter the page width never depends on content height. */
-  scrollbar-gutter: stable;
+  /* No scrollbar-gutter here: the app shell is h-svh overflow-hidden and the
+     page scrolls inside <main> in app/(app)/layout.tsx — the gutter is
+     reserved THERE ([scrollbar-gutter:stable]). Reserving it on html would
+     only waste a permanent 15px stripe on browsers with classic scrollbars
+     (owner 2026-09-02: the « par compagnie » shift survived the html-level
+     rule because this element never scrolls). */
 }
 .h-svh { height: calc(100svh / var(--app-zoom)); }
 .min-h-svh { min-height: calc(100svh / var(--app-zoom)); }

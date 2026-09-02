@@ -582,10 +582,15 @@ Owner live-test rulings, rounds 3–5, implemented same day:
    thumb (active label z 1, own selected bg suppressed).
 3. **Layout stability is part of motion.** (Owner: filter clicks displaced
    the whole page rightward.) Cause: the page scrollbar appearing/vanishing
-   with result height. Fix: `scrollbar-gutter: stable` on `html` — the
-   gutter is always reserved, filter clicks no longer shift content. Rule:
-   any state change that can toggle page overflow must not move unrelated
-   content.
+   with result height. Fix: `scrollbar-gutter: stable` — but on the REAL
+   scroller: the html-level rule shipped first and did nothing, because the
+   shell is `h-svh overflow-hidden` and the page scrolls inside `<main>` in
+   `app/(app)/layout.tsx`; the centered `max-w-[1600px]` column shifted by
+   half a scrollbar. The gutter now lives on that `<main>`
+   (`[scrollbar-gutter:stable]`), verified in headed classic-scrollbar
+   Chrome at zoom 1/0.9 (7.5px shift → 0). Rule: any state change that can
+   toggle a scroller's overflow must not move unrelated content — and the
+   gutter must sit on the element that actually scrolls.
 4. **Suivi d'équipe defaults to ALL TIME** (« Tout » preset; dateFrom/To
    null) — not a motion rule, recorded here because the segmented group
    gained the extra « Tout » segment the thumb travels to.

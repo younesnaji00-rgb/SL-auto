@@ -65,7 +65,11 @@ function AppShell({ children }: { children: React.ReactNode }) {
         <WorkspaceTabs />
         <main
           id="main-content"
-          className="min-h-0 flex-1 overflow-y-auto bg-background/35 pb-[calc(60px+env(safe-area-inset-bottom))] lg:pb-0"
+          // THIS element is the page scroller (the viewport never scrolls) —
+          // the gutter must be reserved here or a filter/tab change that
+          // shrinks the content below one screen drops the scrollbar and
+          // shifts the centered column (owner 2026-09-02, « par compagnie »).
+          className="min-h-0 flex-1 overflow-y-auto bg-background/35 pb-[calc(60px+env(safe-area-inset-bottom))] [scrollbar-gutter:stable] lg:pb-0"
           tabIndex={-1}
         >
           <div className={cn(fullWidth ? 'w-full' : 'mx-auto max-w-[1600px] p-4 md:p-6 lg:p-8')}>
