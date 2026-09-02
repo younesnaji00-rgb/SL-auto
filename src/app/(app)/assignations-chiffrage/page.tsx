@@ -3,6 +3,7 @@
 import { PageHeader } from '@/components/layout/page-header';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { collection, onSnapshot, query, orderBy, doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
@@ -66,6 +67,7 @@ function StatusChip({ status, className }: { status: string; className?: string 
 
 export default function AssignationsChiffragePage() {
   const db = useFirestore();
+  const router = useRouter();
   const { profile } = useCurrentUser();
   const { openTab } = useChiffrageTabs();
   const chiffreurWorkload = useChiffreurWorkload();
@@ -421,13 +423,26 @@ export default function AssignationsChiffragePage() {
                 const dateLabel = formatDate(c.createdAt);
 
                 return (
-                  <TableRow key={c.id} className="group">
+                  // The whole row is the link (owner 2026-09-02; §3 "row =
+                  // link") — clicks anywhere open the chiffrage; the inner
+                  // Link and the obs button stop propagation.
+                  <TableRow
+                    key={c.id}
+                    className="group cursor-pointer"
+                    onClick={() => {
+                      openTab(c.id, c.dossierNom || `Chiffrage ${c.id.slice(0, 6)}`);
+                      router.push(`/assignations-chiffrage/${c.id}`);
+                    }}
+                  >
                     {/* Frozen identifier column: sticky left, solid card so rows
                         scroll under it, hairline on its right edge (§3). */}
                     <TableCell className="sticky left-0 z-[1] border-r border-hairline bg-card group-hover:bg-surface-2">
                       <Link
                         href={`/assignations-chiffrage/${c.id}`}
-                        onClick={() => openTab(c.id, c.dossierNom || `Chiffrage ${c.id.slice(0, 6)}`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openTab(c.id, c.dossierNom || `Chiffrage ${c.id.slice(0, 6)}`);
+                        }}
                         className="t-mono font-semibold hover:underline"
                       >
                         {c.dossierNom || 'Sans réf.'}
@@ -451,7 +466,7 @@ export default function AssignationsChiffragePage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setObsHistoryDossier({ id: c.dossierId, refExpert: c.dossierNom })}
+                          onClick={(e) => { e.stopPropagation(); setObsHistoryDossier({ id: c.dossierId, refExpert: c.dossierNom }); }}
                           title={obs?.text || "Voir l'historique des observations"}
                           aria-label={`Voir les ${obsCount} observation${obsCount > 1 ? 's' : ''}`}
                         >

@@ -473,3 +473,56 @@ Findings that deviate from the letter of §11/§12 (flagged, not silent):
 NOT verified locally (needs the owner's eyes in the running app): tooltip
 warm-up feel, toast enter/exit, tab-panel fade, workspace-tab FLIP/close,
 prefill flash timing, success-morph hold, D2 weighting.
+
+---
+
+## Addendum 2026-09-02 (bis) — owner feedback round: the symbiote morph + gaps
+
+Owner rulings from live testing, all implemented the same day:
+
+1. **Active-highlight MORPH ("symbiote") is the law for selection travel.**
+   (a) Sidebar: the active row's surface (tint + rim + 2px teal bar) is now
+   ONE absolutely-positioned indicator that slides 200ms/standard from the
+   old row to the new (`components/layout/sidebar.tsx ActiveRowIndicator`;
+   rows keep only text/icon active treatment — ui/sidebar.tsx; the
+   `nav-active-in` keyframe is retired). Measured via offsetTop chain
+   (zoom/scroll-safe), re-measured by ResizeObserver on collapse. (b) Every
+   `.tab-slope` strip (ui/tabs, StepTabs, workspace tabs — monitoring and
+   rappels inherit): `hooks/use-tab-morph.ts` flies a GHOST wearing the full
+   seated-teal paint (`.tab-slope-ghost .tab-slope-active`) from the old tab
+   to the new over 200ms (WAAPI, MutationObserver-detected, reduced-motion
+   exempt) while the per-tab 120ms fills crossfade beneath it.
+2. **Edit-mode flip (« Modifier ») = one coordinated fade-through** —
+   researched (Material choreography "transformation of the group…" ✓ via
+   mirror, NN/g animation-purpose ✓ + duration ✓, Atlassian inline-edit
+   Forge doc ✓ = geometric parity first, PatternFly ✓; Coyle 404): the
+   whole `FieldRow` dl remounts and fades in as ONE group — 200ms
+   decelerate into edit, 150ms back to read, NO stagger, no movement,
+   borders emerge with the fade, instant under reduced motion.
+3. **Dossier step fold/unfold animates** — grid-rows 0fr↔1fr 200ms standard
+   + presence-kept children + chevron/margin on the same clock
+   (timeline.tsx; inside the paper card so overflow-hidden clips nothing).
+4. **TimelineBar hover shows the FULL name**: hovering/focusing a step now
+   QUIETS the other steps' titles (they fold horizontally on the same
+   200ms), freeing row width; the stamp's 200px cap is gone. Space-stealing
+   is state-driven (CSS alone can't quiet siblings).
+5. **Rappeler mode**: the dead per-COLUMN tick boxes (leftover of the
+   retired Excel export — `handleExport` had no button) are REMOVED with
+   their state/handlers; the selection toolbar enters with the 200ms
+   fade + rise, and the row/header checkboxes fade+zoom in.
+6. **Mes rappels**: built from ui/tabs + tables — the morph, panel fade and
+   table hover rules apply by inheritance; no page-local motion added
+   (frequency law).
+7. **Chiffrage**: compare pane image gets 90° rotation (RotateCw in the
+   zoom pill, animated on the existing 150ms transform transition, reset
+   per image); the devis editor identity card is now a Collapsible
+   (« Informations », 200ms, open by default); the line-item table is
+   capped at ~20 compact rows (`max-h-[47rem]`) with its own vertical
+   scrollbar under the sticky header; the assignations-chiffrage LIST row
+   is fully clickable (row = link, inner link/button stopPropagation).
+
+Verified this round: tsc clean, eslint 0 errors (new files warning-free),
+dev server compiles and serves. NOT visually verified (owner's eyes):
+sidebar morph feel (esp. collapsed mode + Récents rows), ghost flight over
+the tab feet, step fold, space-stealing hover, edit-mode fade, rotation
+with zoom+pan combined, the 20-row cap height at zoom 0.9/1.1.

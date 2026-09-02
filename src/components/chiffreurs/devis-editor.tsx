@@ -10,6 +10,7 @@ import {
   RefreshCw, Save, Trash2, X,
 } from 'lucide-react';
 import { IconChip } from '@/components/ui/icon-chip';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -493,6 +494,8 @@ export function DevisEditor({
   const [tvaHeaderOpen, setTvaHeaderOpen] = useState(false);
   const [tvaHeaderValue, setTvaHeaderValue] = useState<number | null>(20);
   const [sansTva, setSansTva] = useState(false);
+  // Identity card fold (owner 2026-09-02) — open by default, session-local.
+  const [infoCardOpen, setInfoCardOpen] = useState(true);
 
   // Accord totals helpers. The cap (accord PU ≤ row PUHT) is signalled
   // inline (red border + message) on the cell — no clamping or revert.
@@ -1128,15 +1131,28 @@ export function DevisEditor({
           content-sized inputs, related rows 12 px apart, 24 px between groups
           (véhicule → expert, client → assurance/meta) so the card reads as
           chunks, not a slab; format-cue placeholders only — "JJ/MM/AAAA". */}
-      <Card className="p-6">
-        <div className="grid grid-cols-1 gap-x-6 gap-y-6 md:grid-cols-2">
+      {/* Retractable (owner 2026-09-02): the whole identity card folds behind
+          its header so the line-item table gets the vertical room; same 200ms
+          disclosure animation as every Collapsible/Accordion. */}
+      <Card className="p-0">
+        <Collapsible open={infoCardOpen} onOpenChange={setInfoCardOpen}>
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-3 rounded-t-xl px-6 py-4 text-left transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={infoCardOpen ? 'Replier les informations' : 'Déplier les informations'}
+            >
+              <span className="flex items-center gap-2">
+                <IconChip><Car /></IconChip>
+                <span className="t-heading">Informations</span>
+              </span>
+              <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform duration-200 ease-standard motion-reduce:transition-none', !infoCardOpen && '-rotate-90')} />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+        <div className="grid grid-cols-1 gap-x-6 gap-y-6 p-6 pt-2 md:grid-cols-2">
           <div className="flex flex-col gap-3">
-            {/* Additive group label — addendum §1(b): ONE IconChip per screen,
-                the warm anchor beside the group title that anchors the page. */}
-            <div className="flex items-center gap-2">
-              <IconChip><Car /></IconChip>
-              <h3 className="t-heading">Véhicule</h3>
-            </div>
+            <h3 className="t-heading">Véhicule</h3>
             {HEADER_FIELDS_LEFT.map((f) => (
               <HeaderField
                 key={f.key}
@@ -1183,6 +1199,8 @@ export function DevisEditor({
             </div>
           </div>
         </div>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
 
       <div className="flex items-center gap-2 px-1">
@@ -1200,8 +1218,9 @@ export function DevisEditor({
       {/* Rows table — fixed columns. The accord/proposition column is created
           automatically when the chiffreur picks via the first-open lightbox.
           Rows are added only via AI scan, paste, or programmatic flows (no
-          manual "add row" button). The table grows to its natural height —
-          only horizontal scroll on overflow. */}
+          manual "add row" button). Owner ruling 2026-09-02: the table is
+          capped at ~20 rows tall and scrolls vertically inside its own card
+          (sticky header stays put); horizontal scroll on overflow as before. */}
       {/* Line-item table — element-specs §3 (Polaris data table: "numerical
           data right aligned, textual left, headers must align with their
           related data, don't center align"; Carbon: header row matches the
@@ -1212,7 +1231,8 @@ export function DevisEditor({
           the card WITHOUT a second frame (§5). Rows are the 36 px compact size
           (dense editing), not 44. */}
       <Card className="overflow-hidden">
-        <div className="overflow-x-auto relative">
+        {/* ≈ 20 compact rows (36px) + sticky header. */}
+        <div className="relative max-h-[47rem] overflow-x-auto overflow-y-auto">
           <table className="min-w-[900px] w-full text-xs border-collapse">
             <thead className="sticky top-0 z-10 bg-surface-2">
               <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:whitespace-nowrap [&>th]:text-xs [&>th]:font-normal [&>th]:text-ink-3 [&>th]:tabular-nums [&>th]:border-b [&>th]:border-hairline [&>th]:bg-surface-2">

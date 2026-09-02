@@ -12,6 +12,7 @@ import {
   Minimize2,
   ZoomIn,
   ZoomOut,
+  RotateCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
@@ -423,6 +424,10 @@ const IMG_ZOOM_MAX = 4;
 function ZoomableImage({ src, alt }: { src: string; alt: string }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  // Quarter-turn rotation (owner 2026-09-02: sideways-scanned devis must be
+  // readable in the compare pane); animates on the existing 150ms transform
+  // transition.
+  const [rotation, setRotation] = useState(0);
   const draggingRef = useRef(false);
   const lastRef = useRef<{ x: number; y: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -431,6 +436,7 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
   useEffect(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    setRotation(0);
   }, [src]);
 
   const applyZoom = (next: number) => {
@@ -509,7 +515,7 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
           draggable={false}
           className="pointer-events-none max-h-full max-w-full object-contain transition-transform duration-150 ease-standard motion-reduce:transition-none"
           style={{
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rotation}deg)`,
             transformOrigin: 'center center',
           }}
         />
@@ -529,6 +535,9 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
         </button>
         <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => applyZoom(zoom + 0.25)} aria-label="Zoom avant" disabled={zoom >= IMG_ZOOM_MAX}>
           <ZoomIn className="h-4 w-4" />
+        </Button>
+        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRotation((r) => (r + 90) % 360)} aria-label="Pivoter de 90°" title="Pivoter de 90°">
+          <RotateCw className="h-4 w-4" />
         </Button>
       </div>
     </div>
