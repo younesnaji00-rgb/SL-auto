@@ -556,7 +556,11 @@ html {
        outer edge, so it neither vanishes into the background nor reads as
        a shadowed groove. */
     --tab-foot-rim: var(--rim-in);
-    --tab-foot-line: hsl(var(--shadow-color) / 0.25);
+    /* Same apparent weight as the body's --rim-out ring (0.08 + a nudge for
+       curve antialiasing) — anything darker reads as a detached dark blob
+       at the corner instead of the same line bending (verified on a local
+       Chromium render). */
+    --tab-foot-line: hsl(var(--shadow-color) / 0.13);
     z-index: 2;
   }
   .tab-slope::before {
@@ -611,7 +615,10 @@ html {
       inset 0 1.5px 0 var(--rim-top),
       0 0 0 1px var(--rim-out),
       0 1px 2px hsl(var(--shadow-color) / 0.06),
-      0 12px 32px -8px hsl(var(--shadow-color) / 0.12);
+      /* Softer than the generic rim drop: the tab sits ON the separation
+         line, so a 12px offset spilled below the track as a floating blob
+         (seen on a local Chromium render). */
+      0 6px 14px -6px hsl(var(--shadow-color) / 0.10);
   }
   /* Ease-in on activation (owner ruling 2026-09-02 bis): body and feet fade
      and settle together — one keyframe on both pseudo-elements now that the
