@@ -47,7 +47,7 @@ function StepTabsList({ children }: { children: React.ReactNode }) {
     <TabsPrimitive.List
       ref={ref}
       aria-label="Sections de l'étape"
-      className="relative -mx-2 flex items-end gap-1 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
+      className="relative isolate -mx-2 flex items-end gap-1 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
     >
       {children}
     </TabsPrimitive.List>

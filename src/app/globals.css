@@ -523,6 +523,10 @@ html {
     --tab-foot-line: transparent;
     position: relative;
     isolation: isolate;
+    /* Above the morph carrier (z 0) so labels never disappear under the
+       flying pill; the strip containers are `isolate` so this z stays
+       scoped. Active keeps z 2, hover 1 — feet overlaps unchanged. */
+    z-index: 1;
     background: transparent !important;
     box-shadow: none !important;
     transition: --tab-fill 120ms cubic-bezier(0.2, 0, 0, 1), --tab-foot-rim 120ms cubic-bezier(0.2, 0, 0, 1), --tab-foot-line 120ms cubic-bezier(0.2, 0, 0, 1);

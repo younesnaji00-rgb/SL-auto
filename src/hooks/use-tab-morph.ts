@@ -57,7 +57,10 @@ function fly(container: HTMLElement, target: HTMLElement, from: Box, to: Box) {
   ghost.setAttribute('aria-hidden', 'true');
   Object.assign(ghost.style, {
     position: 'absolute',
-    zIndex: '3',
+    // UNDER the tabs (they sit at z 1+, the strip is isolated): labels stay
+    // readable for the whole flight (owner 2026-09-02 — "the morph shouldn't
+    // remove the text while the animation is active").
+    zIndex: '0',
     top: `${to.top}px`,
     left: `${to.left}px`,
     width: `${to.width}px`,

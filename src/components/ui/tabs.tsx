@@ -39,7 +39,7 @@ const TabsList = React.forwardRef<
         // Recessed track; tabs anchor to its bottom edge like browser tabs.
         // px-2 (8px) keeps the tabs' 7px outward feet inside the track.
         // relative: the morph ghost is absolutely positioned in the track.
-        "relative inline-flex h-10 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1 text-ink-2",
+        "relative isolate inline-flex h-10 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1 text-ink-2",
         className
       )}
       {...props}
