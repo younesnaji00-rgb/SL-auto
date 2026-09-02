@@ -536,9 +536,25 @@ html {
      morph (pill melts into the seated tab), which doubles as the
      between-selection animation. */
   .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active) {
-    --tab-fill: hsl(var(--accent));
+    /* Octies ruling: hover = the SEATED TAB SHAPE as a teal OUTLINE (the
+       pill grows its two slopes), still unfilled — grey arrives only on
+       click (active). */
+    --tab-foot-line: hsl(var(--primary) / 0.6);
     color: hsl(var(--accent-foreground)) !important;
     z-index: 1;
+  }
+  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active)::before {
+    /* Seated geometry; the outline becomes a 3-sided BORDER (no bottom) —
+       a box-shadow ring would draw a stray line across the unfilled tab
+       where the body hands off to the feet. */
+    inset: 0 0 var(--tab-foot) 0;
+    border-radius: 10px 10px 0 0;
+    border: 1px solid hsl(var(--primary) / 0.6);
+    border-bottom: 0;
+    box-shadow: none;
+  }
+  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active)::after {
+    opacity: 1;
   }
   .tab-slope[data-state='active'],
   .tab-slope[aria-selected='true'],
