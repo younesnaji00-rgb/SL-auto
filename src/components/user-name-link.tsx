@@ -11,6 +11,9 @@ interface UserNameLinkProps {
   entry: { userNom?: string | null; user?: string | null } | null | undefined;
   /** Optional extra classes for the rendered span. */
   className?: string;
+  /** Optional custom rendering of the name (e.g. stacked over two rows);
+   *  the link / fallback logic is unchanged. */
+  children?: React.ReactNode;
 }
 
 /**
@@ -21,8 +24,8 @@ interface UserNameLinkProps {
  * If no email is present on the entry, renders an unwrapped span (no
  * broken link).
  */
-export function UserNameLink({ entry, className }: UserNameLinkProps) {
-  const label = displayUserName(entry);
+export function UserNameLink({ entry, className, children }: UserNameLinkProps) {
+  const label = children ?? displayUserName(entry);
   const email = entry?.user?.trim();
   const linkClass = cn(
     'text-foreground hover:text-primary hover:underline underline-offset-2',

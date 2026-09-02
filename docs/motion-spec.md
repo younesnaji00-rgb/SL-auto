@@ -594,7 +594,17 @@ Owner live-test rulings, rounds 3–5, implemented same day:
 4. **Suivi d'équipe defaults to ALL TIME** (« Tout » preset; dateFrom/To
    null) — not a motion rule, recorded here because the segmented group
    gained the extra « Tout » segment the thumb travels to.
-5. **« Volume par étape » card rebuilt** (research ruling, not motion):
+5. **Step-bar space-stealing folds RIGHT ONLY** (owner 2026-09-02): hovering
+   a step no longer contracts every sibling — only the steps to the RIGHT of
+   the hovered one fold to their medallions; the left side never moves (the
+   reveal grows rightward, nothing the eye already passed shifts). A long
+   doer name in the hover stamp stacks over two rows (prénom / nom,
+   `StepStamp stackLongName`, threshold 14 chars) instead of stretching the
+   row; steps 6/11 now surface `lastStatusChange.byNom` so real names render
+   instead of the « Utilisateur inconnu » fallback. The « Tout déplier /
+   replier » button is REMOVED from the sticky bar — per-step chevrons are
+   the only fold control.
+6. **« Volume par étape » card rebuilt** (research ruling, not motion):
    vertical recharts bars → HTML horizontal bar list in pipeline order,
    full stage names left, counts printed at the bar tip (no axis/tooltip),
    faint shared-scale track, busiest stage in deeper teal, rows click

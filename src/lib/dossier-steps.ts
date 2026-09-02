@@ -27,6 +27,8 @@ export interface StepState extends StepDef {
   status: StepStatus;
   doneAt: Date | null;
   doneBy: string | null;
+  /** Human name of the doer when the source denormalized it (byNom). */
+  doneByNom: string | null;
   startedAt: Date | null;
   blockedReason?: string;
   /** French one-word status label for chips. */
@@ -100,8 +102,9 @@ function make(
   doneBy: string | null,
   startedAt: Date | null,
   blockedReason?: string,
+  doneByNom?: string | null,
 ): StepState {
-  return { ...def, status, doneAt, doneBy: doneBy || null, startedAt, blockedReason, statusLabel: STEP_STATUS_LABEL[status] };
+  return { ...def, status, doneAt, doneBy: doneBy || null, doneByNom: doneByNom || null, startedAt, blockedReason, statusLabel: STEP_STATUS_LABEL[status] };
 }
 
 /**
@@ -116,6 +119,7 @@ export function getStepStatuses(dossier: any): StepState[] {
   const lastStatus: string = lastChange.status || d.statut || '';
   const lastAt = toDate(lastChange.at);
   const lastBy: string | null = lastChange.by || null;
+  const lastByNom: string | null = lastChange.byNom || null;
   const chiffrageEnCours = statutIs(d, 'chiffrage en cours');
 
   return DOSSIER_STEP_DEFS.map((def) => {
@@ -134,8 +138,8 @@ export function getStepStatuses(dossier: any): StepState[] {
         return visitStep(def, d, 'datePhotosApres', 'dateDemandeExpertiseApres', 'après');
       case 6: {
         if (firstAccordAt) {
-          const by = FIRST_ROUND.has(lastStatus) ? lastBy : null;
-          return make(def, 'done', firstAccordAt, by, chiffrageAt);
+          const isFirst = FIRST_ROUND.has(lastStatus);
+          return make(def, 'done', firstAccordAt, isFirst ? lastBy : null, chiffrageAt, undefined, isFirst ? lastByNom : null);
         }
         if (chiffrageAt || chiffrageEnCours) return make(def, 'in_progress', null, null, chiffrageAt);
         return make(def, 'todo', null, null, null);
@@ -143,7 +147,7 @@ export function getStepStatuses(dossier: any): StepState[] {
       case 11: {
         if (!firstAccordAt) return make(def, 'blocked', null, null, null, "Nécessite le 1er accord");
         const isLaterRound = ACCORD_LIKE.test(lastStatus) && !FIRST_ROUND.has(lastStatus);
-        if (isLaterRound && lastAt) return make(def, 'done', lastAt, lastBy, chiffrageAt);
+        if (isLaterRound && lastAt) return make(def, 'done', lastAt, lastBy, chiffrageAt, undefined, lastByNom);
         if (chiffrageEnCours && chiffrageAt && firstAccordAt && chiffrageAt > firstAccordAt) {
           return make(def, 'in_progress', null, null, chiffrageAt);
         }

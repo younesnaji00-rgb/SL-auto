@@ -20,6 +20,7 @@ import { fr } from 'date-fns/locale';
 import { Check, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UserNameLink } from '@/components/user-name-link';
+import { displayUserName } from '@/lib/display-user';
 import type { StepState, StepStatus } from '@/lib/dossier-steps';
 
 export type { StepState as TimelineStep } from '@/lib/dossier-steps';
@@ -33,15 +34,39 @@ export interface TimelineBarProps {
   className?: string;
 }
 
-export function StepStamp({ step, className }: { step: StepState; className?: string }) {
+/** A long doer name splits over two rows: prénom on the first, the family
+ *  name on the second (owner ruling 2026-09-02 — keeps the bar's horizontal
+ *  footprint short now that only the right-hand steps fold). */
+const NAME_STACK_MIN = 14;
+
+export function StepStamp({
+  step,
+  className,
+  stackLongName = false,
+}: {
+  step: StepState;
+  className?: string;
+  stackLongName?: boolean;
+}) {
   if (!step.doneAt) return null;
+  const entry = { user: step.doneBy, userNom: step.doneByNom };
+  const label = displayUserName(entry);
+  const words = label.split(/\s+/);
+  const stacked = stackLongName && label.length > NAME_STACK_MIN && words.length >= 2;
   return (
     <span className={cn('t-caption inline-flex items-center gap-1 truncate tabular-nums', className)}>
       {format(step.doneAt, 'dd/MM/yyyy HH:mm', { locale: fr })}
       {step.doneBy && (
         <>
           <span aria-hidden>·</span>
-          <UserNameLink entry={{ user: step.doneBy }} className="text-ink-3" />
+          <UserNameLink entry={entry} className="text-ink-3">
+            {stacked ? (
+              <span className="flex flex-col leading-[1.15]">
+                <span>{words[0]}</span>
+                <span>{words.slice(1).join(' ')}</span>
+              </span>
+            ) : undefined}
+          </UserNameLink>
         </>
       )}
     </span>
@@ -117,12 +142,14 @@ const REVEAL_INNER = (open: boolean, alwaysAtLg = false) =>
 
 export function TimelineBar({ steps, activeId, onStepClick, className }: TimelineBarProps) {
   // Space-stealing reveal (owner 2026-09-02: the hovered step's FULL name and
-  // details must always fit): while one step is inspected, the OTHER steps'
-  // titles fold to their medallions on the same 200ms horizontal slide,
-  // freeing the row's width for the hovered one. Strictly horizontal, state-
-  // driven (CSS alone can't quiet the siblings).
+  // details must always fit): while one step is inspected, only the steps to
+  // its RIGHT fold to their medallions on the same 200ms horizontal slide
+  // (owner ruling 2026-09-02: the left side stays put — the reveal grows
+  // rightward, so nothing the eye already passed moves). Strictly
+  // horizontal, state-driven (CSS alone can't quiet the siblings).
   const [inspectedId, setInspectedId] = React.useState<number | null>(null);
   const release = (id: number) => setInspectedId((h) => (h === id ? null : h));
+  const inspectedIdx = inspectedId == null ? -1 : steps.findIndex((s) => s.id === inspectedId);
 
   // Symbiote morph for the step bar (owner 2026-09-02): the active pill's
   // surface (accent veil + rim) is ONE indicator that slides from the old
@@ -181,7 +208,7 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
           const isActive = step.id === activeId;
           const blocked = step.status === 'blocked';
           const inspected = inspectedId === step.id;
-          const quiet = inspectedId !== null && !inspected;
+          const quiet = inspectedIdx !== -1 && idx > inspectedIdx;
           return (
             <React.Fragment key={step.id}>
               <button
@@ -226,7 +253,7 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                 <span className={REVEAL_OUTER(inspected)} aria-hidden>
                   <span className={cn(REVEAL_INNER(inspected), 'text-[11px] text-ink-3')}>
                     <span aria-hidden className="mr-1.5">·</span>
-                    {step.doneAt ? <StepStamp step={step} /> : blocked ? step.blockedReason : step.statusLabel}
+                    {step.doneAt ? <StepStamp step={step} stackLongName /> : blocked ? step.blockedReason : step.statusLabel}
                   </span>
                 </span>
               </button>

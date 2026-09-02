@@ -9,9 +9,8 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Check, ChevronDown, ChevronsDownUp, ChevronsUpDown, Lock } from 'lucide-react';
+import { Check, ChevronDown, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { TimelineBar, StepStamp, StepStatusChip } from './timeline-bar';
 import { useCollapsedSteps } from '@/hooks/use-collapsed-steps';
 import { usePresence } from '@/hooks/use-presence';
@@ -142,7 +141,7 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
   const containerRef = useRef<HTMLDivElement>(null);
   const suppressRef = useRef(false);
   const stepIds = useMemo(() => steps.map((s) => s.id), [steps]);
-  const { isCollapsed, toggle, setAll, collapsedCount, total } = useCollapsedSteps(dossierId, stepIds);
+  const { isCollapsed, toggle } = useCollapsedSteps(dossierId, stepIds);
 
   const scrollToStep = useCallback(
     (stepId: number, behavior: ScrollBehavior) => {
@@ -233,8 +232,6 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
     }
   }, [activeStep]);
 
-  const allCollapsed = collapsedCount === total && total > 0;
-
   return (
     <div ref={containerRef} className="w-full">
       {/* Horizontal stepper: sticky under the record bar at every width (user decision: one stepper, the in-content medallion rail is the vertical wayfinding). */}
@@ -243,20 +240,10 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
         style={{ top: stickyTop }}
         aria-hidden={focus || undefined}
       >
+      {/* « Tout déplier / replier » removed (owner 2026-09-02) — per-step
+          chevrons are the only fold control. */}
       <div className={cn('flex min-h-0 items-center glass-bar overflow-hidden border-b transition-opacity ease-standard motion-reduce:transition-none', focus ? 'opacity-0 duration-100' : 'opacity-100 duration-200 delay-100')}>
         <TimelineBar steps={steps} activeId={activeStep} onStepClick={handleStepClick} className="min-w-0 flex-1" />
-        <div className="shrink-0 border-l px-1.5">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1 px-2 text-xs text-muted-foreground"
-            onClick={() => setAll(!allCollapsed)}
-            title={allCollapsed ? 'Tout déplier' : 'Tout replier'}
-          >
-            {allCollapsed ? <ChevronsUpDown className="h-3.5 w-3.5" /> : <ChevronsDownUp className="h-3.5 w-3.5" />}
-            <span className="hidden md:inline">{allCollapsed ? 'Tout déplier' : 'Tout replier'}</span>
-          </Button>
-        </div>
       </div>
       </div>
 
