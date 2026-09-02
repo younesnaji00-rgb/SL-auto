@@ -662,7 +662,11 @@ html {
   .tab-slope-ghost {
     background: hsl(var(--accent));
     border-radius: 10px 10px 0 0;
-    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.6);
+    /* Real border, NO bottom edge: the carrier's base merges into the
+       strip's separation line like the tab bodies do (owner 2026-09-02 —
+       the ringed bottom read as a disconnected line). */
+    border: 1px solid hsl(var(--primary) / 0.6);
+    border-bottom: 0;
   }
   /* Morph HOLD (owner 2026-09-02: "the tab transforms from the pill long
      before the animation finishes"): while the carrier flies, the incoming

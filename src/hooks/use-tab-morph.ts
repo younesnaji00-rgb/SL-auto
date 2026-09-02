@@ -85,10 +85,20 @@ function fly(container: HTMLElement, target: HTMLElement, from: Box, to: Box) {
     window.setTimeout(remove, LANDING_FADE_MS * 3);
   };
 
+  // Compositor-only flight (owner 2026-09-02: layout-animating left/width
+  // dropped frames): the carrier is PLACED at the destination rect and a
+  // transform carries it from the source — translate + scale, nothing
+  // re-laid-out per frame. Tab heights within a strip are equal, so the
+  // scale is effectively horizontal; the mild radius squish at ~1.3× is
+  // invisible at 300ms.
+  const sx = to.width > 0 ? from.width / to.width : 1;
+  const sy = to.height > 0 ? from.height / to.height : 1;
+  ghost.style.transformOrigin = '0 0';
+  ghost.style.willChange = 'transform';
   const flight = ghost.animate(
     [
-      { top: `${from.top}px`, left: `${from.left}px`, width: `${from.width}px`, height: `${from.height}px` },
-      { top: `${to.top}px`, left: `${to.left}px`, width: `${to.width}px`, height: `${to.height}px` },
+      { transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${sx}, ${sy})` },
+      { transform: 'none' },
     ],
     { duration: FLIGHT_MS, easing: EASE_STANDARD },
   );
