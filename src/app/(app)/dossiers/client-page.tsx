@@ -42,7 +42,7 @@ import { ChevronRight as RowChevron, MoreHorizontal, ExternalLink } from 'lucide
 import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
-import { exportToExcel, type ExportColumn } from '@/lib/export-excel';
+import { type ExportColumn } from '@/lib/export-excel';
 import { CANONICAL_STATUTS } from '@/lib/dossiers-data';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
@@ -76,7 +76,6 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'dateRequete', label: 'Date Requête' },
   { key: 'createdByName', label: 'Créé par' },
 ];
-const ALL_COLUMN_KEYS = new Set(EXPORT_COLUMNS.map(c => c.key));
 
 /** Removable active-filter chip: surface-3 + ink-2, ghost × (no red hover). */
 function FilterChip({ label, onRemove, ariaLabel }: { label: string; onRemove: () => void; ariaLabel: string }) {
@@ -250,7 +249,6 @@ export default function DossiersClientPage() {
   // Export mode state
   const [exportMode, setExportMode] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-  const [selectedColumns, setSelectedColumns] = useState<Set<string>>(new Set(ALL_COLUMN_KEYS));
 
   // Mes rappels — sender-side dialog state
   const [isSendToOpen, setIsSendToOpen] = useState(false);
@@ -350,30 +348,9 @@ export default function DossiersClientPage() {
     setSelectedRows(new Set(dossierList.map(d => d.id)));
   }, [dossierList]);
 
-  const handleToggleColumn = useCallback((key: string) => {
-    setSelectedColumns(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }, []);
-
-  const handleExport = useCallback(() => {
-    const rows = dossierList.filter(d => selectedRows.has(d.id));
-    const columns = EXPORT_COLUMNS.filter(c => selectedColumns.has(c.key));
-    if (rows.length === 0 || columns.length === 0) return;
-    exportToExcel(rows, columns);
-    setExportMode(false);
-    setSelectedRows(new Set());
-    setSelectedColumns(new Set(ALL_COLUMN_KEYS));
-    toast({ title: 'Export terminé', description: `${rows.length} dossier(s) exporté(s).` });
-  }, [dossierList, selectedRows, selectedColumns, toast]);
-
   const handleCancelExport = useCallback(() => {
     setExportMode(false);
     setSelectedRows(new Set());
-    setSelectedColumns(new Set(ALL_COLUMN_KEYS));
   }, []);
 
   useEffect(() => {
@@ -651,11 +628,13 @@ export default function DossiersClientPage() {
         </div>
       )}
 
-      {/* Export toolbar */}
+      {/* Selection toolbar (Rappeler mode) */}
       {exportMode ? (
         // Selection toolbar: while selecting, « Envoyer à » is the page's one
-        // solid primary (the header actions are hidden in this mode).
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface-2 px-4 py-2">
+        // solid primary (the header actions are hidden in this mode). Enters
+        // with the standard 200ms fade + small rise (owner 2026-09-02:
+        // everything that appears after « Rappeler » animates).
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface-2 px-4 py-2 animate-in fade-in-0 slide-in-from-top-1 duration-200 ease-enter motion-reduce:animate-none">
           <span className="text-sm font-semibold tabular-nums text-ink">
             {selectedRows.size} / {dossierList.length} dossier(s) sélectionné(s)
           </span>
@@ -681,6 +660,7 @@ export default function DossiersClientPage() {
               {exportMode && (
                 <TableHead className="w-10">
                   <Checkbox
+                    className="animate-in fade-in-0 zoom-in-95 duration-200 ease-enter motion-reduce:animate-none"
                     checked={allVisibleSelected}
                     onCheckedChange={() => allVisibleSelected ? setSelectedRows(new Set()) : handleSelectAll()}
                   />
@@ -988,20 +968,13 @@ export default function DossiersClientPage() {
                 const filterBtn = exportMode ? null : renderColumnFilter();
                 return (
                   <TableHead key={col.key} className={col.key === 'statut' ? 'min-w-[200px]' : undefined}>
-                    {exportMode ? (
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={selectedColumns.has(col.key)}
-                          onCheckedChange={() => handleToggleColumn(col.key)}
-                        />
-                        <span>{col.label}</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <span>{col.label}</span>
-                        {filterBtn}
-                      </div>
-                    )}
+                    {/* Column tick boxes removed in Rappeler mode (owner
+                        2026-09-02): they belonged to the retired Excel
+                        export and no longer had a function. */}
+                    <div className="flex items-center gap-1">
+                      <span>{col.label}</span>
+                      {filterBtn}
+                    </div>
                   </TableHead>
                 );
               })}
@@ -1061,6 +1034,7 @@ export default function DossiersClientPage() {
                   {exportMode && (
                     <TableCell onClick={e => e.stopPropagation()}>
                       <Checkbox
+                        className="animate-in fade-in-0 zoom-in-95 duration-200 ease-enter motion-reduce:animate-none"
                         checked={selectedRows.has(d.id)}
                         onCheckedChange={() => handleToggleRow(d.id)}
                       />

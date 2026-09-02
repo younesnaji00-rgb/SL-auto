@@ -79,7 +79,24 @@ const FieldRow = ({
   const hl = useReplayHighlight();
   const flash = usePrefillFlash();
   return (
-    <dl className={cn('grid grid-cols-1 gap-x-6 gap-y-4', FIELD_GRID[cols], className)}>
+    // Mode flip = ONE coordinated fade-through (researched 2026-09-02:
+    // Material choreography "transformation of the group provides
+    // continuity… don't animate multiple elements independently"; NN/g
+    // attention-competition; Atlassian inline-edit = geometric parity, no
+    // per-field motion). The key remount fades the WHOLE incoming mode in as
+    // one group — entering edit 200ms decelerate, returning to read 150ms —
+    // no stagger, no movement; borders emerge with the fade. Reduced motion:
+    // instant swap.
+    <dl
+      key={editing ? 'edit' : 'read'}
+      className={cn(
+        'grid grid-cols-1 gap-x-6 gap-y-4',
+        FIELD_GRID[cols],
+        'animate-in fade-in-0 ease-enter motion-reduce:animate-none',
+        editing ? 'duration-200' : 'duration-150',
+        className,
+      )}
+    >
       {fields.map((f, i) => {
         const status = !editing && f.path ? hl.statusForPath(f.path) : null;
         const empty = !editing && !f.value;

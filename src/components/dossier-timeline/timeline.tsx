@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { TimelineBar, StepStamp, StepStatusChip } from './timeline-bar';
 import { useCollapsedSteps } from '@/hooks/use-collapsed-steps';
+import { usePresence } from '@/hooks/use-presence';
 import { DOSSIER_STEP_DEFS, type StepState } from '@/lib/dossier-steps';
 import { GOTO_STEP_EVENT, type GotoStepDetail } from '@/lib/step-navigation';
 
@@ -33,6 +34,11 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
   const headingId = `step-${step.id}-heading`;
   const blocked = step.status === 'blocked';
   const done = step.status === 'done';
+  // Fold/unfold animates like every other disclosure (200ms grid-track on
+  // the standard curve — same gesture as Accordion/Collapsible, owner
+  // 2026-09-02); children stay mounted through the collapse so the height
+  // has something to animate over, then unmount.
+  const { mounted: contentMounted, shown: contentShown } = usePresence(!collapsed, 200);
   return (
     <section
       id={`step-${step.id}`}
@@ -63,7 +69,7 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
       </div>
 
       <div className="paper px-5 py-4">
-        <div className={cn('flex items-center gap-3', collapsed ? 'mb-0' : 'mb-4')}>
+        <div className={cn('flex items-center gap-3 transition-[margin] duration-200 ease-standard motion-reduce:transition-none', collapsed ? 'mb-0' : 'mb-4')}>
           <button
             type="button"
             onClick={onToggle}
@@ -80,11 +86,20 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
               {step.doneAt && <StepStamp step={step} />}
               {blocked && step.blockedReason && <span className="text-xs text-muted-foreground">{step.blockedReason}</span>}
             </span>
-            <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none', collapsed && '-rotate-90')} />
+            <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ease-standard motion-reduce:transition-none', collapsed && '-rotate-90')} />
           </button>
         </div>
-        <div id={`step-${step.id}-content`} hidden={collapsed} className="space-y-4">
-          {!collapsed && children}
+        <div
+          className={cn(
+            'grid transition-[grid-template-rows] duration-200 ease-standard motion-reduce:transition-none',
+            contentShown ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+          )}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div id={`step-${step.id}-content`} hidden={!contentMounted} className="space-y-4">
+              {contentMounted && children}
+            </div>
+          </div>
         </div>
       </div>
     </section>

@@ -116,12 +116,21 @@ const REVEAL_INNER = (open: boolean, alwaysAtLg = false) =>
   );
 
 export function TimelineBar({ steps, activeId, onStepClick, className }: TimelineBarProps) {
+  // Space-stealing reveal (owner 2026-09-02: the hovered step's FULL name and
+  // details must always fit): while one step is inspected, the OTHER steps'
+  // titles fold to their medallions on the same 200ms horizontal slide,
+  // freeing the row's width for the hovered one. Strictly horizontal, state-
+  // driven (CSS alone can't quiet the siblings).
+  const [inspectedId, setInspectedId] = React.useState<number | null>(null);
+  const release = (id: number) => setInspectedId((h) => (h === id ? null : h));
   return (
     <nav aria-label="Étapes du dossier" className={cn('relative w-full', className)}>
       <div className="flex h-12 w-full items-center gap-0.5 overflow-x-auto px-3 [scrollbar-width:none] sm:px-5 [&::-webkit-scrollbar]:hidden">
         {steps.map((step, idx) => {
           const isActive = step.id === activeId;
           const blocked = step.status === 'blocked';
+          const inspected = inspectedId === step.id;
+          const quiet = inspectedId !== null && !inspected;
           return (
             <React.Fragment key={step.id}>
               <button
@@ -130,6 +139,10 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                 title={blocked ? step.blockedReason : `${step.longLabel} — ${step.statusLabel}`}
                 aria-label={`Étape ${idx + 1} : ${step.longLabel} — ${step.statusLabel}`}
                 onClick={() => onStepClick(step.id)}
+                onMouseEnter={() => !blocked && setInspectedId(step.id)}
+                onMouseLeave={() => release(step.id)}
+                onFocus={() => !blocked && setInspectedId(step.id)}
+                onBlur={() => release(step.id)}
                 aria-current={isActive ? 'step' : undefined}
                 className={cn(
                   'group flex h-9 shrink-0 items-center rounded-full py-0.5 pl-0.5 pr-2 text-left',
@@ -141,11 +154,12 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
               >
                 <StepDot step={step} index={idx} isActive={isActive} />
 
-                {/* Title — always from lg (and for the active step); slides in on hover below lg. */}
-                <span className={REVEAL_OUTER(isActive, true)}>
+                {/* Title — always from lg (and for the active step); slides in
+                    on hover below lg; folds while ANOTHER step is inspected. */}
+                <span className={REVEAL_OUTER((isActive && !quiet) || inspected, !quiet)}>
                   <span
                     className={cn(
-                      REVEAL_INNER(isActive, true),
+                      REVEAL_INNER((isActive && !quiet) || inspected, !quiet),
                       'text-xs',
                       isActive ? 'font-semibold text-ink' : step.status === 'done' ? 'font-medium text-ink-2' : blocked ? 'text-ink-4' : 'font-medium text-ink-3',
                     )}
@@ -154,11 +168,12 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                   </span>
                 </span>
 
-                {/* Details — slide in after the title on hover / focus only. */}
-                <span className={REVEAL_OUTER(false)} aria-hidden>
-                  <span className={cn(REVEAL_INNER(false), 'text-[11px] text-ink-3')}>
+                {/* Details — slide in after the title on hover / focus only.
+                    No width cap: the siblings' fold makes the room. */}
+                <span className={REVEAL_OUTER(inspected)} aria-hidden>
+                  <span className={cn(REVEAL_INNER(inspected), 'text-[11px] text-ink-3')}>
                     <span aria-hidden className="mr-1.5">·</span>
-                    {step.doneAt ? <StepStamp step={step} className="max-w-[200px]" /> : blocked ? step.blockedReason : step.statusLabel}
+                    {step.doneAt ? <StepStamp step={step} /> : blocked ? step.blockedReason : step.statusLabel}
                   </span>
                 </span>
               </button>
