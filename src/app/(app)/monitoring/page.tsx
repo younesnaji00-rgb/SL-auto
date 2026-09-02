@@ -815,6 +815,11 @@ function GlobalView({
         })}
       </div>
 
+      {/* Volume (throughput) and Délais (cycle time) are the two per-stage
+          period measures → one shared row, half width each (owner 2026-09-02:
+          the bar list alone was too big for its data). items-start: each card
+          hugs its content instead of stretching to the taller table. */}
+      <div className="grid items-start gap-6 lg:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle>Volume par étape</CardTitle>
@@ -845,7 +850,8 @@ function GlobalView({
                     title={`${STEP_LABELS[key]} : ${value} en délai — voir les dossiers`}
                     className="flex w-full items-center gap-3 rounded-md px-2 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <span className="w-36 shrink-0 truncate text-xs text-ink-2 sm:w-56">
+                    {/* Half-width card: the label column tightens (full name in the title). */}
+                    <span className="w-36 shrink-0 truncate text-xs text-ink-2 xl:w-44">
                       {STEP_LABELS[key]}
                     </span>
                     <span className="relative block h-6 min-w-0 flex-1">
@@ -881,12 +887,11 @@ function GlobalView({
           )}
         </CardContent>
       </Card>
+      <CycleTimeCard rows={cycleTimes} periodLabel={periodLabel} />
+      </div>
 
       {/* NN/g dashboards: exceptions (what is late now) sit above trends. */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <AgingCard items={aging} className="lg:col-span-2" />
-        <CycleTimeCard rows={cycleTimes} periodLabel={periodLabel} />
-      </div>
+      <AgingCard items={aging} />
 
       <TrendCard points={trend} />
     </>
