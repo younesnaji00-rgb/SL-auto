@@ -554,3 +554,44 @@ Owner live-test rulings, implemented same day:
    toolbar 300ms + 8px rise, checkboxes 300ms fade + zoom from 75%; tab
    panels 200ms + 4px rise. Overlays, menus, tooltips and hover feedback
    keep the spec values (usability-critical speed).
+
+## Addendum 2026-09-02 (quater) — carrier v3, segmented thumbs, layout stability
+
+Owner live-test rulings, rounds 3–5, implemented same day:
+
+1. **Carrier v3 — labels stay visible, compositor-only flight, connected
+   base.** (Round 3: "the morph shouldn't remove the text"; round 4: "the
+   fps is low, and the lines don't look connected on the bottom border".)
+   The carrier now flies UNDER the tabs: `.tab-slope` has `z-index: 1`,
+   the strips are `isolate`, the ghost sits at z 0 — every label keeps its
+   own ink for the whole flight. The flight is compositor-only: the ghost
+   is PLACED at the destination rect and a WAAPI `transform:
+   translate+scale` carries it from the source (transform-origin 0 0,
+   will-change: transform) — nothing re-laid-out per frame. Its rim is a
+   real `border: 1px primary/0.6` with `border-bottom: 0` (10px top
+   radius), so in flight the pill's base merges into the strip's
+   separation line instead of showing a floating shadow seam.
+2. **Segmented filters join the morph family.** New shared
+   `ui/sliding-thumb.tsx` (`SlidingThumb`): one absolutely-positioned
+   selection surface as the FIRST child of a `relative isolate` group,
+   tracking the `[data-seg-active="true"]` descendant (offset-chain
+   measured, RO re-measure, ready-gate, reduced-motion snap; 300ms
+   standard — same law as sidebar/tab/step). Applied to the dossiers
+   date-preset group (accent thumb) and the suivi d'équipe
+   Jour/Semaine/Mois group (primary thumb). Buttons become ghosts over the
+   thumb (active label z 1, own selected bg suppressed).
+3. **Layout stability is part of motion.** (Owner: filter clicks displaced
+   the whole page rightward.) Cause: the page scrollbar appearing/vanishing
+   with result height. Fix: `scrollbar-gutter: stable` on `html` — the
+   gutter is always reserved, filter clicks no longer shift content. Rule:
+   any state change that can toggle page overflow must not move unrelated
+   content.
+4. **Suivi d'équipe defaults to ALL TIME** (« Tout » preset; dateFrom/To
+   null) — not a motion rule, recorded here because the segmented group
+   gained the extra « Tout » segment the thumb travels to.
+5. **« Volume par étape » card rebuilt** (research ruling, not motion):
+   vertical recharts bars → HTML horizontal bar list in pipeline order,
+   full stage names left, counts printed at the bar tip (no axis/tooltip),
+   faint shared-scale track, busiest stage in deeper teal, rows click
+   through to the réalisé drawer. Charts stay `isAnimationActive={false}`
+   and bar widths do NOT transition on filter change (F0).
