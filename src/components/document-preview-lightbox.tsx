@@ -11,9 +11,12 @@
  * Images are rendered with `<img>`, everything else with `<iframe>` so the
  * browser's native PDF viewer takes over. No external dependencies.
  *
- * The window follows the media's orientation: a portrait image (or a PDF —
- * assumed A4 portrait) opens a tall window sized from the viewport height;
- * a landscape image opens a wide window whose height follows its ratio.
+ * The window WRAPS the media exactly (owner ruling 2026-09-02): its width is
+ * min(viewport cap, the width the full viewport height implies at the media's
+ * aspect ratio) and the media box derives its height from that width via
+ * aspect-ratio — so a portrait scan gets a tall window, a landscape photo a
+ * wide one, and there are never letterbox bands in either axis. PDFs assume
+ * A4 portrait.
  */
 
 import * as React from 'react';
@@ -79,8 +82,6 @@ function isImageName(name: string): boolean {
   return /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(name || '');
 }
 
-/** Header row height (px) — used to derive the content box from the viewport. */
-const HEADER_H = 52;
 /** A4 portrait width/height — default for PDFs and unknown documents. */
 const A4_RATIO = 210 / 297;
 
@@ -167,8 +168,6 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
   wasOpenRef.current = true;
 
   const ratio = isImage ? imgRatio : A4_RATIO;
-  const portrait = ratio !== null && ratio < 1;
-  const landscape = ratio !== null && ratio >= 1;
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -184,12 +183,18 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
           // different orientation (first open already mounts at final size).
           'flex h-[calc(85dvh/var(--app-zoom))] flex-col overflow-hidden p-0',
           'lg:transition-[width,height,max-width,max-height,min-width] lg:duration-200 motion-reduce:transition-none',
-          // Ratio unknown yet (image still loading): the previous neutral box.
+          // Ratio unknown yet (non-image or failed measure): neutral box.
           ratio === null && 'lg:h-[calc(85svh/var(--app-zoom))] lg:max-w-4xl',
-          // Portrait media → tall window: height leads, width follows the ratio.
-          portrait && 'lg:h-[calc(92svh/var(--app-zoom))] lg:w-auto lg:min-w-[420px] lg:max-w-[calc(96vw/var(--app-zoom))]',
-          // Landscape media → wide window: width leads, height follows.
-          landscape && 'lg:h-auto lg:max-h-[calc(92svh/var(--app-zoom))] lg:w-[min(calc(96vw/var(--app-zoom)),1200px)] lg:max-w-[calc(96vw/var(--app-zoom))]',
+          // Measured media → the window WRAPS the media exactly (owner ruling
+          // 2026-09-02: no letterbox bands, "snap to the paper"). One formula
+          // for both orientations: width = whichever is smaller of the
+          // viewport width cap and the width the full 92svh height implies at
+          // this aspect ratio; the media box then derives its height from
+          // that width via aspect-ratio, so there is never leftover space in
+          // either axis. min-w keeps the header controls usable on extreme
+          // portrait scans (the only case allowed a sliver of letterbox).
+          ratio !== null &&
+            'lg:h-auto lg:min-w-[360px] lg:w-[min(calc(96vw/var(--app-zoom)),calc((92svh/var(--app-zoom)_-_52px)*var(--ar)),1400px)] lg:max-w-[calc(96vw/var(--app-zoom))]',
         )}
         style={ratio !== null ? ({ ['--ar' as string]: String(ratio) } as React.CSSProperties) : undefined}
       >
@@ -243,10 +248,11 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
           className={cn(
             'relative flex max-w-full items-center justify-center overflow-hidden bg-ink-solid',
             ratio === null && 'flex-1',
-            portrait && 'min-h-0 flex-1 lg:aspect-[var(--ar)]',
-            landscape && 'min-h-0 flex-1 lg:flex-none lg:w-full lg:aspect-[var(--ar)]',
+            // Measured: the media box IS the window body — its height follows
+            // the window width through the aspect ratio, so the image fills
+            // it edge to edge (no dark letterbox bands).
+            ratio !== null && 'min-h-0 flex-1 lg:flex-none lg:w-full lg:aspect-[var(--ar)]',
           )}
-          style={landscape ? { maxHeight: `calc((92svh - ${HEADER_H}px) / var(--app-zoom))` } : undefined}
         >
           {isImage ? (
             <TransformWrapper

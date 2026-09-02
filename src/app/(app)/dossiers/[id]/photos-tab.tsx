@@ -109,10 +109,8 @@ export const MAX_PHOTOS_PER_SECTION = 30;
 /** Cap when proposition réforme is active. */
 export const MAX_PHOTOS_WITH_REFORME = 60;
 
-/** Preview-lightbox header height (px) — px-4/py-3 + text-sm ≈ 52. Used to
- *  derive the landscape media box from the viewport (same approach as
- *  document-preview-lightbox). */
-const PREVIEW_HEADER_H = 52;
+/* Preview-lightbox header height (≈46px) is folded into the lg
+   window-width formula on the DialogContent below. */
 
 export default function PhotosTab({
   dossierId,
@@ -718,8 +716,6 @@ export default function PhotosTab({
           if (e.key === 'ArrowLeft' && hasPrev) goto(-1);
           else if (e.key === 'ArrowRight' && hasNext) goto(1);
         };
-        const portrait = previewRatio !== null && previewRatio < 1;
-        const landscape = previewRatio !== null && previewRatio >= 1;
         return (
           <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
             <DialogContent
@@ -734,12 +730,13 @@ export default function PhotosTab({
                 // transition smooths paging onto a differently-oriented photo.
                 'flex h-[calc(85dvh/var(--app-zoom))] flex-col overflow-hidden border-0 bg-black/95 p-0',
                 'lg:transition-[width,height,max-width,max-height,min-width] lg:duration-200 motion-reduce:transition-none',
-                // Ratio unknown yet (image still loading): neutral box.
+                // Ratio unknown (failed measure): neutral box.
                 previewRatio === null && 'lg:h-[calc(85svh/var(--app-zoom))] lg:max-w-4xl',
-                // Portrait photo → tall window: height leads, width follows.
-                portrait && 'lg:h-[calc(92svh/var(--app-zoom))] lg:w-auto lg:min-w-[420px] lg:max-w-[calc(96vw/var(--app-zoom))]',
-                // Landscape photo → wide window: width leads, height follows.
-                landscape && 'lg:h-auto lg:max-h-[calc(92svh/var(--app-zoom))] lg:w-[min(calc(96vw/var(--app-zoom)),1200px)] lg:max-w-[calc(96vw/var(--app-zoom))]',
+                // Measured: the window WRAPS the photo exactly (owner ruling
+                // 2026-09-02, no letterbox bands) — same one-formula sizing
+                // as document-preview-lightbox.
+                previewRatio !== null &&
+                  'lg:h-auto lg:min-w-[360px] lg:w-[min(calc(96vw/var(--app-zoom)),calc((92svh/var(--app-zoom)_-_46px)*var(--ar)),1400px)] lg:max-w-[calc(96vw/var(--app-zoom))]',
               )}
               style={previewRatio !== null ? ({ ['--ar' as string]: String(previewRatio) } as React.CSSProperties) : undefined}
               onKeyDown={onKey}
@@ -768,10 +765,10 @@ export default function PhotosTab({
                 className={cn(
                   'relative flex max-w-full items-center justify-center overflow-hidden',
                   previewRatio === null && 'flex-1',
-                  portrait && 'min-h-0 flex-1 lg:aspect-[var(--ar)]',
-                  landscape && 'min-h-0 flex-1 lg:flex-none lg:w-full lg:aspect-[var(--ar)]',
+                  // Height follows the window width through the aspect ratio —
+                  // the photo fills the box edge to edge, no letterbox.
+                  previewRatio !== null && 'min-h-0 flex-1 lg:flex-none lg:w-full lg:aspect-[var(--ar)]',
                 )}
-                style={landscape ? { maxHeight: `calc((92svh - ${PREVIEW_HEADER_H}px) / var(--app-zoom))` } : undefined}
               >
                 <TransformWrapper
                   key={previewPhoto.id /* reset zoom on photo change */}

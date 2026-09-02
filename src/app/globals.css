@@ -505,11 +505,22 @@ html {
     box-shadow: none !important;
     transition: --tab-fill 150ms;
   }
-  /* Feet overlap the 4px gaps between tabs — raise hovered, then active,
-     so the lighter fill paints over the neighbours' grey feet. */
-  .tab-slope:hover {
+  /* Hover (owner ruling 2026-09-02 quinquies, INACTIVE tabs only): the tab
+     previews as a PILL — fully rounded corners, teal (--primary) contour,
+     feet hidden — and returns to the default tab anatomy the moment it is
+     selected or the pointer leaves. The border-radius/box-shadow/opacity
+     transitions below make hover→selected a visible morph (pill melts into
+     the seated tab), which doubles as the between-selection animation. */
+  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active) {
     --tab-fill: hsl(var(--surface-3));
     z-index: 1;
+  }
+  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active)::before {
+    border-radius: 9999px;
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.6);
+  }
+  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active)::after {
+    opacity: 0;
   }
   .tab-slope[data-state='active'],
   .tab-slope[aria-selected='true'],
@@ -527,7 +538,7 @@ html {
        bottom corners now). */
     border-radius: 10px 10px 0 0;
     background: var(--tab-fill);
-    transition: box-shadow 150ms;
+    transition: box-shadow 150ms, border-radius 150ms;
   }
   /* The outward feet: a 7×7 square outside each bottom corner, filled by a
      radial-gradient whose transparent quarter-circle sits at the top-outer
@@ -544,6 +555,7 @@ html {
     height: var(--tab-foot);
     z-index: -1;
     pointer-events: none;
+    transition: opacity 150ms;
     background:
       radial-gradient(circle at top left, transparent calc(var(--tab-foot) - 0.5px), var(--tab-fill) var(--tab-foot)) left bottom / var(--tab-foot) var(--tab-foot) no-repeat,
       radial-gradient(circle at top right, transparent calc(var(--tab-foot) - 0.5px), var(--tab-fill) var(--tab-foot)) right bottom / var(--tab-foot) var(--tab-foot) no-repeat,
@@ -556,7 +568,8 @@ html {
       inset 0 0 0 1px var(--rim-in),
       inset 0 1.5px 0 var(--rim-top),
       0 0 0 1px var(--rim-out),
-      0 1px 2px hsl(var(--shadow-color) / 0.06);
+      0 1px 2px hsl(var(--shadow-color) / 0.06),
+      0 12px 32px -8px hsl(var(--shadow-color) / 0.12);
   }
   /* Ease-in on activation (owner ruling 2026-09-02 bis): body and feet fade
      and settle together — one keyframe on both pseudo-elements now that the

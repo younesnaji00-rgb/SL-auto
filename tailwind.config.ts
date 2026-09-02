@@ -27,7 +27,10 @@ export default {
         card: '0 1px 2px hsl(var(--shadow-color) / 0.05), 0 1px 3px hsl(var(--shadow-color) / 0.06)',
         raised: '0 8px 24px hsl(var(--shadow-color) / 0.10), 0 2px 6px hsl(var(--shadow-color) / 0.05)',
         // Light contour on light surfaces (buttons, icon buttons, step pills).
-        rim: 'inset 0 0 0 1px var(--rim-in), inset 0 1.5px 0 var(--rim-top), 0 0 0 1px var(--rim-out), 0 1px 2px hsl(var(--shadow-color) / 0.06)',
+        // Owner ruling 2026-09-02: the contour always carries a soft bottom
+        // shadow too — the same drop the glass surfaces use (--glass-shadow's
+        // last layer), so rimmed elements sit ON the page like glass does.
+        rim: 'inset 0 0 0 1px var(--rim-in), inset 0 1.5px 0 var(--rim-top), 0 0 0 1px var(--rim-out), 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 12px 32px -8px hsl(var(--shadow-color) / 0.12)',
         // Light contour on filled (primary / destructive / active) surfaces.
         'rim-filled': 'inset 0 0 0 1px var(--rim-fill-in), inset 0 1.5px 0 var(--rim-fill-top), 0 4px 12px -4px hsl(var(--shadow-color) / 0.3)',
       },
