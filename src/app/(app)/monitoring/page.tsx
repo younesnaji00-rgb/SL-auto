@@ -57,6 +57,7 @@ import {
   ChartTooltipContent,
 } from '@/components/ui/chart';
 import { Button } from '@/components/ui/button';
+import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -230,8 +231,10 @@ export default function MonitoringPage() {
   const [users, setUsers] = useState<Array<{ id: string; nom?: string; email?: string; role?: string }>>([]);
   const [loading, setLoading] = useState(true);
 
-  const [dateFrom, setDateFrom] = useState<Date | null>(() => startOfDay(new Date()));
-  const [dateTo, setDateTo] = useState<Date | null>(() => endOfDay(new Date()));
+  // Default = ALL TIME (owner ruling 2026-09-02 — no silent one-day scope);
+  // « Tout » in the preset group brings it back after picking a period.
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
   const [selectedStep, setSelectedStep] = useState<StepKey | null>(null);
   const [selectedStepMode, setSelectedStepMode] = useState<DrawerMode>('realise');
   const [roleFilter, setRoleFilter] = useState<string>(ROLE_FILTER_ALL);
@@ -381,7 +384,8 @@ export default function MonitoringPage() {
     [dateFrom, dateTo],
   );
 
-  const activePreset = useMemo<'jour' | 'semaine' | 'mois' | 'custom'>(() => {
+  const activePreset = useMemo<'tout' | 'jour' | 'semaine' | 'mois' | 'custom'>(() => {
+    if (!dateFrom && !dateTo) return 'tout';
     if (!dateFrom || !dateTo) return 'custom';
     const now = new Date();
     const today = startOfDay(now);
@@ -394,6 +398,10 @@ export default function MonitoringPage() {
     return 'custom';
   }, [dateFrom, dateTo]);
 
+  const applyTout = () => {
+    setDateFrom(null);
+    setDateTo(null);
+  };
   const applyJour = () => {
     setDateFrom(startOfDay(new Date()));
     setDateTo(endOfDay(new Date()));
@@ -533,8 +541,9 @@ export default function MonitoringPage() {
   const periodLabel = useMemo(() => formatPeriodLabel(dateFrom, dateTo), [dateFrom, dateTo]);
 
   const resetRange = () => {
-    setDateFrom(startOfDay(new Date()));
-    setDateTo(endOfDay(new Date()));
+    // Reset = the default = all time (owner 2026-09-02).
+    setDateFrom(null);
+    setDateTo(null);
   };
 
   return (
@@ -544,39 +553,39 @@ export default function MonitoringPage() {
         subtitle="Étapes franchies et délais tenus — les délais sont ceux des assignations chiffrage et terrain (24 h ouvrées)."
         filters={
         <div className="flex flex-wrap items-end gap-2">
-          <div className="flex h-10 items-center gap-1 self-end rounded-md bg-surface-2 p-0.5">
-            <Button
-              size="sm"
-              variant={activePreset === 'jour' ? 'default' : 'ghost'}
-              className="h-8"
-              onClick={applyJour}
-            >
-              Jour
-            </Button>
-            <Button
-              size="sm"
-              variant={activePreset === 'semaine' ? 'default' : 'ghost'}
-              className="h-8"
-              onClick={applySemaine}
-            >
-              Semaine
-            </Button>
-            <Button
-              size="sm"
-              variant={activePreset === 'mois' ? 'default' : 'ghost'}
-              className="h-8"
-              onClick={applyMois}
-            >
-              Mois
-            </Button>
-            <Button
-              size="sm"
-              variant={activePreset === 'custom' ? 'default' : 'ghost'}
-              className="h-8"
-              disabled
-            >
-              Personnalisé
-            </Button>
+          {/* Sliding thumb carries the selection (motion-spec addendum ter);
+              the buttons stay ghost and only recolour. « Tout » = the all-time
+              default (owner 2026-09-02). */}
+          <div className="relative isolate flex h-10 items-center gap-1 self-end rounded-md bg-surface-2 p-0.5" role="group" aria-label="Période">
+            <SlidingThumb className="rounded-md bg-primary shadow-rim-filled" deps={[activePreset]} />
+            {(
+              [
+                ['tout', 'Tout', applyTout, false],
+                ['jour', 'Jour', applyJour, false],
+                ['semaine', 'Semaine', applySemaine, false],
+                ['mois', 'Mois', applyMois, false],
+                ['custom', 'Personnalisé', undefined, true],
+              ] as const
+            ).map(([key, label, onClick, disabled]) => {
+              const active = activePreset === key;
+              return (
+                <Button
+                  key={key}
+                  size="sm"
+                  variant="ghost"
+                  className={cn(
+                    'relative z-[1] h-8',
+                    active && 'text-primary-foreground hover:bg-transparent hover:text-primary-foreground',
+                  )}
+                  data-seg-active={active || undefined}
+                  aria-pressed={active}
+                  onClick={onClick}
+                  disabled={disabled && !active}
+                >
+                  {label}
+                </Button>
+              );
+            })}
           </div>
           <div className="flex flex-col gap-1">
             <label className="t-label">Du</label>

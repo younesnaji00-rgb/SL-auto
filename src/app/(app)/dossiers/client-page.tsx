@@ -42,6 +42,7 @@ import { ChevronRight as RowChevron, MoreHorizontal, ExternalLink } from 'lucide
 import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
+import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import { type ExportColumn } from '@/lib/export-excel';
 import { CANONICAL_STATUTS } from '@/lib/dossiers-data';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -522,13 +523,20 @@ export default function DossiersClientPage() {
             `Suivi d'équipe`; they write the SAME `dateFrom`/`dateTo` strings the
             pipeline consumes. Selected segment = `tonal` (M3 segmented button),
             never the accent fill — the page primary is « Nouveau dossier ». */}
-        <div className="flex h-9 items-center gap-0.5 rounded-md bg-surface-2 p-0.5" role="group" aria-label="Période de création">
+        {/* Sliding tonal thumb carries the selection (motion-spec addendum
+            ter) — the segment buttons stay ghost and only recolour. */}
+        <div className="relative isolate flex h-9 items-center gap-0.5 rounded-md bg-surface-2 p-0.5" role="group" aria-label="Période de création">
+          <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[filters.datePreset]} />
           {([['jour', 'Jour'], ['semaine', 'Semaine'], ['mois', 'Mois']] as const).map(([key, label]) => (
             <Button
               key={key}
               size="sm"
-              variant={filters.datePreset === key ? 'tonal' : 'ghost'}
-              className={cn('h-8 px-3', filters.datePreset !== key && 'shadow-none')}
+              variant="ghost"
+              className={cn(
+                'relative z-[1] h-8 px-3 shadow-none',
+                filters.datePreset === key && 'text-accent-foreground hover:bg-transparent hover:text-accent-foreground',
+              )}
+              data-seg-active={filters.datePreset === key || undefined}
               aria-pressed={filters.datePreset === key}
               onClick={() => applyPreset(key)}
             >
@@ -537,8 +545,12 @@ export default function DossiersClientPage() {
           ))}
           <Button
             size="sm"
-            variant={filters.datePreset === 'personnalise' ? 'tonal' : 'ghost'}
-            className={cn('h-8 px-3', filters.datePreset !== 'personnalise' && 'shadow-none')}
+            variant="ghost"
+            className={cn(
+              'relative z-[1] h-8 px-3 shadow-none',
+              filters.datePreset === 'personnalise' && 'text-accent-foreground hover:bg-transparent hover:text-accent-foreground',
+            )}
+            data-seg-active={filters.datePreset === 'personnalise' || undefined}
             aria-pressed={filters.datePreset === 'personnalise'}
             onClick={() => setFilters({ datePreset: 'personnalise' })}
           >

@@ -437,6 +437,11 @@ body::after {
 }
 html {
   zoom: var(--app-zoom);
+  /* Reserve the scrollbar gutter permanently (owner 2026-09-02: changing a
+     filter made the whole page shift right — the content shrank below one
+     viewport, the scrollbar vanished, and the layout widened by its width).
+     With a stable gutter the page width never depends on content height. */
+  scrollbar-gutter: stable;
 }
 .h-svh { height: calc(100svh / var(--app-zoom)); }
 .min-h-svh { min-height: calc(100svh / var(--app-zoom)); }
