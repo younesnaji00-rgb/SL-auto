@@ -60,10 +60,16 @@ const DIAGRAM_TAB_TRIGGER =
 export default function RapportTab({
   dossierId,
   dossierOverride,
+  readOnly,
 }: {
   dossierId: string;
   /** Replay: frozen dossier data rendered instead of the live subscription. */
   dossierOverride?: Record<string, any> | null;
+  /**
+   * Replay: hard read-only. Hides the director-validation button and inerts
+   * « Générer le rapport » (both are role-gated, not canWrite-gated).
+   */
+  readOnly?: boolean;
 }) {
   const db = useFirestore();
   const auth = useAuth();
@@ -332,17 +338,19 @@ export default function RapportTab({
           <p className="text-sm text-ink-3">Diagramme des points de choc et génération du PDF final.</p>
         </div>
         <div className="flex items-center gap-2">
-          <ValiderDossierButton
-            dossierId={dossierId}
-            alreadyValidated={alreadyValidated}
-          />
+          {!readOnly && (
+            <ValiderDossierButton
+              dossierId={dossierId}
+              alreadyValidated={alreadyValidated}
+            />
+          )}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
                   <Button
                     onClick={handleOpenTypeDialog}
-                    disabled={isGenerating || !alreadyValidated}
+                    disabled={isGenerating || !alreadyValidated || !!readOnly}
                     className="gap-2"
                   >
                     {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}

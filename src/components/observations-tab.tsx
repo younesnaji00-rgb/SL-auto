@@ -123,6 +123,11 @@ type ObservationsTabProps = {
   contextAccord?: AccordSlot;
   /** Replay: frozen observation list rendered instead of the live subscription. */
   observationsOverride?: any[];
+  /**
+   * Replay: hard read-only. Disables the role-based « Valider le traitement »
+   * affordance (which is NOT canWrite-gated) while leaving navigation alive.
+   */
+  readOnly?: boolean;
 };
 
 export default function ObservationsTab({
@@ -132,6 +137,7 @@ export default function ObservationsTab({
   contextPhase,
   contextAccord,
   observationsOverride,
+  readOnly,
 }: ObservationsTabProps) {
   const db = useFirestore();
   const auth = useAuth();
@@ -142,6 +148,7 @@ export default function ObservationsTab({
   // Q-5 → B: gestionnaire + admin + directeur family can validate.
   const role = profile?.role;
   const canValidate =
+    !readOnly &&
     section !== 'assignations-atg' &&
     (role === 'Gestionnaire' ||
       role === 'Admin' ||

@@ -30,11 +30,16 @@ import { DOSSIER_TIMELINE_STEPS } from '@/components/dossier-timeline/timeline';
 
 // The real dossier-timeline components — rendered read-only + live so the
 // AFTER pane is the exact detail page (every field, photo, table), not an
-// approximation. Read-only is enforced by ReadOnlyUserScope + a disabled
-// fieldset, so the frozen tab components are untouched. The BEFORE pane
-// renders the SAME components (same cards, same anatomy) fed with the frozen
-// session-start snapshot through each component's `…Override` prop — and no
-// ReplayHighlightProvider, so it stays untinted.
+// approximation. Read-only is surgical: ReadOnlyUserScope zeroes canWrite /
+// canDelete / isAdmin for the subtree (hiding every canWrite-gated mutating
+// affordance), `readOnly` props neutralise the few ROLE-gated write paths
+// (observations « Valider le traitement », rapport « Générer » + validation
+// directeur), and mutation callbacks are no-ops — while purely navigational
+// controls (tabs, collapsibles, lightboxes, downloads) stay ALIVE so a
+// session can be skimmed. The BEFORE pane renders the SAME components (same
+// cards, same anatomy) fed with the frozen session-start snapshot through
+// each component's `…Override` prop — and no ReplayHighlightProvider, so it
+// stays untinted.
 import Step1Import from '@/components/dossier-timeline/step-1-import';
 import Step2Information from '@/components/dossier-timeline/step-2-information';
 import Step3Planification from '@/components/dossier-timeline/step-3-planification';
@@ -57,20 +62,46 @@ const AVANT_PREFIX = 'replay-avant-step-';
 const AFTER_PREFIX = 'replay-after-step-';
 
 /**
- * Half-width fitting for the embedded live components (AFTER pane) and the
- * snapshot pane. Tailwind breakpoints look at the VIEWPORT, which stays wide
- * while each pane only gets half of it — so the multi-column grids inside the
- * embedded tabs would be squeezed. Scoped descendant overrides collapse them
- * whenever the two panes sit side by side (≥ lg): photo grids to 2 columns,
- * document-socket / definition grids to 2 columns max. Selectors target the
- * exact utility classes used by photos-tab / typed-documents-grid /
- * information-tab (`.\32 xl` = CSS escape for the leading "2" of `2xl:`).
+ * Scoped pane CSS — two jobs, both limited to `.replay-pane` descendants so
+ * the real dossier pages are untouched, and applied identically to BOTH panes:
+ *
+ * 1. DENSITY: the replay is a skim view — card/section paddings and vertical
+ *    rhythm drop one notch (24→16, 16→10), inter-block gaps tighten, body
+ *    type 14→13 px (never below the 11 px floor), step titles 18→16 px, and
+ *    photo grids become dense auto-fill rows of small square tiles (~84 px)
+ *    instead of viewport-breakpoint columns.
+ * 2. HALF-WIDTH FITTING (≥ lg, panes side by side): Tailwind breakpoints look
+ *    at the viewport, which stays wide while each pane gets half of it — so
+ *    the socket/definition grids collapse to 2 columns (3 from 1536 px).
+ *
+ * Selectors target the exact utility classes used by the embedded tabs and
+ * out-specify them (2 classes vs 1); `.\32 xl` = CSS escape for the leading
+ * "2" of `2xl:`. The pt-0/pb-0 rules restore shadcn Card's collapsed edges
+ * that the p-6 shorthand override would otherwise re-pad.
  */
 const PANE_FIT_CSS = `
+.replay-pane .p-6 { padding: 1rem; }
+.replay-pane .px-6 { padding-left: 1rem; padding-right: 1rem; }
+.replay-pane .py-6 { padding-top: 1rem; padding-bottom: 1rem; }
+.replay-pane .pt-0 { padding-top: 0; }
+.replay-pane .pb-0 { padding-bottom: 0; }
+.replay-pane .p-4 { padding: 0.625rem; }
+.replay-pane .gap-6 { gap: 0.75rem; }
+.replay-pane .gap-4 { gap: 0.5rem; }
+.replay-pane .mt-4 { margin-top: 0.625rem; }
+.replay-pane .mb-4 { margin-bottom: 0.625rem; }
+.replay-pane .space-y-8 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.25rem; }
+.replay-pane .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 1rem; }
+.replay-pane .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.625rem; }
+.replay-pane .text-sm { font-size: 0.8125rem; }
+.replay-pane .t-title { font-size: 1rem; }
+.replay-pane .lg\\:grid-cols-6 { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 0.375rem; }
 @media (min-width: 1024px) {
-  .replay-pane .lg\\:grid-cols-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .replay-pane .xl\\:grid-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .replay-pane .\\32 xl\\:grid-cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1536px) {
+  .replay-pane .\\32 xl\\:grid-cols-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 `;
 
@@ -475,7 +506,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
 
   // Section composition — mirrors src/app/(app)/dossiers/[id]/page.tsx. Keep in
   // sync if the dossier timeline composition changes. readOnly + no-op handlers;
-  // editing is hard-disabled by ReadOnlyUserScope + the disabled fieldset.
+  // mutations are held off by ReadOnlyUserScope + readOnly props (see top note).
   const renderStep = (stepId: number) => {
     if (!id || !dossier || !dossierRef) return null;
     const common = { dossierId: id, dossier, dossierRef, readOnly: true };
@@ -497,14 +528,14 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
           <>
             <Step3Planification {...common} onEditPlanification={noop} onNewPlanification={noop} typeFilter="Avant" />
             <div className="mt-4"><PhotosTab dossierId={id} onlyCategory="avant" /></div>
-            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="Avant" /></div>
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" readOnly contextPhase="Avant" /></div>
           </>
         );
       case 6:
         return (
           <>
             <Step4Pieces {...common} onSendToChiffrage={noop} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots />
-            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="1er accord" /></div>
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" readOnly contextAccord="1er accord" /></div>
           </>
         );
       case 9:
@@ -512,14 +543,14 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
           <>
             <Step3Planification {...common} onEditPlanification={noop} onNewPlanification={noop} typeFilter="En cours" />
             <div className="mt-4"><PhotosTab dossierId={id} onlyCategory="en_cours" /></div>
-            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="En cours" /></div>
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" readOnly contextPhase="En cours" /></div>
           </>
         );
       case 11:
         return (
           <>
             <Step4Pieces {...common} onSendToChiffrage={noop} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" />
-            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="2ème accord ou +" /></div>
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" readOnly contextAccord="2ème accord ou +" /></div>
           </>
         );
       case 10:
@@ -527,7 +558,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
           <>
             <Step3Planification {...common} onEditPlanification={noop} onNewPlanification={noop} typeFilter="Après" />
             <div className="mt-4"><PhotosTab dossierId={id} onlyCategory="apres" /></div>
-            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="Après" /></div>
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" readOnly contextPhase="Après" /></div>
           </>
         );
       case 7:
@@ -565,14 +596,14 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
           <>
             <Step3Planification {...common} onEditPlanification={noop} onNewPlanification={noop} typeFilter="Avant" plansOverride={ov.planifications} />
             <div className="mt-4"><PhotosTab dossierId={id} onlyCategory="avant" photosOverride={ov.photos} /></div>
-            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="Avant" observationsOverride={ov.observations} /></div>
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" readOnly contextPhase="Avant" observationsOverride={ov.observations} /></div>
           </>
         );
       case 6:
         return (
           <>
             <Step4Pieces {...common} onSendToChiffrage={noop} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots docsOverride={ov.documents} photosOverride={ov.photos} />
-            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="1er accord" observationsOverride={ov.observations} /></div>
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" readOnly contextAccord="1er accord" observationsOverride={ov.observations} /></div>
           </>
         );
       case 9:
@@ -580,14 +611,14 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
           <>
             <Step3Planification {...common} onEditPlanification={noop} onNewPlanification={noop} typeFilter="En cours" plansOverride={ov.planifications} />
             <div className="mt-4"><PhotosTab dossierId={id} onlyCategory="en_cours" photosOverride={ov.photos} /></div>
-            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="En cours" observationsOverride={ov.observations} /></div>
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" readOnly contextPhase="En cours" observationsOverride={ov.observations} /></div>
           </>
         );
       case 11:
         return (
           <>
             <Step4Pieces {...common} onSendToChiffrage={noop} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" docsOverride={ov.documents} photosOverride={ov.photos} />
-            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="2ème accord ou +" observationsOverride={ov.observations} /></div>
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" readOnly contextAccord="2ème accord ou +" observationsOverride={ov.observations} /></div>
           </>
         );
       case 10:
@@ -595,7 +626,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
           <>
             <Step3Planification {...common} onEditPlanification={noop} onNewPlanification={noop} typeFilter="Après" plansOverride={ov.planifications} />
             <div className="mt-4"><PhotosTab dossierId={id} onlyCategory="apres" photosOverride={ov.photos} /></div>
-            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="Après" observationsOverride={ov.observations} /></div>
+            <div className="mt-4"><ObservationsTab dossierId={id} section="dossiers" variant="collapsible" readOnly contextPhase="Après" observationsOverride={ov.observations} /></div>
           </>
         );
       case 7:
@@ -777,10 +808,11 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                     </div>
                   ) : (
                     <ReadOnlyUserScope>
-                      {/* Same hard read-only treatment as the right pane, so both
-                          sides show the same (inert) controls. NO highlight
-                          provider here — the « Avant » pane renders plain. */}
-                      <fieldset disabled className="m-0 min-w-0 border-0 p-0">
+                      {/* Same surgical read-only treatment as the right pane
+                          (scope + readOnly props — navigation stays alive). NO
+                          highlight provider here — the « Avant » pane renders
+                          plain. */}
+                      <div className="min-w-0">
                         <div className="px-3 py-4 sm:px-4">
                           {beforeSubsMissing && (
                             <p className="t-caption mb-2 text-ink-3">
@@ -799,7 +831,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                             </section>
                           ))}
                         </div>
-                      </fieldset>
+                      </div>
                     </ReadOnlyUserScope>
                   )}
                 </div>
@@ -818,9 +850,11 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                 >
                   <ReplayHighlightProvider value={hlValue}>
                     <ReadOnlyUserScope>
-                      {/* disabled fieldset = hard read-only safety net (blocks any
-                          role-based action button the display mode doesn't already hide) */}
-                      <fieldset disabled className="m-0 min-w-0 border-0 p-0">
+                      {/* Read-only without a disabled fieldset: navigation (tabs,
+                          collapsibles, lightboxes) must work; mutations are held
+                          off by ReadOnlyUserScope + readOnly props + no-op
+                          callbacks (see the audit note at the top). */}
+                      <div className="min-w-0">
                         <div className="px-3 py-4 sm:px-4">
                           {DOSSIER_TIMELINE_STEPS.map((step, idx) => (
                             <section
@@ -833,7 +867,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                             </section>
                           ))}
                         </div>
-                      </fieldset>
+                      </div>
                     </ReadOnlyUserScope>
                   </ReplayHighlightProvider>
                 </div>
