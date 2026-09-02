@@ -647,7 +647,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
       {/* Effectively full-screen: the primitive's `lg:max-w-lg` must be beaten
           with the SAME `lg:` modifier (tailwind-merge only dedupes identical
           modifiers, so a bare max-w-none would lose to it in the cascade). */}
-      <DialogContent className="lg:max-w-none max-lg:w-full w-[calc((100vw-24px)/var(--app-zoom))] h-[calc((100vh-24px)/var(--app-zoom))] p-0 gap-0 flex flex-col overflow-hidden">
+      <DialogContent calm className="lg:max-w-none max-lg:w-full w-[calc((100vw-24px)/var(--app-zoom))] h-[calc((100vh-24px)/var(--app-zoom))] p-0 gap-0 flex flex-col overflow-hidden">
         {/* Header: `t-title` headline (the ref stays in t-mono — numbers never
             in the display face) + one `t-caption` line of session facts. */}
         <DialogHeader className="shrink-0 space-y-1.5 border-b border-hairline px-6 py-4">

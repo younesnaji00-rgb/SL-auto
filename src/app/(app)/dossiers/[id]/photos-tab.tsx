@@ -708,13 +708,14 @@ export default function PhotosTab({
           <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
             <DialogContent
               hideCloseButton
+              calm
               className={cn(
                 // Orientation-aware window (same sizing approach as
                 // document-preview-lightbox): below lg the dialog base is a
                 // bottom sheet; at lg+ the centred window follows the photo's
                 // orientation. Every vh/vw is divided by --app-zoom.
-                // `lightbox-calm` = calm scoped entrance (globals.css).
-                'lightbox-calm flex h-[calc(85dvh/var(--app-zoom))] flex-col overflow-hidden border-0 bg-black/95 p-0',
+                // `calm` = plain ease-in fade instead of the zoom+slide.
+                'flex h-[calc(85dvh/var(--app-zoom))] flex-col overflow-hidden border-0 bg-black/95 p-0',
                 // Ratio unknown yet (image still loading): neutral box.
                 previewRatio === null && 'lg:h-[calc(85svh/var(--app-zoom))] lg:max-w-4xl',
                 // Portrait photo → tall window: height leads, width follows.

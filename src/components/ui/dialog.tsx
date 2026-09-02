@@ -31,8 +31,18 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { hideCloseButton?: boolean }
->(({ className, children, hideCloseButton, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    hideCloseButton?: boolean
+    /**
+     * Calm entrance (owner ruling 2026-09-02: the default zoom+slide reads
+     * "cartoonish" on media viewers): a plain ease-in fade — the zoom/slide
+     * utilities are simply not emitted, so nothing has to out-cascade them.
+     * Opt-in for lightboxes and full-screen viewers; every other dialog
+     * keeps the default entrance. Below lg the bottom sheet keeps its slide.
+     */
+    calm?: boolean
+  }
+>(({ className, children, hideCloseButton, calm, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -43,7 +53,10 @@ const DialogContent = React.forwardRef<
         // Below lg: bottom sheet — primary action lands in the thumb zone
         "max-lg:inset-x-0 max-lg:bottom-0 max-lg:top-auto max-lg:max-h-[calc(92dvh/var(--app-zoom))] max-lg:max-w-none max-lg:overflow-y-auto max-lg:rounded-t-xl max-lg:border-b-0 max-lg:pb-[max(1.5rem,env(safe-area-inset-bottom))] max-lg:data-[state=closed]:slide-out-to-bottom max-lg:data-[state=open]:slide-in-from-bottom",
         // lg and up: centred modal
-        "lg:left-[50%] lg:top-[50%] lg:max-w-lg lg:translate-x-[-50%] lg:translate-y-[-50%] lg:rounded-xl lg:data-[state=closed]:zoom-out-95 lg:data-[state=open]:zoom-in-95 lg:data-[state=closed]:slide-out-to-left-1/2 lg:data-[state=closed]:slide-out-to-top-[48%] lg:data-[state=open]:slide-in-from-left-1/2 lg:data-[state=open]:slide-in-from-top-[48%]",
+        "lg:left-[50%] lg:top-[50%] lg:max-w-lg lg:translate-x-[-50%] lg:translate-y-[-50%] lg:rounded-xl",
+        calm
+          ? "lg:data-[state=open]:ease-in lg:data-[state=closed]:ease-out"
+          : "lg:data-[state=closed]:zoom-out-95 lg:data-[state=open]:zoom-in-95 lg:data-[state=closed]:slide-out-to-left-1/2 lg:data-[state=closed]:slide-out-to-top-[48%] lg:data-[state=open]:slide-in-from-left-1/2 lg:data-[state=open]:slide-in-from-top-[48%]",
         className
       )}
       {...props}

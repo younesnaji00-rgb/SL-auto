@@ -146,13 +146,13 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent
         hideCloseButton
+        calm
         className={cn(
           // Below lg the dialog base renders a full-width bottom sheet; the
           // orientation-aware sizing only applies to the centred lg+ modal
           // (lg-prefixed so it outranks the base's `lg:max-w-lg`).
-          // `lightbox-calm` = calm scoped entrance (globals.css) instead of
-          // the shadcn zoom+slide default.
-          'lightbox-calm flex h-[calc(85dvh/var(--app-zoom))] flex-col overflow-hidden p-0',
+          // `calm` = plain ease-in fade instead of the shadcn zoom+slide.
+          'flex h-[calc(85dvh/var(--app-zoom))] flex-col overflow-hidden p-0',
           // Ratio unknown yet (image still loading): the previous neutral box.
           ratio === null && 'lg:h-[calc(85svh/var(--app-zoom))] lg:max-w-4xl',
           // Portrait media → tall window: height leads, width follows the ratio.
