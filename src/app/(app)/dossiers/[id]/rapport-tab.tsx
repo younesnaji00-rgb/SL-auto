@@ -53,9 +53,13 @@ import CarSvgTop from '@/components/car-svg-top';
 import CarSvgBottom from '@/components/car-svg-bottom';
 import { apiFetch } from '@/lib/api-fetch';
 
-// Underline tab trigger, styled to match components/dossier-timeline/step-tabs.tsx.
+// Browser-tab trigger (owner rulings 2026-09-02 + ter), styled to match
+// components/dossier-timeline/step-tabs.tsx: `.tab-slope` (globals.css)
+// draws the sloped grey body + outward feet that merge into the list's
+// bottom hairline; active = card fill + rim, with the 2 px accent underline
+// kept as the second cue (the old underline-only idiom is gone).
 const DIAGRAM_TAB_TRIGGER =
-  'relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-[13px] font-medium text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card data-[state=active]:border-primary data-[state=active]:text-ink';
+  'tab-slope relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3.5 text-[13px] font-medium text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card data-[state=active]:border-primary data-[state=active]:text-ink';
 
 export default function RapportTab({
   dossierId,
@@ -379,7 +383,7 @@ export default function RapportTab({
       <Card>
         <CardHeader className="border-b border-hairline"><CardTitle>Points de choc</CardTitle></CardHeader>
         <CardContent className="p-5">
-          {/* Vue dessus / dessous as underline tabs (styled like step-tabs).
+          {/* Vue dessus / dessous as sloped browser tabs (styled like step-tabs).
               Zone-selection state lives in THIS component (pointsChoc /
               pointsChocDessous), so switching tabs unmounts only the SVG —
               nothing is lost and no forceMount is needed. PDF generation
@@ -387,7 +391,7 @@ export default function RapportTab({
           <TabsPrimitive.Root defaultValue="dessus" className="w-full">
             <TabsPrimitive.List
               aria-label="Vue du diagramme"
-              className="-mx-1 flex items-end gap-1 overflow-x-auto border-b border-hairline px-1 scrollbar-thin"
+              className="-mx-2 flex items-end gap-1 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
             >
               <TabsPrimitive.Trigger value="dessus" className={DIAGRAM_TAB_TRIGGER}>
                 Vue dessus <ChangeBadge status={pointsChocStatus} />

@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, CalendarClock, Check, CheckCircle2, ChevronDown, Eye, AlertTriangle, Info } from 'lucide-react';
+import { Loader2, CalendarClock, Check, CheckCircle2, ChevronDown, Eye, AlertTriangle, History, Info, Pencil } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useFirestore, useDoc, useCollection } from '@/firebase';
@@ -638,12 +638,6 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
     }
   };
 
-  const paneHeaderPill = (label: string) => (
-    <span className="t-label inline-flex items-center rounded-full bg-surface-3 px-2.5 py-1 shadow-rim">
-      {label}
-    </span>
-  );
-
   return (
     // Dialog (element-specs §13: Material 3 — brief, clear headline; the panel
     // is `.glass-strong` from the primitive, bottom sheet below `lg`). This one
@@ -754,15 +748,34 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                 (live replica, highlighted). Side by side ≥ lg, each pane
                 scrolling on its own with mirrored positions; stacked below lg
                 with the Avant pane collapsible. ── */}
-            <div className="flex flex-col gap-3 px-3 pb-4 pt-3 sm:px-6 lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-2 lg:pb-3">
+            <div className="flex flex-col gap-3 px-3 pb-4 pt-3 sm:px-6 lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-2 lg:gap-x-6 lg:pb-3">
               {/* Avant */}
               <div className="flex min-w-0 flex-col lg:min-h-0">
-                <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
-                  {paneHeaderPill('Avant le rappel')}
+                {/* Pane header — persistent identity cap (NN/g, comparison
+                    tables: without a header that stays put readers forget
+                    which column is which). Sits ABOVE the pane scroller, so
+                    at lg+ the content scrolls underneath it and the label
+                    never leaves the screen. Recessed neutral surface
+                    (surface-3) = the frozen original. */}
+                <div
+                  className={cn(
+                    'flex shrink-0 items-start justify-between gap-2 rounded-t-lg border border-hairline bg-surface-3 px-3 py-2 sm:px-4',
+                    !avantOpen && 'max-lg:rounded-b-lg',
+                  )}
+                >
+                  <div className="min-w-0">
+                    <p className="t-body-sm flex items-center gap-1.5 font-semibold text-ink">
+                      <History className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden />
+                      Avant le rappel — document d&apos;origine
+                    </p>
+                    <p className="t-caption mt-0.5 text-ink-3">
+                      L&apos;état du dossier tel qu&apos;il était à l&apos;envoi du rappel&nbsp;: une copie figée, non modifiable.
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setAvantOpen((v) => !v)}
-                    className="t-caption inline-flex items-center gap-1 rounded-md px-2 py-1 text-ink-3 transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+                    className="t-caption inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-ink-3 transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
                     aria-expanded={avantOpen}
                   >
                     {avantOpen ? 'Masquer' : 'Afficher'}
@@ -776,7 +789,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                   ref={leftRef}
                   onScroll={() => handlePaneScroll('left')}
                   className={cn(
-                    'replay-pane min-w-0 rounded-lg border border-hairline',
+                    'replay-pane min-w-0 rounded-b-lg border border-t-0 border-hairline',
                     'lg:min-h-0 lg:flex-1 lg:overflow-y-auto',
                     !avantOpen && 'hidden lg:block',
                   )}
@@ -839,14 +852,42 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
 
               {/* Après */}
               <div className="flex min-w-0 flex-col lg:min-h-0">
-                <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2">
-                  {paneHeaderPill('Après le rappel')}
-                  <span className="t-caption">modifications surlignées</span>
+                {/* Pane header — same anatomy as the Avant cap, but on the
+                    paper surface (bg-card) and carrying the highlight legend,
+                    so the status colours used inside are explained right
+                    where they appear (status pairs always ship with their
+                    label). */}
+                <div className="flex shrink-0 flex-wrap items-start justify-between gap-x-3 gap-y-1.5 rounded-t-lg border border-hairline bg-card px-3 py-2 sm:px-4">
+                  <div className="min-w-0">
+                    <p className="t-body-sm flex items-center gap-1.5 font-semibold text-ink">
+                      <Pencil className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden />
+                      Après le rappel — document modifié
+                    </p>
+                    <p className="t-caption mt-0.5 text-ink-3">
+                      Le dossier tel qu&apos;il est aujourd&apos;hui&nbsp;: ce que le gestionnaire a changé pendant le traitement est surligné.
+                    </p>
+                  </div>
+                  {hasBaseline && (
+                    <div className="flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 pt-0.5" aria-label="Légende des surlignages">
+                      <span className="t-caption inline-flex items-center gap-1">
+                        <span className="h-2.5 w-2.5 rounded-[3px] bg-status-success-bg ring-1 ring-inset ring-status-success-fg/30" aria-hidden />
+                        ajouté
+                      </span>
+                      <span className="t-caption inline-flex items-center gap-1">
+                        <span className="h-2.5 w-2.5 rounded-[3px] bg-status-warning-bg ring-1 ring-inset ring-status-warning-fg/30" aria-hidden />
+                        modifié
+                      </span>
+                      <span className="t-caption inline-flex items-center gap-1">
+                        <span className="h-2.5 w-2.5 rounded-[3px] bg-status-danger-bg ring-1 ring-inset ring-status-danger-fg/30" aria-hidden />
+                        supprimé
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div
                   ref={rightRef}
                   onScroll={() => handlePaneScroll('right')}
-                  className="replay-pane min-w-0 rounded-lg border border-hairline lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
+                  className="replay-pane min-w-0 rounded-b-lg border border-t-0 border-hairline lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
                 >
                   <ReplayHighlightProvider value={hlValue}>
                     <ReadOnlyUserScope>

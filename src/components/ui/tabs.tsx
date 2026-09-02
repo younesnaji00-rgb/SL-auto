@@ -28,7 +28,8 @@ const TabsList = React.forwardRef<
     ref={ref}
     className={cn(
       // Recessed track; tabs anchor to its bottom edge like browser tabs.
-      "inline-flex h-10 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-1 pt-1 text-ink-2",
+      // px-2 (8px) keeps the tabs' 7px outward feet inside the track.
+      "inline-flex h-10 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1 text-ink-2",
       className
     )}
     {...props}
@@ -39,22 +40,29 @@ TabsList.displayName = TabsPrimitive.List.displayName
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
->(({ className, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => (
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      // Browser-tab shape (owner ruling 2026-09-02): sloped edges via
-      // `.tab-slope` (globals.css) — the ::before trapezoid carries the card
-      // fill + rim when active and the surface-3 hover; colours unchanged.
-      "tab-slope inline-flex h-[34px] items-center justify-center gap-2 whitespace-nowrap px-3.5 text-[13px] font-medium text-ink-2 ring-offset-background transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-      // Accent bar under the label (second indicator, NN/g).
-      "after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[3px] after:h-0.5 after:rounded-full after:bg-primary after:opacity-0 after:transition-opacity",
-      "data-[state=active]:font-semibold data-[state=active]:text-ink data-[state=active]:after:opacity-100",
+      // Browser-tab shape (owner rulings 2026-09-02 + ter): `.tab-slope`
+      // (globals.css) draws the sloped body + outward feet — inactive tabs
+      // are grey surface-4 on the track, active gets the card fill + rim.
+      // ::after is reserved for the feet, so the accent bar is a <span>.
+      "tab-slope group inline-flex h-[34px] items-center justify-center gap-2 whitespace-nowrap px-3.5 text-[13px] font-medium text-ink-2 ring-offset-background transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      "data-[state=active]:font-semibold data-[state=active]:text-ink",
       "[&_svg]:size-4 [&_svg]:shrink-0",
       className
     )}
     {...props}
-  />
+  >
+    {children}
+    {/* Accent bar under the label (second indicator, NN/g) — a real element
+        because ::after now draws the tab feet. */}
+    <span
+      aria-hidden
+      className="pointer-events-none absolute inset-x-3 bottom-[3px] h-0.5 rounded-full bg-primary opacity-0 transition-opacity group-data-[state=active]:opacity-100"
+    />
+  </TabsPrimitive.Trigger>
 ))
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName
 

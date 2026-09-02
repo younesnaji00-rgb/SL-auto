@@ -84,16 +84,17 @@ export function StepTabs({ tabs, defaultValue, storageKey, className }: StepTabs
     <TabsPrimitive.Root value={value} onValueChange={onChange} className={cn('w-full', className)}>
       <TabsPrimitive.List
         aria-label="Sections de l'étape"
-        className="-mx-1 flex items-end gap-1 overflow-x-auto border-b border-hairline px-1 scrollbar-thin"
+        className="-mx-2 flex items-end gap-1 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
       >
         {tabs.map((t) => (
           <TabsPrimitive.Trigger
             key={t.value}
             value={t.value}
             className={cn(
-              // Browser-tab shape (owner ruling 2026-09-02): `.tab-slope`
-              // (globals.css) draws the sloped card fill + rim on the active
-              // facet; the 2 px accent underline stays as the second cue.
+              // Browser-tab shape (owner rulings 2026-09-02 + ter): `.tab-slope`
+              // (globals.css) draws the sloped body + outward feet — inactive
+              // facets are grey surface-4, the active one card + rim; the 2 px
+              // accent underline stays as the second cue.
               'tab-slope relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3.5 text-[13px] font-medium text-ink-3',
               'transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
               'data-[state=active]:border-primary data-[state=active]:text-ink',

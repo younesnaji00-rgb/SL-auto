@@ -109,6 +109,11 @@ export const MAX_PHOTOS_PER_SECTION = 30;
 /** Cap when proposition réforme is active. */
 export const MAX_PHOTOS_WITH_REFORME = 60;
 
+/** Preview-lightbox header height (px) — px-4/py-3 + text-sm ≈ 52. Used to
+ *  derive the landscape media box from the viewport (same approach as
+ *  document-preview-lightbox). */
+const PREVIEW_HEADER_H = 52;
+
 export default function PhotosTab({
   dossierId,
   initialCategory,
@@ -148,6 +153,14 @@ export default function PhotosTab({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState<Photo | null>(null);
+  // width / height of the previewed photo — null until the <img> reports its
+  // natural size (pre-load state: neutral window). Drives the
+  // orientation-aware lightbox sizing (same approach as
+  // document-preview-lightbox).
+  const [previewRatio, setPreviewRatio] = useState<number | null>(null);
+  useEffect(() => {
+    setPreviewRatio(null);
+  }, [previewPhoto?.url]);
   // How photos are partitioned in the planification view. "date" (default)
   // keeps the historical per-day grouping; "location" groups by an explicit
   // `location` field if available, otherwise by a ~100 m lat/lng bucket, and
@@ -583,7 +596,7 @@ export default function PhotosTab({
                 <div
                   role="tablist"
                   aria-label="Mode de regroupement des photos"
-                  className="-mx-1 mb-4 flex items-end gap-1 overflow-x-auto border-b border-hairline px-1 scrollbar-thin"
+                  className="-mx-2 mb-4 flex items-end gap-1 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
                 >
                   {([
                     ['date', 'Par date', CalendarDays],
@@ -689,10 +702,27 @@ export default function PhotosTab({
           if (e.key === 'ArrowLeft' && hasPrev) goto(-1);
           else if (e.key === 'ArrowRight' && hasNext) goto(1);
         };
+        const portrait = previewRatio !== null && previewRatio < 1;
+        const landscape = previewRatio !== null && previewRatio >= 1;
         return (
           <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
             <DialogContent
-              className="max-w-[calc(100vw/var(--app-zoom))] w-screen h-screen p-0 rounded-none border-0 flex flex-col bg-black/95"
+              hideCloseButton
+              className={cn(
+                // Orientation-aware window (same sizing approach as
+                // document-preview-lightbox): below lg the dialog base is a
+                // bottom sheet; at lg+ the centred window follows the photo's
+                // orientation. Every vh/vw is divided by --app-zoom.
+                // `lightbox-calm` = calm scoped entrance (globals.css).
+                'lightbox-calm flex h-[calc(85dvh/var(--app-zoom))] flex-col overflow-hidden border-0 bg-black/95 p-0',
+                // Ratio unknown yet (image still loading): neutral box.
+                previewRatio === null && 'lg:h-[calc(85svh/var(--app-zoom))] lg:max-w-4xl',
+                // Portrait photo → tall window: height leads, width follows.
+                portrait && 'lg:h-[calc(92svh/var(--app-zoom))] lg:w-auto lg:min-w-[420px] lg:max-w-[calc(96vw/var(--app-zoom))]',
+                // Landscape photo → wide window: width leads, height follows.
+                landscape && 'lg:h-auto lg:max-h-[calc(92svh/var(--app-zoom))] lg:w-[min(calc(96vw/var(--app-zoom)),1200px)] lg:max-w-[calc(96vw/var(--app-zoom))]',
+              )}
+              style={previewRatio !== null ? ({ ['--ar' as string]: String(previewRatio) } as React.CSSProperties) : undefined}
               onKeyDown={onKey}
             >
               <DialogHeader className="px-4 py-3 border-b border-white/10 shrink-0 pr-14">
@@ -715,7 +745,15 @@ export default function PhotosTab({
               >
                 <X className="h-5 w-5" />
               </button>
-              <div className="flex-1 relative overflow-hidden">
+              <div
+                className={cn(
+                  'relative flex max-w-full items-center justify-center overflow-hidden',
+                  previewRatio === null && 'flex-1',
+                  portrait && 'min-h-0 flex-1 lg:aspect-[var(--ar)]',
+                  landscape && 'min-h-0 flex-1 lg:flex-none lg:w-full lg:aspect-[var(--ar)]',
+                )}
+                style={landscape ? { maxHeight: `calc((92svh - ${PREVIEW_HEADER_H}px) / var(--app-zoom))` } : undefined}
+              >
                 <TransformWrapper
                   key={previewPhoto.id /* reset zoom on photo change */}
                   initialScale={1}
@@ -737,6 +775,12 @@ export default function PhotosTab({
                           className="max-w-full max-h-full object-contain select-none"
                           alt={previewPhoto.name}
                           draggable={false}
+                          onLoad={(e) => {
+                            const el = e.currentTarget;
+                            if (el.naturalWidth > 0 && el.naturalHeight > 0) {
+                              setPreviewRatio(el.naturalWidth / el.naturalHeight);
+                            }
+                          }}
                         />
                       </TransformComponent>
                       {hasPrev && (

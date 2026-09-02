@@ -100,7 +100,7 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
   };
 
   return (
-    <div className={cn('flex min-w-0 items-stretch', !active && 'opacity-60 hover:opacity-100 transition-opacity')} data-kind={api.kind}>
+    <div className={cn('flex min-w-0 items-stretch self-stretch', !active && 'opacity-60 hover:opacity-100 transition-opacity')} data-kind={api.kind}>
       <div
         ref={scrollerRef}
         role="tablist"
@@ -108,8 +108,10 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
         // Raised tab on a visible track (owner ruling 2026-09-02; NN/g "Flat
         // design": quiet text-only tabs get skipped — the surface-2 strip is
         // the recessed track, the active tab a raised card with an accent
-        // bar; NN/g Tabs Used Right: two selection indicators).
-        className="flex min-w-0 items-center gap-1 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        // bar; NN/g Tabs Used Right: two selection indicators). items-end:
+        // the tabs sit flush on the bar's bottom border so their outward
+        // feet merge into the separation line (owner ruling ter).
+        className="flex min-w-0 items-end gap-1 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {api.displayTabs.map((tab, idx) => {
           const isActive = tab.id === api.activeTabId;
@@ -137,11 +139,11 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
                 if ((e.key === 'Delete' || e.key === 'Backspace') && !isList) { e.preventDefault(); close(tab.id); }
               }}
               className={cn(
-                // Browser-tab shape (owner ruling 2026-09-02): `.tab-slope`
-                // draws the trapezoid (aria-selected drives the active fill).
+                // Browser-tab shape (owner rulings 2026-09-02 + ter): `.tab-slope`
+                // draws the trapezoid + outward feet (aria-selected drives the
+                // active card fill; inactive tabs are grey surface-4).
                 'tab-slope group relative flex h-8 min-w-0 max-w-[220px] shrink-0 cursor-pointer select-none items-center gap-1.5 self-end px-3 text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                'after:pointer-events-none after:absolute after:inset-x-2.5 after:bottom-[3px] after:h-0.5 after:rounded-full after:bg-primary after:opacity-0',
-                isActive ? 'font-semibold text-ink after:opacity-100' : 'text-ink-3 hover:text-ink',
+                isActive ? 'font-semibold text-ink' : 'text-ink-3 hover:text-ink',
                 tab.preview && 'italic',
               )}
             >
@@ -166,6 +168,12 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
                   <X className="h-3 w-3" />
                 </button>
               )}
+              {/* Accent bar (second indicator) — a real element because
+                  ::after now draws the tab feet. */}
+              <span
+                aria-hidden
+                className={cn('pointer-events-none absolute inset-x-2.5 bottom-[3px] h-0.5 rounded-full bg-primary', isActive ? 'opacity-100' : 'opacity-0')}
+              />
             </div>
           );
         })}

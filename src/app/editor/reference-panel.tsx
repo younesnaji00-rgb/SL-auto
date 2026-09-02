@@ -106,23 +106,30 @@ function PaneTab({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        // Browser-tab shape (owner ruling 2026-09-02): `.tab-slope` draws the
-        // sloped fill; aria-selected drives the active card + rim.
+        // Browser-tab shape (owner rulings 2026-09-02 + ter): `.tab-slope`
+        // draws the sloped body + outward feet; aria-selected drives the
+        // active card + rim, inactive tabs are grey surface-4.
         'tab-slope relative flex min-h-[32px] flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-3.5 py-1 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        'after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[3px] after:h-0.5 after:rounded-full after:bg-primary after:opacity-0 after:transition-opacity',
-        active ? 'font-semibold text-ink after:opacity-100' : 'text-ink-2 hover:text-ink',
+        active ? 'font-semibold text-ink' : 'text-ink-2 hover:text-ink',
         className,
       )}
     >
       {children}
+      {/* Accent bar (second indicator) — a real element because ::after
+          now draws the tab feet. */}
+      <span
+        aria-hidden
+        className={cn('pointer-events-none absolute inset-x-3 bottom-[3px] h-0.5 rounded-full bg-primary transition-opacity', active ? 'opacity-100' : 'opacity-0')}
+      />
     </button>
   );
 }
 
 /** The recessed track the raised tabs sit on (addendum §2): hairline border,
- *  `surface-2` fill, 4 px inner padding, rounded-lg — visibly a control. */
+ *  `surface-2` fill, rounded-lg — visibly a control. px-2 (8px) keeps the
+ *  tabs' 7px outward feet inside the track. */
 const PANE_TABLIST_CLASS =
-  'flex shrink-0 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-1 pt-1';
+  'flex shrink-0 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1';
 
 function ReferencePane({
   dossierId,

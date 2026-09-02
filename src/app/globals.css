@@ -472,56 +472,114 @@ html {
   }
 }
 
-/* ── Browser-style tab shape (owner ruling 2026-09-02, Chrome-tab screenshot):
-   every tab switch gets sloped edges. The trapezoid is drawn on a ::before
-   layer (perspective/rotateX trick) so the label stays undistorted; colours
-   are unchanged — active = card + light rim, hover = surface-3. Works with
-   Radix (data-state), plain tablists (aria-selected) or an explicit
-   .tab-slope-active. ── */
+/* ── Browser-style tab shape (owner rulings 2026-09-02, bis + ter — Firefox
+   tab anatomy): every tab switch draws a sloped trapezoid whose base flares
+   OUTWARD with a concave curve that merges into the separation line below.
+   ::before draws the body (perspective/rotateX trick — label undistorted,
+   rounded 10px top corners); ::after draws the two outward "feet" with
+   corner radial-gradients (technique: CSS-Tricks « Tabs with Round Out
+   Borders », css-tip.com « Inverted radius corner »). Ter ruling: EVERY tab
+   is drawn — inactive = grey surface-4 recessed on the surface-2 track,
+   hover = surface-3, active = card + light rim. Body and feet share one
+   fill via the registered --tab-fill custom property so they always match
+   and cross-fade together. Works with Radix (data-state), plain tablists
+   (aria-selected) or an explicit .tab-slope-active.
+   NOTE: ::after is reserved for the feet — accent bars under labels must be
+   real <span> elements on the trigger, never `after:*` utilities. ── */
+@property --tab-fill {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
 @layer components {
   .tab-slope {
+    /* Foot radius = the outward curve. Keep ≤ the track's inner padding
+       (tracks use px-2 = 8px) so the outer feet are never clipped by an
+       overflow-x-auto strip nor overhang a rounded track border. */
+    --tab-foot: 7px;
+    --tab-fill: hsl(var(--surface-4));
     position: relative;
     isolation: isolate;
     background: transparent !important;
     box-shadow: none !important;
+    transition: --tab-fill 150ms;
+  }
+  /* Feet overlap the 4px gaps between tabs — raise hovered, then active,
+     so the lighter fill paints over the neighbours' grey feet. */
+  .tab-slope:hover {
+    --tab-fill: hsl(var(--surface-3));
+    z-index: 1;
+  }
+  .tab-slope[data-state='active'],
+  .tab-slope[aria-selected='true'],
+  .tab-slope-active {
+    --tab-fill: hsl(var(--card));
+    z-index: 2;
   }
   .tab-slope::before {
     content: '';
     position: absolute;
     inset: 0;
     z-index: -1;
-    /* Rounded top AND bottom corners (owner ruling 2026-09-02 bis). */
-    border-radius: 10px 10px 7px 7px;
+    /* Rounded top only — the bottom ends square so the body meets the
+       outward feet cleanly (the feet ARE the bottom corners now). */
+    border-radius: 10px 10px 0 0;
     transform: perspective(28px) rotateX(5deg);
     transform-origin: bottom;
-    background: transparent;
-    transition: background-color 150ms, box-shadow 150ms;
+    background: var(--tab-fill);
+    transition: box-shadow 150ms;
   }
-  .tab-slope:hover::before {
-    background: hsl(var(--surface-3));
+  /* The outward feet: a 7×7 square outside each bottom corner, filled by a
+     radial-gradient whose transparent quarter-circle sits at the top-outer
+     corner — the remaining wedge makes the side edge flare out and land
+     tangent on the separation line (Firefox/Chrome tab base). The centre
+     strip repaints the body's bottom row in the same fill so no seam shows
+     against the perspective-transformed body. */
+  .tab-slope::after {
+    content: '';
+    position: absolute;
+    left: calc(-1 * var(--tab-foot));
+    right: calc(-1 * var(--tab-foot));
+    bottom: 0;
+    height: var(--tab-foot);
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at top left, transparent calc(var(--tab-foot) - 0.5px), var(--tab-fill) var(--tab-foot)) left bottom / var(--tab-foot) var(--tab-foot) no-repeat,
+      radial-gradient(circle at top right, transparent calc(var(--tab-foot) - 0.5px), var(--tab-fill) var(--tab-foot)) right bottom / var(--tab-foot) var(--tab-foot) no-repeat,
+      linear-gradient(var(--tab-fill), var(--tab-fill)) center bottom / calc(100% - 2 * var(--tab-foot)) 100% no-repeat;
   }
   .tab-slope[data-state='active']::before,
   .tab-slope[aria-selected='true']::before,
   .tab-slope-active::before {
-    background: hsl(var(--card));
     box-shadow:
       inset 0 0 0 1px var(--rim-in),
       inset 0 1.5px 0 var(--rim-top),
       0 0 0 1px var(--rim-out),
       0 1px 2px hsl(var(--shadow-color) / 0.06);
   }
-  /* Ease-in on activation (owner ruling 2026-09-02 bis): the sloped fill
-     fades and settles on the standard curve; label/underline transitions
-     already ease. Skipped under reduced motion. */
+  /* Ease-in on activation (owner ruling 2026-09-02 bis): body and feet fade
+     and settle together — same duration/curve on both pseudo-elements (the
+     feet keep their own untransformed keyframe so the perspective transform
+     is not overwritten). Skipped under reduced motion. */
   @keyframes tab-slope-in {
     from { opacity: 0; transform: perspective(28px) rotateX(5deg) translateY(3px); }
     to { opacity: 1; transform: perspective(28px) rotateX(5deg); }
+  }
+  @keyframes tab-slope-feet-in {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: none; }
   }
   @media (prefers-reduced-motion: no-preference) {
     .tab-slope[data-state='active']::before,
     .tab-slope[aria-selected='true']::before,
     .tab-slope-active::before {
       animation: tab-slope-in 200ms cubic-bezier(0.2, 0, 0, 1);
+    }
+    .tab-slope[data-state='active']::after,
+    .tab-slope[aria-selected='true']::after,
+    .tab-slope-active::after {
+      animation: tab-slope-feet-in 200ms cubic-bezier(0.2, 0, 0, 1);
     }
   }
   /* Sidebar active-row entrance (same curve): the teal bar slides in. */
@@ -530,6 +588,45 @@ html {
     to { opacity: 1; transform: none; }
   }
   @media (prefers-reduced-transparency: reduce) {
-    .tab-slope::before { transition: none; }
+    .tab-slope,
+    .tab-slope::before {
+      transition: none;
+    }
+  }
+}
+
+/* ==========================================================================
+   Lightbox entrance (scoped opt-in - DocumentPreviewLightbox + the photos
+   lightbox ONLY; every other dialog keeps the shadcn default entrance).
+   Calm media-viewer entrance: fast fade + subtle scale (0.98 -> 1) instead
+   of the zoom-in-95 + slide-from-corner utilities. Values from the Material
+   3 motion tokens: enter 180 ms on standard-decelerate cubic-bezier(0,0,0,1)
+   (between duration.short3 and short4), exit 150 ms on standard-accelerate
+   cubic-bezier(0.3,0,1,1). lg+ only - below lg the dialog is a bottom sheet
+   and keeps its slide-from-bottom. `!important` outweighs the
+   tailwindcss-animate utilities set by the Dialog primitive; the
+   prefers-reduced-motion guard leaves `motion-reduce:animate-none` in
+   charge. The translate(-50%,-50%) mirrors the primitive's lg centring
+   transform so the window does not jump when the animation hands over to
+   the static style.
+   ========================================================================== */
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .lightbox-calm[data-state='open'] {
+    animation: lightbox-calm-in 180ms cubic-bezier(0, 0, 0, 1) !important;
+  }
+  .lightbox-calm[data-state='closed'] {
+    animation: lightbox-calm-out 150ms cubic-bezier(0.3, 0, 1, 1) !important;
+  }
+}
+@keyframes lightbox-calm-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.98);
+  }
+}
+@keyframes lightbox-calm-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.98);
   }
 }

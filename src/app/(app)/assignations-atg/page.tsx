@@ -253,13 +253,14 @@ function getDeadlineInfo(
  * idiom: NN/g "Flat design" ✓ text-only controls get skipped by new users —
  * backgrounds, borders and shadows restore clickability; NN/g Tabs Used Right ✓
  * "at least two selection indicators"). Same anatomy as `components/ui/tabs.tsx`:
- * recessed `surface-2` track (hairline, 4 px padding), active tab = raised
- * `bg-card` card with the light rim + a 2 px accent bar under the label,
- * inactive quiet ink-2 with a `surface-3` hover; counts stay neutral pills (§11).
+ * recessed `surface-2` track (hairline, 8 px side padding so the outward
+ * feet fit), active tab = raised `bg-card` card with the light rim + a 2 px
+ * accent bar under the label, inactive tabs drawn grey `surface-4` with a
+ * `surface-3` hover (owner ruling ter); counts stay neutral pills (§11).
  */
 function MissionTabs({ active, counts, onChange, className }: { active: string; counts: Record<string, number>; onChange: (id: string) => void; className?: string }) {
   return (
-    <div role="tablist" aria-label="Type de mission" className={cn('inline-flex h-10 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-1 pt-1', className)}>
+    <div role="tablist" aria-label="Type de mission" className={cn('inline-flex h-10 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1', className)}>
       {MISSION_TABS.map((tab) => {
         const isActive = active === tab.id;
         return (
@@ -270,17 +271,23 @@ function MissionTabs({ active, counts, onChange, className }: { active: string; 
             aria-selected={isActive}
             onClick={() => onChange(tab.id)}
             className={cn(
-              // Browser-tab shape (owner ruling 2026-09-02): `.tab-slope`
-              // draws the sloped fill; aria-selected drives the active card.
+              // Browser-tab shape (owner rulings 2026-09-02 + ter): `.tab-slope`
+              // draws the sloped grey body + outward feet; aria-selected
+              // drives the active card fill.
               'tab-slope relative inline-flex h-[34px] items-center justify-center gap-2 whitespace-nowrap px-3.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              'after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[3px] after:h-0.5 after:rounded-full after:bg-primary after:opacity-0 after:transition-opacity',
-              isActive ? 'font-semibold text-ink after:opacity-100' : 'text-ink-2 hover:text-ink',
+              isActive ? 'font-semibold text-ink' : 'text-ink-2 hover:text-ink',
             )}
           >
             {tab.label}
             <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
               {counts[tab.id] || 0}
             </span>
+            {/* Accent bar (second indicator) — a real element because ::after
+                now draws the tab feet. */}
+            <span
+              aria-hidden
+              className={cn('pointer-events-none absolute inset-x-3 bottom-[3px] h-0.5 rounded-full bg-primary transition-opacity', isActive ? 'opacity-100' : 'opacity-0')}
+            />
           </button>
         );
       })}
@@ -289,14 +296,17 @@ function MissionTabs({ active, counts, onChange, className }: { active: string; 
 }
 
 /**
- * Segmented control for phones (element-specs §7: Apple HIG segmented controls ✓
- * "closely related, mutually exclusive choices", equal widths, ≤ 5 all-text
- * segments; selected = `bg-card shadow-rim text-ink` on a `surface-2` track,
- * 36 px, labels ≤ 2 words). Counts stay tabular text, not icons.
+ * Sloped tab strip for phones (owner ruling 2026-09-02 ter: every tablist
+ * that switches a VIEW draws the browser-tab shape — this one included).
+ * The equal-width 3-col grid stays from the segmented layout (Apple HIG:
+ * closely related, mutually exclusive choices, ≤ 5 all-text segments,
+ * labels ≤ 2 words); `.tab-slope` (globals.css) supplies the fills —
+ * recessed surface-2 track, grey surface-4 inactive tabs, active raised
+ * card. Counts stay tabular text, not icons.
  */
 function MissionSegments({ active, counts, onChange, className }: { active: string; counts: Record<string, number>; onChange: (id: string) => void; className?: string }) {
   return (
-    <div role="tablist" aria-label="Type de mission" className={cn('grid grid-cols-3 gap-0.5 rounded-md border border-hairline bg-surface-2 p-0.5', className)}>
+    <div role="tablist" aria-label="Type de mission" className={cn('grid grid-cols-3 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1', className)}>
       {MISSION_TABS.map((tab) => {
         const isActive = active === tab.id;
         return (
@@ -307,8 +317,8 @@ function MissionSegments({ active, counts, onChange, className }: { active: stri
             aria-selected={isActive}
             onClick={() => onChange(tab.id)}
             className={cn(
-              'flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-[5px] px-2 text-sm font-medium transition-[color,background-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              isActive ? 'bg-card text-ink shadow-rim' : 'text-ink-2 hover:text-ink',
+              'tab-slope relative flex h-9 items-center justify-center gap-1.5 whitespace-nowrap px-2 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              isActive ? 'font-semibold text-ink' : 'text-ink-2 hover:text-ink',
             )}
           >
             {tab.label}
