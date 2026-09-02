@@ -560,7 +560,7 @@ html {
        curve antialiasing) — anything darker reads as a detached dark blob
        at the corner instead of the same line bending (verified on a local
        Chromium render). */
-    --tab-foot-line: hsl(var(--shadow-color) / 0.19);
+    --tab-foot-line: hsl(var(--shadow-color) / 0.15);
     z-index: 2;
   }
   .tab-slope::before {
@@ -603,8 +603,8 @@ html {
        outer edge (--tab-foot-line) → ~1px light highlight band inside it
        (--tab-foot-rim) → fill. Both layers default to invisible colours. */
     background:
-      radial-gradient(circle at top left, transparent calc(var(--tab-foot) - 1.75px), var(--tab-foot-line) calc(var(--tab-foot) - 1.25px), var(--tab-foot-line) calc(var(--tab-foot) - 0.25px), var(--tab-foot-rim) calc(var(--tab-foot) + 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 0.9px), var(--tab-fill) calc(var(--tab-foot) + 1.3px)) left bottom / var(--tab-foot) var(--tab-foot) no-repeat,
-      radial-gradient(circle at top right, transparent calc(var(--tab-foot) - 1.75px), var(--tab-foot-line) calc(var(--tab-foot) - 1.25px), var(--tab-foot-line) calc(var(--tab-foot) - 0.25px), var(--tab-foot-rim) calc(var(--tab-foot) + 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 0.9px), var(--tab-fill) calc(var(--tab-foot) + 1.3px)) right bottom / var(--tab-foot) var(--tab-foot) no-repeat,
+      radial-gradient(circle at top left, transparent calc(var(--tab-foot) - 2.5px), var(--tab-foot-line) calc(var(--tab-foot) - 1px), var(--tab-foot-line) calc(var(--tab-foot) - 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 0.9px), var(--tab-fill) calc(var(--tab-foot) + 2px)) left bottom / var(--tab-foot) var(--tab-foot) no-repeat,
+      radial-gradient(circle at top right, transparent calc(var(--tab-foot) - 2.5px), var(--tab-foot-line) calc(var(--tab-foot) - 1px), var(--tab-foot-line) calc(var(--tab-foot) - 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 0.9px), var(--tab-fill) calc(var(--tab-foot) + 2px)) right bottom / var(--tab-foot) var(--tab-foot) no-repeat,
       linear-gradient(var(--tab-fill), var(--tab-fill)) center bottom / calc(100% - 2 * var(--tab-foot)) 100% no-repeat;
   }
   .tab-slope[data-state='active']::before,
