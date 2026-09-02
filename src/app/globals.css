@@ -513,13 +513,14 @@ html {
        (tracks use px-2 = 8px) so the outer feet are never clipped by an
        overflow-x-auto strip nor overhang a rounded track border. */
     --tab-foot: 7px;
-    --tab-fill: hsl(var(--card));
-    /* Defaults (= INACTIVE state): highlight = the fill itself (invisible
-       band); the arc line is TEAL — owner ruling 2026-09-02: inactive tabs
-       are wrapped in the same teal border as the hover pill, fill untouched.
-       Active overrides both with the neutral rim recipe. */
+    --tab-fill: transparent;
+    /* Defaults (= INACTIVE state, owner ruling 2026-09-02 septies): the
+       inactive tab IS the hover pill's shape — slim rounded pill with the
+       teal outline — but UNFILLED. Hover fills that same pill with the
+       accent tint; only the ACTIVE tab becomes the seated browser-tab shape
+       with feet. */
     --tab-foot-rim: var(--tab-fill);
-    --tab-foot-line: hsl(var(--primary) / 0.5);
+    --tab-foot-line: transparent;
     position: relative;
     isolation: isolate;
     background: transparent !important;
@@ -539,16 +540,6 @@ html {
     color: hsl(var(--accent-foreground)) !important;
     z-index: 1;
   }
-  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active)::before {
-    /* Slim pill (owner: "the pill is too big"): inset from the tab box like
-       browser tabs' hover chip, not a full-height slab. */
-    inset: 4px 2px;
-    border-radius: 9999px;
-    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.6);
-  }
-  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active)::after {
-    opacity: 0;
-  }
   .tab-slope[data-state='active'],
   .tab-slope[aria-selected='true'],
   .tab-slope-active {
@@ -565,24 +556,22 @@ html {
     --tab-foot-line: hsl(var(--shadow-color) / 0.15);
     z-index: 2;
   }
+  .tab-slope[data-state='active']::after,
+  .tab-slope[aria-selected='true']::after,
+  .tab-slope-active::after {
+    opacity: 1;
+  }
   .tab-slope::before {
     content: '';
     position: absolute;
-    /* The body STOPS where the feet begin (owner ruling: the vertical line
-       must curve at the bottom) — its ring then ends exactly at the arc's
-       tangent point instead of running straight past it to the baseline;
-       the ::after strip repaints the seam and the arc carries the contour
-       the rest of the way down. */
-    inset: 0 0 var(--tab-foot) 0;
+    /* INACTIVE geometry = the slim pill (identical to hover), wrapped in
+       the teal outline, unfilled. The active rule swaps this to the seated
+       tab body (inset stopping at the feet, rounded top) — the transitions
+       make the pill visibly morph into the tab on selection. */
+    inset: 4px 2px;
     z-index: -1;
-    /* Rounded top only — vertical sides (quater ruling), the bottom ends
-       square so the body meets the outward feet cleanly (the feet ARE the
-       bottom corners now). */
-    border-radius: 10px 10px 0 0;
+    border-radius: 9999px;
     background: var(--tab-fill);
-    /* Inactive wrap (owner ruling 2026-09-02): the same teal border as the
-       hover pill, outline only — the fill stays the card tone. The active
-       and hover rules replace this box-shadow entirely. */
     box-shadow: 0 0 0 1px hsl(var(--primary) / 0.6);
     transition: box-shadow 150ms, border-radius 150ms, inset 150ms;
   }
@@ -595,6 +584,8 @@ html {
   .tab-slope::after {
     content: '';
     position: absolute;
+    /* Feet exist only on the ACTIVE tab (inactive/hover are pills). */
+    opacity: 0;
     left: calc(-1 * var(--tab-foot));
     right: calc(-1 * var(--tab-foot));
     bottom: 0;
@@ -616,6 +607,10 @@ html {
   .tab-slope[data-state='active']::before,
   .tab-slope[aria-selected='true']::before,
   .tab-slope-active::before {
+    /* Seated browser-tab body: stops where the feet begin (the ring ends at
+       the arc's tangent point); rounded top, square bottom into the feet. */
+    inset: 0 0 var(--tab-foot) 0;
+    border-radius: 10px 10px 0 0;
     box-shadow:
       inset 0 0 0 1px var(--rim-in),
       inset 0 1.5px 0 var(--rim-top),
