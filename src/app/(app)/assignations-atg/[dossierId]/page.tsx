@@ -688,7 +688,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                       ) : (
                         <span className="font-normal text-ink-4">—</span>
                       )}
-                      {p.id === nextPlanId && <Badge variant="info">Prochain</Badge>}
+                      {p.id === nextPlanId && <Badge variant="time">Prochain</Badge>}
                     </dd>
                   </div>
                   <div className="min-w-0">
@@ -791,7 +791,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           <CardContent className="space-y-4 p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-2">
-                {/* The page's ONE warm IconChip (addendum 1b) beside the title of
+                {/* The page's ONE neutral IconChip (addendum 1b) beside the title of
                     the section that anchors the AT's job here — taking photos. */}
                 <IconChip>
                   <ImageIcon />

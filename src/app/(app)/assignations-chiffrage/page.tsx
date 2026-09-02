@@ -485,7 +485,7 @@ export default function AssignationsChiffragePage() {
                           and no warm anchor beside the Délai meter. */}
                       <span className="inline-flex flex-wrap items-center gap-2">
                         <span className="font-semibold tabular-nums">{dateLabel ?? emptyCell}</span>
-                        {today && <Badge variant="info">Aujourd&apos;hui</Badge>}
+                        {today && <Badge variant="time">Aujourd&apos;hui</Badge>}
                       </span>
                     </TableCell>
                   </TableRow>

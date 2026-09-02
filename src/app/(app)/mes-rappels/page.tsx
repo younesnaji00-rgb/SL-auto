@@ -37,6 +37,12 @@ function toDate(ts: any): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+// Terracotta = time (2026-09-02): today's rappels carry the warm chip.
+function isToday(ts: any): boolean {
+  const d = toDate(ts);
+  return !!d && d.toDateString() === new Date().toDateString();
+}
+
 function formatDate(ts: any): string {
   const d = toDate(ts);
   if (!d) return '—';
@@ -527,9 +533,15 @@ export default function MesRappelsPage() {
                         <TableCell className={cn('min-w-[14rem] max-w-[24rem] whitespace-normal', state === 'nouveau' ? 'font-medium text-ink' : 'text-ink-2')}>
                           {r.observation || <EmptyValue />}
                         </TableCell>
-                        {/* Dates are values → full ink (addendum §3). Only the
-                            read/unread dimming above is a state signal. */}
-                        <TableCell>{formatDate(r.createdAt)}</TableCell>
+                        {/* Dates are values → full ink (addendum §3); today's
+                            rappels carry the warm TIME chip (terracotta =
+                            temporal salience, 2026-09-02). */}
+                        <TableCell>
+                          <span className="inline-flex items-center gap-2">
+                            {formatDate(r.createdAt)}
+                            {isToday(r.createdAt) && <Badge variant="time">Aujourd&apos;hui</Badge>}
+                          </span>
+                        </TableCell>
                         {/* Live cells: the text inside is selectable, so a click
                             here must not open the dossier. */}
                         <TableCell

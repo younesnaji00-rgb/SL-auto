@@ -676,7 +676,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
           <Card>
             <CardHeader>
               <CardTitle className="t-heading flex items-center gap-2">
-                {/* Warm anchor chip — addendum 1b: ONE IconChip beside the
+                {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: ONE IconChip beside the
                     section that anchors the page; other card icons stay quiet. */}
                 <IconChip><UserIcon /></IconChip>
                 Informations personnelles
@@ -1082,16 +1082,15 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 // Event rows — element-specs §4 (Material 3 lists: leading
                 // element + label + supporting text; GOV.UK summary list rows):
                 // 56 px two-line rows, hairlines only, the date block is the
-                // anchor — warm tint (addendum 1a: every date block is the
-                // terracotta anchor, tertiary tint + rim; only a next/upcoming
-                // block would be solid, and history has none). Day number in
-                // Inter 600 (numbers never in Outfit).
+                // anchor — NEUTRAL (2026-09-02 time ruling: terracotta means
+                // today/next/upcoming; history is past, so no warm tone).
+                // Day number in Inter 600 (numbers never in Outfit).
                 <ol className="divide-y divide-hairline border-t border-hairline">
                   {activityHistory.map((entry: any) => {
                     const d = toDate(entry.changedAt);
                     return (
                       <li key={entry.id} className="flex min-h-[56px] items-center gap-3 py-2">
-                        <div className="flex w-10 shrink-0 flex-col items-center justify-center rounded-md bg-tertiary-bg py-1 text-center text-tertiary-deep shadow-rim">
+                        <div className="flex w-10 shrink-0 flex-col items-center justify-center rounded-md bg-surface-3 py-1 text-center text-ink-2 shadow-rim">
                           <span className="text-[11px] font-medium leading-none">
                             {d ? format(d, 'MMM', { locale: fr }).replace('.', '') : '—'}
                           </span>

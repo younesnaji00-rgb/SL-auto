@@ -389,7 +389,7 @@ export default function CompagniesClientPage() {
           date-range filter; the table below follows §3. */}
       <Card role="region" aria-label="Portefeuille dossiers" className="overflow-hidden">
         <header className="flex min-h-[48px] flex-wrap items-center justify-between gap-4 border-b border-hairline px-6 py-4">
-          {/* Warm anchor (addendum 2026-09-02 §1b: ONE small IconChip beside
+          {/* Section anchor (neutral since the time ruling; addendum 2026-09-02 §1b: ONE small IconChip beside
               the section title that anchors the page — terracotta as the
               second voice; never on actions or status). Decorative. */}
           <div className="flex min-w-0 items-center gap-3">

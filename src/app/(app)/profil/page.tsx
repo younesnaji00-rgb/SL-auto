@@ -156,7 +156,7 @@ export default function ProfilPage() {
         </div>
       </Card>
 
-      {/* Warm anchor chip — addendum 1b: ONE IconChip on the anchoring
+      {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: ONE IconChip on the anchoring
           section; the other section icons stay quiet ink-3. */}
       <Section title="Affichage" icon={<IconChip><SlidersHorizontal /></IconChip>}>
         <div className="divide-y divide-hairline">

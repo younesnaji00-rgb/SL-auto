@@ -3,9 +3,11 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /**
- * IconChip — the app's warm anchor (owner ruling 2026-09-02: terracotta is
- * the second voice, "anchors only": date blocks, small icon chips beside
- * section titles, one featured tile per page, one chart series).
+ * IconChip — a quiet section anchor. Since the 2026-09-02 "time meaning"
+ * ruling, terracotta belongs ONLY to temporal markers (aujourd'hui / prochain
+ * / à venir — see Badge `time` and the warm date blocks), so icon chips are
+ * NEUTRAL by default; the `tertiary` tone is reserved for a chip that itself
+ * marks something temporal (rare).
  * Sources: NN/g visual hierarchy ("it's not the actual color of an element
  * that creates the hierarchy, but the contrast in value and saturation" — a
  * small saturated anchor beside a quiet title guides the scan), Stripe
@@ -19,7 +21,7 @@ import { cn } from "@/lib/utils"
  * meaning on its own.
  */
 export function IconChip({
-  tone = "tertiary",
+  tone = "neutral",
   className,
   children,
   ...props

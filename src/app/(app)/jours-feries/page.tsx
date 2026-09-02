@@ -406,7 +406,7 @@ export default function JoursFeriesSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="t-heading flex items-center gap-2">
-            {/* Warm anchor chip — addendum 1b: one IconChip beside the section
+            {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: one IconChip beside the section
                 that anchors the page (the calendar list). */}
             <IconChip><CalendarDays /></IconChip>
             Liste actuelle
@@ -461,9 +461,14 @@ export default function JoursFeriesSettingsPage() {
                     <div
                       className={cn(
                         'flex w-12 shrink-0 flex-col items-center justify-center rounded-md py-1 text-center',
+                        // Terracotta = time (2026-09-02): solid for THE next
+                        // holiday, warm tint for upcoming ones, neutral for
+                        // the past — the colour only ever means "ahead".
                         upcoming
                           ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled'
-                          : 'bg-tertiary-bg text-tertiary-deep shadow-rim',
+                          : o.past
+                            ? 'bg-surface-2 text-ink-3 shadow-rim'
+                            : 'bg-tertiary-bg text-tertiary-deep shadow-rim',
                       )}
                     >
                       <span className="text-[11px] font-medium leading-none">
@@ -476,7 +481,7 @@ export default function JoursFeriesSettingsPage() {
                         {o.date ? capitalize(format(o.date, 'EEEE d MMMM yyyy', { locale: fr })) : o.label}
                       </p>
                       <p className="t-caption truncate tabular-nums">
-                        {upcoming ? 'Prochain jour férié' : o.past ? 'Passé' : <span className="font-mono">{o.label}</span>}
+                        {upcoming ? <span className="font-medium text-tertiary-deep">Prochain jour férié</span> : o.past ? 'Passé' : <span className="font-mono">{o.label}</span>}
                       </p>
                     </div>
                     {canDelete && (

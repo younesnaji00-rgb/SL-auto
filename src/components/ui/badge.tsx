@@ -26,6 +26,10 @@ const badgeVariants = cva(
         ...STATUS_PAIR,
         // Filled accent chip — reserve for the one "current" marker.
         default: "border-transparent bg-primary text-primary-foreground",
+        // Terracotta = TIME (owner ruling 2026-09-02, Few: every colour owns
+        // one meaning): « Aujourd'hui », « Prochain », upcoming markers only.
+        // Never a status, never near the amber/red pairs.
+        time: "border-transparent bg-tertiary-bg text-tertiary-deep",
         outline: "border-hairline-strong bg-transparent text-ink",
         // Aliases (kept so existing call sites keep working).
         secondary: STATUS_PAIR.neutral,

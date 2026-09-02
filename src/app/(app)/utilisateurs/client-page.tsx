@@ -597,7 +597,7 @@ export default function UtilisateursClientPage() {
           <Card className="overflow-hidden">
             <CardHeader>
               <CardTitle className="t-heading flex items-center gap-2">
-                {/* Warm anchor chip — addendum 1b: ONE IconChip beside the
+                {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: ONE IconChip beside the
                     section that anchors the page. */}
                 <IconChip><UserIcon /></IconChip>
                 Gérer les utilisateurs

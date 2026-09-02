@@ -200,3 +200,27 @@ entries above where they conflict.
    distinct sections). The "wall of equal full-width inputs" is banned.
 5. Everything else in §1–§23 still applies (one primary, status pairs with
    labels, no uppercase, no gradients, glass rules, numbers never in Outfit).
+
+## Addendum update 2026-09-02 (later) — terracotta owns ONE meaning: TIME
+
+Owner ruling after seeing the anchors pass: no coloured blocks, no decorative
+chips — the second colour must live in subtle, teal-sized touches with a job.
+Chosen meaning: **terracotta = temporal salience (aujourd'hui · prochain ·
+à venir)**. Sources: Few (every colour owns one consistent meaning), M3
+tertiary role ("heightened attention to an element"), NN/g visual hierarchy
+(a repeated, predictable accent trains the eye).
+
+- `Badge variant="time"` (`bg-tertiary-bg text-tertiary-deep`) for the word
+  markers: « Aujourd'hui » (chiffrage queue Date cell, rappels reçus,
+  ATG today-group count), « Prochain » (mission page), and any future
+  today/next marker.
+- Date/time BLOCKS: warm tint for upcoming, SOLID terracotta for THE single
+  next one per list, **neutral for the past** (history, past holidays) and
+  for anything late (lateness belongs to the danger pair).
+- `IconChip` is **neutral by default** now — section chips no longer carry
+  terracotta (that was decoration). The `tertiary` tone survives only for a
+  chip that itself marks something temporal.
+- The dashboard's featured headline card keeps its terracotta (approved
+  before this ruling; it is the page's period summary, which is arguably
+  temporal — flag to the owner rather than change silently).
+- Everything else stands: never on actions, status, chrome, or large areas.

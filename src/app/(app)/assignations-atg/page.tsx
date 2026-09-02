@@ -158,7 +158,7 @@ function AssurePhoneLink({ telephone, className }: { telephone?: string | null; 
 }
 
 // Badge status pairs only (element-specs §11) — never hand-picked amber/red classes.
-type ChipTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
+type ChipTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'time';
 
 /**
  * Deadline chip (element-specs §11: status pair + text label, never colour
@@ -609,10 +609,10 @@ export default function AssignationsATGPage() {
     });
 
     // Group count chip tones (element-specs §11 / Few): danger for the
-    // exception (late), info for today, neutral for the rest — on the COUNT
-    // chip only, never as a tinted header band.
+    // exception (late), the warm TIME chip for today (terracotta = temporal
+    // salience, 2026-09-02), neutral for the rest — on the COUNT chip only.
     return [
-      { key: 'today' as const, label: "Aujourd'hui", items: todayGroup, tone: 'info' as ChipTone },
+      { key: 'today' as const, label: "Aujourd'hui", items: todayGroup, tone: 'time' as ChipTone },
       { key: 'expired' as const, label: 'En retard', items: expiredGroup, tone: 'danger' as ChipTone },
       { key: 'future' as const, label: 'À venir', items: futureGroup, tone: 'neutral' as ChipTone },
     ];
@@ -748,7 +748,7 @@ export default function AssignationsATGPage() {
   // may take bg-surface-2 so the group reads as a control, not a gray line):
   // chevron · t-heading · count chip (§11 — tone on the COUNT chip only) ·
   // sort · "Start" as `secondary` (§8 — not the page primary). The page's ONE
-  // warm IconChip sits beside « Aujourd'hui » (addendum 1b — the section that
+  // neutral IconChip sits beside « Aujourd'hui » (addendum 1b — the section that
   // anchors the agent's day; never beside the En retard group).
   const renderGroupHeader = (group: (typeof groups)[number], dense: boolean) => {
     const addressableCount = group.items.filter(p => p.adresse?.trim()).length;

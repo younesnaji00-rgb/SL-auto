@@ -465,7 +465,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           from the page `space-y-8`, 16 between rows). */}
       {(devisFamilies.length > 0 || factureFamilies.length > 0) && (
         <section className="space-y-4" aria-label="Devis et factures">
-          {/* The page's ONE warm IconChip (addendum 1b) beside the title of the
+          {/* The page's ONE neutral IconChip (addendum 1b) beside the title of the
               section that anchors the chiffreur's work — away from the status
               chips in the header meta. */}
           <div className="flex items-center gap-2">
