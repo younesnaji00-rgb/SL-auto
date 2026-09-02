@@ -562,7 +562,12 @@ html {
   .tab-slope::before {
     content: '';
     position: absolute;
-    inset: 0;
+    /* The body STOPS where the feet begin (owner ruling: the vertical line
+       must curve at the bottom) — its ring then ends exactly at the arc's
+       tangent point instead of running straight past it to the baseline;
+       the ::after strip repaints the seam and the arc carries the contour
+       the rest of the way down. */
+    inset: 0 0 var(--tab-foot) 0;
     z-index: -1;
     /* Rounded top only — vertical sides (quater ruling), the bottom ends
        square so the body meets the outward feet cleanly (the feet ARE the
@@ -583,7 +588,10 @@ html {
     left: calc(-1 * var(--tab-foot));
     right: calc(-1 * var(--tab-foot));
     bottom: 0;
-    height: var(--tab-foot);
+    /* 1px taller than the feet: the centre strip also paints over the
+       shortened body's bottom ring/inset lines so no horizontal seam shows
+       across the tab above the feet. */
+    height: calc(var(--tab-foot) + 1px);
     z-index: -1;
     pointer-events: none;
     transition: opacity 150ms;
