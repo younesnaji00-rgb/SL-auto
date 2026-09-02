@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, CalendarClock, Check, CheckCircle2, Eye, AlertTriangle, Info } from 'lucide-react';
+import { Loader2, CalendarClock, Check, CheckCircle2, ChevronDown, Eye, AlertTriangle, Info } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useFirestore, useDoc, useCollection } from '@/firebase';
@@ -27,11 +27,14 @@ import {
   type ReplayHighlightValue,
 } from '@/components/dossier-timeline/replay-highlight';
 import { DOSSIER_TIMELINE_STEPS } from '@/components/dossier-timeline/timeline';
+import ReplayBeforePane from './replay-before-pane';
 
 // The real dossier-timeline components — rendered read-only + live so the
-// replica is the exact detail page (every field, photo, table), not an
+// AFTER pane is the exact detail page (every field, photo, table), not an
 // approximation. Read-only is enforced by ReadOnlyUserScope + a disabled
-// fieldset, so the frozen tab components are untouched.
+// fieldset, so the frozen tab components are untouched. The BEFORE pane is
+// rendered from the frozen session-start snapshot by ReplayBeforePane (no
+// live reads, no highlights).
 import Step1Import from '@/components/dossier-timeline/step-1-import';
 import Step2Information from '@/components/dossier-timeline/step-2-information';
 import Step3Planification from '@/components/dossier-timeline/step-3-planification';
@@ -49,6 +52,28 @@ type Props = {
 
 const noop = () => {};
 
+/** Section anchor prefixes — one id namespace per pane. */
+const AVANT_PREFIX = 'replay-avant-step-';
+const AFTER_PREFIX = 'replay-after-step-';
+
+/**
+ * Half-width fitting for the embedded live components (AFTER pane) and the
+ * snapshot pane. Tailwind breakpoints look at the VIEWPORT, which stays wide
+ * while each pane only gets half of it — so the multi-column grids inside the
+ * embedded tabs would be squeezed. Scoped descendant overrides collapse them
+ * whenever the two panes sit side by side (≥ lg): photo grids to 2 columns,
+ * document-socket / definition grids to 2 columns max. Selectors target the
+ * exact utility classes used by photos-tab / typed-documents-grid /
+ * information-tab (`.\32 xl` = CSS escape for the leading "2" of `2xl:`).
+ */
+const PANE_FIT_CSS = `
+@media (min-width: 1024px) {
+  .replay-pane .lg\\:grid-cols-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .replay-pane .xl\\:grid-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .replay-pane .\\32 xl\\:grid-cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+`;
+
 function fmtDateTime(ts: any): string {
   const ms = tsToMillis(ts);
   if (!ms) return '—';
@@ -59,15 +84,72 @@ function fmtDateTime(ts: any): string {
   }
 }
 
+const isLgViewport = () =>
+  typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
+
 /**
- * Replica of the dossier TimelineBar — clickable steps, scrolls to a step.
+ * Step-section anchor offsets inside a scroll container: the scrollTop at
+ * which each step section starts, plus a final anchor at the very end. Returns
+ * null when a section is missing (pane not rendered yet).
+ */
+function stepAnchors(container: HTMLElement, prefix: string): number[] | null {
+  const cTop = container.getBoundingClientRect().top;
+  const tops: number[] = [];
+  for (const s of DOSSIER_TIMELINE_STEPS) {
+    const el = document.getElementById(`${prefix}${s.id}`);
+    if (!el) return null;
+    tops.push(el.getBoundingClientRect().top - cTop + container.scrollTop);
+  }
+  tops.push(container.scrollHeight);
+  return tops;
+}
+
+/**
+ * Map a scroll position from one pane onto the other by matching step anchors:
+ * both panes render the same 8 step sections, so the position is expressed as
+ * "fraction f through step i" in the source and re-applied in the destination.
+ * Falls back to plain proportional mapping when anchors are unavailable.
+ */
+function mirrorTarget(
+  src: HTMLElement,
+  dst: HTMLElement,
+  srcPrefix: string,
+  dstPrefix: string,
+): number | null {
+  const a = stepAnchors(src, srcPrefix);
+  const b = stepAnchors(dst, dstPrefix);
+  const y = src.scrollTop;
+  if (!a || !b) {
+    const srcMax = src.scrollHeight - src.clientHeight;
+    const dstMax = dst.scrollHeight - dst.clientHeight;
+    if (srcMax <= 0 || dstMax <= 0) return null;
+    return (y / srcMax) * dstMax;
+  }
+  let target: number;
+  if (y <= a[0]) {
+    target = a[0] > 0 ? (y / a[0]) * b[0] : b[0];
+  } else {
+    let i = 0;
+    for (let k = 0; k < a.length - 1; k++) {
+      if (y >= a[k]) i = k;
+    }
+    const span = a[i + 1] - a[i];
+    const f = span > 0 ? (y - a[i]) / span : 0;
+    target = b[i] + f * (b[i + 1] - b[i]);
+  }
+  return Math.max(0, Math.min(target, dst.scrollHeight - dst.clientHeight));
+}
+
+/**
+ * Replica of the dossier TimelineBar — clickable steps, scrolls both panes to
+ * the step.
  *
  * Stepper (element-specs §16: Carbon progress indicator — status indicator +
  * a 1–2-word label, states complete / current / not started, numbering makes
  * the progression obvious; blueprint §5 — horizontal bar, 28 px medallions,
  * active = primary fill + rim-filled, done = ink-3 outline with a check).
- * Sits on `.glass-bar` since the replica scrolls under it (§23: one sticky
- * bar, ≤ 48 px content).
+ * Sits on `.glass-bar`; below lg the stacked panes scroll under it (§23: one
+ * sticky bar, ≤ 48 px content).
  */
 function ReplayStepBar({
   steps,
@@ -80,7 +162,7 @@ function ReplayStepBar({
 }) {
   const activeIdx = steps.findIndex((s) => s.id === activeId);
   return (
-    <div data-replay-bar className="glass-bar sticky top-0 z-30 w-full border-b border-hairline">
+    <div data-replay-bar className="glass-bar sticky top-0 z-30 w-full shrink-0 border-b border-hairline">
       <div className="flex items-start gap-2 overflow-x-auto px-3 py-2 sm:px-6">
         {steps.map((step, idx) => {
           const isActive = step.id === activeId;
@@ -116,6 +198,18 @@ function ReplayStepBar({
   );
 }
 
+/** Step-section shell — same anatomy in both panes so the anchors line up. */
+function StepSectionHeader({ position, label }: { position: number; label: string }) {
+  return (
+    <div className="mb-4 flex items-center gap-2">
+      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[11px] font-semibold tabular-nums text-ink-2 shadow-rim">
+        {position}
+      </span>
+      <h3 className="t-title">{label}</h3>
+    </div>
+  );
+}
+
 export default function SessionReplayDialog({ rappel, open, onOpenChange }: Props) {
   const db = useFirestore();
   const id = rappel?.dossierId ?? null;
@@ -123,8 +217,17 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
   const endTs = rappel?.resolvedAt ?? null;
 
   const [activeStep, setActiveStep] = useState<number>(DOSSIER_TIMELINE_STEPS[0].id);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const suppressSpyRef = useRef(false);
+  // Below lg the panes stack; the « Avant » pane is collapsed by default.
+  const [avantOpen, setAvantOpen] = useState(false);
+
+  const stackRef = useRef<HTMLDivElement>(null); // scrolls below lg (stacked panes)
+  const leftRef = useRef<HTMLDivElement>(null); // « Avant » pane scroller (≥ lg)
+  const rightRef = useRef<HTMLDivElement>(null); // « Après » pane scroller (≥ lg)
+  const suppressSpyRef = useRef(false); // programmatic (smooth) scroll in flight
+  const syncGuardRef = useRef<'left' | 'right' | null>(null); // pane whose next event is our own write
+  const rafSyncRef = useRef(0);
+
+  useEffect(() => () => cancelAnimationFrame(rafSyncRef.current), []);
 
   const dossierRef = useMemo(() => (db && id && open ? doc(db, 'dossiers', id) : null), [db, id, open]);
   const { data: dossier, loading } = useDoc(dossierRef as any);
@@ -235,35 +338,90 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
     [docDiff, subDiffs],
   );
 
+  // ── Navigation: step bar click scrolls BOTH panes (≥ lg) or the stacked
+  // container (below lg) to the step's section. ──
   const scrollToStep = useCallback((stepId: number) => {
-    const el = document.getElementById(`replay-step-${stepId}`);
-    const container = scrollRef.current;
-    if (!el || !container) return;
     suppressSpyRef.current = true;
     setActiveStep(stepId);
-    const bar = container.querySelector('[data-replay-bar]') as HTMLElement | null;
-    const barH = bar?.offsetHeight ?? 56;
-    const top =
-      container.scrollTop + (el.getBoundingClientRect().top - container.getBoundingClientRect().top) - barH - 8;
-    container.scrollTo({ top, behavior: 'smooth' });
+    if (isLgViewport()) {
+      const panes: Array<[HTMLDivElement | null, string]> = [
+        [rightRef.current, AFTER_PREFIX],
+        [leftRef.current, AVANT_PREFIX],
+      ];
+      for (const [container, prefix] of panes) {
+        const el = document.getElementById(`${prefix}${stepId}`);
+        if (!container || !el) continue;
+        const top =
+          container.scrollTop + (el.getBoundingClientRect().top - container.getBoundingClientRect().top) - 8;
+        container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      }
+    } else {
+      const container = stackRef.current;
+      const el = document.getElementById(`${AFTER_PREFIX}${stepId}`);
+      if (container && el) {
+        const bar = container.querySelector('[data-replay-bar]') as HTMLElement | null;
+        const barH = bar?.offsetHeight ?? 56;
+        const top =
+          container.scrollTop + (el.getBoundingClientRect().top - container.getBoundingClientRect().top) - barH - 8;
+        container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      }
+    }
     window.setTimeout(() => {
       suppressSpyRef.current = false;
-    }, 600);
+    }, 700);
   }, []);
 
-  const onScroll = useCallback(() => {
-    if (suppressSpyRef.current) return;
-    const container = scrollRef.current;
-    if (!container) return;
+  /** Scroll-spy: mark the step whose section is at the top of `container`. */
+  const updateSpy = useCallback((container: HTMLElement, prefix: string, threshold: number) => {
     const cTop = container.getBoundingClientRect().top;
     let active = DOSSIER_TIMELINE_STEPS[0].id;
     for (const s of DOSSIER_TIMELINE_STEPS) {
-      const el = document.getElementById(`replay-step-${s.id}`);
+      const el = document.getElementById(`${prefix}${s.id}`);
       if (!el) continue;
-      if (el.getBoundingClientRect().top - cTop <= 80) active = s.id;
+      if (el.getBoundingClientRect().top - cTop <= threshold) active = s.id;
     }
     setActiveStep((prev) => (prev === active ? prev : active));
   }, []);
+
+  // ── Synchronized scrolling (≥ lg): mirror the scrolled pane onto the other
+  // by matching step anchors, rAF-throttled, with a guard so the mirrored
+  // write does not echo back. ──
+  const handlePaneScroll = useCallback(
+    (which: 'left' | 'right') => {
+      if (suppressSpyRef.current) return;
+      if (syncGuardRef.current === which) {
+        syncGuardRef.current = null;
+        return;
+      }
+      if (rafSyncRef.current) return;
+      rafSyncRef.current = requestAnimationFrame(() => {
+        rafSyncRef.current = 0;
+        const src = which === 'left' ? leftRef.current : rightRef.current;
+        const dst = which === 'left' ? rightRef.current : leftRef.current;
+        const srcPrefix = which === 'left' ? AVANT_PREFIX : AFTER_PREFIX;
+        const dstPrefix = which === 'left' ? AFTER_PREFIX : AVANT_PREFIX;
+        if (src && dst && isLgViewport()) {
+          const target = mirrorTarget(src, dst, srcPrefix, dstPrefix);
+          if (target != null && Math.abs(dst.scrollTop - target) >= 1) {
+            syncGuardRef.current = which === 'left' ? 'right' : 'left';
+            dst.scrollTop = target;
+          }
+        }
+        if (src) updateSpy(src, srcPrefix, 80);
+      });
+    },
+    [updateSpy],
+  );
+
+  // Below lg the stacked container scrolls; the spy follows the AFTER sections.
+  const handleStackScroll = useCallback(() => {
+    if (suppressSpyRef.current) return;
+    if (isLgViewport()) return;
+    const container = stackRef.current;
+    if (!container) return;
+    const bar = container.querySelector('[data-replay-bar]') as HTMLElement | null;
+    updateSpy(container, AFTER_PREFIX, (bar?.offsetHeight ?? 56) + 24);
+  }, [updateSpy]);
 
   // Section composition — mirrors src/app/(app)/dossiers/[id]/page.tsx. Keep in
   // sync if the dossier timeline composition changes. readOnly + no-op handlers;
@@ -331,13 +489,22 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
     }
   };
 
+  const paneHeaderPill = (label: string) => (
+    <span className="t-label inline-flex items-center rounded-full bg-surface-3 px-2.5 py-1 shadow-rim">
+      {label}
+    </span>
+  );
+
   return (
     // Dialog (element-specs §13: Material 3 — brief, clear headline; the panel
     // is `.glass-strong` from the primitive, bottom sheet below `lg`). This one
-    // is a full replica of a dossier — a read view that cannot fit in a row —
-    // so it takes the wide, tall frame; no footer actions (nothing to confirm).
+    // is a before/after comparison of a whole dossier — two half-screen panes —
+    // so it takes the full frame; no footer actions (nothing to confirm).
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[calc(97vw/var(--app-zoom))] h-[calc(94vh/var(--app-zoom))] p-0 gap-0 flex flex-col overflow-hidden">
+      {/* Effectively full-screen: the primitive's `lg:max-w-lg` must be beaten
+          with the SAME `lg:` modifier (tailwind-merge only dedupes identical
+          modifiers, so a bare max-w-none would lose to it in the cascade). */}
+      <DialogContent className="lg:max-w-none max-lg:w-full w-[calc((100vw-24px)/var(--app-zoom))] h-[calc((100vh-24px)/var(--app-zoom))] p-0 gap-0 flex flex-col overflow-hidden">
         {/* Header: `t-title` headline (the ref stays in t-mono — numbers never
             in the display face) + one `t-caption` line of session facts. */}
         <DialogHeader className="shrink-0 space-y-1.5 border-b border-hairline px-6 py-4">
@@ -376,7 +543,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
         </DialogHeader>
 
         {loading || !dossier ? (
-          // Skeleton shaped like the replica (§15): step bar + first step paper.
+          // Skeleton shaped like the comparison (§15): step bar + two pane papers.
           <div className="flex-1 space-y-4 overflow-hidden px-3 py-4 sm:px-6" aria-busy="true" aria-live="polite">
             <div className="flex gap-4">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -384,15 +551,22 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
               ))}
             </div>
             <Skeleton className="h-9 w-full rounded-md" />
-            <Skeleton className="h-64 w-full rounded-xl" />
+            <div className="grid gap-3 lg:grid-cols-2">
+              <Skeleton className="h-64 w-full rounded-xl" />
+              <Skeleton className="hidden h-64 w-full rounded-xl lg:block" />
+            </div>
           </div>
         ) : (
-          <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
+          <div
+            ref={stackRef}
+            onScroll={handleStackScroll}
+            className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden"
+          >
             <ReplayStepBar steps={DOSSIER_TIMELINE_STEPS} activeId={activeStep} onStepClick={scrollToStep} />
             {/* Change summary (§14: Carbon notification — inline, persists,
                 every status with its icon; §11 counts as status-pair chips
-                with their label). */}
-            <div className="px-3 pt-3 sm:px-6">
+                with their label). Stays above BOTH panes. */}
+            <div className="shrink-0 px-3 pt-3 sm:px-6">
               {snapsLoading ? (
                 <div className="t-caption flex items-center gap-2 rounded-[10px] bg-surface-2 px-3 py-2" aria-busy="true">
                   <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden /> Analyse des modifications du gestionnaire…
@@ -426,33 +600,85 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                 </div>
               )}
             </div>
-            <ReplayHighlightProvider value={hlValue}>
-              <ReadOnlyUserScope>
-                {/* disabled fieldset = hard read-only safety net (blocks any
-                    role-based action button the display mode doesn't already hide) */}
-                <fieldset disabled className="min-w-0 border-0 p-0 m-0">
-                  <div className="px-3 sm:px-6 py-4 max-w-screen-xl mx-auto">
-                    {DOSSIER_TIMELINE_STEPS.map((step, idx) => (
-                      <section
-                        key={step.id}
-                        id={`replay-step-${step.id}`}
-                        className="scroll-mt-20 border-b border-hairline py-6 last:border-b-0"
-                      >
-                        {/* Section title: ordinal medallion (surface-3 + rim, Inter
-                            tabular digit) beside the step name in t-title. */}
-                        <div className="mb-4 flex items-center gap-2">
-                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-surface-3 text-[11px] font-semibold tabular-nums text-ink-2 shadow-rim">
-                            {idx + 1}
-                          </span>
-                          <h2 className="t-title">{step.label}</h2>
+
+            {/* ── Comparison: « Avant » (frozen snapshot, plain) | « Après »
+                (live replica, highlighted). Side by side ≥ lg, each pane
+                scrolling on its own with mirrored positions; stacked below lg
+                with the Avant pane collapsible. ── */}
+            <div className="flex flex-col gap-3 px-3 pb-4 pt-3 sm:px-6 lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-2 lg:pb-3">
+              {/* Avant */}
+              <div className="flex min-w-0 flex-col lg:min-h-0">
+                <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+                  {paneHeaderPill('Avant le rappel')}
+                  <button
+                    type="button"
+                    onClick={() => setAvantOpen((v) => !v)}
+                    className="t-caption inline-flex items-center gap-1 rounded-md px-2 py-1 text-ink-3 transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+                    aria-expanded={avantOpen}
+                  >
+                    {avantOpen ? 'Masquer' : 'Afficher'}
+                    <ChevronDown
+                      className={cn('h-3.5 w-3.5 transition-transform', avantOpen && 'rotate-180')}
+                      aria-hidden
+                    />
+                  </button>
+                </div>
+                <div
+                  ref={leftRef}
+                  onScroll={() => handlePaneScroll('left')}
+                  className={cn(
+                    'replay-pane min-w-0 rounded-lg border border-hairline',
+                    'lg:min-h-0 lg:flex-1 lg:overflow-y-auto',
+                    !avantOpen && 'hidden lg:block',
+                  )}
+                >
+                  {snapsLoading ? (
+                    <div className="space-y-3 p-4" aria-busy="true">
+                      <Skeleton className="h-6 w-40 rounded-md" />
+                      <Skeleton className="h-40 w-full rounded-xl" />
+                      <Skeleton className="h-40 w-full rounded-xl" />
+                    </div>
+                  ) : (
+                    <ReplayBeforePane bundle={before} steps={DOSSIER_TIMELINE_STEPS} idPrefix={AVANT_PREFIX} />
+                  )}
+                </div>
+              </div>
+
+              {/* Après */}
+              <div className="flex min-w-0 flex-col lg:min-h-0">
+                <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2">
+                  {paneHeaderPill('Après le rappel')}
+                  <span className="t-caption">modifications surlignées</span>
+                </div>
+                <div
+                  ref={rightRef}
+                  onScroll={() => handlePaneScroll('right')}
+                  className="replay-pane min-w-0 rounded-lg border border-hairline lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
+                >
+                  <ReplayHighlightProvider value={hlValue}>
+                    <ReadOnlyUserScope>
+                      {/* disabled fieldset = hard read-only safety net (blocks any
+                          role-based action button the display mode doesn't already hide) */}
+                      <fieldset disabled className="m-0 min-w-0 border-0 p-0">
+                        <div className="px-3 py-4 sm:px-4">
+                          {DOSSIER_TIMELINE_STEPS.map((step, idx) => (
+                            <section
+                              key={step.id}
+                              id={`${AFTER_PREFIX}${step.id}`}
+                              className="border-b border-hairline py-6 first:pt-2 last:border-b-0"
+                            >
+                              <StepSectionHeader position={idx + 1} label={step.label} />
+                              {renderStep(step.id)}
+                            </section>
+                          ))}
                         </div>
-                        {renderStep(step.id)}
-                      </section>
-                    ))}
-                  </div>
-                </fieldset>
-              </ReadOnlyUserScope>
-            </ReplayHighlightProvider>
+                      </fieldset>
+                    </ReadOnlyUserScope>
+                  </ReplayHighlightProvider>
+                </div>
+              </div>
+            </div>
+            <style>{PANE_FIT_CSS}</style>
           </div>
         )}
       </DialogContent>
