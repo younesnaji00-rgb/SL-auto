@@ -72,3 +72,14 @@ Navy sidebars/headers or any navy surface · ambient gradient/mesh · gradients 
 ## 8. Report format
 
 For each element: name → job → sources (2–3) → spec → what you built → what is not verified. Plain language, short. If I ask a question rather than requesting a change, answer it and stop — don't build until I choose.
+
+## 9. Addendum 2026-09-02 — theory-pass rulings (element-specs "addendum ter")
+
+Five research rounds (practitioner/theory sources; full reports in `docs/research/`) added these binding deployment rules — they extend, not replace, the above:
+
+- **Tabs correction:** the underline idiom in §5 is superseded — every tab strip is a raised tab on a recessed `surface-2` track with the tab-slope anatomy and seat morph (`components/ui/tabs.tsx`); local tablist copies are banned.
+- **Tables:** hairlines + no zebra is empirically validated (A List Apart ×2). Default sort on a queue = most-action-needed (deadline ascending under an SLA), never newest-first. Sort lives in the column header. Queues never paginate: ≤ ~100 rows show everything; overflow = cap + « Afficher plus (n restants) » + honest total. Frozen identifier column (soft edge shadow, not a border seam) whenever the table pans; the identifier is the row's only bold cell (emphasis budget: identifier + status, 2 cells max). Truncate predictable strings with `title`; live search from the 2nd character.
+- **Colour:** colour only with a communication goal (Few); terracotta's power is exclusivity — one stray warm element kills the pop-out. Soft-bg chip = passive state; solid = blocking urgency only. Hover tints = brightness ↓ + saturation ↑, never lighten toward grey; text on a tint is dark ink of the same hue.
+- **Hierarchy:** three levels of dominance per view; de-emphasise instead of amplifying; text levers in order ink-value → weight → size; 80 % of fixation is left-of-centre (identifiers left); destructive actions get quiet styling + spatial quarantine.
+- **Type/spacing:** 600 is the emphasis weight at 12–14 px (700 only ≥ 20 px); reading prose steps up to 15–16 px; outer padding ≥ inner padding; fr numbers = comma decimals, nbsp thousands, symbol after ("12 500,00 MAD").
+- **CRUD/intuitiveness:** actionable elements look actionable at rest (no hover-only row actions); destructive friction ladder — undo-toast for the trivially re-creatable (jours fériés), named-object confirm for consequential (users), disabled-with-reason for the impossible (last Admin); role capabilities described in plain French at the point of assignment; feedback ≥ batch-length shows percent-done, not a spinner.

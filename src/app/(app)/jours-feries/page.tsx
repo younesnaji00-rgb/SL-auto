@@ -3,17 +3,8 @@
 import { PageHeader } from '@/components/layout/page-header';
 import React, { useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button, buttonVariants } from '@/components/ui/button';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { ToastAction } from '@/components/ui/toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,7 +12,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { IconChip } from '@/components/ui/icon-chip';
-import { Trash2, Loader2, CalendarDays, ImageIcon, AlertCircle } from 'lucide-react';
+import { Trash2, Loader2, CalendarDays, ImageIcon, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { useOptions } from '@/hooks/use-options';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -33,7 +24,10 @@ import {
 } from 'firebase/firestore';
 import { MOROCCAN_HOLIDAYS_DEFAULT } from '@/lib/business-days';
 import { apiFetch } from '@/lib/api-fetch';
-import { format, isBefore, isValid, parseISO, startOfDay } from 'date-fns';
+import {
+  addDays, addMonths, endOfMonth, endOfWeek, format, isBefore, isSameDay,
+  isSameMonth, isValid, parseISO, startOfDay, startOfMonth, startOfWeek,
+} from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { JoursFeriesSkeleton } from './loading';
@@ -41,6 +35,88 @@ import { JoursFeriesSkeleton } from './loading';
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+const WEEKDAYS = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
+
+/**
+ * Month grid — element-specs §17 (NN/g date input ✓ "calendar pickers for
+ * events close to the present"; M3 ◦ month header + ‹ › nav, today outlined,
+ * selected filled): `t-heading` month spelled out, weekday `t-label` row,
+ * 7-column grid of 40 px cells, today = 1 px `primary` ring, holidays =
+ * `bg-accent` fill (the accent, never terracotta — §17 must-not), weekends
+ * `ink-3`, other-month days `ink-4`. Clicking a free day prefills the typed
+ * date input beside it (§17: a typed input accompanies any picker). The
+ * month's entries are NOT repeated under the grid — the full « Liste
+ * actuelle » card follows directly (documented deviation from §17's
+ * below-grid list to avoid a duplicate list on one page).
+ */
+function HolidayCalendar({ holidaySet, onPickDate }: { holidaySet: Set<string>; onPickDate: (iso: string) => void }) {
+  const [month, setMonth] = useState(() => startOfMonth(new Date()));
+  const days = useMemo(() => {
+    const start = startOfWeek(month, { weekStartsOn: 1 });
+    const end = endOfWeek(endOfMonth(month), { weekStartsOn: 1 });
+    const out: Date[] = [];
+    for (let d = start; d <= end; d = addDays(d, 1)) out.push(d);
+    return out;
+  }, [month]);
+  const today = startOfDay(new Date());
+  return (
+    <div className="w-fit" aria-label="Calendrier des jours fériés">
+      <div className="flex items-center justify-between gap-2">
+        <p className="t-heading">{capitalize(format(month, 'MMMM yyyy', { locale: fr }))}</p>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setMonth((m) => addMonths(m, -1))} aria-label="Mois précédent">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setMonth((m) => addMonths(m, 1))} aria-label="Mois suivant">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      <div className="mt-1 grid grid-cols-7">
+        {WEEKDAYS.map((w) => (
+          <span key={w} className="t-label flex h-8 w-10 items-center justify-center">{w}</span>
+        ))}
+        {days.map((d) => {
+          const iso = format(d, 'yyyy-MM-dd');
+          const inMonth = isSameMonth(d, month);
+          const isNow = isSameDay(d, today);
+          const weekend = d.getDay() === 0 || d.getDay() === 6;
+          if (holidaySet.has(iso)) {
+            return (
+              <span
+                key={iso}
+                title={`Jour férié — ${capitalize(format(d, 'EEEE d MMMM yyyy', { locale: fr }))}`}
+                className={cn(
+                  't-body-sm flex h-10 w-10 items-center justify-center rounded-md bg-accent font-semibold tabular-nums text-accent-foreground',
+                  isNow && 'ring-1 ring-primary',
+                  !inMonth && 'opacity-60',
+                )}
+              >
+                {format(d, 'd')}
+              </span>
+            );
+          }
+          return (
+            <button
+              key={iso}
+              type="button"
+              onClick={() => onPickDate(iso)}
+              aria-label={`Choisir le ${format(d, 'd MMMM yyyy', { locale: fr })}`}
+              className={cn(
+                't-body-sm flex h-10 w-10 items-center justify-center rounded-md tabular-nums transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                isNow && 'font-semibold text-ink ring-1 ring-primary',
+                !inMonth ? 'text-ink-4' : weekend ? 'text-ink-3' : 'text-ink',
+              )}
+            >
+              {format(d, 'd')}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function JoursFeriesSettingsPage() {
   const { profile, loading: userLoading, canDelete } = useCurrentUser();
@@ -54,7 +130,6 @@ export default function JoursFeriesSettingsPage() {
   const [importText, setImportText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string; date: Date | null } | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -62,6 +137,9 @@ export default function JoursFeriesSettingsPage() {
     () => [...options].sort((a, b) => a.label.localeCompare(b.label)),
     [options],
   );
+
+  // ISO labels as a set for the calendar's holiday fills (§17).
+  const holidaySet = useMemo(() => new Set(options.map((o) => o.label)), [options]);
 
   // Parse each ISO label once: real Date, `past` flag, and the id of the next
   // upcoming holiday (the page's one third-colour element — §4 "next event").
@@ -148,12 +226,39 @@ export default function JoursFeriesSettingsPage() {
     }
   };
 
+  // Undo-first delete (addendum ter E, applied 2026-09-02 on owner's
+  // "implement everything"; Raskin: "never use a warning when you mean
+  // undo"): a holiday is a single trivially re-creatable doc, so it is
+  // removed immediately and the toast offers « Annuler », which re-creates
+  // it with the same label/order — no interrupting dialog.
   const handleDelete = async (id: string) => {
     if (!db) return;
+    const target = options.find((o) => o.id === id);
     setDeletingId(id);
     try {
       await deleteDoc(doc(db, 'options_holidays', id));
-      toast({ title: 'Jour férié supprimé' });
+      const d = target && ISO_DATE.test(target.label) ? parseISO(target.label) : null;
+      toast({
+        title: 'Jour férié supprimé',
+        description: d && isValid(d) ? capitalize(format(d, 'EEEE d MMMM yyyy', { locale: fr })) : target?.label,
+        action: target ? (
+          <ToastAction
+            altText="Annuler la suppression"
+            onClick={() => {
+              void addDoc(collection(db, 'options_holidays'), {
+                label: target.label,
+                order: target.order ?? 0,
+                active: target.active !== false,
+                createdAt: serverTimestamp(),
+              }).catch((err: any) => {
+                toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+              });
+            }}
+          >
+            Annuler
+          </ToastAction>
+        ) : undefined,
+      });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: err.message });
     } finally {
@@ -329,36 +434,45 @@ export default function JoursFeriesSettingsPage() {
             NN/g date input: typed input always allowed; NN/g web-form design:
             inline error under the field with icon + red text). The field and
             its button sit side by side as in the original. */}
-        <CardContent>
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="min-w-0 flex-1 basis-56 space-y-1">
-              <Label htmlFor="new-date">Date</Label>
-              <Input
-                id="new-date"
-                type="date"
-                value={newDate}
-                onChange={(e) => { setNewDate(e.target.value); if (addError) setAddError(''); }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isAdding) {
-                    e.preventDefault();
-                    void handleAdd();
-                  }
-                }}
-                aria-invalid={addError ? true : undefined}
-                aria-describedby={addError ? 'new-date-error' : undefined}
-                className="max-w-[12rem]"
-              />
+        {/* Typed input + month grid side by side (§17: a typed date Input
+            accompanies any picker; clicking a free day prefills the field). */}
+        <CardContent className="flex flex-wrap items-start gap-x-12 gap-y-6">
+          <div className="min-w-0 flex-1 basis-64">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="min-w-0 space-y-1">
+                <Label htmlFor="new-date">Date</Label>
+                <Input
+                  id="new-date"
+                  type="date"
+                  value={newDate}
+                  onChange={(e) => { setNewDate(e.target.value); if (addError) setAddError(''); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !isAdding) {
+                      e.preventDefault();
+                      void handleAdd();
+                    }
+                  }}
+                  aria-invalid={addError ? true : undefined}
+                  aria-describedby={addError ? 'new-date-error' : undefined}
+                  className="w-[12rem]"
+                />
+              </div>
+              {/* THE page primary (§8): `default`, verb label, never disabled. */}
+              <Button onClick={handleAdd} loading={isAdding}>
+                {isAdding ? 'Ajout…' : 'Ajouter'}
+              </Button>
             </div>
-            {/* THE page primary (§8): `default`, verb label, never disabled. */}
-            <Button onClick={handleAdd} loading={isAdding}>
-              {isAdding ? 'Ajout…' : 'Ajouter'}
-            </Button>
+            {addError && (
+              <p id="new-date-error" role="alert" className="mt-2 flex items-center gap-1.5 text-sm font-medium text-status-danger-fg">
+                <AlertCircle className="h-4 w-4" aria-hidden /> {addError}
+              </p>
+            )}
+            <p className="t-caption mt-3">Cliquer un jour du calendrier remplit le champ · les jours fériés existants sont en teinte</p>
           </div>
-          {addError && (
-            <p id="new-date-error" role="alert" className="mt-2 flex items-center gap-1.5 text-sm font-medium text-status-danger-fg">
-              <AlertCircle className="h-4 w-4" aria-hidden /> {addError}
-            </p>
-          )}
+          <HolidayCalendar
+            holidaySet={holidaySet}
+            onPickDate={(iso) => { setNewDate(iso); if (addError) setAddError(''); }}
+          />
         </CardContent>
       </Card>
 
@@ -503,7 +617,7 @@ export default function JoursFeriesSettingsPage() {
                             size="icon"
                             className="h-8 w-8 shrink-0 text-ink-3 hover:text-destructive"
                             disabled={deletingId === o.id}
-                            onClick={() => setDeleteTarget({ id: o.id, label: o.label, date: o.date })}
+                            onClick={() => handleDelete(o.id)}
                             aria-label={`Supprimer ${o.label}`}
                           >
                             {deletingId === o.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -520,43 +634,6 @@ export default function JoursFeriesSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Confirmation dialog — element-specs §13 (Material 3 dialogs: names
-          the object and its consequence, ≤ 2 actions, confirm at the edge).
-          Deleting a holiday silently was the one unconfirmed destructive
-          action of the app (audit 2026-09-02). */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !deletingId && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Supprimer «{' '}
-              {deleteTarget?.date
-                ? capitalize(format(deleteTarget.date, 'EEEE d MMMM yyyy', { locale: fr }))
-                : deleteTarget?.label}{' '}
-              » ?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Les délais seront de nouveau comptés ce jour-là. Cette action est irréversible.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={!!deletingId}>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              className={buttonVariants({ variant: 'destructive' })}
-              disabled={!!deletingId}
-              onClick={(e) => {
-                e.preventDefault();
-                if (!deleteTarget) return;
-                void (async () => {
-                  await handleDelete(deleteTarget.id);
-                  setDeleteTarget(null);
-                })();
-              }}
-            >
-              {deletingId ? 'Suppression…' : 'Supprimer'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

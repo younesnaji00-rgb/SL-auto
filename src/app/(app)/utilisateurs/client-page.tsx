@@ -42,7 +42,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Search, Pencil, Trash2, Eye, EyeOff, X, User as UserIcon } from 'lucide-react';
+import { Search, Pencil, Trash2, X, User as UserIcon } from 'lucide-react';
 import { IconChip } from '@/components/ui/icon-chip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
@@ -157,7 +157,6 @@ export default function UtilisateursClientPage() {
     // Only react when the email param changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailParam]);
-  const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string; self?: boolean } | null>(null);
@@ -328,10 +327,6 @@ export default function UtilisateursClientPage() {
       setIsDeleting(false);
       setDeleteTarget(null);
     }
-  };
-
-  const togglePasswordVisibility = (userId: string) => {
-    setShowPasswords(prev => ({ ...prev, [userId]: !prev[userId] }));
   };
 
   const filteredUsers = useMemo(() => {
@@ -696,7 +691,11 @@ export default function UtilisateursClientPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="pl-6">Nom</TableHead>
-                      <TableHead>Mot de passe</TableHead>
+                      {/* The « Mot de passe » column was removed 2026-09-02
+                          (owner: "implement everything"): a scannable table of
+                          plaintext passwords is a shoulder-surfing risk with no
+                          list-page job — the masked value + toggle lives on the
+                          user's detail page. */}
                       <TableHead>Rôle</TableHead>
                       <TableHead>Zone</TableHead>
                       <TableHead>Compagnies</TableHead>
@@ -708,14 +707,14 @@ export default function UtilisateursClientPage() {
                     {loading ? (
                       Array.from({ length: 5 }).map((_, i) => (
                         <TableRow key={`sk-${i}`}>
-                          <TableCell colSpan={7} className="p-0">
+                          <TableCell colSpan={6} className="p-0">
                             <SkeletonRow />
                           </TableCell>
                         </TableRow>
                       ))
                     ) : filteredUsers.length === 0 ? (
                       <TableRow key="empty-users" className="hover:bg-transparent">
-                        <TableCell colSpan={7} className="p-0">
+                        <TableCell colSpan={6} className="p-0">
                           {/* Empty state — element-specs §12 (NN/g: state + reason
                               + one pathway; Polaris: one action, no-results variant
                               says which filter to clear). */}
@@ -749,24 +748,6 @@ export default function UtilisateursClientPage() {
                             <TableCell className="pl-6">
                               <span className="block truncate font-semibold text-ink">{displayName}</span>
                               {user.email && <span className="t-caption block truncate font-mono">{user.email}</span>}
-                            </TableCell>
-                            <TableCell onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center gap-1">
-                                <span className="t-mono text-ink">
-                                  {showPasswords[user.id] ? (user.password || '—') : '••••••'}
-                                </span>
-                                {/* NN/g password masking: an explicit show/hide toggle. */}
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-ink-3 hover:text-ink"
-                                  onClick={() => togglePasswordVisibility(user.id)}
-                                  aria-pressed={!!showPasswords[user.id]}
-                                  aria-label={showPasswords[user.id] ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                                >
-                                  {showPasswords[user.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                                </Button>
-                              </div>
                             </TableCell>
                             <TableCell>
                               {/* Chips — §11: neutral for informational categories (role). */}

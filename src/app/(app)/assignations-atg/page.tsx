@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow, STICKY_HEAD, STICKY_CELL, EmptyCell,
 } from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { Calendar, ChevronDown, Navigation, Search, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -249,49 +250,28 @@ function getDeadlineInfo(
 }
 
 /**
- * Raised tab on a visible track (addendum 2026-09-02, supersedes the underline
- * idiom: NN/g "Flat design" ✓ text-only controls get skipped by new users —
- * backgrounds, borders and shadows restore clickability; NN/g Tabs Used Right ✓
- * "at least two selection indicators"). Same anatomy as `components/ui/tabs.tsx`:
- * recessed `surface-2` track (hairline, 8 px side padding so the outward
- * feet fit), active tab = raised `bg-card` card with the light rim + a 2 px
- * accent bar under the label, inactive tabs drawn grey `surface-4` with a
- * `surface-3` hover (owner ruling ter); counts stay neutral pills (§11).
+ * Mission view-switcher on the shared `Tabs` primitive (raised tab on a
+ * visible track — addendum 2026-09-02; NN/g Tabs Used Right ✓ "at least two
+ * selection indicators"). Counts stay neutral pills (§11).
  */
 function MissionTabs({ active, counts, onChange, className }: { active: string; counts: Record<string, number>; onChange: (id: string) => void; className?: string }) {
+  // Shared `Tabs` primitive (2026-09-02, owner: "implement everything"): the
+  // hand-copied track/trigger markup is retired — the primitive carries the
+  // same tab-slope anatomy PLUS the seat morph (useTabSlopeMorph) the local
+  // copy lacked. No TabsContent: the group tables below are the panel.
   return (
-    <div role="tablist" aria-label="Type de mission" className={cn('inline-flex h-10 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1', className)}>
-      {MISSION_TABS.map((tab) => {
-        const isActive = active === tab.id;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(tab.id)}
-            className={cn(
-              // Browser-tab shape (owner rulings 2026-09-02 + ter): `.tab-slope`
-              // draws the sloped grey body + outward feet; aria-selected
-              // drives the active card fill.
-              'tab-slope relative inline-flex h-[34px] items-center justify-center gap-2 whitespace-nowrap px-3.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              isActive ? 'font-semibold text-ink' : 'text-ink-2 hover:text-ink',
-            )}
-          >
+    <Tabs value={active} onValueChange={onChange}>
+      <TabsList aria-label="Type de mission" className={className}>
+        {MISSION_TABS.map((tab) => (
+          <TabsTrigger key={tab.id} value={tab.id}>
             {tab.label}
             <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
               {counts[tab.id] || 0}
             </span>
-            {/* Accent bar (second indicator) — a real element because ::after
-                now draws the tab feet. */}
-            <span
-              aria-hidden
-              className={cn('pointer-events-none absolute inset-x-3 bottom-[3px] h-0.5 rounded-full bg-primary transition-opacity', isActive ? 'opacity-100' : 'opacity-0')}
-            />
-          </button>
-        );
-      })}
-    </div>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   );
 }
 
@@ -305,28 +285,20 @@ function MissionTabs({ active, counts, onChange, className }: { active: string; 
  * card. Counts stay tabular text, not icons.
  */
 function MissionSegments({ active, counts, onChange, className }: { active: string; counts: Record<string, number>; onChange: (id: string) => void; className?: string }) {
+  // Same primitive as MissionTabs (see above); the phone strip keeps its
+  // equal-width 3-col grid (`grid` out-merges the track's inline-flex) and
+  // its slightly taller 36 px triggers.
   return (
-    <div role="tablist" aria-label="Type de mission" className={cn('grid grid-cols-3 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1', className)}>
-      {MISSION_TABS.map((tab) => {
-        const isActive = active === tab.id;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(tab.id)}
-            className={cn(
-              'tab-slope relative flex h-9 items-center justify-center gap-1.5 whitespace-nowrap px-2 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              isActive ? 'font-semibold text-ink' : 'text-ink-2 hover:text-ink',
-            )}
-          >
+    <Tabs value={active} onValueChange={onChange}>
+      <TabsList aria-label="Type de mission" className={cn('grid w-full grid-cols-3', className)}>
+        {MISSION_TABS.map((tab) => (
+          <TabsTrigger key={tab.id} value={tab.id} className="h-9 gap-1.5 px-2 text-sm">
             {tab.label}
-            <span className={cn('text-[11px] tabular-nums', isActive ? 'text-ink-2' : 'text-ink-3')}>{counts[tab.id] || 0}</span>
-          </button>
-        );
-      })}
-    </div>
+            <span className="text-[11px] tabular-nums text-ink-3 group-data-[state=active]:text-ink-2">{counts[tab.id] || 0}</span>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   );
 }
 

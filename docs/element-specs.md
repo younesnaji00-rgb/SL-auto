@@ -312,11 +312,11 @@ hierarchy material reached us only secondhand — flagged in the reports).
   not hover-only.
 - **Destructive friction ladder** (SaaSUI): reversible → undo, restorable →
   light confirm, consequential → named-object confirm (our §13), catastrophic
-  → type-to-confirm. *Owner option, not applied*: holiday deletes are
-  trivially re-creatable — undo-toast instead of the confirm dialog would be
-  the theory-optimal rung, but the app has no undo infrastructure; the §13
-  dialog shipped 2026-09-02 for consistency. Raskin: "never use a warning
-  when you mean undo."
+  → type-to-confirm. *Applied 2026-09-02* (owner: "implement everything"):
+  holiday deletes now remove immediately and offer « Annuler » in the toast
+  (the doc is re-created with the same label/order) — Raskin: "never use a
+  warning when you mean undo." User deletes keep the §13 named-object dialog;
+  the last Admin is a disabled control with the reason in its tooltip.
 - **Role descriptions in plain French at the point of assignment** (SaaSUI:
   an admin who never read docs picks right first time); never allow removing
   the last Admin or your own access silently.
