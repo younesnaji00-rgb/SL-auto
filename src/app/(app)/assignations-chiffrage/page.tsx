@@ -21,8 +21,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { StatusChip } from '@/components/ui/status-chip';
 import { fr } from 'date-fns/locale';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
@@ -54,15 +53,6 @@ const DEADLINE_HOURS = 24;
 function formatRemaining(hours: number): string {
   if (hours >= 1) return `${Math.floor(hours)} h restantes`;
   return `${Math.max(1, Math.round(hours * 60))} min restantes`;
-}
-
-/** Status chip (element-specs §11): one helper per domain, same state → same pair app-wide. */
-function StatusChip({ status, className }: { status: string; className?: string }) {
-  return (
-    <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(status), className)}>
-      {status}
-    </Badge>
-  );
 }
 
 export default function AssignationsChiffragePage() {

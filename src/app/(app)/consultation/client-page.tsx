@@ -17,26 +17,18 @@ import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { StatusChip, statusTone } from '@/components/ui/status-chip';
 
-// ── Status chip (element-specs §11: Carbon tag / dataviz "status colours are
-//    reserved… ship with a label, never colour alone"): one helper maps a
-//    status family to the same Badge status pair everywhere on this page.
-//    Local stand-in for `lib/status-colors` (hand-picked hues, shared file
-//    outside this page's scope) — the duplication is flagged in the report. ──
-type StatusVariant = 'info' | 'warning' | 'success' | 'neutral';
-
-function statusPair(status: string): { variant: StatusVariant; dot: string } {
-  const s = (status || '').trim();
-  if (s.startsWith('Planification')) return { variant: 'info', dot: 'bg-status-info-fg' };
-  if (s === 'Chiffrage en cours') return { variant: 'warning', dot: 'bg-status-warning-fg' };
-  if (/accord/i.test(s)) return { variant: 'success', dot: 'bg-status-success-fg' };
-  return { variant: 'neutral', dot: 'bg-ink-4' };
-}
-
-function StatusChip({ status }: { status?: string }) {
-  const label = status || 'Nouveau';
-  return <Badge variant={statusPair(label).variant}>{label}</Badge>;
-}
+// ── Status chip (element-specs §11): the shared app-wide mapping — the local
+//    stand-in was retired 2026-09-02 (it coloured « Proposition d'accord »
+//    success while the canonical map says info). Dots reuse the same tone. ──
+const DOT_BY_TONE: Record<ReturnType<typeof statusTone>, string> = {
+  neutral: 'bg-ink-4',
+  info: 'bg-status-info-fg',
+  warning: 'bg-status-warning-fg',
+  success: 'bg-status-success-fg',
+  danger: 'bg-status-danger-fg',
+};
 
 /** Empty cell = « — » in ink-4 (blueprint §9), never a fake value. */
 function EmptyCell() {
@@ -229,7 +221,7 @@ export default function ConsultationClientPage() {
               <SelectItem key={s.id} value={s.label}>
                 {/* Status dot always beside its label (§11: never colour alone). */}
                 <span className="flex items-center gap-2">
-                  <span className={cn('h-2 w-2 shrink-0 rounded-full', statusPair(s.label).dot)} aria-hidden />
+                  <span className={cn('h-2 w-2 shrink-0 rounded-full', DOT_BY_TONE[statusTone(s.label)])} aria-hidden />
                   {s.label}
                 </span>
               </SelectItem>

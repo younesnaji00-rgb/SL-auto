@@ -39,7 +39,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ChevronRight as RowChevron, MoreHorizontal, ExternalLink } from 'lucide-react';
-import { getStatusBadgeStyles, getStatusDotColor, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { getStatusDotColor } from '@/lib/status-colors';
+import { StatusChip } from '@/components/ui/status-chip';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { SlidingThumb } from '@/components/ui/sliding-thumb';
@@ -1067,9 +1068,9 @@ export default function DossiersClientPage() {
                     className={cn("min-w-[200px]", !exportMode && "cursor-pointer hover:bg-surface-3 transition-colors")}
                     title={!exportMode ? "Voir l'historique des statuts" : undefined}
                   >
-                    <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>
-                      {d.statut || 'Nouveau'}
-                    </Badge>
+                    {/* Shared app-wide status mapping (element-specs §11) — the
+                        inline Badge-outline path was retired 2026-09-02. */}
+                    <StatusChip status={d.statut} />
                   </TableCell>
                   <TableCell
                     onClick={exportMode ? undefined : (e) => {
@@ -1080,13 +1081,11 @@ export default function DossiersClientPage() {
                     title={!exportMode ? "Voir l'historique des observations" : undefined}
                   >
                     {d.lastObservation?.text ? (
-                      // Warning pair chip — the only emphasis for an open observation.
-                      <span
-                        className="inline-flex h-5 max-w-[260px] items-center truncate rounded-full bg-status-warning-bg px-2 text-[11px] font-medium text-status-warning-fg"
-                        title={d.lastObservation.text}
-                      >
-                        {d.lastObservation.text}
-                      </span>
+                      // Warning pair chip — the only emphasis for an open observation
+                      // (Badge primitive instead of raw markup, element-specs §11).
+                      <Badge variant="warning" className="max-w-[260px]" title={d.lastObservation.text}>
+                        <span className="truncate">{d.lastObservation.text}</span>
+                      </Badge>
                     ) : (
                       <span className="text-ink-4">—</span>
                     )}

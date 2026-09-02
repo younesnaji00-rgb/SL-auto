@@ -3,7 +3,17 @@
 import { PageHeader } from '@/components/layout/page-header';
 import React, { useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -44,6 +54,7 @@ export default function JoursFeriesSettingsPage() {
   const [importText, setImportText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string; date: Date | null } | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -492,7 +503,7 @@ export default function JoursFeriesSettingsPage() {
                             size="icon"
                             className="h-8 w-8 shrink-0 text-ink-3 hover:text-destructive"
                             disabled={deletingId === o.id}
-                            onClick={() => handleDelete(o.id)}
+                            onClick={() => setDeleteTarget({ id: o.id, label: o.label, date: o.date })}
                             aria-label={`Supprimer ${o.label}`}
                           >
                             {deletingId === o.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -508,6 +519,44 @@ export default function JoursFeriesSettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Confirmation dialog — element-specs §13 (Material 3 dialogs: names
+          the object and its consequence, ≤ 2 actions, confirm at the edge).
+          Deleting a holiday silently was the one unconfirmed destructive
+          action of the app (audit 2026-09-02). */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !deletingId && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Supprimer «{' '}
+              {deleteTarget?.date
+                ? capitalize(format(deleteTarget.date, 'EEEE d MMMM yyyy', { locale: fr }))
+                : deleteTarget?.label}{' '}
+              » ?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Les délais seront de nouveau comptés ce jour-là. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingId}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className={buttonVariants({ variant: 'destructive' })}
+              disabled={!!deletingId}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!deleteTarget) return;
+                void (async () => {
+                  await handleDelete(deleteTarget.id);
+                  setDeleteTarget(null);
+                })();
+              }}
+            >
+              {deletingId ? 'Suppression…' : 'Supprimer'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

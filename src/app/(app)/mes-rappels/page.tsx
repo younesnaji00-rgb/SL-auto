@@ -709,7 +709,11 @@ export default function MesRappelsPage() {
                                         <TableCell>{formatDate(r.createdAt)}</TableCell>
                                         <TableCell className="t-body-sm">
                                           {r.resolvedAt ? (
-                                            <span className="text-status-success-fg">Sauvegardé le {formatDate(r.resolvedAt)}</span>
+                                            // Status colour never alone (element-specs §11): icon + label.
+                                            <span className="inline-flex items-center gap-1 text-status-success-fg">
+                                              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                              Sauvegardé le {formatDate(r.resolvedAt)}
+                                            </span>
                                           ) : (r.seenAt || r.read) ? (
                                             <span className="text-ink-2">Consulté{r.seenAt ? ` le ${formatDate(r.seenAt)}` : ''}</span>
                                           ) : (
