@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/tooltip';
 import { logWorkflow } from './log-historique';
 import { useDossierDocWrite, applyPendingToDossier } from './rappel-draft';
+import { useTabSlopeMorphRef } from '@/hooks/use-tab-morph';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 import { ValiderDossierButton } from '@/components/dossiers/valider-dossier-button';
@@ -88,6 +89,9 @@ export default function RapportTab({
   const hl = useReplayHighlight();
   const pointsChocStatus = hl.statusForPath('pointsChoc');
   const pointsChocDessousStatus = hl.statusForPath('pointsChocDessous');
+  // Symbiote morph on the diagram's vue dessus/dessous strip (owner
+  // 2026-09-02: raw TabsPrimitive strips animate like every other tab).
+  const diagramMorphRef = useTabSlopeMorphRef();
 
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -390,8 +394,9 @@ export default function RapportTab({
               reads state + Firestore, not the DOM. */}
           <TabsPrimitive.Root defaultValue="dessus" className="w-full">
             <TabsPrimitive.List
+              ref={diagramMorphRef}
               aria-label="Vue du diagramme"
-              className="-mx-2 flex items-end gap-1 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
+              className="relative isolate -mx-2 flex items-end gap-1 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
             >
               <TabsPrimitive.Trigger value="dessus" className={DIAGRAM_TAB_TRIGGER}>
                 Vue dessus <ChangeBadge status={pointsChocStatus} />

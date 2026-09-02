@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { cn } from '@/lib/utils';
+import { useTabSlopeMorphRef } from '@/hooks/use-tab-morph';
 import { useFirestore, useStorage, useCollection } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
@@ -130,7 +131,7 @@ function PaneTab({
  *  `surface-2` fill, rounded-lg — visibly a control. px-2 (8px) keeps the
  *  tabs' 7px outward feet inside the track. */
 const PANE_TABLIST_CLASS =
-  'flex shrink-0 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1';
+  'relative isolate flex shrink-0 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1';
 
 function ReferencePane({
   dossierId,
@@ -146,6 +147,10 @@ function ReferencePane({
   const db = useFirestore();
   const storage = useStorage();
   const [mode, setMode] = useState<Mode>(initialDocType ? 'documents' : 'photos');
+  // Symbiote morph on both pane tablists (owner 2026-09-02: every tab strip
+  // animates); callback refs because the strips mount with listOpen.
+  const modeMorphRef = useTabSlopeMorphRef();
+  const subTabMorphRef = useTabSlopeMorphRef();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const autoSelectedRef = useRef(false);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
@@ -281,7 +286,7 @@ function ReferencePane({
 
       {/* Mode toggle — raised tabs on a recessed track (addendum §2) */}
       {listOpen && (
-        <div className={cn(PANE_TABLIST_CLASS, 'mx-2 my-2')} role="tablist">
+        <div ref={modeMorphRef} className={cn(PANE_TABLIST_CLASS, 'mx-2 my-2')} role="tablist">
           <PaneTab active={mode === 'photos'} onClick={() => setMode('photos')}>
             <ImageIcon className="h-3.5 w-3.5" />
             Photos ({photos?.length || 0})
@@ -296,7 +301,7 @@ function ReferencePane({
       {/* Compact item selector */}
       {listOpen && mode === 'photos' && (
         <div className="flex shrink-0 flex-col border-b border-hairline">
-          <div className={cn(PANE_TABLIST_CLASS, 'mx-2 mb-2')} role="tablist">
+          <div ref={subTabMorphRef} className={cn(PANE_TABLIST_CLASS, 'mx-2 mb-2')} role="tablist">
             {(['avant', 'en_cours', 'apres'] as const).map((key) => (
               <PaneTab
                 key={key}

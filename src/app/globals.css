@@ -625,10 +625,14 @@ html {
     transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1);
     /* From the notch outward: transparent → ~1px dark line on the arc's
        outer edge (--tab-foot-line) → ~1px light highlight band inside it
-       (--tab-foot-rim) → fill. Both layers default to invisible colours. */
+       (--tab-foot-rim) → fill. Both layers default to invisible colours.
+       The dark line is CENTRED at radius = --tab-foot exactly (owner
+       2026-09-02: drawn ~1px smaller it floated, disconnected from the
+       side border above and the separation line below — the arc must end
+       tangent on both). */
     background:
-      radial-gradient(circle at top left, transparent calc(var(--tab-foot) - 2.5px), var(--tab-foot-line) calc(var(--tab-foot) - 1px), var(--tab-foot-line) calc(var(--tab-foot) - 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 0.9px), var(--tab-fill) calc(var(--tab-foot) + 2px)) left bottom / var(--tab-foot) var(--tab-foot) no-repeat,
-      radial-gradient(circle at top right, transparent calc(var(--tab-foot) - 2.5px), var(--tab-foot-line) calc(var(--tab-foot) - 1px), var(--tab-foot-line) calc(var(--tab-foot) - 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 0.9px), var(--tab-fill) calc(var(--tab-foot) + 2px)) right bottom / var(--tab-foot) var(--tab-foot) no-repeat,
+      radial-gradient(circle at top left, transparent calc(var(--tab-foot) - 2px), var(--tab-foot-line) calc(var(--tab-foot) - 0.5px), var(--tab-foot-line) calc(var(--tab-foot) + 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 1.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 1.9px), var(--tab-fill) calc(var(--tab-foot) + 3px)) left bottom / var(--tab-foot) var(--tab-foot) no-repeat,
+      radial-gradient(circle at top right, transparent calc(var(--tab-foot) - 2px), var(--tab-foot-line) calc(var(--tab-foot) - 0.5px), var(--tab-foot-line) calc(var(--tab-foot) + 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 1.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 1.9px), var(--tab-fill) calc(var(--tab-foot) + 3px)) right bottom / var(--tab-foot) var(--tab-foot) no-repeat,
       linear-gradient(var(--tab-fill), var(--tab-fill)) center bottom / calc(100% - 2 * var(--tab-foot)) 100% no-repeat;
   }
   .tab-slope[data-state='active']::before,

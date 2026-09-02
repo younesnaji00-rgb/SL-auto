@@ -39,6 +39,7 @@ import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { useFirestore, useAuth, useStorage, useDoc } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useTabSlopeMorphRef } from '@/hooks/use-tab-morph';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -76,6 +77,45 @@ interface Photo {
 }
 
 type PartitionMode = 'date' | 'location';
+
+/** Grouping-mode tablist — its own component so the symbiote morph hook can
+ *  attach per strip (owner 2026-09-02: every tab strip animates; this one
+ *  renders once per category section). */
+function PartitionTabs({ value, onChange }: { value: PartitionMode; onChange: (m: PartitionMode) => void }) {
+  const morphRef = useTabSlopeMorphRef();
+  return (
+    <div
+      ref={morphRef}
+      role="tablist"
+      aria-label="Mode de regroupement des photos"
+      className="relative isolate -mx-2 mb-4 flex items-end gap-1 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
+    >
+      {([
+        ['date', 'Par date', CalendarDays],
+        ['location', 'Par localisation', MapPin],
+      ] as const).map(([mode, label, Icon]) => (
+        <button
+          key={mode}
+          type="button"
+          role="tab"
+          aria-selected={value === mode}
+          onClick={() => onChange(mode)}
+          className={cn(
+            // Browser-tab shape (owner ruling 2026-09-02):
+            // `.tab-slope` draws the sloped card fill via
+            // aria-selected; accent underline stays.
+            'tab-slope relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3.5 text-[13px] font-medium text-ink-3',
+            'transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+            value === mode && 'border-primary text-ink',
+          )}
+        >
+          <Icon className="h-4 w-4" />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /**
  * Bucket key + display label used when grouping photos by location.
@@ -606,35 +646,7 @@ export default function PhotosTab({
                   replaces the previous Select. Both modes show every photo, so
                   there is no separate "Toutes" (no-filter) state here. */}
               {catPhotos.length > 0 && (
-                <div
-                  role="tablist"
-                  aria-label="Mode de regroupement des photos"
-                  className="-mx-2 mb-4 flex items-end gap-1 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
-                >
-                  {([
-                    ['date', 'Par date', CalendarDays],
-                    ['location', 'Par localisation', MapPin],
-                  ] as const).map(([mode, label, Icon]) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      role="tab"
-                      aria-selected={partitionMode === mode}
-                      onClick={() => setPartitionMode(mode)}
-                      className={cn(
-                        // Browser-tab shape (owner ruling 2026-09-02):
-                        // `.tab-slope` draws the sloped card fill via
-                        // aria-selected; accent underline stays.
-                        'tab-slope relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3.5 text-[13px] font-medium text-ink-3',
-                        'transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
-                        partitionMode === mode && 'border-primary text-ink',
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                <PartitionTabs value={partitionMode} onChange={setPartitionMode} />
               )}
 
               {/* Photo grid or empty state */}

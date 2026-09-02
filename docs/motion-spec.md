@@ -611,7 +611,21 @@ Owner live-test rulings, rounds 3–5, implemented same day:
    instead of the « Utilisateur inconnu » fallback. The « Tout déplier /
    replier » button is REMOVED from the sticky bar — per-step chevrons are
    the only fold control.
-6. **« Volume par étape » card rebuilt** (research ruling, not motion):
+6. **Foot-arc contour centred on the foot radius** (owner 2026-09-02: "the
+   bottom edges of the border don't fit — not a continuous line"): the feet
+   gradients drew the dark arc at radius foot−1..foot−0.5, ~1px INSIDE the
+   notch, so it floated disconnected from the side border above and the
+   separation line below. The stroke is now centred at radius = --tab-foot
+   exactly (foot−0.5..foot+0.5, rim band shifted outward with it), landing
+   tangent on both. Verified in a 6× side-by-side render.
+7. **Every raw `.tab-slope` strip gets the morph** (owner: « vue dessus /
+   dessous » didn't animate): new `useTabSlopeMorphRef()` callback-ref
+   variant (object-ref effects never fire for conditionally-mounted strips)
+   attached to the rapport diagram TabsPrimitive.List, the photos-tab
+   grouping tablist (extracted as `PartitionTabs` — it renders per
+   category), and both devis-editor reference-pane tablists; all four
+   containers gained `relative isolate`.
+8. **« Volume par étape » card rebuilt** (research ruling, not motion):
    vertical recharts bars → HTML horizontal bar list in pipeline order,
    full stage names left, counts printed at the bar tip (no axis/tooltip),
    faint shared-scale track, busiest stage in deeper teal, rows click

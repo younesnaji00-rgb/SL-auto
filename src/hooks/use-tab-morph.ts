@@ -153,3 +153,21 @@ export function useTabSlopeMorph<T extends HTMLElement>(ref: React.RefObject<T |
     return attachTabSlopeMorph(el);
   }, [ref]);
 }
+
+/** Callback-ref variant for strips that mount conditionally (an object ref's
+ *  effect never re-runs when the node appears later). Pass the returned ref
+ *  to the `relative isolate` tablist container. */
+export function useTabSlopeMorphRef(): (el: HTMLElement | null) => void {
+  const cleanupRef = React.useRef<(() => void) | null>(null);
+  React.useEffect(
+    () => () => {
+      cleanupRef.current?.();
+      cleanupRef.current = null;
+    },
+    [],
+  );
+  return React.useCallback((el: HTMLElement | null) => {
+    cleanupRef.current?.();
+    cleanupRef.current = el ? attachTabSlopeMorph(el) : null;
+  }, []);
+}
