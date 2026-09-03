@@ -118,6 +118,8 @@ export default {
           'warning-fg': 'hsl(var(--status-warning-fg) / <alpha-value>)',
           'danger-bg': 'hsl(var(--status-danger-bg) / <alpha-value>)',
           'danger-fg': 'hsl(var(--status-danger-fg) / <alpha-value>)',
+          'danger-solid': 'hsl(var(--status-danger-solid) / <alpha-value>)',
+          'danger-solid-fg': 'hsl(var(--status-danger-solid-fg) / <alpha-value>)',
           'info-bg': 'hsl(var(--status-info-bg) / <alpha-value>)',
           'info-fg': 'hsl(var(--status-info-fg) / <alpha-value>)',
         },

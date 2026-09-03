@@ -33,6 +33,11 @@ const badgeVariants = cva(
         // Never a status, never near the amber/red pairs.
         time: "border-transparent bg-tertiary-bg text-tertiary-deep",
         outline: "border-hairline-strong bg-transparent text-ink",
+        // Reserved TOP step of an urgency ramp: the only SOLID status fill on
+        // a page (terrain research 2026-09-03 — Few: bright/dark = emphasis;
+        // Stone/Muth: the ramp must order by lightness, solid last).
+        dangerSolid:
+          "border-transparent bg-status-danger-solid text-status-danger-solid-fg shadow-rim-filled",
         // Aliases (kept so existing call sites keep working).
         secondary: STATUS_PAIR.neutral,
         destructive: STATUS_PAIR.danger,

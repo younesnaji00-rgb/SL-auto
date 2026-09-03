@@ -67,7 +67,7 @@
        destructive/status contexts (it sits near red). */
     --tertiary: 16 50% 44%;            /* solid fill        */
     --tertiary-foreground: 45 30% 98%; /* text on the fill  */
-    --tertiary-deep: 16 60% 36%;       /* text-capable on cream/tint */
+    --tertiary-deep: 16 65% 32%;       /* text-capable on cream/tint (darkened 2026-09-03: 6.6:1 on the tint, 7.2:1 on cream — sunlight floor) */
     --tertiary-bg: 18 60% 92%;         /* quiet tint        */
 
     --destructive: 0 65% 50%;
@@ -105,14 +105,23 @@
     /* Status bg lightnesses spread apart (2026-09-03, grayscale-verified:
        at 90/92/94 the success and danger tints merged in grayscale; at
        87/92/95.5 the three families keep a legible order without colour). */
+    /* Tint triads re-derived ON the cream canvas in OKLCH (terrain research
+       2026-09-03, terrain-color.md §4/§5: shared measured bg lightness, dark
+       same-hue text ≥ 7:1 on its own tint, warning↔danger ordered by VALUE so
+       the deadline ramp survives grayscale). Audited: bg L 0.933–0.955, all
+       fg ≥ 7.1:1 on their tints. */
     --status-success-bg: 150 45% 92%;
-    --status-success-fg: 152 60% 24%;
-    --status-warning-bg: 42 90% 87%;
+    --status-success-fg: 152 65% 21%;
+    --status-warning-bg: 44 85% 90%;   /* chroma calmed (was 42 90% 87% — the loudest tint of the four) */
     --status-warning-fg: 30 80% 26%;
-    --status-danger-bg: 0 80% 95.5%;
+    --status-danger-bg: 0 75% 93.5%;   /* one L step DARKER than warning-bg (monotonic urgency staircase) */
     --status-danger-fg: 0 65% 34%;
     --status-info-bg: 214 70% 93%;
     --status-info-fg: 216 60% 32%;
+    /* Reserved TOP step of the urgency ramp: the page's only solid status
+       fill (« En retard »). 8.0:1 with its cream-white text. */
+    --status-danger-solid: 0 60% 36%;
+    --status-danger-solid-fg: 45 30% 98%;
 
     /* ── Glass (chrome layer only — Apple HIG Materials: bars, sidebars,
          menus and sheets are translucent; the content layer stays opaque
@@ -212,6 +221,8 @@
     --status-danger-fg: 0 80% 78%;
     --status-info-bg: 216 45% 16%;
     --status-info-fg: 214 75% 78%;
+    --status-danger-solid: 0 55% 40%;
+    --status-danger-solid-fg: 40 15% 94%;
 
     --glass-bg: hsl(var(--card) / 0.85);
     --glass-bg-strong: hsl(var(--card) / 0.86);
