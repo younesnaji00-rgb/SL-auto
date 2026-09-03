@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatFr, parseFr } from '@/lib/devis-schema';
@@ -52,6 +52,11 @@ export function CellNumberInput({
 
   const [text, setText] = useState<string>(displayFor(value));
   const [focused, setFocused] = useState(false);
+  // C3 — spreadsheet keys (chiffrage-redesign-spec): stash the pre-focus value
+  // so Échap can revert the cell. NOTE the input is type=text (inputMode
+  // decimal), so the mouse wheel can never increment a focused amount — the
+  // wheel hazard only exists on type=number.
+  const focusValueRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!focused) setText(displayFor(value));
@@ -91,7 +96,25 @@ export function CellNumberInput({
             onChange(parseFr(next));
           }
         }}
-        onFocus={(e) => { setFocused(true); e.currentTarget.select(); }}
+        onFocus={(e) => {
+          setFocused(true);
+          focusValueRef.current = value === undefined || value === null ? (allowNull ? null : 0) : value;
+          e.currentTarget.select();
+        }}
+        onKeyDown={(e) => {
+          // C3 — Échap reverts to the pre-focus value. stopPropagation only
+          // when there is something to revert, so an untouched cell still
+          // lets Échap close a surrounding popover/dialog.
+          if (e.key !== 'Escape') return;
+          const prev = focusValueRef.current;
+          const prevText = displayFor(prev);
+          if (text !== prevText) {
+            e.stopPropagation();
+            setText(prevText);
+            onChange(prev);
+            e.currentTarget.select();
+          }
+        }}
         onBlur={() => {
           setFocused(false);
           if (text.trim() === '') {

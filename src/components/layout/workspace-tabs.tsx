@@ -14,8 +14,8 @@
  * Mouse: middle-click closes, double-click pins a preview tab, drag reorders.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Calculator, ChevronDown, FolderOpen, Pin, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -284,15 +284,34 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
   );
 }
 
-export default function WorkspaceTabs() {
+function WorkspaceTabsInner() {
   const pathname = usePathname() || '';
+  const searchParams = useSearchParams();
   const dossier = useWorkspaceTabs('dossier');
   const chiffrage = useWorkspaceTabs('chiffrage');
 
+  // C7 — the devis editor is part of the chiffrage workflow
+  // (chiffrage-redesign-spec): the chiffrage strip stays mounted on
+  // /devis-editor and the active tab derives from the `chiffrageId` search
+  // param (the route has no id segment there).
+  const editorChiffrageId =
+    pathname === '/devis-editor' ? searchParams.get('chiffrageId') : null;
+  const chiffrageApi = useMemo(
+    () =>
+      editorChiffrageId
+        ? { ...chiffrage, activeId: editorChiffrageId, activeTabId: editorChiffrageId }
+        : chiffrage,
+    [chiffrage, editorChiffrageId],
+  );
+
   // Only the kind whose SECTION the user is currently in renders its strip
   // (owner ruling 2026-09-02) — on any other route the bar is absent.
-  const kinds = [dossier, chiffrage].filter(
-    (k) => k.tabs.length > 0 && (pathname === k.config.listHref || pathname.startsWith(`${k.config.listHref}/`)),
+  const kinds = [dossier, chiffrageApi].filter(
+    (k) =>
+      k.tabs.length > 0 &&
+      (pathname === k.config.listHref ||
+        pathname.startsWith(`${k.config.listHref}/`) ||
+        (k.kind === 'chiffrage' && pathname === '/devis-editor')),
   );
   if (kinds.length === 0) return null;
 
@@ -305,5 +324,15 @@ export default function WorkspaceTabs() {
         </React.Fragment>
       ))}
     </div>
+  );
+}
+
+export default function WorkspaceTabs() {
+  // C7 — useSearchParams requires a Suspense boundary above its caller for
+  // static prerendering; the strip renders nothing during that fallback.
+  return (
+    <Suspense fallback={null}>
+      <WorkspaceTabsInner />
+    </Suspense>
   );
 }

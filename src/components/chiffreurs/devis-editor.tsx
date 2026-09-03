@@ -6,9 +6,18 @@ import Link from 'next/link';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
-  ArrowLeft, Car, ChevronDown, ChevronUp, Columns2, FileText, Loader2,
-  RefreshCw, Save, Trash2, X,
+  ArrowLeft, Car, CheckCircle2, ChevronDown, ChevronUp, Columns2, FileText, Loader2,
+  Plus, RefreshCw, Save, Trash2, X,
 } from 'lucide-react';
+// C1 — resizable comparison split (chiffrage-redesign-spec). v4 API: Group /
+// Panel / Separator + useDefaultLayout for the persisted ratio.
+import {
+  Group as SplitGroup,
+  Panel as SplitPanel,
+  Separator as SplitSeparator,
+  useDefaultLayout,
+  type LayoutStorage,
+} from 'react-resizable-panels';
 import { IconChip } from '@/components/ui/icon-chip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
@@ -29,6 +38,9 @@ import {
 import { useFirestore, useStorage } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useHotkeys } from '@/hooks/use-hotkeys';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { getQueueContext } from '@/lib/queue-session';
 import { enqueueUpload } from '@/lib/offline/upload-queue';
 import {
   type DevisExtraColumn, type DevisHeader, type DevisRow, type DevisSnapshot, type DevisVersion, type StructuredDevis,
@@ -151,6 +163,28 @@ export function DevisEditor({
     'accord' | 'proposition-accord' | undefined
   >(undefined);
   const [previewOrdinal, setPreviewOrdinal] = useState<number | undefined>(undefined);
+
+  // C6 — post-save banner (chiffrage-redesign-spec): set after performPersist
+  // succeeds; `nextId` comes from the stored queue order (queue-session D1).
+  const [saveBanner, setSaveBanner] = useState<{ nextId: string | null } | null>(null);
+
+  // C1 — persisted split ratio via the lib's persistence API; SSR-safe
+  // localStorage shim (the lib's default reads `localStorage` at call time,
+  // which throws during server render).
+  const splitStorage = useMemo<LayoutStorage>(() => ({
+    getItem: (k: string) => {
+      try { return window.localStorage.getItem(k); } catch { return null; }
+    },
+    setItem: (k: string, v: string) => {
+      try { window.localStorage.setItem(k, v); } catch { /* ignore */ }
+    },
+  }), []);
+  const { defaultLayout: splitDefaultLayout, onLayoutChanged: onSplitLayoutChanged } = useDefaultLayout({
+    id: 'sl-auto:devis-editor-split',
+    storage: splitStorage,
+  });
+  // Below lg (1024) the compare layout stacks instead of splitting.
+  const stackedCompare = useIsMobile();
 
   // Task #33: post-scan warning / edit-lock state. `scanReviewed` defaults to
   // true so the existing persisted-reload flow is untouched. Only a fresh
@@ -467,6 +501,53 @@ export function DevisEditor({
   };
   const deleteRow = (id: string) => setRows((rs) => (rs.length <= 1 ? rs : rs.filter((r) => r.id !== id)));
 
+  // C4 — « Ajouter une ligne » (chiffrage-redesign-spec): appends a blank
+  // manual row (qte 1, désignation vide, nulls ailleurs) and focuses its
+  // Désignation cell. The row id is registered as UNCAPPED in qteScanCapRef
+  // BEFORE the state update, so the decrease-only qte lock (task #6) never
+  // applies to manual rows.
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const addRow = () => {
+    const row: DevisRow = { ...emptyRow(), ref: '', tva: null, vetuste: null };
+    qteScanCapRef.current.set(row.id, Number.POSITIVE_INFINITY);
+    setRows((rs) => [...rs, row]);
+    // Focus after React commits the new row (totals row is the last <tr>).
+    setTimeout(() => {
+      const scroller = tableScrollRef.current;
+      if (!scroller) return;
+      const trs = scroller.querySelectorAll('tbody tr');
+      const target = trs[trs.length - 2] as HTMLTableRowElement | undefined;
+      const input = target?.cells?.[1]?.querySelector('input');
+      if (input instanceof HTMLInputElement) {
+        input.focus();
+        input.scrollIntoView({ block: 'nearest' });
+      }
+    }, 0);
+  };
+
+  // C3 — spreadsheet keys (chiffrage-redesign-spec): Entrée in an editable
+  // cell commits (state is already live; formatting happens on blur) and
+  // moves focus DOWN to the same column of the next row; on the last data row
+  // focus stays (the totals row carries no inputs). Delegated on the table
+  // scroller — no per-cell wiring, no global listeners; Radix selects render
+  // buttons, not inputs, so Entrée keeps opening them.
+  const onTableKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter') return;
+    const target = e.target as HTMLElement;
+    if (!(target instanceof HTMLInputElement)) return;
+    const td = target.closest('td');
+    const tr = td?.closest('tr');
+    if (!td || !tr) return;
+    e.preventDefault();
+    const col = (td as HTMLTableCellElement).cellIndex;
+    const nextTr = tr.nextElementSibling as HTMLTableRowElement | null;
+    const nextInput = nextTr?.cells?.[col]?.querySelector('input');
+    if (nextInput instanceof HTMLInputElement && !nextInput.disabled) {
+      nextInput.focus();
+      nextInput.select();
+    }
+  };
+
   // Task #5: manual add/remove column affordances are gone. The fixed column
   // set is mandated by the Moroccan devis layout (Vétusté, Type, REF,
   // Désignation, T.V.A, Quantité, P.U.H.T, Total H.T). Counter columns still
@@ -697,6 +778,7 @@ export function DevisEditor({
     const snapshot = previewSnapshot;
     if (!snapshot) return;
     setSaving(true);
+    setSaveBanner(null); // C6 — a fresh save replaces any standing banner.
     try {
       // Task #3 / Task #24: Facture Garage / Devis Garage saves target an
       // accord-variant slot — ordinal 1 upserts the legacy "accordé" slot
@@ -777,6 +859,8 @@ export function DevisEditor({
           );
         }
         toast({ title: `${targetDocType} enregistré`, description: 'Ajouté aux pièces jointes du dossier.' });
+        // C6 — gestionnaire branch succeeded: inline banner (no queue here).
+        setSaveBanner({ nextId: null });
         return;
       }
 
@@ -972,6 +1056,12 @@ export function DevisEditor({
         );
       }
 
+      // C6 — chiffreur branch succeeded (uploaded or queued offline): inline
+      // banner with the exit actions; « Dossier suivant » only when the queue
+      // page stored an order this session (queue-session D1).
+      const queueCtx = chiffrageId ? getQueueContext(chiffrageId) : null;
+      setSaveBanner({ nextId: queueCtx?.nextId ?? null });
+
       if (uploaded) {
         toast({ title: `${targetDocType} enregistre`, description: 'Nouvelle version generee.' });
       }
@@ -983,18 +1073,20 @@ export function DevisEditor({
     }
   };
 
-  // Keyboard: Ctrl+S to save
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        if (!saving) handleSave();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-
-  }, [saving, header, rows, extraColumns]);
+  // C3 — Ctrl/⌘+S goes through the global hotkey registry so it appears in
+  // the « ? » sheet (chiffrage-redesign-spec). allowInInput keeps it firing
+  // while typing in cells; the handler guards the preview dialog (saving
+  // there would re-open the dialog on top of itself).
+  useHotkeys(
+    [{
+      keys: 'mod+s',
+      label: 'Enregistrer',
+      group: 'Éditeur de devis',
+      allowInInput: true,
+      handler: () => { if (!saving && !previewOpen) handleSave(); },
+    }],
+    [saving, previewOpen, header, rows, extraColumns],
+  );
 
   // Render ───────────────────────────────────────────────────────────────
   if (loading) {
@@ -1102,6 +1194,46 @@ export function DevisEditor({
         </Button>
       </div>
 
+      {/* C6 — post-save exit velocity (chiffrage-redesign-spec): inline strip
+          directly under the toolbar — NOT a toast, it carries actions. Status
+          success pair, one-shot fade-in (ease-enter 200 ms, motion-safe);
+          existing toasts stay untouched. */}
+      {saveBanner && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 rounded-lg bg-status-success-bg px-4 py-2 text-status-success-fg animate-in fade-in-0 duration-200 ease-enter motion-reduce:animate-none"
+        >
+          <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="text-sm font-medium">
+            {isGestionnaire ? 'Document enregistré' : 'Accord enregistré'}
+          </span>
+          <span className="flex-1" aria-hidden />
+          {!isGestionnaire && chiffrageId && (
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={`/assignations-chiffrage/${chiffrageId}`}>Retour au dossier</Link>
+            </Button>
+          )}
+          {!isGestionnaire && saveBanner.nextId && (
+            <Button
+              variant="tonal"
+              size="sm"
+              onClick={() => router.push(`/assignations-chiffrage/${saveBanner.nextId}`)}
+            >
+              Dossier suivant →
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            onClick={() => setSaveBanner(null)}
+            aria-label="Fermer la confirmation"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
+
       {extracting && !saving && (
         <div className="t-caption flex items-center gap-2 rounded-lg bg-surface-2 px-4 py-2.5">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1111,17 +1243,16 @@ export function DevisEditor({
 
       {/* Focus-mode split (step-2-information compare pane): the source
           document is a sticky paper pane beside the table, never a thumbnail. */}
-      <div className={cn(comparisonOpen && 'flex items-start gap-6')}>
-        {comparisonOpen && dossierId && (
-          <ReferencePanel
-            dossierId={dossierId}
-            isOpen={comparisonOpen}
-            onClose={() => setComparisonOpen(false)}
-            initialDocType={docType}
-            className="paper sticky top-16 h-[calc((100dvh-10rem)/var(--app-zoom))] w-1/2 min-w-[320px] max-w-[640px] self-start overflow-hidden"
-          />
-        )}
-        <div className={cn(comparisonOpen ? 'flex-1 min-w-0 space-y-4' : 'space-y-4')}>
+      {/* C1 — resizable split (chiffrage-redesign-spec): react-resizable-panels
+          v4 around the comparison layout — source left (~45 %), table right,
+          drag + keyboard handle (the lib renders the ARIA separator), ratio
+          persisted via useDefaultLayout. Group and Panels force
+          overflow-visible / height-auto so the source pane's `sticky top-16`
+          height mechanics keep tracking the page scroller. Below lg the panes
+          stack; the non-compare layout is unchanged. */}
+      {(() => {
+        const editorBody = (
+          <div className="min-w-0 space-y-4">
 
       {/* Identity block — original 3d5629a structure restored: a two-column
           card (`md:grid-cols-2`), HEADER_FIELDS_LEFT in column 1,
@@ -1217,8 +1348,8 @@ export function DevisEditor({
 
       {/* Rows table — fixed columns. The accord/proposition column is created
           automatically when the chiffreur picks via the first-open lightbox.
-          Rows are added only via AI scan, paste, or programmatic flows (no
-          manual "add row" button). Owner ruling 2026-09-02: the table is
+          Rows arrive via AI scan or programmatic flows, plus the manual
+          « Ajouter une ligne » path (C4). Owner ruling 2026-09-02: the table is
           capped at ~20 rows tall and scrolls vertically inside its own card
           (sticky header stays put); horizontal scroll on overflow as before. */}
       {/* Line-item table — element-specs §3 (Polaris data table: "numerical
@@ -1232,7 +1363,14 @@ export function DevisEditor({
           (dense editing), not 44. */}
       <Card className="overflow-hidden">
         {/* ≈ 20 compact rows (36px) + sticky header. */}
-        <div className="relative max-h-[47rem] overflow-x-auto overflow-y-auto">
+        {/* C3 — spreadsheet keys are delegated here (Entrée ↓ / Échap revert
+            in the cell components); wheel is inert on all cells because every
+            numeric cell is type=text + inputMode decimal. */}
+        <div
+          ref={tableScrollRef}
+          className="relative max-h-[47rem] overflow-x-auto overflow-y-auto"
+          onKeyDown={onTableKeyDown}
+        >
           <table className="min-w-[900px] w-full text-xs border-collapse">
             <thead className="sticky top-0 z-10 bg-surface-2">
               <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:whitespace-nowrap [&>th]:text-xs [&>th]:font-normal [&>th]:text-ink-3 [&>th]:tabular-nums [&>th]:border-b [&>th]:border-hairline [&>th]:bg-surface-2">
@@ -1767,9 +1905,14 @@ export function DevisEditor({
                 Per-column: Vétusté/Type/REF/Désignation/T.V.A blank;
                 Quantité = Σ; P.U.H.T = mean; Total H.T = Σ of row totals.
               */}
+              {/* C5 — the totals strip must stay visible while the inner
+                  table scrolls: sticky is applied on the <td>s as well as the
+                  <tr> because Chromium historically only honours sticky on
+                  cells (chiffrage-redesign-spec). */}
               <tr
                 className={cn(
                   'sticky bottom-0 z-10 bg-surface-2 font-semibold tabular-nums text-ink',
+                  '[&>td]:sticky [&>td]:bottom-0',
                   '[&>td]:px-1.5 [&>td]:py-2 [&>td]:border-t [&>td]:border-hairline-strong [&>td]:bg-surface-2',
                 )}
               >
@@ -1822,6 +1965,15 @@ export function DevisEditor({
             </tbody>
           </table>
         </div>
+        {/* C4 — row-add path (chiffrage-redesign-spec): ghost + Plus, inside
+            the card between the table and the totals strip. Appends a blank
+            manual row and focuses its Désignation cell (see addRow). */}
+        <div className="border-t border-hairline px-2 py-1">
+          <Button variant="ghost" size="sm" onClick={addRow} disabled={!isEditable}>
+            <Plus className="h-4 w-4" />
+            Ajouter une ligne
+          </Button>
+        </div>
         {/*
           Single-row summary below the table: Total H.T (under HT col) and
           Total TTC Expert (under Prix en TTC col). Task #16 collapsed the
@@ -1839,9 +1991,68 @@ export function DevisEditor({
         </div>
       </Card>
 
-
-        </div>
-      </div>
+          </div>
+        );
+        if (!(comparisonOpen && dossierId)) return editorBody;
+        const sourcePane = (cls: string) => (
+          <ReferencePanel
+            dossierId={dossierId}
+            isOpen={comparisonOpen}
+            onClose={() => setComparisonOpen(false)}
+            initialDocType={docType}
+            className={cls}
+          />
+        );
+        if (stackedCompare) {
+          // C1 — below lg: stacked, source above the table (both share the
+          // page scroll, so no sticky here).
+          return (
+            <div className="space-y-4">
+              {sourcePane('paper h-[calc((100dvh-14rem)/var(--app-zoom))] w-full overflow-hidden')}
+              {editorBody}
+            </div>
+          );
+        }
+        return (
+          <SplitGroup
+            orientation="horizontal"
+            defaultLayout={splitDefaultLayout}
+            onLayoutChanged={onSplitLayoutChanged}
+            // height:auto + overflow:visible so the group flows with the page
+            // instead of clipping the sticky source pane.
+            style={{ height: 'auto', overflow: 'visible' }}
+          >
+            <SplitPanel
+              id="source"
+              defaultSize="45%"
+              minSize="28%"
+              style={{ overflow: 'visible', maxHeight: 'none' }}
+            >
+              {sourcePane('paper sticky top-16 h-[calc((100dvh-10rem)/var(--app-zoom))] w-full overflow-hidden')}
+            </SplitPanel>
+            {/* C1 — quiet 1 px hairline handle with a grabber-dot area that
+                stays mid-viewport; hover/drag tint per spec. */}
+            <SplitSeparator
+              aria-label="Redimensionner la comparaison"
+              className="relative mx-1.5 w-2 shrink-0 rounded-full transition-colors duration-150 hover:bg-surface-3 data-[separator=active]:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div aria-hidden className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-hairline" />
+              <div aria-hidden className="sticky top-[calc(50dvh/var(--app-zoom))] flex flex-col items-center gap-1">
+                <span className="h-1 w-1 rounded-full bg-ink-4" />
+                <span className="h-1 w-1 rounded-full bg-ink-4" />
+                <span className="h-1 w-1 rounded-full bg-ink-4" />
+              </div>
+            </SplitSeparator>
+            <SplitPanel
+              id="table"
+              minSize="40%"
+              style={{ overflow: 'visible', maxHeight: 'none' }}
+            >
+              {editorBody}
+            </SplitPanel>
+          </SplitGroup>
+        );
+      })()}
 
       {/*
         Task #23 — save-flow preview. Opened by the Enregistrer button (and
@@ -1927,10 +2138,19 @@ const CELL_INPUT_CLASS =
 function CellInput({
   value, onChange, disabled, className,
 }: { value: string; onChange: (v: string) => void; disabled?: boolean; className?: string }) {
+  // C3 — Échap reverts to the pre-focus value (chiffrage-redesign-spec);
+  // stopPropagation only when a change is actually reverted.
+  const focusValueRef = useRef(value);
   return (
     <input
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onFocus={() => { focusValueRef.current = value; }}
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || value === focusValueRef.current) return;
+        e.stopPropagation();
+        onChange(focusValueRef.current);
+      }}
       disabled={disabled}
       className={cn(CELL_INPUT_CLASS, className)}
     />
@@ -1949,10 +2169,18 @@ function AccordPUInput({
   disabled?: boolean;
   error?: boolean;
 }) {
+  // C3 — Échap reverts to the pre-focus value (chiffrage-redesign-spec).
+  const focusValueRef = useRef(value);
   return (
     <input
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onFocus={() => { focusValueRef.current = value; }}
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || value === focusValueRef.current) return;
+        e.stopPropagation();
+        onChange(focusValueRef.current);
+      }}
       onBlur={onBlurValidate}
       disabled={disabled}
       inputMode="decimal"
