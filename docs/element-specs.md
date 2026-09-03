@@ -613,3 +613,50 @@ addendum ter A; consistent with the dossiers keyboard spine (2026-09-03 §B).
 - Rejected for this volume (≤50): search, column sort, snooze, auto-advance,
   pagination, extra badges. Owner-pending: date-section headers; stale-rappel
   aging signal (danger pair if ever — never terracotta).
+
+---
+
+# Addendum 2026-09-03 — Missions terrain rebuild (owner: "do everything except C and D")
+
+Owner accepted the terrain research dossier (docs/research/terrain-*.md +
+terrain-synthesis.md) in full minus Options C (Gantt) and D (kanban). The
+following are now standing rulings for queue pages:
+
+1. **Triage order**: deadline-bucketed groups run En retard → Aujourd'hui →
+   À venir (StatPearls triage: highest acuity first; mere-urgency effect).
+2. **Emphasis budget in queue rows: 2 bold cells** (identifier + the decision
+   figure). Related pairs stack into one slot (Assuré⏎plaque, Zone⏎adresse);
+   audit metadata (Créé le/par, Assigné par) lives in the peek panel, never
+   in the row. Deadline sits in column 3 (left-of-centre attention zone).
+3. **Peek panel**: on desktop, a queue row opens a right Sheet (read-only
+   summary + quick actions + « Ouvrir le dossier »); full-page navigation
+   stays the phone pattern. Never modal-to-read (§13 still applies).
+4. **Urgency ramps are LIGHTNESS staircases**: quiet outline → warning tint
+   → danger tint → ONE solid danger fill (`Badge variant="dangerSolid"`,
+   `--status-danger-solid`) reserved for the top step + alert glyph. Inside
+   a group that already encodes the alarm positionally (En retard), per-row
+   chips stay at the tint (`calm`) and the group header carries the red count.
+5. **Status tint triads are derived ON the cream canvas** (OKLCH): bg L
+   0.93–0.955 band, fg = dark same-hue ≥ 7:1 on its own tint (light theme
+   values updated 2026-09-03; verify any new pair with the same audit).
+6. **Triage strip**: 3–5 actionable click-to-jump counts above the queue
+   (En retard N / Aujourd'hui N / À venir N / Prochaine HH:mm / Sans agent N)
+   — badge grammar, danger only when nonzero, never vanity metrics.
+7. **Quick actions ride the row** (hover-revealed cluster ≤ 4 ghost icons:
+   appeler / WhatsApp / itinéraire / réassigner) and repeat in the peek —
+   hover is never the only path. WhatsApp via wa.me deep links; « En route »
+   sends a prefilled ETA message; « Arrivé sur place » stamps time + GPS on
+   the planification. Reassign/bulk-reassign use an undo TOAST, not confirm.
+8. **Per-table density** (« Affichage »: compacte 36 / normale 44) persisted
+   per user via the page's filter store — same control as the dossiers list.
+9. **Date ink inside the Aujourd'hui group is HH:mm only** (the header names
+   the day); other groups print « d MMM HH:mm »; absolute dates always.
+10. **Lens switchers (liste ⇄ carte) are Tabs** (browser-tab shape, §4),
+    persisted; the map is vanilla leaflet + OSM + Nominatim geocoding
+    (src/lib/geocode.ts — cached, 1.1 s throttled, countrycodes=ma).
+11. **Ctrl+K on a queue page opens the PAGE palette** (missions + actions,
+    capture-phase listener; the header search button still opens the global
+    palette). No vim layer: arrows + Enter + palette-taught shortcuts.
+12. **Photo progress chip** per row/card: success tint when the stage has
+    photos, quiet outline « 0 photo » otherwise (zero is the normal pending
+    state, not an exception).
