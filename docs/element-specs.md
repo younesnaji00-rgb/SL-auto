@@ -514,3 +514,50 @@ rounds). Rules below extend §2–§3 and addendum ter A/B.
    eyes required.
 9. **Grayscale check of status-family lightnesses** (90/92/94 % bg may merge
    in grayscale).
+
+# Addendum 2026-09-03 (bis) — mes-rappels: queue anatomy (implemented)
+
+Four research rounds on `/mes-rappels` (synthesis + sources + honest
+unfetched list: `docs/research/mes-rappels-queue.md`). Extends §3/§7/§11 and
+addendum ter A; consistent with the dossiers keyboard spine (2026-09-03 §B).
+
+## A. Structure — table-anchored master-detail
+- A rappel is a message processed once, not a record compared: the Reçus
+  queue is a slim 6-column table + a detail panel (xl+: sticky side panel;
+  below xl: sheet). Row click = SELECT (opens panel, marks Nouveau → Lu);
+  navigation away is an explicit « Ouvrir le dossier » act (panel button, and
+  the ref cell keeps the session-handshake click-through — tour contract).
+- The panel absorbs: full observation (reading size 15px), dossier identity
+  (`dossierData.refExpert` / assuré), session timeline (the two removed
+  live columns — now ONE listener pair for the selected rappel, not 2×N),
+  replay access, actions. Selected row = the primitive's
+  `data-state="selected"`.
+- Envoyés tab untouched (tour contract: expandable groups, « Voir le
+  détail » in the sub-row).
+
+## B. Queue rules
+- **Unread encoding = teal left bar (in the sticky ref cell) + full-ink
+  ladder + Nouveau chip.** No background tint (channel is spent on
+  hover/selected), no dot (fails peripherally — tested source in the
+  research file). Read rows drop ink, never weight <400.
+- Only the Nouveau chip carries the info pair; Lu neutral, Traité success —
+  chips confirm, the bar+weight signals.
+- **Segments « À traiter (n) / Traités »** = segmented control + SlidingThumb
+  (value picker, NOT tabs). Default À traiter. Counts = surface-3 pills.
+- **Traité leaves the queue immediately** (undo in the toast — never a
+  confirm). Traités segment: newest first, quiet rows.
+- **FIFO: À traiter oldest-first** (addendum ter A action-needed order
+  applied; sort client-side on the page — `use-rappels` stays createdAt DESC
+  for the bell). No sort UI; the fixed order is the sort.
+- **One-line row grid restored**: observation clamps to one line +
+  `title`; full text lives in the panel. Dates absolute dd/MM/yyyy HH:mm in
+  cells, relative age in the tooltip (2026-09-03 §C ruling; overrides the
+  research round's generic relative-first advice).
+- **Keyboard (group « Mes rappels »)**: ↑/↓ and j/k move the selection,
+  Entrée = ouvrir le dossier, t = marquer traité, Échap = fermer. Action
+  keys register only while a rappel is selected (button/dialog keys never
+  hijacked); hints in the panel's empty state via `Kbd`. No animation on
+  keyboard-driven moves (F0).
+- Rejected for this volume (≤50): search, column sort, snooze, auto-advance,
+  pagination, extra badges. Owner-pending: date-section headers; stale-rappel
+  aging signal (danger pair if ever — never terracotta).
