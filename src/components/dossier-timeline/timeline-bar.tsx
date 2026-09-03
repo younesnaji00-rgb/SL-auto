@@ -377,13 +377,23 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                 ref={(el) => {
                   stepBtnRefs.current[idx] = el;
                 }}
-                disabled={blocked}
-                title={blocked ? step.blockedReason : `${step.longLabel} — ${step.statusLabel}`}
-                aria-label={`Étape ${idx + 1} : ${step.longLabel} — ${step.statusLabel}`}
-                onClick={() => onStepClick(step.id)}
-                onMouseEnter={() => !blocked && inspect(step.id)}
+                // NOT `disabled` (owner 2026-09-03: hovering the blocked
+                // « 2ᵉ accord » squeezed the left side): browsers fire no
+                // mouse events on disabled buttons, so the freeze/quiet
+                // state never engaged while the CSS group-hover reveal
+                // still expanded the button — unprotected growth. Blocked
+                // steps are aria-disabled, participate in inspection like
+                // any step (their reveal shows the blocked reason), and
+                // only the click is inert.
+                aria-disabled={blocked || undefined}
+                title={`${step.longLabel} — ${step.statusLabel}`}
+                aria-label={`Étape ${idx + 1} : ${step.longLabel} — ${step.statusLabel}${blocked && step.blockedReason ? ` (${step.blockedReason})` : ''}`}
+                onClick={() => {
+                  if (!blocked) onStepClick(step.id);
+                }}
+                onMouseEnter={() => inspect(step.id)}
                 onMouseLeave={() => release(step.id)}
-                onFocus={() => !blocked && inspect(step.id)}
+                onFocus={() => inspect(step.id)}
                 onBlur={() => release(step.id)}
                 aria-current={isActive ? 'step' : undefined}
                 data-step-active={isActive || undefined}

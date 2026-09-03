@@ -629,7 +629,15 @@ Owner live-test rulings, rounds 3–5, implemented same day:
    min-width floor (owner 2026-09-03: "remove any hard limit"): the
    right-hand lines may contract to zero so the reveal takes ALL its
    room from the right side — re-verified in a 900px-narrow harness
-   (zero left drift, right medallions pack fully).
+   (zero left drift, right medallions pack fully). (f) BLOCKED steps are
+   `aria-disabled`, never `disabled` (owner 2026-09-03 — the real
+   squeeze-left culprit): browsers fire no mouse events on disabled
+   buttons, so a blocked step's CSS group-hover reveal expanded WITHOUT
+   the freeze/quiet state ever engaging. Blocked steps now participate
+   in inspection like any step (reveal shows the blocked reason, click
+   inert, reason in the aria-label; the duplicate native title tooltip
+   is gone). Any future hover-reveal element must trigger the state
+   machinery on EVERY variant that can visually expand.
    A long
    doer name in the hover stamp stacks over two rows (prénom / nom,
    `StepStamp stackLongName`, threshold 14 chars) instead of stretching the
