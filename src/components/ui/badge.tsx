@@ -18,8 +18,10 @@ const STATUS_PAIR = {
 
 const badgeVariants = cva(
   // Optional 12 px leading icon (Carbon tag: "decorative icons are optional
-  // and support the tag title"; element-specs §11).
-  "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:shrink-0",
+  // and support the tag title"; element-specs §11). 11 px sits below
+  // Butterick's 9 pt lowercase floor → medium weight + a hair of tracking
+  // (consultation typography pass 2026-09-03).
+  "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 tracking-[0.01em] tabular-nums focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:shrink-0",
   {
     variants: {
       variant: {
