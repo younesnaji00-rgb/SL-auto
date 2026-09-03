@@ -117,6 +117,14 @@ export interface SlotCardProps {
    * to this specific slot.
    */
   onEdit?: () => void;
+  /**
+   * Optional version-state chip (`Actuel` / `Remplacé` / `Envoyé` — spec B2)
+   * rendered in the filled tile's header row, before the slot controls.
+   * ADDITIVE-ONLY: when omitted the tile renders pixel-identically to before
+   * (dossier-timeline callers pass nothing). Used by the chiffrage accord
+   * pipeline (`components/chiffrage/accord-pipeline.tsx`).
+   */
+  versionChip?: React.ReactNode;
   /** DOM id on the tile root (summary-line links scroll/focus to it). */
   id?: string;
   /** `t-caption` under the slot name in the empty / locked states ("obligatoire"). */
@@ -217,6 +225,7 @@ export function SlotCard({
   hideCardinalPlus,
   hideExtraSlotPlus,
   onEdit,
+  versionChip,
   id,
   hint,
   emptyCaption = 'Déposer',
@@ -460,8 +469,13 @@ export function SlotCard({
         {/* The only "received" signal — a 2 px success edge. No chip. */}
         <div aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-status-success-fg/60" />
 
-        {/* Controls row (only when a control exists) */}
-        {controls ? (
+        {/* Controls row (only when a control or a version chip exists) */}
+        {versionChip ? (
+          <div className="flex items-center justify-between gap-1 px-2.5 pt-2">
+            {versionChip}
+            <div className="flex items-center gap-1">{controls}</div>
+          </div>
+        ) : controls ? (
           <div className="flex items-center justify-end gap-1 px-2.5 pt-2">{controls}</div>
         ) : (
           <div className="pt-2" aria-hidden />
@@ -580,9 +594,10 @@ export function SlotCard({
         {/* The only "received" signal — a 2 px success edge. No chip. */}
         <div aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-status-success-fg/60" />
 
-        {/* Slot label + controls */}
+        {/* Slot label + optional version chip + controls */}
         <div className="flex items-center gap-1 px-2.5 pb-1 pt-2">
           <span className="t-caption min-w-0 flex-1 truncate font-medium" title={slot}>{slot}</span>
+          {versionChip}
           {controls}
         </div>
 
