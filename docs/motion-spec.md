@@ -609,16 +609,23 @@ Owner live-test rulings, rounds 3–5, implemented same day:
    fold-back and ANIMATES each styled connector to its natural width
    (200ms standard) instead of snapping; (b) leaving a step keeps the
    inspection alive for a 100ms grace so a transfer to a neighbour never
-   passes through the unfrozen null state; (c) while a step is inspected,
-   a rAF loop feeds every px the LEFT buttons lose (a neighbour's details
-   mid-collapse) into the connector adjacent to the inspected step —
-   forcing layout inside rAF samples the in-flight transition at the
-   current timestamp, so the correction paints in the SAME frame
-   (a ResizeObserver ran a frame late and visibly dipped ~67px;
-   flex-grow-999 routing leaked the right side's folded width into the
-   left gap and shoved the hovered step ~300px right). Verified with a
-   post-paint sampler: zero painted drift on every step during clean
-   entry AND hover transfer — pre-paint probes show phantom dips.
+   passes through the unfrozen null state; (c) a LEFT button whose
+   details span is still open at freeze time is a hand-over mid-collapse:
+   the connector right of it GROWS by the same Δ (span width + its
+   ml-1.5) as a CSS width transition on the SAME 200ms standard clock,
+   started in the same frame — the style engine keeps the pair's sum
+   constant on every painted frame in every browser (a rAF compensator
+   depended on when the engine samples in-flight transitions; a RO ran a
+   frame late and dipped ~67px; flex-grow-999 routing leaked the right
+   side's folded width into the left gap and shoved the hovered step
+   ~300px right); (d) the active-step veil is a per-frame FOLLOWER
+   (owner: "the bg colour doesn't follow the pill"): a rAF loop measures
+   the active button's offset-chain box and writes the indicator style
+   imperatively only when it changed — event-driven re-measures missed
+   position shifts from connector freezes/settles and stranded the veil.
+   Verified: zero drift on every step in painted AND mid-frame sampling
+   for clean entry, hover transfer, and a 15-sweep chaos run; the veil
+   ends pixel-aligned on the active step.
    A long
    doer name in the hover stamp stacks over two rows (prénom / nom,
    `StepStamp stackLongName`, threshold 14 chars) instead of stretching the

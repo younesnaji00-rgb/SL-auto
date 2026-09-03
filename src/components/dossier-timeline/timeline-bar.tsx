@@ -262,27 +262,28 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
     // Frozen connectors pin the left side, but a LEFT BUTTON still changes
     // width while this step is inspected — hover transferred from a
     // neighbour whose details are mid-collapse (owner 2026-09-03:
-    // « 2ᵉ accord » slid ~70px left on transfer). A rAF loop feeds every px
-    // the left buttons lose into the connector adjacent to the inspected
-    // step: forcing layout inside rAF samples the in-flight transition at
-    // the CURRENT timestamp, so the correction paints in the same frame
-    // (a ResizeObserver ran a frame late and visibly dipped; flex-grow
-    // routing leaked the right side's folded width into the left gap).
-    const compIdx = inspectedIdx - 1;
-    const leftBtns = stepBtnRefs.current.slice(0, inspectedIdx).filter((b): b is HTMLElement => !!b);
-    let raf = 0;
-    if (compIdx >= 0 && cons[compIdx] && leftBtns.length > 0) {
-      const sum = () => leftBtns.reduce((a, b) => a + b.offsetWidth, 0);
-      const sumAtFreeze = sum();
-      const compBase = bases[compIdx] ?? 0;
-      const tick = () => {
-        const el = cons[compIdx];
-        if (el) el.style.width = `${Math.max(2, compBase + (sumAtFreeze - sum()))}px`;
-        raf = requestAnimationFrame(tick);
-      };
-      raf = requestAnimationFrame(tick);
+    // « 2ᵉ accord » slid left, cramping the previous steps). Any left
+    // button still showing its details span is such a hand-over: its
+    // reveal collapses by Δ over 200ms on the standard curve, so the
+    // connector right of it GROWS by the same Δ as a CSS transition with
+    // the same clock, started in the same frame — the style engine then
+    // keeps the pair's sum constant on every painted frame, in every
+    // browser. (A rAF compensator depended on when the engine samples
+    // in-flight transitions; flex-grow routing leaked the right side's
+    // folded width into the left gap.)
+    for (let j = 0; j < inspectedIdx; j++) {
+      const btn = stepBtnRefs.current[j];
+      const el = cons[j];
+      if (!btn || !el) continue;
+      const details = btn.querySelectorAll<HTMLElement>(':scope > span.grid')[1];
+      if (!details) continue;
+      const w = details.offsetWidth;
+      if (w <= 0) continue;
+      const delta = w + 6; // + the reveal's ml-1.5, collapsing on the same clock
+      void el.offsetWidth; // commit the frozen base before transitioning
+      el.style.transition = 'width 200ms cubic-bezier(0.2, 0, 0, 1)';
+      el.style.width = `${(bases[j] ?? el.offsetWidth) + delta}px`;
     }
-    return () => cancelAnimationFrame(raf);
   }, [inspectedIdx, steps.length]);
   React.useEffect(
     () => () => {
@@ -294,55 +295,74 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
   // Symbiote morph for the step bar (owner 2026-09-02): the active pill's
   // surface (accent veil + rim) is ONE indicator that slides from the old
   // step to the new one; buttons keep only their text/medallion treatment.
-  // Measured with the offset chain (zoom/scroll-safe); a ResizeObserver on
-  // the active button follows its width as the title unfolds.
+  // Owner 2026-09-03 ("the bg colour doesn't follow the pill — foolproof
+  // for all edge cases"): event-driven re-measures (RO + state deps) missed
+  // POSITION shifts from connector freezes/settles, stranding the veil. The
+  // indicator is now a per-frame FOLLOWER: a rAF loop measures the active
+  // button's offset-chain box (zoom/scroll-safe) and writes the style
+  // imperatively when it changed — idle frames touch nothing, and any
+  // layout change from any cause is tracked within a frame. Discrete jumps
+  // (a new active step) still glide on the 300ms standard transition; the
+  // first placement snaps.
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  const [box, setBox] = React.useState<{ top: number; left: number; width: number; height: number } | null>(null);
-  const readyRef = React.useRef(false);
-  const measure = React.useCallback(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-    const btn = container.querySelector<HTMLElement>('[data-step-active="true"]');
-    if (!btn) {
-      setBox(null);
-      return;
-    }
-    let top = 0;
-    let left = 0;
-    let node: HTMLElement | null = btn;
-    while (node && node !== container) {
-      top += node.offsetTop;
-      left += node.offsetLeft;
-      node = node.offsetParent as HTMLElement | null;
-    }
-    setBox({ top, left, width: btn.offsetWidth, height: btn.offsetHeight });
-  }, []);
-  /* eslint-disable-next-line react-hooks/exhaustive-deps */
-  React.useLayoutEffect(measure, [activeId, inspectedId, steps.length]);
+  const indicatorRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     const container = scrollRef.current;
-    if (!container) return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(container);
-    const btn = container.querySelector<HTMLElement>('[data-step-active="true"]');
-    if (btn) ro.observe(btn);
-    return () => ro.disconnect();
-  }, [measure, activeId]);
-  React.useEffect(() => {
-    if (box) readyRef.current = true;
-  }, [box]);
+    const ind = indicatorRef.current;
+    if (!container || !ind) return;
+    let raf = 0;
+    let placed = false;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const btn = container.querySelector<HTMLElement>('[data-step-active="true"]');
+      if (!btn) {
+        ind.style.opacity = '0';
+        placed = false;
+        return;
+      }
+      let top = 0;
+      let left = 0;
+      let node: HTMLElement | null = btn;
+      while (node && node !== container) {
+        top += node.offsetTop;
+        left += node.offsetLeft;
+        node = node.offsetParent as HTMLElement | null;
+      }
+      const next = {
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${btn.offsetWidth}px`,
+        height: `${btn.offsetHeight}px`,
+      };
+      if (
+        ind.style.top !== next.top ||
+        ind.style.left !== next.left ||
+        ind.style.width !== next.width ||
+        ind.style.height !== next.height
+      ) {
+        ind.style.transition =
+          placed && !prefersReducedMotion()
+            ? 'top 300ms cubic-bezier(0.2, 0, 0, 1), left 300ms cubic-bezier(0.2, 0, 0, 1), width 300ms cubic-bezier(0.2, 0, 0, 1), height 300ms cubic-bezier(0.2, 0, 0, 1)'
+            : 'none';
+        ind.style.top = next.top;
+        ind.style.left = next.left;
+        ind.style.width = next.width;
+        ind.style.height = next.height;
+        placed = true;
+      }
+      ind.style.opacity = '1';
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [steps.length]);
 
   return (
     <nav aria-label="Étapes du dossier" className={cn('relative w-full', className)}>
       <div ref={scrollRef} className="relative flex h-12 w-full items-center gap-0.5 overflow-x-auto px-3 [scrollbar-width:none] sm:px-5 [&::-webkit-scrollbar]:hidden">
         <div
+          ref={indicatorRef}
           aria-hidden
-          className={cn(
-            'pointer-events-none absolute z-0 rounded-full bg-accent/50 shadow-rim',
-            readyRef.current && 'transition-[top,left,width,height,opacity] duration-300 ease-standard motion-reduce:transition-none',
-            box ? 'opacity-100' : 'opacity-0',
-          )}
-          style={box ?? undefined}
+          className="pointer-events-none absolute z-0 rounded-full bg-accent/50 opacity-0 shadow-rim"
         />
         {steps.map((step, idx) => {
           const isActive = step.id === activeId;
