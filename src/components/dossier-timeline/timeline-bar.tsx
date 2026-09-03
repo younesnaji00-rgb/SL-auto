@@ -160,22 +160,51 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
   // non-last step is inspected, the connectors left of it are frozen at their
   // current width; only the right-hand connectors absorb the reveal.
   const connectorRefs = React.useRef<(HTMLElement | null)[]>([]);
+  const unfreezeTimerRef = React.useRef<number | null>(null);
   React.useLayoutEffect(() => {
     const cons = connectorRefs.current;
-    for (const el of cons) {
-      if (el) {
+    const releaseAll = () => {
+      for (const el of cons) {
+        if (el) {
+          el.style.flex = '';
+          el.style.width = '';
+        }
+      }
+    };
+    if (unfreezeTimerRef.current != null) {
+      window.clearTimeout(unfreezeTimerRef.current);
+      unfreezeTimerRef.current = null;
+    }
+    if (inspectedIdx === -1 || inspectedIdx === steps.length - 1) {
+      // Release only AFTER the 200ms fold-back (owner 2026-09-03: releasing
+      // on leave, while the step was still expanded, dumped its width into
+      // the re-flexed left connectors — a visible left jolt). By the time
+      // the timer fires the reveal has collapsed, so the release computes
+      // back to the frozen widths and repaints nothing.
+      unfreezeTimerRef.current = window.setTimeout(() => {
+        unfreezeTimerRef.current = null;
+        releaseAll();
+      }, 250);
+      return;
+    }
+    for (let j = 0; j < cons.length; j++) {
+      const el = cons[j];
+      if (!el) continue;
+      if (j < inspectedIdx) {
+        el.style.width = `${el.offsetWidth}px`;
+        el.style.flex = '0 0 auto';
+      } else {
         el.style.flex = '';
         el.style.width = '';
       }
     }
-    if (inspectedIdx === -1 || inspectedIdx === steps.length - 1) return;
-    for (let j = 0; j < inspectedIdx; j++) {
-      const el = cons[j];
-      if (!el) continue;
-      el.style.width = `${el.offsetWidth}px`;
-      el.style.flex = '0 0 auto';
-    }
   }, [inspectedIdx, steps.length]);
+  React.useEffect(
+    () => () => {
+      if (unfreezeTimerRef.current != null) window.clearTimeout(unfreezeTimerRef.current);
+    },
+    [],
+  );
 
   // Symbiote morph for the step bar (owner 2026-09-02): the active pill's
   // surface (accent veil + rim) is ONE indicator that slides from the old
