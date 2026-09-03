@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageLoader } from '@/components/ui/page-loader';
-import { AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { AlertCircle, Check, Eye, EyeOff } from 'lucide-react';
 import Logo from '@/components/logo';
 import { useToast } from '@/hooks/use-toast';
 
@@ -110,6 +110,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // Success morph state — true from sign-in success until navigation.
+  const [loginSuccess, setLoginSuccess] = useState(false);
 
   // Redirect already-authenticated users to dashboard, BUT only when the
   // live Firebase Auth user matches this tab's expected identity. If another
@@ -383,6 +385,12 @@ export default function LoginPage() {
       }
 
       window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
+      // Success morph (motion-spec §5 / §1.2: login is an F3 moment — the
+      // one daily event allowed a small ceremony): ✓ « Connecté » held
+      // briefly before the app opens. Content swap only, no motion — safe
+      // under reduced motion.
+      setLoginSuccess(true);
+      await new Promise((r) => setTimeout(r, 700));
       router.push(landingPathFor(userData.role));
     } catch (err: any) {
       console.error('Login error:', err);
@@ -543,8 +551,13 @@ export default function LoginPage() {
             </Alert>
           )}
 
-          <Button type="submit" className="w-full" loading={loading}>
-            {loading ? 'Connexion…' : 'Se connecter'}
+          <Button type="submit" className="w-full" loading={loading && !loginSuccess} disabled={loading || loginSuccess}>
+            {loginSuccess ? (
+              <>
+                <Check className="h-4 w-4" aria-hidden />
+                Connecté
+              </>
+            ) : loading ? 'Connexion…' : 'Se connecter'}
           </Button>
         </form>
       </Card>

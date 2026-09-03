@@ -74,6 +74,22 @@ export function RecordBar({
   useRegisterPageTitle(label);
   const router = useRouter();
 
+  // Arrival moment for a JUST-CREATED dossier (motion-spec §1.2 F3 + §8
+  // Yellow-Fade): create-dossier-dialog stamps sessionStorage before
+  // navigating here; the new ref takes ONE 2 s teal value-flash so the
+  // landing visibly acknowledges the birth. Flag read-once, never on
+  // ordinary opens or refreshes.
+  const [justCreated, setJustCreated] = React.useState(false);
+  useEffect(() => {
+    try {
+      if (window.sessionStorage.getItem('dossier_just_created') === dossierId) {
+        window.sessionStorage.removeItem('dossier_just_created');
+        setJustCreated(true);
+        window.setTimeout(() => setJustCreated(false), 2100);
+      }
+    } catch { /* ignore */ }
+  }, [dossierId]);
+
   // « Précédent / suivant » iterate the list page's filtered order (written
   // to sessionStorage when a row is opened — anti pogo-sticking, research
   // 2026-09-03). Hidden entirely when the dossier wasn't opened from the list.
@@ -166,7 +182,13 @@ export function RecordBar({
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
         {/* Reading order: ref (mono, ink) → assuré (ink) → compagnie / plaque (ink-3) → statut. */}
-        <h1 className="t-mono min-w-0 truncate font-semibold tracking-tight" title={dossier?.refExpert || undefined}>
+        <h1
+          className={cn(
+            't-mono min-w-0 truncate rounded-md font-semibold tracking-tight',
+            justCreated && 'animate-value-flash px-1 -mx-1',
+          )}
+          title={dossier?.refExpert || undefined}
+        >
           {dossier?.refExpert || 'Sans réf.'}
         </h1>
         {assureName(dossier?.assure) && (

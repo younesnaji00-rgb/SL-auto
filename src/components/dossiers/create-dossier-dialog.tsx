@@ -169,6 +169,12 @@ export function CreateDossierDialog({
       );
       resetForm();
       onOpenChange(false);
+      // Arrival moment (motion-spec §1.2 F3 — a dossier is born a few times a
+      // day at most): the detail page reads this flag once and gives the new
+      // ref one teal value-flash so the navigation lands somewhere visibly new.
+      try {
+        window.sessionStorage.setItem('dossier_just_created', id);
+      } catch { /* ignore */ }
       onCreated?.(id);
     } catch (e: any) {
       console.error('Create dossier error:', e);

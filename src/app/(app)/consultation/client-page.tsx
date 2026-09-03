@@ -3,7 +3,7 @@
 import React, { useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Search, AlertCircle, FolderOpen, ChevronRight, Columns3, Download } from 'lucide-react';
+import { Search, AlertCircle, FolderOpen, ChevronRight, Columns3, Download, Check } from 'lucide-react';
 import { format, parseISO, isValid, isToday, startOfDay, startOfWeek, startOfMonth, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
@@ -35,7 +35,6 @@ import { exportToExcel, type ExportColumn } from '@/lib/export-excel';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SlidingThumb } from '@/components/ui/sliding-thumb';
-import { useToast } from '@/hooks/use-toast';
 
 // ── Status chip (element-specs §11): the shared app-wide mapping — the local
 //    stand-in was retired 2026-09-02 (it coloured « Proposition d'accord »
@@ -122,7 +121,6 @@ const HIDEABLE_COLUMNS = COLUMNS.filter((c) => c.key !== 'refExpert');
 
 export default function ConsultationClientPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const { options: dbCompagnies } = useOptions('compagnies');
   const { options: dbNatures } = useOptions('options_natures');
   const { options: dbStatuses } = useOptions('options_statuts');
@@ -413,17 +411,18 @@ export default function ConsultationClientPage() {
     ? ` · du ${filters.dateFrom ? fmtIsoDay(filters.dateFrom) : '—'} au ${filters.dateTo ? fmtIsoDay(filters.dateTo) : '—'}`
     : '';
 
+  // Success morph on the button itself (motion-spec §5 I1 idiom + §10:
+  // feedback near the element beats a corner toast) — export is this page's
+  // one occasional completing action (F3-adjacent). Reverts after ~1.5 s.
+  const [exported, setExported] = React.useState(false);
   const handleExport = () => {
     exportToExcel(
       sortedList,
       visibleColumns,
       `consultation_export_${format(new Date(), 'dd-MM-yyyy')}.xlsx`,
     );
-    // Passive confirmation → toast (§14); the figure names the real scope.
-    toast({
-      title: 'Export terminé',
-      description: `${sortedList.length} dossier${sortedList.length > 1 ? 's' : ''} · colonnes visibles`,
-    });
+    setExported(true);
+    window.setTimeout(() => setExported(false), 1500);
   };
 
   return (
@@ -635,9 +634,9 @@ export default function ConsultationClientPage() {
           {/* Export = the FILTERED rows in the VISIBLE column order, never the
               raw collection (Retool forums: the mismatch is the failure mode). */}
           {sortedList.length > 0 && (
-            <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" onClick={handleExport} title="Exporter la liste filtrée en Excel">
-              <Download className="h-4 w-4" aria-hidden />
-              Exporter
+            <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" onClick={handleExport} disabled={exported} title="Exporter la liste filtrée en Excel">
+              {exported ? <Check className="h-4 w-4" aria-hidden /> : <Download className="h-4 w-4" aria-hidden />}
+              {exported ? 'Exporté' : 'Exporter'}
             </Button>
           )}
         </div>

@@ -683,3 +683,25 @@ Owner live-test rulings, rounds 3–5, implemented same day:
    faint shared-scale track, busiest stage in deeper teal, rows click
    through to the réalisé drawer. Charts stay `isAnimationActive={false}`
    and bar widths do NOT transition on filter change (F0).
+
+## Addendum 2026-09-03 — spending the F3 budget (owner: "do those hero moments")
+
+The app under-spent §1.5's one-hero-per-view allowance; three F3 moments
+added, each a content swap or the existing Yellow-Fade (no new motion
+vocabulary, reduced-motion safe by construction):
+
+1. **Login success morph** (§1.2 lists login as F3): the submit button
+   morphs to ✓ « Connecté », held 700 ms before navigation
+   (`app/login/page.tsx`). Same I1 idiom as envoyer/chiffrage.
+2. **Export success morph** on /consultation: « Exporter » → ✓ « Exporté »
+   for 1.5 s (I1 idiom extended to this page's one occasional completing
+   action; replaces the round-2 corner toast per §10 inline-beats-toast).
+3. **New-dossier arrival flash**: create-dossier-dialog stamps
+   `sessionStorage.dossier_just_created`; the RecordBar reads it ONCE and
+   the new ref takes one 2 s `animate-value-flash` (§8 Yellow-Fade — the
+   element the navigation was about). Never fires on ordinary opens.
+
+Existing hero moments verified still shipped: document lands
+(slot-card scale-in), envoi chiffrage + email ✓ morphs. NOT visually
+verified (owner's eyes): the 700 ms login hold feel, the arrival flash
+against the record bar's glass.
