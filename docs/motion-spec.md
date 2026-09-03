@@ -604,6 +604,21 @@ Owner live-test rulings, rounds 3–5, implemented same day:
    can't drift — only the right-hand flex-1 connectors absorb the reveal.
    Exception: the LAST step (8ᵉ, Honoraires) has no right side, so it alone
    keeps the old behaviour and grows leftward, folding its left siblings.
+   Refinements 2026-09-03 (owner: hover-off jolt; « 2ᵉ accord » pushed
+   left on hover transfer): (a) the un-freeze waits 250ms past the
+   fold-back and ANIMATES each styled connector to its natural width
+   (200ms standard) instead of snapping; (b) leaving a step keeps the
+   inspection alive for a 100ms grace so a transfer to a neighbour never
+   passes through the unfrozen null state; (c) while a step is inspected,
+   a rAF loop feeds every px the LEFT buttons lose (a neighbour's details
+   mid-collapse) into the connector adjacent to the inspected step —
+   forcing layout inside rAF samples the in-flight transition at the
+   current timestamp, so the correction paints in the SAME frame
+   (a ResizeObserver ran a frame late and visibly dipped ~67px;
+   flex-grow-999 routing leaked the right side's folded width into the
+   left gap and shoved the hovered step ~300px right). Verified with a
+   post-paint sampler: zero painted drift on every step during clean
+   entry AND hover transfer — pre-paint probes show phantom dips.
    A long
    doer name in the hover stamp stacks over two rows (prénom / nom,
    `StepStamp stackLongName`, threshold 14 chars) instead of stretching the

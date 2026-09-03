@@ -21,6 +21,7 @@ import { Check, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UserNameLink } from '@/components/user-name-link';
 import { displayUserName } from '@/lib/display-user';
+import { prefersReducedMotion } from '@/lib/motion';
 import type { StepState, StepStatus } from '@/lib/dossier-steps';
 
 export type { StepState as TimelineStep } from '@/lib/dossier-steps';
@@ -148,7 +149,29 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
   // rightward, so nothing the eye already passed moves). Strictly
   // horizontal, state-driven (CSS alone can't quiet the siblings).
   const [inspectedId, setInspectedId] = React.useState<number | null>(null);
-  const release = (id: number) => setInspectedId((h) => (h === id ? null : h));
+  // Leaving hands over with a 100ms grace (owner 2026-09-03): while the
+  // pointer crosses the connector to a neighbour, the inspection must not
+  // pass through null — in that gap the old step's collapse redistributed
+  // before the new freeze existed and dragged the target step ~70px left.
+  const leaveTimerRef = React.useRef<number | null>(null);
+  const cancelLeave = () => {
+    if (leaveTimerRef.current != null) {
+      window.clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+  };
+  const inspect = (id: number) => {
+    cancelLeave();
+    setInspectedId(id);
+  };
+  const release = (id: number) => {
+    cancelLeave();
+    leaveTimerRef.current = window.setTimeout(() => {
+      leaveTimerRef.current = null;
+      setInspectedId((h) => (h === id ? null : h));
+    }, 100);
+  };
+  React.useEffect(() => cancelLeave, []);
   const inspectedIdx = inspectedId == null ? -1 : steps.findIndex((s) => s.id === inspectedId);
   // The LAST step has no right side to grow into: it alone keeps the old
   // behaviour (grows leftward, folding its left siblings).
@@ -160,6 +183,7 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
   // non-last step is inspected, the connectors left of it are frozen at their
   // current width; only the right-hand connectors absorb the reveal.
   const connectorRefs = React.useRef<(HTMLElement | null)[]>([]);
+  const stepBtnRefs = React.useRef<(HTMLElement | null)[]>([]);
   const unfreezeTimerRef = React.useRef<number | null>(null);
   React.useLayoutEffect(() => {
     const cons = connectorRefs.current;
@@ -178,26 +202,87 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
     if (inspectedIdx === -1 || inspectedIdx === steps.length - 1) {
       // Release only AFTER the 200ms fold-back (owner 2026-09-03: releasing
       // on leave, while the step was still expanded, dumped its width into
-      // the re-flexed left connectors — a visible left jolt). By the time
-      // the timer fires the reveal has collapsed, so the release computes
-      // back to the frozen widths and repaints nothing.
+      // the re-flexed left connectors — a visible left jolt). The adjacent
+      // connector may have absorbed a neighbour's donated width meanwhile,
+      // so the release ANIMATES each styled connector to its natural width
+      // (200ms standard) instead of snapping.
       unfreezeTimerRef.current = window.setTimeout(() => {
         unfreezeTimerRef.current = null;
-        releaseAll();
+        const styled = cons.filter(
+          (el): el is HTMLElement => !!el && (el.style.width !== '' || el.style.flex !== ''),
+        );
+        if (styled.length === 0) return;
+        if (prefersReducedMotion()) {
+          releaseAll();
+          return;
+        }
+        const cur = styled.map((el) => el.offsetWidth);
+        for (const el of styled) {
+          el.style.flex = '';
+          el.style.width = '';
+        }
+        const parent = styled[0].parentElement;
+        void parent?.offsetWidth;
+        const nat = styled.map((el) => el.offsetWidth);
+        styled.forEach((el, i) => {
+          if (Math.abs(nat[i] - cur[i]) < 1) return;
+          el.style.flex = '0 0 auto';
+          el.style.width = `${cur[i]}px`;
+        });
+        void parent?.offsetWidth;
+        styled.forEach((el, i) => {
+          if (el.style.width === '') return;
+          el.style.transition = 'width 200ms cubic-bezier(0.2, 0, 0, 1)';
+          el.style.width = `${nat[i]}px`;
+        });
+        window.setTimeout(() => {
+          for (const el of styled) {
+            el.style.transition = '';
+            el.style.flex = '';
+            el.style.width = '';
+          }
+        }, 220);
       }, 250);
       return;
     }
+    const bases: number[] = [];
     for (let j = 0; j < cons.length; j++) {
       const el = cons[j];
       if (!el) continue;
+      el.style.transition = '';
       if (j < inspectedIdx) {
-        el.style.width = `${el.offsetWidth}px`;
+        bases[j] = el.offsetWidth;
+        el.style.width = `${bases[j]}px`;
         el.style.flex = '0 0 auto';
       } else {
         el.style.flex = '';
         el.style.width = '';
       }
     }
+    // Frozen connectors pin the left side, but a LEFT BUTTON still changes
+    // width while this step is inspected — hover transferred from a
+    // neighbour whose details are mid-collapse (owner 2026-09-03:
+    // « 2ᵉ accord » slid ~70px left on transfer). A rAF loop feeds every px
+    // the left buttons lose into the connector adjacent to the inspected
+    // step: forcing layout inside rAF samples the in-flight transition at
+    // the CURRENT timestamp, so the correction paints in the same frame
+    // (a ResizeObserver ran a frame late and visibly dipped; flex-grow
+    // routing leaked the right side's folded width into the left gap).
+    const compIdx = inspectedIdx - 1;
+    const leftBtns = stepBtnRefs.current.slice(0, inspectedIdx).filter((b): b is HTMLElement => !!b);
+    let raf = 0;
+    if (compIdx >= 0 && cons[compIdx] && leftBtns.length > 0) {
+      const sum = () => leftBtns.reduce((a, b) => a + b.offsetWidth, 0);
+      const sumAtFreeze = sum();
+      const compBase = bases[compIdx] ?? 0;
+      const tick = () => {
+        const el = cons[compIdx];
+        if (el) el.style.width = `${Math.max(2, compBase + (sumAtFreeze - sum()))}px`;
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }
+    return () => cancelAnimationFrame(raf);
   }, [inspectedIdx, steps.length]);
   React.useEffect(
     () => () => {
@@ -269,13 +354,16 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
             <React.Fragment key={step.id}>
               <button
                 type="button"
+                ref={(el) => {
+                  stepBtnRefs.current[idx] = el;
+                }}
                 disabled={blocked}
                 title={blocked ? step.blockedReason : `${step.longLabel} — ${step.statusLabel}`}
                 aria-label={`Étape ${idx + 1} : ${step.longLabel} — ${step.statusLabel}`}
                 onClick={() => onStepClick(step.id)}
-                onMouseEnter={() => !blocked && setInspectedId(step.id)}
+                onMouseEnter={() => !blocked && inspect(step.id)}
                 onMouseLeave={() => release(step.id)}
-                onFocus={() => !blocked && setInspectedId(step.id)}
+                onFocus={() => !blocked && inspect(step.id)}
                 onBlur={() => release(step.id)}
                 aria-current={isActive ? 'step' : undefined}
                 data-step-active={isActive || undefined}
