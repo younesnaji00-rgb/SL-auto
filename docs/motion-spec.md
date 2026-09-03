@@ -625,7 +625,11 @@ Owner live-test rulings, rounds 3–5, implemented same day:
    position shifts from connector freezes/settles and stranded the veil.
    Verified: zero drift on every step in painted AND mid-frame sampling
    for clean entry, hover transfer, and a 15-sweep chaos run; the veil
-   ends pixel-aligned on the active step.
+   ends pixel-aligned on the active step. (e) The connectors have NO
+   min-width floor (owner 2026-09-03: "remove any hard limit"): the
+   right-hand lines may contract to zero so the reveal takes ALL its
+   room from the right side — re-verified in a 900px-narrow harness
+   (zero left drift, right medallions pack fully).
    A long
    doer name in the hover stamp stacks over two rows (prénom / nom,
    `StepStamp stackLongName`, threshold 14 chars) instead of stretching the

@@ -426,7 +426,12 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                   ref={(el) => {
                     connectorRefs.current[idx] = el;
                   }}
-                  className={cn('h-px min-w-[10px] flex-1 sm:min-w-[16px]', step.status === 'done' ? 'bg-status-success-fg/50' : 'bg-hairline-strong')}
+                  // No min-width floor (owner 2026-09-03): the right-hand
+                  // lines may contract to ZERO so a hovered step's reveal
+                  // takes all its room from the right side — a floor forced
+                  // the expansion to overflow (or read as left pressure) in
+                  // tight layouts.
+                  className={cn('h-px flex-1', step.status === 'done' ? 'bg-status-success-fg/50' : 'bg-hairline-strong')}
                   aria-hidden
                 />
               )}
