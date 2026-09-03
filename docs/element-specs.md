@@ -326,3 +326,92 @@ hierarchy material reached us only secondhand — flagged in the reports).
 - Smart defaults: pre-seed the standard holiday set as deletable suggestions
   (already done via « Importer le calendrier marocain »).
 - First-use empty state = onboarding: outcome + how + ONE verb-led CTA.
+
+---
+
+# Addendum 2026-09-03 — dossiers list page: structure, attention, tools
+
+Four parallel deep-research rounds on the `/dossiers` table page (per the §2
+sourcing policy; ~120 sources logged). Full reports:
+`docs/research/dossiers-structure-navigation.md`, `dossiers-ecosystem-sweep.md`,
+`dossiers-attention-efficiency.md`, `dossiers-color-type-polish.md`. Each
+report ends with an honest could-not-fetch list (Reddit was blocked in all
+rounds). Rules below extend §2–§3 and addendum ter A/B.
+
+## A. Structural verdict (implemented where safe)
+- **The wide table stays the backbone** — no fetched source argues against a
+  table for metadata-dense all-day triage; the 14-column row IS the
+  information scent. All credible pressure is on the shell around it:
+  best-in-class products (Linear, Zendesk, Superhuman, Twenty, Attio,
+  Airtable, Notion, VS Code) converge on **two-tier detail access** =
+  ephemeral peek + committed open. The peek tier is an OWNER DECISION
+  (see §D); the committed tier (preview tabs) already exists.
+- **Column order = five logical chunks on the scan path** (NN/g eyetracking:
+  hierarchical sampled scan; serial-position): identité (réf, assuré) → état
+  (statut, observation, date de création) → parties (compagnie, réf
+  compagnie) → classification (nature, type) → véhicule (matricules) → dates
+  du sinistre → provenance (créé par). Action signals live in the left third,
+  lookup values pan right. *Implemented.*
+- **Emphasis budget enforced**: 2 emphasised cells per row — réf (mono 600)
+  + statut chip; the assuré name dropped its `font-medium` (the old row spent
+  4 tokens on a 3-token budget). *Implemented.*
+- **No table↔kanban↔card view switcher** — saved views already deliver the
+  multi-view value (Notion: views must be purpose-built). Kanban/card/
+  dashboard-first all rejected for triage (full argument in the structure
+  report).
+
+## B. Tools added (implemented 2026-09-03)
+- **Keyboard spine** via the app-wide hotkey registry (shows in the « ? »
+  sheet, group « Liste des dossiers »): ↑/↓ and j/k move a visible row focus
+  (same one-surface-step tint as hover — nothing louder on dense rows),
+  Entrée opens the focused row (or toggles it in Rappeler mode), x toggles in
+  Rappeler mode, Échap drops the focus. Enter/x/Échap register only while a
+  row is focused so native button/dialog keys are never hijacked.
+- **« Colonnes » picker** in the toolbar (persisted with the filters;
+  default = all visible). The identifier column is never hideable. Count
+  pill `visible/total` when trimmed; « Tout afficher » to reset. Header AND
+  body render from the same `visibleColumns` order.
+- **« Précédent / suivant » in the record bar** — the list page snapshots its
+  filtered order (sessionStorage) on open; the detail page's record bar walks
+  it with ↑/↓ chevrons + position tooltip « 3/42 de la liste ». Hidden when
+  the dossier wasn't opened from the list. (Airtable record bar; Map UI
+  Patterns "reduce the need to toggle back and forth".)
+- **Filtered ≠ unfiltered is printed**: footer count reads « 12 sur 480
+  dossiers » whenever a filter narrows the list.
+
+## C. Toolbar & cells (implemented)
+- **Spacing grammar**: 8 px inside a cluster (search+vues; presets+plage;
+  colonnes+réinitialiser), 24 px between clusters — gaps are the syntax,
+  no boxes.
+- **« Réinitialiser » appears only while a filter is applied** (Hick: no
+  standing control without a standing job) and resets FILTERS ONLY — column
+  layout, sort and page size are workspace setup, not filters. (Supersedes
+  the "always visible so users learn it" comment from iter-20.)
+- **Dates: absolute dd/MM/yyyy in cells, relative age in the tooltip**
+  (« il y a 12 jours ») — claims work is a reference context (cross-row
+  comparison + insurer correspondence); ragged relative strings also break
+  tabular-nums scanning. An age/urgency COLUMN is an owner decision (§D).
+- Removing a date filter chip also clears the stale preset thumb.
+
+## D. Owner decisions pending (researched options, NOT implemented)
+1. **Peek panel** (side panel on row click/Espace, ↑/↓ retargets, Entrée =
+   full open) — THE structural finding; decide click semantics first.
+2. **Age/urgency signal** (« 12 j » since creation or since last status
+   change, terracotta past a threshold — lawful: time meaning) — needs a
+   denormalized `statutChangedAt` for days-in-status.
+3. **Armed default view « À traiter »** (my dossiers, action-needed order)
+   instead of all-newest-first; default-sort change is addendum ter A's
+   "action-needed order" rule applied to this page.
+4. **TanStack Table v8 migration** (column resize/order, faceted counts,
+   fuzzy search) with openstatusHQ/data-table-filters as playbook — scope,
+   not risk.
+5. **Density toggle** (40/44/52 px, persisted per user).
+6. **Status chip de-saturation** (hue only for action-needed states) — chips
+   are learned behaviour, don't change silently.
+7. **KPI strip above the table** (Tremor-style, recolored to tokens).
+8. **Warm shadow token** — `--shadow-color` is a cool navy (215 45% 20%) on a
+   warm cream canvas; polish research says shadows should share the canvas
+   hue (e.g. ~35 30% 18%). App-wide token, pixel-verified glass — owner's
+   eyes required.
+9. **Grayscale check of status-family lightnesses** (90/92/94 % bg may merge
+   in grayscale).
