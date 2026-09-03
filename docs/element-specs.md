@@ -426,6 +426,33 @@ Butterick's 9 pt lowercase floor — app-wide, needs the owner's eyes).
   squint-test inversion (status column outshouts the lookup rail) but forks
   the canonical §11 idiom; flagged, recommended against for now.
 
+## G. Second round 2026-09-03 (owner: reorder approved + "coloring, styling,
+   typography and gimmicky stuff that sells")
+
+Applied, all inside the locked rulings and the motion spec:
+- **Column order**: Réf → Assuré → Matricule → Statut → Compagnie → Nature →
+  Type → Date (the three lookup keys together on the left, statut in the
+  left third, Type demoted).
+- **Stats strip** (§F item, now built): Total + the 3 most frequent statuses
+  of the current scope as §6 tiles — dot beside label, values plain ink,
+  whole tile toggles the statut filter, active = quiet primary ring; grid
+  renders only when full (4 tiles). No count-up (motion spec §8), no chart.
+- **Date presets** Jour / Semaine / Mois with the `SlidingThumb` accent
+  thumb (segmented-morph family) beside the range picker; manual edits set
+  « personnalisé », clears reset it.
+- **Live status flash**: a statut that changes in the live snapshot takes
+  the 2 s teal `animate-value-flash` on its CELL (motion spec §8 B1 — the
+  sanctioned "another user caused it" case; never the row, never on load).
+- **« Aujourd'hui » time badge** on today's Date de requête — terracotta's
+  one meaning, chiffrage-queue precedent. (Supersedes §F's
+  "recommended against" per the owner's coloring ask.)
+- **Export toast** (§14 passive confirmation, names the real count).
+Not done (still §F): peek Sheet, facet counts in dropdowns, « Consultés
+récemment », mobile « Filtres » collapse, ≤3 promoted filters, chip muting.
+Rejected on motion-spec grounds despite the "gimmick" ask: count-up
+tickers, staggered row entrances, animated sorts/filters, sticky-header
+scroll shadow (needs an inner scroll region — structural).
+
 ---
 
 # Addendum 2026-09-03 — dossiers list page: structure, attention, tools

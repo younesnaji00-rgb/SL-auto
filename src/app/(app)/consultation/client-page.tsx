@@ -4,7 +4,8 @@ import React, { useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Search, AlertCircle, FolderOpen, ChevronRight, Columns3, Download } from 'lucide-react';
-import { format, parseISO, isValid } from 'date-fns';
+import { format, parseISO, isValid, isToday, startOfDay, startOfWeek, startOfMonth, endOfDay } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, STICKY_HEAD, STICKY_CELL, EmptyCell } from '@/components/ui/table';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -31,6 +32,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { normalizePlate } from '@/lib/plate-match';
 import { exportToExcel, type ExportColumn } from '@/lib/export-excel';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { SlidingThumb } from '@/components/ui/sliding-thumb';
+import { useToast } from '@/hooks/use-toast';
 
 // ── Status chip (element-specs §11): the shared app-wide mapping — the local
 //    stand-in was retired 2026-09-02 (it coloured « Proposition d'accord »
@@ -99,20 +104,25 @@ function Highlight({ text, query }: { text: string; query: string }) {
 // and the Excel export, so they can never disagree (Retool forums: exports
 // that ignore the visible filter/column set are the reported failure mode).
 // Réf. expert is the row's anchor and can never be hidden.
+// Order (owner-approved 2026-09-03): the three LOOKUP KEYS the search box
+// accepts sit together on the left where 80 % of fixation lands, statut (the
+// second emphasised cell) in the left third, the descriptive columns after,
+// « Type de dossier » demoted to last-but-one (lowest information scent).
 const COLUMNS: ExportColumn[] = [
   { key: 'refExpert', label: 'Réf. expert' },
   { key: 'assure', label: 'Assuré' },
+  { key: 'matricule', label: 'Matricule' },
+  { key: 'statut', label: 'Statut' },
   { key: 'compagnie', label: 'Compagnie' },
   { key: 'nature', label: 'Nature du dossier' },
   { key: 'typeDossier', label: 'Type de dossier' },
-  { key: 'statut', label: 'Statut' },
-  { key: 'matricule', label: 'Matricule' },
   { key: 'dateRequete', label: 'Date de requête' },
 ];
 const HIDEABLE_COLUMNS = COLUMNS.filter((c) => c.key !== 'refExpert');
 
 export default function ConsultationClientPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const { options: dbCompagnies } = useOptions('compagnies');
   const { options: dbNatures } = useOptions('options_natures');
   const { options: dbStatuses } = useOptions('options_statuts');
@@ -164,8 +174,25 @@ export default function ConsultationClientPage() {
     dateFrom: '', dateTo: '', rowsPerPage: 25,
     sortKey: 'dateRequete' as string | null, sortDir: 'desc' as Exclude<SortDirection, null>,
     hiddenCols: [] as string[],
+    datePreset: null as 'jour' | 'semaine' | 'mois' | 'personnalise' | null,
   };
   const [filters, setFilters, clearFilter] = usePersistedFilters('consultation', filterDefaults);
+
+  // Date presets — same Jour / Semaine / Mois cluster as /dossiers and
+  // « Suivi d'équipe »; they write the SAME dateFrom/dateTo strings the
+  // pipeline consumes, and the sliding tonal thumb carries the selection
+  // (motion-spec addendum quater: segmented filters join the morph family).
+  const applyPreset = (preset: 'jour' | 'semaine' | 'mois') => {
+    const now = new Date();
+    const from = preset === 'jour' ? startOfDay(now) : preset === 'semaine' ? startOfWeek(now, { locale: fr }) : startOfMonth(now);
+    setFilters({ dateFrom: format(from, 'yyyy-MM-dd'), dateTo: format(endOfDay(now), 'yyyy-MM-dd'), datePreset: preset });
+  };
+  const setDates = (patch: { dateFrom?: string; dateTo?: string }) => {
+    setFilters((prev) => {
+      const next = { ...prev, ...patch };
+      return { ...next, datePreset: next.dateFrom || next.dateTo ? ('personnalise' as const) : null };
+    });
+  };
 
   const visibleColumns = useMemo(
     () => COLUMNS.filter((c) => c.key === 'refExpert' || !filters.hiddenCols.includes(c.key)),
@@ -221,10 +248,11 @@ export default function ConsultationClientPage() {
     return false;
   }, [searchActive, searchQuery]);
 
-  const dossierList = useMemo(() => {
+  // Every filter EXCEPT statut — the stats strip counts by statut over this
+  // base so its tiles never zero out when one of them is selected.
+  const baseList = useMemo(() => {
     let results = [...allDossiers];
     if (filters.nature !== 'Toutes') results = results.filter(d => d.nature === filters.nature);
-    if (filters.status !== 'Tous') results = results.filter(d => d.statut === filters.status);
     if (filters.compagnie !== 'Toutes') results = results.filter(d => d.compagnie === filters.compagnie);
     if (searchActive) results = results.filter(matchesSearch);
     if (filters.dateFrom) {
@@ -245,7 +273,53 @@ export default function ConsultationClientPage() {
       });
     }
     return results;
-  }, [allDossiers, filters.nature, filters.status, filters.compagnie, filters.dateFrom, filters.dateTo, searchActive, matchesSearch]);
+  }, [allDossiers, filters.nature, filters.compagnie, filters.dateFrom, filters.dateTo, searchActive, matchesSearch]);
+
+  const dossierList = useMemo(
+    () => (filters.status === 'Tous' ? baseList : baseList.filter(d => d.statut === filters.status)),
+    [baseList, filters.status],
+  );
+
+  // Stats strip data: the three most frequent statuses in the base scope.
+  // Rendered only when all three exist so the 2/4-column grid ends on a full
+  // row (element-specs §6). Tiles are filters, not decorations: clicking one
+  // applies/clears the statut filter (dossiers KPI-strip idiom, 2026-09-03).
+  const topStatuses = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const d of baseList) {
+      const s = (d.statut || '').trim() || 'Nouveau';
+      counts.set(s, (counts.get(s) || 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  }, [baseList]);
+
+  // Live status flash (motion-spec §8 / B1: the teal Yellow-Fade is FOR
+  // "live status changes in lists another user caused"). Diff statut by id
+  // between snapshots — never on first load, 2 s one-shot decay, cell-level
+  // (a full accent-tinted row is a rejected pattern).
+  const prevStatuts = React.useRef<Map<string, string> | null>(null);
+  const [flashIds, setFlashIds] = React.useState<ReadonlySet<string>>(new Set());
+  React.useEffect(() => {
+    if (loading) return;
+    const now = new Map(allDossiers.map(d => [d.id as string, (d.statut || '') as string]));
+    const prev = prevStatuts.current;
+    prevStatuts.current = now;
+    if (!prev) return;
+    const changed: string[] = [];
+    now.forEach((s, id) => {
+      const p = prev.get(id);
+      if (p !== undefined && p !== s) changed.push(id);
+    });
+    if (changed.length === 0) return;
+    setFlashIds(f => new Set([...f, ...changed]));
+    window.setTimeout(() => {
+      setFlashIds(f => {
+        const next = new Set(f);
+        for (const id of changed) next.delete(id);
+        return next;
+      });
+    }, 2100);
+  }, [allDossiers, loading]);
 
   // Default sort = Date de requête, newest first (consultation is a lookup
   // archive, not a queue: recency is the most common first question — Pencil
@@ -302,6 +376,7 @@ export default function ConsultationClientPage() {
     clearFilter('compagnie');
     clearFilter('dateFrom');
     clearFilter('dateTo');
+    clearFilter('datePreset');
   };
   const clearChipFilters = () => {
     clearFilter('nature');
@@ -309,6 +384,7 @@ export default function ConsultationClientPage() {
     clearFilter('compagnie');
     clearFilter('dateFrom');
     clearFilter('dateTo');
+    clearFilter('datePreset');
   };
 
   // Zero-results recovery (NN/g scoped search: an invisible restored scope
@@ -343,6 +419,11 @@ export default function ConsultationClientPage() {
       visibleColumns,
       `consultation_export_${format(new Date(), 'dd-MM-yyyy')}.xlsx`,
     );
+    // Passive confirmation → toast (§14); the figure names the real scope.
+    toast({
+      title: 'Export terminé',
+      description: `${sortedList.length} dossier${sortedList.length > 1 ? 's' : ''} · colonnes visibles`,
+    });
   };
 
   return (
@@ -358,6 +439,60 @@ export default function ConsultationClientPage() {
           <AlertTitle>Erreur de chargement</AlertTitle>
           <AlertDescription>{fetchError}</AlertDescription>
         </Alert>
+      )}
+
+      {/* Stats strip — §6 stat tiles as FILTERS (dossiers KPI-strip idiom):
+          total + the three most frequent statuses of the current scope, dot
+          always beside its label (§11), values plain ink (Few: colour only
+          for exceptions), whole tile clickable, active tile = quiet primary
+          ring. No count-up (motion-spec §8), no chart. Hidden until three
+          statuses exist so the grid always ends on a full row. */}
+      {(loading || topStatuses.length === 3) && (
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+          {loading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <Card key={`kpi-sk-${i}`} className="p-4">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="mt-2 h-7 w-14" />
+                </Card>
+              ))
+            : (
+              <>
+                <Card className={cn('p-0 transition-colors', filters.status === 'Tous' && 'ring-1 ring-primary/40')}>
+                  <button
+                    type="button"
+                    onClick={() => clearFilter('status')}
+                    className="block w-full rounded-[inherit] p-4 text-left hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-pressed={filters.status === 'Tous' || undefined}
+                  >
+                    <span className="t-label block">Total</span>
+                    <span className="mt-0.5 block text-2xl font-semibold leading-tight text-ink">{baseList.length}</span>
+                    <span className="t-caption mt-0.5 block">tous statuts</span>
+                  </button>
+                </Card>
+                {topStatuses.map(([label, count]) => {
+                  const active = filters.status === label;
+                  return (
+                    <Card key={label} className={cn('p-0 transition-colors', active && 'ring-1 ring-primary/40')}>
+                      <button
+                        type="button"
+                        onClick={() => (active ? clearFilter('status') : setFilters({ status: label }))}
+                        className="block w-full rounded-[inherit] p-4 text-left hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-pressed={active || undefined}
+                        title={active ? `Retirer le filtre « ${label} »` : `Filtrer sur « ${label} »`}
+                      >
+                        <span className="t-label flex items-center gap-1.5">
+                          <span className={cn('h-2 w-2 shrink-0 rounded-full', DOT_BY_TONE[statusTone(label)])} aria-hidden />
+                          <span className="truncate">{label}</span>
+                        </span>
+                        <span className="mt-0.5 block text-2xl font-semibold leading-tight text-ink">{count}</span>
+                      </button>
+                    </Card>
+                  );
+                })}
+              </>
+            )}
+        </div>
       )}
 
       {/* Filter toolbar (element-specs §2: Polaris filters — search first,
@@ -422,12 +557,38 @@ export default function ConsultationClientPage() {
           </SelectContent>
         </Select>
 
-        <DateRangeFilter
-          dateFrom={filters.dateFrom}
-          dateTo={filters.dateTo}
-          onDateFromChange={v => setFilters({ dateFrom: v })}
-          onDateToChange={v => setFilters({ dateTo: v })}
-        />
+        {/* Date cluster: presets + range are ONE tool (they write the same
+            dateFrom/dateTo strings), 8 px apart inside the cluster. The
+            sliding tonal thumb carries the selection (SlidingThumb — the
+            segmented-morph family, motion-spec addendum quater). */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative isolate flex h-9 items-center gap-0.5 rounded-md bg-surface-2 p-0.5" role="group" aria-label="Période de requête">
+            <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[filters.datePreset]} />
+            {([['jour', 'Jour'], ['semaine', 'Semaine'], ['mois', 'Mois']] as const).map(([key, label]) => (
+              <Button
+                key={key}
+                size="sm"
+                variant="ghost"
+                className={cn(
+                  'relative z-[1] h-8 px-3 shadow-none',
+                  filters.datePreset === key && 'text-accent-foreground hover:bg-transparent hover:text-accent-foreground',
+                )}
+                data-seg-active={filters.datePreset === key || undefined}
+                aria-pressed={filters.datePreset === key}
+                onClick={() => applyPreset(key)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+
+          <DateRangeFilter
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+            onDateFromChange={v => setDates({ dateFrom: v })}
+            onDateToChange={v => setDates({ dateTo: v })}
+          />
+        </div>
 
         <div className="ms-auto flex items-center gap-1">
           <DropdownMenu>
@@ -499,10 +660,10 @@ export default function ConsultationClientPage() {
             <FilterChip label={`Compagnie : ${filters.compagnie}`} onRemove={() => clearFilter('compagnie')} ariaLabel="Retirer le filtre compagnie" />
           )}
           {filters.dateFrom && (
-            <FilterChip label={`Du : ${fmtIsoDay(filters.dateFrom)}`} onRemove={() => clearFilter('dateFrom')} ariaLabel="Retirer la date de début" />
+            <FilterChip label={`Du : ${fmtIsoDay(filters.dateFrom)}`} onRemove={() => setDates({ dateFrom: '' })} ariaLabel="Retirer la date de début" />
           )}
           {filters.dateTo && (
-            <FilterChip label={`Au : ${fmtIsoDay(filters.dateTo)}`} onRemove={() => clearFilter('dateTo')} ariaLabel="Retirer la date de fin" />
+            <FilterChip label={`Au : ${fmtIsoDay(filters.dateTo)}`} onRemove={() => setDates({ dateTo: '' })} ariaLabel="Retirer la date de fin" />
           )}
           <Button
             variant="link"
@@ -543,6 +704,16 @@ export default function ConsultationClientPage() {
                   <SortableHeader label="Assuré" sort={sortFor('assure')} onChange={onSortChange('assure')} />
                 </TableHead>
               )}
+              {isVisible('matricule') && (
+                <TableHead>
+                  <SortableHeader label="Matricule" sort={sortFor('matricule')} onChange={onSortChange('matricule')} />
+                </TableHead>
+              )}
+              {isVisible('statut') && (
+                <TableHead>
+                  <SortableHeader label="Statut" sort={sortFor('statut')} onChange={onSortChange('statut')} />
+                </TableHead>
+              )}
               {isVisible('compagnie') && (
                 <TableHead>
                   <SortableHeader label="Compagnie" sort={sortFor('compagnie')} onChange={onSortChange('compagnie')} />
@@ -556,16 +727,6 @@ export default function ConsultationClientPage() {
               {isVisible('typeDossier') && (
                 <TableHead>
                   <SortableHeader label="Type de dossier" sort={sortFor('typeDossier')} onChange={onSortChange('typeDossier')} />
-                </TableHead>
-              )}
-              {isVisible('statut') && (
-                <TableHead>
-                  <SortableHeader label="Statut" sort={sortFor('statut')} onChange={onSortChange('statut')} />
-                </TableHead>
-              )}
-              {isVisible('matricule') && (
-                <TableHead>
-                  <SortableHeader label="Matricule" sort={sortFor('matricule')} onChange={onSortChange('matricule')} />
                 </TableHead>
               )}
               {isVisible('dateRequete') && (
@@ -656,6 +817,21 @@ export default function ConsultationClientPage() {
                       ) : <EmptyCell />}
                     </TableCell>
                   )}
+                  {isVisible('matricule') && (
+                    <TableCell className="t-mono">
+                      {d.matricule ? <Highlight text={d.matricule} query={filters.search} /> : <EmptyCell />}
+                    </TableCell>
+                  )}
+                  {isVisible('statut') && (
+                    <TableCell>
+                      {/* One-shot teal fade when the statut just changed in
+                          the live snapshot (motion-spec §8 Yellow-Fade — the
+                          cell, never the row). */}
+                      <span className={cn('inline-flex max-w-full rounded-md', flashIds.has(d.id) && 'animate-value-flash')}>
+                        <StatusChip status={d.statut} />
+                      </span>
+                    </TableCell>
+                  )}
                   {isVisible('compagnie') && (
                     <TableCell className="max-w-[14rem]">
                       {d.compagnie ? (
@@ -665,13 +841,21 @@ export default function ConsultationClientPage() {
                   )}
                   {isVisible('nature') && <TableCell>{d.nature || <EmptyCell />}</TableCell>}
                   {isVisible('typeDossier') && <TableCell>{d.typeDossier || <EmptyCell />}</TableCell>}
-                  {isVisible('statut') && <TableCell><StatusChip status={d.statut} /></TableCell>}
-                  {isVisible('matricule') && (
-                    <TableCell className="t-mono">
-                      {d.matricule ? <Highlight text={d.matricule} query={filters.search} /> : <EmptyCell />}
+                  {isVisible('dateRequete') && (
+                    <TableCell>
+                      {formatDate(d.dateRequete) ? (
+                        <span className="inline-flex items-center gap-2">
+                          {formatDate(d.dateRequete)}
+                          {/* Terracotta's ONE meaning is time — « Aujourd'hui »
+                              word marker, same as the chiffrage queue's Date
+                              cell (addendum 2026-09-02). */}
+                          {isToday(d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete)) && (
+                            <Badge variant="time">Aujourd’hui</Badge>
+                          )}
+                        </span>
+                      ) : <EmptyCell />}
                     </TableCell>
                   )}
-                  {isVisible('dateRequete') && <TableCell>{formatDate(d.dateRequete) || <EmptyCell />}</TableCell>}
                   <TableCell className="w-10 text-right">
                     <Button
                       variant="ghost"
