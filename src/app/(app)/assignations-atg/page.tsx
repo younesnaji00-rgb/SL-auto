@@ -14,7 +14,7 @@
 import { PageHeader } from '@/components/layout/page-header';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { collectionGroup, onSnapshot, query, orderBy, limit, doc, getDoc, getDocs, collection } from 'firebase/firestore';
+import { addDoc, collectionGroup, onSnapshot, query, orderBy, limit, doc, getDoc, getDocs, collection, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -50,6 +50,7 @@ import { SortableHeader, type SortDirection } from '@/components/ui/sortable-hea
 import { businessHoursBetween, formatBusinessLateness } from '@/lib/business-days';
 import { useHolidays } from '@/hooks/use-holidays';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useAgentsLivePositions } from '@/hooks/use-agents-live-positions';
 import { useToast } from '@/hooks/use-toast';
 import { titleForRoute } from '@/lib/nav-groups';
 import AtScanPlaqueFlow from './at-scan-plaque-flow';
@@ -1239,6 +1240,29 @@ export default function AssignationsATGPage() {
     [filteredPlanifications, groupOfItem]
   );
 
+  // Live agent positions on the map lens (ServiceM8 staff map / ServiceTitan
+  // GPS tracking — the fleet view every fetched dispatch product ships).
+  // Dispatchers see all agents; an ATG sees only their own marker.
+  const agentPositions = useAgentsLivePositions(
+    lens === 'carte' && !isMobile,
+    isATG ? profile?.uid ?? null : null,
+  );
+
+  // Ping an agent's device for a fresh position via the existing
+  // location_requests pipeline (rules: create requires canAssign).
+  const requestAgentPosition = canReassign
+    ? async (uid: string) => {
+        if (!db) return;
+        try {
+          await addDoc(collection(db, 'location_requests'), { agentUid: uid, requestedAt: serverTimestamp() });
+          toast({ title: 'Demande envoyée', description: "La position s'actualisera dès que l'appareil de l'agent répond." });
+        } catch (e) {
+          console.error('[map] location request failed:', e);
+          toast({ title: 'Demande impossible', description: 'Réessayez dans un instant.', variant: 'destructive' });
+        }
+      }
+    : undefined;
+
   const peekLive = peekMission ? dossierLive[peekMission.dossierId] : undefined;
 
   const peekPanel = (
@@ -1558,6 +1582,8 @@ export default function AssignationsATGPage() {
           <MissionMapView
             missions={mapMissions}
             onSelect={openMissionByKey}
+            agents={agentPositions}
+            onRequestPosition={requestAgentPosition}
             className="h-[560px]"
           />
         )

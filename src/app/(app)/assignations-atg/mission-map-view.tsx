@@ -17,10 +17,42 @@ export interface MapMission {
   rdvLabel?: string; // e.g. « 3 sept. 14:30 »
 }
 
+export interface MapAgent {
+  uid: string;
+  name: string;
+  lat: number;
+  lng: number;
+  updatedAtMs: number;
+}
+
 interface MissionMapViewProps {
   missions: MapMission[];
   onSelect: (key: string) => void; // open the mission (peek panel)
+  /** Live Agent de Terrain positions (users/{uid}.currentLocation). */
+  agents?: MapAgent[];
+  /** Dispatcher-only: ping an agent's device for a fresh position. */
+  onRequestPosition?: (uid: string) => void;
   className?: string; // caller sets the height (e.g. h-[560px])
+}
+
+/** Freshness window — mirrors use-agent-live-location.ts. */
+const AGENT_FRESH_MS = 10 * 60 * 1000;
+
+function agentInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join('') || 'A';
+}
+
+function agoLabel(updatedAtMs: number): string {
+  const mins = Math.round((Date.now() - updatedAtMs) / 60000);
+  if (mins < 1) return "à l'instant";
+  if (mins < 60) return `il y a ${mins} min`;
+  const hours = Math.round(mins / 60);
+  return `il y a ${hours} h`;
 }
 
 /** Read an HSL-triplet CSS custom property and wrap it as a usable color. */
@@ -40,21 +72,29 @@ const GROUP_VAR: Record<MapMission['group'], string> = {
 export default function MissionMapView({
   missions,
   onSelect,
+  agents,
+  onRequestPosition,
   className,
 }: MissionMapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const layerRef = useRef<LayerGroup | null>(null);
+  const agentLayerRef = useRef<LayerGroup | null>(null);
   const leafletRef = useRef<typeof import('leaflet') | null>(null);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
   const missionsRef = useRef(missions);
   missionsRef.current = missions;
+  const agentsRef = useRef(agents);
+  agentsRef.current = agents;
+  const onRequestPositionRef = useRef(onRequestPosition);
+  onRequestPositionRef.current = onRequestPosition;
 
   const [ready, setReady] = useState(false);
   const [pinCount, setPinCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
   const [pending, setPending] = useState(false);
+  const [agentCount, setAgentCount] = useState(0);
 
   // Stable signature so unrelated parent re-renders don't clear/re-add markers.
   const missionsSignature = useMemo(
@@ -87,6 +127,7 @@ export default function MissionMapView({
         maxZoom: 19,
       }).addTo(map);
       layerRef.current = L.layerGroup().addTo(map);
+      agentLayerRef.current = L.layerGroup().addTo(map);
       mapRef.current = map;
       setReady(true);
     })();
@@ -95,6 +136,7 @@ export default function MissionMapView({
       mapRef.current?.remove();
       mapRef.current = null;
       layerRef.current = null;
+      agentLayerRef.current = null;
     };
   }, []);
 
@@ -205,6 +247,85 @@ export default function MissionMapView({
     };
   }, [ready, missionsSignature]);
 
+  // Agent layer — live Agent de Terrain positions. Rebuilt on any position
+  // change (minute-bucketed so the « il y a X min » labels stay honest
+  // without churning on every render). Fresh = teal identity pin with
+  // initials; stale (> 10 min) = quiet grey. No motion (motion spec).
+  const agentsSignature = useMemo(
+    () =>
+      (agents ?? [])
+        .map((a) => [a.uid, a.lat.toFixed(5), a.lng.toFixed(5), Math.floor(a.updatedAtMs / 60000)].join(','))
+        .join('|'),
+    [agents]
+  );
+
+  useEffect(() => {
+    if (!ready) return;
+    const L = leafletRef.current;
+    const map = mapRef.current;
+    const layer = agentLayerRef.current;
+    if (!L || !map || !layer) return;
+
+    const current = agentsRef.current ?? [];
+    layer.clearLayers();
+    setAgentCount(current.length);
+    if (current.length === 0) return;
+
+    const now = Date.now();
+    const freshColor = cssHsl('--primary');
+    const staleColor = cssHsl('--ink-4');
+    const ring = cssHsl('--card');
+
+    for (const a of current) {
+      const fresh = now - a.updatedAtMs < AGENT_FRESH_MS;
+      const icon = L.divIcon({
+        className: '',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+        popupAnchor: [0, -14],
+        html: `<div style="width:28px;height:28px;border-radius:9999px;display:flex;align-items:center;justify-content:center;background:${fresh ? freshColor : staleColor};color:${ring};border:2px solid ${ring};box-shadow:0 1px 3px rgba(0,0,0,.25);font:600 11px/1 system-ui,sans-serif;">${agentInitials(a.name)}</div>`,
+      });
+      const marker = L.marker([a.lat, a.lng], { icon, zIndexOffset: 500 });
+
+      const root = document.createElement('div');
+      root.className = 'space-y-1 py-0.5';
+      const nameEl = document.createElement('div');
+      nameEl.textContent = a.name;
+      nameEl.className = 'text-sm font-semibold';
+      nameEl.style.color = 'hsl(var(--ink))';
+      root.appendChild(nameEl);
+      const metaEl = document.createElement('div');
+      metaEl.textContent = fresh
+        ? `Position · ${agoLabel(a.updatedAtMs)}`
+        : `Position ancienne · ${agoLabel(a.updatedAtMs)}`;
+      metaEl.className = 'text-xs';
+      metaEl.style.color = 'hsl(var(--ink-3))';
+      root.appendChild(metaEl);
+      if (onRequestPositionRef.current) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Actualiser la position';
+        btn.className = 'mt-1 text-xs font-medium underline-offset-2 hover:underline';
+        btn.style.color = 'hsl(var(--primary))';
+        btn.addEventListener('click', () => {
+          onRequestPositionRef.current?.(a.uid);
+        });
+        root.appendChild(btn);
+      }
+      marker.bindPopup(root);
+      marker.addTo(layer);
+    }
+
+    // No missions on the map (e.g. all addresses failed geocoding): frame
+    // the agents instead so the lens still shows something useful.
+    if ((missionsRef.current ?? []).length === 0) {
+      map.fitBounds(L.latLngBounds(current.map((a) => [a.lat, a.lng] as [number, number])), {
+        padding: [48, 48],
+        maxZoom: 13,
+      });
+    }
+  }, [ready, agentsSignature]);
+
   return (
     <div
       className={cn(
@@ -229,6 +350,12 @@ export default function MissionMapView({
           <span className="h-2 w-2 rounded-full bg-[hsl(var(--ink-3))]" />
           À venir
         </span>
+        {agentCount > 0 && (
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-[hsl(var(--primary))]" />
+            Agent{agentCount > 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {/* Progress note while nothing is on the map yet */}
