@@ -1,7 +1,7 @@
 'use client';
 
 import { PageHeader } from '@/components/layout/page-header';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Inbox, ChevronDown, ChevronRight, Send, ScrollText, CheckCircle2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -12,17 +12,22 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton, SkeletonRow } from '@/components/ui/skeleton';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { SlidingThumb } from '@/components/ui/sliding-thumb';
+import { ToastAction } from '@/components/ui/toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useRappels, useRappelsSent, type Rappel } from '@/hooks/use-rappels';
-import { collection, doc, onSnapshot, query, updateDoc, where, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useHotkeys } from '@/hooks/use-hotkeys';
 import { hasPermission, SUB_PERMISSIONS, rappelsEnvoyesRoleDefault } from '@/lib/permissions';
 import { titleForRoute } from '@/lib/nav-groups';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import SessionReplayDialog from './session-replay-dialog';
+import { RappelDetailContent, RappelDetailPlaceholder, relativeAge } from './rappel-detail-panel';
 
 const SESSION_KEY = (dossierId: string) => `rappel-active-session-${dossierId}`;
 
@@ -49,10 +54,12 @@ function formatDate(ts: any): string {
   try { return format(d, 'dd/MM/yyyy HH:mm', { locale: fr }); } catch { return '—'; }
 }
 
-function formatHm(ts: any): string {
+/** Queue cells: date only (dd/MM/yyyy per the dates-as-values ruling); the
+ *  clock time and relative age ride in the tooltip. */
+function formatDateShort(ts: any): string {
   const d = toDate(ts);
-  if (!d) return '--:--';
-  try { return format(d, 'HH:mm', { locale: fr }); } catch { return '--:--'; }
+  if (!d) return '—';
+  try { return format(d, 'dd/MM/yyyy', { locale: fr }); } catch { return '—'; }
 }
 
 function tsMillis(ts: any): number {
@@ -190,131 +197,8 @@ function TableSkeleton({ heads = 5 }: { heads?: number }) {
   );
 }
 
-interface SessionTaggedProps {
-  dossierId: string;
-  sessionId?: string;
-}
-
-/**
- * F9.B: lists every observation on this dossier whose `rappelSessionId`
- * matches the active rappel's session. Renders as `HH:mm [author] text`.
- */
-function SessionObservations({ dossierId, sessionId }: SessionTaggedProps) {
-  const db = useFirestore();
-  const [items, setItems] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (!db || !dossierId || !sessionId) {
-      setItems([]);
-      return;
-    }
-    const q = query(
-      collection(db, 'dossiers', dossierId, 'observations'),
-      where('rappelSessionId', '==', sessionId),
-    );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        if (snap.metadata.fromCache && snap.size === 0) return;
-        const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-        rows.sort((a, b) => tsMillis(a.createdAt) - tsMillis(b.createdAt));
-        setItems(rows);
-      },
-      () => {},
-    );
-    return () => unsub();
-  }, [db, dossierId, sessionId]);
-
-  if (!sessionId) return <EmptyValue />;
-  if (items.length === 0) return <EmptyValue />;
-
-  return (
-    <ul className="flex flex-col gap-1">
-      {items.map((it) => {
-        const author = it.author || it.authorEmail || 'Utilisateur inconnu';
-        return (
-          <li key={it.id} className="t-body-sm break-words leading-snug">
-            <span className="tabular-nums text-ink-3">{formatHm(it.createdAt)}</span>
-            {' '}
-            <span className="font-medium text-ink-2">[{author}]</span>
-            {' '}
-            <span>{it.text || ''}</span>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-/**
- * F9.B: lists every historique entry on this dossier whose
- * `rappelSessionId` matches the rappel's session, grouped by historique
- * `type`. Each entry shows `HH:mm [user] action`.
- */
-function SessionModifications({ dossierId, sessionId }: SessionTaggedProps) {
-  const db = useFirestore();
-  const [items, setItems] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (!db || !dossierId || !sessionId) {
-      setItems([]);
-      return;
-    }
-    const q = query(
-      collection(db, 'dossiers', dossierId, 'historique'),
-      where('rappelSessionId', '==', sessionId),
-    );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        if (snap.metadata.fromCache && snap.size === 0) return;
-        const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-        rows.sort((a, b) => tsMillis(a.date) - tsMillis(b.date));
-        setItems(rows);
-      },
-      () => {},
-    );
-    return () => unsub();
-  }, [db, dossierId, sessionId]);
-
-  if (!sessionId) return <EmptyValue />;
-  if (items.length === 0) return <EmptyValue />;
-
-  const groups = new Map<string, any[]>();
-  for (const it of items) {
-    const type = it.type || 'autre';
-    if (!groups.has(type)) groups.set(type, []);
-    groups.get(type)!.push(it);
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      {Array.from(groups.entries()).map(([type, rows]) => (
-        <div key={type} className="flex flex-col gap-0.5">
-          <p className="t-caption tabular-nums">
-            {type} ({rows.length})
-          </p>
-          <ul>
-            {rows.map((it) => {
-              const who = it.userNom || it.user || 'Utilisateur inconnu';
-              return (
-                <li key={it.id} className="t-body-sm break-words pl-1 leading-snug">
-                  <span className="tabular-nums text-ink-3">{formatHm(it.date)}</span>
-                  {' '}
-                  <span className="font-medium text-ink-2">[{who}]</span>
-                  {' '}
-                  <span>{it.action || ''}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 type Vue = 'recus' | 'envoyes';
+type Segment = 'a-traiter' | 'traites';
 
 export default function MesRappelsPage() {
   const { rappels, loading } = useRappels();
@@ -364,6 +248,84 @@ export default function MesRappelsPage() {
     window.history.replaceState(window.history.state, '', url);
   };
 
+  // ── Reçus queue (addendum 2026-09-03 bis §B): « À traiter » is FIFO —
+  //    oldest first (action-needed order, addendum ter A); « Traités » leaves
+  //    the queue and reads newest-treated first. Sorted here, NOT in the hook
+  //    (the notification bell shares useRappels and keeps newest-first). ──
+  const [segment, setSegment] = useState<Segment>('a-traiter');
+  const aTraiter = useMemo(
+    () => rappels.filter((r) => !r.resolvedAt).sort((a, b) => tsMillis(a.createdAt) - tsMillis(b.createdAt)),
+    [rappels],
+  );
+  const traites = useMemo(
+    () => rappels.filter((r) => !!r.resolvedAt).sort((a, b) => tsMillis(b.resolvedAt) - tsMillis(a.resolvedAt)),
+    [rappels],
+  );
+  const queue = segment === 'a-traiter' ? aTraiter : traites;
+
+  // Selection = the master-detail state. Row click selects (and marks Lu —
+  // the honest place for "read"); navigation to the dossier is an explicit
+  // act (ref cell / panel button). Deep-linkable via ?rappel=<id>.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = useMemo(() => queue.find((r) => r.id === selectedId) ?? null, [queue, selectedId]);
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('rappel');
+    if (id) setSelectedId(id);
+  }, []);
+  // A deep-linked rappel may live in the other segment — follow it once.
+  const segmentInitRef = useRef(false);
+  useEffect(() => {
+    if (segmentInitRef.current || loading || !selectedId) return;
+    segmentInitRef.current = true;
+    if (!aTraiter.some((r) => r.id === selectedId) && traites.some((r) => r.id === selectedId)) {
+      setSegment('traites');
+    }
+  }, [loading, selectedId, aTraiter, traites]);
+
+  const writeSelectedUrl = (id: string | null) => {
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set('rappel', id);
+    else url.searchParams.delete('rappel');
+    window.history.replaceState(window.history.state, '', url);
+  };
+
+  const markRead = (r: Rappel) => {
+    if (!db || r.read) return;
+    updateDoc(doc(db, 'rappels', r.id), {
+      read: true,
+      ...(r.seenAt ? {} : { seenAt: serverTimestamp() }),
+    }).catch(() => {});
+  };
+
+  const selectRappel = (r: Rappel) => {
+    setSelectedId(r.id);
+    writeSelectedUrl(r.id);
+    markRead(r);
+  };
+
+  const clearSelection = () => {
+    setSelectedId(null);
+    writeSelectedUrl(null);
+  };
+
+  const changeSegment = (next: Segment) => {
+    if (next === segment) return;
+    setSegment(next);
+    const nextQueue = next === 'a-traiter' ? aTraiter : traites;
+    if (selectedId && !nextQueue.some((r) => r.id === selectedId)) clearSelection();
+  };
+
+  // The panel is a side pane on xl+ and a sheet below (responsive rule).
+  const [isXl, setIsXl] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const update = () => setIsXl(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
   const toggleExpand = (key: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -401,10 +363,7 @@ export default function MesRappelsPage() {
       // diff) is captured on the dossier page once it loads —
       // see ensureSnapshotBefore there.
     } else if (db && !r.read) {
-      updateDoc(doc(db, 'rappels', r.id), {
-        read: true,
-        ...(r.seenAt ? {} : { seenAt: serverTimestamp() }),
-      }).catch(() => {});
+      markRead(r);
     }
     if (typeof window !== 'undefined' && sid) {
       try { window.localStorage.setItem(SESSION_KEY(r.dossierId), sid); } catch {}
@@ -412,22 +371,81 @@ export default function MesRappelsPage() {
     router.push(`/dossiers/${r.dossierId}`);
   };
 
+  const restoreTreated = (r: Rappel) => {
+    if (!db) return;
+    updateDoc(doc(db, 'rappels', r.id), { resolvedAt: null })
+      .then(() => toast({ title: 'Rappel remis en attente' }))
+      .catch(() => toast({ title: 'Erreur', description: 'Impossible d’annuler', variant: 'destructive' }));
+  };
+
   const markTreated = (r: Rappel) => {
     if (!db || r.resolvedAt) return;
+    // The row leaves « À traiter » (queue precedent: done leaves the inbox);
+    // selection lands on the next item so a keyboard run never loses place.
+    const idx = aTraiter.findIndex((x) => x.id === r.id);
+    const next = aTraiter[idx + 1] ?? aTraiter[idx - 1] ?? null;
     updateDoc(doc(db, 'rappels', r.id), { resolvedAt: serverTimestamp() })
       .then(() => {
         if (typeof window !== 'undefined') {
           try { window.localStorage.removeItem(SESSION_KEY(r.dossierId)); } catch {}
         }
-        toast({ title: 'Rappel marqué comme traité' });
+        if (selectedId === r.id) {
+          if (next && segment === 'a-traiter') selectRappel(next);
+          else clearSelection();
+        }
+        // Reversible → undo in the toast, never a confirm (addendum ter E).
+        toast({
+          title: 'Rappel marqué comme traité',
+          action: (
+            <ToastAction altText="Annuler" onClick={() => restoreTreated(r)}>
+              Annuler
+            </ToastAction>
+          ),
+        });
       })
       .catch(() => {
         toast({ title: 'Erreur', description: 'Impossible de marquer comme traité', variant: 'destructive' });
       });
   };
 
-  // Count pill on a tab (§11: count pills are the neutral surface step —
-  // status colour is reserved for states, not for "how many").
+  // ── Keyboard spine (same model as the dossiers list, group « Mes rappels »):
+  //    arrows/jk move the selection; Entrée/t/Échap register only while a
+  //    rappel is selected so native button and dialog keys are never hijacked.
+  //    Keyboard moves don't animate (motion-spec F0). ──
+  const scrollRowIntoView = (id: string) => {
+    if (typeof document === 'undefined') return;
+    document
+      .querySelector(`[data-rappel-row="${typeof CSS !== 'undefined' ? CSS.escape(id) : id}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  };
+  const moveSelection = (delta: number) => {
+    if (queue.length === 0) return;
+    const idx = queue.findIndex((r) => r.id === selectedId);
+    const next =
+      idx === -1
+        ? delta > 0 ? queue[0] : queue[queue.length - 1]
+        : queue[Math.min(queue.length - 1, Math.max(0, idx + delta))];
+    if (next && next.id !== selectedId) {
+      selectRappel(next);
+      scrollRowIntoView(next.id);
+    }
+  };
+  const listActive = activeVue === 'recus' && queue.length > 0;
+  useHotkeys(
+    [
+      { keys: 'arrowdown', label: 'Rappel suivant', group: 'Mes rappels', handler: () => moveSelection(1), enabled: listActive },
+      { keys: 'j', label: 'Rappel suivant', group: 'Mes rappels', handler: () => moveSelection(1), enabled: listActive },
+      { keys: 'arrowup', label: 'Rappel précédent', group: 'Mes rappels', handler: () => moveSelection(-1), enabled: listActive },
+      { keys: 'k', label: 'Rappel précédent', group: 'Mes rappels', handler: () => moveSelection(-1), enabled: listActive },
+      { keys: 'enter', label: 'Ouvrir le dossier', group: 'Mes rappels', handler: () => { if (selected) openRappel(selected); }, enabled: activeVue === 'recus' && !!selected },
+      { keys: 't', label: 'Marquer traité', group: 'Mes rappels', handler: () => { if (selected && !selected.resolvedAt) markTreated(selected); }, enabled: activeVue === 'recus' && !!selected && !selected.resolvedAt },
+      { keys: 'escape', label: 'Fermer le détail', group: 'Mes rappels', handler: clearSelection, enabled: activeVue === 'recus' && !!selected },
+    ],
+    [activeVue, segment, queue, selectedId, selected],
+  );
+
+  // Count pill on a tab or segment (§11: count pills are the neutral surface
+  // step — status colour is reserved for states, not for "how many").
   const tabCount = (n: number) =>
     n > 0 ? (
       <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
@@ -436,10 +454,10 @@ export default function MesRappelsPage() {
     ) : null;
 
   return (
-    // Layout as at 3d5629a: header → tabs → one card per tab holding a data
-    // table. The Tabs root wraps the header so the tab strip can sit in the
-    // PageHeader `tabs` slot (same position, under the title). Sections 32 px
-    // apart (addendum 2026-09-02 §4).
+    // Layout as at 3d5629a: header → tabs → content per tab. The Tabs root
+    // wraps the header so the tab strip can sit in the PageHeader `tabs` slot
+    // (same position, under the title). Sections 32 px apart (addendum
+    // 2026-09-02 §4).
     <Tabs value={activeVue} onValueChange={(v) => changeVue(v as Vue)} className="space-y-8">
       {/* Page header (element-specs §1: Polaris Page — title only, no page
           primary here: rappels are sent from a dossier, not from this list). */}
@@ -469,7 +487,7 @@ export default function MesRappelsPage() {
       {recusVisible && (
         <TabsContent value="recus" className="mt-0">
           {loading ? (
-            <Card className="overflow-hidden"><TableSkeleton heads={8} /></Card>
+            <Card className="overflow-hidden"><TableSkeleton heads={6} /></Card>
           ) : rappels.length === 0 ? (
             // Empty state (§12: NN/g — state + reason; Polaris — one line).
             // No action: a rappel can only be sent to you from a dossier.
@@ -480,118 +498,205 @@ export default function MesRappelsPage() {
               dashed={false}
             />
           ) : (
-            // Data table (§3: Polaris "textual left, headers align with their
-            // data"; Carbon 44 px rows, persistent row actions; NN/g "only 1–2
-            // inline row actions", frozen first column, sticky header from the
-            // primitive). The row is the link; refs in t-mono; status = chip.
-            <Card className="overflow-hidden">
-              <Table regionLabel="Rappels reçus">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className={cn(STICKY_HEAD, 'min-w-[11rem]')}>Référence dossier</TableHead>
-                    <TableHead>Envoyé par</TableHead>
-                    <TableHead>Observation</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Observations</TableHead>
-                    <TableHead>Modifications</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead className="text-right">Travail effectué</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rappels.map((r) => {
-                    const state = rappelState(r);
-                    return (
-                      <TableRow
-                        key={r.id}
-                        className="cursor-pointer"
-                        onClick={() => openRappel(r)}
-                      >
-                        <TableCell className={cn(STICKY_CELL, 't-mono font-semibold')}>
-                          {/* Keyboard-reachable copy of the row link. */}
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); openRappel(r); }}
-                            className="rounded-sm text-left hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            title="Ouvrir le dossier"
-                          >
-                            {r.dossierRef || r.dossierId}
-                          </button>
-                        </TableCell>
-                        <TableCell className={cn(state === 'nouveau' ? 'font-medium text-ink' : 'text-ink-2')}>
-                          {r.senderNom || <EmptyValue />}
-                        </TableCell>
-                        <TableCell className={cn('min-w-[14rem] max-w-[24rem] whitespace-normal', state === 'nouveau' ? 'font-medium text-ink' : 'text-ink-2')}>
-                          {r.observation || <EmptyValue />}
-                        </TableCell>
-                        {/* Dates are values → full ink (addendum §3); today's
-                            rappels carry the warm TIME chip (terracotta =
-                            temporal salience, 2026-09-02). */}
-                        <TableCell>
-                          <span className="inline-flex items-center gap-2">
-                            {formatDate(r.createdAt)}
-                            {isToday(r.createdAt) && <Badge variant="time">Aujourd&apos;hui</Badge>}
-                          </span>
-                        </TableCell>
-                        {/* Live cells: the text inside is selectable, so a click
-                            here must not open the dossier. */}
-                        <TableCell
-                          onClick={(e) => e.stopPropagation()}
-                          className="min-w-[14rem] max-w-[20rem] cursor-default whitespace-normal"
-                        >
-                          <SessionObservations dossierId={r.dossierId} sessionId={r.sessionId} />
-                        </TableCell>
-                        <TableCell
-                          onClick={(e) => e.stopPropagation()}
-                          className="min-w-[14rem] max-w-[20rem] cursor-default whitespace-normal"
-                        >
-                          <SessionModifications dossierId={r.dossierId} sessionId={r.sessionId} />
-                        </TableCell>
-                        <TableCell>
-                          <StateChip rappel={r} />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {/* Row actions (§3 / §8): at most two, ghost, at the
-                              row end. "Marquer traité" disappears once done
-                              (GOV.UK: avoid disabled buttons — the chip says Traité). */}
-                          <div className="flex items-center justify-end gap-1">
-                            {r.sessionId ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="gap-1.5"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setReplayRappel(r);
-                                }}
-                              >
-                                <ScrollText className="h-3.5 w-3.5" />
-                                Voir le détail
-                              </Button>
-                            ) : null}
-                            {!r.resolvedAt && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="gap-1.5"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  markTreated(r);
-                                }}
-                              >
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                Marquer traité
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </Card>
+            // Master-detail (addendum 2026-09-03 bis §A): slim queue table +
+            // detail pane. Row click SELECTS; the ref cell keeps the session
+            // handshake click-through; « Ouvrir le dossier » is explicit.
+            <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] xl:items-start">
+              <div className="min-w-0 space-y-4">
+                {/* « À traiter / Traités » — a value picker, so segmented +
+                    SlidingThumb (tabs are reserved for view switchers). Count
+                    only on À traiter: a count must be able to hit zero. */}
+                <div
+                  role="group"
+                  aria-label="État des rappels"
+                  className="relative isolate flex h-9 w-fit items-center gap-0.5 rounded-md bg-surface-2 p-0.5"
+                >
+                  <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[segment, aTraiter.length]} />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-seg-active={segment === 'a-traiter'}
+                    aria-pressed={segment === 'a-traiter'}
+                    onClick={() => changeSegment('a-traiter')}
+                    className="relative z-[1] h-8 gap-1.5 px-3 shadow-none"
+                  >
+                    À traiter
+                    {tabCount(aTraiter.length)}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-seg-active={segment === 'traites'}
+                    aria-pressed={segment === 'traites'}
+                    onClick={() => changeSegment('traites')}
+                    className="relative z-[1] h-8 px-3 shadow-none"
+                  >
+                    Traités
+                  </Button>
+                </div>
+
+                {queue.length === 0 ? (
+                  segment === 'a-traiter' ? (
+                    // Inbox zero — quietly celebratory (the emptiness is an
+                    // achievement), one line, no theatrics.
+                    <EmptyState
+                      icon={<CheckCircle2 />}
+                      title="Tout est traité"
+                      description="Aucun rappel en attente — les nouveaux apparaîtront ici."
+                      dashed={false}
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={<Inbox />}
+                      title="Aucun rappel traité"
+                      description="Les rappels marqués comme traités apparaîtront ici."
+                      dashed={false}
+                    />
+                  )
+                ) : (
+                  // Queue table (§3 + addendum bis §B): 6 columns, one-line
+                  // grid, FIFO. Unread = teal left bar + full-ink ladder; the
+                  // Nouveau chip is the only filled info pair. Emphasis budget:
+                  // ref (mono 600) + statut chip.
+                  <Card className="overflow-hidden">
+                    <Table regionLabel="Rappels reçus">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className={cn(STICKY_HEAD, 'min-w-[11rem]')}>Référence dossier</TableHead>
+                          <TableHead>Statut</TableHead>
+                          <TableHead>Observation</TableHead>
+                          <TableHead>Envoyé par</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {queue.map((r) => {
+                          const state = rappelState(r);
+                          const isSelected = selectedId === r.id;
+                          return (
+                            <TableRow
+                              key={r.id}
+                              data-rappel-row={r.id}
+                              data-state={isSelected ? 'selected' : undefined}
+                              className="cursor-pointer"
+                              onClick={() => selectRappel(r)}
+                            >
+                              <TableCell className={cn(STICKY_CELL, 'relative t-mono font-semibold')}>
+                                {/* Unread bar — region stimulus on the left
+                                    scan rail (research: dots fail, bars work);
+                                    teal = attention, never terracotta. */}
+                                {state === 'nouveau' && (
+                                  <span
+                                    aria-hidden
+                                    className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
+                                  />
+                                )}
+                                {/* The session-handshake click-through (tour
+                                    contract: the ref cell opens the dossier). */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); openRappel(r); }}
+                                  className="rounded-sm text-left hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  title="Ouvrir le dossier"
+                                >
+                                  {r.dossierRef || r.dossierId}
+                                </button>
+                              </TableCell>
+                              <TableCell>
+                                <StateChip rappel={r} />
+                              </TableCell>
+                              <TableCell className="max-w-[24rem]">
+                                <span
+                                  className={cn('block truncate', state === 'nouveau' ? 'font-medium text-ink' : 'text-ink-2')}
+                                  title={r.observation || undefined}
+                                >
+                                  {r.observation || <EmptyValue />}
+                                </span>
+                              </TableCell>
+                              <TableCell className={state === 'nouveau' ? 'text-ink' : 'text-ink-2'}>
+                                {r.senderNom || <EmptyValue />}
+                              </TableCell>
+                              {/* Dates are values → absolute, full ink; the
+                                  relative age lives in the tooltip (2026-09-03
+                                  §C). Today keeps the warm TIME chip. */}
+                              <TableCell>
+                                <span className="inline-flex items-center gap-2">
+                                  <span title={[formatDate(r.createdAt), relativeAge(r.createdAt)].filter(Boolean).join(' · ')}>
+                                    {formatDateShort(r.createdAt)}
+                                  </span>
+                                  {isToday(r.createdAt) && <Badge variant="time">Aujourd&apos;hui</Badge>}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {!r.resolvedAt ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="gap-1.5"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      markTreated(r);
+                                    }}
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                    Marquer traité
+                                  </Button>
+                                ) : (
+                                  <EmptyValue />
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </Card>
+                )}
+              </div>
+
+              {/* Detail pane (xl+): sticky, scrolls internally. Always present
+                  so selecting never reflows the table (layout stability). */}
+              <Card className="hidden xl:block xl:sticky xl:top-6 xl:max-h-[calc((100dvh-140px)/var(--app-zoom))] xl:overflow-y-auto">
+                <div className="p-6">
+                  {selected ? (
+                    <RappelDetailContent
+                      rappel={selected}
+                      active={isXl}
+                      onOpenDossier={openRappel}
+                      onMarkTreated={markTreated}
+                      onShowReplay={(r) => setReplayRappel(r)}
+                    />
+                  ) : (
+                    <RappelDetailPlaceholder />
+                  )}
+                </div>
+              </Card>
+            </div>
           )}
+
+          {/* Below xl the same detail opens as a sheet. */}
+          <Sheet open={!isXl && !!selected} onOpenChange={(o) => { if (!o) clearSelection(); }}>
+            <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+              <SheetHeader className="sr-only">
+                <SheetTitle>Détail du rappel</SheetTitle>
+                <SheetDescription>Observation, travail effectué et actions du rappel sélectionné.</SheetDescription>
+              </SheetHeader>
+              {selected && (
+                <div className="mt-2">
+                  <RappelDetailContent
+                    rappel={selected}
+                    active={!isXl}
+                    onOpenDossier={openRappel}
+                    onMarkTreated={markTreated}
+                    onShowReplay={(r) => setReplayRappel(r)}
+                  />
+                </div>
+              )}
+            </SheetContent>
+          </Sheet>
         </TabsContent>
       )}
 
