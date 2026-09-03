@@ -329,6 +329,105 @@ hierarchy material reached us only secondhand — flagged in the reports).
 
 ---
 
+# Addendum 2026-09-03 (quater) — consultation page pass (lookup archive)
+
+Six parallel research rounds per the §2 sourcing policy; full per-source
+reports with quotes live in `docs/research/consultation-*.md` (structure ·
+color · attention · typography · navigation · features-libraries; ~80 sources
+fetched, each report ends with its honest could-not-fetch list — Reddit was
+blocked outright in all six). Rules below extend ter; nothing contradicts a
+locked ruling.
+
+## A. The lookup-archive page class (new — extends ter A)
+
+/consultation is a **known-item lookup** page, not a work queue: read-only,
+nothing needs action, nothing leaves the list when handled. Consequences:
+- **Default sort = recency (Date de requête desc, arrow shown)**, not
+  action-needed order — the most common first question is "the dossier I was
+  just called about" (Pencil & Paper; mannhowie). Queues keep ter A's
+  action-needed order.
+- The table IS the right form (homogeneous rows, zero visual content, 3 of
+  the columns are alternative lookup keys accepted by the search box); cards
+  and permanent split views optimize browsing/serial inspection, not point
+  lookup.
+- A lookup page's row MUST end the task: réf cell = real `<a>` (one crisp tab
+  stop announcing the réf), whole-row click as pointer-only enhancement
+  (guarded: text selection or a control click never navigates — tempertemper,
+  Roselli), quiet chevron at the row end. Rows-as-buttons drop out of the
+  accessibility tree in two major screen readers.
+- No density toggle needed here (a lookup list is filtered to a handful of
+  rows before reading); `data-density=compact` stays available system-wide.
+- « Afficher plus » depth persists in sessionStorage so the list → dossier →
+  retour trip restores (Baymard: load-more lists that forget the return trip
+  are a direct abandonment cause).
+
+## B. Search & findability (extends §2)
+
+- **Forgiving matching is part of the element contract**: fold case AND
+  diacritics on names/refs; plates additionally through `normalizePlate`
+  (plate-match.ts's own rule — plates are stored unnormalized). Applied from
+  the 2nd character (ter A).
+- **Matched substrings are marked** in the identifier/name/plate cells: a
+  soft NEUTRAL tint (`bg-surface-3` mark, never teal — the page's colour
+  budget is closed), so the row answers "why am I in the results".
+- Enter in the search field opens the single remaining match; Échap clears
+  the field. `/` stays global (⌘K palette owns it).
+- **Zero-result recovery names the way out**: when the search text would
+  match outside the active chip filters, the empty state says so and offers
+  « Rechercher partout » (NN/g scoped search: an invisible restored scope is
+  the worst offender). The chips row echoes « N sur M dossiers » for the same
+  reason at re-entry.
+- Do NOT build here: a second ⌘K, named saved views, virtual scroll,
+  pagination, breadcrumbs (each researched and rejected in
+  consultation-navigation.md).
+
+## C. Colour verdict (extends ter C — no new rules, one finding)
+
+The consultation page is **chromatically complete at five hues** (teal + 4
+status pairs = Healey's 5–7 rapidly-findable ceiling). Its quietness is
+load-bearing: terracotta stays at exactly zero (dates here are past),
+no sixth categorical hue ever (no coloured compagnie/nature cells), and the
+aesthetic lift lives in the value dimension (protect the cream→card step and
+the glass shadow on the table card). Recorded so nobody "fixes" the grey.
+
+## D. Applied 2026-09-03 (consultation + shared)
+
+Row-opens-dossier (idiom from /compagnies) · default sort dateRequete desc +
+`SortableHeader` on all 8 columns · Assuré cell lost its 500 weight (ter A
+emphasis budget: réf + statut only) · Assuré/Compagnie capped + truncated
+with `title` (IDs never truncate) · forgiving search + neutral `<mark>` ·
+« Colonnes » picker + « Exporter » (filtered rows, visible column order —
+the export/view mismatch is the reported failure mode) · OQLF insécables in
+chips/captions/copy · `Badge` gains `tracking-[0.01em]` (11 px is below
+Butterick's 9 pt lowercase floor — app-wide, needs the owner's eyes).
+
+## E. Spec conflicts found (owner to arbitrate)
+
+1. **EmptyCell ink step**: §10 says « — » in ink-3; `table.tsx` ships ink-4
+   while citing §10. (Research leans ink-4: a non-value shouldn't compete.)
+2. **Cell padding**: §3 says 16 px; `table.tsx` ships `px-3` (12 px, which
+   the ter D squish-inset rule favours). Amend the spec or the code.
+
+## F. Researched options awaiting the owner (NOT implemented)
+
+- Column reorder (lookup keys left: Réf → Assuré → Matricule; Statut into the
+  left third; « Type de dossier » demoted to the detail) — 80 % of fixation
+  is left-of-centre, but reordering changes the restored layout.
+- Read-only peek Sheet on row click (Linear-style; §10 definition list +
+  « Ouvrir le dossier ») — spares Directeurs the edit-shaped detail page.
+- Stats strip (counts by status for the filtered set, §6 tiles, no chart).
+- Facet result counts in the three dropdowns (« Wafa Assurance (142) »),
+  zero-count options dimmed.
+- « Consultés récemment » chips above the table (depends on row-open usage).
+- Mobile: collapse selects + date range behind ONE « Filtres » button with a
+  count badge (search + chips stay visible).
+- Demote 1–2 selects behind « Plus de filtres » (§2's ≤ 3 promoted rule).
+- Consultation-only status-chip muting (dot + text) — would fix the
+  squint-test inversion (status column outshouts the lookup rail) but forks
+  the canonical §11 idiom; flagged, recommended against for now.
+
+---
+
 # Addendum 2026-09-03 — dossiers list page: structure, attention, tools
 
 Four parallel deep-research rounds on the `/dossiers` table page (per the §2
