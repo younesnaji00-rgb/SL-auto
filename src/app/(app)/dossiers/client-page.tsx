@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Trash2, AlertCircle, Eye, History, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check, Columns3 } from 'lucide-react';
-import { format, formatDistanceToNowStrict, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
+import { format, formatDistanceToNowStrict, differenceInCalendarDays, isToday, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -39,10 +39,16 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useHotkeys } from '@/hooks/use-hotkeys';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DossierPeekPanel } from '@/components/dossiers/dossier-peek-panel';
+import { DossierKpiStrip } from '@/components/dossiers/dossier-kpi-strip';
 import { MoreHorizontal, ExternalLink } from 'lucide-react';
 import { getStatusDotColor } from '@/lib/status-colors';
 import { StatusChip } from '@/components/ui/status-chip';
@@ -80,6 +86,7 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   // état — ce qui demande une action
   { key: 'statut', label: 'Statut' },
   { key: 'observation', label: 'Observation' },
+  { key: 'anciennete', label: 'Ancienneté' },
   { key: 'createdAt', label: 'Date de création' },
   // parties
   { key: 'compagnie', label: 'Compagnie' },
@@ -99,6 +106,24 @@ const EXPORT_COLUMNS: ExportColumn[] = [
 
 // The identifier column can never be hidden — it is the row's anchor.
 const HIDEABLE_COLUMNS = EXPORT_COLUMNS.filter((c) => c.key !== 'refExpert');
+
+// « À traiter » scope: every status that still needs work. Only « Accord
+// envoyé » is terminal in the canonical status machine today — a Réforme
+// still moves through rapport/honoraires. Extend this set if a new terminal
+// status appears.
+const TERMINAL_STATUTS: ReadonlySet<string> = new Set(['Accord envoyé']);
+const isActionNeeded = (statut: string | undefined) => !TERMINAL_STATUTS.has((statut || '').trim());
+
+// Age alarm threshold in days (SLA aging — attention research 2026-09-03).
+// Lateness uses the DANGER pair, never terracotta (addendum 2026-09-02:
+// terracotta marks aujourd'hui/prochain, "lateness belongs to the danger
+// pair"). Tune here.
+const LATE_AFTER_DAYS = 7;
+
+// Diacritic/case-insensitive search normalizer (fuzzy-search upgrade — the
+// TanStack `rankItem` value delivered natively; ecosystem research
+// 2026-09-03). Every space-separated term must match somewhere in the row.
+const normSearch = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 export default function DossiersClientPage() {
   const router = useRouter();
@@ -246,7 +271,10 @@ export default function DossiersClientPage() {
     return Array.from(seen).sort((a, b) => a.localeCompare(b, 'fr'));
   }, [allDossiers, userNameByUid]);
 
-  const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', creator: 'Tous', dateFrom: '', dateTo: '', rowsPerPage: 25, sortByCreation: 'desc' as 'desc' | 'asc', datePreset: null as 'jour' | 'semaine' | 'mois' | 'personnalise' | null, hiddenCols: [] as string[] };
+  // Armed default view (owner-approved 2026-09-03): the page opens on
+  // « À traiter » — the zero-interaction answer to the day's actual question
+  // (default bias / Split-Inbox research). « Tous » is one tab away.
+  const filterDefaults = { search: '', scope: 'a-traiter' as 'a-traiter' | 'tous', lateOnly: false, nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', creator: 'Tous', dateFrom: '', dateTo: '', rowsPerPage: 25, sortByCreation: 'desc' as 'desc' | 'asc', datePreset: null as 'jour' | 'semaine' | 'mois' | 'personnalise' | null, hiddenCols: [] as string[], density: 'normale' as 'compacte' | 'normale' | 'confortable' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('dossiers', filterDefaults);
   const rowsPerPage = filters.rowsPerPage;
   const [page, setPage] = useState(1);
@@ -270,31 +298,63 @@ export default function DossiersClientPage() {
   const [sending, setSending] = useState(false);
   const [rappelObservation, setRappelObservation] = useState('');
 
-  const dossierList = useMemo(() => {
+  /** Whole days since a timestamp-ish value; null when absent/invalid. */
+  const ageDays = (val: any): number | null => {
+    if (!val) return null;
+    const date = val.toDate ? val.toDate() : new Date(val);
+    if (Number.isNaN(date.getTime())) return null;
+    return Math.max(0, differenceInCalendarDays(new Date(), date));
+  };
+
+  // One filter pass, with an optional excluded dimension. `except` powers the
+  // faceted option counts (native equivalent of TanStack's
+  // getFacetedUniqueValues, ecosystem research 2026-09-03): each column's
+  // counts come from the list filtered by every OTHER filter, so a popover
+  // shows exactly what choosing an option would yield.
+  const filteredExcept = useCallback((except: string | null) => {
     let results = [...allDossiers];
-    if (filters.nature !== 'Toutes') results = results.filter(d => d.nature === filters.nature);
-    if (filters.status !== 'Tous') results = results.filter(d => d.statut === filters.status);
-    if (filters.compagnie !== 'Toutes') results = results.filter(d => d.compagnie === filters.compagnie);
-    if (filters.observation === 'Autre') {
-      const predefined = new Set(filterObservations.map(o => o.label));
+    if (except !== 'scope' && filters.scope !== 'tous') results = results.filter(d => isActionNeeded(d.statut));
+    if (except !== 'scope' && filters.lateOnly) {
       results = results.filter(d => {
-        const t = (d as any).lastObservation?.text?.trim();
-        return t && t !== 'Autre' && !predefined.has(t);
+        const age = ageDays((d as any).createdAt);
+        return isActionNeeded(d.statut) && age !== null && age >= LATE_AFTER_DAYS;
       });
-    } else if (filters.observation !== 'Toutes') {
-      results = results.filter(d => d.lastObservation?.text === filters.observation);
     }
-    if (filters.creator !== 'Tous') results = results.filter(d => resolveCreatorName(d) === filters.creator);
+    if (except !== 'nature' && filters.nature !== 'Toutes') results = results.filter(d => d.nature === filters.nature);
+    if (except !== 'status' && filters.status !== 'Tous') results = results.filter(d => d.statut === filters.status);
+    if (except !== 'compagnie' && filters.compagnie !== 'Toutes') results = results.filter(d => d.compagnie === filters.compagnie);
+    if (except !== 'observation') {
+      if (filters.observation === 'Autre') {
+        const predefined = new Set(filterObservations.map(o => o.label));
+        results = results.filter(d => {
+          const t = (d as any).lastObservation?.text?.trim();
+          return t && t !== 'Autre' && !predefined.has(t);
+        });
+      } else if (filters.observation !== 'Toutes') {
+        results = results.filter(d => d.lastObservation?.text === filters.observation);
+      }
+    }
+    if (except !== 'creator' && filters.creator !== 'Tous') results = results.filter(d => resolveCreatorName(d) === filters.creator);
     if (filters.search) {
-      const s = filters.search.toLowerCase();
-      results = results.filter(d =>
-        d.refExpert?.toLowerCase().includes(s) ||
-        (typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`).toLowerCase().includes(s) ||
-        d.matricule?.toLowerCase().includes(s)
-      );
+      // Diacritic/case-insensitive, multi-term AND across the row's
+      // identifying fields (search upgrade, ecosystem research 2026-09-03 —
+      // « réf compagnie », both matricules and the creator are now findable).
+      const terms = normSearch(filters.search).split(/\s+/).filter(Boolean);
+      results = results.filter(d => {
+        const hay = normSearch([
+          d.refExpert,
+          typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`,
+          d.matricule,
+          d.vehicule?.immatriculationAnterieur,
+          d.compagnie,
+          d.referenceCompagnie,
+          resolveCreatorName(d),
+        ].filter(Boolean).join(' '));
+        return terms.every(t => hay.includes(t));
+      });
     }
-    // Date filter now keys off `createdAt` (per R2-8) — that's the dossier's
-    // own creation timestamp, not the gestionnaire-entered dateRequete.
+    // Date filter keys off `createdAt` (per R2-8) — the dossier's own creation
+    // timestamp, not the gestionnaire-entered dateRequete.
     if (filters.dateFrom) {
       const from = new Date(filters.dateFrom);
       results = results.filter(d => {
@@ -314,6 +374,12 @@ export default function DossiersClientPage() {
         return date <= to;
       });
     }
+    return results;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDossiers, filters, filterObservations, userNameByUid]);
+
+  const dossierList = useMemo(() => {
+    const results = filteredExcept(null);
     // Sort by creation date. Firestore subscription already returns rows in
     // `createdAt desc` order, but we re-sort here so the `asc` toggle works
     // and so dossiers missing `createdAt` land deterministically at the end.
@@ -327,7 +393,47 @@ export default function DossiersClientPage() {
     const dir = filters.sortByCreation === 'asc' ? 1 : -1;
     results.sort((a, b) => (toMillis((a as any).createdAt) - toMillis((b as any).createdAt)) * dir);
     return results;
-  }, [allDossiers, filters, filterObservations]);
+  }, [filteredExcept, filters.sortByCreation]);
+
+  // Faceted option counts for the per-column filter popovers.
+  const facetCounts = useMemo(() => {
+    const count = (rows: any[], get: (d: any) => string | undefined) => {
+      const m = new Map<string, number>();
+      for (const d of rows) {
+        const v = (get(d) || '').trim();
+        if (!v) continue;
+        m.set(v, (m.get(v) || 0) + 1);
+      }
+      return m;
+    };
+    return {
+      nature: count(filteredExcept('nature'), d => d.nature),
+      status: count(filteredExcept('status'), d => d.statut),
+      compagnie: count(filteredExcept('compagnie'), d => d.compagnie),
+      observation: count(filteredExcept('observation'), d => d.lastObservation?.text),
+      creator: count(filteredExcept('creator'), d => resolveCreatorName(d)),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredExcept]);
+
+  // KPI strip figures — company-scoped totals, independent of the filters so
+  // the tiles stay stable navigation anchors (they SET filters, they don't
+  // follow them).
+  const kpi = useMemo(() => {
+    let aTraiter = 0, enRetard = 0, aujourdHui = 0;
+    for (const d of allDossiers) {
+      const action = isActionNeeded(d.statut);
+      if (action) aTraiter++;
+      const age = ageDays((d as any).createdAt);
+      if (action && age !== null && age >= LATE_AFTER_DAYS) enRetard++;
+      const raw = (d as any).createdAt;
+      if (raw) {
+        const dt = raw.toDate ? raw.toDate() : new Date(raw);
+        if (!Number.isNaN(dt.getTime()) && isToday(dt)) aujourdHui++;
+      }
+    }
+    return { aTraiter, enRetard, aujourdHui, total: allDossiers.length };
+  }, [allDossiers]);
 
   useEffect(() => { dossierListRef.current = dossierList; }, [dossierList]);
 
@@ -374,6 +480,28 @@ export default function DossiersClientPage() {
       ?.scrollIntoView({ block: 'nearest' });
   }, [focusIdx]);
   const focusedRow = focusIdx !== null ? pageRows[focusIdx] : undefined;
+
+  // Peek panel (owner-approved 2026-09-03) — the ephemeral detail tier.
+  // Single click opens it; ↑/↓ retarget it; Entrée / « Ouvrir » commit to the
+  // full page; Échap closes (before dropping the row focus).
+  const [peekId, setPeekId] = useState<string | null>(null);
+  const peekDossier = useMemo(
+    () => (peekId ? dossierList.find(d => d.id === peekId) ?? null : null),
+    [peekId, dossierList],
+  );
+  const peekPosition = useMemo(() => {
+    if (!peekId) return undefined;
+    const i = dossierList.findIndex(d => d.id === peekId);
+    return i === -1 ? undefined : { index: i + 1, total: dossierList.length };
+  }, [peekId, dossierList]);
+  // Retarget the open peek when the keyboard focus moves to another row.
+  useEffect(() => {
+    if (peekId && focusedRow && focusedRow.id !== peekId) setPeekId(focusedRow.id);
+  }, [peekId, focusedRow]);
+  // Close the peek when its row leaves the filtered list.
+  useEffect(() => {
+    if (peekId && !dossierList.some(d => d.id === peekId)) setPeekId(null);
+  }, [peekId, dossierList]);
 
   // Clean up stale row selections when filters change
   const dossierIds = useMemo(() => new Set(dossierList.map(d => d.id)), [dossierList]);
@@ -433,13 +561,26 @@ export default function DossiersClientPage() {
       handler: () => { if (focusedRow) handleToggleRow(focusedRow.id); },
     },
     {
-      keys: 'escape',
-      label: 'Quitter la surbrillance',
+      keys: 'space',
+      label: "Aperçu de la ligne (ouvrir / fermer)",
       group: 'Liste des dossiers',
-      enabled: focusIdx !== null,
-      handler: () => setFocusIdx(null),
+      enabled: !exportMode && !!focusedRow,
+      handler: () => {
+        if (!focusedRow) return;
+        setPeekId(prev => (prev === focusedRow.id ? null : focusedRow.id));
+      },
     },
-  ], [moveFocus, focusedRow, focusIdx, exportMode, handleToggleRow, openDossier]);
+    {
+      keys: 'escape',
+      label: "Fermer l'aperçu / quitter la surbrillance",
+      group: 'Liste des dossiers',
+      enabled: peekId !== null || focusIdx !== null,
+      handler: () => {
+        if (peekId !== null) setPeekId(null);
+        else setFocusIdx(null);
+      },
+    },
+  ], [moveFocus, focusedRow, focusIdx, peekId, exportMode, handleToggleRow, openDossier]);
 
   useEffect(() => {
     if (!isSendToOpen || !db) return;
@@ -617,6 +758,23 @@ export default function DossiersClientPage() {
             )}
           </TableCell>
         );
+      case 'anciennete': {
+        // The triage signal (attention research 2026-09-03): plain quiet age
+        // for on-time rows; the DANGER pair only past the SLA threshold and
+        // only while the dossier still needs action — a rare, lawful alarm.
+        const age = ageDays((d as any).createdAt);
+        if (age === null) return <TableCell key={key}><EmptyCell /></TableCell>;
+        const late = isActionNeeded(d.statut) && age >= LATE_AFTER_DAYS;
+        return (
+          <TableCell key={key} className="tabular-nums" title={relativeDate((d as any).createdAt)}>
+            {late ? (
+              <Badge variant="danger" className="tabular-nums">{age} j</Badge>
+            ) : (
+              <span className="text-ink-2">{age} j</span>
+            )}
+          </TableCell>
+        );
+      }
       case 'createdAt':
         return (
           <TableCell key={key} className="tabular-nums" title={relativeDate((d as any).createdAt)}>
@@ -665,7 +823,8 @@ export default function DossiersClientPage() {
 
   const hasAttributeFilters =
     filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' ||
-    filters.observation !== 'Toutes' || filters.creator !== 'Tous' || !!filters.dateFrom || !!filters.dateTo;
+    filters.observation !== 'Toutes' || filters.creator !== 'Tous' || !!filters.dateFrom || !!filters.dateTo ||
+    filters.lateOnly;
 
   const applyPreset = (preset: 'jour' | 'semaine' | 'mois') => {
     const now = new Date();
@@ -680,12 +839,33 @@ export default function DossiersClientPage() {
         title={pageTitle}
         subtitle={pageSubtitle}
         count={loading ? undefined : dossierList.length}
+        tabs={
+          // View scope — a real view switcher, so it draws the browser-tab
+          // anatomy (owner ruling §4: "every tab switch"; the Tabs primitive
+          // carries .tab-slope). « À traiter » is the armed default view.
+          <Tabs value={filters.scope} onValueChange={(v) => { setFilters({ scope: v as 'a-traiter' | 'tous' }); setPage(1); }}>
+            <TabsList aria-label="Portée de la liste">
+              <TabsTrigger value="a-traiter">
+                À traiter
+                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
+                  {loading ? '…' : kpi.aTraiter}
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="tous">
+                Tous
+                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
+                  {loading ? '…' : kpi.total}
+                </span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
         actions={
           // One solid primary at the right end of the title row; the
           // selection-mode entry is outline (blueprint §6: emphasis follows the job).
           exportMode ? undefined : (
             <>
-              <Button variant="outline" onClick={() => setExportMode(true)} title="Sélectionner des dossiers à rappeler">
+              <Button variant="outline" onClick={() => { setPeekId(null); setExportMode(true); }} title="Sélectionner des dossiers à rappeler">
                 Rappeler
               </Button>
               {canEditDossiers && (
@@ -705,6 +885,50 @@ export default function DossiersClientPage() {
         </Alert>
       )}
 
+      {/* KPI strip — actionable counters (each tile SETS a view/filter). The
+          « En retard » value is the page's only exception colour (§6). */}
+      <DossierKpiStrip
+        loading={loading}
+        tiles={[
+          {
+            key: 'a-traiter',
+            label: 'À traiter',
+            value: kpi.aTraiter,
+            caption: 'statut non terminé',
+            active: filters.scope === 'a-traiter' && !filters.lateOnly,
+            onClick: () => { setFilters({ scope: 'a-traiter', lateOnly: false }); setPage(1); },
+          },
+          {
+            key: 'en-retard',
+            label: 'En retard',
+            value: kpi.enRetard,
+            caption: `à traiter depuis ≥ ${LATE_AFTER_DAYS} j`,
+            danger: true,
+            active: filters.lateOnly,
+            onClick: () => { setFilters({ scope: 'a-traiter', lateOnly: true, sortByCreation: 'asc' }); setPage(1); },
+          },
+          {
+            key: 'aujourdhui',
+            label: "Créés aujourd'hui",
+            value: kpi.aujourdHui,
+            caption: 'sur la journée',
+            active: filters.datePreset === 'jour',
+            onClick: () => applyPreset('jour'),
+          },
+          {
+            key: 'total',
+            label: 'Total',
+            value: kpi.total,
+            caption: 'tous statuts',
+            active: filters.scope === 'tous' && !hasAttributeFilters,
+            onClick: () => {
+              setFilters({ scope: 'tous', lateOnly: false, dateFrom: '', dateTo: '', datePreset: null });
+              setPage(1);
+            },
+          },
+        ]}
+      />
+
       {/* Filter toolbar — ONE quiet row (NN/g data tables: search first and
           widest, then scoped controls); wraps below lg. Spacing grammar
           (research 2026-09-03, polish §7): 8 px inside a cluster, 24 px
@@ -723,7 +947,10 @@ export default function DossiersClientPage() {
               aria-label="Rechercher un dossier"
             />
           </div>
-          <SavedViews storageKey="dossiers" current={filters} onApply={(f) => { setFilters(() => f); setPage(1); }} />
+          {/* Merge over the defaults: a view saved before a filter key
+              existed (scope, lateOnly, hiddenCols, density…) must not strip
+              that key from the state. */}
+          <SavedViews storageKey="dossiers" current={filters} onApply={(f) => { setFilters(() => ({ ...filterDefaults, ...f })); setPage(1); }} />
         </div>
 
         {/* Date cluster: presets + range are ONE tool (they write the same
@@ -786,9 +1013,9 @@ export default function DossiersClientPage() {
               default keeps everything visible so nothing changes unasked). */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" title="Afficher / masquer des colonnes">
+              <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" title="Colonnes et densité d'affichage">
                 <Columns3 className="h-4 w-4" aria-hidden />
-                Colonnes
+                Affichage
                 {filters.hiddenCols.length > 0 && (
                   <span className="rounded-full bg-surface-3 px-1.5 text-xs tabular-nums text-ink-2">
                     {visibleColumns.length}/{EXPORT_COLUMNS.length}
@@ -797,6 +1024,21 @@ export default function DossiersClientPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
+              {/* Density — persisted per user ("the right row height is the
+                  one each user picked", polish research 2026-09-03 §11). */}
+              <DropdownMenuLabel className="t-label font-normal">Densité des lignes</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={filters.density}
+                onValueChange={(v) => setFilters({ density: v as 'compacte' | 'normale' | 'confortable' })}
+              >
+                {([['compacte', 'Compacte'], ['normale', 'Normale'], ['confortable', 'Confortable']] as const).map(([value, label]) => (
+                  <DropdownMenuRadioItem key={value} value={value} onSelect={(e) => e.preventDefault()}>
+                    {label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="t-label font-normal">Colonnes</DropdownMenuLabel>
               {HIDEABLE_COLUMNS.map((c) => (
                 <DropdownMenuCheckboxItem
                   key={c.key}
@@ -855,6 +1097,9 @@ export default function DossiersClientPage() {
       {hasAttributeFilters && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="t-label">Filtres actifs</span>
+          {filters.lateOnly && (
+            <FilterChip label={`En retard (≥ ${LATE_AFTER_DAYS} j)`} onRemove={() => clearFilter('lateOnly')} ariaLabel="Retirer le filtre en retard" />
+          )}
           {filters.nature !== 'Toutes' && (
             <FilterChip label={`Nature : ${filters.nature}`} onRemove={() => clearFilter('nature')} ariaLabel="Retirer le filtre nature" />
           )}
@@ -926,7 +1171,10 @@ export default function DossiersClientPage() {
       ) : null}
 
       {/* Table paper: glass edge only, hairline rows, sticky header on card. */}
-      <Card className="max-h-[calc((100dvh-280px)/var(--app-zoom))] overflow-x-auto overflow-y-auto [&>div]:overflow-visible">
+      <Card
+        data-table-density={filters.density}
+        className="max-h-[calc((100dvh-280px)/var(--app-zoom))] overflow-x-auto overflow-y-auto [&>div]:overflow-visible"
+      >
         <Table regionLabel="Liste des dossiers">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
@@ -986,8 +1234,11 @@ export default function DossiersClientPage() {
                                   filters.nature === n.label && "bg-surface-2 font-medium",
                                 )}
                               >
-                                <span>{n.label}</span>
-                                {filters.nature === n.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                <span className="truncate">{n.label}</span>
+                                <span className="flex shrink-0 items-center gap-1.5">
+                                  <span className="t-caption tabular-nums">{facetCounts.nature.get(n.label) ?? 0}</span>
+                                  {filters.nature === n.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                </span>
                               </button>
                             ))}
                           </div>
@@ -1036,11 +1287,14 @@ export default function DossiersClientPage() {
                                   filters.status === s.label && "bg-surface-2 font-medium",
                                 )}
                               >
-                                <span className="flex items-center gap-2">
+                                <span className="flex min-w-0 items-center gap-2">
                                   <span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />
-                                  {s.label}
+                                  <span className="truncate">{s.label}</span>
                                 </span>
-                                {filters.status === s.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                <span className="flex shrink-0 items-center gap-1.5">
+                                  <span className="t-caption tabular-nums">{facetCounts.status.get(s.label) ?? 0}</span>
+                                  {filters.status === s.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                </span>
                               </button>
                             ))}
                           </div>
@@ -1089,8 +1343,11 @@ export default function DossiersClientPage() {
                                   filters.compagnie === c.label && "bg-surface-2 font-medium",
                                 )}
                               >
-                                <span>{c.label}</span>
-                                {filters.compagnie === c.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                <span className="truncate">{c.label}</span>
+                                <span className="flex shrink-0 items-center gap-1.5">
+                                  <span className="t-caption tabular-nums">{facetCounts.compagnie.get(c.label) ?? 0}</span>
+                                  {filters.compagnie === c.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                </span>
                               </button>
                             ))}
                           </div>
@@ -1139,8 +1396,11 @@ export default function DossiersClientPage() {
                                     filters.observation === o.label && "bg-surface-2 font-medium",
                                   )}
                                 >
-                                  <span>{o.label}</span>
-                                  {filters.observation === o.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                  <span className="truncate">{o.label}</span>
+                                  <span className="flex shrink-0 items-center gap-1.5">
+                                    <span className="t-caption tabular-nums">{facetCounts.observation.get(o.label) ?? 0}</span>
+                                    {filters.observation === o.label && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                  </span>
                                 </button>
                                 {o.label === 'Autre' && customObservationTexts.map(t => (
                                   <button
@@ -1153,7 +1413,10 @@ export default function DossiersClientPage() {
                                     )}
                                   >
                                     <span className="truncate">{t}</span>
-                                    {filters.observation === t && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                    <span className="flex shrink-0 items-center gap-1.5">
+                                      <span className="t-caption tabular-nums">{facetCounts.observation.get(t) ?? 0}</span>
+                                      {filters.observation === t && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                    </span>
                                   </button>
                                 ))}
                               </React.Fragment>
@@ -1172,7 +1435,10 @@ export default function DossiersClientPage() {
                                     )}
                                   >
                                     <span className="truncate">{t}</span>
-                                    {filters.observation === t && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                    <span className="flex shrink-0 items-center gap-1.5">
+                                      <span className="t-caption tabular-nums">{facetCounts.observation.get(t) ?? 0}</span>
+                                      {filters.observation === t && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                    </span>
                                   </button>
                                 ))}
                               </>
@@ -1226,8 +1492,11 @@ export default function DossiersClientPage() {
                                     filters.creator === name && "bg-surface-2 font-medium",
                                   )}
                                 >
-                                  <span>{name}</span>
-                                  {filters.creator === name && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                  <span className="truncate">{name}</span>
+                                  <span className="flex shrink-0 items-center gap-1.5">
+                                    <span className="t-caption tabular-nums">{facetCounts.creator.get(name) ?? 0}</span>
+                                    {filters.creator === name && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                  </span>
                                 </button>
                               ))
                             )}
@@ -1322,14 +1591,18 @@ export default function DossiersClientPage() {
                     // No row tint for observations — the warning chip carries it.
                     "group",
                     !exportMode && "cursor-pointer",
-                    isFocused && "bg-surface-2",
+                    (isFocused || (!exportMode && peekId === d.id)) && "bg-surface-2",
                     exportMode && selectedRows.has(d.id) && "bg-accent/40 hover:bg-accent/40",
                   )}
                   aria-selected={exportMode ? selectedRows.has(d.id) : undefined}
+                  // Two-tier detail access (owner-approved 2026-09-03): single
+                  // click = ephemeral peek; double-click / Entrée / « Ouvrir »
+                  // = the committed full page. Middle-click keeps opening a
+                  // background tab.
                   onClick={() => {
                     setFocusIdx(idx);
                     if (exportMode) handleToggleRow(d.id);
-                    else openDossier(d);
+                    else setPeekId(prev => (prev === d.id ? null : d.id));
                   }}
                   onDoubleClick={() => { if (!exportMode) openDossier(d, { preview: false }); }}
                   onAuxClick={(e) => { if (!exportMode && e.button === 1) { e.preventDefault(); openDossier(d, { preview: false, navigate: false }); } }}
@@ -1455,6 +1728,20 @@ export default function DossiersClientPage() {
           </Button>
         </div>
       </div>
+
+      <DossierPeekPanel
+        dossier={peekDossier}
+        position={peekPosition}
+        onClose={() => setPeekId(null)}
+        onOpen={() => peekDossier && openDossier(peekDossier, { preview: false })}
+        onOpenInTab={() => peekDossier && openDossier(peekDossier, { preview: false, navigate: false })}
+        onStatusHistory={() => peekDossier && setStatusHistoryDossier(peekDossier)}
+        onObservationHistory={() => peekDossier && setObservationHistoryDossier(peekDossier)}
+        formatDate={formatDate}
+        relativeDate={relativeDate}
+        renderAssure={renderAssure}
+        creatorName={peekDossier ? resolveCreatorName(peekDossier) : ''}
+      />
 
       <WorkflowStatusSheet
         open={!!workflowDossier}

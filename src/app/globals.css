@@ -32,7 +32,12 @@
     --hairline-strong: 40 12% 74%;
     --border: 40 16% 88%;
     --input: 40 16% 82%;
-    --shadow-color: 215 45% 20%;
+    /* Warm shadow (2026-09-03, owner-approved; render-verified vs the old
+       slate 215 45% 20%): shadows share the canvas's warm hue so card edges
+       read as paper shading, not a blue-gray smudge (Comeau: match the hue,
+       drop the lightness). Dark theme keeps its near-black — hue is invisible
+       at 2 % lightness. */
+    --shadow-color: 35 30% 18%;
 
     /* 30 — ink (slate navy) */
     --ink: 215 38% 14%;                /* label            */
@@ -97,11 +102,14 @@
     --heading-fg: 215 38% 14%;
 
     /* Semantic status pairs (tinted bg + deep fg) */
+    /* Status bg lightnesses spread apart (2026-09-03, grayscale-verified:
+       at 90/92/94 the success and danger tints merged in grayscale; at
+       87/92/95.5 the three families keep a legible order without colour). */
     --status-success-bg: 150 45% 92%;
     --status-success-fg: 152 60% 24%;
-    --status-warning-bg: 42 90% 90%;
+    --status-warning-bg: 42 90% 87%;
     --status-warning-fg: 30 80% 26%;
-    --status-danger-bg: 0 80% 94%;
+    --status-danger-bg: 0 80% 95.5%;
     --status-danger-fg: 0 65% 34%;
     --status-info-bg: 214 70% 93%;
     --status-info-fg: 216 60% 32%;
@@ -198,9 +206,9 @@
 
     --status-success-bg: 152 40% 14%;
     --status-success-fg: 150 55% 72%;
-    --status-warning-bg: 38 55% 15%;
+    --status-warning-bg: 38 55% 17%; /* spread apart from success/danger for grayscale order (2026-09-03) */
     --status-warning-fg: 42 85% 72%;
-    --status-danger-bg: 0 45% 16%;
+    --status-danger-bg: 0 45% 12%;
     --status-danger-fg: 0 80% 78%;
     --status-info-bg: 216 45% 16%;
     --status-info-fg: 214 75% 78%;
@@ -254,6 +262,23 @@
   }
   :root[data-density="compact"] th {
     height: 2.25rem;
+  }
+  /* Per-table density (dossiers « Affichage » control, 2026-09-03): three
+     persisted steps — 36 / 44 / 52 px. Scoped to the table's own container so
+     it never fights the global profile setting above. */
+  [data-table-density="compacte"] td {
+    height: 2.25rem;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+  [data-table-density="compacte"] th {
+    height: 2.25rem;
+  }
+  [data-table-density="confortable"] td {
+    height: 3.25rem;
+  }
+  [data-table-density="confortable"] th {
+    height: 3.25rem;
   }
   p {
     text-wrap: pretty;

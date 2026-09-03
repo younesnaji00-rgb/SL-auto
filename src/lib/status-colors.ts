@@ -5,13 +5,18 @@
  * ≥ 4.5:1 in both themes. No palette classes (blueprint §1: semantic colour
  * is separate from the accent; hand-picked hues were retired 2026-09-01).
  *
- * Family → tone:
+ * Family → tone (de-saturated 2026-09-03, owner-approved; research
+ * docs/research/dossiers-attention-efficiency.md + dossiers-color-type-polish.md:
+ * colour is the page's only preattentive channel — spend it on the 2–3
+ * states that mean something, keep passive/progress states in ink. Few:
+ * "subdued and neutral, except… especially important"):
  *   - Création dossier                       → neutral (not started)
- *   - Planification programmée / expertise   → info    (scheduled)
- *   - Chiffrage en cours                     → warning (work in progress)
- *   - Proposition d'accord / 2ème / 3ème     → info    (awaiting the other side)
+ *   - Planification programmée / expertise   → neutral (scheduled — passive)
+ *   - Proposition d'accord / 2ème / 3ème     → neutral (awaiting the other side)
+ *   - Chiffrage en cours                     → warning (work in flight)
  *   - Accord / 2ème / 3ème accord            → success (agreed)
  *   - Accord envoyé                          → success (closed-ish)
+ * The label text always disambiguates the stage within a family.
  */
 
 type StatusTone = 'neutral' | 'info' | 'warning' | 'success' | 'danger';
@@ -32,12 +37,16 @@ const PROPOSITION_SET: ReadonlySet<string> = new Set([
 export function getStatusTone(status: string): StatusTone {
   const s = (status || '').trim();
   if (s === 'Création dossier') return 'neutral';
-  if (s.startsWith('Planification programmée')) return 'info';
-  if (s.startsWith('Planification expertise')) return 'info';
+  if (s.startsWith('Planification programmée')) return 'neutral';
+  if (s.startsWith('Planification expertise')) return 'neutral';
   if (s === 'Chiffrage en cours') return 'warning';
-  if (PROPOSITION_SET.has(s)) return 'info';
+  if (PROPOSITION_SET.has(s)) return 'neutral';
   if (ACCORD_SET.has(s)) return 'success';
   if (s === 'Accord envoyé') return 'success';
+  // Réforme = the exceptional verdict (véhicule économiquement irréparable) —
+  // the one state that warrants the danger pair (previously fell through to
+  // neutral, hiding it).
+  if (s === 'Réforme') return 'danger';
   return 'neutral';
 }
 

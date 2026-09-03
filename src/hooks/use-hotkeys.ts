@@ -80,6 +80,16 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return false;
 }
 
+/** Enter/Space natively ACTIVATE these — a registry binding on those keys
+ *  must never steal the press from a focused button/link/menu item. */
+function isActivationTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el || typeof el.closest !== 'function') return false;
+  return !!el.closest(
+    'button, a[href], summary, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="checkbox"], [role="radio"], [role="tab"], [role="option"], [role="switch"]',
+  );
+}
+
 function normalizeEventKey(e: KeyboardEvent): string {
   const k = e.key;
   if (k === ' ') return 'space';
@@ -134,10 +144,14 @@ function onKeyDown(e: KeyboardEvent) {
     pendingChord = null;
   }
 
-  // Direct single-step bindings.
+  // Direct single-step bindings. Bare enter/space yield to a focused
+  // button/link so native activation always wins.
+  const activation = isActivationTarget(e.target);
   for (const h of hotkeys) {
     const steps = h.keys.split(' ');
-    if (steps.length === 1 && matchesStep(steps[0], e)) {
+    if (steps.length !== 1) continue;
+    if (activation && (steps[0] === 'enter' || steps[0] === 'space')) continue;
+    if (matchesStep(steps[0], e)) {
       e.preventDefault();
       h.handler(e);
       return;
