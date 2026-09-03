@@ -492,28 +492,53 @@ rounds). Rules below extend §2–§3 and addendum ter A/B.
   tabular-nums scanning. An age/urgency COLUMN is an owner decision (§D).
 - Removing a date filter chip also clears the stale preset thumb.
 
-## D. Owner decisions pending (researched options, NOT implemented)
-1. **Peek panel** (side panel on row click/Espace, ↑/↓ retargets, Entrée =
-   full open) — THE structural finding; decide click semantics first.
-2. **Age/urgency signal** (« 12 j » since creation or since last status
-   change, terracotta past a threshold — lawful: time meaning) — needs a
-   denormalized `statutChangedAt` for days-in-status.
-3. **Armed default view « À traiter »** (my dossiers, action-needed order)
-   instead of all-newest-first; default-sort change is addendum ter A's
-   "action-needed order" rule applied to this page.
-4. **TanStack Table v8 migration** (column resize/order, faceted counts,
-   fuzzy search) with openstatusHQ/data-table-filters as playbook — scope,
-   not risk.
-5. **Density toggle** (40/44/52 px, persisted per user).
-6. **Status chip de-saturation** (hue only for action-needed states) — chips
-   are learned behaviour, don't change silently.
-7. **KPI strip above the table** (Tremor-style, recolored to tokens).
-8. **Warm shadow token** — `--shadow-color` is a cool navy (215 45% 20%) on a
-   warm cream canvas; polish research says shadows should share the canvas
-   hue (e.g. ~35 30% 18%). App-wide token, pixel-verified glass — owner's
-   eyes required.
-9. **Grayscale check of status-family lightnesses** (90/92/94 % bg may merge
-   in grayscale).
+## D. Owner decisions — APPROVED « implement everything » 2026-09-03, all shipped
+1. **Peek panel** — implemented (`dossier-peek-panel.tsx`): single click /
+   Espace opens the read-only side panel (glass-strong, fixed under the top
+   bar); ↑/↓ retarget it; double-clic / Entrée / « Ouvrir » commit to the
+   full page; Échap closes first, then drops the row focus. Chosen click
+   semantics: SINGLE CLICK = peek (the strongest form of the pattern —
+   Linear/Notion); revert to Espace-only is a one-line change if the owner
+   dislikes it after use.
+2. **Age signal** — implemented as « Ancienneté » column (état chunk): quiet
+   « N j » ink-2; DANGER badge when ≥ 7 j (`LATE_AFTER_DAYS`) and the statut
+   still needs action. Danger, never terracotta (lateness ruling). Days-in-
+   status variant DEFERRED: statut writes span six call sites incl. a file
+   another agent owns — needs a central `statutChangedAt` write first.
+3. **Armed default view** — implemented: « À traiter | Tous » tab-slope tabs
+   with count pills in the PageHeader; default scope = À traiter (statut ∉
+   {Accord envoyé}). Sort stays user-controlled; the « En retard » tile
+   applies oldest-first.
+4. **TanStack migration** — capabilities delivered NATIVELY instead of the
+   library (deliberate: the hand-rolled pipeline already existed and a blind
+   rewrite risked regressions): faceted option counts in all five column
+   popovers (counted on the list filtered by every OTHER filter), diacritic-
+   insensitive multi-term search across 7 fields, column visibility. NOT
+   done: column drag-reorder/resize (order is research-fixed; truncation
+   caps handle width). Revisit the library only if those two are wanted.
+5. **Density toggle** — implemented in the « Affichage » menu: compacte 36 /
+   normale 44 / confortable 52 px, persisted, scoped via
+   `[data-table-density]` so it never fights the global profile setting.
+6. **Chip de-saturation** — implemented app-wide in `status-colors.ts`:
+   planifications + propositions → neutral ink; warning = Chiffrage en
+   cours; success = accords; danger = Réforme (previously fell through to
+   neutral, hiding the one exceptional verdict).
+7. **KPI strip** — implemented (`dossier-kpi-strip.tsx`, §6 anatomy, no
+   Tremor): À traiter / En retard / Créés aujourd'hui / Total; every tile
+   applies its view; En retard is the page's only exception colour and adds
+   a removable filter chip.
+8. **Warm shadow** — implemented: light `--shadow-color` 215 45% 20% →
+   35 30% 18%, render-verified at 1× and 8× (the slate shadow read as a
+   blue-gray smudge on cream; the warm one reads as paper shading). Dark
+   theme keeps its near-black.
+9. **Grayscale lightnesses** — verified by grayscale render: success/danger
+   merged at 92/94; spread to warning 87 / success 92 / danger 95.5 (light)
+   and 17 / 14 / 12 (dark) so the families keep an order without colour.
+
+Also shipped with this round: `use-hotkeys` lets bare Entrée/Espace bindings
+yield to a focused button/link (native activation always wins), and applying
+a saved view merges over the defaults so views saved before a filter key
+existed can't strip it.
 
 # Addendum 2026-09-03 (bis) — mes-rappels: queue anatomy (implemented)
 
