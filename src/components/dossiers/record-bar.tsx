@@ -9,9 +9,10 @@
  * keeps the workspace tab label in sync.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Bell, Calculator, CalendarPlus, History, Mail, MoreHorizontal, Save, Trash2, Undo2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, Bell, Calculator, CalendarPlus, ChevronDown, ChevronUp, History, Mail, MoreHorizontal, Save, Trash2, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -29,6 +30,7 @@ import { dossierLabel, assureName } from '@/lib/dossier-label';
 import { nextStep, primaryActionForStep, type StepState } from '@/lib/dossier-steps';
 import { useRegisterPageTitle } from '@/components/layout/page-chrome';
 import { useWorkspaceTabs, useTabDirty } from '@/hooks/use-workspace-tabs';
+import { readDossierListOrder } from '@/lib/dossier-list-order';
 
 export interface RecordBarProps {
   dossierId: string;
@@ -70,6 +72,22 @@ export function RecordBar({
 }: RecordBarProps) {
   const label = dossierLabel(dossier);
   useRegisterPageTitle(label);
+  const router = useRouter();
+
+  // « Précédent / suivant » iterate the list page's filtered order (written
+  // to sessionStorage when a row is opened — anti pogo-sticking, research
+  // 2026-09-03). Hidden entirely when the dossier wasn't opened from the list.
+  const listNav = useMemo(() => {
+    const order = readDossierListOrder();
+    const idx = order.indexOf(dossierId);
+    if (idx === -1) return null;
+    return {
+      prevId: idx > 0 ? order[idx - 1] : null,
+      nextId: idx < order.length - 1 ? order[idx + 1] : null,
+      position: idx + 1,
+      total: order.length,
+    };
+  }, [dossierId]);
 
   const tabs = useWorkspaceTabs('dossier');
   useEffect(() => {
@@ -110,6 +128,41 @@ export function RecordBar({
         </TooltipTrigger>
         <TooltipContent>Dossiers</TooltipContent>
       </Tooltip>
+
+      {listNav && (
+        <div className="hidden shrink-0 items-center sm:flex">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-ink-3 hover:text-ink"
+                disabled={!listNav.prevId}
+                aria-label="Dossier précédent"
+                onClick={() => listNav.prevId && router.push(`/dossiers/${listNav.prevId}`)}
+              >
+                <ChevronUp className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Dossier précédent — {listNav.position}/{listNav.total} de la liste</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-ink-3 hover:text-ink"
+                disabled={!listNav.nextId}
+                aria-label="Dossier suivant"
+                onClick={() => listNav.nextId && router.push(`/dossiers/${listNav.nextId}`)}
+              >
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Dossier suivant — {listNav.position}/{listNav.total} de la liste</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
         {/* Reading order: ref (mono, ink) → assuré (ink) → compagnie / plaque (ink-3) → statut. */}

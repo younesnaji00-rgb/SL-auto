@@ -1,8 +1,8 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check } from 'lucide-react';
-import { format, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
+import { Search, Trash2, AlertCircle, Eye, History, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check, Columns3 } from 'lucide-react';
+import { format, formatDistanceToNowStrict, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -33,13 +33,16 @@ import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { PageHeader } from '@/components/layout/page-header';
 import { SavedViews } from '@/components/ui/saved-views';
 import { dossierLabel } from '@/lib/dossier-label';
+import { writeDossierListOrder } from '@/lib/dossier-list-order';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useHotkeys } from '@/hooks/use-hotkeys';
 import { MoreHorizontal, ExternalLink } from 'lucide-react';
 import { getStatusDotColor } from '@/lib/status-colors';
 import { StatusChip } from '@/components/ui/status-chip';
@@ -64,22 +67,38 @@ import { addDoc, collection, doc, updateDoc, serverTimestamp, getDocs, query, wh
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 
+// Column order = five logical chunks on the hierarchical scan path (research
+// 2026-09-03, docs/research/dossiers-attention-efficiency.md): identity →
+// state → parties → véhicule → dates → provenance. Eyetracking shows users
+// sample the first columns of each row then skip (NN/g data tables), so the
+// two action signals (statut, observation) move into the left third instead
+// of positions 8–9; the lookup-only columns pan right.
 const EXPORT_COLUMNS: ExportColumn[] = [
+  // identité
   { key: 'refExpert', label: 'Réf Expert' },
   { key: 'assure', label: 'Assuré' },
-  { key: 'compagnie', label: 'Compagnie' },
-  { key: 'referenceCompagnie', label: 'Référence de compagnie' },
-  { key: 'createdAt', label: 'Date de création' },
-  { key: 'nature', label: 'Nature du dossier' },
-  { key: 'typeDossier', label: 'Type Dossier' },
+  // état — ce qui demande une action
   { key: 'statut', label: 'Statut' },
   { key: 'observation', label: 'Observation' },
+  { key: 'createdAt', label: 'Date de création' },
+  // parties
+  { key: 'compagnie', label: 'Compagnie' },
+  { key: 'referenceCompagnie', label: 'Référence de compagnie' },
+  // classification
+  { key: 'nature', label: 'Nature du dossier' },
+  { key: 'typeDossier', label: 'Type Dossier' },
+  // véhicule
   { key: 'matricule', label: 'Matricule' },
   { key: 'matriculeAnterieur', label: 'Matricule antérieur' },
+  // dates du sinistre
   { key: 'dateSinistre', label: 'Date sinistre' },
   { key: 'dateRequete', label: 'Date Requête' },
+  // provenance
   { key: 'createdByName', label: 'Créé par' },
 ];
+
+// The identifier column can never be hidden — it is the row's anchor.
+const HIDEABLE_COLUMNS = EXPORT_COLUMNS.filter((c) => c.key !== 'refExpert');
 
 export default function DossiersClientPage() {
   const router = useRouter();
@@ -92,7 +111,13 @@ export default function DossiersClientPage() {
 
   // Single click = preview tab (replaced by the next preview); "Ouvrir dans un
   // onglet" / double-click = permanent tab (VS Code preview-tab semantics).
+  // Snapshot the filtered order whenever a dossier is opened, so the record
+  // bar can iterate « précédent / suivant » in the same order (see
+  // src/lib/dossier-list-order.ts). A ref rather than a dep: dossierList
+  // changes on every keystroke of the search box.
+  const dossierListRef = React.useRef<Array<{ id: string }>>([]);
   const openDossier = useCallback((d: { id: string; refExpert?: string; numero?: string; assure?: any }, opts?: { preview?: boolean; navigate?: boolean }) => {
+    writeDossierListOrder(dossierListRef.current.map((row) => row.id));
     openTab(d.id, dossierLabel(d), { preview: opts?.preview ?? true });
     if (opts?.navigate !== false) router.push(`/dossiers/${d.id}`);
   }, [openTab, router]);
@@ -221,7 +246,7 @@ export default function DossiersClientPage() {
     return Array.from(seen).sort((a, b) => a.localeCompare(b, 'fr'));
   }, [allDossiers, userNameByUid]);
 
-  const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', creator: 'Tous', dateFrom: '', dateTo: '', rowsPerPage: 25, sortByCreation: 'desc' as 'desc' | 'asc', datePreset: null as 'jour' | 'semaine' | 'mois' | 'personnalise' | null };
+  const filterDefaults = { search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', creator: 'Tous', dateFrom: '', dateTo: '', rowsPerPage: 25, sortByCreation: 'desc' as 'desc' | 'asc', datePreset: null as 'jour' | 'semaine' | 'mois' | 'personnalise' | null, hiddenCols: [] as string[] };
   const [filters, setFilters, clearFilter] = usePersistedFilters('dossiers', filterDefaults);
   const rowsPerPage = filters.rowsPerPage;
   const [page, setPage] = useState(1);
@@ -304,12 +329,51 @@ export default function DossiersClientPage() {
     return results;
   }, [allDossiers, filters, filterObservations]);
 
+  useEffect(() => { dossierListRef.current = dossierList; }, [dossierList]);
+
   // Pagination — total pages, and clamp current page when filtered list shrinks
   // (e.g. user searches and the previously-viewed page no longer exists).
   const totalPages = Math.max(1, Math.ceil(dossierList.length / rowsPerPage));
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
+
+  // Columns the user chose to hide (persisted with the filters; default = all
+  // visible so nothing changes until the user opts in via « Colonnes »).
+  const visibleColumns = useMemo(
+    () => EXPORT_COLUMNS.filter((c) => c.key === 'refExpert' || !filters.hiddenCols.includes(c.key)),
+    [filters.hiddenCols],
+  );
+  const colCount = visibleColumns.length + 1; // + checkbox (Rappeler) or actions column
+
+  const pageRows = useMemo(
+    () => dossierList.slice((page - 1) * rowsPerPage, page * rowsPerPage),
+    [dossierList, page, rowsPerPage],
+  );
+
+  // Keyboard row focus state (spine registered below, after the selection
+  // handlers it drives are declared).
+  const [focusIdx, setFocusIdx] = useState<number | null>(null);
+  useEffect(() => { setFocusIdx(null); }, [page, dossierList.length]);
+  useEffect(() => {
+    if (focusIdx !== null && focusIdx >= pageRows.length) {
+      setFocusIdx(pageRows.length ? pageRows.length - 1 : null);
+    }
+  }, [focusIdx, pageRows.length]);
+  const moveFocus = useCallback((delta: number) => {
+    setFocusIdx((prev) => {
+      if (pageRows.length === 0) return null;
+      if (prev === null) return delta > 0 ? 0 : pageRows.length - 1;
+      return Math.min(pageRows.length - 1, Math.max(0, prev + delta));
+    });
+  }, [pageRows.length]);
+  useEffect(() => {
+    if (focusIdx === null) return;
+    document
+      .querySelector(`[data-row-idx="${focusIdx}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [focusIdx]);
+  const focusedRow = focusIdx !== null ? pageRows[focusIdx] : undefined;
 
   // Clean up stale row selections when filters change
   const dossierIds = useMemo(() => new Set(dossierList.map(d => d.id)), [dossierList]);
@@ -339,6 +403,43 @@ export default function DossiersClientPage() {
     setExportMode(false);
     setSelectedRows(new Set());
   }, []);
+
+  // Keyboard spine (research 2026-09-03: Linear/Airtable list conventions —
+  // ↑/↓ or j/k move a visible row focus, Entrée opens, x selects in Rappeler
+  // mode, Échap drops the focus). Registered through the app-wide hotkey
+  // registry so the bindings appear in the « ? » sheet and stay quiet while
+  // typing in a field or inside a dialog.
+  useHotkeys([
+    { keys: 'arrowdown', label: 'Ligne suivante', group: 'Liste des dossiers', handler: () => moveFocus(1) },
+    { keys: 'j', label: 'Ligne suivante', group: 'Liste des dossiers', handler: () => moveFocus(1) },
+    { keys: 'arrowup', label: 'Ligne précédente', group: 'Liste des dossiers', handler: () => moveFocus(-1) },
+    { keys: 'k', label: 'Ligne précédente', group: 'Liste des dossiers', handler: () => moveFocus(-1) },
+    {
+      keys: 'enter',
+      label: 'Ouvrir la ligne en surbrillance',
+      group: 'Liste des dossiers',
+      enabled: !!focusedRow,
+      handler: () => {
+        if (!focusedRow) return;
+        if (exportMode) handleToggleRow(focusedRow.id);
+        else openDossier(focusedRow);
+      },
+    },
+    {
+      keys: 'x',
+      label: 'Sélectionner la ligne (mode rappel)',
+      group: 'Liste des dossiers',
+      enabled: exportMode && !!focusedRow,
+      handler: () => { if (focusedRow) handleToggleRow(focusedRow.id); },
+    },
+    {
+      keys: 'escape',
+      label: 'Quitter la surbrillance',
+      group: 'Liste des dossiers',
+      enabled: focusIdx !== null,
+      handler: () => setFocusIdx(null),
+    },
+  ], [moveFocus, focusedRow, focusIdx, exportMode, handleToggleRow, openDossier]);
 
   useEffect(() => {
     if (!isSendToOpen || !db) return;
@@ -432,6 +533,21 @@ export default function DossiersClientPage() {
     return Number.isNaN(date.getTime()) ? '' : format(date, 'dd/MM/yyyy');
   };
 
+  // Cells keep the absolute dd/MM/yyyy (claims work is a reference context —
+  // cross-row comparison + insurer correspondence; research 2026-09-03,
+  // dossiers-color-type-polish.md §3); the relative age rides in the tooltip
+  // so nobody does per-row date arithmetic.
+  const relativeDate = (val: any): string | undefined => {
+    if (!val) return undefined;
+    const date = val.toDate ? val.toDate() : new Date(val);
+    if (Number.isNaN(date.getTime())) return undefined;
+    try {
+      return formatDistanceToNowStrict(date, { locale: fr, addSuffix: true });
+    } catch {
+      return undefined;
+    }
+  };
+
   const renderAssure = (assure: any): string => {
     if (!assure) return '';
     if (typeof assure === 'string') return assure;
@@ -440,6 +556,107 @@ export default function DossiersClientPage() {
 
   // Empty cell = quiet dash (blueprint §2: values are the star, empties recede).
   const cell = (v: string | undefined | null) => (v ? v : <EmptyCell />);
+
+  // One renderer per column key so the body always follows the header's
+  // visible-column order (column picker). Emphasis budget: 2 cells per row —
+  // identifier + status chip (addendum ter B; attention research 2026-09-03:
+  // the old row spent 4 emphasis tokens on a 3-token budget, so the assuré
+  // name is back to normal weight).
+  const renderDataCell = (d: any, key: string, isFocused: boolean): React.ReactNode => {
+    switch (key) {
+      case 'refExpert':
+        return (
+          <TableCell
+            key={key}
+            className={cn(!exportMode && STICKY_CELL, 't-mono font-semibold', isFocused && '!bg-surface-2')}
+          >
+            {d.refExpert || <span className="font-sans font-normal text-ink-4">Sans réf.</span>}
+          </TableCell>
+        );
+      case 'assure':
+        return (
+          <TableCell key={key} className="max-w-[220px] truncate" title={renderAssure(d.assure) || undefined}>
+            {cell(renderAssure(d.assure))}
+          </TableCell>
+        );
+      case 'statut':
+        return (
+          <TableCell
+            key={key}
+            onClick={exportMode ? undefined : (e) => {
+              e.stopPropagation();
+              setStatusHistoryDossier(d);
+            }}
+            className={cn('min-w-[200px]', !exportMode && 'cursor-pointer hover:bg-surface-3 transition-colors')}
+            title={!exportMode ? "Voir l'historique des statuts" : undefined}
+          >
+            {/* Shared app-wide status mapping (element-specs §11) — the
+                inline Badge-outline path was retired 2026-09-02. */}
+            <StatusChip status={d.statut} />
+          </TableCell>
+        );
+      case 'observation':
+        return (
+          <TableCell
+            key={key}
+            onClick={exportMode ? undefined : (e) => {
+              e.stopPropagation();
+              setObservationHistoryDossier(d);
+            }}
+            className={cn(!exportMode && 'cursor-pointer hover:bg-surface-3 transition-colors')}
+            title={!exportMode ? "Voir l'historique des observations" : undefined}
+          >
+            {d.lastObservation?.text ? (
+              // Warning pair chip — the only emphasis for an open observation
+              // (Badge primitive instead of raw markup, element-specs §11).
+              <Badge variant="warning" className="max-w-[260px]" title={d.lastObservation.text}>
+                <span className="truncate">{d.lastObservation.text}</span>
+              </Badge>
+            ) : (
+              <span className="text-ink-4">—</span>
+            )}
+          </TableCell>
+        );
+      case 'createdAt':
+        return (
+          <TableCell key={key} className="tabular-nums" title={relativeDate((d as any).createdAt)}>
+            {cell(formatDate((d as any).createdAt))}
+          </TableCell>
+        );
+      case 'compagnie':
+        return (
+          <TableCell key={key} className="max-w-[200px] truncate" title={d.compagnie || undefined}>
+            {cell(d.compagnie)}
+          </TableCell>
+        );
+      case 'referenceCompagnie':
+        return <TableCell key={key}>{cell(d.referenceCompagnie)}</TableCell>;
+      case 'nature':
+        return <TableCell key={key}>{cell(d.nature)}</TableCell>;
+      case 'typeDossier':
+        return <TableCell key={key}>{cell(d.typeDossier)}</TableCell>;
+      case 'matricule':
+        return <TableCell key={key} className="t-mono">{cell(d.matricule)}</TableCell>;
+      case 'matriculeAnterieur':
+        return <TableCell key={key} className="t-mono">{cell(d.vehicule?.immatriculationAnterieur)}</TableCell>;
+      case 'dateSinistre':
+        return (
+          <TableCell key={key} className="tabular-nums" title={relativeDate(d.dateSinistre)}>
+            {cell(formatDate(d.dateSinistre))}
+          </TableCell>
+        );
+      case 'dateRequete':
+        return (
+          <TableCell key={key} className="tabular-nums" title={relativeDate(d.dateRequete)}>
+            {cell(formatDate(d.dateRequete))}
+          </TableCell>
+        );
+      case 'createdByName':
+        return <TableCell key={key}>{cell(resolveCreatorName(d))}</TableCell>;
+      default:
+        return <TableCell key={key} />;
+    }
+  };
 
   // Names come from one place (DESIGN.md §1).
   const navItem = findNavItem('/dossiers');
@@ -489,22 +706,29 @@ export default function DossiersClientPage() {
       )}
 
       {/* Filter toolbar — ONE quiet row (NN/g data tables: search first and
-          widest, then scoped controls); wraps below lg, 16 px gaps. The
-          per-attribute filters (nature, statut, compagnie, observation, créé
-          par) live in their column headers below. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3" role="search">
-        <div className="relative min-w-[240px] flex-1 basis-72 lg:max-w-md">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
-          <Input
-            className="pl-9"
-            placeholder="Rechercher (réf, assuré, plaque…)"
-            value={filters.search}
-            onChange={e => setFilters({ search: e.target.value })}
-            aria-label="Rechercher un dossier"
-          />
+          widest, then scoped controls); wraps below lg. Spacing grammar
+          (research 2026-09-03, polish §7): 8 px inside a cluster, 24 px
+          between clusters — the gaps are the syntax. The per-attribute
+          filters (nature, statut, compagnie, observation, créé par) live in
+          their column headers below. */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3" role="search">
+        <div className="flex min-w-[240px] flex-1 basis-72 items-center gap-2 lg:max-w-xl">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
+            <Input
+              className="pl-9"
+              placeholder="Rechercher (réf, assuré, plaque…)"
+              value={filters.search}
+              onChange={e => setFilters({ search: e.target.value })}
+              aria-label="Rechercher un dossier"
+            />
+          </div>
+          <SavedViews storageKey="dossiers" current={filters} onApply={(f) => { setFilters(() => f); setPage(1); }} />
         </div>
-        <SavedViews storageKey="dossiers" current={filters} onApply={(f) => { setFilters(() => f); setPage(1); }} />
 
+        {/* Date cluster: presets + range are ONE tool (they write the same
+            dateFrom/dateTo strings), so they sit 8 px apart in one group. */}
+        <div className="flex flex-wrap items-center gap-2">
         {/* Date presets — same Jour / Semaine / Mois / Personnalisé shortcut as
             `Suivi d'équipe`; they write the SAME `dateFrom`/`dateTo` strings the
             pipeline consumes. Selected segment = `tonal` (M3 segmented button),
@@ -550,25 +774,81 @@ export default function DossiersClientPage() {
           onDateFromChange={v => setFilters({ dateFrom: v, datePreset: v ? 'personnalise' : null })}
           onDateToChange={v => setFilters({ dateTo: v, datePreset: v ? 'personnalise' : null })}
         />
+        </div>
 
         {/* Sort moved into the « Date de création » column header
             (element-specs §2: "sort lives in the column header, not the
             toolbar"; the chiffrage/ATG queues already do this). */}
 
-        {/* One-click reset — always visible so users learn it exists. */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1.5 text-ink-3"
-          onClick={() => {
-            clearFilter();
-            setPage(1);
-          }}
-          title="Réinitialiser tous les filtres"
-        >
-          <RotateCcw className="h-4 w-4" aria-hidden />
-          Réinitialiser
-        </Button>
+        <div className="flex items-center gap-1">
+          {/* Column picker — user-controlled trimming of the 14 columns
+              (research 2026-09-03: always-on lookup columns tax every scan;
+              default keeps everything visible so nothing changes unasked). */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" title="Afficher / masquer des colonnes">
+                <Columns3 className="h-4 w-4" aria-hidden />
+                Colonnes
+                {filters.hiddenCols.length > 0 && (
+                  <span className="rounded-full bg-surface-3 px-1.5 text-xs tabular-nums text-ink-2">
+                    {visibleColumns.length}/{EXPORT_COLUMNS.length}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              {HIDEABLE_COLUMNS.map((c) => (
+                <DropdownMenuCheckboxItem
+                  key={c.key}
+                  checked={!filters.hiddenCols.includes(c.key)}
+                  onCheckedChange={(checked) => {
+                    setFilters((prev) => ({
+                      ...prev,
+                      hiddenCols: checked
+                        ? prev.hiddenCols.filter((k) => k !== c.key)
+                        : [...prev.hiddenCols, c.key],
+                    }));
+                  }}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {c.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+              {filters.hiddenCols.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => clearFilter('hiddenCols')}>
+                    Tout afficher
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* One-click reset — shown only while something is actually applied
+              (Hick: no standing choice without a standing job; the filter
+              chips already teach that filters are removable). */}
+          {(hasAttributeFilters || !!filters.search) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-ink-3"
+              onClick={() => {
+                // Filters only — the column layout, sort and page size are the
+                // user's workspace setup, not a filter.
+                setFilters({
+                  search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes',
+                  observation: 'Toutes', creator: 'Tous', dateFrom: '', dateTo: '', datePreset: null,
+                });
+                setPage(1);
+              }}
+              title="Réinitialiser tous les filtres"
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden />
+              Réinitialiser
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Active filters — removable chips (surface-3 / ink-2, ghost ×). */}
@@ -591,23 +871,29 @@ export default function DossiersClientPage() {
             <FilterChip label={`Créé par : ${filters.creator}`} onRemove={() => clearFilter('creator')} ariaLabel="Retirer le filtre créé par" />
           )}
           {filters.dateFrom && (
-            <FilterChip label={`Du : ${filters.dateFrom}`} onRemove={() => clearFilter('dateFrom')} ariaLabel="Retirer la date de début" />
+            <FilterChip
+              label={`Du : ${filters.dateFrom}`}
+              onRemove={() => setFilters({ dateFrom: '', datePreset: filters.dateTo ? 'personnalise' : null })}
+              ariaLabel="Retirer la date de début"
+            />
           )}
           {filters.dateTo && (
-            <FilterChip label={`Au : ${filters.dateTo}`} onRemove={() => clearFilter('dateTo')} ariaLabel="Retirer la date de fin" />
+            <FilterChip
+              label={`Au : ${filters.dateTo}`}
+              onRemove={() => setFilters({ dateTo: '', datePreset: filters.dateFrom ? 'personnalise' : null })}
+              ariaLabel="Retirer la date de fin"
+            />
           )}
           <Button
             variant="ghost"
             size="sm"
             className="h-7 text-xs text-ink-3"
             onClick={() => {
-              clearFilter('nature');
-              clearFilter('status');
-              clearFilter('compagnie');
-              clearFilter('observation');
-              clearFilter('creator');
-              clearFilter('dateFrom');
-              clearFilter('dateTo');
+              setFilters({
+                nature: 'Toutes', status: 'Tous', compagnie: 'Toutes',
+                observation: 'Toutes', creator: 'Tous',
+                dateFrom: '', dateTo: '', datePreset: null,
+              });
             }}
           >
             Tout réinitialiser
@@ -653,7 +939,7 @@ export default function DossiersClientPage() {
                   />
                 </TableHead>
               )}
-              {EXPORT_COLUMNS.map(col => {
+              {visibleColumns.map(col => {
                 // Per-column filter popovers (iter-21). Each entry pairs a
                 // column key with the filter UI that scopes it. Columns NOT in
                 // this map (refExpert, assure, referenceCompagnie, matricule,
@@ -996,14 +1282,14 @@ export default function DossiersClientPage() {
             {loading ? (
               Array.from({ length: 8 }).map((_, i) => (
                 <TableRow key={`sk-${i}`}>
-                  <TableCell colSpan={17} className="p-0">
+                  <TableCell colSpan={colCount} className="p-0">
                     <SkeletonRow />
                   </TableCell>
                 </TableRow>
               ))
             ) : dossierList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={17} className="p-0">
+                <TableCell colSpan={colCount} className="p-0">
                   <EmptyState
                     icon={<FolderOpen />}
                     title="Aucun dossier trouvé"
@@ -1023,18 +1309,28 @@ export default function DossiersClientPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              dossierList.slice((page - 1) * rowsPerPage, page * rowsPerPage).map(d => (
+              pageRows.map((d, idx) => {
+                const isFocused = focusIdx === idx;
+                return (
                 <TableRow
                   key={d.id}
+                  data-row-idx={idx}
                   className={cn(
                     // Hover = surface-2 (table primitive); selected = accent tint.
+                    // Keyboard focus = the same one-surface-step shift as hover
+                    // (polish research 2026-09-03: nothing louder on dense rows).
                     // No row tint for observations — the warning chip carries it.
                     "group",
                     !exportMode && "cursor-pointer",
+                    isFocused && "bg-surface-2",
                     exportMode && selectedRows.has(d.id) && "bg-accent/40 hover:bg-accent/40",
                   )}
                   aria-selected={exportMode ? selectedRows.has(d.id) : undefined}
-                  onClick={() => exportMode ? handleToggleRow(d.id) : openDossier(d)}
+                  onClick={() => {
+                    setFocusIdx(idx);
+                    if (exportMode) handleToggleRow(d.id);
+                    else openDossier(d);
+                  }}
                   onDoubleClick={() => { if (!exportMode) openDossier(d, { preview: false }); }}
                   onAuxClick={(e) => { if (!exportMode && e.button === 1) { e.preventDefault(); openDossier(d, { preview: false, navigate: false }); } }}
                 >
@@ -1047,55 +1343,17 @@ export default function DossiersClientPage() {
                       />
                     </TableCell>
                   )}
-                  <TableCell className={cn(!exportMode && STICKY_CELL, 't-mono font-semibold')}>{d.refExpert || <span className="font-sans font-normal text-ink-4">Sans réf.</span>}</TableCell>
                   {/* Predictable strings truncate with a title tooltip
                       (addendum ter A) — same 200 px cap as chiffrage/ATG. */}
-                  <TableCell className="max-w-[220px] truncate font-medium" title={renderAssure(d.assure) || undefined}>{cell(renderAssure(d.assure))}</TableCell>
-                  <TableCell className="max-w-[200px] truncate" title={d.compagnie || undefined}>{cell(d.compagnie)}</TableCell>
-                  <TableCell>{cell(d.referenceCompagnie)}</TableCell>
-                  <TableCell className="tabular-nums">{cell(formatDate((d as any).createdAt))}</TableCell>
-                  <TableCell>{cell(d.nature)}</TableCell>
-                  <TableCell>{cell(d.typeDossier)}</TableCell>
-                  <TableCell
-                    onClick={exportMode ? undefined : (e) => {
-                      e.stopPropagation();
-                      setStatusHistoryDossier(d);
-                    }}
-                    className={cn("min-w-[200px]", !exportMode && "cursor-pointer hover:bg-surface-3 transition-colors")}
-                    title={!exportMode ? "Voir l'historique des statuts" : undefined}
-                  >
-                    {/* Shared app-wide status mapping (element-specs §11) — the
-                        inline Badge-outline path was retired 2026-09-02. */}
-                    <StatusChip status={d.statut} />
-                  </TableCell>
-                  <TableCell
-                    onClick={exportMode ? undefined : (e) => {
-                      e.stopPropagation();
-                      setObservationHistoryDossier(d);
-                    }}
-                    className={cn(!exportMode && "cursor-pointer hover:bg-surface-3 transition-colors")}
-                    title={!exportMode ? "Voir l'historique des observations" : undefined}
-                  >
-                    {d.lastObservation?.text ? (
-                      // Warning pair chip — the only emphasis for an open observation
-                      // (Badge primitive instead of raw markup, element-specs §11).
-                      <Badge variant="warning" className="max-w-[260px]" title={d.lastObservation.text}>
-                        <span className="truncate">{d.lastObservation.text}</span>
-                      </Badge>
-                    ) : (
-                      <span className="text-ink-4">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="t-mono">{cell(d.matricule)}</TableCell>
-                  <TableCell className="t-mono">{cell(d.vehicule?.immatriculationAnterieur)}</TableCell>
-                  <TableCell className="tabular-nums">{cell(formatDate(d.dateSinistre))}</TableCell>
-                  <TableCell className="tabular-nums">{cell(formatDate(d.dateRequete))}</TableCell>
-                  <TableCell>{cell(resolveCreatorName(d))}</TableCell>
+                  {visibleColumns.map((col) => renderDataCell(d, col.key, isFocused))}
 
                   {!exportMode && (
                     <TableCell
                       onClick={e => e.stopPropagation()}
-                      className="sticky right-0 z-10 bg-card text-right shadow-[-4px_0_6px_-2px_hsl(var(--shadow-color)/0.08)] group-hover:bg-surface-2"
+                      className={cn(
+                        "sticky right-0 z-10 bg-card text-right shadow-[-4px_0_6px_-2px_hsl(var(--shadow-color)/0.08)] group-hover:bg-surface-2",
+                        isFocused && "!bg-surface-2",
+                      )}
                     >
                       <div className="flex items-center justify-end gap-0.5">
                         <DropdownMenu>
@@ -1146,7 +1404,8 @@ export default function DossiersClientPage() {
                     </TableCell>
                   )}
                 </TableRow>
-              ))
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -1163,7 +1422,11 @@ export default function DossiersClientPage() {
             </SelectContent>
           </Select>
           <span className="t-caption tabular-nums">
-            {dossierList.length} dossier{dossierList.length > 1 ? 's' : ''}
+            {/* Filtered ≠ unfiltered must be unmistakable (polish research
+                2026-09-03 §6): print the total next to the filtered count. */}
+            {dossierList.length < allDossiers.length
+              ? `${dossierList.length} sur ${allDossiers.length} dossiers`
+              : `${dossierList.length} dossier${dossierList.length > 1 ? 's' : ''}`}
           </span>
         </div>
         <div className="flex items-center gap-2">
