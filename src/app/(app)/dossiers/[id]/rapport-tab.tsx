@@ -60,7 +60,12 @@ import { apiFetch } from '@/lib/api-fetch';
 // bottom hairline; active = card fill + rim, with the 2 px accent underline
 // kept as the second cue (the old underline-only idiom is gone).
 const DIAGRAM_TAB_TRIGGER =
-  'tab-slope relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3.5 text-[13px] font-medium text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card data-[state=active]:border-primary data-[state=active]:text-ink';
+  // Underline = span (never border-b-2: a bottom border lifts the padding box
+  // the feet anchor to — the arcs hung 2px above the line; owner 2026-09-03).
+  'tab-slope group relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap px-3.5 text-[13px] font-medium text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card data-[state=active]:text-ink';
+
+const DIAGRAM_TAB_BAR =
+  'pointer-events-none absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-primary opacity-0 transition-opacity group-data-[state=active]:opacity-100';
 
 export default function RapportTab({
   dossierId,
@@ -396,13 +401,17 @@ export default function RapportTab({
             <TabsPrimitive.List
               ref={diagramMorphRef}
               aria-label="Vue du diagramme"
-              className="relative isolate -mx-2 flex items-end gap-1 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
+              className="relative isolate -mx-2 flex items-end gap-4 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
             >
               <TabsPrimitive.Trigger value="dessus" className={DIAGRAM_TAB_TRIGGER}>
                 Vue dessus <ChangeBadge status={pointsChocStatus} />
+                <span className={DIAGRAM_TAB_BAR} aria-hidden />
+                <span className="tab-feet" aria-hidden />
               </TabsPrimitive.Trigger>
               <TabsPrimitive.Trigger value="dessous" className={DIAGRAM_TAB_TRIGGER}>
                 Vue dessous <ChangeBadge status={pointsChocDessousStatus} />
+                <span className={DIAGRAM_TAB_BAR} aria-hidden />
+                <span className="tab-feet" aria-hidden />
               </TabsPrimitive.Trigger>
             </TabsPrimitive.List>
             <TabsPrimitive.Content value="dessus" className="pt-5 focus-visible:outline-none">

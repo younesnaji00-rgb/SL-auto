@@ -10,12 +10,15 @@ import {
   ChevronsDown,
   Rows2,
   Minimize2,
-  ZoomIn,
-  ZoomOut,
-  RotateCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
+import PdfCanvas, {
+  ViewerZoomPill,
+  useWheelZoomNotch,
+  VIEWER_ZOOM_MAX,
+  VIEWER_ZOOM_MIN,
+} from './pdf-canvas';
 import { cn } from '@/lib/utils';
 import { useTabSlopeMorphRef } from '@/hooks/use-tab-morph';
 import { useFirestore, useStorage, useCollection } from '@/firebase';
@@ -123,6 +126,7 @@ function PaneTab({
         aria-hidden
         className={cn('pointer-events-none absolute inset-x-3 bottom-[3px] h-0.5 rounded-full bg-primary transition-opacity', active ? 'opacity-100' : 'opacity-0')}
       />
+      <span className="tab-feet" aria-hidden />
     </button>
   );
 }
@@ -131,7 +135,7 @@ function PaneTab({
  *  `surface-2` fill, rounded-lg — visibly a control. px-2 (8px) keeps the
  *  tabs' 7px outward feet inside the track. */
 const PANE_TABLIST_CLASS =
-  'relative isolate flex shrink-0 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1';
+  'relative isolate flex shrink-0 items-end gap-4 rounded-lg border border-hairline bg-surface-2 px-2 pt-1';
 
 function ReferencePane({
   dossierId,
@@ -247,6 +251,9 @@ function ReferencePane({
   }, [mode, photos, documents, selectedId]);
 
   const isImageFile = (name: string) => /\.(jpg|jpeg|png|webp|gif)$/i.test(name || '');
+  // C2 — only files we know to be PDFs go through the pdfjs canvas viewer;
+  // anything else keeps the iframe (unchanged behavior).
+  const isPdfFile = (name: string) => /\.pdf$/i.test(name || '');
   const selectedName: string = selectedItem?.name || selectedItem?.nom || '';
 
   return (
@@ -399,6 +406,22 @@ function ReferencePane({
         ) : viewerUrl ? (
           isImageFile(selectedName) ? (
             <ZoomableImage src={viewerUrl} alt={selectedItem?.name || 'Référence'} />
+          ) : isPdfFile(selectedName) ? (
+            // C2 — pdfjs canvas viewer with the image chrome (zoom/rotate/
+            // page nav) replaces the dead-zoom iframe; the iframe stays as
+            // the graceful fallback when pdfjs can't load the file
+            // (chiffrage-redesign-spec).
+            <PdfCanvas
+              src={viewerUrl}
+              title={selectedItem?.nom || selectedItem?.name || 'Document'}
+              fallback={
+                <iframe
+                  src={viewerUrl}
+                  className="h-full w-full border-none"
+                  title={selectedItem?.nom || 'Document'}
+                />
+              }
+            />
           ) : (
             <iframe
               src={viewerUrl}
@@ -416,8 +439,10 @@ function ReferencePane({
   );
 }
 
-const IMG_ZOOM_MIN = 1;
-const IMG_ZOOM_MAX = 4;
+// C2 — zoom bounds + pill + wheel-notch logic now live in ./pdf-canvas so the
+// PDF pane shares the exact chrome (chiffrage-redesign-spec).
+const IMG_ZOOM_MIN = VIEWER_ZOOM_MIN;
+const IMG_ZOOM_MAX = VIEWER_ZOOM_MAX;
 
 /**
  * Image viewer following the lightbox rules (document-preview-lightbox):
@@ -450,26 +475,14 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
     if (clamped === 1) setPan({ x: 0, y: 0 });
   };
 
-  // Wheel notch gate (native listener: React wheel events are passive).
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    let acc = 0;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      acc += e.deltaY;
-      if (Math.abs(acc) < 100) return;
-      const direction = acc < 0 ? 1 : -1;
-      acc = 0;
-      setZoom((prev) => {
-        const next = Math.min(IMG_ZOOM_MAX, Math.max(IMG_ZOOM_MIN, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3)));
-        if (next === 1) setPan({ x: 0, y: 0 });
-        return next;
-      });
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, []);
+  // Wheel notch gate — shared with the PDF pane (C2).
+  useWheelZoomNotch(wrapRef, (direction) => {
+    setZoom((prev) => {
+      const next = Math.min(IMG_ZOOM_MAX, Math.max(IMG_ZOOM_MIN, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3)));
+      if (next === 1) setPan({ x: 0, y: 0 });
+      return next;
+    });
+  });
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -525,26 +538,9 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
           }}
         />
       </div>
-      {/* Zoom pill — same anatomy as the lightbox ZoomControls. */}
-      <div
-        className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-card/95 px-1 py-0.5 shadow-raised ring-1 ring-hairline"
-        role="group"
-        aria-label="Zoom"
-        title="Molette pour zoomer progressivement, double-clic pour agrandir"
-      >
-        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => applyZoom(zoom - 0.25)} aria-label="Zoom arrière" disabled={zoom <= IMG_ZOOM_MIN}>
-          <ZoomOut className="h-4 w-4" />
-        </Button>
-        <button type="button" className="t-caption min-w-[3.25rem] rounded px-1 text-center tabular-nums hover:bg-surface-2" onClick={() => applyZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — réinitialiser`}>
-          {Math.round(zoom * 100)} %
-        </button>
-        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => applyZoom(zoom + 0.25)} aria-label="Zoom avant" disabled={zoom >= IMG_ZOOM_MAX}>
-          <ZoomIn className="h-4 w-4" />
-        </Button>
-        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRotation((r) => (r + 90) % 360)} aria-label="Pivoter de 90°" title="Pivoter de 90°">
-          <RotateCw className="h-4 w-4" />
-        </Button>
-      </div>
+      {/* Zoom pill — same anatomy as the lightbox ZoomControls, shared with
+          the PDF pane via ViewerZoomPill (C2). */}
+      <ViewerZoomPill zoom={zoom} onZoomTo={applyZoom} onRotate={() => setRotation((r) => (r + 90) % 360)} />
     </div>
   );
 }

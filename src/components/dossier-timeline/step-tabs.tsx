@@ -47,7 +47,7 @@ function StepTabsList({ children }: { children: React.ReactNode }) {
     <TabsPrimitive.List
       ref={ref}
       aria-label="Sections de l'étape"
-      className="relative isolate -mx-2 flex items-end gap-1 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
+      className="relative isolate -mx-2 flex items-end gap-4 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
     >
       {children}
     </TabsPrimitive.List>
@@ -106,12 +106,13 @@ export function StepTabs({ tabs, defaultValue, storageKey, className }: StepTabs
             value={t.value}
             className={cn(
               // Browser-tab shape (owner rulings 2026-09-02 + ter): `.tab-slope`
-              // (globals.css) draws the sloped body + outward feet — inactive
-              // facets are grey surface-4, the active one card + rim; the 2 px
-              // accent underline stays as the second cue.
-              'tab-slope relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3.5 text-[13px] font-medium text-ink-3',
+              // (globals.css) draws the sloped body + outward feet. The accent
+              // underline is a SPAN, never border-b-2 — a bottom border lifts
+              // the padding box the absolutely-positioned feet anchor to, so
+              // the arcs hung 2px above the separation line (owner 2026-09-03).
+              'tab-slope group relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap px-3.5 text-[13px] font-medium text-ink-3',
               'transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
-              'data-[state=active]:border-primary data-[state=active]:text-ink',
+              'data-[state=active]:text-ink',
             )}
           >
             {t.icon && <span className="inline-flex text-ink-3 [&>svg]:h-4 [&>svg]:w-4 group-data-[state=active]:text-ink">{t.icon}</span>}
@@ -133,6 +134,11 @@ export function StepTabs({ tabs, defaultValue, storageKey, className }: StepTabs
                 {t.badge.label}
               </span>
             )}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-primary opacity-0 transition-opacity group-data-[state=active]:opacity-100"
+            />
+            <span className="tab-feet" aria-hidden />
           </TabsPrimitive.Trigger>
         ))}
       </StepTabsList>

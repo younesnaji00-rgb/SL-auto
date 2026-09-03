@@ -38,8 +38,10 @@ const TabsList = React.forwardRef<
       className={cn(
         // Recessed track; tabs anchor to its bottom edge like browser tabs.
         // px-2 (8px) keeps the tabs' 7px outward feet inside the track.
+        // gap-4 (16px ≥ 2×7px feet, owner 2026-09-03): adjacent tabs'
+        // outward curves settle fully without interrupting each other.
         // relative: the morph ghost is absolutely positioned in the track.
-        "relative isolate inline-flex h-10 items-end gap-1 rounded-lg border border-hairline bg-surface-2 px-2 pt-1 text-ink-2",
+        "relative isolate inline-flex h-10 items-end gap-4 rounded-lg border border-hairline bg-surface-2 px-2 pt-1 text-ink-2",
         className
       )}
       {...props}
@@ -73,6 +75,7 @@ const TabsTrigger = React.forwardRef<
       aria-hidden
       className="pointer-events-none absolute inset-x-3 bottom-[3px] h-0.5 rounded-full bg-primary opacity-0 transition-opacity group-data-[state=active]:opacity-100"
     />
+    <span className="tab-feet" aria-hidden />
   </TabsPrimitive.Trigger>
 ))
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName

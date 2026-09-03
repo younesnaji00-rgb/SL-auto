@@ -652,14 +652,32 @@ Owner live-test rulings, rounds 3–5, implemented same day:
    separation line below. The stroke is now centred at radius = --tab-foot
    exactly (foot−0.5..foot+0.5, rim band shifted outward with it), landing
    tangent on both. Verified in a 6× side-by-side render.
-7. **Every raw `.tab-slope` strip gets the morph** (owner: « vue dessus /
+7. **Tab feet v2 — real bordered arcs** (owner 2026-09-03: "fix the bottom
+   edges… make the lines singular and continuous — same width, smoothness,
+   pixelation"): the radial-gradient stroke could never match border AA.
+   Each foot is now a pseudo of a real `.tab-feet` span every `.tab-slope`
+   trigger renders: a 14×14 circle whose 1px BORDER is the arc (same
+   renderer as the body outline and the hairline), box-shadow rings fill
+   the wedge over an OPAQUE card base (the voile ghosted the hairline
+   through), clip-path keeps the quadrant, and the circles sit 1px inward
+   so the arc stroke shares the body border's pixel column (at the exact
+   offset the strokes abutted and read as an elbow). ::after is now just
+   the bottom centre strip. RULES that fell out: (a) tab triggers must
+   NEVER carry border-b-2 — a bottom border lifts the padding box the
+   absolutely-positioned feet anchor to, hanging the arcs above the line;
+   the accent underline is always a span (step-tabs, diagram and photos
+   triggers converted); (b) every `.tab-slope` strip uses **gap-4** (16px
+   ≥ 2×7px feet) so adjacent curves settle without touching. Verified in
+   4×-zoom junction crops: border → arc → separation line reads as one
+   continuous stroke.
+8. **Every raw `.tab-slope` strip gets the morph** (owner: « vue dessus /
    dessous » didn't animate): new `useTabSlopeMorphRef()` callback-ref
    variant (object-ref effects never fire for conditionally-mounted strips)
    attached to the rapport diagram TabsPrimitive.List, the photos-tab
    grouping tablist (extracted as `PartitionTabs` — it renders per
    category), and both devis-editor reference-pane tablists; all four
    containers gained `relative isolate`.
-8. **« Volume par étape » card rebuilt** (research ruling, not motion):
+9. **« Volume par étape » card rebuilt** (research ruling, not motion):
    vertical recharts bars → HTML horizontal bar list in pipeline order,
    full stage names left, counts printed at the bar tip (no axis/tooltip),
    faint shared-scale track, busiest stage in deeper teal, rows click

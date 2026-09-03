@@ -523,16 +523,8 @@ html {
   inherits: true;
   initial-value: transparent;
 }
-/* Contour the feet gradients draw along their outward arc, so the active
-   tab's rim follows the downward flare instead of stopping at the
-   rectangular body (owner ruling 2026-09-02): a faint dark LINE on the
-   outer side of the curve plus a light HIGHLIGHT band just inside it —
-   the same two layers the body rim is made of. */
-@property --tab-foot-rim {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: transparent;
-}
+/* The 1px line stroked along the feet's outward arc — same colour as the
+   body's side borders so body + feet read as ONE continuous outline. */
 @property --tab-foot-line {
   syntax: '<color>';
   inherits: true;
@@ -550,7 +542,6 @@ html {
        teal outline — but UNFILLED. Hover fills that same pill with the
        accent tint; only the ACTIVE tab becomes the seated browser-tab shape
        with feet. */
-    --tab-foot-rim: var(--tab-fill);
     --tab-foot-line: transparent;
     position: relative;
     isolation: isolate;
@@ -560,7 +551,7 @@ html {
     z-index: 1;
     background: transparent !important;
     box-shadow: none !important;
-    transition: --tab-fill 120ms cubic-bezier(0.2, 0, 0, 1), --tab-foot-rim 120ms cubic-bezier(0.2, 0, 0, 1), --tab-foot-line 120ms cubic-bezier(0.2, 0, 0, 1);
+    transition: --tab-fill 120ms cubic-bezier(0.2, 0, 0, 1), --tab-foot-line 120ms cubic-bezier(0.2, 0, 0, 1);
   }
   /* Hover (owner rulings 2026-09-02 quinquies + sexies, INACTIVE tabs
      only): the tab previews as a PILL filled ENTIRELY in teal — the light
@@ -589,7 +580,8 @@ html {
     border-bottom: 0;
     box-shadow: none;
   }
-  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active)::after {
+  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active)::after,
+  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active) .tab-feet {
     opacity: 1;
   }
   .tab-slope[data-state='active'],
@@ -601,13 +593,15 @@ html {
        hover → active hierarchy reads (hover darker preview, active
        settled). */
     --tab-fill: hsl(var(--accent) / 0.45);
-    --tab-foot-rim: var(--tab-fill);
     --tab-foot-line: hsl(var(--primary) / 0.6);
     z-index: 2;
   }
   .tab-slope[data-state='active']::after,
   .tab-slope[aria-selected='true']::after,
-  .tab-slope-active::after {
+  .tab-slope-active::after,
+  .tab-slope[data-state='active'] .tab-feet,
+  .tab-slope[aria-selected='true'] .tab-feet,
+  .tab-slope-active .tab-feet {
     opacity: 1;
   }
   .tab-slope::before {
@@ -627,38 +621,71 @@ html {
        fill/outline fades. */
     transition: background-color 120ms cubic-bezier(0.2, 0, 0, 1), border-color 120ms cubic-bezier(0.2, 0, 0, 1), box-shadow 120ms cubic-bezier(0.2, 0, 0, 1);
   }
-  /* The outward feet: a 7×7 square outside each bottom corner, filled by a
-     radial-gradient whose transparent quarter-circle sits at the top-outer
-     corner — the remaining wedge makes the side edge flare out and land
-     tangent on the separation line (Firefox/Chrome tab base). The centre
-     strip repaints the body's bottom row in the same fill so no seam can
-     show at sub-pixel widths. */
+  /* Bottom CENTRE STRIP (::after): repaints the tab's bottom rows in the
+     fill — covers the shortened body's bottom edge AND the strip's
+     separation line under the seated tab, so the line visibly BREAKS under
+     the active tab and continues from the feet outward (browser-tab base).
+     The outward feet themselves moved to a real `.tab-feet` span (below) —
+     the gradient-stroked arc read pixelated next to the 1px borders. */
   .tab-slope::after {
     content: '';
     position: absolute;
-    /* Feet exist only on the seated shape (hover + active); pills hide them. */
+    /* Feet + strip exist only on the seated shape (hover + active). */
     opacity: 0;
-    left: calc(-1 * var(--tab-foot));
-    right: calc(-1 * var(--tab-foot));
+    left: 0;
+    right: 0;
     bottom: 0;
-    /* 1px taller than the feet: the centre strip also paints over the
-       shortened body's bottom ring/inset lines so no horizontal seam shows
-       across the tab above the feet. */
     height: calc(var(--tab-foot) + 1px);
     z-index: -1;
     pointer-events: none;
     transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1);
-    /* From the notch outward: transparent → ~1px dark line on the arc's
-       outer edge (--tab-foot-line) → ~1px light highlight band inside it
-       (--tab-foot-rim) → fill. Both layers default to invisible colours.
-       The dark line is CENTRED at radius = --tab-foot exactly (owner
-       2026-09-02: drawn ~1px smaller it floated, disconnected from the
-       side border above and the separation line below — the arc must end
-       tangent on both). */
-    background:
-      radial-gradient(circle at top left, transparent calc(var(--tab-foot) - 2px), var(--tab-foot-line) calc(var(--tab-foot) - 0.5px), var(--tab-foot-line) calc(var(--tab-foot) + 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 1.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 1.9px), var(--tab-fill) calc(var(--tab-foot) + 3px)) left bottom / var(--tab-foot) var(--tab-foot) no-repeat,
-      radial-gradient(circle at top right, transparent calc(var(--tab-foot) - 2px), var(--tab-foot-line) calc(var(--tab-foot) - 0.5px), var(--tab-foot-line) calc(var(--tab-foot) + 0.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 1.5px), var(--tab-foot-rim) calc(var(--tab-foot) + 1.9px), var(--tab-fill) calc(var(--tab-foot) + 3px)) right bottom / var(--tab-foot) var(--tab-foot) no-repeat,
-      linear-gradient(var(--tab-fill), var(--tab-fill)) center bottom / calc(100% - 2 * var(--tab-foot)) 100% no-repeat;
+    background: var(--tab-fill);
+  }
+  /* The outward feet (owner 2026-09-03: "make the lines singular and
+     continuous — same width, smoothness, pixelation"): each foot is one
+     pseudo-element of the `.tab-feet` span — a 14×14 CIRCLE whose 1px
+     BORDER is the concave arc (rendered by the same border pipeline as the
+     body outline and the separation hairline, so the stroke matches
+     exactly), whose outer box-shadow (spread = --tab-foot) fills the
+     wedge, clipped to the quadrant by clip-path. The circle's centre sits
+     on the tab's bottom corner ± --tab-foot, so the arc leaves the side
+     border tangentially and lands tangent on the separation line. Every
+     `.tab-slope` trigger renders `<span class="tab-feet" aria-hidden />`. */
+  .tab-feet {
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1);
+  }
+  .tab-feet::before,
+  .tab-feet::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    width: calc(2 * var(--tab-foot));
+    height: calc(2 * var(--tab-foot));
+    border-radius: 50%;
+    border: 1px solid var(--tab-foot-line);
+    /* Two stacked ring shadows: the fill over an OPAQUE card base, so the
+       separation hairline breaks cleanly under the wedge even when the
+       fill is the translucent « voile » (it ghosted through). */
+    box-shadow:
+      0 0 0 var(--tab-foot) var(--tab-fill),
+      0 0 0 var(--tab-foot) hsl(var(--card));
+  }
+  /* Shifted 1px INWARD so the arc's stroke occupies the same pixel column
+     as the body's 1px side border — at the exact offset the two strokes
+     only abutted and read as a dog-leg elbow. */
+  .tab-feet::before {
+    left: calc(-2 * var(--tab-foot) + 1px);
+    clip-path: inset(50% 0 0 50%);
+  }
+  .tab-feet::after {
+    right: calc(-2 * var(--tab-foot) + 1px);
+    clip-path: inset(50% 50% 0 0);
   }
   .tab-slope[data-state='active']::before,
   .tab-slope[aria-selected='true']::before,
@@ -708,7 +735,8 @@ html {
      tab's seat paint stays hidden so it still looks unselected; the carrier
      landing reveals it. */
   .tab-slope.tab-morph-hold::before,
-  .tab-slope.tab-morph-hold::after {
+  .tab-slope.tab-morph-hold::after,
+  .tab-slope.tab-morph-hold .tab-feet {
     visibility: hidden !important;
   }
   /* (nav-active-in retired 2026-09-02: the sidebar's active surface is now a

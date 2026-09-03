@@ -167,7 +167,7 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
         // bar; NN/g Tabs Used Right: two selection indicators). items-end:
         // the tabs sit flush on the bar's bottom border so their outward
         // feet merge into the separation line (owner ruling ter).
-        className="relative isolate flex min-w-0 items-end gap-1 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="relative isolate flex min-w-0 items-end gap-4 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {api.displayTabs.map((tab, idx) => {
           const isActive = tab.id === api.activeTabId;
@@ -234,6 +234,7 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
                 aria-hidden
                 className={cn('pointer-events-none absolute inset-x-2.5 bottom-[3px] h-0.5 rounded-full bg-primary transition-opacity duration-150', isActive ? 'opacity-100' : 'opacity-0')}
               />
+              <span className="tab-feet" aria-hidden />
             </div>
           );
         })}
