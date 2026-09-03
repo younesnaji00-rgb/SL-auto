@@ -60,6 +60,7 @@ import MissionPeekPanel from './mission-peek-panel';
 import {
   CheckinButton, EnRouteButton, MissionRowActions, ReassignPopover, mapsSearchUrl, telHref, waHref,
 } from './mission-quick-actions';
+import { GeofenceCheckinBanner } from './mission-geofence-checkin';
 import { MessageCircle } from 'lucide-react';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
@@ -1240,6 +1241,26 @@ export default function AssignationsATGPage() {
     [filteredPlanifications, groupOfItem]
   );
 
+  // Geofence candidates: the agent's today's + overdue missions with an
+  // address and no check-in yet — the banner suggests « Confirmer l'arrivée »
+  // when the live position lands within ~150 m of the geocoded address.
+  const geofenceCandidates = useMemo(
+    () => (isATG
+      ? groups
+          .filter(g => g.key !== 'future')
+          .flatMap(g => g.items)
+          .filter(p => p.adresse?.trim() && !p.checkinAt)
+          .map(p => ({
+            key: `${p.dossierId}-${p.id}`,
+            dossierId: p.dossierId,
+            planifId: p.id,
+            refLabel: p.dossierNom || p.dossierId,
+            adresse: p.adresse.trim(),
+          }))
+      : []),
+    [groups, isATG]
+  );
+
   // Live agent positions on the map lens (ServiceM8 staff map / ServiceTitan
   // GPS tracking — the fleet view every fetched dispatch product ships).
   // Dispatchers see all agents; an ATG sees only their own marker.
@@ -1449,6 +1470,9 @@ export default function AssignationsATGPage() {
             ))}
           </div>
         )}
+
+        {/* Geofenced arrival suggestion — thumb-zone banner (ATG only). */}
+        {isATG && <GeofenceCheckinBanner candidates={geofenceCandidates} />}
       </div>
     );
   }

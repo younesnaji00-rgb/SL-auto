@@ -660,3 +660,10 @@ following are now standing rulings for queue pages:
 12. **Photo progress chip** per row/card: success tint when the stage has
     photos, quiet outline « 0 photo » otherwise (zero is the normal pending
     state, not an exception).
+13. **Geofenced arrival suggestion** (2026-09-03 bis): on the ATG mobile
+    queue, a live-position watch + the cached geocoder surface a thumb-zone
+    banner « Vous êtes sur place » with ONE-TAP « Confirmer l'arrivée »
+    when within ~150 m of a today's/overdue mission address (accuracy
+    ≤ 150 m required). Always a suggestion, never a silent auto-stamp;
+    dismissal holds for the session; the confirm reuses the check-in write
+    + historique log.
