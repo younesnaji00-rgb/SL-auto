@@ -5,6 +5,7 @@ import { BRAND } from '@/lib/brand';
 import { SITE_URL } from '@/lib/site-url';
 import { JsonLd, organizationJsonLd, siteMetadata, SITE_NAME } from './_components/seo';
 import { SiteShell } from './_components/chrome';
+import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
   ...siteMetadata({
@@ -34,7 +35,15 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       {PLAUSIBLE_DOMAIN && (
         <Script defer data-domain={PLAUSIBLE_DOMAIN} src="https://plausible.io/js/script.tagged-events.outbound-links.js" strategy="afterInteractive" />
       )}
-      <SiteShell>{children}</SiteShell>
+      {/* The marketing site is a light-only design: it defines its own palette
+          (--paper/--ink/--teal) on the shell and never touches the app tokens.
+          The one thing it DOES inherit is the global `h1..h6 { text-heading-fg }`
+          rule, so a dark <html> turns every heading pale. `forcedTheme` pins the
+          class to light for as long as a /site route is mounted, which makes the
+          site immune to the theme toggle as well as to the OS preference. */}
+      <ThemeProvider attribute="class" forcedTheme="light">
+        <SiteShell>{children}</SiteShell>
+      </ThemeProvider>
     </>
   );
 }
