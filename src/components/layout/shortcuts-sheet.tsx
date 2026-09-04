@@ -11,12 +11,21 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Input } from '@/components/ui/input';
 import { Kbd } from '@/components/ui/kbd';
 import { useRegisteredHotkeys, formatKeys } from '@/hooks/use-hotkeys';
+import { useT } from '@/i18n';
 
+// Registration sites already translate `label` and `group` (see shell-ui,
+// workspace-tabs, the list pages), so the rows below render them AS IS — a
+// second t() would be harmless (the key round-trips) but misleading. The
+// ordering table is the one place that must be translated here, otherwise the
+// group names never match in English and every group falls to the tail.
 const GROUP_ORDER = ['Général', 'Navigation', 'Onglets', 'Listes', 'Dossier'];
 
 export function ShortcutsSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const t = useT();
   const hotkeys = useRegisteredHotkeys();
   const [q, setQ] = useState('');
+
+  const groupOrder = useMemo(() => GROUP_ORDER.map((g) => t(g)), [t]);
 
   const groups = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -34,19 +43,19 @@ export function ShortcutsSheet({ open, onOpenChange }: { open: boolean; onOpenCh
       map.get(h.group)!.push(h);
     }
     return Array.from(map.entries()).sort(([a], [b]) => {
-      const ia = GROUP_ORDER.indexOf(a);
-      const ib = GROUP_ORDER.indexOf(b);
+      const ia = groupOrder.indexOf(a);
+      const ib = groupOrder.indexOf(b);
       return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
     });
-  }, [hotkeys, q]);
+  }, [hotkeys, q, groupOrder]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex w-full flex-col gap-4 sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>Raccourcis clavier</SheetTitle>
+          <SheetTitle>{t('Raccourcis clavier')}</SheetTitle>
           <SheetDescription>
-            Les raccourcis à une lettre s&apos;utilisent hors des champs de saisie. « G puis D » signifie appuyer sur G, puis sur D.
+            {t("Les raccourcis à une lettre s'utilisent hors des champs de saisie. « G puis D » signifie appuyer sur G, puis sur D.")}
           </SheetDescription>
         </SheetHeader>
         <div className="relative">
@@ -54,13 +63,13 @@ export function ShortcutsSheet({ open, onOpenChange }: { open: boolean; onOpenCh
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Filtrer les raccourcis…"
+            placeholder={t('Filtrer les raccourcis…')}
             className="pl-8"
-            aria-label="Filtrer les raccourcis"
+            aria-label={t('Filtrer les raccourcis')}
           />
         </div>
         <div className="-mx-6 flex-1 overflow-y-auto px-6">
-          {groups.length === 0 && <p className="py-8 text-center text-sm text-ink-3">Aucun raccourci ne correspond.</p>}
+          {groups.length === 0 && <p className="py-8 text-center text-sm text-ink-3">{t('Aucun raccourci ne correspond.')}</p>}
           {groups.map(([group, list]) => (
             <section key={group} className="mb-8">
               <h3 className="t-label mb-2">{group}</h3>
@@ -72,7 +81,7 @@ export function ShortcutsSheet({ open, onOpenChange }: { open: boolean; onOpenCh
                     <span className="flex shrink-0 items-center gap-1">
                       {formatKeys(h.keys).map((k, i) => (
                         <React.Fragment key={i}>
-                          {i > 0 && <span className="t-caption">puis</span>}
+                          {i > 0 && <span className="t-caption">{t('puis')}</span>}
                           <Kbd>{k}</Kbd>
                         </React.Fragment>
                       ))}

@@ -23,6 +23,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
 import { geocodeAddress, type GeoPoint } from '@/lib/geocode';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 export interface GeofenceCandidate {
@@ -70,6 +71,7 @@ export function GeofenceCheckinBanner({
   const auth = useAuth();
   const { profile } = useCurrentUser();
   const { toast } = useToast();
+  const t = useT();
   const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [geo, setGeo] = useState<Record<string, GeoPoint | null>>({});
   const [dismissed, setDismissed] = useState<Set<string>>(readDismissed);
@@ -141,6 +143,7 @@ export function GeofenceCheckinBanner({
         checkinBy: profile?.nom || userEmail,
       });
       try {
+        // Audit trail: action + details stay French (translated at display time).
         await logHistorique(
           db,
           candidate.dossierId,
@@ -151,10 +154,10 @@ export function GeofenceCheckinBanner({
           profile?.nom,
         );
       } catch { /* non-fatal */ }
-      toast({ title: 'Arrivée enregistrée', description: `${candidate.refLabel} · heure et position GPS horodatées.` });
+      toast({ title: t('Arrivée enregistrée'), description: `${candidate.refLabel} · ${t('heure et position GPS horodatées.')}` });
     } catch (e) {
       console.error('[geofence-checkin] failed:', e);
-      toast({ title: 'Enregistrement impossible', description: 'Réessayez dans un instant.', variant: 'destructive' });
+      toast({ title: t('Enregistrement impossible'), description: t('Réessayez dans un instant.'), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -172,10 +175,10 @@ export function GeofenceCheckinBanner({
       <div className="flex items-start gap-2.5">
         <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-ink">Vous êtes sur place</p>
+          <p className="text-sm font-semibold text-ink">{t('Vous êtes sur place')}</p>
           <p className="truncate text-xs text-ink-3">
             <span className="t-mono">{candidate.refLabel}</span>
-            {` · à ~${Math.round(distanceM)} m de l'adresse`}
+            {` · ${t('à ~')}${Math.round(distanceM)}${t(" m de l'adresse")}`}
           </p>
         </div>
         <Button
@@ -183,14 +186,14 @@ export function GeofenceCheckinBanner({
           size="icon"
           className="h-8 w-8 shrink-0 text-ink-3"
           onClick={dismiss}
-          aria-label="Ignorer la suggestion"
-          title="Ignorer la suggestion"
+          aria-label={t('Ignorer la suggestion')}
+          title={t('Ignorer la suggestion')}
         >
           <X className="h-4 w-4" />
         </Button>
       </div>
       <Button variant="tonal" className="mt-2 h-11 w-full" onClick={confirm} loading={saving}>
-        {"Confirmer l'arrivée"}
+        {t("Confirmer l'arrivée")}
       </Button>
     </div>
   );

@@ -10,8 +10,14 @@
  *   3. the next workflow step to act on           → that step (or its action)
  * A step the reader is merely WAITING on (chiffrage sent, visit planned but
  * photos not in yet) is flagged `waiting` so the UI can tone it down.
+ *
+ * i18n: every `label` / `detail` / `target` here is DISPLAY-ONLY — nothing on
+ * a `DossierTodo` is persisted or compared (routing rides on `id` and
+ * `action`), so the strings are translated in place with the module-level `t`.
+ * In French `t` returns its key unchanged, so the French output is identical.
  */
 
+import { t } from '@/i18n';
 import { getMissingRequiredFields } from './required-fields';
 import type { StepState } from './dossier-steps';
 import type { RequiredDocsStatus } from './required-docs';
@@ -74,17 +80,18 @@ function stepTodo(step: StepState, docs: RequiredDocsStatus | null): DossierTodo
     if (step.status === 'todo') {
       return {
         id: `visit-${step.id}`,
-        label: `Visite ${visit.word} à planifier`,
-        target: 'Planifier',
+        // Enumerable keys: « Visite avant / en cours / après à planifier ».
+        label: t(`Visite ${visit.word} à planifier`),
+        target: t('Planifier'),
         action: { kind: 'planifier', stepId: step.id, type: visit.type },
       };
     }
     const when = fmtDate(step.startedAt);
     return {
       id: `photos-${step.id}`,
-      label: `Photos ${visit.word} attendues`,
-      detail: when ? `Visite planifiée le ${when}` : 'Visite planifiée',
-      target: 'Photos',
+      label: t(`Photos ${visit.word} attendues`),
+      detail: when ? `${t('Visite planifiée le')} ${when}` : t('Visite planifiée'),
+      target: t('Photos'),
       action: { kind: 'goto', stepId: step.id, tab: 'photos' },
       waiting: true,
     };
@@ -92,26 +99,26 @@ function stepTodo(step: StepState, docs: RequiredDocsStatus | null): DossierTodo
   switch (step.id) {
     case 6:
       if (step.status === 'in_progress') {
-        return { id: 'accord-1', label: '1er accord attendu', detail: 'Chiffrage en cours', target: 'Accord', action: { kind: 'goto', stepId: 6, tab: 'documents' }, waiting: true };
+        return { id: 'accord-1', label: t('1er accord attendu'), detail: t('Chiffrage en cours'), target: t('Accord'), action: { kind: 'goto', stepId: 6, tab: 'documents' }, waiting: true };
       }
       return {
         id: 'chiffrage-1',
-        label: 'À envoyer au chiffrage',
-        detail: docs && !docs.allRequiredFilled ? 'Dès que les pièces requises sont reçues' : undefined,
-        target: 'Chiffrage',
+        label: t('À envoyer au chiffrage'),
+        detail: docs && !docs.allRequiredFilled ? t('Dès que les pièces requises sont reçues') : undefined,
+        target: t('Chiffrage'),
         action: { kind: 'chiffrage', stepId: 6 },
       };
     case 11:
       if (step.status === 'in_progress') {
-        return { id: 'accord-2', label: '2ème accord attendu', detail: 'Chiffrage en cours', target: 'Accord', action: { kind: 'goto', stepId: 11, tab: 'documents' }, waiting: true };
+        return { id: 'accord-2', label: t('2ème accord attendu'), detail: t('Chiffrage en cours'), target: t('Accord'), action: { kind: 'goto', stepId: 11, tab: 'documents' }, waiting: true };
       }
       return null;
     case 7:
       return step.status === 'in_progress'
-        ? { id: 'rapport-depot', label: 'Rapport à déposer', detail: 'Rapport validé', target: 'Rapport', action: { kind: 'goto', stepId: 7 } }
-        : { id: 'rapport-gen', label: 'Rapport à générer', target: 'Rapport', action: { kind: 'goto', stepId: 7 } };
+        ? { id: 'rapport-depot', label: t('Rapport à déposer'), detail: t('Rapport validé'), target: t('Rapport'), action: { kind: 'goto', stepId: 7 } }
+        : { id: 'rapport-gen', label: t('Rapport à générer'), target: t('Rapport'), action: { kind: 'goto', stepId: 7 } };
     case 8:
-      return { id: 'honoraires', label: "Note d'honoraire à déposer", target: 'Honoraires', action: { kind: 'goto', stepId: 8 } };
+      return { id: 'honoraires', label: t("Note d'honoraire à déposer"), target: t('Honoraires'), action: { kind: 'goto', stepId: 8 } };
     default:
       return null;
   }
@@ -130,9 +137,11 @@ export function getDossierTodos(dossier: any, steps: StepState[], docs: Required
   if (fields.length > 0) {
     out.push({
       id: 'fields',
-      label: `${fields.length} ${plural(fields.length, 'champ manquant', 'champs manquants')}`,
+      label: `${fields.length} ${t(plural(fields.length, 'champ manquant', 'champs manquants'))}`,
+      // `detail` lists field labels owned by lib/required-fields — left as the
+      // source module renders them.
       detail: listSome(fields),
-      target: 'Informations',
+      target: t('Informations'),
       action: { kind: 'goto', stepId: 1, tab: 'informations' },
     });
   }
@@ -141,9 +150,10 @@ export function getDossierTodos(dossier: any, steps: StepState[], docs: Required
     const n = docs.missingLabels.length;
     out.push({
       id: 'docs',
-      label: `${n} ${plural(n, 'pièce manquante', 'pièces manquantes')}`,
+      label: `${n} ${t(plural(n, 'pièce manquante', 'pièces manquantes'))}`,
+      // `detail` lists doc labels owned by lib/required-docs — left as-is.
       detail: listSome(docs.missingLabels),
-      target: 'Pièces',
+      target: t('Pièces'),
       action: { kind: 'goto', stepId: 1, tab: 'documents' },
     });
   }

@@ -15,6 +15,7 @@ import { useHotkeys, type Hotkey } from '@/hooks/use-hotkeys';
 import { useSidebar } from '@/components/ui/sidebar';
 import { CommandPalette } from '@/components/global-search';
 import { CreateDossierDialog } from '@/components/dossiers/create-dossier-dialog';
+import { useT } from '@/i18n';
 
 interface ShellUiValue {
   openPalette: (initialQuery?: string) => void;
@@ -29,6 +30,7 @@ const ShellUiContext = createContext<ShellUiValue>({
 });
 
 export function ShellUiProvider({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const router = useRouter();
   const { canWrite, profile } = useCurrentUser();
   const { items } = useVisibleNav();
@@ -56,21 +58,22 @@ export function ShellUiProvider({ children }: { children: React.ReactNode }) {
       .filter((i) => i.hotkey)
       .map((i) => ({
         keys: i.hotkey!,
-        label: `Aller à ${i.title ?? i.label}`,
-        group: 'Navigation',
+        // Nav titles/labels are French translation keys (lib/nav-groups.ts).
+        label: `${t('Aller à')} ${t(i.title ?? i.label)}`,
+        group: t('Navigation'),
         handler: () => router.push(i.href),
       }));
     const general: Hotkey[] = [
-      { keys: 'mod+k', label: 'Rechercher / palette de commandes', group: 'Général', handler: () => openPalette(), allowInInput: true },
-      { keys: '/', label: 'Rechercher', group: 'Général', handler: () => openPalette() },
-      { keys: 'mod+b', label: 'Réduire / agrandir la barre latérale', group: 'Général', handler: () => toggleSidebar(), allowInInput: true },
-      { keys: 'shift+d', label: 'Basculer le mode sombre', group: 'Général', handler: () => setTheme(theme === 'dark' ? 'light' : 'dark') },
+      { keys: 'mod+k', label: t('Rechercher / palette de commandes'), group: t('Général'), handler: () => openPalette(), allowInInput: true },
+      { keys: '/', label: t('Rechercher'), group: t('Général'), handler: () => openPalette() },
+      { keys: 'mod+b', label: t('Réduire / agrandir la barre latérale'), group: t('Général'), handler: () => toggleSidebar(), allowInInput: true },
+      { keys: 'shift+d', label: t('Basculer le mode sombre'), group: t('Général'), handler: () => setTheme(theme === 'dark' ? 'light' : 'dark') },
     ];
     if (canCreateDossier) {
-      general.push({ keys: 'c', label: 'Nouveau dossier', group: 'Général', handler: () => setCreateOpen(true) });
+      general.push({ keys: 'c', label: t('Nouveau dossier'), group: t('Général'), handler: () => setCreateOpen(true) });
     }
     return [...general, ...nav];
-  }, [items, router, openPalette, toggleSidebar, setTheme, theme, canCreateDossier]);
+  }, [items, router, openPalette, toggleSidebar, setTheme, theme, canCreateDossier, t]);
 
   useHotkeys(hotkeys, [hotkeys]);
 

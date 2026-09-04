@@ -45,6 +45,15 @@ import { MERGE_E_EN } from './merge-E';
 import { MERGE_F_EN } from './merge-F';
 import { MERGE_G_EN } from './merge-G';
 import { MERGE_H_EN } from './merge-H';
+// i18n gap-fill (2026-09-04): the merge only touched files that CONFLICTED, so
+// everything the redesign created new (peek panels, record bar, tab strip, ATG
+// mission surfaces…) shipped hardcoded French. One file per fix batch.
+import { I18N_FIX_0_EN } from './i18n-fix-0';
+import { I18N_FIX_1_EN } from './i18n-fix-1';
+import { I18N_FIX_2_EN } from './i18n-fix-2';
+import { I18N_FIX_3_EN } from './i18n-fix-3';
+import { I18N_FIX_4_EN } from './i18n-fix-4';
+import { I18N_FIX_5_EN } from './i18n-fix-5';
 
 export const EN: Record<string, string> = {
   ...COMMON_EN,
@@ -82,4 +91,10 @@ export const EN: Record<string, string> = {
   ...MERGE_F_EN,
   ...MERGE_G_EN,
   ...MERGE_H_EN,
+  ...I18N_FIX_0_EN,
+  ...I18N_FIX_1_EN,
+  ...I18N_FIX_2_EN,
+  ...I18N_FIX_3_EN,
+  ...I18N_FIX_4_EN,
+  ...I18N_FIX_5_EN,
 };

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 interface CarSvgBottomProps {
@@ -107,6 +108,7 @@ function Tyre({ x, y, stroke }: { x: number; y: number; stroke: StrokeProps }) {
 }
 
 export default function CarSvgBottom({ zones, onToggleZone, className }: CarSvgBottomProps) {
+  const t = useT();
   const stroke = {
     stroke: 'currentColor',
     strokeLinecap: 'round' as const,
@@ -120,7 +122,7 @@ export default function CarSvgBottom({ zones, onToggleZone, className }: CarSvgB
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       role="img"
-      aria-label="Vue de dessous du véhicule — points de choc"
+      aria-label={t('Vue de dessous du véhicule — points de choc')}
       className={cn('text-foreground', className)}
       style={{ width: '100%', maxWidth: 280, height: 'auto' }}
     >
@@ -270,7 +272,7 @@ export default function CarSvgBottom({ zones, onToggleZone, className }: CarSvgB
             transform={rotate ? `rotate(${rotate} ${x} ${y})` : undefined}
             className="pointer-events-none select-none uppercase"
           >
-            {text}
+            {t(text)}
           </text>
         )),
       )}

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 interface CarSvgTopProps {
@@ -167,6 +168,7 @@ const ZONES: ZoneDef[] = [
 ];
 
 export default function CarSvgTop({ zones, onToggleZone, className }: CarSvgTopProps) {
+  const t = useT();
   const stroke = {
     stroke: 'currentColor',
     strokeLinecap: 'round' as const,
@@ -179,7 +181,7 @@ export default function CarSvgTop({ zones, onToggleZone, className }: CarSvgTopP
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       role="img"
-      aria-label="Vue de dessus du véhicule — points de choc"
+      aria-label={t('Vue de dessus du véhicule — points de choc')}
       className={cn('text-foreground', className)}
       style={{ width: '100%', maxWidth: 280, height: 'auto' }}
     >

@@ -831,7 +831,9 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
                     onClick={() => focusSocket(label)}
                     className="rounded-sm underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
                   >
-                    {label}
+                    {/* Translate on RENDER only: `label` is the raw slot type,
+                        compared by identity in focusSocket / GARAGE_PAIR_LABEL. */}
+                    {t(label)}
                   </button>
                 </React.Fragment>
               ))}

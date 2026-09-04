@@ -1,7 +1,9 @@
 /**
  * Suivi d'équipe — operational metrics on top of the funnel model.
  *
- * Pure module (no React, no Firebase), unit-tested. Adds what the tiles alone
+ * Pure module (no React components, no Firebase), unit-tested — the only
+ * outside pull is the i18n translator, used by the display-only formatter at
+ * the bottom. Adds what the tiles alone
  * cannot say, following published operations-dashboard practice:
  *   • summary + exception (Few): a headline row above the stage tiles;
  *   • flow metrics (Kanban: WIP, cycle time, throughput, work-item AGE):
@@ -36,6 +38,7 @@
 import { addDays, eachWeekOfInterval, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { businessHoursBetween } from '@/lib/business-days';
+import { getLocale, t } from '@/i18n';
 import {
   STEP_DEFS,
   STEP_KEYS,
@@ -407,12 +410,18 @@ export function computeCycleTimes(dossiers: FunnelDossier[], range: FunnelRange,
   return rows;
 }
 
-/** "18 h" under a day, else "2,5 j" (business days of 24 h, matching the SLA model). */
+/**
+ * "18 h" under a day, else "2,5 j" (business days of 24 h, matching the SLA
+ * model). Display-only — the value goes straight to the monitoring tables and
+ * is never persisted, so the unit and the decimal separator are localized
+ * here ("2.5 d" in English). "h" is the same token in both languages.
+ */
 export function formatBusinessHours(h: number | null): string {
   if (h == null) return '—';
   if (h < 24) return `${Math.round(h)} h`;
   const days = h / 24;
-  return `${(Math.round(days * 10) / 10).toString().replace('.', ',')} j`;
+  const decimal = getLocale() === 'fr' ? ',' : '.';
+  return `${(Math.round(days * 10) / 10).toString().replace('.', decimal)} ${t('j')}`;
 }
 
 // ── Weekly trend ────────────────────────────────────────────────────────────

@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { StatusChip } from '@/components/ui/status-chip';
 import { Separator } from '@/components/ui/separator';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 export interface DossierPeekPanelProps {
@@ -63,6 +64,7 @@ export function DossierPeekPanel({
   renderAssure,
   creatorName,
 }: DossierPeekPanelProps) {
+  const t = useT();
   if (!dossier) return null;
   const d = dossier;
 
@@ -76,14 +78,14 @@ export function DossierPeekPanel({
         'animate-in fade-in-0 slide-in-from-right-4 duration-200 ease-enter motion-reduce:animate-none',
       )}
       role="complementary"
-      aria-label={`Aperçu du dossier ${d.refExpert || ''}`}
+      aria-label={`${t('Aperçu du dossier')} ${d.refExpert || ''}`}
     >
       {/* Identity header */}
       <div className="flex items-start gap-3 border-b border-hairline px-5 py-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="t-mono truncate font-semibold text-ink" title={d.refExpert || undefined}>
-              {d.refExpert || 'Sans réf.'}
+              {d.refExpert || t('Sans réf.')}
             </span>
             {position && (
               <span className="t-caption shrink-0 tabular-nums">{position.index}/{position.total}</span>
@@ -103,7 +105,7 @@ export function DossierPeekPanel({
           size="icon"
           className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink"
           onClick={onClose}
-          aria-label="Fermer l'aperçu (Échap)"
+          aria-label={t("Fermer l'aperçu (Échap)")}
         >
           <X className="h-4 w-4" />
         </Button>
@@ -112,34 +114,37 @@ export function DossierPeekPanel({
       {/* Decision fields (§10 definition list, 2-col grid) */}
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
-          <Field label="Compagnie" value={d.compagnie} />
-          <Field label="Référence compagnie" value={d.referenceCompagnie} />
-          <Field label="Nature" value={d.nature} />
-          <Field label="Type" value={d.typeDossier} />
-          <Field label="Matricule" value={d.matricule} mono />
-          <Field label="Matricule antérieur" value={d.vehicule?.immatriculationAnterieur} mono />
+          <Field label={t('Compagnie')} value={d.compagnie} />
+          <Field label={t('Référence compagnie')} value={d.referenceCompagnie} />
+          <Field label={t('Nature')} value={d.nature} />
+          <Field label={t('Type')} value={d.typeDossier} />
+          <Field label={t('Matricule')} value={d.matricule} mono />
+          <Field label={t('Matricule antérieur')} value={d.vehicule?.immatriculationAnterieur} mono />
           <Field
-            label="Date de création"
+            label={t('Date de création')}
             value={formatDate((d as any).createdAt) || undefined}
           />
-          <Field label="Créé par" value={creatorName || undefined} />
-          <Field label="Date sinistre" value={formatDate(d.dateSinistre) || undefined} />
-          <Field label="Date requête" value={formatDate(d.dateRequete) || undefined} />
+          <Field label={t('Créé par')} value={creatorName || undefined} />
+          <Field label={t('Date sinistre')} value={formatDate(d.dateSinistre) || undefined} />
+          <Field label={t('Date requête')} value={formatDate(d.dateRequete) || undefined} />
         </dl>
         {relativeDate((d as any).createdAt) && (
-          <p className="mt-3 t-caption">Créé {relativeDate((d as any).createdAt)}</p>
+          // `relativeDate` already formats with `dateFnsLocale()` (client-page),
+          // so only the leading verb needs translating: « Créé il y a un mois »
+          // / "Created a month ago".
+          <p className="mt-3 t-caption">{t('Créé')} {relativeDate((d as any).createdAt)}</p>
         )}
 
         {d.lastObservation?.text && (
           <>
             <Separator className="my-4" />
             <div>
-              <span className="t-label">Dernière observation</span>
+              <span className="t-label">{t('Dernière observation')}</span>
               <button
                 type="button"
                 onClick={onObservationHistory}
                 className="mt-1.5 block w-full text-left"
-                title="Voir l'historique des observations"
+                title={t("Voir l'historique des observations")}
               >
                 <Badge variant="warning" className="max-w-full whitespace-normal py-1 text-left">
                   {d.lastObservation.text}
@@ -152,10 +157,10 @@ export function DossierPeekPanel({
         <Separator className="my-4" />
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" className="gap-1.5" onClick={onStatusHistory}>
-            <History className="h-3.5 w-3.5" aria-hidden /> Statuts
+            <History className="h-3.5 w-3.5" aria-hidden /> {t('Statuts')}
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5" onClick={onObservationHistory}>
-            <History className="h-3.5 w-3.5" aria-hidden /> Observations
+            <History className="h-3.5 w-3.5" aria-hidden /> {t('Observations')}
           </Button>
         </div>
       </div>
@@ -163,9 +168,9 @@ export function DossierPeekPanel({
       {/* Commit tier */}
       <div className="flex items-center gap-2 border-t border-hairline px-5 py-3">
         <Button className="flex-1 gap-1.5 font-semibold" onClick={onOpen}>
-          Ouvrir <ArrowRight className="h-4 w-4" aria-hidden />
+          {t('Ouvrir')} <ArrowRight className="h-4 w-4" aria-hidden />
         </Button>
-        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={onOpenInTab} title="Ouvrir dans un onglet" aria-label="Ouvrir dans un onglet">
+        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={onOpenInTab} title={t('Ouvrir dans un onglet')} aria-label={t('Ouvrir dans un onglet')}>
           <ExternalLink className="h-4 w-4" />
         </Button>
       </div>

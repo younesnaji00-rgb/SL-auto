@@ -31,6 +31,7 @@ import { nextStep, primaryActionForStep, type StepState } from '@/lib/dossier-st
 import { useRegisterPageTitle } from '@/components/layout/page-chrome';
 import { useWorkspaceTabs, useTabDirty } from '@/hooks/use-workspace-tabs';
 import { readDossierListOrder } from '@/lib/dossier-list-order';
+import { useT } from '@/i18n';
 
 export interface RecordBarProps {
   dossierId: string;
@@ -70,6 +71,7 @@ export function RecordBar({
   onGoToStep,
   onDelete,
 }: RecordBarProps) {
+  const t = useT();
   const label = dossierLabel(dossier);
   useRegisterPageTitle(label);
   const router = useRouter();
@@ -141,12 +143,12 @@ export function RecordBar({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink" asChild>
-            <Link href="/dossiers" aria-label="Retour aux dossiers">
+            <Link href="/dossiers" aria-label={t('Retour aux dossiers')}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Dossiers</TooltipContent>
+        <TooltipContent>{t('Dossiers')}</TooltipContent>
       </Tooltip>
 
       {listNav && (
@@ -158,13 +160,13 @@ export function RecordBar({
                 size="icon"
                 className="h-8 w-8 text-ink-3 hover:text-ink"
                 disabled={!listNav.prevId}
-                aria-label="Dossier précédent"
+                aria-label={t('Dossier précédent')}
                 onClick={() => listNav.prevId && router.push(`/dossiers/${listNav.prevId}`)}
               >
                 <ChevronUp className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Dossier précédent — {listNav.position}/{listNav.total} de la liste</TooltipContent>
+            <TooltipContent>{t('Dossier précédent')} — {listNav.position}/{listNav.total} {t('de la liste')}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -173,13 +175,13 @@ export function RecordBar({
                 size="icon"
                 className="h-8 w-8 text-ink-3 hover:text-ink"
                 disabled={!listNav.nextId}
-                aria-label="Dossier suivant"
+                aria-label={t('Dossier suivant')}
                 onClick={() => listNav.nextId && router.push(`/dossiers/${listNav.nextId}`)}
               >
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Dossier suivant — {listNav.position}/{listNav.total} de la liste</TooltipContent>
+            <TooltipContent>{t('Dossier suivant')} — {listNav.position}/{listNav.total} {t('de la liste')}</TooltipContent>
           </Tooltip>
         </div>
       )}
@@ -193,7 +195,7 @@ export function RecordBar({
           )}
           title={dossier?.refExpert || undefined}
         >
-          {dossier?.refExpert || 'Sans réf.'}
+          {dossier?.refExpert || t('Sans réf.')}
         </h1>
         {assureName(dossier?.assure) && (
           <span className="t-body min-w-0 truncate font-medium">{assureName(dossier?.assure)}</span>
@@ -207,7 +209,9 @@ export function RecordBar({
           className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut), 'shrink-0')}
           data-tour="dosd-statut"
         >
-          {statut}
+          {/* Display-only: `statut` stays the stored French value everywhere
+              else (comparisons, writes) — only the rendered text translates. */}
+          {t(statut)}
         </Badge>
         {dossier?.lastObservation?.text && (
           <span
@@ -222,7 +226,7 @@ export function RecordBar({
       {rappel?.active && (
         <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-status-warning-fg/30 bg-status-warning-bg px-2 py-1 text-xs text-status-warning-fg">
           <Bell className="h-3.5 w-3.5" aria-hidden />
-          <span className="hidden sm:inline">Rappel en cours</span>
+          <span className="hidden sm:inline">{t('Rappel en cours')}</span>
           {rappel.pendingCount > 0 && (
             <span className="rounded-full bg-status-warning-fg/15 px-1.5 text-[11px] font-semibold tabular-nums">{rappel.pendingCount}</span>
           )}
@@ -232,7 +236,7 @@ export function RecordBar({
               variant="ghost"
               className="h-6 px-1.5 text-[11px] text-status-warning-fg hover:bg-status-warning-fg/10"
               onClick={rappel.onDiscard}
-              title="Annuler les modifications de cette session"
+              title={t('Annuler les modifications de cette session')}
             >
               <Undo2 className="h-3 w-3" />
             </Button>
@@ -245,7 +249,7 @@ export function RecordBar({
             data-tour="dosd-rappel-save"
           >
             <Save className="h-3 w-3" />
-            {rappel.validating ? 'Enregistrement…' : 'Sauvegarder'}
+            {rappel.validating ? t('Enregistrement…') : t('Sauvegarder')}
           </Button>
         </div>
       )}
@@ -254,13 +258,16 @@ export function RecordBar({
         <Button size="sm" className="hidden h-8 shrink-0 gap-1.5 md:inline-flex" onClick={runPrimary}>
           {action.kind === 'planifier' && <CalendarPlus className="h-3.5 w-3.5" />}
           {action.kind === 'chiffrage' && <Calculator className="h-3.5 w-3.5" />}
-          {action.label}
+          {/* `primaryActionForStep` is a pure lib returning French display
+              labels — translated here at the render site (same convention as
+              `t(step.longLabel)` in the timeline). */}
+          {t(action.label)}
         </Button>
       )}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Plus d'actions">
+          <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label={t("Plus d'actions")}>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -270,35 +277,35 @@ export function RecordBar({
           {showPrimary && (
             <DropdownMenuItem onSelect={runPrimary} className="md:hidden">
               {action.kind === 'planifier' ? <CalendarPlus className="mr-2 h-4 w-4" /> : <Calculator className="mr-2 h-4 w-4" />}
-              {action.label}
+              {t(action.label)}
             </DropdownMenuItem>
           )}
           {!readOnly && (
             <DropdownMenuItem onSelect={() => onPlanifier()}>
-              <CalendarPlus className="mr-2 h-4 w-4" /> Nouvelle planification
+              <CalendarPlus className="mr-2 h-4 w-4" /> {t('Nouvelle planification')}
             </DropdownMenuItem>
           )}
           {!readOnly && (
             <DropdownMenuItem onSelect={onChiffrage}>
-              <Calculator className="mr-2 h-4 w-4" /> Envoyer au chiffrage
+              <Calculator className="mr-2 h-4 w-4" /> {t('Envoyer au chiffrage')}
             </DropdownMenuItem>
           )}
           {!readOnly && (
             <DropdownMenuItem onSelect={onEmail}>
-              <Mail className="mr-2 h-4 w-4" /> Envoyer un email
+              <Mail className="mr-2 h-4 w-4" /> {t('Envoyer un email')}
             </DropdownMenuItem>
           )}
           {/* NOTE (merge 2026-09-04): Historique moved from a visible header
               button into this ⋯ menu, so the anchor only exists while the menu
               is open — the tour needs a preceding "open ⋯" step. */}
           <DropdownMenuItem onSelect={onHistorique} data-tour="dosd-historique">
-            <History className="mr-2 h-4 w-4" /> Historique
+            <History className="mr-2 h-4 w-4" /> {t('Historique')}
           </DropdownMenuItem>
           {onDelete && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive">
-                <Trash2 className="mr-2 h-4 w-4" /> Supprimer le dossier
+                <Trash2 className="mr-2 h-4 w-4" /> {t('Supprimer le dossier')}
               </DropdownMenuItem>
             </>
           )}

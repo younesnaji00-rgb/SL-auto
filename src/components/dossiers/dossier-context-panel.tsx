@@ -12,7 +12,6 @@
 import React, { useMemo } from 'react';
 import { collection, limit, orderBy, query, where } from 'firebase/firestore';
 import { format, formatDistanceToNow } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { Bell, Check, ChevronRight, History, ListChecks, MessageSquare } from 'lucide-react';
 import { useCollection, useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -21,6 +20,8 @@ import { UserNameLink } from '@/components/user-name-link';
 import { toDate, type StepState } from '@/lib/dossier-steps';
 import { getDossierTodos, type DossierTodo, type VisitType } from '@/lib/dossier-todos';
 import type { RequiredDocsStatus } from '@/lib/required-docs';
+import { auditText } from '@/lib/audit-i18n';
+import { dateFnsLocale, useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 /**
@@ -101,12 +102,18 @@ export function DossierContextPanel({
   onChiffrage?: () => void;
   className?: string;
 }) {
+  const t = useT();
   const db = useFirestore();
   const { profile } = useCurrentUser();
 
+  // `getDossierTodos` composes its own display strings via the module-level
+  // translator (they are never persisted), so the memo must also depend on the
+  // translator identity — otherwise switching language leaves stale rows.
   const todos = useMemo(
     () => (dossier && steps ? getDossierTodos(dossier, steps, requiredDocs ?? null) : []),
-    [dossier, steps, requiredDocs],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` is not called
+    // here, but its identity changes with the locale and the rows carry text.
+    [dossier, steps, requiredDocs, t],
   );
   const runTodo = (todo: DossierTodo) => {
     const a = todo.action;
@@ -139,10 +146,10 @@ export function DossierContextPanel({
   const openRappels = (rappels || []).filter((r: any) => !r.resolvedAt);
 
   return (
-    <aside className={cn('flex flex-col gap-5 px-2', className)} aria-label="Contexte du dossier">
+    <aside className={cn('flex flex-col gap-5 px-2', className)} aria-label={t('Contexte du dossier')}>
       {dossier && steps && (
         <Block
-          title="À faire"
+          title={t('À faire')}
           icon={<ListChecks />}
           action={
             todos.length > 0 ? (
@@ -155,7 +162,7 @@ export function DossierContextPanel({
           {todos.length === 0 ? (
             <p className="t-caption inline-flex items-center gap-1.5 py-1 text-status-success-fg">
               <Check className="h-3.5 w-3.5" aria-hidden />
-              Rien à faire — dossier à jour.
+              {t('Rien à faire — dossier à jour.')}
             </p>
           ) : (
             <ul className="divide-y divide-hairline">
@@ -168,16 +175,16 @@ export function DossierContextPanel({
       )}
 
       <Block
-        title="Observations"
+        title={t('Observations')}
         icon={<MessageSquare />}
         action={
           <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[11px] text-ink-3 hover:text-ink" onClick={() => onGoToStep(4)}>
-            Voir
+            {t('Voir')}
           </Button>
         }
       >
         {!observations || observations.length === 0 ? (
-          <Empty>Aucune observation.</Empty>
+          <Empty>{t('Aucune observation.')}</Empty>
         ) : (
           <ul className="divide-y divide-hairline">
             {observations.map((o: any) => {
@@ -187,7 +194,7 @@ export function DossierContextPanel({
                   <p className="t-body-sm line-clamp-2 text-ink-2">{o.text || o.observation || '—'}</p>
                   <p className="t-caption mt-0.5 truncate">
                     {o.userName || o.userNom || o.user || ''}
-                    {d && <> · {formatDistanceToNow(d, { locale: fr, addSuffix: true })}</>}
+                    {d && <> · {formatDistanceToNow(d, { locale: dateFnsLocale(), addSuffix: true })}</>}
                   </p>
                 </li>
               );
@@ -196,18 +203,18 @@ export function DossierContextPanel({
         )}
       </Block>
 
-      <Block title="Rappels" icon={<Bell />}>
+      <Block title={t('Rappels')} icon={<Bell />}>
         {openRappels.length === 0 ? (
-          <Empty>Aucun rappel actif pour vous sur ce dossier.</Empty>
+          <Empty>{t('Aucun rappel actif pour vous sur ce dossier.')}</Empty>
         ) : (
           <ul className="divide-y divide-hairline">
             {openRappels.slice(0, 3).map((r: any) => {
               const d = toDate(r.createdAt);
               return (
                 <li key={r.id} className="t-body-sm min-w-0 py-2 first:pt-0 last:pb-0">
-                  <span className="font-medium text-ink">{r.senderNom || 'Rappel'}</span>
+                  <span className="font-medium text-ink">{r.senderNom || t('Rappel')}</span>
                   {r.observation && <span className="text-ink-3"> — {r.observation}</span>}
-                  {d && <span className="t-caption block">{format(d, 'dd/MM/yyyy HH:mm', { locale: fr })}</span>}
+                  {d && <span className="t-caption block">{format(d, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() })}</span>}
                 </li>
               );
             })}
@@ -216,25 +223,27 @@ export function DossierContextPanel({
       </Block>
 
       <Block
-        title="Historique"
+        title={t('Historique')}
         icon={<History />}
         action={
           <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[11px] text-ink-3 hover:text-ink" onClick={onOpenHistorique}>
-            Tout voir
+            {t('Tout voir')}
           </Button>
         }
       >
         {!historique || historique.length === 0 ? (
-          <Empty>Aucune entrée.</Empty>
+          <Empty>{t('Aucune entrée.')}</Empty>
         ) : (
           <ul className="divide-y divide-hairline">
             {historique.map((h: any) => {
               const d = toDate(h.date);
               return (
                 <li key={h.id} className="min-w-0 py-2 first:pt-0 last:pb-0">
-                  <p className="t-body-sm truncate text-ink-2">{h.action || '—'}</p>
+                  {/* Historique rows are persisted in French — translated at
+                      DISPLAY time only, like the history sheets do. */}
+                  <p className="t-body-sm truncate text-ink-2">{auditText(h.action, t) || '—'}</p>
                   <p className="t-caption truncate">
-                    {d && format(d, 'dd/MM/yyyy HH:mm', { locale: fr })}
+                    {d && format(d, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() })}
                     {h.user && (
                       <>
                         {' · '}

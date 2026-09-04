@@ -35,6 +35,7 @@ import { toOrdinalFeminineFr, toOrdinalFr } from '@/lib/devis-schema';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useEdgeScroll } from '@/hooks/use-edge-scroll';
 import { EdgeArrow } from '@/components/ui/edge-arrow';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 // ── Stage model ─────────────────────────────────────────────────────────────
@@ -126,7 +127,14 @@ function buildFamilyPipeline(
   };
 }
 
-/** Column label per stage (B1 header row). */
+/**
+ * Column label per stage (B1 header row) — returns the FRENCH source string.
+ * `toOrdinalFr` / `toOrdinalFeminineFr` are French ordinal generators shared
+ * with the devis schema, so nothing is translated inside them: the resulting
+ * enumerable strings (« Source », « 1er accord », « 2ème accord », …,
+ * « Proposition », « 1ère proposition », …) go through `t()` at the render
+ * sites below.
+ */
 function stageLabel(stage: Stage, maxProp: number): string {
   if (stage.kind === 'source') return 'Source';
   if (stage.kind === 'accord') return `${toOrdinalFr(stage.ordinal)} accord`;
@@ -149,6 +157,9 @@ function GhostSocket({
   tone: 'tonal' | 'quiet';
   onClick: () => void;
 }) {
+  // Module-scope helper component: it needs its own translator. `stage` and
+  // `actionLabel` arrive already translated from the caller.
+  const t = useT();
   const isCreate = /^\+/.test(stage);
   return (
     <button
@@ -179,7 +190,7 @@ function GhostSocket({
         aria-hidden
       >
         <Pencil className="h-3 w-3" />
-        Éditer
+        {t('Éditer')}
       </span>
     </button>
   );
@@ -225,6 +236,7 @@ export function AccordPipeline({
   onPreview,
   onEditSlot,
 }: AccordPipelineProps) {
+  const t = useT();
   const stacked = useIsMobile(); // < 1024 px — the aligned pipeline needs width
 
   const pipelines = useMemo(
@@ -274,13 +286,14 @@ export function AccordPipeline({
     if (stage.kind === 'source' || !p.actuel) return undefined;
     const isActuel = stageKey(stage) === stageKey(p.actuel);
     if (isActuel) {
+      // `dossierStatut` is the stored French value — compared, never displayed.
       return dossierStatut === 'Accord envoyé' ? (
-        <Badge variant="success">Envoyé</Badge>
+        <Badge variant="success">{t('Envoyé')}</Badge>
       ) : (
-        <Badge variant="info">Actuel</Badge>
+        <Badge variant="info">{t('Actuel')}</Badge>
       );
     }
-    return <Badge variant="neutral">Remplacé</Badge>;
+    return <Badge variant="neutral">{t('Remplacé')}</Badge>;
   };
 
   /** Slot label to deep-link for a stage (existing slot or the mapped label). */
@@ -326,12 +339,12 @@ export function AccordPipeline({
       const slot = slotForStage(p, stage);
       const label =
         stage.ordinal === 1
-          ? '1er accord'
-          : `+ ${toOrdinalFr(stage.ordinal)} accord`;
+          ? t('1er accord')
+          : `+ ${t(`${toOrdinalFr(stage.ordinal)} accord`)}`;
       const action =
         stage.ordinal === 1
-          ? `Éditer le 1er accord — ${p.group.parent}`
-          : `Créer le ${toOrdinalFr(stage.ordinal)} accord — ${p.group.parent}`;
+          ? `${t('Éditer le 1er accord')} — ${p.group.parent}`
+          : `${t(`Créer le ${toOrdinalFr(stage.ordinal)} accord`)} — ${p.group.parent}`;
       return (
         <GhostSocket
           stage={label}
@@ -345,11 +358,11 @@ export function AccordPipeline({
     if (cell?.state === 'awaiting') {
       // Gestionnaire-created placeholder outside the accord chain (e.g. a
       // pending proposition) — quiet editable socket, never a second tonal.
-      const label = stageLabel(stage, maxProp);
+      const label = t(stageLabel(stage, maxProp));
       return (
         <GhostSocket
           stage={label}
-          actionLabel={`Éditer — ${cell.slot}`}
+          actionLabel={`${t('Éditer')} — ${cell.slot}`}
           tone="quiet"
           onClick={() => onEditSlot(p.group.parent, cell.slot)}
         />
@@ -364,7 +377,7 @@ export function AccordPipeline({
           <span className="t-body-sm w-full truncate font-medium text-ink-3" title={p.group.parent}>
             {p.group.parent}
           </span>
-          <span className="t-caption text-ink-4">Aucun document</span>
+          <span className="t-caption text-ink-4">{t('Aucun document')}</span>
         </div>
       );
     }
@@ -380,14 +393,14 @@ export function AccordPipeline({
       {p.group.parentOrdinal >= 2 && (
         <span
           className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-tertiary-bg text-[11px] font-semibold tabular-nums text-tertiary-deep"
-          title={`Garage ${p.group.parentOrdinal}`}
-          aria-label={`Garage numéro ${p.group.parentOrdinal}`}
+          title={`${t('Garage')} ${p.group.parentOrdinal}`}
+          aria-label={`${t('Garage numéro')} ${p.group.parentOrdinal}`}
         >
           {p.group.parentOrdinal}
         </span>
       )}
       <span className="shrink-0 rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums text-ink-2">
-        {p.receivedCount}/{p.totalSlots} reçu{p.receivedCount > 1 ? 's' : ''}
+        {p.receivedCount}/{p.totalSlots} {t(p.receivedCount > 1 ? 'reçus' : 'reçu')}
       </span>
     </>
   );
@@ -449,7 +462,7 @@ export function AccordPipeline({
           <div className={railSticky} />
           {columns.map((c) => (
             <div key={stageKey(c)} className="t-label px-1">
-              {stageLabel(c, maxProp)}
+              {t(stageLabel(c, maxProp))}
             </div>
           ))}
         </div>

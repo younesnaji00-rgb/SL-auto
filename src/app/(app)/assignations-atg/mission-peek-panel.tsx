@@ -13,7 +13,6 @@
 
 import * as React from 'react';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { MessageCircle, Navigation, Phone } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +22,7 @@ import {
 import {
   CheckinButton, EnRouteButton, ReassignPopover, mapsSearchUrl, telHref, waHref,
 } from './mission-quick-actions';
+import { useT, dateFnsLocale } from '@/i18n';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -54,7 +54,7 @@ function toDate(ts: any): Date | null {
 function formatFull(ts: any): string | null {
   const d = toDate(ts);
   if (!d) return null;
-  try { return format(d, "d MMM yyyy HH:mm", { locale: fr }); } catch { return null; }
+  try { return format(d, "d MMM yyyy HH:mm", { locale: dateFnsLocale() }); } catch { return null; }
 }
 
 const CATEGORY_LABELS: Array<{ key: PhotoCategory; label: string }> = [
@@ -107,6 +107,7 @@ export default function MissionPeekPanel({
   isATG: boolean;
   onOpenDossier: (m: PeekMission) => void;
 }) {
+  const t = useT();
   const m = mission;
   const rdv = m ? toDate(m.dateRDV) : null;
   const tel = telHref(telephone);
@@ -126,28 +127,28 @@ export default function MissionPeekPanel({
                 <span className="truncate text-sm font-medium text-ink-2">{m.assureNom || ''}</span>
               </SheetTitle>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="neutral">Mission {m.typeMission}</Badge>
+                <Badge variant="neutral">{t('Mission')} {t(m.typeMission)}</Badge>
                 {deadlineChip}
-                {checkinLabel && <Badge variant="success">Arrivé · {checkinLabel}</Badge>}
+                {checkinLabel && <Badge variant="success">{t('Arrivé')} · {checkinLabel}</Badge>}
               </div>
             </SheetHeader>
 
             <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
               {/* Rendez-vous & contact */}
               <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
-                <Fact label="Rendez-vous">
+                <Fact label={t('Rendez-vous')}>
                   <span className="tabular-nums">{formatFull(m.dateRDV) ?? <Empty />}</span>
                 </Fact>
-                <Fact label="Zone">{m.zone || <Empty />}</Fact>
-                <Fact label="Téléphone">
+                <Fact label={t('Zone')}>{m.zone || <Empty />}</Fact>
+                <Fact label={t('Téléphone')}>
                   {tel ? (
                     <span className="inline-flex items-center gap-2">
                       <a href={tel} className="tabular-nums text-primary underline-offset-4 hover:underline">
                         {(telephone || '').trim()}
                       </a>
                       {wa && (
-                        <Button asChild variant="ghost" size="icon" className="h-7 w-7 text-ink-3" title="Écrire sur WhatsApp">
-                          <a href={wa} target="_blank" rel="noopener noreferrer" aria-label="Écrire sur WhatsApp">
+                        <Button asChild variant="ghost" size="icon" className="h-7 w-7 text-ink-3" title={t('Écrire sur WhatsApp')}>
+                          <a href={wa} target="_blank" rel="noopener noreferrer" aria-label={t('Écrire sur WhatsApp')}>
                             <MessageCircle className="h-4 w-4" />
                           </a>
                         </Button>
@@ -155,17 +156,17 @@ export default function MissionPeekPanel({
                     </span>
                   ) : <Empty />}
                 </Fact>
-                <Fact label="Immatriculation">
+                <Fact label={t('Immatriculation')}>
                   {matricule ? <span className="t-mono">{matricule}</span> : <Empty />}
                 </Fact>
-                <Fact label="Compagnie">{m.compagnie || <Empty />}</Fact>
-                <Fact label="Agent de terrain">{m.agentTerrain !== '-' ? m.agentTerrain : <Empty />}</Fact>
-                <Fact label="Adresse" wide>
+                <Fact label={t('Compagnie')}>{m.compagnie || <Empty />}</Fact>
+                <Fact label={t('Agent de terrain')}>{m.agentTerrain !== '-' ? m.agentTerrain : <Empty />}</Fact>
+                <Fact label={t('Adresse')} wide>
                   {m.adresse ? (
                     <span className="inline-flex max-w-full items-start gap-2">
                       <span className="min-w-0 break-words font-medium">{m.adresse}</span>
-                      <Button asChild variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-ink-3" title="Ouvrir dans Google Maps">
-                        <a href={mapsSearchUrl(m.adresse)} target="_blank" rel="noopener noreferrer" aria-label="Ouvrir dans Google Maps">
+                      <Button asChild variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-ink-3" title={t('Ouvrir dans Google Maps')}>
+                        <a href={mapsSearchUrl(m.adresse)} target="_blank" rel="noopener noreferrer" aria-label={t('Ouvrir dans Google Maps')}>
                           <Navigation className="h-4 w-4" />
                         </a>
                       </Button>
@@ -178,7 +179,7 @@ export default function MissionPeekPanel({
                   is for reading; 13–14 px is for chrome and rows). */}
               {m.observation && (
                 <div>
-                  <h3 className="t-label">Observation</h3>
+                  <h3 className="t-label">{t('Observation')}</h3>
                   <p className="mt-1 text-[15px] leading-relaxed text-ink">{m.observation}</p>
                 </div>
               )}
@@ -187,7 +188,7 @@ export default function MissionPeekPanel({
                   opening the dossier (NN/g pogo-sticking remedy). */}
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="t-heading">Photos</h3>
+                  <h3 className="t-heading">{t('Photos')}</h3>
                   {CATEGORY_LABELS.map(({ key, label }) => {
                     const count = photoCounts?.[key] ?? 0;
                     const active = key === stageKey;
@@ -200,7 +201,7 @@ export default function MissionPeekPanel({
                             : 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums text-ink-3'
                         }
                       >
-                        {label} {count}
+                        {t(label)} {count}
                       </span>
                     );
                   })}
@@ -209,25 +210,28 @@ export default function MissionPeekPanel({
                   <ul className="mt-3 grid grid-cols-4 gap-2">
                     {stagePhotos.map((p, i) => (
                       <li key={`${p.url}-${i}`} className="overflow-hidden rounded-md border border-hairline bg-surface-2">
-                        <img src={p.url} alt={`Photo ${i + 1} — ${m.typeMission}`} loading="lazy" className="h-16 w-full object-cover" />
+                        <img src={p.url} alt={`${t('Photo')} ${i + 1} — ${t(m.typeMission)}`} loading="lazy" className="h-16 w-full object-cover" />
                       </li>
                     ))}
                   </ul>
                 ) : (
                   <p className="mt-2 text-sm text-ink-3">
-                    {`Aucune photo ${m.typeMission.toLowerCase()} pour l'instant.`}
+                    {/* Whole sentence is the key (one per stage), the way
+                        terrain.ts already keys « Aucune photo … pour le
+                        moment. » — French output is unchanged. */}
+                    {t(`Aucune photo ${m.typeMission.toLowerCase()} pour l'instant.`)}
                   </p>
                 )}
               </div>
 
               {/* Suivi — audit metadata moved out of the queue row. */}
               <div>
-                <h3 className="t-heading">Suivi</h3>
+                <h3 className="t-heading">{t('Suivi')}</h3>
                 <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-4">
-                  <Fact label="Créé le">
+                  <Fact label={t('Créé le')}>
                     <span className="font-normal tabular-nums text-ink-2">{formatFull(m.createdAt) ?? <Empty />}</span>
                   </Fact>
-                  <Fact label="Créé par">
+                  <Fact label={t('Créé par')}>
                     {m.createdByName ? (
                       <span className="font-normal text-ink-2">
                         {m.createdByName}
@@ -235,11 +239,11 @@ export default function MissionPeekPanel({
                       </span>
                     ) : <Empty />}
                   </Fact>
-                  <Fact label="Assigné par">
+                  <Fact label={t('Assigné par')}>
                     {m.modifiedByName ? <span className="font-normal text-ink-2">{m.modifiedByName}</span> : <Empty />}
                   </Fact>
-                  <Fact label="Statut du dossier">
-                    {statut ? <span className="font-normal text-ink-2">{statut}</span> : <Empty />}
+                  <Fact label={t('Statut du dossier')}>
+                    {statut ? <span className="font-normal text-ink-2">{t(statut)}</span> : <Empty />}
                   </Fact>
                 </dl>
               </div>
@@ -248,7 +252,7 @@ export default function MissionPeekPanel({
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-hairline px-6 py-4">
               {tel && (
                 <Button asChild variant="outline" size="sm" className="gap-1.5">
-                  <a href={tel}><Phone className="h-4 w-4" />Appeler</a>
+                  <a href={tel}><Phone className="h-4 w-4" />{t('Appeler')}</a>
                 </Button>
               )}
               {isATG && (
@@ -267,10 +271,10 @@ export default function MissionPeekPanel({
                     agentTerrainUid: m.agentTerrainUid ?? null,
                   }]}
                 >
-                  <Button variant="outline" size="sm">Réassigner</Button>
+                  <Button variant="outline" size="sm">{t('Réassigner')}</Button>
                 </ReassignPopover>
               )}
-              <Button size="sm" onClick={() => onOpenDossier(m)}>Ouvrir le dossier</Button>
+              <Button size="sm" onClick={() => onOpenDossier(m)}>{t('Ouvrir le dossier')}</Button>
             </div>
           </>
         )}

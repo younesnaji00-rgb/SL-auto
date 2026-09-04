@@ -20,6 +20,7 @@ import { useFirestore, useAuth } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOptions } from '@/hooks/use-options';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 /** `tel:` normalisation: keep a leading `+`, strip everything but digits. */
@@ -94,6 +95,7 @@ export function ReassignPopover({
   const { profile } = useCurrentUser();
   const { toast } = useToast();
   const { options: agents } = useOptions('options_agents');
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -106,8 +108,8 @@ export function ReassignPopover({
   ) => {
     if (!db) return;
     const userEmail = auth?.currentUser?.email || 'Admin';
-    await Promise.all(items.map(async (t) => {
-      await updateDoc(doc(db, 'dossiers', t.dossierId, 'planifications', t.planifId), {
+    await Promise.all(items.map(async (item) => {
+      await updateDoc(doc(db, 'dossiers', item.dossierId, 'planifications', item.planifId), {
         agentTerrain: agentLabel,
         agentTerrainUid: agentUid,
         zone,
@@ -116,7 +118,8 @@ export function ReassignPopover({
         modifiedByName: profile?.nom || userEmail,
       });
       try {
-        await logHistorique(db, t.dossierId, 'Planification modifiée', userEmail, logLabel, 'planification', profile?.nom);
+        // Audit trail: stored in French on purpose (translated at display time).
+        await logHistorique(db, item.dossierId, 'Planification modifiée', userEmail, logLabel, 'planification', profile?.nom);
       } catch { /* non-fatal */ }
     }));
   };
@@ -132,31 +135,32 @@ export function ReassignPopover({
         agentUid = snap.docs[0]?.id ?? null;
       } catch { agentUid = null; }
 
-      const previous = targets.map((t) => ({ ...t }));
+      const previous = targets.map((target) => ({ ...target }));
+      // The two log labels below are audit-trail text — stored in French.
       await applyAgent(targets, agentLabel, agentUid, zone, `Mission réassignée à ${agentLabel}.`);
       setOpen(false);
       onDone?.();
       toast({
-        title: targets.length > 1 ? `${targets.length} missions réassignées` : 'Mission réassignée',
-        description: `Nouvel agent : ${agentLabel}`,
+        title: targets.length > 1 ? `${targets.length} ${t('missions réassignées')}` : t('Mission réassignée'),
+        description: `${t('Nouvel agent')} : ${agentLabel}`,
         action: (
           <ToastAction
-            altText="Annuler la réassignation"
+            altText={t('Annuler la réassignation')}
             onClick={() => {
               Promise.all(previous.map((p) =>
                 applyAgent([p], p.agentTerrain, p.agentTerrainUid ?? null, p.zone || '', 'Réassignation annulée.')
               )).catch(() => {
-                toast({ title: 'Annulation impossible', variant: 'destructive' });
+                toast({ title: t('Annulation impossible'), variant: 'destructive' });
               });
             }}
           >
-            Annuler
+            {t('Annuler')}
           </ToastAction>
         ),
       });
     } catch (e) {
       console.error('[reassign] failed:', e);
-      toast({ title: 'Réassignation impossible', description: 'Réessayez dans un instant.', variant: 'destructive' });
+      toast({ title: t('Réassignation impossible'), description: t('Réessayez dans un instant.'), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -173,11 +177,13 @@ export function ReassignPopover({
         onClick={(e) => e.stopPropagation()}
       >
         <p className="t-label px-2 pb-1">
-          {targets.length > 1 ? `Réassigner ${targets.length} missions à` : 'Réassigner à'}
+          {targets.length > 1
+            ? `${t('Réassigner')} ${targets.length} ${t('missions à')}`
+            : t('Réassigner à')}
         </p>
         <div className="max-h-64 space-y-0.5 overflow-y-auto">
           {agents.length === 0 && (
-            <p className="px-2 py-2 text-sm text-ink-3">Aucun agent disponible</p>
+            <p className="px-2 py-2 text-sm text-ink-3">{t('Aucun agent disponible')}</p>
           )}
           {agents.map((a) => {
             const isCurrent = a.label === currentAgent;
@@ -194,7 +200,7 @@ export function ReassignPopover({
               >
                 <span className="truncate font-medium">{a.label}</span>
                 <span className="shrink-0 text-xs text-ink-3">
-                  {isCurrent ? 'actuel' : a.zone?.trim() || ''}
+                  {isCurrent ? t('actuel') : a.zone?.trim() || ''}
                 </span>
               </button>
             );
@@ -221,33 +227,34 @@ export function MissionRowActions({
   reassignTarget: ReassignTarget;
   canReassign: boolean;
 }) {
+  const t = useT();
   const tel = telHref(telephone);
   const wa = waHref(telephone);
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   return (
     <span className="inline-flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
       {tel && (
-        <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title="Appeler l'assuré">
-          <a href={tel} onClick={stop} aria-label="Appeler l'assuré"><Phone className="h-4 w-4" /></a>
+        <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title={t("Appeler l'assuré")}>
+          <a href={tel} onClick={stop} aria-label={t("Appeler l'assuré")}><Phone className="h-4 w-4" /></a>
         </Button>
       )}
       {wa && (
-        <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title="Écrire sur WhatsApp">
-          <a href={wa} target="_blank" rel="noopener noreferrer" onClick={stop} aria-label="Écrire sur WhatsApp">
+        <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title={t('Écrire sur WhatsApp')}>
+          <a href={wa} target="_blank" rel="noopener noreferrer" onClick={stop} aria-label={t('Écrire sur WhatsApp')}>
             <MessageCircle className="h-4 w-4" />
           </a>
         </Button>
       )}
       {adresse?.trim() && (
-        <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title="Itinéraire Google Maps">
-          <a href={mapsSearchUrl(adresse)} target="_blank" rel="noopener noreferrer" onClick={stop} aria-label="Itinéraire Google Maps">
+        <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title={t('Itinéraire Google Maps')}>
+          <a href={mapsSearchUrl(adresse)} target="_blank" rel="noopener noreferrer" onClick={stop} aria-label={t('Itinéraire Google Maps')}>
             <Navigation className="h-4 w-4" />
           </a>
         </Button>
       )}
       {canReassign && (
         <ReassignPopover targets={[reassignTarget]}>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title="Réassigner la mission" aria-label="Réassigner la mission">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title={t('Réassigner la mission')} aria-label={t('Réassigner la mission')}>
             <UserCog className="h-4 w-4" />
           </Button>
         </ReassignPopover>
@@ -270,14 +277,17 @@ export function EnRouteButton({
   rdvTime?: string | null;
   className?: string;
 }) {
-  const message = `Bonjour, votre expert automobile est en route pour l'expertise de votre véhicule${rdvTime ? ` (rendez-vous prévu à ${rdvTime})` : ''}. À très bientôt.`;
+  const t = useT();
+  // Message read by the insured on WhatsApp — translated in fragments so the
+  // French wording stays byte-identical.
+  const message = `${t("Bonjour, votre expert automobile est en route pour l'expertise de votre véhicule")}${rdvTime ? ` (${t('rendez-vous prévu à')} ${rdvTime})` : ''}. ${t('À très bientôt.')}`;
   const href = waHref(telephone, message);
   if (!href) return null;
   return (
-    <Button asChild variant="secondary" size="sm" className={cn('gap-1.5', className)} title="Prévenir l'assuré sur WhatsApp">
+    <Button asChild variant="secondary" size="sm" className={cn('gap-1.5', className)} title={t("Prévenir l'assuré sur WhatsApp")}>
       <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
         <Car className="h-4 w-4" />
-        En route
+        {t('En route')}
       </a>
     </Button>
   );
@@ -304,6 +314,7 @@ export function CheckinButton({
   const auth = useAuth();
   const { profile } = useCurrentUser();
   const { toast } = useToast();
+  const t = useT();
   const [saving, setSaving] = useState(false);
 
   if (checkedIn) return null;
@@ -323,12 +334,13 @@ export function CheckinButton({
         checkinBy: profile?.nom || userEmail,
       });
       try {
+        // Audit trail: action + details stay French (translated at display time).
         await logHistorique(db, dossierId, 'Arrivée sur place', userEmail, pos ? 'Arrivée horodatée avec position GPS.' : 'Arrivée horodatée (position indisponible).', 'planification', profile?.nom);
       } catch { /* non-fatal */ }
-      toast({ title: 'Arrivée enregistrée', description: pos ? 'Heure et position GPS horodatées.' : 'Heure enregistrée (position GPS indisponible).' });
+      toast({ title: t('Arrivée enregistrée'), description: pos ? t('Heure et position GPS horodatées.') : t('Heure enregistrée (position GPS indisponible).') });
     } catch (err) {
       console.error('[checkin] failed:', err);
-      toast({ title: 'Enregistrement impossible', description: 'Réessayez dans un instant.', variant: 'destructive' });
+      toast({ title: t('Enregistrement impossible'), description: t('Réessayez dans un instant.'), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -342,10 +354,10 @@ export function CheckinButton({
       className={cn('gap-1.5', className)}
       onClick={checkin}
       loading={saving}
-      title="Horodater l'arrivée sur place (heure + GPS)"
+      title={t("Horodater l'arrivée sur place (heure + GPS)")}
     >
       <MapPin className="h-4 w-4" />
-      Arrivé sur place
+      {t('Arrivé sur place')}
     </Button>
   );
 }
