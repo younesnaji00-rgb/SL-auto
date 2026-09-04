@@ -71,7 +71,14 @@ export default function RootLayout({
             __html: `(function(){function z(){var d=window.devicePixelRatio||1;var h=Math.round(screen.height*d);var v=1;if(Math.abs(h-1080)<=8)v=0.9;else if(Math.abs(h-1440)<=8)v=1.1;document.documentElement.style.setProperty('--app-zoom',String(v));}z();window.addEventListener('resize',z);})();`,
           }}
         />
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        {/* Light by default, and the OS preference does NOT get a vote
+            (`enableSystem={false}`). Cream & Ink is a light design: the dark
+            token set exists only for people who pick it from the theme toggle.
+            Following prefers-color-scheme instead flipped every phone in dark
+            mode to the dark palette — most visibly on the marketing site,
+            whose headings inherit the global `text-heading-fg` rule and so
+            turned pale teal on cream. */}
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <LocaleProvider>
             <FirebaseClientProvider>
               <PwaRegister />
