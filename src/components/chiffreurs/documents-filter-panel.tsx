@@ -9,7 +9,7 @@ import {
   FileText,
   Eye,
   Search,
-  ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Upload,
 } from 'lucide-react';
@@ -35,6 +35,8 @@ import {
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useTabSlopeMorph } from '@/hooks/use-tab-morph';
+import { scrollBehavior } from '@/lib/motion';
 
 export const ALL_TYPES_KEY = '__all__';
 
@@ -163,63 +165,195 @@ const shortenAccordLabel = (parsed: ParsedAccordDocType): string => {
   return `${fem} proposition`;
 };
 
-/** Count pill — element-specs §11 / NN/g faceted filter counts: neutral
- *  (`bg-surface-3 text-ink-2`, tabular), a zero fades to ink-4 (a zero is
- *  plain ink, never a status); inside the selected accent row it inherits the
- *  accent foreground on a quiet tint. */
-function CountChip({ count, selected }: { count: number; selected?: boolean }) {
+/** Count pill on a tab — the dossiers step-tabs anatomy verbatim (neutral
+ *  `surface-3`, 11 px, tabular). Zero-count types never render a tab, so
+ *  there is no zero variant here. */
+function TabCount({ count }: { count: number }) {
   return (
-    <span
-      className={cn(
-        'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums',
-        selected ? 'bg-accent-foreground/10 text-accent-foreground' : count === 0 ? 'bg-surface-2 text-ink-4' : 'bg-surface-3 text-ink-2',
-      )}
-    >
+    <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
       {count}
     </span>
   );
 }
 
-/** Filter row — element-specs §2 notes (NN/g filter categories: ordered by
- *  importance, general → specific) rendered as a Material 3 list item (§4):
- *  44 px, label + trailing count, hairlines only; quiet at rest, hover on
- *  surface-2, selected = accent tint + aria-pressed (two cues). */
-function FilterRowButton({
+/** Browser-tab filter (owner 2026-09-04: the document-type filter is a view
+ *  switcher, so it wears the app's Firefox tab instead of a card of rows).
+ *  Same anatomy as `dossier-timeline/step-tabs.tsx`: `.tab-slope` draws the
+ *  sloped body + outward feet that merge into the strip's hairline, the
+ *  accent underline is a SPAN (::after is the feet), and the seat morph is
+ *  provided by the strip's `useTabSlopeMorph`. Selection travels on
+ *  `aria-selected`, which both the CSS and the morph hook key on. */
+function FilterTab({
   label,
   count,
   selected,
-  indent,
-  emphasis,
   title,
-  onClick,
+  dense,
+  onSelect,
 }: {
   label: string;
   count: number;
   selected: boolean;
-  indent?: boolean;
-  emphasis?: boolean;
   title?: string;
-  onClick: () => void;
+  /** Sub-strip (family versions) sits one step shorter than the main strip. */
+  dense?: boolean;
+  onSelect: () => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      title={title}
+      role="tab"
+      aria-selected={selected}
+      tabIndex={selected ? 0 : -1}
+      title={title ?? label}
+      onClick={onSelect}
       className={cn(
-        'flex min-h-[44px] w-full items-center justify-between gap-3 py-2 pr-4 text-left text-sm transition-colors duration-150',
-        indent ? 'pl-12' : 'pl-6',
-        selected
-          ? 'bg-accent font-semibold text-accent-foreground'
-          : count === 0
-            ? 'text-ink-3 hover:bg-surface-2'
-            : cn('text-ink-2 hover:bg-surface-2 hover:text-ink', emphasis && 'font-medium text-ink'),
+        // Underline = span, never border-b-2 (a bottom border lifts the
+        // padding box the feet anchor to — owner 2026-09-03).
+        'tab-slope group relative -mb-px inline-flex shrink-0 items-center gap-2 whitespace-nowrap px-3.5 text-[13px] font-medium text-ink-3',
+        'transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+        dense ? 'h-9' : 'h-10',
+        selected && 'text-ink',
       )}
     >
-      <span className="truncate">{label}</span>
-      <CountChip count={count} selected={selected} />
+      <span className="max-w-[15rem] truncate">{label}</span>
+      <TabCount count={count} />
+      <span
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-primary transition-opacity',
+          selected ? 'opacity-100' : 'opacity-0',
+        )}
+      />
+      <span className="tab-feet" aria-hidden />
     </button>
+  );
+}
+
+/** End arrow for an overflowing strip (owner 2026-09-04; Smashing carousel
+ *  guidelines: "always include prev/next buttons" — dots and bare scrolling
+ *  hide that there is more). Stays mounted while the strip overflows and
+ *  dims at the end of its travel, so the rail never jumps. */
+function StripArrow({
+  dir,
+  disabled,
+  onClick,
+}: {
+  dir: 'left' | 'right';
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const Icon = dir === 'left' ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      aria-hidden
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'mb-1.5 inline-flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-ink-3 transition-colors',
+        'hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'disabled:pointer-events-none disabled:text-ink-4/60',
+      )}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
+/** The scrollable tab track. `px-2` ≥ the 7 px feet or `overflow-x-auto`
+ *  clips them (owner 2026-09-03); `useTabSlopeMorph` flies the active seat
+ *  between tabs, exactly as on the dossiers step strip. Arrows appear at both
+ *  ends as soon as the types outrun the width, and the selected tab is always
+ *  scrolled back into view (it used to hide under the search field). */
+function FilterTabStrip({
+  label,
+  activeKey,
+  className,
+  children,
+}: {
+  label: string;
+  /** Changes whenever the selection moves — re-reveals the seated tab. */
+  activeKey?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  useTabSlopeMorph(ref);
+  const [overflow, setOverflow] = useState({ left: false, right: false });
+
+  const measure = React.useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    // 1px tolerance: fractional widths under `zoom` never settle on 0.
+    const max = el.scrollWidth - el.clientWidth;
+    const next = { left: el.scrollLeft > 1, right: el.scrollLeft < max - 1 };
+    // Scroll fires continuously — only re-render when a end is actually
+    // reached or left, or the strip re-renders on every pixel.
+    setOverflow((prev) => (prev.left === next.left && prev.right === next.right ? prev : next));
+  }, []);
+
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    measure();
+    el.addEventListener('scroll', measure, { passive: true });
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    for (const child of Array.from(el.children)) ro.observe(child);
+    return () => {
+      el.removeEventListener('scroll', measure);
+      ro.disconnect();
+    };
+  }, [measure, children]);
+
+  // Keep the seated tab visible when the selection changes from anywhere
+  // (a click deep in the strip, the sub-strip, or the keyboard).
+  React.useEffect(() => {
+    const seated = ref.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    seated?.scrollIntoView({ behavior: scrollBehavior(), inline: 'nearest', block: 'nearest' });
+  }, [activeKey]);
+
+  const scrollBy = (direction: 1 | -1) => {
+    const el = ref.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * Math.max(160, el.clientWidth * 0.8), behavior: scrollBehavior() });
+  };
+
+  // A tablist owns ← → Home End (the roving tabIndex lives on the tabs).
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!keys.includes(e.key)) return;
+    const tabs = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? []);
+    if (tabs.length === 0) return;
+    const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
+    let next: number;
+    if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = tabs.length - 1;
+    else if (e.key === 'ArrowLeft') next = current <= 0 ? tabs.length - 1 : current - 1;
+    else next = current === -1 || current === tabs.length - 1 ? 0 : current + 1;
+    e.preventDefault();
+    tabs[next]?.focus();
+    tabs[next]?.click();
+  };
+
+  const hasArrows = overflow.left || overflow.right;
+
+  return (
+    <div className={cn('flex min-w-0 flex-1 items-end', className)}>
+      {hasArrows && <StripArrow dir="left" disabled={!overflow.left} onClick={() => scrollBy(-1)} />}
+      <div
+        ref={ref}
+        role="tablist"
+        aria-label={label}
+        onKeyDown={onKeyDown}
+        className="relative isolate flex min-w-0 flex-1 items-end gap-4 overflow-x-auto px-2 scrollbar-thin"
+      >
+        {children}
+      </div>
+      {hasArrows && <StripArrow dir="right" disabled={!overflow.right} onClick={() => scrollBy(1)} />}
+    </div>
   );
 }
 
@@ -363,11 +497,44 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     };
   }, [docTypes, typeCounts]);
 
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
-  const toggleSection = (parent: string) =>
-    setCollapsedSections((prev) => ({ ...prev, [parent]: !prev[parent] }));
-
   const isSearchActive = typeSearch.trim().length > 0;
+
+  // Tabs are faceted filters: a type with no document filters to an empty
+  // grid, so it never earns a tab (and the strip stays short enough to scan
+  // without scrolling). The card-of-rows used to list them greyed out.
+  const families = useMemo(
+    () => [...filterGroups.devisFamilies, ...filterGroups.factureFamilies].filter((f) => f.totalCount > 0),
+    [filterGroups],
+  );
+
+  /** The family the current selection belongs to (parent OR any of its
+   *  versions) — drives the level-1 seat and the version sub-strip. */
+  const activeFamily = useMemo(
+    () =>
+      families.find(
+        (f) =>
+          f.parent === selectedType ||
+          f.accords.some((a) => a.label === selectedType) ||
+          f.propositions.some((p) => p.label === selectedType),
+      ) ?? null,
+    [families, selectedType],
+  );
+
+  /** Sub-strip: the source document + every version that actually exists. */
+  const versionTabs = useMemo(() => {
+    if (!activeFamily) return [];
+    const tabs: { label: string; display: string; count: number }[] = [];
+    if (activeFamily.parentEntry && activeFamily.parentEntry.count > 0) {
+      // « Source » matches the pipeline grid's first column on this page.
+      tabs.push({ label: activeFamily.parent, display: 'Source', count: activeFamily.parentEntry.count });
+    }
+    for (const row of [...activeFamily.accords, ...activeFamily.propositions]) {
+      if (row.count === 0) continue;
+      const parsed = parseAccordDocType(row.label);
+      tabs.push({ label: row.label, display: parsed ? shortenAccordLabel(parsed) : row.label, count: row.count });
+    }
+    return tabs;
+  }, [activeFamily]);
 
   const visibleDocs = useMemo(() => {
     if (selectedType === ALL_TYPES_KEY) return documents;
@@ -404,155 +571,112 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     )
   ) : null;
 
-  const renderAccordSubsection = (title: string, rows: FamilyAccordRow[]) => (
-    <>
-      {/* Group label: t-label, no coloured band per group. */}
-      <div className="t-label py-1.5 pl-12 pr-4">{title}</div>
-      <div className="divide-y divide-hairline">
-        {rows.map((row) => {
-          const parsed = parseAccordDocType(row.label);
-          const display = parsed ? shortenAccordLabel(parsed) : row.label;
-          return (
-            <FilterRowButton
-              key={row.label}
-              label={display}
-              count={row.count}
-              selected={selectedType === row.label}
-              indent
-              title={row.label}
-              onClick={() => onSelectedTypeChange(row.label)}
-            />
-          );
-        })}
-      </div>
-    </>
-  );
-
   return (
-    <div className={cn('grid items-start gap-6 lg:grid-cols-3', className)}>
-      {/* LEFT: type filter — element-specs §5 content card (glass edge, no
-          Tailwind shadow; the nested-solid rule flattens it inside paper) with
-          a `t-heading` title and the §2 search field first (leading icon,
-          placeholder = format cue only). */}
-      <Card className="overflow-hidden lg:col-span-1">
-        <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
-          <h3 className="t-heading truncate">Type de document</h3>
-          <div className="relative w-[160px] max-w-full shrink-0">
-            <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" aria-hidden />
-            <Input
-              placeholder="Devis, facture…"
-              value={typeSearch}
-              onChange={(e) => onTypeSearchChange(e.target.value)}
-              className="h-8 pl-7 text-xs"
-              aria-label="Rechercher un type"
-            />
-          </div>
-        </header>
-        <div className="max-h-[640px] overflow-y-auto">
-          {/* "Tous" entry always at the top */}
-          <div className="border-b border-hairline">
-            <FilterRowButton
-              label="Tous les documents"
-              count={documents.length}
-              selected={selectedType === ALL_TYPES_KEY}
-              emphasis
-              onClick={() => onSelectedTypeChange(ALL_TYPES_KEY)}
-            />
-          </div>
-
-          {isSearchActive ? (
-            filterRows.length === 0 ? (
-              <p className="t-caption py-8 text-center">Aucun type.</p>
-            ) : (
-              <div className="divide-y divide-hairline">
-                {filterRows.map((row) => (
-                  <FilterRowButton
+    <div className={cn('space-y-0', className)}>
+      {/* Type filter = the app's browser tabs (owner 2026-09-04: no card, no
+          rows). Level 1 = « Tous » + the plain types + one tab per garage
+          family; the search field sits at the right end of the same rail so
+          it never scrolls away with the tabs. */}
+      <div className="flex items-end gap-3 border-b border-hairline">
+        <FilterTabStrip label="Filtrer par type de document" activeKey={selectedType}>
+          <FilterTab
+            label="Tous les documents"
+            count={documents.length}
+            selected={selectedType === ALL_TYPES_KEY}
+            onSelect={() => onSelectedTypeChange(ALL_TYPES_KEY)}
+          />
+          {isSearchActive
+            ? filterRows
+                .filter((row) => row.count > 0)
+                .map((row) => (
+                  <FilterTab
                     key={row.label}
                     label={row.label}
                     count={row.count}
                     selected={selectedType === row.label}
-                    onClick={() => onSelectedTypeChange(row.label)}
+                    onSelect={() => onSelectedTypeChange(row.label)}
+                  />
+                ))
+            : (
+              <>
+                {filterGroups.nonFamily
+                  .filter((row) => row.count > 0)
+                  .map((row) => (
+                    <FilterTab
+                      key={row.label}
+                      label={row.label}
+                      count={row.count}
+                      selected={selectedType === row.label}
+                      onSelect={() => onSelectedTypeChange(row.label)}
+                    />
+                  ))}
+                {families.map((fam) => (
+                  // A family tab stays seated while any of its versions is
+                  // the selection — the version sub-strip says which one.
+                  <FilterTab
+                    key={fam.parent}
+                    label={fam.parent}
+                    count={fam.totalCount}
+                    selected={activeFamily?.parent === fam.parent}
+                    onSelect={() => onSelectedTypeChange(fam.parent)}
                   />
                 ))}
-              </div>
-            )
-          ) : filterGroups.nonFamily.length === 0 &&
-            filterGroups.devisFamilies.length === 0 &&
-            filterGroups.factureFamilies.length === 0 ? (
-            <p className="t-caption py-8 text-center">Aucun type.</p>
-          ) : (
-            <div className="divide-y divide-hairline">
-              {filterGroups.nonFamily.map((row) => (
-                <FilterRowButton
-                  key={row.label}
-                  label={row.label}
-                  count={row.count}
-                  selected={selectedType === row.label}
-                  onClick={() => onSelectedTypeChange(row.label)}
-                />
-              ))}
-              {[...filterGroups.devisFamilies, ...filterGroups.factureFamilies].map((fam) => {
-                const collapsed = !!collapsedSections[fam.parent];
-                const isParentSelected = selectedType === fam.parent;
-                return (
-                  <div key={fam.parent}>
-                    <div
-                      className={cn(
-                        'flex w-full items-stretch text-sm transition-colors duration-150',
-                        isParentSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-surface-2'
-                      )}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleSection(fam.parent)}
-                        className={cn(
-                          'flex w-9 shrink-0 items-center justify-center pl-2',
-                          isParentSelected ? 'text-accent-foreground' : 'text-ink-3 hover:text-ink'
-                        )}
-                        aria-label={collapsed ? 'Développer la section' : 'Réduire la section'}
-                        aria-expanded={!collapsed}
-                      >
-                        {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onSelectedTypeChange(fam.parent)}
-                        aria-pressed={isParentSelected}
-                        className="flex flex-1 items-center justify-between gap-3 py-2.5 pl-1 pr-4 text-left"
-                      >
-                        <span className={cn('truncate', isParentSelected ? 'font-semibold' : 'font-medium text-ink')}>
-                          {fam.parent}
-                        </span>
-                        <CountChip count={fam.totalCount} selected={isParentSelected} />
-                      </button>
-                    </div>
-
-                    {!collapsed && (fam.accords.length > 0 || fam.propositions.length > 0) && (
-                      <div className="border-t border-hairline">
-                        {fam.accords.length > 0 && renderAccordSubsection('Accords', fam.accords)}
-                        {fam.propositions.length > 0 && renderAccordSubsection('Propositions', fam.propositions)}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+              </>
+            )}
+        </FilterTabStrip>
+        <div className="relative mb-1.5 w-[170px] shrink-0">
+          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" aria-hidden />
+          <Input
+            placeholder="Devis, facture…"
+            value={typeSearch}
+            onChange={(e) => onTypeSearchChange(e.target.value)}
+            className="h-8 pl-7 text-xs"
+            aria-label="Rechercher un type de document"
+          />
         </div>
-      </Card>
+      </div>
 
-      {/* RIGHT: preview grid — §5 card with a `t-heading` title naming the
-          filter once and the section CTA at the right end of its header. */}
-      <Card className="overflow-hidden lg:col-span-2">
+      {/* Level 2 — the versions of the selected family (Source · Accordé ·
+          2ème accord · 1ère proposition …), one step shorter than level 1.
+          Only when there is more than one version to choose from. */}
+      {versionTabs.length > 1 && (
+        <FilterTabStrip
+          label={`Versions — ${activeFamily?.parent ?? ''}`}
+          activeKey={selectedType}
+          className="border-b border-hairline pt-1"
+        >
+          {versionTabs.map((tab) => (
+            <FilterTab
+              key={tab.label}
+              label={tab.display}
+              title={tab.label}
+              count={tab.count}
+              dense
+              selected={selectedType === tab.label}
+              onSelect={() => onSelectedTypeChange(tab.label)}
+            />
+          ))}
+        </FilterTabStrip>
+      )}
+
+      {/* Panel — the tab's content surface. Named once by the active tab, so
+          the header carries only the count and the section CTA. */}
+      <Card className="mt-4 overflow-hidden">
         {importButton && (
           <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
-            <h3 className="t-heading truncate">
-              {selectedType === ALL_TYPES_KEY ? 'Tous les documents' : selectedType}
-            </h3>
+            <p className="t-caption tabular-nums">
+              {visibleDocs.length} document{visibleDocs.length > 1 ? 's' : ''}
+            </p>
             {importButton}
           </header>
         )}
-        <div className="p-6">
+        {/* Incoming panel only: 200 ms fade + 1 px rise on the decelerate
+            curve — the same entrance TabsContent gives every other tab
+            panel in the app (motion-spec §7). */}
+        <div
+          key={selectedType}
+          className="p-6 animate-in fade-in-0 slide-in-from-bottom-1 duration-200 ease-enter motion-reduce:animate-none"
+        >
           {loading ? (
             <div className="flex h-48 items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
