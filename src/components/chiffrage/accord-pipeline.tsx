@@ -33,6 +33,8 @@ import type { DocFamily } from '@/lib/doc-family';
 import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
 import { toOrdinalFeminineFr, toOrdinalFr } from '@/lib/devis-schema';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useEdgeScroll } from '@/hooks/use-edge-scroll';
+import { EdgeArrow } from '@/components/ui/edge-arrow';
 import { cn } from '@/lib/utils';
 
 // ── Stage model ─────────────────────────────────────────────────────────────
@@ -252,9 +254,21 @@ export function AccordPipeline({
 
   const maxProp = columns.filter((c) => c.kind === 'proposition-accord').length;
 
-  // Rail (9.5rem) + equal version columns — the same template on the header
-  // row and on every family band keeps the columns vertically aligned.
-  const gridTemplate = `9.5rem repeat(${columns.length}, minmax(0, 1fr))`;
+  const {
+    ref: scrollRef,
+    canScrollLeft,
+    canScrollRight,
+    hasOverflow,
+    scrollByPage,
+  } = useEdgeScroll<HTMLDivElement>([columns.length, pipelines.length]);
+
+  // Rail (9.5rem) + version columns — the same template on the header row and
+  // on every family band keeps the columns vertically aligned. Columns hold a
+  // FLOOR of 13rem (owner 2026-09-04: a 4ème accord used to squeeze every card
+  // instead of running off the edge) and a 20rem ceiling so two-stage families
+  // don't stretch their cards across the whole page; past the floor the rail
+  // scrolls and the arrows appear.
+  const gridTemplate = `9.5rem repeat(${columns.length}, minmax(13rem, 20rem))`;
 
   const chipFor = (p: FamilyPipeline, stage: Stage): React.ReactNode => {
     if (stage.kind === 'source' || !p.actuel) return undefined;
@@ -408,55 +422,79 @@ export function AccordPipeline({
   }
 
   // ── Aligned pipeline grid (lg+) ───────────────────────────────────────────
+  // The whole grid (labels + every family band) scrolls as ONE rail so the
+  // columns can never drift out of alignment; the family rail freezes on the
+  // left like the queue's identifier column.
+  const railSticky = 'sticky left-0 z-[1] bg-background';
   return (
     <div>
-      {/* Column header row — plain, not sticky (element-specs §23: one sticky
-          bar per page; the grid is short enough that labels stay in view). */}
-      <div
-        className="mb-2 grid gap-x-4"
-        style={{ gridTemplateColumns: gridTemplate }}
-        aria-hidden
-      >
-        <div />
-        {columns.map((c) => (
-          <div key={stageKey(c)} className="t-label px-1">
-            {stageLabel(c, maxProp)}
-          </div>
+      {/* « ‹ › » above the rail (owner 2026-09-04, for 4ème accord and
+          beyond) — grouped at the end, on top, per the carousel guidance. */}
+      {hasOverflow && (
+        <div className="mb-1 flex items-center justify-end gap-1">
+          <EdgeArrow dir="left" disabled={!canScrollLeft} onClick={() => scrollByPage(-1)} />
+          <EdgeArrow dir="right" disabled={!canScrollRight} onClick={() => scrollByPage(1)} />
+        </div>
+      )}
+
+      <div ref={scrollRef} className="overflow-x-auto scrollbar-thin">
+        {/* Column header row — plain, not sticky (element-specs §23: one
+            sticky bar per page; the grid is short enough that labels stay in
+            view). */}
+        <div
+          className="mb-2 grid gap-x-4"
+          style={{ gridTemplateColumns: gridTemplate }}
+          aria-hidden
+        >
+          <div className={railSticky} />
+          {columns.map((c) => (
+            <div key={stageKey(c)} className="t-label px-1">
+              {stageLabel(c, maxProp)}
+            </div>
+          ))}
+        </div>
+
+        {pipelines.map((p, famIdx) => (
+          <section
+            key={p.group.parent}
+            aria-label={p.group.parent}
+            className={cn(
+              'grid gap-x-4 gap-y-3',
+              famIdx > 0 && 'mt-3 border-t border-hairline pt-3',
+            )}
+            style={{ gridTemplateColumns: gridTemplate }}
+          >
+            {/* Family identity rail (FamilyRow header anatomy, sans collapse). */}
+            <div
+              className={cn(
+                'flex min-w-0 flex-col items-start gap-1.5 py-2 pr-1',
+                railSticky,
+                // Reads as a layer over the scrolled cards, not a seam — only
+                // once something has actually scrolled under it.
+                canScrollLeft && 'shadow-[6px_0_8px_-6px_hsl(var(--ink)/0.14)]',
+              )}
+            >
+              {familyRail(p)}
+            </div>
+            {columns.map((stage, colIdx) => {
+              const content = renderCell(p, stage);
+              const prev = colIdx > 0 ? columns[colIdx - 1] : null;
+              const prevOccupied =
+                !!prev &&
+                (p.cells.has(stageKey(prev)) ||
+                  (p.ghost != null && stageKey(prev) === stageKey(p.ghost)) ||
+                  prev.kind === 'source');
+              return (
+                <div key={stageKey(stage)} className="relative min-w-0">
+                  {/* Derivation hairline between occupied neighbours (B1). */}
+                  {content && colIdx > 0 && prevOccupied && <Connector />}
+                  {content}
+                </div>
+              );
+            })}
+          </section>
         ))}
       </div>
-
-      {pipelines.map((p, famIdx) => (
-        <section
-          key={p.group.parent}
-          aria-label={p.group.parent}
-          className={cn(
-            'grid gap-x-4 gap-y-3',
-            famIdx > 0 && 'mt-3 border-t border-hairline pt-3',
-          )}
-          style={{ gridTemplateColumns: gridTemplate }}
-        >
-          {/* Family identity rail (FamilyRow header anatomy, sans collapse). */}
-          <div className="flex min-w-0 flex-col items-start gap-1.5 py-2 pr-1">
-            {familyRail(p)}
-          </div>
-          {columns.map((stage, colIdx) => {
-            const content = renderCell(p, stage);
-            const prev = colIdx > 0 ? columns[colIdx - 1] : null;
-            const prevOccupied =
-              !!prev &&
-              (p.cells.has(stageKey(prev)) ||
-                (p.ghost != null && stageKey(prev) === stageKey(p.ghost)) ||
-                prev.kind === 'source');
-            return (
-              <div key={stageKey(stage)} className="relative min-w-0">
-                {/* Derivation hairline between occupied neighbours (B1). */}
-                {content && colIdx > 0 && prevOccupied && <Connector />}
-                {content}
-              </div>
-            );
-          })}
-        </section>
-      ))}
     </div>
   );
 }

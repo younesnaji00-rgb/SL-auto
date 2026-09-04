@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   Download,
   Trash2,
@@ -9,8 +9,6 @@ import {
   FileText,
   Eye,
   Search,
-  ChevronLeft,
-  ChevronRight,
   Upload,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -32,11 +30,10 @@ import {
   type ParsedAccordDocType,
   type AccordeSourceDocType,
 } from '@/lib/docType-accorde';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useTabSlopeMorph } from '@/hooks/use-tab-morph';
-import { scrollBehavior } from '@/lib/motion';
+import { useEdgeScroll } from '@/hooks/use-edge-scroll';
+import { EdgeArrow } from '@/components/ui/edge-arrow';
 
 export const ALL_TYPES_KEY = '__all__';
 
@@ -113,20 +110,6 @@ const REMOVED_FILTER_DOC_TYPES: ReadonlySet<string> = new Set([
   'PV de constat',
   "Rapport d'expertise",
 ]);
-
-const formatSize = (bytes?: number) => {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-};
-
-const formatDate = (ts: any) => {
-  if (!ts) return '-';
-  const date = ts.toDate ? ts.toDate() : new Date(ts);
-  return format(date, 'dd/MM/yyyy HH:mm', { locale: fr });
-};
 
 const isImage = (name?: string) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(name || '');
 const isPdf = (name?: string) => /\.pdf$/i.test(name || '');
@@ -230,38 +213,6 @@ function FilterTab({
   );
 }
 
-/** End arrow for an overflowing strip (owner 2026-09-04; Smashing carousel
- *  guidelines: "always include prev/next buttons" — dots and bare scrolling
- *  hide that there is more). Stays mounted while the strip overflows and
- *  dims at the end of its travel, so the rail never jumps. */
-function StripArrow({
-  dir,
-  disabled,
-  onClick,
-}: {
-  dir: 'left' | 'right';
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  const Icon = dir === 'left' ? ChevronLeft : ChevronRight;
-  return (
-    <button
-      type="button"
-      tabIndex={-1}
-      aria-hidden
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        'mb-1.5 inline-flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-ink-3 transition-colors',
-        'hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        'disabled:pointer-events-none disabled:text-ink-4/60',
-      )}
-    >
-      <Icon className="h-4 w-4" />
-    </button>
-  );
-}
-
 /** The scrollable tab track. `px-2` ≥ the 7 px feet or `overflow-x-auto`
  *  clips them (owner 2026-09-03); `useTabSlopeMorph` flies the active seat
  *  between tabs, exactly as on the dossiers step strip. Arrows appear at both
@@ -279,47 +230,15 @@ function FilterTabStrip({
   className?: string;
   children: React.ReactNode;
 }) {
-  const ref = React.useRef<HTMLDivElement>(null);
+  const { ref, canScrollLeft, canScrollRight, hasOverflow, scrollByPage, reveal } =
+    useEdgeScroll<HTMLDivElement>([children]);
   useTabSlopeMorph(ref);
-  const [overflow, setOverflow] = useState({ left: false, right: false });
-
-  const measure = React.useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    // 1px tolerance: fractional widths under `zoom` never settle on 0.
-    const max = el.scrollWidth - el.clientWidth;
-    const next = { left: el.scrollLeft > 1, right: el.scrollLeft < max - 1 };
-    // Scroll fires continuously — only re-render when a end is actually
-    // reached or left, or the strip re-renders on every pixel.
-    setOverflow((prev) => (prev.left === next.left && prev.right === next.right ? prev : next));
-  }, []);
-
-  React.useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    measure();
-    el.addEventListener('scroll', measure, { passive: true });
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    for (const child of Array.from(el.children)) ro.observe(child);
-    return () => {
-      el.removeEventListener('scroll', measure);
-      ro.disconnect();
-    };
-  }, [measure, children]);
 
   // Keep the seated tab visible when the selection changes from anywhere
   // (a click deep in the strip, the sub-strip, or the keyboard).
   React.useEffect(() => {
-    const seated = ref.current?.querySelector<HTMLElement>('[aria-selected="true"]');
-    seated?.scrollIntoView({ behavior: scrollBehavior(), inline: 'nearest', block: 'nearest' });
-  }, [activeKey]);
-
-  const scrollBy = (direction: 1 | -1) => {
-    const el = ref.current;
-    if (!el) return;
-    el.scrollBy({ left: direction * Math.max(160, el.clientWidth * 0.8), behavior: scrollBehavior() });
-  };
+    reveal(ref.current?.querySelector<HTMLElement>('[aria-selected="true"]'));
+  }, [activeKey, reveal, ref]);
 
   // A tablist owns ← → Home End (the roving tabIndex lives on the tabs).
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -338,11 +257,11 @@ function FilterTabStrip({
     tabs[next]?.click();
   };
 
-  const hasArrows = overflow.left || overflow.right;
-
   return (
     <div className={cn('flex min-w-0 flex-1 items-end', className)}>
-      {hasArrows && <StripArrow dir="left" disabled={!overflow.left} onClick={() => scrollBy(-1)} />}
+      {hasOverflow && (
+        <EdgeArrow dir="left" disabled={!canScrollLeft} onClick={() => scrollByPage(-1)} className="mb-1.5" />
+      )}
       <div
         ref={ref}
         role="tablist"
@@ -352,7 +271,9 @@ function FilterTabStrip({
       >
         {children}
       </div>
-      {hasArrows && <StripArrow dir="right" disabled={!overflow.right} onClick={() => scrollBy(1)} />}
+      {hasOverflow && (
+        <EdgeArrow dir="right" disabled={!canScrollRight} onClick={() => scrollByPage(1)} className="mb-1.5" />
+      )}
     </div>
   );
 }
@@ -692,7 +613,9 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
               description={selectedType === ALL_TYPES_KEY ? 'Les documents importés apparaîtront ici.' : 'Choisissez un autre type ou « Tous les documents ».'}
             />
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            // Thumbnails only (no meta band), so the grid packs tighter as it
+            // widens — 8 across at 2xl instead of stretching 6 tiles.
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 2xl:grid-cols-8">
               {visibleDocs.map((item) => {
                 const name = item.nom || item.fileName || 'document';
                 const isImg = isImage(name) && !!item.url;
@@ -711,9 +634,13 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                     key={item.id}
                     className={cn(
                       'group relative overflow-hidden rounded-[10px] bg-card shadow-rim transition-[box-shadow] duration-150 focus-within:ring-2 focus-within:ring-ring',
+                      // The name/size/date band is gone (owner 2026-09-04) —
+                      // the tile is the image. The filename survives as the
+                      // native tooltip and in each action's aria-label.
                       selectionMode && isSelected && 'ring-2 ring-ring hover:ring-ring',
                       selectionMode && (selectable ? 'cursor-pointer' : 'cursor-not-allowed opacity-60')
                     )}
+                    title={name}
                     onClick={() => {
                       if (selectionMode && selectable && onToggleSelect) onToggleSelect(item.id);
                     }}
@@ -730,9 +657,16 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="flex flex-col items-center gap-1.5 text-ink-3">
-                          <FileIcon className={cn('h-12 w-12', isPdfFile && 'text-ink-2')} aria-hidden />
+                        // A PDF/blank tile has no self-identifying picture, so
+                        // its name goes INSIDE the placeholder's empty space —
+                        // « 1ère proposition » and « 2ème proposition » would
+                        // otherwise be two identical icons.
+                        <div className="flex w-full flex-col items-center gap-1 px-2 text-ink-3">
+                          <FileIcon className={cn('h-10 w-10', isPdfFile && 'text-ink-2')} aria-hidden />
                           <span className="text-[11px] font-semibold tracking-wide">{fileExt(name)}</span>
+                          <span className="line-clamp-2 text-center text-[11px] leading-tight text-ink-3">
+                            {name}
+                          </span>
                         </div>
                       )}
 
@@ -813,18 +747,6 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                           En attente
                         </Badge>
                       )}
-                    </div>
-
-                    {/* Footer info — name is the value (ink, 600), meta in ink-3 */}
-                    <div className="space-y-0.5 border-t border-hairline p-2">
-                      <p className="truncate text-xs font-semibold text-ink" title={name}>{name}</p>
-                      <div className="flex items-center justify-between gap-1 text-[11px] text-ink-3">
-                        <span className="tabular-nums">{formatSize(item.taille || item.fileSize)}</span>
-                        <span className="truncate tabular-nums">{formatDate(item.dateUpload || item.uploadedAt)}</span>
-                      </div>
-                      <p className="truncate text-[11px] text-ink-3" title={item.uploadePar || item.uploadedBy}>
-                        {item.uploadePar || item.uploadedBy || '—'}
-                      </p>
                     </div>
                   </div>
                 );

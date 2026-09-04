@@ -433,7 +433,10 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const showCompletionBanner = traitementActif && chiffrageDone && !banniereRestee;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    // max-w-7xl (owner 2026-09-04: the document grid was ringed by dead
+    // space) — the extra 16rem goes to the thumbnails and to the pipeline's
+    // version columns; the header and observations simply centre wider.
+    <div className="mx-auto max-w-7xl space-y-8">
       {/* Page header (element-specs §1: Polaris Page ✓ "always provide
           breadcrumbs when a page has a parent", the primary as ONE filled
           button at the right end; GOV.UK button ✓ no second default button).

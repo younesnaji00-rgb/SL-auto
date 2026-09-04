@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
  */
 export default function Loading() {
   return (
-    <div className="mx-auto max-w-5xl space-y-8" aria-busy="true" aria-live="polite">
+    <div className="mx-auto max-w-7xl space-y-8" aria-busy="true" aria-live="polite">
       <div className="flex items-start gap-3">
         <Skeleton className="h-9 w-9 shrink-0" />
         <div className="flex-1 space-y-2">
