@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { ChevronLeft, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Breadcrumb, { useCrumbs } from '@/components/breadcrumb';
+import Logo from '@/components/logo';
 import Notifications from '@/components/layout/notifications';
 import UserMenu from '@/components/layout/user-menu';
 import { useShellUi } from '@/components/layout/shell-ui';
@@ -52,8 +53,13 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 glass-bar border-b border-hairline px-3 md:px-5">
       <div className="flex min-w-0 flex-1 items-center gap-2">
+        {/* Below `lg` the sidebar is gone, so this is the ONLY logo on screen.
+            It must come from the brand config like the sidebar's does — it
+            used to hardcode the firm's /images/logo.png, which is why the
+            white-label demo showed the SL-auto monogram on phones and tablets
+            and nowhere else. */}
         <Link href="/" className="flex shrink-0 items-center lg:hidden" aria-label={t('Accueil')}>
-          <img src="/images/logo.png" alt="" className="h-7 w-7 object-contain dark:invert" />
+          <Logo collapsed />
         </Link>
         <MobileUpCrumb />
         <div className="hidden min-w-0 md:block">
