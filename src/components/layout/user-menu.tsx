@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * Avatar menu — profile identity, theme, shortcuts and sign-out in one
- * control (Attio / Slack pattern), so the sidebar footer stays a frame.
+ * Avatar menu — identity, theme, bug report and sign-out in one control
+ * (Attio / Slack pattern). Profile access lives in the sidebar footer.
  */
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { Keyboard, LogOut, Moon, Sun, Bug, UserRound } from 'lucide-react';
+import { LogOut, Moon, Sun, Bug } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,13 +17,10 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { useShellUi } from './shell-ui';
-import { formatKeys } from '@/hooks/use-hotkeys';
 
 export function userInitials(profile: { prenom?: string; nom?: string } | null | undefined): string {
   if (!profile) return 'U';
@@ -35,7 +32,6 @@ export default function UserMenu() {
   const router = useRouter();
   const { profile, signOut } = useCurrentUser();
   const { theme, setTheme } = useTheme();
-  const { openShortcuts } = useShellUi();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -68,12 +64,6 @@ export default function UserMenu() {
           {profile?.role && <p className="t-caption truncate">{profile.role}</p>}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/profil">
-            <UserRound className="mr-2 h-4 w-4" />
-            Mon profil
-          </Link>
-        </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={(e) => {
             e.preventDefault();
@@ -82,12 +72,6 @@ export default function UserMenu() {
         >
           {isDark ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
           {isDark ? 'Mode clair' : 'Mode sombre'}
-          <DropdownMenuShortcut>{formatKeys('shift+d').join('')}</DropdownMenuShortcut>
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => openShortcuts()}>
-          <Keyboard className="mr-2 h-4 w-4" />
-          Raccourcis clavier
-          <DropdownMenuShortcut>?</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/signaler-bug">

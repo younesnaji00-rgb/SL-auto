@@ -21,6 +21,11 @@ import { cn } from '@/lib/utils';
 const FULL_WIDTH_ROUTES = ['/devis-editor'];
 /** Record pages own their padding (sticky record bar must span the inset). */
 const FLUSH_ROUTE_PATTERNS = [/^\/dossiers\/[^/]+$/];
+/** List pages whose data table should take over the freed width on wide
+ *  monitors: keep the shell padding + centring but drop the 1600px cap
+ *  (owner request 2026-09-03 — dossiers list only; every other page keeps
+ *  the capped column). */
+const UNCAPPED_ROUTES = ['/dossiers'];
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { firebaseUser, loading } = useCurrentUser();
@@ -52,6 +57,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const fullWidth =
     FULL_WIDTH_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`)) ||
     FLUSH_ROUTE_PATTERNS.some((re) => re.test(pathname));
+  const uncapped = UNCAPPED_ROUTES.some((r) => pathname === r);
 
   return (
     <div className="relative flex h-svh w-full overflow-hidden">
@@ -72,7 +78,13 @@ function AppShell({ children }: { children: React.ReactNode }) {
           className="min-h-0 flex-1 overflow-y-auto bg-background/35 pb-[calc(60px+env(safe-area-inset-bottom))] [scrollbar-gutter:stable] lg:pb-0"
           tabIndex={-1}
         >
-          <div className={cn(fullWidth ? 'w-full' : 'mx-auto max-w-[1600px] p-4 md:p-6 lg:p-8')}>
+          <div
+            className={cn(
+              fullWidth
+                ? 'w-full'
+                : cn('mx-auto p-4 md:p-6 lg:p-8', uncapped ? 'max-w-none' : 'max-w-[1600px]'),
+            )}
+          >
             {children}
           </div>
         </main>

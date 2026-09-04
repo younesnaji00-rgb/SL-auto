@@ -2,7 +2,7 @@
 
 import { PageHeader } from '@/components/layout/page-header';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Inbox, ChevronDown, ChevronRight, Send, ScrollText, CheckCircle2 } from 'lucide-react';
+import { Inbox, ChevronDown, ChevronRight, Send, ScrollText, CheckCircle2, Search, SearchX, RotateCcw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
@@ -15,8 +15,12 @@ import { Skeleton, SkeletonRow } from '@/components/ui/skeleton';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import { ToastAction } from '@/components/ui/toast';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { Input } from '@/components/ui/input';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { DateRangeFilter } from '@/components/date-range-filter';
+import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { useRappels, useRappelsSent, type Rappel } from '@/hooks/use-rappels';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';

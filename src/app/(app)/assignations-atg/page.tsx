@@ -44,6 +44,8 @@ import {
 import { format, startOfDay, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { SlidingThumb } from '@/components/ui/sliding-thumb';
+import { isAtgCompletedStatus } from '@/lib/status-machine';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
@@ -333,6 +335,64 @@ function MissionSegments({ active, counts, onChange, className }: { active: stri
   );
 }
 
+type ScopeValue = 'a_traiter' | 'tous';
+
+/**
+ * « À traiter / Tous » — a VALUE picker (it changes the data, not the view),
+ * so per element-specs §7 + the queue-rules ruling (« À traiter (n) / Traités »
+ * = segmented control + SlidingThumb, NOT tabs — tabs draw the browser-tab
+ * shape and are reserved for view switchers) it reuses the Mes Rappels
+ * segmented pattern. Counts = neutral surface-3 pills (§11).
+ */
+function ScopeSegments({
+  value,
+  counts,
+  onChange,
+  fullWidth = false,
+  className,
+}: {
+  value: ScopeValue;
+  counts: Record<ScopeValue, number>;
+  onChange: (v: ScopeValue) => void;
+  fullWidth?: boolean;
+  className?: string;
+}) {
+  const pill = (n: number) => (
+    <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
+      {n}
+    </span>
+  );
+  const seg = (v: ScopeValue, label: string) => (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      data-seg-active={value === v}
+      aria-pressed={value === v}
+      onClick={() => onChange(v)}
+      className={cn('relative z-[1] h-8 gap-1.5 px-3 shadow-none', fullWidth && 'flex-1')}
+    >
+      {label}
+      {pill(counts[v])}
+    </Button>
+  );
+  return (
+    <div
+      role="group"
+      aria-label="Missions à afficher"
+      className={cn(
+        'relative isolate flex h-9 items-center gap-0.5 rounded-md bg-surface-2 p-0.5',
+        fullWidth ? 'w-full' : 'w-fit',
+        className,
+      )}
+    >
+      <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[value, counts.a_traiter, counts.tous]} />
+      {seg('a_traiter', 'À traiter')}
+      {seg('tous', 'Tous')}
+    </div>
+  );
+}
+
 type GroupKey = 'today' | 'expired' | 'future';
 
 /**
@@ -434,9 +494,10 @@ export default function AssignationsATGPage() {
     activeTab: 'Avant', dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', agentFilter: 'Tous', keyword: '',
     density: 'normale' as 'normale' | 'compacte',
     lens: 'liste' as 'liste' | 'carte',
+    scope: 'a_traiter' as ScopeValue,
   };
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-atg', filterDefaults);
-  const { activeTab, dateFrom, dateTo, compagnieFilter, agentFilter, keyword, density, lens } = filters;
+  const { activeTab, dateFrom, dateTo, compagnieFilter, agentFilter, keyword, density, lens, scope } = filters;
 
   useEffect(() => {
     if (!db) return;

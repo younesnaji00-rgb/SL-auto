@@ -3,14 +3,14 @@
 /**
  * Product navigation. Quiet by design (Linear: "don't compete for attention
  * you haven't earned"): tinted active row, hairline border, no shadow, no
- * editing inside the nav. Universal actions (search, create, account, theme)
- * live in the header; help lives in the footer menu.
+ * editing inside the nav. Universal actions (create, account, theme) live in
+ * the header; the profile row and help live in the footer.
  */
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import NextLink from 'next/link';
-import { Calculator, FolderOpen, HelpCircle, Keyboard, PanelLeft } from 'lucide-react';
+import { Calculator, FolderOpen, HelpCircle, PanelLeft } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -31,17 +31,17 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import Logo from '@/components/logo';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { useRappels } from '@/hooks/use-rappels';
 import { useVisibleNav } from '@/hooks/use-visible-nav';
 import { useWorkspaceStore, TAB_KINDS } from '@/hooks/use-workspace-tabs';
-import { useShellUi } from '@/components/layout/shell-ui';
-import { formatKeys } from '@/hooks/use-hotkeys';
+import { userInitials } from '@/components/layout/user-menu';
 import { cn } from '@/lib/utils';
 
 /**
@@ -119,7 +119,7 @@ const AppSidebar = () => {
   const { navGroups, footerItems, isVisible } = useVisibleNav();
   const { rappels } = useRappels();
   const { recents } = useWorkspaceStore();
-  const { openShortcuts } = useShellUi();
+  const { profile } = useCurrentUser();
 
   const unreadRappelsCount = rappels.filter((r) => !r.read && !r.resolvedAt).length;
   const closeOnMobile = () => {
@@ -130,7 +130,8 @@ const AppSidebar = () => {
     r.kind === 'dossier' ? isVisible('/dossiers') : isVisible('/assignations-chiffrage'),
   ).slice(0, 5);
 
-  const toggleKeys = formatKeys('mod+b').join(' ');
+  const displayName = profile ? `${profile.prenom ?? ''} ${profile.nom ?? ''}`.trim() || 'Profil' : 'Profil';
+  const isProfilActive = pathname === '/profil' || pathname.startsWith('/profil/');
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -155,7 +156,7 @@ const AppSidebar = () => {
               <PanelLeft className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right">{isCollapsed ? 'Agrandir' : 'Réduire'} · {toggleKeys}</TooltipContent>
+          <TooltipContent side="right">{isCollapsed ? 'Agrandir' : 'Réduire'}</TooltipContent>
         </Tooltip>
       </SidebarHeader>
 
@@ -169,7 +170,7 @@ const AppSidebar = () => {
                 {group.items.map((item) => {
                   const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(`${item.href}/`)) || (item.href !== '/dashboard' && pathname === item.href);
                   const Icon = item.icon;
-                  const tooltip = item.hotkey ? `${item.label} · ${formatKeys(item.hotkey).join(' puis ')}` : item.label;
+                  const tooltip = item.label;
                   return (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton asChild isActive={isActive} tooltip={tooltip}>
@@ -218,27 +219,43 @@ const AppSidebar = () => {
       </SidebarContent>
 
       <SidebarFooter className={cn('shrink-0 border-t border-sidebar-border bg-sidebar p-2', isCollapsed && 'items-center')}>
-        <div className={cn('flex gap-1', isCollapsed ? 'flex-col' : 'flex-row items-center')}>
+        {/* Profil row at the bottom of the nav (owner ruling 2026-09-03) with
+            a quiet icon-only Aide menu beside it. */}
+        <div className={cn('flex gap-1', isCollapsed ? 'flex-col items-center' : 'flex-row items-center')}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <NextLink
+                href="/profil"
+                onClick={closeOnMobile}
+                aria-current={isProfilActive ? 'page' : undefined}
+                className={cn(
+                  'flex min-w-0 items-center gap-2 rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent',
+                  isCollapsed ? 'h-8 w-8 justify-center' : 'h-9 flex-1 px-1.5',
+                  isProfilActive && 'bg-sidebar-active shadow-rim',
+                )}
+              >
+                <Avatar className="h-6 w-6 shrink-0">
+                  <AvatarFallback className="bg-surface-4 text-[10px] font-semibold text-ink">{userInitials(profile)}</AvatarFallback>
+                </Avatar>
+                {!isCollapsed && <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{displayName}</span>}
+              </NextLink>
+            </TooltipTrigger>
+            <TooltipContent side="right">Profil</TooltipContent>
+          </Tooltip>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                size={isCollapsed ? 'icon' : 'sm'}
-                className={cn('text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground', isCollapsed ? 'h-8 w-8' : 'h-8 flex-1 justify-start gap-2 px-2 text-[13px]')}
+                size="icon"
+                className="h-8 w-8 shrink-0 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
                 aria-label="Aide"
               >
                 <HelpCircle className="h-4 w-4" />
-                {!isCollapsed && <span>Aide</span>}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" className="w-56">
               <DropdownMenuLabel>Aide</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => openShortcuts()}>
-                <Keyboard className="mr-2 h-4 w-4" />
-                Raccourcis clavier
-                <DropdownMenuShortcut>?</DropdownMenuShortcut>
-              </DropdownMenuItem>
               {footerItems.map((item) => {
                 const Icon = item.icon;
                 return (

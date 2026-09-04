@@ -2,25 +2,22 @@
 
 /**
  * Profil — the visible home for everything that used to hide in the sidebar
- * footer (theme, density, shortcuts, bug report, sign-out) and the only
- * "settings" destination on phones.
+ * footer (theme, density, bug report, sign-out) and the only "settings"
+ * destination on phones.
  */
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
-import { Keyboard, LifeBuoy, LogOut, Monitor, Moon, Sun, Smartphone, SlidersHorizontal } from 'lucide-react';
+import { LifeBuoy, LogOut, Monitor, Moon, Sun, Smartphone, SlidersHorizontal } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { useShellUi } from '@/components/layout/shell-ui';
 import { userInitials } from '@/components/layout/user-menu';
-import { formatKeys } from '@/hooks/use-hotkeys';
-import { Kbd } from '@/components/ui/kbd';
 import { IconChip } from '@/components/ui/icon-chip';
 import { cn } from '@/lib/utils';
 import { applyDensity, readDensity, type Density } from '@/lib/density';
@@ -114,7 +111,6 @@ export default function ProfilPage() {
   const router = useRouter();
   const { profile, signOut } = useCurrentUser();
   const { theme, setTheme } = useTheme();
-  const { openShortcuts } = useShellUi();
   const [mounted, setMounted] = useState(false);
   const [density, setDensity] = useState<Density>('normal');
   const [ua, setUa] = useState('');
@@ -191,26 +187,6 @@ export default function ProfilPage() {
 
       <Section title="Aide" icon={<LifeBuoy />}>
         <div className="divide-y divide-hairline">
-          {/* Keyboard hints as <Kbd> keycaps (restored from 3d5629a). */}
-          <PrefRow
-            label="Raccourcis clavier"
-            help={
-              <>
-                <span>Recherche rapide</span>
-                <Kbd>{formatKeys('mod+k').join(' ')}</Kbd>
-                <span>· Nouveau dossier</span>
-                <Kbd>C</Kbd>
-              </>
-            }
-          >
-            {/* Buttons — element-specs §8: `outline` for a secondary action,
-                leading 16 px icon, verb + noun label. */}
-            <Button variant="outline" onClick={openShortcuts}>
-              <Keyboard className="h-4 w-4" aria-hidden />
-              Voir les raccourcis
-              <Kbd>?</Kbd>
-            </Button>
-          </PrefRow>
           <PrefRow label="Signaler un bug" help="Décrivez un problème, joignez une capture ou un message vocal.">
             <Button variant="outline" asChild>
               <Link href="/signaler-bug">Ouvrir le formulaire</Link>

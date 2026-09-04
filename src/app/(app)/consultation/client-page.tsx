@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Search, AlertCircle, FolderOpen, ChevronRight, Columns3, Download, Check } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Search, AlertCircle, FolderOpen, Columns3, Download, Check, ChevronRight } from 'lucide-react';
 import { format, parseISO, isValid, isToday, startOfDay, startOfWeek, startOfMonth, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
@@ -35,6 +35,8 @@ import { exportToExcel, type ExportColumn } from '@/lib/export-excel';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SlidingThumb } from '@/components/ui/sliding-thumb';
+import { useDossierTabs } from '@/hooks/use-dossier-tabs';
+import { dossierLabel } from '@/lib/dossier-label';
 
 // ── Status chip (element-specs §11): the shared app-wide mapping — the local
 //    stand-in was retired 2026-09-02 (it coloured « Proposition d'accord »
@@ -121,14 +123,29 @@ const HIDEABLE_COLUMNS = COLUMNS.filter((c) => c.key !== 'refExpert');
 
 export default function ConsultationClientPage() {
   const router = useRouter();
+  const { openTab } = useDossierTabs();
+  // Row click opens the dossier as a PREVIEW tab (VS Code semantics, same as
+  // the dossiers list) — consultation is a lookup surface, so a look never
+  // mints a permanent tab. The réf cell and the row-end chevron are real
+  // <Link>s; this is the pointer-only convenience on top of them.
+  const openDossier = useCallback(
+    (d: { id: string; refExpert?: string; assure?: unknown }) => {
+      openTab(d.id, dossierLabel(d), { preview: true });
+      router.push(`/dossiers/${d.id}`);
+    },
+    [openTab, router],
+  );
+
   const { options: dbCompagnies } = useOptions('compagnies');
   const { options: dbNatures } = useOptions('options_natures');
   const { options: dbStatuses } = useOptions('options_statuts');
+  const { options: dbTypesDossier } = useOptions('options_types_dossier');
 
   // Single source of truth: Firestore. Filter inactive entries client-side.
   const compagnies = useMemo(() => dbCompagnies.filter(o => o.active !== false), [dbCompagnies]);
   const natures = useMemo(() => dbNatures.filter(o => o.active !== false), [dbNatures]);
   const statuses = useMemo(() => dbStatuses.filter(o => o.active !== false), [dbStatuses]);
+  const typesDossier = useMemo(() => dbTypesDossier.filter(o => o.active !== false), [dbTypesDossier]);
 
   // Fetch ALL dossiers — no company restriction
   const { dossiers: allDossiers, loading, error: fetchError } = useDossiers();
@@ -164,11 +181,15 @@ export default function ConsultationClientPage() {
     () => augmentWithLiveValues(compagnies, allDossiers.map((d) => d.compagnie)),
     [compagnies, allDossiers],
   );
+  const filterTypesDossier = useMemo(
+    () => augmentWithLiveValues(typesDossier, allDossiers.map((d) => d.typeDossier)),
+    [typesDossier, allDossiers],
+  );
 
   // Sort and hidden columns are the user's workspace setup, not filters —
   // « Tout réinitialiser » leaves them alone (same contract as /dossiers).
   const filterDefaults = {
-    search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes',
+    search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', typeDossier: 'Tous',
     dateFrom: '', dateTo: '', rowsPerPage: 25,
     sortKey: 'dateRequete' as string | null, sortDir: 'desc' as Exclude<SortDirection, null>,
     hiddenCols: [] as string[],
@@ -197,7 +218,7 @@ export default function ConsultationClientPage() {
     [filters.hiddenCols],
   );
   const isVisible = (key: string) => visibleColumns.some((c) => c.key === key);
-  const colCount = visibleColumns.length + 1; // + trailing « ouvrir » chevron cell
+  const colCount = visibleColumns.length;
 
   // Overflow cap (addendum ter A): show 50, « Afficher plus » extends. The cap
   // resets whenever a filter changes so a narrowed list starts from the top —
@@ -222,7 +243,7 @@ export default function ConsultationClientPage() {
   React.useEffect(() => {
     if (firstFilterRun.current) { firstFilterRun.current = false; return; }
     setVisibleCount(50);
-  }, [filters.search, filters.nature, filters.status, filters.compagnie, filters.dateFrom, filters.dateTo]);
+  }, [filters.search, filters.nature, filters.status, filters.compagnie, filters.typeDossier, filters.dateFrom, filters.dateTo]);
 
   const renderAssure = (assure: any) => {
     if (!assure) return null;
@@ -252,6 +273,7 @@ export default function ConsultationClientPage() {
     let results = [...allDossiers];
     if (filters.nature !== 'Toutes') results = results.filter(d => d.nature === filters.nature);
     if (filters.compagnie !== 'Toutes') results = results.filter(d => d.compagnie === filters.compagnie);
+    if (filters.typeDossier !== 'Tous') results = results.filter(d => d.typeDossier === filters.typeDossier);
     if (searchActive) results = results.filter(matchesSearch);
     if (filters.dateFrom) {
       const from = new Date(filters.dateFrom);
@@ -271,7 +293,7 @@ export default function ConsultationClientPage() {
       });
     }
     return results;
-  }, [allDossiers, filters.nature, filters.compagnie, filters.dateFrom, filters.dateTo, searchActive, matchesSearch]);
+  }, [allDossiers, filters.nature, filters.compagnie, filters.typeDossier, filters.dateFrom, filters.dateTo, searchActive, matchesSearch]);
 
   const dossierList = useMemo(
     () => (filters.status === 'Tous' ? baseList : baseList.filter(d => d.statut === filters.status)),
@@ -362,16 +384,15 @@ export default function ConsultationClientPage() {
     return format(date, 'dd/MM/yyyy');
   };
 
-  const openDossier = (id: string) => router.push(`/dossiers/${id}`);
-
-  const hasActiveFilters = !!filters.search || filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || !!filters.dateFrom || !!filters.dateTo;
-  const hasChipFilters = filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || !!filters.dateFrom || !!filters.dateTo;
+  const hasActiveFilters = !!filters.search || filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.typeDossier !== 'Tous' || !!filters.dateFrom || !!filters.dateTo;
+  const hasChipFilters = filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.typeDossier !== 'Tous' || !!filters.dateFrom || !!filters.dateTo;
 
   const clearAll = () => {
     clearFilter('search');
     clearFilter('nature');
     clearFilter('status');
     clearFilter('compagnie');
+    clearFilter('typeDossier');
     clearFilter('dateFrom');
     clearFilter('dateTo');
     clearFilter('datePreset');
@@ -380,6 +401,7 @@ export default function ConsultationClientPage() {
     clearFilter('nature');
     clearFilter('status');
     clearFilter('compagnie');
+    clearFilter('typeDossier');
     clearFilter('dateFrom');
     clearFilter('dateTo');
     clearFilter('datePreset');
@@ -400,6 +422,7 @@ export default function ConsultationClientPage() {
   if (filters.nature !== 'Toutes') activeFilterNames.push(`la nature « ${filters.nature} »`);
   if (filters.status !== 'Tous') activeFilterNames.push(`le statut « ${filters.status} »`);
   if (filters.compagnie !== 'Toutes') activeFilterNames.push(`la compagnie « ${filters.compagnie} »`);
+  if (filters.typeDossier !== 'Tous') activeFilterNames.push(`le type de dossier « ${filters.typeDossier} »`);
   if (filters.dateFrom || filters.dateTo) {
     activeFilterNames.push(
       `la période du ${filters.dateFrom ? fmtIsoDay(filters.dateFrom) : '—'} au ${filters.dateTo ? fmtIsoDay(filters.dateTo) : '—'}`,
@@ -512,11 +535,11 @@ export default function ConsultationClientPage() {
             value={filters.search}
             onChange={e => setFilters({ search: e.target.value })}
             onKeyDown={e => {
-              // Enter opens the single remaining match — the shortest lookup
-              // loop; Échap clears the query without leaving the field.
-              if (e.key === 'Enter' && searchActive && sortedList.length === 1) {
-                openDossier(sortedList[0].id);
-              } else if (e.key === 'Escape' && filters.search) {
+              // Échap clears the query without leaving the field. (Enter used
+              // to open the single remaining match — retired 2026-09-03 with
+              // the read-only ruling: consultation never routes into the
+              // editable dossier page.)
+              if (e.key === 'Escape' && filters.search) {
                 e.stopPropagation();
                 clearFilter('search');
               }
@@ -553,6 +576,14 @@ export default function ConsultationClientPage() {
           <SelectContent>
             <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
             {filterCompagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+
+        <Select value={filters.typeDossier} onValueChange={v => setFilters({ typeDossier: v })}>
+          <SelectTrigger className="w-[180px]" aria-label="Type de dossier"><SelectValue placeholder="Type de dossier" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Tous">Tous les types</SelectItem>
+            {filterTypesDossier.map(t => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -657,6 +688,9 @@ export default function ConsultationClientPage() {
           )}
           {filters.compagnie !== 'Toutes' && (
             <FilterChip label={`Compagnie : ${filters.compagnie}`} onRemove={() => clearFilter('compagnie')} ariaLabel="Retirer le filtre compagnie" />
+          )}
+          {filters.typeDossier !== 'Tous' && (
+            <FilterChip label={`Type : ${filters.typeDossier}`} onRemove={() => clearFilter('typeDossier')} ariaLabel="Retirer le filtre type de dossier" />
           )}
           {filters.dateFrom && (
             <FilterChip label={`Du : ${fmtIsoDay(filters.dateFrom)}`} onRemove={() => setDates({ dateFrom: '' })} ariaLabel="Retirer la date de début" />
@@ -789,7 +823,7 @@ export default function ConsultationClientPage() {
                     // navigates (tempertemper / Roselli on clickable rows).
                     if ((e.target as HTMLElement).closest('a,button')) return;
                     if (window.getSelection()?.toString()) return;
-                    openDossier(d.id);
+                    openDossier(d);
                   }}
                 >
                   <TableCell className={cn(STICKY_CELL, 't-mono font-semibold')}>

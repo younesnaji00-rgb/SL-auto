@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Calculator, ListChecks, MessageSquare, Search } from 'lucide-react';
+import { Calculator, MessageSquare, Search } from 'lucide-react';
 import { DeadlineBar } from '@/components/deadline-bar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
@@ -35,7 +35,8 @@ import { REFORME_TYPES, normalizeReformeType } from '@/components/chiffreurs/ref
 import { addBusinessHours, businessHoursBetween, formatBusinessLateness } from '@/lib/business-days';
 import { useHolidays } from '@/hooks/use-holidays';
 import { titleForRoute } from '@/lib/nav-groups';
-import { saveQueueOrder, startTraitement, getFirstActionableId } from '@/lib/queue-session';
+import { saveQueueOrder } from '@/lib/queue-session';
+import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import ObservationHistorySheet from '@/app/(app)/dossiers/observation-history-sheet';
 import { QueuePeekSheet, type QueuePeekData } from '@/components/chiffrage/queue-peek-sheet';
 import { useChiffrageTabs } from '@/hooks/use-chiffrage-tabs';
@@ -109,6 +110,9 @@ export default function AssignationsChiffragePage() {
   const filterDefaults = { q: '', dateFrom: '', dateTo: '', compagnieFilter: 'Toutes', chiffreurFilter: 'Tous', typeReformeFilter: 'Tous' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('assignations-chiffrage', filterDefaults);
   const { q, dateFrom, dateTo, compagnieFilter, chiffreurFilter, typeReformeFilter } = filters;
+  // « À traiter / Tous » scope — deliberately NOT persisted: the queue always
+  // reopens on what still needs the chiffreur (its default working set).
+  const [queueScope, setQueueScope] = useState<'a-traiter' | 'tous'>('a-traiter');
 
   // Listen to chiffrages
   useEffect(() => {
@@ -290,13 +294,26 @@ export default function AssignationsChiffragePage() {
     return results;
   }, [chiffrages, q, compagnieFilter, chiffreurFilter, typeReformeFilter, dossierCompagnies, dossierReformeTypes, dossierAssure, dossierMatricule, dateFrom, dateTo, deadlineSort]);
 
+  // « À traiter / Tous » scope. « À traiter » = still needing the chiffreur's
+  // action, i.e. no completedAt — the exact signal that otherwise sends an
+  // entry to the « Terminés » band. Counts are computed on the filtered (but
+  // unscoped) list so each figure matches what its segment would display.
+  const nbATraiter = useMemo(
+    () => filteredChiffrages.filter(c => !c.completedAt).length,
+    [filteredChiffrages],
+  );
+  const scopedChiffrages = useMemo(
+    () => (queueScope === 'a-traiter' ? filteredChiffrages.filter(c => !c.completedAt) : filteredChiffrages),
+    [filteredChiffrages, queueScope],
+  );
+
   // Bands only under the default deadline-asc sort; any other sort = flat list
   // (A3). « Terminés » renders last either way when banded.
   const banded = deadlineSort === 'asc';
 
   const { renderRows, flatEntries, orderedIds, completedIds, nbRetard, nbAujourdhui } = useMemo(() => {
     const now = new Date();
-    const entries: QueueEntry[] = filteredChiffrages.map((c) => {
+    const entries: QueueEntry[] = scopedChiffrages.map((c) => {
       const created = toDate(c.createdAt);
       const completed = toDate(c.completedAt);
       // Business-hours deadline: weekends + Moroccan holidays don't count.
@@ -343,10 +360,10 @@ export default function AssignationsChiffragePage() {
       nbRetard: retard,
       nbAujourdhui: today,
     };
-  }, [filteredChiffrages, banded, holidays]);
+  }, [scopedChiffrages, banded, holidays]);
 
-  // A9/D1 — persist the rendered order (band order = render order) so the
-  // detail page's Précédent / Suivant works even outside Mode traitement.
+  // D1 — persist the rendered order (band order = render order) so the
+  // detail page's Précédent / Suivant follows what the queue displayed.
   const orderKey = orderedIds.join('|');
   const completedKey = completedIds.join('|');
   useEffect(() => {
@@ -418,19 +435,6 @@ export default function AssignationsChiffragePage() {
       handler: () => setFocusIdx(null),
     },
   ], [moveFocus, focusedEntry, focusIdx, peekOpen, openChiffrage]);
-
-  // A9 — Mode traitement entry: store the rendered order, flag the mode, jump
-  // to the first non-completed item.
-  const hasActionable = orderedIds.length > completedIds.length;
-  const traiterLaFile = useCallback(() => {
-    saveQueueOrder(orderedIds, completedIds);
-    startTraitement();
-    const first = getFirstActionableId();
-    if (!first) return;
-    const item = chiffrages.find(c => c.id === first);
-    openTab(first, item?.dossierNom || `Chiffrage ${first.slice(0, 6)}`);
-    router.push(`/assignations-chiffrage/${first}`);
-  }, [orderedIds, completedIds, chiffrages, openTab, router]);
 
   // A10 — auto-animate row reorders; off while loading, respects reduced motion.
   const [tbodyRef, enableAnimations] = useAutoAnimate<HTMLTableSectionElement>({ duration: 200 });
@@ -504,11 +508,11 @@ export default function AssignationsChiffragePage() {
   return (
     <div className="space-y-6">
       {/* Page header (element-specs §1: Polaris Page ✓ — plural object title,
-          count pill, filters row below; « Traiter la file » is the page's ONE
-          filled button, A9). */}
+          count pill, filters row below; no page action — the queue's work
+          happens row by row). */}
       <PageHeader
         title={titleForRoute('/assignations-chiffrage') ?? 'Assignations au chiffrage'}
-        count={filteredChiffrages.length}
+        count={scopedChiffrages.length}
         meta={
           // A5 — quiet load summary (attention R5: periphery informs without
           // overburdening); danger-fg only when > 0; zero-state omitted.
@@ -522,20 +526,48 @@ export default function AssignationsChiffragePage() {
             </span>
           ) : undefined
         }
-        actions={
-          !loading && hasActionable ? (
-            <Button onClick={traiterLaFile}>
-              <ListChecks />
-              Traiter la file
-            </Button>
-          ) : undefined
-        }
         filters={
           // Filter toolbar (element-specs §2: search first with a format-cue
           // placeholder, ≤ 3 promoted filters + clear-all; NN/g filter
           // categories ✓ general → specific). Labels are `t-label` sentence
           // case; the sort lives in the column header, not here.
           <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+            {/* « À traiter / Tous » scope — a value picker over the SAME list,
+                so segmented control + SlidingThumb (element-specs §7; tabs are
+                reserved for view switchers). Sits first: it names the working
+                set the other filters then narrow. Counts = neutral pills (§11),
+                computed after the other filters so the figures always match
+                what each segment would show. */}
+            <div className="flex flex-col gap-1">
+              <span className="t-label">Afficher</span>
+              <div
+                role="group"
+                aria-label="Portée de la file"
+                className="relative isolate flex h-9 w-fit items-center gap-0.5 rounded-md bg-surface-2 p-0.5"
+              >
+                <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[queueScope, nbATraiter, filteredChiffrages.length]} />
+                {([['a-traiter', 'À traiter', nbATraiter], ['tous', 'Tous', filteredChiffrages.length]] as const).map(([key, label, count]) => (
+                  <Button
+                    key={key}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-seg-active={queueScope === key}
+                    aria-pressed={queueScope === key}
+                    onClick={() => setQueueScope(key)}
+                    className={cn(
+                      'relative z-[1] h-8 gap-1.5 px-3 shadow-none',
+                      queueScope === key && 'text-accent-foreground hover:bg-transparent hover:text-accent-foreground',
+                    )}
+                  >
+                    {label}
+                    <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
+                      {count}
+                    </span>
+                  </Button>
+                ))}
+              </div>
+            </div>
             <div className="flex flex-col gap-1">
               <span className="t-label">Recherche</span>
               <div className="relative">

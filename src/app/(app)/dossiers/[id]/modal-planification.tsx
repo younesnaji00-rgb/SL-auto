@@ -729,7 +729,11 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                       ) : (
                         <>
                           RDV {c.toLabel} : arrivée prévue à <strong>{format(new Date(c.arrivalMs), 'HH:mm')}</strong>
-                          {' '}— 30 min sur place à {c.fromAddress} + {formatDurationFr(c.travelSeconds)} de trajet.
+                          {c.sameStop ? (
+                            <>{' '}— même adresse : {formatDurationFr(c.serviceSeconds)} sur place pour le véhicule précédent.</>
+                          ) : (
+                            <>{' '}— {formatDurationFr(c.serviceSeconds)} sur place à {c.fromAddress} + {formatDurationFr(c.travelSeconds)} de trajet.</>
+                          )}
                           {' '}Retard de {formatDurationFr(c.shortfallSeconds)} sur le RDV.
                         </>
                       )}

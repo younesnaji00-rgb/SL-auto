@@ -91,10 +91,13 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   // parties
   { key: 'compagnie', label: 'Compagnie' },
   { key: 'referenceCompagnie', label: 'Référence de compagnie' },
+  { key: 'policeNumber', label: 'N° police' },
+  { key: 'garageName', label: 'Garage' },
   // classification
   { key: 'nature', label: 'Nature du dossier' },
   { key: 'typeDossier', label: 'Type Dossier' },
   // véhicule
+  { key: 'vehicule', label: 'Véhicule' },
   { key: 'matricule', label: 'Matricule' },
   { key: 'matriculeAnterieur', label: 'Matricule antérieur' },
   // dates du sinistre
@@ -106,6 +109,18 @@ const EXPORT_COLUMNS: ExportColumn[] = [
 
 // The identifier column can never be hidden — it is the row's anchor.
 const HIDEABLE_COLUMNS = EXPORT_COLUMNS.filter((c) => c.key !== 'refExpert');
+
+// Wide-monitor columns (owner request 2026-09-03: with the 1600px shell cap
+// lifted for this page, the table takes over the freed width on 1440p/4K).
+// CSS-hidden below their breakpoint so the laptop/mobile layout is unchanged;
+// applied to BOTH the header and the body cell of the key, and the column
+// picker can still trim them like any other column. Chunk placement follows
+// the research-fixed order (parties / véhicule).
+const WIDE_COL_CLASS: Record<string, string> = {
+  garageName: 'hidden 2xl:table-cell',
+  vehicule: 'hidden 2xl:table-cell',
+  policeNumber: 'hidden min-[1920px]:table-cell',
+};
 
 // « À traiter » scope: every status that still needs work. Only « Accord
 // envoyé » is terminal in the canonical status machine today — a Réforme
@@ -789,6 +804,23 @@ export default function DossiersClientPage() {
         );
       case 'referenceCompagnie':
         return <TableCell key={key}>{cell(d.referenceCompagnie)}</TableCell>;
+      case 'policeNumber':
+        // Insurance identifier → mono ink, like refs and plates (DESIGN §4).
+        return <TableCell key={key} className={cn(WIDE_COL_CLASS[key], 't-mono')}>{cell(d.policeNumber)}</TableCell>;
+      case 'garageName':
+        return (
+          <TableCell key={key} className={cn(WIDE_COL_CLASS[key], 'max-w-[180px] truncate')} title={d.garageName || undefined}>
+            {cell(d.garageName)}
+          </TableCell>
+        );
+      case 'vehicule': {
+        const veh = [d.vehicule?.marque, d.vehicule?.modele].filter(Boolean).join(' ').trim();
+        return (
+          <TableCell key={key} className={cn(WIDE_COL_CLASS[key], 'max-w-[180px] truncate')} title={veh || undefined}>
+            {cell(veh)}
+          </TableCell>
+        );
+      }
       case 'nature':
         return <TableCell key={key}>{cell(d.nature)}</TableCell>;
       case 'typeDossier':
