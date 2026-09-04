@@ -21,6 +21,7 @@ import { userInitials } from '@/components/layout/user-menu';
 import { IconChip } from '@/components/ui/icon-chip';
 import { cn } from '@/lib/utils';
 import { applyDensity, readDensity, type Density } from '@/lib/density';
+import { useT } from '@/i18n';
 
 /**
  * Content card — element-specs §5 (Material 3 cards: container + one topic;
@@ -108,6 +109,7 @@ function SegmentedChoice<T extends string>({
 }
 
 export default function ProfilPage() {
+  const t = useT();
   const router = useRouter();
   const { profile, signOut } = useCurrentUser();
   const { theme, setTheme } = useTheme();
@@ -120,14 +122,14 @@ export default function ProfilPage() {
     setDensity(readDensity());
     try {
       const n = navigator;
-      const m = /(iPhone|iPad|Android|Windows|Macintosh|Linux)/.exec(n.userAgent)?.[1] ?? 'Appareil';
-      setUa(`${m} · ${/Chrome\/(\d+)/.exec(n.userAgent) ? 'Chrome' : /Safari/.test(n.userAgent) ? 'Safari' : /Firefox/.test(n.userAgent) ? 'Firefox' : 'Navigateur'}`);
+      const m = /(iPhone|iPad|Android|Windows|Macintosh|Linux)/.exec(n.userAgent)?.[1] ?? t('Appareil');
+      setUa(`${m} · ${/Chrome\/(\d+)/.exec(n.userAgent) ? 'Chrome' : /Safari/.test(n.userAgent) ? 'Safari' : /Firefox/.test(n.userAgent) ? 'Firefox' : t('Navigateur')}`);
     } catch {
       setUa('');
     }
-  }, []);
+  }, [t]);
 
-  const displayName = profile ? `${profile.prenom ?? ''} ${profile.nom ?? ''}`.trim() || 'Utilisateur' : 'Utilisateur';
+  const displayName = profile ? `${profile.prenom ?? ''} ${profile.nom ?? ''}`.trim() || t('Utilisateur') : t('Utilisateur');
   const themeValue = (mounted ? theme : 'system') as 'light' | 'dark' | 'system';
   const email = (profile as any)?.email as string | undefined;
 
@@ -135,7 +137,7 @@ export default function ProfilPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       {/* Page header — element-specs §1: title only, no action (nothing on
           this page is the one thing to do next). */}
-      <PageHeader title="Profil" subtitle="Vos informations, vos préférences d'affichage et l'aide." />
+      <PageHeader title={t('Profil')} subtitle={t("Vos informations, vos préférences d'affichage et l'aide.")} />
 
       {/* Identity card — element-specs §5 + §10 (GOV.UK summary list / Refactoring
           UI: the name is the value, role a neutral chip §11, email t-mono quiet). */}
@@ -146,7 +148,7 @@ export default function ProfilPage() {
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <p className="t-title truncate">{displayName}</p>
-            {profile?.role && <Badge variant="neutral">{profile.role}</Badge>}
+            {profile?.role && <Badge variant="neutral">{t(profile.role)}</Badge>}
           </div>
           {email && <p className="t-mono mt-0.5 truncate text-ink-3">{email}</p>}
         </div>
@@ -154,49 +156,49 @@ export default function ProfilPage() {
 
       {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: ONE IconChip on the anchoring
           section; the other section icons stay quiet ink-3. */}
-      <Section title="Affichage" icon={<IconChip><SlidersHorizontal /></IconChip>}>
+      <Section title={t('Affichage')} icon={<IconChip><SlidersHorizontal /></IconChip>}>
         <div className="divide-y divide-hairline">
-          <PrefRow label="Thème" help="« Système » suit le réglage de votre appareil. Appliqué à cet appareil.">
+          <PrefRow label={t('Thème')} help={t('« Système » suit le réglage de votre appareil. Appliqué à cet appareil.')}>
             <SegmentedChoice
-              label="Thème"
+              label={t('Thème')}
               value={themeValue}
               onChange={(v) => setTheme(v)}
               options={[
-                { value: 'light', label: 'Clair', icon: <Sun className="h-4 w-4" /> },
-                { value: 'dark', label: 'Sombre', icon: <Moon className="h-4 w-4" /> },
-                { value: 'system', label: 'Système', icon: <Monitor className="h-4 w-4" /> },
+                { value: 'light', label: t('Clair'), icon: <Sun className="h-4 w-4" /> },
+                { value: 'dark', label: t('Sombre'), icon: <Moon className="h-4 w-4" /> },
+                { value: 'system', label: t('Système'), icon: <Monitor className="h-4 w-4" /> },
               ]}
             />
           </PrefRow>
-          <PrefRow label="Densité des listes" help="Compact affiche plus de lignes par écran.">
+          <PrefRow label={t('Densité des listes')} help={t('Compact affiche plus de lignes par écran.')}>
             <SegmentedChoice
-              label="Densité"
+              label={t('Densité')}
               value={density}
               onChange={(v) => {
                 setDensity(v);
                 applyDensity(v);
               }}
               options={[
-                { value: 'normal', label: 'Normale' },
-                { value: 'compact', label: 'Compacte' },
+                { value: 'normal', label: t('Normale') },
+                { value: 'compact', label: t('Compacte') },
               ]}
             />
           </PrefRow>
         </div>
       </Section>
 
-      <Section title="Aide" icon={<LifeBuoy />}>
+      <Section title={t('Aide')} icon={<LifeBuoy />}>
         <div className="divide-y divide-hairline">
-          <PrefRow label="Signaler un bug" help="Décrivez un problème, joignez une capture ou un message vocal.">
+          <PrefRow label={t('Signaler un bug')} help={t('Décrivez un problème, joignez une capture ou un message vocal.')}>
             <Button variant="outline" asChild>
-              <Link href="/signaler-bug">Ouvrir le formulaire</Link>
+              <Link href="/signaler-bug">{t('Ouvrir le formulaire')}</Link>
             </Button>
           </PrefRow>
         </div>
       </Section>
 
-      <Section title="Appareil" icon={<Smartphone />}>
-        <PrefRow label={ua || 'Cet appareil'} help="Session en cours sur ce navigateur.">
+      <Section title={t('Appareil')} icon={<Smartphone />}>
+        <PrefRow label={ua || t('Cet appareil')} help={t('Session en cours sur ce navigateur.')}>
           {/* GOV.UK button: warning (destructive) buttons are for actions that
               "cannot be easily undone". Logging out is reversible → `outline`,
               with the LogOut icon restored from 3d5629a. */}
@@ -208,7 +210,7 @@ export default function ProfilPage() {
             }}
           >
             <LogOut className="h-4 w-4" aria-hidden />
-            Déconnexion
+            {t('Déconnexion')}
           </Button>
         </PrefRow>
       </Section>

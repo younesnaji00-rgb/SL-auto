@@ -40,6 +40,7 @@ import { isEditableDocType } from '@/lib/devis-schema';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 import { DOC_CLASSES, DOC_CLASS_LABELS, PREFILL_DOC_CLASSES, UNCLASSIFIED_LABEL, confidenceBand } from '@/lib/doc-classes';
 import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 type ItemStatus = 'uploading' | 'classifying' | 'ready' | 'error';
@@ -118,7 +119,9 @@ async function runPool<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
   );
 }
 
-export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, prefilling, className, buttonLabel = 'Choisir des fichiers', emphasis = 'tonal', icon }: SmartInboxProps) {
+export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, prefilling, className, buttonLabel, emphasis = 'tonal', icon }: SmartInboxProps) {
+  const t = useT();
+  const pickerLabel = buttonLabel ?? t('Choisir des fichiers');
   const db = useFirestore();
   const storage = useStorage();
   const auth = useAuth();
@@ -216,7 +219,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileBase64, contentType: file.type || 'application/pdf', fileName: file.name, hints }),
       });
-      if (!res.ok) throw new Error('Classification impossible');
+      if (!res.ok) throw new Error(t('Classification impossible'));
       const data = await res.json();
       return {
         aiType: data.docType,
@@ -227,7 +230,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
         examplesUsed: data.examplesUsed,
       };
     },
-    [hints],
+    [hints, t],
   );
 
   // ── Ingest files: upload → classify → file into slot → post-process ───
@@ -236,7 +239,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
       if (!canEdit || !db || !storage) return;
       const accepted = files.filter((f) => isAccepted(f, tutorialMode)).filter((f) => f.size <= MAX_BYTES);
       const rejected = files.length - accepted.length;
-      if (rejected > 0) toast({ variant: 'destructive', title: `${rejected} fichier(s) ignoré(s)`, description: 'PDF ou image, 15 Mo maximum.' });
+      if (rejected > 0) toast({ variant: 'destructive', title: `${rejected} ${t('fichier(s) ignoré(s)')}`, description: t('PDF ou image, 15 Mo maximum.') });
       if (accepted.length === 0) return;
 
       const newItems: InboxItem[] = accepted.map((file) => ({
@@ -301,7 +304,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           okCount++;
         } catch (err: any) {
           console.error('[smart-inbox] ingest failed', err);
-          patch(it.id, { status: 'error', error: err?.message || 'Échec' });
+          patch(it.id, { status: 'error', error: err?.message || t('Échec') });
         }
       });
 
@@ -314,7 +317,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
         }
       }
     },
-    [canEdit, db, storage, toast, dossierId, userEmail, userId, userName, patch, classify, sendFeedback, postProcess, profile?.nom],
+    [canEdit, db, storage, toast, dossierId, userEmail, userId, userName, patch, classify, sendFeedback, postProcess, profile?.nom, t],
   );
 
   // ── Correction: change the class of an already-filed document ────────
@@ -331,10 +334,10 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
         void sendFeedback(it, newType, 'correction');
         if (it.storagePath && newType !== UNCLASSIFIED_LABEL) await postProcess(newType, it.storagePath, it.file);
       } catch (err: any) {
-        toast({ variant: 'destructive', title: 'Correction impossible', description: err?.message });
+        toast({ variant: 'destructive', title: t('Correction impossible'), description: err?.message });
       }
     },
-    [db, dossierId, patch, sendFeedback, postProcess, toast],
+    [db, dossierId, patch, sendFeedback, postProcess, toast, t],
   );
 
   const validateAll = useCallback(async () => {
@@ -343,11 +346,11 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
       const pending = items.filter((it) => it.status === 'ready' && !it.corrected && !it.confirmed && it.aiType && it.type === it.aiType);
       await Promise.all(pending.map((it) => sendFeedback(it, it.type, 'confirmation')));
       setItems((prev) => prev.map((it) => (pending.some((p) => p.id === it.id) ? { ...it, confirmed: true } : it)));
-      toast({ title: 'Classement validé', description: pending.length > 0 ? `${pending.length} classement(s) confirmé(s) — l'IA s'en souviendra.` : 'Rien à confirmer.' });
+      toast({ title: t('Classement validé'), description: pending.length > 0 ? `${pending.length} ${t("classement(s) confirmé(s) — l'IA s'en souviendra.")}` : t('Rien à confirmer.') });
     } finally {
       setValidating(false);
     }
-  }, [items, sendFeedback, toast]);
+  }, [items, sendFeedback, toast, t]);
 
   const prefillCandidates = useMemo(
     () => items.filter((it) => it.status === 'ready' && PREFILL_DOC_CLASSES.includes(it.type)),
@@ -394,7 +397,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
   if (!canEdit) return null;
 
   return (
-    <section className={cn('space-y-4', className)} aria-label="Boîte de dépôt des documents">
+    <section className={cn('space-y-4', className)} aria-label={t('Boîte de dépôt des documents')}>
       {/* File picker — ONE button, no banner / dashed panel / copy (user
           ruling), but it must command attention (user ruling 2026-09-01):
           full size, bold, leading icon, solid teal until the job is done.
@@ -411,7 +414,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           onDrop={onZoneDrop}
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : (icon === undefined ? <Upload className="h-4 w-4" /> : icon)}
-          {busy ? 'Analyse en cours…' : buttonLabel}
+          {busy ? t('Analyse en cours…') : pickerLabel}
         </Button>
         <input
           ref={inputRef}
@@ -431,9 +434,9 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           Only shown while there is something to classify (keeps the idle
           footprint to the single strip above). */}
       {(items.length > 0 || draggingItemId) && (
-      <div className="flex flex-wrap items-center gap-1.5" aria-label="Classes de documents">
+      <div className="flex flex-wrap items-center gap-1.5" aria-label={t('Classes de documents')}>
         <span className="t-label mr-1">
-          {draggingItemId ? 'Déposez sur la bonne classe' : 'Glissez un fichier sur une classe pour le classer vous-même'}
+          {draggingItemId ? t('Déposez sur la bonne classe') : t('Glissez un fichier sur une classe pour le classer vous-même')}
         </span>
         {DOC_CLASSES.map((c) => (
           <button
@@ -443,14 +446,14 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
             onDragLeave={() => setChipOver((v) => (v === c.label ? null : v))}
             onDrop={(e) => onChipDrop(e, c.label)}
             onClick={() => inputRef.current?.click()}
-            title={c.description}
+            title={t(c.description)}
             className={cn(
               'h-7 rounded-full border px-2.5 text-xs transition-colors',
               chipOver === c.label ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground hover:text-foreground',
               draggingItemId && 'border-dashed',
             )}
           >
-            {c.label}
+            {t(c.label)}
           </button>
         ))}
       </div>
@@ -484,11 +487,11 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium" title={it.file.name}>{it.file.name}</p>
                     <p className="truncate text-[11px] text-muted-foreground">
-                      {it.status === 'uploading' && 'Envoi…'}
-                      {it.status === 'classifying' && "Analyse par l'IA…"}
-                      {it.status === 'error' && (it.error || 'Échec')}
-                      {it.status === 'ready' && (it.rationale || (it.aiType ? `Proposé : ${it.aiType}` : 'Classé manuellement'))}
-                      {it.status === 'ready' && typeof it.examplesUsed === 'number' && it.examplesUsed > 0 && ` · ${it.examplesUsed} exemple(s) appris utilisé(s)`}
+                      {it.status === 'uploading' && t('Envoi…')}
+                      {it.status === 'classifying' && t("Analyse par l'IA…")}
+                      {it.status === 'error' && (it.error || t('Échec'))}
+                      {it.status === 'ready' && (it.rationale || (it.aiType ? `${t('Proposé :')} ${t(it.aiType)}` : t('Classé manuellement')))}
+                      {it.status === 'ready' && typeof it.examplesUsed === 'number' && it.examplesUsed > 0 && ` · ${it.examplesUsed} ${t('exemple(s) appris utilisé(s)')}`}
                     </p>
                   </div>
                   {it.status === 'ready' && (
@@ -505,32 +508,32 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
                               )}
                             >
                               {band === 'low' && <AlertTriangle className="h-3 w-3" />}
-                              {band === 'high' ? 'Sûr' : band === 'medium' ? 'À vérifier' : 'Incertain'}
+                              {band === 'high' ? t('Sûr') : band === 'medium' ? t('À vérifier') : t('Incertain')}
                               <span className="tabular-nums opacity-70">{Math.round((it.confidence ?? 0) * 100)}%</span>
                             </span>
                           </TooltipTrigger>
-                          <TooltipContent>Confiance de l&apos;IA. Corrigez la classe si nécessaire — elle s&apos;en souviendra.</TooltipContent>
+                          <TooltipContent>{t("Confiance de l'IA. Corrigez la classe si nécessaire — elle s'en souviendra.")}</TooltipContent>
                         </Tooltip>
                       )}
                       {it.corrected && (
-                        <span className="hidden h-6 shrink-0 items-center rounded-full bg-status-info-bg px-2 text-[11px] font-medium text-status-info-fg sm:inline-flex">Corrigé</span>
+                        <span className="hidden h-6 shrink-0 items-center rounded-full bg-status-info-bg px-2 text-[11px] font-medium text-status-info-fg sm:inline-flex">{t('Corrigé')}</span>
                       )}
-                      {it.confirmed && <Check className="h-4 w-4 shrink-0 text-status-success-fg" aria-label="Confirmé" />}
+                      {it.confirmed && <Check className="h-4 w-4 shrink-0 text-status-success-fg" aria-label={t('Confirmé')} />}
                       <Select value={DOC_CLASS_LABELS.includes(it.type) ? it.type : UNCLASSIFIED_LABEL} onValueChange={(v) => reclassify(it, v)}>
-                        <SelectTrigger className="h-8 w-[200px] shrink-0 text-xs" aria-label={`Classe de ${it.file.name}`}>
+                        <SelectTrigger className="h-8 w-[200px] shrink-0 text-xs" aria-label={`${t('Classe de')} ${it.file.name}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {!DOC_CLASS_LABELS.includes(it.type) && <SelectItem value={UNCLASSIFIED_LABEL}>{UNCLASSIFIED_LABEL}</SelectItem>}
+                          {!DOC_CLASS_LABELS.includes(it.type) && <SelectItem value={UNCLASSIFIED_LABEL}>{t(UNCLASSIFIED_LABEL)}</SelectItem>}
                           {DOC_CLASSES.map((c) => (
-                            <SelectItem key={c.label} value={c.label}>{c.label}</SelectItem>
+                            <SelectItem key={c.label} value={c.label}>{t(c.label)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </>
                   )}
                   {(it.status === 'uploading' || it.status === 'classifying') && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />}
-                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground" onClick={() => removeFromList(it.id)} aria-label="Retirer de la liste" title="Retirer de la liste (le document reste dans le dossier)">
+                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground" onClick={() => removeFromList(it.id)} aria-label={t('Retirer de la liste')} title={t('Retirer de la liste (le document reste dans le dossier)')}>
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 </li>
@@ -539,19 +542,19 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           </ul>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2">
             <p className="text-xs text-muted-foreground">
-              {ready.length} document{ready.length > 1 ? 's' : ''} classé{ready.length > 1 ? 's' : ''}
-              {unconfirmed > 0 && ` · ${unconfirmed} à confirmer`}
+              {ready.length} {ready.length > 1 ? t('documents classés') : t('document classé')}
+              {unconfirmed > 0 && ` · ${unconfirmed} ${t('à confirmer')}`}
             </p>
             <div className="flex items-center gap-2">
               {onPrefill && (
                 <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" disabled={prefillCandidates.length === 0 || !!prefilling || busy} onClick={handlePrefill}>
                   {prefilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanSearch className="h-3.5 w-3.5" />}
-                  Pré-remplir les informations{prefillCandidates.length > 0 ? ` (${prefillCandidates.length})` : ''}
+                  {t('Pré-remplir les informations')}{prefillCandidates.length > 0 ? ` (${prefillCandidates.length})` : ''}
                 </Button>
               )}
               <Button type="button" size="sm" className="h-8 gap-1.5" disabled={unconfirmed === 0 || validating || busy} onClick={validateAll}>
                 {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                Tout valider
+                {t('Tout valider')}
               </Button>
             </div>
           </div>

@@ -8,6 +8,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { StatusChip } from '@/components/ui/status-chip';
+import { useT } from '@/i18n';
 
 // A8 — peek panel (chiffrage-redesign-spec): read-mostly right sheet ≈480px,
 // rendered instantly from data the queue page already holds. No fetching here;
@@ -51,6 +52,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 }
 
 export function QueuePeekSheet({ open, onOpenChange, data, onOpen, onShowObservations }: QueuePeekSheetProps) {
+  const t = useT();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex flex-col gap-6 overflow-y-auto lg:max-w-[480px]">
@@ -60,33 +62,33 @@ export function QueuePeekSheet({ open, onOpenChange, data, onOpen, onShowObserva
               <SheetTitle>
                 <span className="t-mono text-[17px] font-semibold">{data.dossierRef}</span>
               </SheetTitle>
-              <SheetDescription>{data.assure || 'Assuré non renseigné'}</SheetDescription>
+              <SheetDescription>{data.assure || t('Assuré non renseigné')}</SheetDescription>
               <div>
                 <StatusChip status={data.statut} />
               </div>
             </SheetHeader>
 
             <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-              <Fact label="Chiffreur">{data.chiffreur || dash}</Fact>
-              <Fact label="Assigné par">{data.assignePar || dash}</Fact>
-              <Fact label="Immatriculation">
+              <Fact label={t('Chiffreur')}>{data.chiffreur || dash}</Fact>
+              <Fact label={t('Assigné par')}>{data.assignePar || dash}</Fact>
+              <Fact label={t('Immatriculation')}>
                 {data.matricule ? <span className="t-mono">{data.matricule}</span> : dash}
               </Fact>
-              <Fact label="Fichiers">
+              <Fact label={t('Fichiers')}>
                 <span className="tabular-nums">{data.filesCount}</span>
               </Fact>
-              <Fact label="Date d'assignation">
+              <Fact label={t("Date d'assignation")}>
                 <span className="inline-flex flex-wrap items-center gap-2">
                   <span className="tabular-nums">{data.dateLabel ?? dash}</span>
-                  {data.isToday && <Badge variant="time">Aujourd&apos;hui</Badge>}
+                  {data.isToday && <Badge variant="time">{t("Aujourd'hui")}</Badge>}
                 </span>
               </Fact>
-              <Fact label="Délai">{data.delai}</Fact>
+              <Fact label={t('Délai')}>{data.delai}</Fact>
             </dl>
 
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2">
-                <span className="t-label">Dernière observation</span>
+                <span className="t-label">{t('Dernière observation')}</span>
                 {data.obsCount > 0 && (
                   <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
                     {data.obsCount}
@@ -97,7 +99,7 @@ export function QueuePeekSheet({ open, onOpenChange, data, onOpen, onShowObserva
                 // Reading prose steps up to 15px (element-specs addendum ter D).
                 <p className="line-clamp-6 whitespace-pre-wrap text-[15px] leading-[1.5] text-ink">{data.obsText}</p>
               ) : (
-                <p className="t-caption">Aucune observation</p>
+                <p className="t-caption">{t('Aucune observation')}</p>
               )}
             </div>
 
@@ -105,10 +107,10 @@ export function QueuePeekSheet({ open, onOpenChange, data, onOpen, onShowObserva
               {data.obsCount > 0 && onShowObservations && (
                 <Button variant="ghost" onClick={onShowObservations}>
                   <MessageSquare />
-                  Voir les observations
+                  {t('Voir les observations')}
                 </Button>
               )}
-              <Button onClick={onOpen}>Ouvrir le chiffrage</Button>
+              <Button onClick={onOpen}>{t('Ouvrir le chiffrage')}</Button>
             </SheetFooter>
           </>
         )}

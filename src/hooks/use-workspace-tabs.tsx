@@ -24,6 +24,7 @@ import React, {
   useState,
 } from 'react';
 import { useParams, usePathname } from 'next/navigation';
+import { t } from '@/i18n';
 
 export const LIST_TAB_ID = '__list__';
 
@@ -52,6 +53,8 @@ export interface TabKindConfig {
   storageKey: string;
 }
 
+// `listLabel` stays FRENCH: it is the i18n key for the permanent list tab and
+// is translated where it is rendered (components/layout/workspace-tabs.tsx).
 export const TAB_KINDS: Record<TabKind, TabKindConfig> = {
   dossier: {
     listHref: '/dossiers',
@@ -95,8 +98,14 @@ function shortId(id: string): string {
   return id.length <= 6 ? id : id.slice(0, 6);
 }
 
+/**
+ * Fallback tab caption when a record is opened before its real name is known.
+ * Translated here (module-level `t`) rather than at render: the value is a
+ * composite ("Dossier ab12cd") the strip cannot take apart. It is a display
+ * cache only — sessionStorage/recents — never a stored or compared value.
+ */
 function defaultLabel(kind: TabKind, id: string): string {
-  return `${kind === 'dossier' ? 'Dossier' : 'Chiffrage'} ${shortId(id)}`;
+  return `${kind === 'dossier' ? t('Dossier') : t('Chiffrage')} ${shortId(id)}`;
 }
 
 function readTabs(kind: TabKind): WorkspaceTab[] {

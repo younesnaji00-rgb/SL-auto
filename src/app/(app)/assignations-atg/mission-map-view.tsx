@@ -5,6 +5,9 @@ import 'leaflet/dist/leaflet.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LayerGroup, Map as LeafletMap } from 'leaflet';
 import { geocodeAddress } from '@/lib/geocode';
+// `useT` drives the React chrome; `tGlobal` the imperatively-built Leaflet
+// popups, which live outside the render tree.
+import { useT, t as tGlobal } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 export interface MapMission {
@@ -47,12 +50,17 @@ function agentInitials(name: string): string {
     .join('') || 'A';
 }
 
+/**
+ * Relative age. Translated in fragments around the number so English can put
+ * the suffix after it (« il y a 5 min » → "5 min ago") without changing the
+ * French wording.
+ */
 function agoLabel(updatedAtMs: number): string {
   const mins = Math.round((Date.now() - updatedAtMs) / 60000);
-  if (mins < 1) return "à l'instant";
-  if (mins < 60) return `il y a ${mins} min`;
+  if (mins < 1) return tGlobal("à l'instant");
+  if (mins < 60) return `${tGlobal('il y a ')}${mins}${tGlobal(' min')}`;
   const hours = Math.round(mins / 60);
-  return `il y a ${hours} h`;
+  return `${tGlobal('il y a ')}${hours}${tGlobal(' h')}`;
 }
 
 /** Read an HSL-triplet CSS custom property and wrap it as a usable color. */
@@ -76,6 +84,7 @@ export default function MissionMapView({
   onRequestPosition,
   className,
 }: MissionMapViewProps) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const layerRef = useRef<LayerGroup | null>(null);
@@ -199,7 +208,7 @@ export default function MissionMapView({
 
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = 'Ouvrir';
+      btn.textContent = tGlobal('Ouvrir');
       btn.className =
         'mt-1 text-xs font-medium underline-offset-2 hover:underline';
       btn.style.color = 'hsl(var(--primary))';
@@ -296,15 +305,15 @@ export default function MissionMapView({
       root.appendChild(nameEl);
       const metaEl = document.createElement('div');
       metaEl.textContent = fresh
-        ? `Position · ${agoLabel(a.updatedAtMs)}`
-        : `Position ancienne · ${agoLabel(a.updatedAtMs)}`;
+        ? `${tGlobal('Position')} · ${agoLabel(a.updatedAtMs)}`
+        : `${tGlobal('Position ancienne')} · ${agoLabel(a.updatedAtMs)}`;
       metaEl.className = 'text-xs';
       metaEl.style.color = 'hsl(var(--ink-3))';
       root.appendChild(metaEl);
       if (onRequestPositionRef.current) {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.textContent = 'Actualiser la position';
+        btn.textContent = tGlobal('Actualiser la position');
         btn.className = 'mt-1 text-xs font-medium underline-offset-2 hover:underline';
         btn.style.color = 'hsl(var(--primary))';
         btn.addEventListener('click', () => {
@@ -340,20 +349,20 @@ export default function MissionMapView({
       <div className="pointer-events-none absolute right-2 top-2 z-[600] flex items-center gap-3 rounded-md border border-hairline bg-card/95 px-2.5 py-1.5 text-xs text-ink-3">
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-[hsl(var(--status-danger-fg))]" />
-          En retard
+          {t('En retard')}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-[hsl(var(--tertiary))]" />
-          Aujourd&apos;hui
+          {t("Aujourd'hui")}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-[hsl(var(--ink-3))]" />
-          À venir
+          {t('À venir')}
         </span>
         {agentCount > 0 && (
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-[hsl(var(--primary))]" />
-            Agent{agentCount > 1 ? 's' : ''}
+            {agentCount > 1 ? t('Agents') : t('Agent')}
           </span>
         )}
       </div>
@@ -362,7 +371,7 @@ export default function MissionMapView({
       {pending && pinCount === 0 && (
         <div className="pointer-events-none absolute inset-0 z-[600] flex items-center justify-center">
           <span className="rounded-md border border-hairline bg-card/95 px-3 py-1.5 text-sm text-ink-3">
-            Localisation des adresses…
+            {t('Localisation des adresses…')}
           </span>
         </div>
       )}
@@ -370,8 +379,8 @@ export default function MissionMapView({
       {/* Failed-geocoding caption */}
       {failedCount > 0 && (
         <div className="absolute bottom-1.5 left-2 z-[600] rounded bg-card/90 px-1.5 py-0.5 text-xs text-ink-3">
-          {failedCount} adresse{failedCount > 1 ? 's' : ''} non localisable
-          {failedCount > 1 ? 's' : ''}
+          {failedCount}{' '}
+          {failedCount > 1 ? t('adresses non localisables') : t('adresse non localisable')}
         </div>
       )}
     </div>

@@ -14,6 +14,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { usePathname } from 'next/navigation';
 import { documentTitle, findNavItem, titleForRoute } from '@/lib/nav-groups';
 import { initDensity } from '@/lib/density';
+import { useT } from '@/i18n';
 
 interface PageChromeValue {
   /** Title registered for the current pathname (record identity on detail pages). */
@@ -27,6 +28,7 @@ const PageChromeContext = createContext<PageChromeValue>({
 });
 
 export function PageChromeProvider({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const pathname = usePathname() || '/';
   const [titles, setTitles] = useState<Record<string, string | null>>({});
   const [announcement, setAnnouncement] = useState('');
@@ -45,10 +47,12 @@ export function PageChromeProvider({ children }: { children: React.ReactNode }) 
     return item ? titleForRoute(item.href) : null;
   }, [registeredTitle, pathname]);
 
+  // The registry stores the FRENCH key (the breadcrumb translates it the same
+  // way); translate only where the title is actually shown.
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    document.title = documentTitle(effectiveTitle);
-  }, [effectiveTitle]);
+    document.title = documentTitle(effectiveTitle ? t(effectiveTitle) : effectiveTitle);
+  }, [effectiveTitle, t]);
 
   // User display preferences that live on <html> (density).
   useEffect(() => {
@@ -63,9 +67,9 @@ export function PageChromeProvider({ children }: { children: React.ReactNode }) 
     lastAnnouncedRef.current = key;
     // Clear then set so identical consecutive titles still announce.
     setAnnouncement('');
-    const t = window.setTimeout(() => setAnnouncement(`Navigué vers ${effectiveTitle}`), 50);
-    return () => window.clearTimeout(t);
-  }, [pathname, effectiveTitle]);
+    const timer = window.setTimeout(() => setAnnouncement(`${t('Navigué vers')} ${t(effectiveTitle)}`), 50);
+    return () => window.clearTimeout(timer);
+  }, [pathname, effectiveTitle, t]);
 
   const value = useMemo(() => ({ registeredTitle, registerTitle }), [registeredTitle, registerTitle]);
 
@@ -101,12 +105,13 @@ export function useRegisterPageTitle(title: string | null | undefined) {
  * Target: `<main id="main-content">` in the app layout.
  */
 export function SkipToContent() {
+  const t = useT();
   return (
     <a
       href="#main-content"
       className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-rim-filled"
     >
-      Aller au contenu
+      {t('Aller au contenu')}
     </a>
   );
 }

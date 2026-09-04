@@ -20,6 +20,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Kbd } from '@/components/ui/kbd';
+import { useT } from '@/i18n';
 
 export interface PaletteMission {
   key: string;
@@ -54,12 +55,21 @@ function fold(s: string): string {
 }
 
 /** Icon only when trivially readable from the verb; otherwise none. */
-function actionIcon(label: string): React.ElementType | null {
-  const l = fold(label);
-  if (l.includes('filtr')) return Filter;
-  if (l.includes('reinitialis') || l.includes('actualis') || l.includes('rafraich')) return RotateCcw;
-  if (l.includes('export') || l.includes('telecharg')) return Download;
-  return null;
+/**
+ * Icon per action, keyed on the STABLE id — never on the label.
+ *
+ * The labels arrive already translated from the parent page, so the previous
+ * substring matching on French stems ('filtr', 'actualis', 'export') silently
+ * dropped every icon once the app ran in English (found 2026-09-04). Keep the
+ * French icon assignment identical: « Réinitialiser les filtres » (id `reset`)
+ * matched 'filtr' first and so has always shown the funnel.
+ */
+const ACTION_ICONS: Record<string, React.ElementType> = {
+  reset: Filter,
+};
+
+function actionIcon(id: string): React.ElementType | null {
+  return ACTION_ICONS[id] ?? null;
 }
 
 export default function MissionCommandPalette({
@@ -67,6 +77,7 @@ export default function MissionCommandPalette({
   actions,
   onOpenMission,
 }: MissionCommandPaletteProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -117,19 +128,19 @@ export default function MissionCommandPalette({
           inputRef.current?.focus();
         }}
       >
-        <DialogTitle className="sr-only">Palette de commandes</DialogTitle>
+        <DialogTitle className="sr-only">{t('Palette de commandes')}</DialogTitle>
         {/* Group headings: 12 px, sentence case, ink-3, never uppercase
             (spelled out — `.t-*` are component classes). Rows = 13 px ink. */}
         <Command
           loop
           className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-normal [&_[cmdk-group-heading]]:normal-case [&_[cmdk-group-heading]]:tracking-normal [&_[cmdk-group-heading]]:text-ink-3 [&_[cmdk-item]]:text-[13px] [&_[cmdk-item]]:text-ink [&_[cmdk-item]_svg]:text-ink-2"
         >
-          <CommandInput ref={inputRef} placeholder="Rechercher une mission ou une action…" />
+          <CommandInput ref={inputRef} placeholder={t('Rechercher une mission ou une action…')} />
           <CommandList className="max-h-[calc(60vh/var(--app-zoom))]">
-            <CommandEmpty>Aucun résultat</CommandEmpty>
+            <CommandEmpty>{t('Aucun résultat')}</CommandEmpty>
 
             {actions.length > 0 && (
-              <CommandGroup heading="Actions">
+              <CommandGroup heading={t('Actions')}>
                 {actions.map((a) => {
                   const Icon = actionIcon(a.label);
                   return (
@@ -152,7 +163,7 @@ export default function MissionCommandPalette({
             )}
 
             {missionRows.length > 0 && (
-              <CommandGroup heading="Missions">
+              <CommandGroup heading={t('Missions')}>
                 {missionRows.map((m) => (
                   <CommandItem
                     key={m.key}
@@ -168,7 +179,7 @@ export default function MissionCommandPalette({
                       {m.assureNom && <span className="text-ink-2"> · {m.assureNom}</span>}
                     </span>
                     {/* Plain ink-3 text, not a colored badge — color economy. */}
-                    <span className="shrink-0 text-xs text-ink-3">{m.groupLabel}</span>
+                    <span className="shrink-0 text-xs text-ink-3">{t(m.groupLabel)}</span>
                   </CommandItem>
                 ))}
               </CommandGroup>
@@ -177,13 +188,14 @@ export default function MissionCommandPalette({
           <div className="t-caption flex items-center justify-between gap-3 border-t border-hairline px-3 py-2">
             <span className="flex items-center gap-1.5">
               <Kbd>↑</Kbd>
-              <Kbd>↓</Kbd> naviguer
+              <Kbd>↓</Kbd> {t('naviguer')}
             </span>
             <span className="flex items-center gap-1.5">
-              <Kbd>↵</Kbd> ouvrir
+              <Kbd>↵</Kbd> {t('ouvrir')}
             </span>
             <span className="flex items-center gap-1.5">
-              <Kbd>Échap</Kbd> fermer
+              {/* Key cap left untranslated — matches src/components/global-search.tsx. */}
+              <Kbd>Échap</Kbd> {t('fermer')}
             </span>
           </div>
         </Command>

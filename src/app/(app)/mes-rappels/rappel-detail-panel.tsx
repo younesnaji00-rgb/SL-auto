@@ -12,9 +12,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ClipboardList, FolderOpen, Inbox, MessageSquare, ScrollText, Workflow } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
+import { dateFnsLocale, useT } from '@/i18n';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -41,19 +41,19 @@ function toDate(ts: any): Date | null {
 function formatDate(ts: any): string {
   const d = toDate(ts);
   if (!d) return '—';
-  try { return format(d, 'dd/MM/yyyy HH:mm', { locale: fr }); } catch { return '—'; }
+  try { return format(d, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() }); } catch { return '—'; }
 }
 
 /** Relative age for tooltips only (dates-as-values ruling: cells absolute). */
 export function relativeAge(ts: any): string | undefined {
   const d = toDate(ts);
   if (!d) return undefined;
-  try { return formatDistanceToNow(d, { addSuffix: true, locale: fr }); } catch { return undefined; }
+  try { return formatDistanceToNow(d, { addSuffix: true, locale: dateFnsLocale() }); } catch { return undefined; }
 }
 
 function formatHm(ms: number): string {
   if (!ms) return '--:--';
-  try { return format(new Date(ms), 'HH:mm', { locale: fr }); } catch { return '--:--'; }
+  try { return format(new Date(ms), 'HH:mm', { locale: dateFnsLocale() }); } catch { return '--:--'; }
 }
 
 // ── Session timeline (moved from the superseded session-history-sheet) ──
@@ -66,6 +66,7 @@ type Entry = {
 };
 
 // Entry kind → semantic status pair for the kind chip (DESIGN.md §10).
+// `label` is the FRENCH translation key — translated at render with `t()`.
 const KIND_META: Record<Entry['kind'], { label: string; chip: string; icon: React.ReactNode }> = {
   observation: { label: 'Observation', chip: 'bg-status-info-bg text-status-info-fg', icon: <MessageSquare className="h-3 w-3" /> },
   historique: { label: 'Modification', chip: 'bg-surface-3 text-ink-2', icon: <ClipboardList className="h-3 w-3" /> },
@@ -82,6 +83,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function TimelineRow({ entry }: { entry: Entry }) {
+  const t = useT();
   const { kind, raw, ts } = entry;
   const meta = KIND_META[kind];
 
@@ -89,23 +91,23 @@ function TimelineRow({ entry }: { entry: Entry }) {
   let who: string;
   let when: string;
   let body: string | null = null;
-  let bodyLabel = 'Détails';
+  let bodyLabel = t('Détails');
   let statut: string | null = null;
 
   if (kind === 'observation') {
-    title = raw.type ? String(raw.type) : 'Observation';
-    who = raw.author || raw.authorEmail || 'Utilisateur inconnu';
+    title = raw.type ? String(raw.type) : t('Observation');
+    who = raw.author || raw.authorEmail || t('Utilisateur inconnu');
     when = formatDate(raw.createdAt);
     body = raw.text || null;
-    bodyLabel = 'Texte';
+    bodyLabel = t('Texte');
   } else if (kind === 'historique') {
-    title = raw.action || raw.type || 'Modification';
+    title = raw.action || raw.type || t('Modification');
     who = raw.userNom || raw.user || '—';
     when = formatDate(raw.date);
     body = raw.details || null;
     statut = raw.type === 'statut' && raw.action ? String(raw.action) : null;
   } else {
-    title = raw.action || raw.status || 'Étape de workflow';
+    title = raw.action || raw.status || t('Étape de workflow');
     who = raw.userNom || raw.user || '—';
     when = formatDate(raw.date);
     statut = raw.status && raw.action && raw.status !== raw.action ? String(raw.status) : null;
@@ -121,14 +123,14 @@ function TimelineRow({ entry }: { entry: Entry }) {
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span className={cn('inline-flex h-5 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium', meta.chip)}>
             {meta.icon}
-            {meta.label}
+            {t(meta.label)}
           </span>
           <span className="min-w-0 truncate text-sm font-semibold text-ink">{title}</span>
         </div>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2">
-          <Field label="Par">{who}</Field>
-          <Field label="Date"><span className="tabular-nums">{when}</span></Field>
-          {statut && <Field label="Statut">{statut}</Field>}
+          <Field label={t('Par')}>{who}</Field>
+          <Field label={t('Date')}><span className="tabular-nums">{when}</span></Field>
+          {statut && <Field label={t('Statut')}>{statut}</Field>}
           {body && (
             <div className="col-span-2 min-w-0">
               <dt className="t-label">{bodyLabel}</dt>
@@ -155,6 +157,7 @@ export function SessionTimeline({
   sessionId?: string;
   active: boolean;
 }) {
+  const t = useT();
   const db = useFirestore();
   const [observations, setObservations] = useState<any[]>([]);
   const [historique, setHistorique] = useState<any[]>([]);
@@ -202,7 +205,7 @@ export function SessionTimeline({
   }, [observations, historique, workflow]);
 
   if (!sessionId) {
-    return <p className="t-caption">Aucune session de traitement pour l&apos;instant.</p>;
+    return <p className="t-caption">{t("Aucune session de traitement pour l'instant.")}</p>;
   }
   if (loading) {
     return (
@@ -223,8 +226,8 @@ export function SessionTimeline({
     return (
       <EmptyState
         icon={<Inbox />}
-        title="Aucune action enregistrée"
-        description="Rien n'a été enregistré pendant cette session."
+        title={t('Aucune action enregistrée')}
+        description={t("Rien n'a été enregistré pendant cette session.")}
         dashed={false}
       />
     );
@@ -262,6 +265,7 @@ export interface RappelDetailProps {
  * path (« Ouvrir le dossier » is an explicit act — anti-pogo-sticking).
  */
 export function RappelDetailContent({ rappel: r, active, onOpenDossier, onMarkTreated, onShowReplay }: RappelDetailProps) {
+  const t = useT();
   const assure = assureName(r);
   const state = r.resolvedAt ? 'traite' : r.read ? 'lu' : 'nouveau';
   return (
@@ -269,28 +273,28 @@ export function RappelDetailContent({ rappel: r, active, onOpenDossier, onMarkTr
       <div className="flex flex-wrap items-center gap-2">
         <span className="t-mono text-[15px] font-semibold text-ink">{r.dossierRef || r.dossierId}</span>
         {state === 'traite' ? (
-          <Badge variant="success">Traité</Badge>
+          <Badge variant="success">{t('Traité')}</Badge>
         ) : state === 'lu' ? (
-          <Badge variant="neutral">Lu</Badge>
+          <Badge variant="neutral">{t('Lu')}</Badge>
         ) : (
-          <Badge variant="info">Nouveau</Badge>
+          <Badge variant="info">{t('Nouveau')}</Badge>
         )}
       </div>
       <p className="t-caption">
-        Envoyé par <span className="font-medium text-ink-2">{r.senderNom || '—'}</span>
-        {' '}le <span className="tabular-nums text-ink-2" title={relativeAge(r.createdAt)}>{formatDate(r.createdAt)}</span>
+        {t('Envoyé par')} <span className="font-medium text-ink-2">{r.senderNom || '—'}</span>
+        {' '}{t('le')} <span className="tabular-nums text-ink-2" title={relativeAge(r.createdAt)}>{formatDate(r.createdAt)}</span>
         {r.resolvedAt ? (
           <>
             {' '}· <span className="inline-flex items-center gap-1 text-status-success-fg">
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              traité le <span className="tabular-nums">{formatDate(r.resolvedAt)}</span>
+              {t('traité le')} <span className="tabular-nums">{formatDate(r.resolvedAt)}</span>
             </span>
           </>
         ) : null}
       </p>
 
       <div>
-        <p className="t-label">Observation</p>
+        <p className="t-label">{t('Observation')}</p>
         <p className="mt-1 whitespace-pre-wrap break-words text-[15px] leading-6 text-ink">
           {r.observation || <span className="text-ink-4">—</span>}
         </p>
@@ -298,7 +302,7 @@ export function RappelDetailContent({ rappel: r, active, onOpenDossier, onMarkTr
 
       {assure ? (
         <div>
-          <p className="t-label">Assuré</p>
+          <p className="t-label">{t('Assuré')}</p>
           <p className="mt-0.5 text-sm font-medium text-ink">{assure}</p>
         </div>
       ) : null}
@@ -306,18 +310,18 @@ export function RappelDetailContent({ rappel: r, active, onOpenDossier, onMarkTr
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="tonal" className="gap-1.5" onClick={() => onOpenDossier(r)}>
           <FolderOpen className="h-4 w-4" />
-          Ouvrir le dossier
+          {t('Ouvrir le dossier')}
         </Button>
         {!r.resolvedAt && (
           <Button variant="outline" className="gap-1.5" onClick={() => onMarkTreated(r)}>
             <CheckCircle2 className="h-4 w-4" />
-            Marquer traité
+            {t('Marquer traité')}
           </Button>
         )}
         {r.sessionId ? (
           <Button variant="ghost" className="gap-1.5" onClick={() => onShowReplay(r)}>
             <ScrollText className="h-4 w-4" />
-            Comparer avant/après
+            {t('Comparer avant/après')}
           </Button>
         ) : null}
       </div>
@@ -325,7 +329,7 @@ export function RappelDetailContent({ rappel: r, active, onOpenDossier, onMarkTr
       <Separator />
 
       <div>
-        <p className="t-label">Travail effectué</p>
+        <p className="t-label">{t('Travail effectué')}</p>
         <div className="mt-2">
           <SessionTimeline dossierId={r.dossierId} sessionId={r.sessionId} active={active} />
         </div>
@@ -336,19 +340,20 @@ export function RappelDetailContent({ rappel: r, active, onOpenDossier, onMarkTr
 
 /** xl+ pane placeholder — where the keyboard hints live (visible, ignorable). */
 export function RappelDetailPlaceholder() {
+  const t = useT();
   return (
     <div className="flex flex-col items-center gap-3 py-10 text-center">
       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-3 text-ink-3">
         <Inbox className="h-5 w-5" aria-hidden />
       </div>
-      <p className="t-heading">Sélectionnez un rappel</p>
+      <p className="t-heading">{t('Sélectionnez un rappel')}</p>
       <p className="t-caption max-w-[32ch]">
-        Cliquez sur une ligne pour lire l&apos;observation et le travail effectué sans quitter la liste.
+        {t("Cliquez sur une ligne pour lire l'observation et le travail effectué sans quitter la liste.")}
       </p>
       <p className="t-caption flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-        <span className="inline-flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> naviguer</span>
-        <span className="inline-flex items-center gap-1"><Kbd>↵</Kbd> ouvrir le dossier</span>
-        <span className="inline-flex items-center gap-1"><Kbd>T</Kbd> marquer traité</span>
+        <span className="inline-flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> {t('naviguer')}</span>
+        <span className="inline-flex items-center gap-1"><Kbd>↵</Kbd> {t('ouvrir le dossier')}</span>
+        <span className="inline-flex items-center gap-1"><Kbd>T</Kbd> {t('marquer traité')}</span>
       </p>
     </div>
   );

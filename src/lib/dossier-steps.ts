@@ -10,6 +10,13 @@
  *   in_progress — started (planning requested, chiffrage sent, rapport validated…)
  *   todo        — nothing yet, can be started
  *   blocked     — prerequisite missing; not clickable, `blockedReason` says why
+ *
+ * i18n: the French labels below are TRANSLATION KEYS, not display strings —
+ * every consumer already renders them through `t()` (timeline-bar / timeline
+ * do `t(step.label)`, `t(step.longLabel)`, `t(step.statusLabel)`,
+ * `t(step.blockedReason)`; record-bar does `t(primaryActionForStep(…).label)`).
+ * Never wrap them here: `t()` at definition time would freeze the language at
+ * module load and double-translate at the render site.
  */
 
 export type StepStatus = 'todo' | 'in_progress' | 'done' | 'blocked';

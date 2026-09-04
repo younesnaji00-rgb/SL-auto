@@ -1386,7 +1386,10 @@ function CompagnieView({
           <TableBody>
             {rows.map((r) => (
               <TableRow key={r.group}>
-                <TableCell className={STICKY_CELL}>{r.group}</TableCell>
+                {/* Real insurer names pass through t() unchanged (unknown key
+                    → itself); this only localizes the « — non précisé — »
+                    bucket label. */}
+                <TableCell className={STICKY_CELL}>{t(r.group)}</TableCell>
                 {STEP_KEYS.map((key) => (
                   <StepCell key={key} value={r.enDelai[key]} late={r.horsDelai[key]} emphasis />
                 ))}

@@ -17,6 +17,7 @@ import { ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useRegisterPageTitle } from './page-chrome';
+import { useT } from '@/i18n';
 
 export interface PageHeaderProps {
   title: React.ReactNode;
@@ -61,6 +62,7 @@ export function PageHeader({
   size = 'default',
   className,
 }: PageHeaderProps) {
+  const t = useT();
   const pathname = usePathname();
   const h1Ref = useRef<HTMLHeadingElement>(null);
   const text = titleText ?? (typeof title === 'string' ? title : undefined);
@@ -89,7 +91,9 @@ export function PageHeader({
         <div className="flex min-w-0 flex-1 items-start gap-3">
           {backHref && (
             <Button variant="outline" size="icon" asChild className="mt-0.5 h-9 w-9 shrink-0">
-              <Link href={backHref} aria-label={backLabel} title={backLabel}>
+              {/* `backLabel` defaults to the French key "Retour"; a caller that
+                  already translated its own label round-trips unchanged. */}
+              <Link href={backHref} aria-label={t(backLabel)} title={t(backLabel)}>
                 <ArrowLeft className="h-4 w-4" />
               </Link>
             </Button>

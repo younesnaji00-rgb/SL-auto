@@ -31,15 +31,17 @@ import { LIST_TAB_ID, useWorkspaceTabs, type KindTabsApi, type TabKind, type Wor
 import { useHotkeys, type Hotkey } from '@/hooks/use-hotkeys';
 import { prefersReducedMotion } from '@/lib/motion';
 import { useTabSlopeMorph } from '@/hooks/use-tab-morph';
+import { useT } from '@/i18n';
 
 const KIND_ICON: Record<TabKind, React.ElementType> = { dossier: FolderOpen, chiffrage: Calculator };
 
-function confirmClose(api: KindTabsApi, id: string): boolean {
+function confirmClose(api: KindTabsApi, id: string, t: (key: string) => string): boolean {
   if (!api.isDirty(id)) return true;
-  return window.confirm('Cet onglet contient des modifications non enregistrées. Fermer quand même ?');
+  return window.confirm(t('Cet onglet contient des modifications non enregistrées. Fermer quand même ?'));
 }
 
 function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
+  const t = useT();
   const router = useRouter();
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [overflowing, setOverflowing] = useState(false);
@@ -102,7 +104,7 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
 
   const close = useCallback(
     (id: string) => {
-      if (!confirmClose(api, id)) return;
+      if (!confirmClose(api, id, t)) return;
       const finish = () => {
         const nextId = api.closeTab(id);
         if (id === api.activeId) goTo(nextId ?? LIST_TAB_ID);
@@ -128,7 +130,7 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
       anim.onfinish = finish;
       anim.oncancel = finish;
     },
-    [api, goTo],
+    [api, goTo, t],
   );
 
   const tabs = api.tabs;
@@ -137,16 +139,16 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
   const hotkeys = useMemo<Hotkey[]>(() => {
     if (!active) return [];
     const list: Hotkey[] = [
-      { keys: 'alt+w', label: "Fermer l'onglet actif", group: 'Onglets', allowInInput: true, handler: () => { if (api.activeId) close(api.activeId); } },
-      { keys: 'alt+shift+t', label: 'Rouvrir le dernier onglet fermé', group: 'Onglets', allowInInput: true, handler: () => { const t = api.reopenClosed(); if (t) goTo(t.id); } },
-      { keys: 'alt+arrowright', label: 'Onglet suivant', group: 'Onglets', allowInInput: true, handler: () => { const all = api.displayTabs; const i = all.findIndex((t) => t.id === api.activeTabId); const n = all[(i + 1) % all.length]; if (n) goTo(n.id); } },
-      { keys: 'alt+arrowleft', label: 'Onglet précédent', group: 'Onglets', allowInInput: true, handler: () => { const all = api.displayTabs; const i = all.findIndex((t) => t.id === api.activeTabId); const n = all[(i - 1 + all.length) % all.length]; if (n) goTo(n.id); } },
+      { keys: 'alt+w', label: t("Fermer l'onglet actif"), group: t('Onglets'), allowInInput: true, handler: () => { if (api.activeId) close(api.activeId); } },
+      { keys: 'alt+shift+t', label: t('Rouvrir le dernier onglet fermé'), group: t('Onglets'), allowInInput: true, handler: () => { const reopened = api.reopenClosed(); if (reopened) goTo(reopened.id); } },
+      { keys: 'alt+arrowright', label: t('Onglet suivant'), group: t('Onglets'), allowInInput: true, handler: () => { const all = api.displayTabs; const i = all.findIndex((tab) => tab.id === api.activeTabId); const n = all[(i + 1) % all.length]; if (n) goTo(n.id); } },
+      { keys: 'alt+arrowleft', label: t('Onglet précédent'), group: t('Onglets'), allowInInput: true, handler: () => { const all = api.displayTabs; const i = all.findIndex((tab) => tab.id === api.activeTabId); const n = all[(i - 1 + all.length) % all.length]; if (n) goTo(n.id); } },
     ];
     for (let n = 1; n <= 9; n++) {
-      list.push({ keys: `alt+${n}`, label: n === 1 ? 'Aller à la liste (onglet 1)' : `Aller à l'onglet ${n}`, group: 'Onglets', allowInInput: true, handler: () => { const t = api.displayTabs[n - 1]; if (t) goTo(t.id); } });
+      list.push({ keys: `alt+${n}`, label: n === 1 ? t('Aller à la liste (onglet 1)') : `${t("Aller à l'onglet")} ${n}`, group: t('Onglets'), allowInInput: true, handler: () => { const target = api.displayTabs[n - 1]; if (target) goTo(target.id); } });
     }
     return list;
-  }, [active, api, close, goTo]);
+  }, [active, api, close, goTo, t]);
   useHotkeys(hotkeys, [hotkeys]);
 
   const onDrop = (toIndex: number) => {
@@ -160,7 +162,7 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
       <div
         ref={scrollerRef}
         role="tablist"
-        aria-label={api.kind === 'dossier' ? 'Dossiers ouverts' : 'Chiffrages ouverts'}
+        aria-label={api.kind === 'dossier' ? t('Dossiers ouverts') : t('Chiffrages ouverts')}
         // Raised tab on a visible track (owner ruling 2026-09-02; NN/g "Flat
         // design": quiet text-only tabs get skipped — the surface-2 strip is
         // the recessed track, the active tab a raised card with an accent
@@ -174,6 +176,9 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
           const isList = tab.id === LIST_TAB_ID;
           const dirty = !isList && api.isDirty(tab.id);
           const tabIndexInTabs = idx - 1;
+          // The permanent list tab's label is a config constant ("Dossiers" /
+          // "Chiffrages") — a translation KEY. Record tabs carry live data.
+          const label = isList ? t(tab.label) : tab.label;
           return (
             <div
               key={tab.id}
@@ -184,7 +189,7 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
               role="tab"
               aria-selected={isActive}
               tabIndex={isActive ? 0 : -1}
-              title={tab.label}
+              title={label}
               draggable={!isList}
               onDragStart={() => setDragIndex(tabIndexInTabs)}
               onDragOver={(e) => { if (!isList && dragIndex !== null) e.preventDefault(); }}
@@ -208,15 +213,15 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
               )}
             >
               {isList && <Icon className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden />}
-              {tab.pinned && !isList && <Pin className="h-3 w-3 shrink-0 text-ink-4" aria-label="Épinglé" />}
-              <span className="truncate">{tab.label}</span>
+              {tab.pinned && !isList && <Pin className="h-3 w-3 shrink-0 text-ink-4" aria-label={t('Épinglé')} />}
+              <span className="truncate">{label}</span>
               {dirty && (
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label="Modifications non enregistrées" title="Modifications non enregistrées" />
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label={t('Modifications non enregistrées')} title={t('Modifications non enregistrées')} />
               )}
               {!isList && (
                 <button
                   type="button"
-                  aria-label={`Fermer ${tab.label}`}
+                  aria-label={`${t('Fermer')} ${label}`}
                   onClick={(e) => { e.stopPropagation(); close(tab.id); }}
                   // Ghost-style close (surface-3 hover, no rim at 16 px);
                   // revealed on hover/focus of inactive tabs.
@@ -242,22 +247,22 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
       {(overflowing || tabs.length > 1) && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1 self-center px-1.5 text-xs text-ink-3" aria-label="Tous les onglets">
+            <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1 self-center px-1.5 text-xs text-ink-3" aria-label={t('Tous les onglets')}>
               <ChevronDown className="h-3.5 w-3.5" />
               {overflowing && <span className="tabular-nums">{tabs.length}</span>}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel className="t-label">{tabs.length} onglet{tabs.length > 1 ? 's' : ''}</DropdownMenuLabel>
+            <DropdownMenuLabel className="t-label">{tabs.length} {tabs.length > 1 ? t('onglets') : t('onglet')}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {tabs.map((t: WorkspaceTab) => (
-              <DropdownMenuItem key={t.id} onSelect={() => goTo(t.id)} className={cn('gap-2', t.id === api.activeId && 'font-medium')}>
-                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', api.isDirty(t.id) ? 'bg-primary' : 'bg-transparent')} />
-                <span className="min-w-0 flex-1 truncate">{t.label}</span>
+            {tabs.map((wt: WorkspaceTab) => (
+              <DropdownMenuItem key={wt.id} onSelect={() => goTo(wt.id)} className={cn('gap-2', wt.id === api.activeId && 'font-medium')}>
+                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', api.isDirty(wt.id) ? 'bg-primary' : 'bg-transparent')} />
+                <span className="min-w-0 flex-1 truncate">{wt.label}</span>
                 <button
                   type="button"
-                  aria-label={`Fermer ${t.label}`}
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); close(t.id); }}
+                  aria-label={`${t('Fermer')} ${wt.label}`}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); close(wt.id); }}
                   className="rounded-sm p-0.5 text-ink-3 hover:bg-surface-3 hover:text-ink"
                 >
                   <X className="h-3 w-3" />
@@ -268,14 +273,14 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
             {api.activeId && (
               <DropdownMenuItem onSelect={() => api.pinTab(api.activeId!)}>
                 <Pin className="mr-2 h-3.5 w-3.5" />
-                {tabs[activeIndex]?.pinned ? "Détacher l'onglet actif" : "Épingler l'onglet actif"}
+                {tabs[activeIndex]?.pinned ? t("Détacher l'onglet actif") : t("Épingler l'onglet actif")}
               </DropdownMenuItem>
             )}
             {api.activeId && tabs.length > 1 && (
-              <DropdownMenuItem onSelect={() => api.closeOthers(api.activeId!)}>Fermer les autres onglets</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => api.closeOthers(api.activeId!)}>{t('Fermer les autres onglets')}</DropdownMenuItem>
             )}
             {api.closedCount > 0 && (
-              <DropdownMenuItem onSelect={() => { const t = api.reopenClosed(); if (t) goTo(t.id); }}>Rouvrir le dernier onglet fermé</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => { const reopened = api.reopenClosed(); if (reopened) goTo(reopened.id); }}>{t('Rouvrir le dernier onglet fermé')}</DropdownMenuItem>
             )}
           </DropdownMenuContent>
         </DropdownMenu>

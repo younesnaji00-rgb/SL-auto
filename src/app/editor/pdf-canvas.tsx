@@ -12,6 +12,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 export const VIEWER_ZOOM_MIN = 1;
@@ -61,23 +62,24 @@ export function ViewerZoomPill({
   onRotate: () => void;
   children?: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <div
       className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-card/95 px-1 py-0.5 shadow-raised ring-1 ring-hairline"
       role="group"
-      aria-label="Zoom"
-      title="Molette pour zoomer progressivement, double-clic pour agrandir"
+      aria-label={t('Zoom')}
+      title={t('Molette pour zoomer progressivement, double-clic pour agrandir')}
     >
-      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => onZoomTo(zoom - 0.25)} aria-label="Zoom arrière" disabled={zoom <= VIEWER_ZOOM_MIN}>
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => onZoomTo(zoom - 0.25)} aria-label={t('Zoom arrière')} disabled={zoom <= VIEWER_ZOOM_MIN}>
         <ZoomOut className="h-4 w-4" />
       </Button>
-      <button type="button" className="t-caption min-w-[3.25rem] rounded px-1 text-center tabular-nums hover:bg-surface-2" onClick={() => onZoomTo(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — réinitialiser`}>
+      <button type="button" className="t-caption min-w-[3.25rem] rounded px-1 text-center tabular-nums hover:bg-surface-2" onClick={() => onZoomTo(1)} aria-label={`${t('Zoom')} ${Math.round(zoom * 100)} % — ${t('réinitialiser')}`}>
         {Math.round(zoom * 100)} %
       </button>
-      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => onZoomTo(zoom + 0.25)} aria-label="Zoom avant" disabled={zoom >= VIEWER_ZOOM_MAX}>
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => onZoomTo(zoom + 0.25)} aria-label={t('Zoom avant')} disabled={zoom >= VIEWER_ZOOM_MAX}>
         <ZoomIn className="h-4 w-4" />
       </Button>
-      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={onRotate} aria-label="Pivoter de 90°" title="Pivoter de 90°">
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={onRotate} aria-label={t('Pivoter de 90°')} title={t('Pivoter de 90°')}>
         <RotateCw className="h-4 w-4" />
       </Button>
       {children}
@@ -93,6 +95,7 @@ interface PdfCanvasProps {
 }
 
 export default function PdfCanvas({ src, title, fallback }: PdfCanvasProps) {
+  const t = useT();
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -274,7 +277,7 @@ export default function PdfCanvas({ src, title, fallback }: PdfCanvasProps) {
     return fallback ? (
       <>{fallback}</>
     ) : (
-      <p className="text-xs text-on-ink/70">Impossible de charger le fichier</p>
+      <p className="text-xs text-on-ink/70">{t('Impossible de charger le fichier')}</p>
     );
   }
 
@@ -291,7 +294,7 @@ export default function PdfCanvas({ src, title, fallback }: PdfCanvasProps) {
         onMouseUp={stopDrag}
         onMouseLeave={stopDrag}
         role="img"
-        aria-label={title || 'Document PDF'}
+        aria-label={title || t('Document PDF')}
       >
         <div
           className="transition-transform duration-150 ease-standard motion-reduce:transition-none"
@@ -306,20 +309,20 @@ export default function PdfCanvas({ src, title, fallback }: PdfCanvasProps) {
       </div>
       {status === 'loading' && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="animate-pulse text-xs text-on-ink/70">Chargement du PDF…</span>
+          <span className="animate-pulse text-xs text-on-ink/70">{t('Chargement du PDF…')}</span>
         </div>
       )}
       {status === 'ready' && (
         <ViewerZoomPill zoom={zoom} onZoomTo={applyZoom} onRotate={() => setRotation((r) => (r + 90) % 360)}>
           {pageCount > 1 && (
             <>
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => goToPage(pageNum - 1)} aria-label="Page précédente" disabled={pageNum <= 1}>
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => goToPage(pageNum - 1)} aria-label={t('Page précédente')} disabled={pageNum <= 1}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="t-caption min-w-[3rem] px-1 text-center tabular-nums" aria-live="polite">
                 {pageNum} / {pageCount}
               </span>
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => goToPage(pageNum + 1)} aria-label="Page suivante" disabled={pageNum >= pageCount}>
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => goToPage(pageNum + 1)} aria-label={t('Page suivante')} disabled={pageNum >= pageCount}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </>

@@ -5,6 +5,7 @@ import * as TabsPrimitive from '@radix-ui/react-tabs';
 import { cn } from '@/lib/utils';
 import { GOTO_STEP_EVENT, type GotoStepDetail } from '@/lib/step-navigation';
 import { useTabSlopeMorph } from '@/hooks/use-tab-morph';
+import { useT } from '@/i18n';
 
 export interface StepTab {
   value: string;
@@ -41,12 +42,13 @@ interface StepTabsProps {
 /** The facet strip, with the flying active-seat morph (symbiote, owner
  *  2026-09-02) attached to the scrollable track. */
 function StepTabsList({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const ref = React.useRef<HTMLDivElement>(null);
   useTabSlopeMorph(ref);
   return (
     <TabsPrimitive.List
       ref={ref}
-      aria-label="Sections de l'étape"
+      aria-label={t("Sections de l'étape")}
       className="relative isolate -mx-2 flex items-end gap-4 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
     >
       {children}

@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef, useSyncExternalStore, type DependencyList } from 'react';
+import { t } from '@/i18n';
 
 export interface Hotkey {
   keys: string;
@@ -53,9 +54,9 @@ export function formatKeys(keys: string): string[] {
       .map((k) => {
         switch (k) {
           case 'mod': return mac ? '⌘' : 'Ctrl';
-          case 'shift': return mac ? '⇧' : 'Maj';
+          case 'shift': return mac ? '⇧' : t('Maj');
           case 'alt': return mac ? '⌥' : 'Alt';
-          case 'escape': return 'Échap';
+          case 'escape': return t('Échap');
           case 'enter': return '↵';
           case 'backspace': return '⌫';
           case 'arrowup': return '↑';

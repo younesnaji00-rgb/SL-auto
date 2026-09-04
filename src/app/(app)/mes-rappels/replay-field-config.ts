@@ -5,6 +5,15 @@
  * declare (1) the dossier main-doc fields to render read-only (grouped, with FR
  * labels) and (2) which subcollections to surface for that step. Derived from
  * the live step/tab components — keep in sync if the forms change.
+ *
+ * i18n: every `label` / `title` here is a FRENCH TRANSLATION KEY, not display
+ * copy — this config is data, evaluated once at module load, so it must NOT
+ * call `t()` itself (that would freeze the language at import time). A render
+ * site consuming it translates on the spot: `t(field.label)`, `t(group.title)`.
+ *
+ * NOTE (2026-09-04): nothing imports this module any more — the session-replay
+ * lightbox now renders the real dossier-timeline components instead. Wire the
+ * `t()` calls above into whatever revives it, or delete the file.
  */
 
 export type FieldKind =

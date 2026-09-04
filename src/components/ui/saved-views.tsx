@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 
 export interface SavedView<T> {
   id: string;
@@ -65,13 +66,14 @@ export function SavedViews<T extends Record<string, any>>({
   onApply: (filters: T) => void;
   className?: string;
 }) {
+  const t = useT();
   const [views, setViews] = useState<SavedView<T>[]>([]);
   useEffect(() => setViews(read<T>(storageKey)), [storageKey]);
 
   const active = views.find((v) => sameFilters(v.filters, current));
 
   const save = useCallback(() => {
-    const name = window.prompt('Nom de la vue :', active?.name ?? '');
+    const name = window.prompt(t('Nom de la vue :'), active?.name ?? '');
     if (!name || !name.trim()) return;
     const trimmed = name.trim();
     setViews((prev) => {
@@ -82,7 +84,7 @@ export function SavedViews<T extends Record<string, any>>({
       write(storageKey, next);
       return next;
     });
-  }, [active, current, storageKey]);
+  }, [active, current, storageKey, t]);
 
   const remove = useCallback(
     (id: string) => {
@@ -98,22 +100,22 @@ export function SavedViews<T extends Record<string, any>>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className={cn('h-9 gap-1.5', className)} title="Vues enregistrées">
+        <Button variant="outline" size="sm" className={cn('h-9 gap-1.5', className)} title={t('Vues enregistrées')}>
           <Bookmark className={cn('h-4 w-4', active && 'fill-current text-primary')} />
-          <span className="max-w-[10rem] truncate">{active ? active.name : 'Vues'}</span>
+          <span className="max-w-[10rem] truncate">{active ? active.name : t('Vues')}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
-        <DropdownMenuLabel className="t-label">Vues enregistrées</DropdownMenuLabel>
+        <DropdownMenuLabel className="t-label">{t('Vues enregistrées')}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {views.length === 0 && <p className="t-caption px-2 py-1.5">Aucune vue. Enregistrez vos filtres actuels pour les retrouver en un clic.</p>}
+        {views.length === 0 && <p className="t-caption px-2 py-1.5">{t('Aucune vue. Enregistrez vos filtres actuels pour les retrouver en un clic.')}</p>}
         {views.map((v) => (
           <DropdownMenuItem key={v.id} onSelect={() => onApply(v.filters)} className="gap-2">
             <Check className={cn('h-3.5 w-3.5 shrink-0', active?.id === v.id ? 'opacity-100 text-primary' : 'opacity-0')} />
             <span className="min-w-0 flex-1 truncate">{v.name}</span>
             <button
               type="button"
-              aria-label={`Supprimer la vue ${v.name}`}
+              aria-label={`${t('Supprimer la vue')} ${v.name}`}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -128,7 +130,7 @@ export function SavedViews<T extends Record<string, any>>({
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={save}>
           <BookmarkPlus className="mr-2 h-4 w-4" />
-          {active ? 'Mettre à jour cette vue…' : 'Enregistrer la vue actuelle…'}
+          {active ? t('Mettre à jour cette vue…') : t('Enregistrer la vue actuelle…')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
