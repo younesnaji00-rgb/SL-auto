@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SkeletonRow } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { DatePicker } from '@/components/ui/date-picker';
+import { useT } from '@/i18n';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +29,7 @@ import {
 export default function MissionsTab({ dossierId }: { dossierId: string }) {
     const db = useFirestore();
     const { toast } = useToast();
+    const t = useT();
     const { canDelete } = useCurrentUser();
     const missionsRef = useMemo(() => collection(db, 'dossiers', dossierId, 'missions'), [db, dossierId]);
     const { data: missions, loading } = useCollection(missionsRef);
@@ -46,24 +48,24 @@ export default function MissionsTab({ dossierId }: { dossierId: string }) {
 
     const handleDelete = async (id: string) => {
         await deleteDoc(doc(db, 'dossiers', dossierId, 'missions', id));
-        toast({ title: 'Mission supprimée' });
+        toast({ title: t('Mission supprimée') });
         setDeleteId(null);
     };
 
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Missions liées</CardTitle>
-                <Button variant="outline" size="sm" onClick={handleAdd}><Plus className="mr-2 h-4 w-4" /> Nouvelle mission</Button>
+                <CardTitle>{t('Missions liées')}</CardTitle>
+                <Button variant="outline" size="sm" onClick={handleAdd}><Plus className="mr-2 h-4 w-4" /> {t('Nouvelle mission')}</Button>
             </CardHeader>
             <CardContent>
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Assigné à</TableHead>
-                            <TableHead>Statut</TableHead>
+                            <TableHead>{t('Date')}</TableHead>
+                            <TableHead>{t('Type')}</TableHead>
+                            <TableHead>{t('Assigné à')}</TableHead>
+                            <TableHead>{t('Statut')}</TableHead>
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
@@ -79,8 +81,8 @@ export default function MissionsTab({ dossierId }: { dossierId: string }) {
                                 <TableCell colSpan={5} className="p-0">
                                     <EmptyState
                                         icon={<Calendar />}
-                                        title="Aucune mission enregistrée"
-                                        description="Créez la première mission avec le bouton ci-dessus."
+                                        title={t('Aucune mission enregistrée')}
+                                        description={t('Créez la première mission avec le bouton ci-dessus.')}
                                         dashed={false}
                                         className="border-0 bg-transparent py-8"
                                     />
@@ -99,21 +101,21 @@ export default function MissionsTab({ dossierId }: { dossierId: string }) {
                                         <Select value={m.type} onValueChange={v => handleUpdate(m.id, 'type', v)}>
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="Expertise">Expertise</SelectItem>
-                                                <SelectItem value="Suivi">Suivi</SelectItem>
-                                                <SelectItem value="Prélèvement">Prélèvement</SelectItem>
+                                                <SelectItem value="Expertise">{t('Expertise')}</SelectItem>
+                                                <SelectItem value="Suivi">{t('Suivi')}</SelectItem>
+                                                <SelectItem value="Prélèvement">{t('Prélèvement')}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </TableCell>
-                                    <TableCell><Input value={m.expert} onChange={e => handleUpdate(m.id, 'expert', e.target.value)} placeholder="Nom de l'expert" /></TableCell>
+                                    <TableCell><Input value={m.expert} onChange={e => handleUpdate(m.id, 'expert', e.target.value)} placeholder={t("Nom de l'expert")} /></TableCell>
                                     <TableCell>
                                         <Select value={m.statut} onValueChange={v => handleUpdate(m.id, 'statut', v)}>
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="Planifiée">Planifiée</SelectItem>
-                                                <SelectItem value="En cours">En cours</SelectItem>
-                                                <SelectItem value="Terminée">Terminée</SelectItem>
-                                                <SelectItem value="Annulée">Annulée</SelectItem>
+                                                <SelectItem value="Planifiée">{t('Planifiée')}</SelectItem>
+                                                <SelectItem value="En cours">{t('En cours')}</SelectItem>
+                                                <SelectItem value="Terminée">{t('Terminée')}</SelectItem>
+                                                <SelectItem value="Annulée">{t('Annulée')}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </TableCell>
@@ -128,18 +130,18 @@ export default function MissionsTab({ dossierId }: { dossierId: string }) {
             <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Supprimer cette mission ?</AlertDialogTitle>
+                        <AlertDialogTitle>{t('Supprimer cette mission ?')}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Cette action est irréversible.
+                            {t('Cette action est irréversible.')}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Annuler</AlertDialogCancel>
+                        <AlertDialogCancel>{t('Annuler')}</AlertDialogCancel>
                         <AlertDialogAction
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             onClick={(e) => { e.preventDefault(); if (deleteId) handleDelete(deleteId); }}
                         >
-                            Supprimer
+                            {t('Supprimer')}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

@@ -1,7 +1,10 @@
+'use client';
+
 import * as React from 'react';
 
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { getStatusTone } from '@/lib/status-colors';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 /**
@@ -55,13 +58,20 @@ export interface StatusChipProps extends Omit<BadgeProps, 'variant' | 'children'
   fallback?: string;
 }
 
-/** 11 px / 500 status pill on the matching status pair, label always visible. */
+/** 11 px / 500 status pill on the matching status pair, label always visible.
+ *
+ *  i18n (merge 2026-09-04): the tone is derived from the RAW French label —
+ *  `statusTone` matches French keywords, so translating before that call would
+ *  collapse every chip to neutral. Callers therefore keep passing the stored
+ *  French status and the translation happens here, once, at render. */
 export function StatusChip({ status, icon, fallback = 'Nouveau', className, ...props }: StatusChipProps) {
+  const t = useT();
   const label = (status || '').trim() || fallback;
+  const display = t(label);
   return (
-    <Badge variant={statusTone(label)} className={cn('max-w-full', className)} title={label} {...props}>
+    <Badge variant={statusTone(label)} className={cn('max-w-full', className)} title={display} {...props}>
       {icon}
-      <span className="truncate">{label}</span>
+      <span className="truncate">{display}</span>
     </Badge>
   );
 }

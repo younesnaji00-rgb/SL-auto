@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 import { PwaRegister } from '@/components/pwa-register';
+import { LocaleProvider } from '@/i18n';
+import { BRAND } from '@/lib/brand';
 
 // Display face (headings, KPI values) — the brand's voice.
 const outfit = Outfit({
@@ -24,20 +26,20 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'SL-auto',
-  description: 'SL-auto - Système de gestion',
-  manifest: '/manifest.json',
+  title: BRAND.productName,
+  description: BRAND.appDescription,
+  manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'SL-auto',
+    title: BRAND.shortName,
   },
   icons: {
     icon: [
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { url: `${BRAND.iconsPath}/icon-192.png`, sizes: '192x192', type: 'image/png' },
+      { url: `${BRAND.iconsPath}/icon-512.png`, sizes: '512x512', type: 'image/png' },
     ],
-    apple: '/icons/apple-touch-icon.png',
+    apple: `${BRAND.iconsPath}/apple-touch-icon.png`,
   },
 };
 
@@ -58,7 +60,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" suppressHydrationWarning className={cn(outfit.variable, inter.variable)}>
+    <html lang={BRAND.defaultLocale} suppressHydrationWarning className={cn(outfit.variable, inter.variable)}>
       <body className={cn('font-body antialiased')}>
         {/* Density zoom (DESIGN.md §6): 0.9 on 1080p monitors, 1.1 on 1440p,
             1 elsewhere — from the PHYSICAL screen height so OS scaling and
@@ -70,11 +72,13 @@ export default function RootLayout({
           }}
         />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <FirebaseClientProvider>
-            <PwaRegister />
-            {children}
-            <Toaster />
-          </FirebaseClientProvider>
+          <LocaleProvider>
+            <FirebaseClientProvider>
+              <PwaRegister />
+              {children}
+              <Toaster />
+            </FirebaseClientProvider>
+          </LocaleProvider>
         </ThemeProvider>
       </body>
     </html>

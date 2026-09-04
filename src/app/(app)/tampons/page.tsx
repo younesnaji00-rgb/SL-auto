@@ -31,7 +31,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { getDefaultRouteForRole } from '@/lib/nav-groups';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { useStamps, type Stamp } from '@/hooks/use-stamps';
 import { cn } from '@/lib/utils';
 import { TamponsSkeleton } from './loading';
@@ -68,6 +68,7 @@ function extensionFromFile(file: File): string {
 }
 
 export default function TamponsSettingsPage() {
+  const t = useT();
   const { profile, loading: userLoading, canDelete } = useCurrentUser();
   const db = useFirestore();
   const storage = useStorage();
@@ -201,14 +202,17 @@ export default function TamponsSettingsPage() {
         setProgress({ total, done, failed });
       }
     }
-    const plural = (n: number) => (n > 1 ? 's' : '');
+    // Plural branches are separate keys (i18n rule: never build a sentence by
+    // concatenating a suffix onto a translated word).
+    const importedLabel = done > 1 ? t('tampons importés') : t('tampon importé');
+    const failedLabel = failed > 1 ? t('échecs') : t('échec');
     const summary =
       failed > 0
-        ? `${done} tampon${plural(done)} importé${plural(done)}, ${failed} échec${plural(failed)}`
-        : `${done} tampon${plural(done)} importé${plural(done)}`;
+        ? `${done} ${importedLabel}, ${failed} ${failedLabel}`
+        : `${done} ${importedLabel}`;
     toast({
       variant: failed > 0 && done === 0 ? 'destructive' : 'default',
-      title: failed > 0 && done === 0 ? 'Import échoué' : 'Import terminé',
+      title: failed > 0 && done === 0 ? t('Import échoué') : t('Import terminé'),
       description: summary,
     });
     setQueued([]);
@@ -228,14 +232,14 @@ export default function TamponsSettingsPage() {
         assignedStampId: deleteField(),
       });
       toast({
-        title: ids.length === 0 ? 'Tampons retirés' : `${ids.length} tampon(s) assigné(s)`,
+        title: ids.length === 0 ? t('Tampons retirés') : `${ids.length} ${t('tampon(s) assigné(s)')}`,
       });
     } catch (err: any) {
       console.error(err);
       toast({
         variant: 'destructive',
-        title: 'Erreur',
-        description: err?.message || "Impossible d'assigner les tampons.",
+        title: t('Erreur'),
+        description: err?.message || t("Impossible d'assigner les tampons."),
       });
     }
   };
@@ -246,7 +250,7 @@ export default function TamponsSettingsPage() {
       await updateDoc(doc(db, 'stamps', stamp.id), { active: next });
     } catch (err: any) {
       console.error(err);
-      toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Impossible de mettre à jour le tampon.' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err?.message || t('Impossible de mettre à jour le tampon.') });
     }
   };
 
@@ -263,11 +267,11 @@ export default function TamponsSettingsPage() {
         }
       }
       await deleteDoc(doc(db, 'stamps', deleteTarget.id));
-      toast({ title: 'Tampon supprimé' });
+      toast({ title: t('Tampon supprimé') });
       setDeleteTarget(null);
     } catch (err: any) {
       console.error(err);
-      toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Suppression impossible.' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err?.message || t('Suppression impossible.') });
     } finally {
       setIsDeleting(false);
     }
@@ -279,11 +283,11 @@ export default function TamponsSettingsPage() {
     let importedAt = '—';
     try {
       const d = ts?.toDate ? ts.toDate() : null;
-      importedAt = d ? format(d, 'dd/MM/yyyy HH:mm', { locale: fr }) : '—';
+      importedAt = d ? format(d, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() }) : '—';
     } catch {
       importedAt = '—';
     }
-    return `Importé par ${importedBy} · ${importedAt}`;
+    return `${t('Importé par')} ${importedBy} · ${importedAt}`;
   };
 
   const openPicker = () => fileInputRef.current?.click();
@@ -303,17 +307,17 @@ export default function TamponsSettingsPage() {
           pill). No header action: the page primary is the import card's
           button (GOV.UK: one default button per page). */}
       <PageHeader
-        title="Tampons"
-        subtitle="Gérez les tampons utilisés pour signer les devis et documents générés."
+        title={t('Tampons')}
+        subtitle={t('Gérez les tampons utilisés pour signer les devis et documents générés.')}
         count={stampsLoading ? undefined : stamps.length}
       />
 
       {/* Card 1 — element-specs §5 (Material 3 cards: one topic per container). */}
-      <Card>
+      <Card data-tour="tam-import">
         <CardHeader>
-          <CardTitle className="t-heading">Importer des tampons</CardTitle>
+          <CardTitle className="t-heading">{t('Importer des tampons')}</CardTitle>
           <CardDescription className="t-caption">
-            Le nom du tampon est dérivé du nom de fichier, sans l&apos;extension.
+            {t("Le nom du tampon est dérivé du nom de fichier, sans l'extension.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -333,11 +337,11 @@ export default function TamponsSettingsPage() {
               {...dropProps}
             >
               <ImageIcon className="h-4 w-4" aria-hidden />
-              Choisir des images
+              {t('Choisir des images')}
             </Button>
             {queued.length > 0 && !isImporting && (
               <Button type="button" onClick={handleBatchImport}>
-                Importer {queued.length} tampon{queued.length > 1 ? 's' : ''}
+                {t('Importer')} {queued.length} {queued.length > 1 ? t('tampons') : t('tampon')}
               </Button>
             )}
             {isImporting && progress && (
@@ -357,8 +361,8 @@ export default function TamponsSettingsPage() {
                     style={{ width: `${progress.total ? Math.round((progress.done / progress.total) * 100) : 0}%` }}
                   />
                 </span>
-                {progress.done}/{progress.total} traités
-                {progress.failed > 0 ? ` · ${progress.failed} échec${progress.failed > 1 ? 's' : ''}` : ''}
+                {progress.done}/{progress.total} {t('traités')}
+                {progress.failed > 0 ? ` · ${progress.failed} ${progress.failed > 1 ? t('échecs') : t('échec')}` : ''}
               </span>
             )}
           </div>
@@ -366,7 +370,7 @@ export default function TamponsSettingsPage() {
               supporting text + trailing icon button): 44 px rows, hairlines
               only, derived name 14/600, file name t-caption, remove `ghost`. */}
           {queued.length > 0 && (
-            <ul className="divide-y divide-hairline border-t border-hairline" aria-live="polite" aria-label="Fichiers en attente d'import">
+            <ul className="divide-y divide-hairline border-t border-hairline" aria-live="polite" aria-label={t("Fichiers en attente d'import")}>
               {queued.map((q) => (
                 <li key={q.id} className="flex min-h-[44px] items-center gap-3 py-1">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-surface-3 text-ink-3 shadow-rim">
@@ -385,12 +389,12 @@ export default function TamponsSettingsPage() {
                           size="icon"
                           className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink"
                           onClick={() => removeFromQueue(q.id)}
-                          aria-label={`Retirer ${q.derivedName} de la file`}
+                          aria-label={`${t('Retirer de la file')} : ${q.derivedName}`}
                         >
                           <X className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Retirer de la file</TooltipContent>
+                      <TooltipContent>{t('Retirer de la file')}</TooltipContent>
                     </Tooltip>
                   )}
                 </li>
@@ -401,16 +405,16 @@ export default function TamponsSettingsPage() {
       </Card>
 
       {/* Card 2 — the registered stamps as a vertical LIST (original layout). */}
-      <Card>
+      <Card data-tour="tam-list">
         <CardHeader>
           <CardTitle className="t-heading flex items-center gap-2">
             {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: ONE IconChip beside the
                 section that anchors the page. */}
             <IconChip><StampIcon /></IconChip>
-            Tampons enregistrés
+            {t('Tampons enregistrés')}
           </CardTitle>
           <CardDescription className="t-caption">
-            Activez, désactivez ou supprimez les tampons existants.
+            {t('Activez, désactivez ou supprimez les tampons existants.')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -433,11 +437,11 @@ export default function TamponsSettingsPage() {
             // action; `tonal` inside a card). Opens the same picker.
             <EmptyState
               icon={<StampIcon />}
-              title="Ajouter le premier tampon"
-              description="Aucun tampon n'est encore enregistré."
+              title={t('Ajouter le premier tampon')}
+              description={t("Aucun tampon n'est encore enregistré.")}
               action={
                 <Button type="button" variant="tonal" onClick={openPicker} disabled={isImporting}>
-                  Choisir des images
+                  {t('Choisir des images')}
                 </Button>
               }
               dashed={false}
@@ -449,7 +453,7 @@ export default function TamponsSettingsPage() {
             // cards): hairlines only, thumbnail = the leading anchor (64 px,
             // surface-3 + rim, original size), name 14/600, meta t-caption,
             // trailing Switch + label + delete `ghost`.
-            <ul className="divide-y divide-hairline border-t border-hairline" aria-label="Tampons enregistrés">
+            <ul className="divide-y divide-hairline border-t border-hairline" aria-label={t('Tampons enregistrés')}>
               {stamps.map((stamp) => {
                 const assignees = assigneesByStampId.get(stamp.id) ?? [];
                 const switchId = `stamp-active-${stamp.id}`;
@@ -467,11 +471,11 @@ export default function TamponsSettingsPage() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1 basis-48">
-                      <p className={cn('t-body truncate font-semibold', !stamp.active && 'text-ink-2')}>{stamp.name || 'Sans nom'}</p>
+                      <p className={cn('t-body truncate font-semibold', !stamp.active && 'text-ink-2')}>{stamp.name || t('Sans nom')}</p>
                       <p className="t-caption truncate tabular-nums">{importedMeta(stamp)}</p>
                       {assignees.length > 0 && (
                         <p className="t-caption truncate" title={assignees.join(', ')}>
-                          Assigné à : {assignees.join(', ')}
+                          {t('Assigné à :')} {assignees.join(', ')}
                         </p>
                       )}
                     </div>
@@ -482,10 +486,10 @@ export default function TamponsSettingsPage() {
                           id={switchId}
                           checked={stamp.active}
                           onCheckedChange={(checked) => handleToggleActive(stamp, checked)}
-                          aria-label={`Tampon ${stamp.name || 'sans nom'} actif`}
+                          aria-label={`${t('Tampon actif')} : ${stamp.name || t('sans nom')}`}
                         />
                         <label htmlFor={switchId} className="t-caption cursor-pointer select-none">
-                          {stamp.active ? 'Actif' : 'Inactif'}
+                          {stamp.active ? t('Actif') : t('Inactif')}
                         </label>
                       </div>
                       {canDelete && (
@@ -496,12 +500,12 @@ export default function TamponsSettingsPage() {
                               size="icon"
                               className="h-8 w-8 text-ink-3 hover:text-destructive"
                               onClick={() => setDeleteTarget(stamp)}
-                              aria-label={`Supprimer ${stamp.name || 'ce tampon'}`}
+                              aria-label={`${t('Supprimer')} ${stamp.name || t('ce tampon')}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Supprimer</TooltipContent>
+                          <TooltipContent>{t('Supprimer')}</TooltipContent>
                         </Tooltip>
                       )}
                     </div>
@@ -514,11 +518,11 @@ export default function TamponsSettingsPage() {
       </Card>
 
       {/* Card 3 — assignment rows. */}
-      <Card>
+      <Card data-tour="tam-assign">
         <CardHeader>
-          <CardTitle className="t-heading">Assignation par chiffreur</CardTitle>
+          <CardTitle className="t-heading">{t('Assignation par chiffreur')}</CardTitle>
           <CardDescription className="t-caption">
-            Sélectionnez le tampon à utiliser pour chaque chiffreur. Chaque chiffreur peut avoir un tampon distinct.
+            {t('Sélectionnez le tampon à utiliser pour chaque chiffreur. Chaque chiffreur peut avoir un tampon distinct.')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -538,15 +542,15 @@ export default function TamponsSettingsPage() {
           ) : !chiffreurUsers || chiffreurUsers.length === 0 ? (
             <EmptyState
               icon={<Users />}
-              title="Aucun chiffreur"
-              description="Aucun utilisateur n'a le rôle Chiffreur."
+              title={t('Aucun chiffreur')}
+              description={t("Aucun utilisateur n'a le rôle Chiffreur.")}
               dashed={false}
             />
           ) : (
             // Rows — element-specs §4: 40 px preview as the anchor, name
             // 14/600, assigned stamps as neutral chips (§11), the multi-select
             // trigger at the row end.
-            <ul className="divide-y divide-hairline border-t border-hairline" aria-label="Chiffreurs">
+            <ul className="divide-y divide-hairline border-t border-hairline" aria-label={t('Chiffreurs')}>
               {chiffreurUsers.map((u) => {
                 const label =
                   [u.prenom, u.nom].filter(Boolean).join(' ').trim() || u.email || u.id;
@@ -560,10 +564,10 @@ export default function TamponsSettingsPage() {
                 );
                 const triggerLabel =
                   assignedStamps.length === 0
-                    ? 'Aucun tampon'
+                    ? t('Aucun tampon')
                     : assignedStamps.length === 1
-                      ? assignedStamps[0].name || 'Sans nom'
-                      : `${assignedStamps.length} tampons sélectionnés`;
+                      ? assignedStamps[0].name || t('Sans nom')
+                      : `${assignedStamps.length} ${t('tampons sélectionnés')}`;
                 return (
                   <li
                     key={u.id}
@@ -584,12 +588,12 @@ export default function TamponsSettingsPage() {
                       <div className="min-w-0">
                         <p className="t-body truncate font-semibold">{label}</p>
                         {assignedStamps.length === 0 ? (
-                          <p className="t-caption">Aucun tampon assigné</p>
+                          <p className="t-caption">{t('Aucun tampon assigné')}</p>
                         ) : (
                           <div className="mt-0.5 flex flex-wrap gap-1">
                             {assignedStamps.map((s) => (
-                              <Badge key={s.id} variant="neutral" title={s.name || 'Sans nom'}>
-                                {s.name || 'Sans nom'}
+                              <Badge key={s.id} variant="neutral" title={s.name || t('Sans nom')}>
+                                {s.name || t('Sans nom')}
                               </Badge>
                             ))}
                           </div>
@@ -602,7 +606,7 @@ export default function TamponsSettingsPage() {
                           <Button
                             variant="outline"
                             className="w-full justify-between font-normal"
-                            aria-label={`Tampons de ${label}`}
+                            aria-label={`${t('Tampons de')} ${label}`}
                           >
                             <span className="truncate text-left">{triggerLabel}</span>
                             <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-ink-3" aria-hidden />
@@ -610,7 +614,7 @@ export default function TamponsSettingsPage() {
                         </PopoverTrigger>
                         <PopoverContent align="start" className="w-72 p-2">
                           {visibleStamps.length === 0 ? (
-                            <p className="t-caption p-2">Aucun tampon disponible.</p>
+                            <p className="t-caption p-2">{t('Aucun tampon disponible.')}</p>
                           ) : (
                             <div className="max-h-[300px] space-y-0.5 overflow-y-auto">
                               {visibleStamps.map((s) => {
@@ -631,8 +635,8 @@ export default function TamponsSettingsPage() {
                                   >
                                     <Checkbox checked={selected} className="shrink-0" tabIndex={-1} aria-hidden />
                                     <span className="flex-1 truncate">
-                                      {s.name || 'Sans nom'}
-                                      {!s.active && <span className="text-ink-3"> (inactif)</span>}
+                                      {s.name || t('Sans nom')}
+                                      {!s.active && <span className="text-ink-3"> ({t('inactif')})</span>}
                                     </span>
                                   </button>
                                 );
@@ -648,7 +652,7 @@ export default function TamponsSettingsPage() {
                                 className="w-full justify-center text-xs"
                                 onClick={() => handleSetAssignedStamps(u.id, [])}
                               >
-                                Tout désélectionner
+                                {t('Tout désélectionner')}
                               </Button>
                             </div>
                           )}
@@ -668,13 +672,13 @@ export default function TamponsSettingsPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer le tampon « {deleteTarget?.name || 'sans nom'} » ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Supprimer le tampon')} « {deleteTarget?.name || t('sans nom')} » ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Le fichier sera retiré du stockage et le tampon de la base. Les chiffreurs auxquels il est assigné n&apos;y auront plus accès. Cette action est irréversible.
+              {t("Le fichier sera retiré du stockage et le tampon de la base. Les chiffreurs auxquels il est assigné n'y auront plus accès. Cette action est irréversible.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction
               className={buttonVariants({ variant: 'destructive' })}
               disabled={isDeleting}
@@ -683,7 +687,7 @@ export default function TamponsSettingsPage() {
                 confirmDelete();
               }}
             >
-              {isDeleting ? 'Suppression…' : 'Supprimer'}
+              {isDeleting ? t('Suppression…') : t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

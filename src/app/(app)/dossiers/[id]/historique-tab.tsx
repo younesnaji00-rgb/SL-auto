@@ -21,6 +21,8 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useDossierDocWrite, applyPendingToDossier } from './rappel-draft';
 import { displayUserName } from '@/lib/display-user';
 import { UserNameLink } from '@/components/user-name-link';
+import { useT, intlLocale } from '@/i18n';
+import { auditText } from '@/lib/audit-i18n';
 
 /**
  * AI-sourced date fields visible in Dates clés. For these fields:
@@ -41,6 +43,7 @@ type HistoriqueTabProps = {
 };
 
 export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
+  const t = useT();
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -94,10 +97,10 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
   }, [db, dossierId]);
 
   const formatDate = (timestamp: any) => {
-    if (!timestamp) return 'Date inconnue';
+    if (!timestamp) return t('Date inconnue');
     const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-      + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' })
+      + ' ' + d.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
   };
 
   /**
@@ -108,9 +111,9 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
   const formatDateWithTimeFlag = (value: any, timeKnown: boolean): string => {
     if (!value) return '—';
     const d = value.toDate ? value.toDate() : new Date(value);
-    const datePart = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const datePart = d.toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
     if (!timeKnown) return `${datePart} --/--`;
-    const timePart = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const timePart = d.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
     return `${datePart} ${timePart}`;
   };
 
@@ -162,7 +165,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
   const saveDateEdit = async () => {
     if (!db || !editingField) return;
     if (!editDate) {
-      toast({ variant: 'destructive', title: 'Date requise', description: 'Veuillez saisir une date.' });
+      toast({ variant: 'destructive', title: t('Date requise'), description: t('Veuillez saisir une date.') });
       return;
     }
     // Build a Date from the user inputs. If time is provided, set hh:mm
@@ -173,19 +176,19 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       Number.isFinite(mm) && mm >= 1 && mm <= 12 &&
       Number.isFinite(yy) && yy >= 1900 && yy <= 2100;
     if (!dateValid) {
-      toast({ variant: 'destructive', title: 'Date invalide', description: 'Format attendu : JJ/MM/AAAA.' });
+      toast({ variant: 'destructive', title: t('Date invalide'), description: t('Format attendu : JJ/MM/AAAA.') });
       return;
     }
     let when: Date;
     let timeKnown = false;
     if (editTime) {
       if (!/^\d{1,2}:\d{2}$/.test(editTime)) {
-        toast({ variant: 'destructive', title: 'Heure invalide', description: 'Format attendu : HH:MM.' });
+        toast({ variant: 'destructive', title: t('Heure invalide'), description: t('Format attendu : HH:MM.') });
         return;
       }
       const [hh, mi] = editTime.split(':').map((n) => parseInt(n, 10));
       if (!Number.isFinite(hh) || hh < 0 || hh > 23 || !Number.isFinite(mi) || mi < 0 || mi > 59) {
-        toast({ variant: 'destructive', title: 'Heure invalide', description: 'Heure hors plage (00:00 – 23:59).' });
+        toast({ variant: 'destructive', title: t('Heure invalide'), description: t('Heure hors plage (00:00 – 23:59).') });
         return;
       }
       when = new Date(yy, mm - 1, dd, hh, mi, 0, 0);
@@ -194,7 +197,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       when = new Date(yy, mm - 1, dd, 0, 0, 0, 0);
     }
     if (isNaN(when.getTime())) {
-      toast({ variant: 'destructive', title: 'Date invalide', description: 'Impossible d\'interpréter la date saisie.' });
+      toast({ variant: 'destructive', title: t('Date invalide'), description: t('Impossible d\'interpréter la date saisie.') });
       return;
     }
     try {
@@ -213,13 +216,13 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       });
       toast(
         buffered
-          ? { title: 'Date modifiée (en attente)', description: 'Publiée après « Sauvegarder » dans la bannière rappel.' }
-          : { title: 'Date mise à jour' },
+          ? { title: t('Date modifiée (en attente)'), description: t('Publiée après « Sauvegarder » dans la bannière rappel.') }
+          : { title: t('Date mise à jour') },
       );
       setEditingField(null);
     } catch (err: any) {
       console.error('Date update error:', err);
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message || 'Impossible de mettre à jour la date.' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err.message || t('Impossible de mettre à jour la date.') });
     }
   };
 
@@ -282,9 +285,9 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
     let timePartDisplay = '';
     if (row.value) {
       const d = row.value.toDate ? row.value.toDate() : new Date(row.value);
-      datePartDisplay = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      datePartDisplay = d.toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
       if (timeKnown) {
-        timePartDisplay = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        timePartDisplay = d.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
       }
     }
 
@@ -317,7 +320,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
                   onChange={(e) => setEditDate(e.target.value)}
                   onKeyDown={handleEditKeyDown}
                   onBlur={handleEditBlur}
-                  placeholder="JJ/MM/AAAA"
+                  placeholder={t('JJ/MM/AAAA')}
                   maxLength={10}
                   className={`${inlineInputClass} w-28`}
                 />
@@ -347,7 +350,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
                   openDateEditor(row.field!, row.value);
                 }
               }}
-              title="Cliquer pour modifier"
+              title={t('Cliquer pour modifier')}
             >
               {row.value
                 ? `${datePartDisplay}${timeKnown ? ' ' + timePartDisplay : ' --/--'}`
@@ -382,7 +385,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
 
       if (buffered) {
         draft.bufferLog({ kind: 'historique', args: [decision, currentUserEmail, details, 'sinistre_douteux'] });
-        toast({ title: 'Décision en attente', description: 'Publiée après « Sauvegarder » dans la bannière rappel.' });
+        toast({ title: t('Décision en attente'), description: t('Publiée après « Sauvegarder » dans la bannière rappel.') });
       } else {
         await addDoc(collection(db, 'dossiers', dossierId, 'historique'), {
           action: decision,
@@ -391,11 +394,11 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
           details,
           type: 'sinistre_douteux'
         });
-        toast({ title: 'Succès', description: decision === 'Sinistre Douteux Approuvé' ? 'Sinistre douteux approuvé.' : 'Sinistre douteux rejeté.' });
+        toast({ title: t('Succès'), description: decision === 'Sinistre Douteux Approuvé' ? t('Sinistre douteux approuvé.') : t('Sinistre douteux rejeté.') });
       }
     } catch (err: any) {
       console.error(err);
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err.message });
     }
   };
 
@@ -424,21 +427,21 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="space-y-1">
-        <h2 className="t-title">État du dossier</h2>
-        <p className="text-sm text-ink-3">Suivez la progression du dossier étape par étape.</p>
+        <h2 className="t-title">{t('État du dossier')}</h2>
+        <p className="text-sm text-ink-3">{t('Suivez la progression du dossier étape par étape.')}</p>
       </div>
 
       {/* DATES CLÉS */}
       <Card>
         <CardContent className="space-y-4 p-5">
-          <h3 className="t-heading">Dates clés</h3>
+          <h3 className="t-heading">{t('Dates clés')}</h3>
           {/* Top block: single-column rows (no left/right pairing). */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             {[
-              { label: 'Date réception mission', field: 'dateRequete',          value: dossier?.dateRequete },
-              { label: 'Date sinistre',          field: 'dateSinistre',         value: dossier?.dateSinistre },
-              { label: 'Date création dossier',  field: 'createdAt',            value: dossier?.createdAt },
-              { label: 'Date mission AT',        field: 'dateMissionAgentTerrain', value: dossier?.dateMissionAgentTerrain },
+              { label: t('Date réception mission'), field: 'dateRequete',          value: dossier?.dateRequete },
+              { label: t('Date sinistre'),          field: 'dateSinistre',         value: dossier?.dateSinistre },
+              { label: t('Date création dossier'),  field: 'createdAt',            value: dossier?.createdAt },
+              { label: t('Date mission AT'),        field: 'dateMissionAgentTerrain', value: dossier?.dateMissionAgentTerrain },
             ].map((row) => (
               <React.Fragment key={row.label}>{renderDateClesRow(row)}</React.Fragment>
             ))}
@@ -450,19 +453,19 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
             { phase: 'après',    demande: dossier?.dateDemandeExpertiseApres,    expertise: dossier?.datePhotosApres },
           ] as const).map((row) => (
             <div key={row.phase} className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-              {renderDateClesRow({ label: `Date demande expertise (${row.phase})`, value: row.demande })}
-              {renderDateClesRow({ label: `Date expertise (${row.phase})`, value: row.expertise })}
+              {renderDateClesRow({ label: `${t('Date demande expertise')} (${t(row.phase)})`, value: row.demande })}
+              {renderDateClesRow({ label: `${t('Date expertise')} (${t(row.phase)})`, value: row.expertise })}
             </div>
           ))}
           {/* Tail block: remaining single-column rows. */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             {[
-              { label: 'Date chiffrage', value: dossier?.dateChiffrage },
-              { label: 'Date validation facture', value: dossier?.dateFactureValide },
-              { label: 'Date envoi accord devis', value: dossier?.dateEnvoiAccordDevis },
-              { label: 'Date validation rapport', value: dossier?.directorValidated?.at },
-              { label: 'Date dépôt rapport', value: dossier?.dateRapportDepose },
-              { label: "Date dépôt note d'honoraire", value: (dossier as any)?.dateDepotNoteHonoraire },
+              { label: t('Date chiffrage'), value: dossier?.dateChiffrage },
+              { label: t('Date validation facture'), value: dossier?.dateFactureValide },
+              { label: t('Date envoi accord devis'), value: dossier?.dateEnvoiAccordDevis },
+              { label: t('Date validation rapport'), value: dossier?.directorValidated?.at },
+              { label: t('Date dépôt rapport'), value: dossier?.dateRapportDepose },
+              { label: t("Date dépôt note d'honoraire"), value: (dossier as any)?.dateDepotNoteHonoraire },
             ].map((row) => (
               <React.Fragment key={row.label}>{renderDateClesRow(row)}</React.Fragment>
             ))}
@@ -480,9 +483,9 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
                 <AlertTriangle className="h-6 w-6" />
               </div>
               <div className="flex-1 space-y-1">
-                <h3 className="t-heading text-status-danger-fg">Sinistre Douteux - En attente de validation</h3>
+                <h3 className="t-heading text-status-danger-fg">{t('Sinistre Douteux - En attente de validation')}</h3>
                 <p className="text-sm text-ink-2">
-                  Demandé par <span className="font-semibold text-ink">{dossier.sinistreDouteux.demandePar || 'N/A'}</span> le {formatDate(dossier.sinistreDouteux.dateDemande)}
+                  {t('Demandé par')} <span className="font-semibold text-ink">{dossier.sinistreDouteux.demandePar || 'N/A'}</span> {t('le')} {formatDate(dossier.sinistreDouteux.dateDemande)}
                 </p>
                 {dossier.sinistreDouteux.motif && (
                   <p className="mt-2 rounded-md bg-card/70 p-2 text-sm italic text-ink-2">
@@ -495,7 +498,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
                     className="gap-2"
                     size="sm"
                   >
-                    <CheckCircle className="h-4 w-4" /> Approuver
+                    <CheckCircle className="h-4 w-4" /> {t('Approuver')}
                   </Button>
                   <Button
                     onClick={handleReject}
@@ -503,7 +506,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
                     className="gap-2"
                     size="sm"
                   >
-                    <XCircle className="h-4 w-4" /> Rejeter
+                    <XCircle className="h-4 w-4" /> {t('Rejeter')}
                   </Button>
                 </div>
               </div>
@@ -520,8 +523,8 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
         const statusEntries = entries.filter((e) => e.type === 'statut' || e.type === 'sinistre_douteux' || e.type === 'document');
         return statusEntries.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="t-heading">Aucun changement de statut</p>
-            <p className="t-caption mt-1">Aucun changement de statut enregistré pour ce dossier.</p>
+            <p className="t-heading">{t('Aucun changement de statut')}</p>
+            <p className="t-caption mt-1">{t('Aucun changement de statut enregistré pour ce dossier.')}</p>
           </div>
         ) : (
           <div className="relative pl-8 pt-4">
@@ -535,13 +538,13 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
                   <div className="absolute -left-[27px] top-1.5 z-10 h-3 w-3 rounded-full border-2 border-background bg-ink-3" />
 
                   <div className="space-y-1">
-                    <p className="t-heading">{entry.action}</p>
+                    <p className="t-heading">{auditText(entry.action, t)}</p>
                     <p className="t-caption">
-                      {formatDate(entry.date)} par <UserNameLink entry={entry} className="font-medium text-ink-2" />
+                      {formatDate(entry.date)} {t('par')} <UserNameLink entry={entry} className="font-medium text-ink-2" />
                     </p>
                     {entry.details && (
                       <div className="mt-2 border-l-2 border-hairline-strong py-0.5 pl-4 text-sm italic text-ink-2">
-                        &quot;{entry.details}&quot;
+                        &quot;{auditText(entry.details, t)}&quot;
                       </div>
                     )}
                   </div>

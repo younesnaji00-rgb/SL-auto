@@ -1,0 +1,16 @@
+{
+  "hosting": {
+    "site": "appraisio-demo-ca",
+    "public": "public",
+    "ignore": ["**/.*"],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "appraisio-demo",
+          "region": "northamerica-northeast1"
+        }
+      }
+    ]
+  }
+}

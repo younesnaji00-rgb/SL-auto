@@ -10,6 +10,8 @@
  */
 import React from 'react';
 import { Document, View, Text } from '@react-pdf/renderer';
+import { t } from '@/i18n';
+import { BRAND } from '@/lib/brand';
 import { resolveRapportData, type RapportData } from '@/lib/rapport-data';
 import {
   fC,
@@ -110,7 +112,7 @@ function Footer({ today }: { today: string }) {
           <Text style={{ fontSize: 6, color: SOFT }}>{COMPANY_ADDRESS_FOOTER}</Text>
           <Text style={{ fontSize: 6, color: SOFT }}>{COMPANY_CONTACT_FOOTER}</Text>
         </View>
-        <Text style={{ fontSize: 7 }}>Rapport établi le : {today}</Text>
+        <Text style={{ fontSize: 7 }}>{t('Rapport établi le :')} {today}</Text>
       </View>
     </View>
   );
@@ -141,11 +143,11 @@ const DETAIL_COLS: Col[] = [
 
 /** Pure layout document (renderable with mock data for tests/preview). */
 export function RapportFinalDocument({ data }: { data: RapportData }) {
-  const t = data.totals;
+  const t2 = data.totals;
 
   const detailBody: Array<Array<string | number>> = data.pieces.map((p) => [
-    'Remplacement',
-    'Remplacement',
+    t('Remplacement'),
+    t('Remplacement'),
     p.designation,
     p.nature,
     p.quantite.toFixed(2),
@@ -156,22 +158,22 @@ export function RapportFinalDocument({ data }: { data: RapportData }) {
     fC(p.totalTTC),
     p.vetuste ? p.vetuste.toFixed(1) : '',
   ]);
-  if (t.mdoHT > 0) {
+  if (t2.mdoHT > 0) {
     detailBody.push([
-      "Main d'oeuvre",
-      "Main d'oeuvre",
-      "MAIN D'ŒUVRE",
+      t("Main d'oeuvre"),
+      t("Main d'oeuvre"),
+      t("MAIN D'ŒUVRE"),
       '',
       '1.00',
-      fC(t.mdoHT),
+      fC(t2.mdoHT),
       '',
-      fC(t.mdoHT),
-      fC(t.mdoTVA),
-      fC(t.mdoTTC),
+      fC(t2.mdoHT),
+      fC(t2.mdoTVA),
+      fC(t2.mdoTTC),
       '',
     ]);
   }
-  detailBody.push(['', '', '', '', '', '', 'Somme', fC(t.totalHT), fC(t.totalTVA), fC(t.totalTTC), '']);
+  detailBody.push(['', '', '', '', '', '', t('Somme'), fC(t2.totalHT), fC(t2.totalTVA), fC(t2.totalTTC), '']);
   const sommeRow = detailBody.length - 1;
 
   return (
@@ -187,8 +189,8 @@ export function RapportFinalDocument({ data }: { data: RapportData }) {
             <SafeImage img={data.slTextLogo} style={{ width: 78, height: 14, objectFit: 'contain', marginTop: 2 }} />
           </View>
           <View style={{ width: '44%', alignItems: 'center' }}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 15 }}>RAPPORT D'EXPERTISE</Text>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 10, marginTop: 2 }}>CONTRADICTOIRE</Text>
+            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 15 }}>{t("RAPPORT D'EXPERTISE")}</Text>
+            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 10, marginTop: 2 }}>{t('CONTRADICTOIRE')}</Text>
           </View>
           <View style={{ width: '28%', alignItems: 'flex-end' }}>
             <SafeImage img={data.compagnieLogo} style={{ width: 95, height: 42, objectFit: 'contain' }} />
@@ -201,53 +203,53 @@ export function RapportFinalDocument({ data }: { data: RapportData }) {
         <View style={{ borderWidth: 0.6, borderColor: LINE }}>
           <View style={{ flexDirection: 'row', borderBottomWidth: 0.6, borderColor: LINE }}>
             <View style={{ width: '50%', backgroundColor: SHADE, borderRightWidth: 0.6, borderColor: LINE, paddingVertical: 2.5, paddingHorizontal: 4 }}>
-              <LV label="Ref Expert :" value={data.refExpert} labelStyle={{ fontSize: 8.5 }} />
+              <LV label={t('Ref Expert :')} value={data.refExpert} labelStyle={{ fontSize: 8.5 }} />
             </View>
             <View style={{ width: '50%', backgroundColor: SHADE, paddingVertical: 2.5, paddingHorizontal: 4 }}>
-              <LV label="Pour le compte de :" value={data.pourLeCompteDe} labelStyle={{ fontSize: 8.5 }} />
+              <LV label={t('Pour le compte de :')} value={data.pourLeCompteDe} labelStyle={{ fontSize: 8.5 }} />
             </View>
           </View>
           <View style={{ padding: 4 }}>
-            <Pair l1="N° Dossier :" v1={data.numeroDossier} l2="Date Sinistre :" v2={data.dateSinistre} />
-            <Pair l1="Type Dossier :" v1={data.typeDossier} l2="Date Requête :" v2={data.dateRequete} />
-            <Pair l1="" v1="" l2="Ref Compagnie :" v2={data.referenceCompagnie} />
+            <Pair l1={t('N° Dossier :')} v1={data.numeroDossier} l2={t('Date Sinistre :')} v2={data.dateSinistre} />
+            <Pair l1={t('Type Dossier :')} v1={data.typeDossier} l2={t('Date Requête :')} v2={data.dateRequete} />
+            <Pair l1="" v1="" l2={t('Ref Compagnie :')} v2={data.referenceCompagnie} />
           </View>
         </View>
 
         {/* Assuré */}
         <View style={{ marginTop: 4 }}>
-          <SectionHeader label="Assuré">
-            <LV label="Nom et Prenom :" value={data.assure.fullName} labelStyle={{ fontSize: 8 }} />
+          <SectionHeader label={t('Assuré')}>
+            <LV label={t('Nom et Prenom :')} value={data.assure.fullName} labelStyle={{ fontSize: 8 }} />
           </SectionHeader>
           <View style={box({ padding: 4 })}>
-            <Pair l1="Véhicule :" v1={data.vehicule.marqueModele} l2="Cie d'assurances :" v2={data.compagnie} />
-            <Pair l1="Immatriculation :" v1={data.vehicule.immatriculation} l2="N° Police :" v2={data.policeNumber} />
-            <Pair l1="Type :" v1="" l2="Agent/Courtier :" v2={data.intermediaire || 'sans intermédiaire'} />
+            <Pair l1={t('Véhicule :')} v1={data.vehicule.marqueModele} l2={t("Cie d'assurances :")} v2={data.compagnie} />
+            <Pair l1={t('Immatriculation :')} v1={data.vehicule.immatriculation} l2={t('N° Police :')} v2={data.policeNumber} />
+            <Pair l1={t('Type :')} v1="" l2={t('Agent/Courtier :')} v2={data.intermediaire || t('sans intermédiaire')} />
           </View>
         </View>
 
         {/* Adversaire */}
         {data.adversaire.present && (
           <View style={{ marginTop: 4 }}>
-            <SectionHeader label="Adversaire">
-              <LV label="Nom et Prenom :" value={data.adversaire.fullName} labelStyle={{ fontSize: 8 }} />
+            <SectionHeader label={t('Adversaire')}>
+              <LV label={t('Nom et Prenom :')} value={data.adversaire.fullName} labelStyle={{ fontSize: 8 }} />
             </SectionHeader>
             <View style={box({ padding: 4 })}>
-              <Pair l1="Véhicule :" v1={data.adversaire.vehicule} l2="Cie d'assurances :" v2={data.adversaire.compagnie} />
-              <Pair l1="Immatriculation :" v1={data.adversaire.immatriculation} l2="N° Police :" v2={data.adversaire.police} />
+              <Pair l1={t('Véhicule :')} v1={data.adversaire.vehicule} l2={t("Cie d'assurances :")} v2={data.adversaire.compagnie} />
+              <Pair l1={t('Immatriculation :')} v1={data.adversaire.immatriculation} l2={t('N° Police :')} v2={data.adversaire.police} />
             </View>
           </View>
         )}
 
         {/* Réparateur */}
         <View style={{ marginTop: 4 }}>
-          <SectionHeader label="Réparateur">
+          <SectionHeader label={t('Réparateur')}>
             <View style={{ flexDirection: 'row' }}>
               <View style={{ width: '55%' }}>
-                <LV label="Raison sociale :" value={data.reparateur.raisonSociale || 'Particulier'} />
+                <LV label={t('Raison sociale :')} value={data.reparateur.raisonSociale || t('Particulier')} />
               </View>
               <View style={{ width: '45%' }}>
-                <LV label="Garage Agréé :" value={data.reparateur.garageAgree} />
+                <LV label={t('Garage Agréé :')} value={t(data.reparateur.garageAgree)} />
               </View>
             </View>
           </SectionHeader>
@@ -258,20 +260,20 @@ export function RapportFinalDocument({ data }: { data: RapportData }) {
           <View style={{ flexDirection: 'row', borderWidth: 0.6, borderColor: LINE }}>
             <View style={{ width: '65%', backgroundColor: SHADE, borderRightWidth: 0.6, borderColor: LINE, paddingVertical: 2.5, paddingHorizontal: 4 }}>
               <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 8.5 }}>
-                Caractéristiques techniques du véhicule expertisé
+                {t('Caractéristiques techniques du véhicule expertisé')}
               </Text>
             </View>
             <View style={{ width: '35%', backgroundColor: SHADE, paddingVertical: 2.5, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 8.5 }}>Véhicule Vu</Text>
+              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 8.5 }}>{t('Véhicule Vu')}</Text>
             </View>
           </View>
           <View style={{ flexDirection: 'row' }}>
             <View style={[box({ borderRightWidth: 0.6 }), { width: '65%', padding: 4 }]}>
-              <Pair l1="Véhicule :" v1={data.vehicule.marqueModele} l2="Type Mine :" v2={data.vehicule.typeMine} />
-              <Pair l1="Immatriculation :" v1={data.vehicule.immatriculation} l2="N° Série :" v2={data.vehicule.serie} />
-              <Pair l1="Puissance fiscale :" v1={data.vehicule.puissance} l2="kilométrage :" v2={data.vehicule.km} />
-              <Pair l1="Date mise en Cir :" v1={data.vehicule.mec} l2="Energie :" v2={data.vehicule.energie} />
-              <Pair l1="Etat général :" v1={data.vehicule.etatGeneral} />
+              <Pair l1={t('Véhicule :')} v1={data.vehicule.marqueModele} l2={t('Type Mine :')} v2={data.vehicule.typeMine} />
+              <Pair l1={t('Immatriculation :')} v1={data.vehicule.immatriculation} l2={t('N° Série :')} v2={data.vehicule.serie} />
+              <Pair l1={t('Puissance fiscale :')} v1={data.vehicule.puissance} l2={t('kilométrage :')} v2={data.vehicule.km} />
+              <Pair l1={t('Date mise en Cir :')} v1={data.vehicule.mec} l2={t('Energie :')} v2={data.vehicule.energie} />
+              <Pair l1={t('Etat général :')} v1={data.vehicule.etatGeneral} />
             </View>
             <View style={[box({ borderLeftWidth: 0 }), { width: '35%' }]}>
               {[
@@ -289,7 +291,7 @@ export function RapportFinalDocument({ data }: { data: RapportData }) {
                     alignItems: 'center',
                   }}
                 >
-                  <Text style={{ width: '58%', fontSize: 7, paddingHorizontal: 3, fontFamily: 'Helvetica-Bold' }}>{lab}</Text>
+                  <Text style={{ width: '58%', fontSize: 7, paddingHorizontal: 3, fontFamily: 'Helvetica-Bold' }}>{t(lab)}</Text>
                   <Text style={{ width: '42%', fontSize: 7, paddingHorizontal: 3, color: SOFT, borderLeftWidth: 0.5, borderColor: LINE }}>{val}</Text>
                 </View>
               ))}
@@ -303,45 +305,44 @@ export function RapportFinalDocument({ data }: { data: RapportData }) {
             <CarTopSvg zones={data.pointsChoc} height={82} />
           </View>
           <View style={{ width: '64%', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>Point de choc</Text>
+            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>{t('Point de choc')}</Text>
           </View>
         </View>
 
         {/* Conclusions */}
         <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9, marginTop: 6, marginBottom: 3 }}>
-          Conclusions (Montants exprimés en DHS)
+          {t('Conclusions (Montants exprimés en')} {BRAND.currencyLabel})
         </Text>
         <Table
           cols={CONCLUSION_COLS}
-          head={['A déduire', '', '', 'HT', 'TVA', 'TTC']}
+          head={[t('A déduire'), '', '', t('HT'), t('TVA'), t('TTC')]}
           headAlign="left"
           body={[
-            ['Vetusté :', fC(t.vetuste), 'Fourniture', fC(t.fournitureHT), fC(t.fournitureTVA), fC(t.fournitureTTC)],
-            ['TVA :', '0', "Main d'oeuvre", fC(t.mdoHT), fC(t.mdoTVA), fC(t.mdoTTC)],
-            ['Franchise :', fC(t.franchise), 'Totale', fC(t.totalHT), fC(t.totalTVA), fC(t.totalTTC)],
+            [t('Vetusté :'), fC(t2.vetuste), t('Fourniture'), fC(t2.fournitureHT), fC(t2.fournitureTVA), fC(t2.fournitureTTC)],
+            [t('TVA :'), '0', t("Main d'oeuvre"), fC(t2.mdoHT), fC(t2.mdoTVA), fC(t2.mdoTTC)],
+            [t('Franchise :'), fC(t2.franchise), t('Totale'), fC(t2.totalHT), fC(t2.totalTVA), fC(t2.totalTTC)],
           ]}
           fontSize={8}
         />
 
         <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 10, textAlign: 'center', marginTop: 6 }}>
-          Montant d'indemnisation :   {fC(t.indemnisation)}
+          {t("Montant d'indemnisation :")}   {fC(t2.indemnisation)}
         </Text>
 
         {/* Legal closing */}
         <Text style={{ fontSize: 8, color: SOFT, marginTop: 8 }}>
-          <Text style={{ fontFamily: 'Helvetica-Bold', color: INK }}>Arrêté le présent rapport d'expertise à la somme de : </Text>
+          <Text style={{ fontFamily: 'Helvetica-Bold', color: INK }}>{t("Arrêté le présent rapport d'expertise à la somme de :")} </Text>
           {data.montantEnLettres.toUpperCase()}
         </Text>
         <Text style={{ fontSize: 8, color: SOFT, marginTop: 3 }}>
-          En foi de quoi,le présent rapport est établi en unique original pour servir et valoir ce que de droit, et sous
-          réserves des droits des parties
+          {t('En foi de quoi,le présent rapport est établi en unique original pour servir et valoir ce que de droit, et sous réserves des droits des parties')}
         </Text>
 
         {/* Signatures */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 14 }}>
-          <Text style={{ fontSize: 9 }}>Expert adverse : {data.expertAdverse || 'CEOO'}</Text>
+          <Text style={{ fontSize: 9 }}>{t('Expert adverse :')} {data.expertAdverse || 'CEOO'}</Text>
           <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: 9 }}>Signature</Text>
+            <Text style={{ fontSize: 9 }}>{t('Signature')}</Text>
             <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>SLAUTO</Text>
             <SafeImage img={data.cachet || data.slLogo} style={{ width: 95, height: 48, objectFit: 'contain', marginTop: 2 }} />
           </View>
@@ -357,8 +358,8 @@ export function RapportFinalDocument({ data }: { data: RapportData }) {
             <SafeImage img={data.slLogo} style={{ width: 32, height: 26, objectFit: 'contain' }} />
           </View>
           <View style={{ width: '50%', alignItems: 'center' }}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 12 }}>RAPPORT D'EXPERTISE</Text>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>CONTRADICTOIRE</Text>
+            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 12 }}>{t("RAPPORT D'EXPERTISE")}</Text>
+            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>{t('CONTRADICTOIRE')}</Text>
           </View>
           <View style={{ width: '25%', alignItems: 'flex-end' }}>
             <SafeImage img={data.compagnieLogo} style={{ width: 80, height: 36, objectFit: 'contain' }} />
@@ -366,24 +367,31 @@ export function RapportFinalDocument({ data }: { data: RapportData }) {
         </View>
 
         <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9, textAlign: 'center', marginBottom: 8 }}>
-          REF EXPERT : {data.refExpert}
+          {t('REF EXPERT :')} {data.refExpert}
         </Text>
 
         <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 10, marginBottom: 4 }}>
-          Détails fourniture et réparation :
+          {t('Détails fourniture et réparation :')}
         </Text>
-        <Table cols={DETAIL_COLS} body={detailBody} fontSize={6.5} headFontSize={6.8} cellPad={2} boldRows={[sommeRow]} />
+        <Table
+          cols={DETAIL_COLS.map((c) => (c.header ? { ...c, header: t(c.header) } : c))}
+          body={detailBody}
+          fontSize={6.5}
+          headFontSize={6.8}
+          cellPad={2}
+          boldRows={[sommeRow]}
+        />
 
         {/* Observation */}
-        <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9, marginTop: 8, marginBottom: 3 }}>Observation expert :</Text>
+        <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9, marginTop: 8, marginBottom: 3 }}>{t('Observation expert :')}</Text>
         <View style={{ borderWidth: 0.6, borderColor: LINE, minHeight: 40, padding: 4 }}>
           <Text style={{ fontSize: 8, color: SOFT }}>{data.observation || ''}</Text>
         </View>
 
-        <Text style={{ fontSize: 8, color: SOFT, marginTop: 8 }}>Publié le: {data.today}</Text>
+        <Text style={{ fontSize: 8, color: SOFT, marginTop: 8 }}>{t('Publié le:')} {data.today}</Text>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 4 }}>
           <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 8, width: '70%', textAlign: 'center' }}>
-            Expert: {data.cabinetAdverse || "CABINET D'ETUDES ET D'EXPERTISES OUDRHIRI"}
+            {t('Expert:')} {data.cabinetAdverse || "CABINET D'ETUDES ET D'EXPERTISES OUDRHIRI"}
           </Text>
           <SafeImage img={data.cachet || data.slLogo} style={{ width: 90, height: 50, objectFit: 'contain' }} />
         </View>

@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { useCompagnies } from '@/hooks/use-compagnies';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, t as translate, dateFnsLocale } from '@/i18n';
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -179,12 +179,12 @@ function PermissionRow({
       <div className="flex flex-wrap items-center gap-2">
         <p className={cn('t-body leading-tight', child ? 'font-medium' : 'font-semibold')}>{label}</p>
         {isOverride && (
-          <Badge variant={allowed ? 'success' : 'warning'} title={allowed ? 'Accordé en plus du rôle' : 'Retiré du rôle'}>
-            {allowed ? 'Accordé' : 'Retiré'}
+          <Badge variant={allowed ? 'success' : 'warning'} title={allowed ? translate('Accordé en plus du rôle') : translate('Retiré du rôle')}>
+            {allowed ? translate('Accordé') : translate('Retiré')}
           </Badge>
         )}
         {!roleDefault && !isOverride && (
-          <Badge variant="neutral" title="Non inclus dans le rôle par défaut">Hors rôle</Badge>
+          <Badge variant="neutral" title={translate('Non inclus dans le rôle par défaut')}>{translate('Hors rôle')}</Badge>
         )}
       </div>
       <p className="t-caption font-mono">{id}</p>
@@ -213,12 +213,12 @@ function PermissionRow({
         </div>
       )}
       <div className="flex shrink-0 items-center gap-2">
-        {saving && <span className="t-label">Enregistrement…</span>}
+        {saving && <span className="t-label">{translate('Enregistrement…')}</span>}
         <Switch
           checked={allowed}
           disabled={saving}
           onCheckedChange={onToggle}
-          aria-label={child ? `Autoriser ${label}` : `Autoriser l'accès à ${label}`}
+          aria-label={child ? `${translate('Autoriser')} ${label}` : `${translate("Autoriser l'accès à")} ${label}`}
         />
       </div>
     </div>
@@ -227,6 +227,7 @@ function PermissionRow({
 
 export default function UserDetailPage({ params }: { params: Promise<{ uid: string }> }) {
   const { uid } = React.use(params);
+  const t = useT();
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
@@ -342,7 +343,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const initialForm = useMemo(() => (userData ? formFromUser(userData) : EMPTY_FORM), [userData]);
   const dirty = useMemo(() => JSON.stringify(formData) !== JSON.stringify(initialForm), [formData, initialForm]);
 
-  const displayName = `${formData.prenom ?? ''} ${formData.nom ?? ''}`.trim() || 'Utilisateur';
+  const displayName = `${formData.prenom ?? ''} ${formData.nom ?? ''}`.trim() || t('Utilisateur');
 
   // Permission tree shown in the card. Top-level entries are sidebar items
   // (except `/signaler-bug` which is universally accessible). Some entries
@@ -361,13 +362,13 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       for (const item of group.items) {
         if (item.href === '/signaler-bug') continue;
         const parentDefault = isItemVisibleToRole(item, role);
-        const node: Node = { id: item.href, label: item.label, roleDefault: parentDefault };
+        const node: Node = { id: item.href, label: t(item.label), roleDefault: parentDefault };
         if (item.href === '/mes-rappels') {
           node.children = [
-            { id: '/mes-rappels#recus', label: 'Reçus', roleDefault: parentDefault },
+            { id: '/mes-rappels#recus', label: t('Reçus'), roleDefault: parentDefault },
             // Gestionnaires only receive rappels, never send → "Envoyés" tab is
             // off by default for them (kept in sync with the /mes-rappels gate).
-            { id: '/mes-rappels#envoyes', label: 'Envoyés', roleDefault: parentDefault && rappelsEnvoyesRoleDefault(role) },
+            { id: '/mes-rappels#envoyes', label: t('Envoyés'), roleDefault: parentDefault && rappelsEnvoyesRoleDefault(role) },
           ];
         } else if (item.href === '/dossiers') {
           // Validation has its own role gate (canValidateRapport): Admin +
@@ -379,7 +380,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             role === 'Directeur' ||
             role === 'Directeur technique';
           node.children = [
-            { id: '/dossiers#validation', label: 'Validation de dossier', roleDefault: canValidate },
+            { id: '/dossiers#validation', label: t('Validation de dossier'), roleDefault: canValidate },
           ];
         } else if (item.href === '/compagnies') {
           node.children = allCompagnies.map((c) => ({
@@ -446,7 +447,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       console.error('Failed to persist permission overrides', err);
       setDeniedNavItems(prevDenied);
       setGrantedNavItems(prevGranted);
-      toast({ variant: 'destructive', title: 'Erreur', description: "Impossible de mettre à jour la permission." });
+      toast({ variant: 'destructive', title: t('Erreur'), description: t("Impossible de mettre à jour la permission.") });
     } finally {
       setPermissionsSaving((p) => {
         const next = { ...p };
@@ -489,8 +490,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     if (!formData.nom || !formData.nom.trim()) {
       toast({
         variant: 'destructive',
-        title: 'Nom requis',
-        description: 'Le nom complet est obligatoire.',
+        title: t('Nom requis'),
+        description: t('Le nom complet est obligatoire.'),
       });
       return;
     }
@@ -560,10 +561,10 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         for (const d of staleSnap.docs) await deleteDoc(d.ref);
       }
 
-      toast({ title: "Profil mis à jour", description: "Les informations ont été enregistrées avec succès." });
+      toast({ title: t('Profil mis à jour'), description: t('Les informations ont été enregistrées avec succès.') });
     } catch (error) {
       console.error(error);
-      toast({ variant: 'destructive', title: "Erreur", description: "Impossible de sauvegarder les modifications." });
+      toast({ variant: 'destructive', title: t('Erreur'), description: t('Impossible de sauvegarder les modifications.') });
     } finally {
       setIsSaving(false);
     }
@@ -576,7 +577,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       if (formData.role === 'Admin') {
         const admins = await getDocs(query(collection(db, 'users'), where('role', '==', 'Admin')));
         if (admins.docs.filter((d) => d.id !== uid).length === 0) {
-          toast({ variant: 'destructive', title: 'Suppression impossible', description: 'C’est le dernier compte Admin — créez-en un autre avant de supprimer celui-ci.' });
+          toast({ variant: 'destructive', title: t('Suppression impossible'), description: t('C’est le dernier compte Admin — créez-en un autre avant de supprimer celui-ci.') });
           setIsDeleting(false);
           setShowDeleteDialog(false);
           return;
@@ -596,11 +597,11 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       // metadata explicitly or it would orphan (PII) after the parent is gone.
       await deleteDoc(doc(db, 'users', uid, 'session_meta', 'current')).catch(() => {});
       await deleteDoc(userRef);
-      toast({ title: "Utilisateur supprimé" });
+      toast({ title: t('Utilisateur supprimé') });
       router.push('/utilisateurs');
     } catch (error) {
       console.error(error);
-      toast({ variant: 'destructive', title: "Erreur lors de la suppression" });
+      toast({ variant: 'destructive', title: t('Erreur lors de la suppression') });
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
@@ -616,12 +617,12 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       await updateDoc(userRef, { currentSessionId: null, currentSessionSeenAt: null });
       await deleteDoc(doc(db, 'users', uid, 'session_meta', 'current')).catch(() => {});
       toast({
-        title: 'Session déconnectée',
-        description: "L'utilisateur a été déconnecté de son appareil et peut se reconnecter ailleurs.",
+        title: t('Session déconnectée'),
+        description: t("L'utilisateur a été déconnecté de son appareil et peut se reconnecter ailleurs."),
       });
     } catch (error) {
       console.error(error);
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de déconnecter la session.' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: t('Impossible de déconnecter la session.') });
     } finally {
       setIsDisconnecting(false);
     }
@@ -630,7 +631,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const formatTimestamp = (ts: any) => {
     if (!ts) return '—';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
-    return format(date, "d MMMM yyyy 'à' HH:mm", { locale: fr });
+    return format(date, "d MMMM yyyy 'à' HH:mm", { locale: dateFnsLocale() });
   };
   const toDate = (ts: any): Date | null => {
     if (!ts) return null;
@@ -647,11 +648,11 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     return (
       <EmptyState
         icon={<UserIcon />}
-        title="Utilisateur introuvable"
-        description="Ce compte n'existe plus ou l'adresse est incorrecte."
+        title={t('Utilisateur introuvable')}
+        description={t("Ce compte n'existe plus ou l'adresse est incorrecte.")}
         action={
           <Button asChild variant="outline">
-            <Link href="/utilisateurs">Retour à la liste</Link>
+            <Link href="/utilisateurs">{t('Retour à la liste')}</Link>
           </Button>
         }
       />
@@ -670,12 +671,12 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       <PageHeader
         size="compact"
         backHref="/utilisateurs"
-        backLabel="Utilisateurs"
+        backLabel={t('Utilisateurs')}
         title={displayName}
         meta={
           <>
-            {formData.role && <Badge variant="neutral">{formData.role}</Badge>}
-            <Badge variant={statutVariant(statut)}>{statut}</Badge>
+            {formData.role && <Badge variant="neutral">{t(formData.role)}</Badge>}
+            <Badge variant={statutVariant(statut)}>{t(statut)}</Badge>
           </>
         }
       />
@@ -684,13 +685,13 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         <div className="space-y-6 lg:col-span-2">
           {/* Content card — element-specs §5 (Material 3 cards; NN/g cards):
               24 px padding, t-heading title, no restated description. */}
-          <Card>
+          <Card data-tour="usrd-profile">
             <CardHeader>
               <CardTitle className="t-heading flex items-center gap-2">
                 {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: ONE IconChip beside the
                     section that anchors the page; other card icons stay quiet. */}
                 <IconChip><UserIcon /></IconChip>
-                Informations personnelles
+                {t('Informations personnelles')}
               </CardTitle>
             </CardHeader>
             {/* Always-editable form — element-specs §9 + addendum 4 (GOV.UK:
@@ -704,7 +705,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
               {/* Identité */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-1">
-                  <Label htmlFor="u-prenom">Prénom</Label>
+                  <Label htmlFor="u-prenom">{t('Prénom')}</Label>
                   <Input
                     id="u-prenom"
                     value={formData.prenom}
@@ -712,7 +713,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="u-nom">Nom</Label>
+                  <Label htmlFor="u-nom">{t('Nom')}</Label>
                   <Input
                     id="u-nom"
                     value={formData.nom}
@@ -720,7 +721,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="u-email">Email</Label>
+                  <Label htmlFor="u-email">{t('Email')}</Label>
                   <Input
                     id="u-email"
                     type="email"
@@ -731,7 +732,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="u-tel">Téléphone</Label>
+                  <Label htmlFor="u-tel">{t('Téléphone')}</Label>
                   {/* Moroccan format cue (owner rule 8), never a sample number. */}
                   <Input
                     id="u-tel"
@@ -747,7 +748,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
               {/* Accès */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-1">
-                  <Label htmlFor="u-password">Mot de passe</Label>
+                  <Label htmlFor="u-password">{t('Mot de passe')}</Label>
                   {/* NN/g password masking: masked by default + explicit toggle
                       (`ghost` icon button, aria-pressed). Read-only value. */}
                   <div className="relative max-w-[16rem]">
@@ -765,33 +766,33 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                       className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-ink-3 shadow-none hover:text-ink"
                       onClick={() => setShowPassword(v => !v)}
                       aria-pressed={showPassword}
-                      aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                      aria-label={showPassword ? t('Masquer le mot de passe') : t('Afficher le mot de passe')}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="u-role">Rôle</Label>
+                  <Label htmlFor="u-role">{t('Rôle')}</Label>
                   <Select value={formData.role} onValueChange={v => setFormData(p => ({ ...p, role: v as Role }))}>
                     <SelectTrigger id="u-role" className="max-w-[16rem]"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {roles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                      {roles.map(r => <SelectItem key={r} value={r}>{t(r)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   {/* What this role can do, at the point of assignment
                       (addendum ter E). */}
                   {ROLE_DESCRIPTIONS[formData.role] && (
-                    <p className="t-caption max-w-[24rem]">{ROLE_DESCRIPTIONS[formData.role]}</p>
+                    <p className="t-caption max-w-[24rem]">{t(ROLE_DESCRIPTIONS[formData.role])}</p>
                   )}
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="u-statut">Statut</Label>
+                  <Label htmlFor="u-statut">{t('Statut')}</Label>
                   <Select value={formData.statut} onValueChange={v => setFormData(p => ({ ...p, statut: v as 'Actif' | 'Inactif' }))}>
                     <SelectTrigger id="u-statut" className="max-w-[12rem]"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Actif">Actif</SelectItem>
-                      <SelectItem value="Inactif">Inactif</SelectItem>
+                      <SelectItem value="Actif">{t('Actif')}</SelectItem>
+                      <SelectItem value="Inactif">{t('Inactif')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -811,7 +812,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   const selected = formData.zone || '';
                   return (
                     <div className="space-y-1">
-                      <Label htmlFor="u-zone">Zone</Label>
+                      <Label htmlFor="u-zone">{t('Zone')}</Label>
                       <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
                         <PopoverTrigger asChild>
                           <Button
@@ -822,7 +823,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                             aria-expanded={zonePopoverOpen}
                             className={cn("w-full max-w-[16rem] justify-between font-normal", !selected && "text-ink-3")}
                           >
-                            {selected || 'Sélectionnez ou saisissez une zone'}
+                            {selected || t('Sélectionnez ou saisissez une zone')}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-ink-3" />
                           </Button>
                         </PopoverTrigger>
@@ -833,7 +834,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                               <input
                                 value={zoneQuery}
                                 onChange={(e) => setZoneQuery(e.target.value)}
-                                placeholder="Rechercher ou créer une zone"
+                                placeholder={t('Rechercher ou créer une zone')}
                                 className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-ink-3"
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' && trimmedQuery) {
@@ -847,7 +848,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                             </div>
                             <CommandList>
                               {filteredZones.length === 0 && !trimmedQuery && (
-                                <CommandEmpty>Aucune zone enregistrée. Tapez pour créer.</CommandEmpty>
+                                <CommandEmpty>{t('Aucune zone enregistrée. Tapez pour créer.')}</CommandEmpty>
                               )}
                               {filteredZones.length > 0 && (
                                 <CommandGroup>
@@ -868,7 +869,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                 </CommandGroup>
                               )}
                               {trimmedQuery && !exactMatch && (
-                                <CommandGroup heading="Créer">
+                                <CommandGroup heading={t('Créer')}>
                                   <CommandItem
                                     value={`__create__${trimmedQuery}`}
                                     onSelect={() => {
@@ -878,7 +879,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                                     }}
                                   >
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Créer «{trimmedQuery}»
+                                    {t('Créer')} «{trimmedQuery}»
                                   </CommandItem>
                                 </CommandGroup>
                               )}
@@ -891,8 +892,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 })()}
 
               <div className="space-y-1">
-                <Label>Compagnies d&apos;assurance affiliées</Label>
-                <p className="t-caption">Vide = accès à tous les dossiers ; sinon uniquement ceux des compagnies choisies</p>
+                <Label>{t("Compagnies d'assurance affiliées")}</Label>
+                <p className="t-caption">{t('Vide = accès à tous les dossiers ; sinon uniquement ceux des compagnies choisies')}</p>
                 <MultiSelect
                   options={companyOptions}
                   selected={formData.compagnies}
@@ -902,8 +903,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
               </div>
 
               <div className="space-y-1">
-                <Label>Sites <span className="text-ink-4">(facultatif)</span></Label>
-                <p className="t-caption">Villes dans lesquelles l&apos;utilisateur intervient, plusieurs choix possibles</p>
+                <Label>{t('Sites')} <span className="text-ink-4">({t('facultatif')})</span></Label>
+                <p className="t-caption">{t("Villes dans lesquelles l'utilisateur intervient, plusieurs choix possibles")}</p>
                 <MultiSelect
                   options={siteOptions}
                   selected={formData.sites}
@@ -917,11 +918,11 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   key over value; Refactoring UI: labels quiet, values primary). */}
               <dl className="grid grid-cols-1 gap-x-6 gap-y-4 border-t border-hairline pt-4 md:grid-cols-2">
                 <div className="min-w-0">
-                  <dt className="t-label">Créé le</dt>
+                  <dt className="t-label">{t('Créé le')}</dt>
                   <dd className="t-body mt-1 font-semibold tabular-nums text-ink">{formatTimestamp(userData.createdAt)}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="t-label">Dernière connexion</dt>
+                  <dt className="t-label">{t('Dernière connexion')}</dt>
                   <dd className={cn('t-body mt-1 tabular-nums', userData.lastLogin ? 'font-semibold text-ink' : 'text-ink-4')}>
                     {formatTimestamp(userData.lastLogin)}
                   </dd>
@@ -933,27 +934,27 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 enabled and the unsaved state is said in words next to it). */}
             <CardFooter className="flex flex-wrap items-center justify-end gap-3 border-t border-hairline pt-6">
               {dirty && !isSaving && (
-                <span className="t-caption" aria-live="polite">Modifications non enregistrées</span>
+                <span className="t-caption" aria-live="polite">{t('Modifications non enregistrées')}</span>
               )}
               <Button onClick={handleSave} loading={isSaving}>
-                {isSaving ? 'Enregistrement…' : 'Sauvegarder'}
+                {isSaving ? t('Enregistrement…') : t('Sauvegarder')}
               </Button>
             </CardFooter>
           </Card>
 
-          <Card>
+          <Card data-tour="usrd-permissions">
             <CardHeader>
               <CardTitle className="t-heading flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-ink-3" aria-hidden />
-                Permissions
+                {t('Permissions')}
               </CardTitle>
               <CardDescription className="t-caption max-w-[65ch]">
-                Accordez ou retirez l&apos;accès à n&apos;importe quelle page pour cet utilisateur, indépendamment de son rôle. Utile pour des privilèges temporaires. «&nbsp;Signaler un bug&nbsp;» reste toujours accessible.
+                {t("Accordez ou retirez l'accès à n'importe quelle page pour cet utilisateur, indépendamment de son rôle. Utile pour des privilèges temporaires. « Signaler un bug » reste toujours accessible.")}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {permissionTree.length === 0 ? (
-                <p className="t-caption py-2">Aucun menu configurable.</p>
+                <p className="t-caption py-2">{t('Aucun menu configurable.')}</p>
               ) : (
                 // Toggle rows — Material 3 lists + switch (see PermissionRow);
                 // hairlines only, no box around the list (§4: no boxes inside rows).
@@ -1008,11 +1009,11 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden">
+          <Card className="overflow-hidden" data-tour="usrd-dossiers">
             <CardHeader>
               <CardTitle className="t-heading flex items-center gap-2">
                 <FolderOpen className="h-4 w-4 text-ink-3" aria-hidden />
-                Dossiers assignés
+                {t('Dossiers assignés')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1025,8 +1026,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
               ) : !assignedDossiers || assignedDossiers.length === 0 ? (
                 <EmptyState
                   icon={<FolderOpen />}
-                  title="Aucun dossier assigné"
-                  description="Les dossiers créés par ou confiés à cet utilisateur apparaîtront ici."
+                  title={t('Aucun dossier assigné')}
+                  description={t('Les dossiers créés par ou confiés à cet utilisateur apparaîtront ici.')}
                   dashed={false}
                 />
               ) : (
@@ -1035,14 +1036,14 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 // the row end; Carbon: sticky header). The table sits in the card
                 // without a second frame (§5) — it bleeds to the card edges.
                 <div className="-mx-6 -mb-6 border-t border-hairline">
-                  <Table regionLabel="Dossiers assignés">
+                  <Table regionLabel={t('Dossiers assignés')}>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="pl-6">Réf. expert</TableHead>
-                        <TableHead>Assuré</TableHead>
-                        <TableHead>Nature du dossier</TableHead>
-                        <TableHead>Statut</TableHead>
-                        <TableHead className="w-12 pr-6 text-right"><span className="sr-only">Ouvrir</span></TableHead>
+                        <TableHead className="pl-6">{t('Réf. expert')}</TableHead>
+                        <TableHead>{t('Assuré')}</TableHead>
+                        <TableHead>{t('Nature du dossier')}</TableHead>
+                        <TableHead>{t('Statut')}</TableHead>
+                        <TableHead className="w-12 pr-6 text-right"><span className="sr-only">{t('Ouvrir')}</span></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1052,12 +1053,12 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                           <TableRow key={d.id} className="group cursor-pointer" onClick={() => router.push(`/dossiers/${d.id}`)}>
                             <TableCell className="t-mono pl-6 font-semibold">{d.refExpert || <span className="text-ink-4">—</span>}</TableCell>
                             <TableCell className="font-medium">{assureName || <span className="text-ink-4">—</span>}</TableCell>
-                            <TableCell className="text-ink-2">{d.nature || <span className="text-ink-4">—</span>}</TableCell>
+                            <TableCell className="text-ink-2">{d.nature ? t(d.nature) : <span className="text-ink-4">—</span>}</TableCell>
                             <TableCell>
-                              <span className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{d.statut || 'Nouveau'}</span>
+                              <span className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{t(d.statut || 'Nouveau')}</span>
                             </TableCell>
                             <TableCell className="pr-6 text-right" onClick={(e) => e.stopPropagation()}>
-                              <Link href={`/dossiers/${d.id}`} aria-label={`Ouvrir le dossier ${d.refExpert || ''}`} className="inline-flex rounded-sm text-ink-4 transition-colors group-hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                              <Link href={`/dossiers/${d.id}`} aria-label={`${t('Ouvrir le dossier')} ${d.refExpert || ''}`} className="inline-flex rounded-sm text-ink-4 transition-colors group-hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                                 <ChevronRight className="h-4 w-4" />
                               </Link>
                             </TableCell>
@@ -1073,11 +1074,11 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         </div>
 
         <div className="space-y-6">
-          <Card>
+          <Card data-tour="usrd-activity">
             <CardHeader>
               <CardTitle className="t-heading flex items-center gap-2">
                 <Clock className="h-4 w-4 text-ink-3" aria-hidden />
-                Historique d&apos;activité
+                {t("Historique d'activité")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1090,8 +1091,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
               ) : !activityHistory || activityHistory.length === 0 ? (
                 <EmptyState
                   icon={<Clock />}
-                  title="Aucune activité récente"
-                  description="Les changements effectués par cet utilisateur apparaîtront ici."
+                  title={t('Aucune activité récente')}
+                  description={t('Les changements effectués par cet utilisateur apparaîtront ici.')}
                   dashed={false}
                 />
               ) : (
@@ -1108,17 +1109,17 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                       <li key={entry.id} className="flex min-h-[56px] items-center gap-3 py-2">
                         <div className="flex w-10 shrink-0 flex-col items-center justify-center rounded-md bg-surface-3 py-1 text-center text-ink-2 shadow-rim">
                           <span className="text-[11px] font-medium leading-none">
-                            {d ? format(d, 'MMM', { locale: fr }).replace('.', '') : '—'}
+                            {d ? format(d, 'MMM', { locale: dateFnsLocale() }).replace('.', '') : '—'}
                           </span>
                           <span className="text-base font-semibold leading-tight tabular-nums">{d ? format(d, 'd') : '—'}</span>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="t-body truncate font-semibold">{entry.action}</p>
+                          <p className="t-body truncate font-semibold">{t(entry.action)}</p>
                           <p className="t-caption flex flex-wrap items-center gap-x-2 tabular-nums">
-                            <span>{d ? format(d, 'yyyy · HH:mm', { locale: fr }) : '—'}</span>
+                            <span>{d ? format(d, 'yyyy · HH:mm', { locale: dateFnsLocale() }) : '—'}</span>
                             {entry.newStatut && (
                               <span className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(entry.newStatut))}>
-                                {entry.newStatut}
+                                {t(entry.newStatut)}
                               </span>
                             )}
                           </p>
@@ -1140,15 +1141,14 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             const sessionStale = hasSession && isSessionStale(timestampToMillis(userData.currentSessionSeenAt), Date.now());
             const sessionActive = hasSession && !sessionStale;
             return (
-              <Card>
+              <Card data-tour="usrd-session">
                 <CardHeader>
                   <CardTitle className="t-heading flex items-center gap-2">
                     <Smartphone className="h-4 w-4 text-ink-3" aria-hidden />
-                    Session / Appareil
+                    {t('Session / Appareil')}
                   </CardTitle>
                   <CardDescription className="t-caption">
-                    Ce rôle est limité à un seul appareil à la fois. Déconnectez sa session
-                    pour lui permettre de se connecter depuis un autre appareil.
+                    {t('Ce rôle est limité à un seul appareil à la fois. Déconnectez sa session pour lui permettre de se connecter depuis un autre appareil.')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1163,10 +1163,10 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                     />
                     <span className={cn(sessionActive ? 'font-semibold text-ink' : 'text-ink-3')}>
                       {sessionActive
-                        ? 'Connecté sur un appareil'
+                        ? t('Connecté sur un appareil')
                         : sessionStale
-                          ? 'Session inactive (se libère automatiquement)'
-                          : 'Aucune session active'}
+                          ? t('Session inactive (se libère automatiquement)')
+                          : t('Aucune session active')}
                     </span>
                   </div>
                   {/* Definition list — element-specs §10 (GOV.UK summary list:
@@ -1174,16 +1174,16 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   {userData.currentSessionId && (
                     <dl className="divide-y divide-hairline border-t border-hairline">
                       <div className="flex items-center justify-between gap-3 py-2">
-                        <dt className="t-label flex items-center gap-1.5"><Smartphone className="h-3.5 w-3.5" aria-hidden /> Appareil</dt>
+                        <dt className="t-label flex items-center gap-1.5"><Smartphone className="h-3.5 w-3.5" aria-hidden /> {t('Appareil')}</dt>
                         <dd className={cn('t-body-sm truncate text-right', sessionMeta?.device ? 'font-semibold text-ink' : 'text-ink-4')}>{sessionMeta?.device || '—'}</dd>
                       </div>
                       <div className="flex items-center justify-between gap-3 py-2">
-                        <dt className="t-label flex items-center gap-1.5"><Globe className="h-3.5 w-3.5" aria-hidden /> Adresse IP</dt>
+                        <dt className="t-label flex items-center gap-1.5"><Globe className="h-3.5 w-3.5" aria-hidden /> {t('Adresse IP')}</dt>
                         <dd className={cn('t-mono text-right', !sessionMeta?.ip && 'text-ink-4')}>{sessionMeta?.ip || '—'}</dd>
                       </div>
                       {sessionMeta?.at && (
                         <div className="flex items-center justify-between gap-3 py-2">
-                          <dt className="t-label flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" aria-hidden /> Connecté depuis</dt>
+                          <dt className="t-label flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" aria-hidden /> {t('Connecté depuis')}</dt>
                           <dd className="t-body-sm text-right font-semibold tabular-nums text-ink">{formatTimestamp(sessionMeta.at)}</dd>
                         </div>
                       )}
@@ -1198,7 +1198,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                     onClick={handleForceDisconnect}
                   >
                     {!isDisconnecting && <LogOut className="h-4 w-4" aria-hidden />}
-                    {isDisconnecting ? 'Déconnexion…' : 'Déconnecter la session'}
+                    {isDisconnecting ? t('Déconnexion…') : t('Déconnecter la session')}
                   </Button>
                 </CardContent>
               </Card>
@@ -1212,14 +1212,14 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             // consequence said in a caption above it.
             <Card>
               <CardHeader>
-                <CardTitle className="t-heading">Supprimer cet utilisateur</CardTitle>
+                <CardTitle className="t-heading">{t('Supprimer cet utilisateur')}</CardTitle>
                 <CardDescription className="t-caption">
-                  L&apos;utilisateur sera retiré du système. Les journaux d&apos;activité (historique, workflow) attribués à cet utilisateur seront conservés.
+                  {t("L'utilisateur sera retiré du système. Les journaux d'activité (historique, workflow) attribués à cet utilisateur seront conservés.")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Button variant="destructive" className="w-full" onClick={() => setShowDeleteDialog(true)}>
-                  <Trash2 className="h-4 w-4" aria-hidden /> Supprimer l&apos;utilisateur
+                  <Trash2 className="h-4 w-4" aria-hidden /> {t("Supprimer l'utilisateur")}
                 </Button>
               </CardContent>
             </Card>
@@ -1233,19 +1233,19 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer « {displayName} » ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Supprimer')} « {displayName} » ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Son compte et sa fiche seront définitivement supprimés. Les journaux d&apos;activité (historique, workflow) qui lui sont attribués seront conservés. Cette action est irréversible.
+              {t("Son compte et sa fiche seront définitivement supprimés. Les journaux d'activité (historique, workflow) qui lui sont attribués seront conservés. Cette action est irréversible.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); handleDeleteUser(); }}
               className={buttonVariants({ variant: 'destructive' })}
               disabled={isDeleting}
             >
-              {isDeleting ? 'Suppression…' : 'Supprimer'}
+              {isDeleting ? t('Suppression…') : t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -41,6 +41,10 @@ const nextConfig: NextConfig = {
     //   gsutil setmeta -h "x-goog-meta-firebaseStorageDownloadTokens:<token>" \
     //     gs://studio-9568416614-6523a.firebasestorage.app/public/sl-auto.apk
     // (the Firebase Console keeps the token when you "replace" a file).
+    // Firm-only APK download — white-label builds (NEXT_PUBLIC_BRAND set to
+    // something else) must not expose the firm's APK.
+    const brand = process.env.NEXT_PUBLIC_BRAND ?? 'slaoui';
+    if (brand !== 'slaoui') return [];
     return [
       {
         source: '/downloads/sl-auto.apk',

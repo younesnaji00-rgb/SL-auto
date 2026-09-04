@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { startOfDay, endOfDay, startOfWeek, startOfMonth, isSameDay, format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, useLocale, dateFnsLocale, t as tGlobal } from '@/i18n';
 
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -121,16 +121,16 @@ const formatPeriodLabel = (from: Date | null, to: Date | null): string => {
   const thisYear = new Date().getFullYear();
   const day = (d: Date, withMonth: boolean) => {
     const pattern = withMonth ? (d.getFullYear() === thisYear ? 'd MMM' : 'd MMM yyyy') : 'd';
-    return format(d, pattern, { locale: fr });
+    return format(d, pattern, { locale: dateFnsLocale() });
   };
-  if (!from && !to) return 'toute la période';
+  if (!from && !to) return tGlobal('toute la période');
   if (from && to) {
     if (isSameDay(from, to)) return day(from, true);
     const sameMonth = from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear();
     return sameMonth ? `${day(from, false)}–${day(to, true)}` : `${day(from, true)} – ${day(to, true)}`;
   }
-  if (from) return `depuis le ${day(from, true)}`;
-  return `jusqu'au ${day(to as Date, true)}`;
+  if (from) return `${tGlobal('depuis le')} ${day(from, true)}`;
+  return `${tGlobal("jusqu'au")} ${day(to as Date, true)}`;
 };
 
 /** Funnel step → dossier timeline section (`#step-N` anchors in dossier-timeline/timeline.tsx). */
@@ -206,9 +206,9 @@ const SYSTEM_LABELS: Record<string, string> = {
 };
 
 const resolveUserName = (raw: string, lookup: UserLookup): string => {
-  if (!raw) return SYSTEM_LABELS.unknown;
+  if (!raw) return tGlobal(SYSTEM_LABELS.unknown);
   const trimmed = raw.trim();
-  if (SYSTEM_LABELS[trimmed]) return SYSTEM_LABELS[trimmed];
+  if (SYSTEM_LABELS[trimmed]) return tGlobal(SYSTEM_LABELS[trimmed]);
   const direct = lookup.byKey.get(trimmed);
   if (direct) return direct;
   const lower = lookup.byKey.get(trimmed.toLowerCase());
@@ -219,6 +219,8 @@ const resolveUserName = (raw: string, lookup: UserLookup): string => {
 };
 
 export default function MonitoringPage() {
+  const t = useT();
+  const { locale } = useLocale();
   const db = useFirestore();
   const { profile } = useCurrentUser();
   const { compagnies: allCompagnies } = useCompagnies();
@@ -391,12 +393,13 @@ export default function MonitoringPage() {
     const today = startOfDay(now);
     const todayEnd = endOfDay(now);
     if (isSameDay(dateFrom, today) && isSameDay(dateTo, todayEnd)) return 'jour';
-    const weekStart = startOfWeek(now, { locale: fr });
+    const weekStart = startOfWeek(now, { locale: dateFnsLocale() });
     if (isSameDay(dateFrom, weekStart) && isSameDay(dateTo, todayEnd)) return 'semaine';
     const monthStart = startOfMonth(now);
     if (isSameDay(dateFrom, monthStart) && isSameDay(dateTo, todayEnd)) return 'mois';
     return 'custom';
-  }, [dateFrom, dateTo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, locale]);
 
   const applyTout = () => {
     setDateFrom(null);
@@ -407,7 +410,7 @@ export default function MonitoringPage() {
     setDateTo(endOfDay(new Date()));
   };
   const applySemaine = () => {
-    setDateFrom(startOfWeek(new Date(), { locale: fr }));
+    setDateFrom(startOfWeek(new Date(), { locale: dateFnsLocale() }));
     setDateTo(endOfDay(new Date()));
   };
   const applyMois = () => {
@@ -549,14 +552,14 @@ export default function MonitoringPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Suivi d'équipe"
-        subtitle="Étapes franchies et délais tenus — les délais sont ceux des assignations chiffrage et terrain (24 h ouvrées)."
+        title={t("Suivi d'équipe")}
+        subtitle={t('Étapes franchies et délais tenus — les délais sont ceux des assignations chiffrage et terrain (24 h ouvrées).')}
         filters={
-        <div className="flex flex-wrap items-end gap-2">
+        <div data-tour="mon-periode" className="flex flex-wrap items-end gap-2">
           {/* Sliding thumb carries the selection (motion-spec addendum ter);
               the buttons stay ghost and only recolour. « Tout » = the all-time
               default (owner 2026-09-02). */}
-          <div className="relative isolate flex h-10 items-center gap-1 self-end rounded-md bg-surface-2 p-0.5" role="group" aria-label="Période">
+          <div className="relative isolate flex h-10 items-center gap-1 self-end rounded-md bg-surface-2 p-0.5" role="group" aria-label={t('Période')}>
             <SlidingThumb className="rounded-md bg-primary shadow-rim-filled" deps={[activePreset]} />
             {(
               [
@@ -582,22 +585,22 @@ export default function MonitoringPage() {
                   onClick={onClick}
                   disabled={disabled && !active}
                 >
-                  {label}
+                  {t(label)}
                 </Button>
               );
             })}
           </div>
           <div className="flex flex-col gap-1">
-            <label className="t-label">Du</label>
-            <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Date de début" className="w-44" />
+            <label className="t-label">{t('Du')}</label>
+            <DatePicker value={dateFrom} onChange={setDateFrom} placeholder={t('Date de début')} className="w-44" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="t-label">Au</label>
-            <DatePicker value={dateTo} onChange={setDateTo} placeholder="Date de fin" className="w-44" />
+            <label className="t-label">{t('Au')}</label>
+            <DatePicker value={dateTo} onChange={setDateTo} placeholder={t('Date de fin')} className="w-44" />
           </div>
           <Button variant="outline" size="sm" onClick={resetRange} className="h-10">
             <RotateCcw className="mr-2 h-4 w-4" />
-            Réinitialiser
+            {t('Réinitialiser')}
           </Button>
         </div>
         }
@@ -623,18 +626,18 @@ export default function MonitoringPage() {
       )}
 
       <Tabs value={vue} onValueChange={(v) => changeVue(v as Vue)} className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="global" className="gap-2">
+        <TabsList data-tour="mon-tabs">
+          <TabsTrigger value="global" data-tour="mon-tab-global" className="gap-2">
             <Gauge className="h-4 w-4" />
-            Global
+            {t('Global')}
           </TabsTrigger>
-          <TabsTrigger value="compagnie" className="gap-2">
+          <TabsTrigger value="compagnie" data-tour="mon-tab-compagnie" className="gap-2">
             <Building2 className="h-4 w-4" />
-            Par compagnie
+            {t('Par compagnie')}
           </TabsTrigger>
-          <TabsTrigger value="user" className="gap-2">
+          <TabsTrigger value="user" data-tour="mon-tab-user" className="gap-2">
             <Users className="h-4 w-4" />
-            Par utilisateur
+            {t('Par utilisateur')}
           </TabsTrigger>
         </TabsList>
 
@@ -703,31 +706,31 @@ export default function MonitoringPage() {
         </TabsContent>
 
         <TabsContent value="user" className="space-y-6">
-          <div className="flex flex-wrap items-end gap-2">
+          <div data-tour="mon-user-filtres" className="flex flex-wrap items-end gap-2">
             <div className="flex flex-col gap-1">
-              <label className="t-label">Rôle</label>
+              <label className="t-label">{t('Rôle')}</label>
               <Select value={roleFilter} onValueChange={setRoleFilter}>
                 <SelectTrigger className="h-10 w-56">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ROLE_FILTER_ALL}>Tous les rôles</SelectItem>
+                  <SelectItem value={ROLE_FILTER_ALL}>{t('Tous les rôles')}</SelectItem>
                   {roles.map((r) => (
                     <SelectItem key={r} value={r}>
-                      {r}
+                      {t(r)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="t-label">Utilisateur</label>
+              <label className="t-label">{t('Utilisateur')}</label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
                 <Input
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
-                  placeholder="Rechercher un utilisateur…"
+                  placeholder={t('Rechercher un utilisateur…')}
                   className="h-10 w-64 pl-8"
                 />
               </div>
@@ -772,14 +775,15 @@ function GlobalView({
   loading: boolean;
   onSelectStep: (step: StepKey, mode: DrawerMode) => void;
 }) {
+  const t = useT();
   const volumeMax = Math.max(0, ...STEP_KEYS.map((key) => counts[key]));
 
   if (totalDossiers === 0 && !loading) {
     return (
       <EmptyState
         icon={<Activity />}
-        title="Aucun dossier dans votre périmètre"
-        description="Aucune compagnie assignée n'a de dossiers à analyser."
+        title={t('Aucun dossier dans votre périmètre')}
+        description={t("Aucune compagnie assignée n'a de dossiers à analyser.")}
       />
     );
   }
@@ -790,7 +794,7 @@ function GlobalView({
           Material cards) — the card edge is the separation (user ruling: a clear
           separation on each card). Never the featured surface for a row of tiles.
           Ten steps → 5 × 2 from xl so the grid ends on a full row. */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+      <div data-tour="mon-kpis" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
         {STEP_KEYS.map((key, idx) => {
           const realiseEnDelai = counts[key];
           const horsDelai = horsDelaiCounts[key] ?? 0;
@@ -801,7 +805,7 @@ function GlobalView({
             <KpiCard
               key={key}
               index={idx + 1}
-              label={STEP_LABELS[key]}
+              label={t(STEP_LABELS[key])}
               hasSla={STAGE_HAS_SLA[key]}
               realiseEnDelai={realiseEnDelai}
               horsDelai={horsDelai}
@@ -820,16 +824,16 @@ function GlobalView({
           the bar list alone was too big for its data). items-start: each card
           hugs its content instead of stretching to the taller table. */}
       <div className="grid items-start gap-6 lg:grid-cols-2">
-      <Card>
+      <Card data-tour="mon-chart">
         <CardHeader>
-          <CardTitle>Volume par étape</CardTitle>
-          <p className="t-caption">Étapes franchies en délai · {periodLabel}</p>
+          <CardTitle>{t('Volume par étape')}</CardTitle>
+          <p className="t-caption">{t('Étapes franchies en délai')} · {periodLabel}</p>
         </CardHeader>
         <CardContent>
           {volumeMax === 0 ? (
             <EmptyState
-              title="Aucune activité dans cette plage"
-              description="Aucun dossier n'a réalisé une étape dans la période sélectionnée."
+              title={t('Aucune activité dans cette plage')}
+              description={t("Aucun dossier n'a réalisé une étape dans la période sélectionnée.")}
             />
           ) : (
             /* Horizontal bar list, pipeline order (owner ruling 2026-09-02;
@@ -847,12 +851,12 @@ function GlobalView({
                     key={key}
                     type="button"
                     onClick={() => onSelectStep(key, 'realise')}
-                    title={`${STEP_LABELS[key]} : ${value} en délai — voir les dossiers`}
+                    title={`${t(STEP_LABELS[key])} : ${value} ${t('en délai — voir les dossiers')}`}
                     className="flex w-full items-center gap-3 rounded-md px-2 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {/* Half-width card: the label column tightens (full name in the title). */}
                     <span className="w-36 shrink-0 truncate text-xs text-ink-2 xl:w-44">
-                      {STEP_LABELS[key]}
+                      {t(STEP_LABELS[key])}
                     </span>
                     <span className="relative block h-6 min-w-0 flex-1">
                       {/* 2.25rem right reserve keeps the tip label inside the card at 100 %. */}
@@ -912,20 +916,21 @@ function HeadlineRow({
   periodLabel: string;
   onJumpToAging: () => void;
 }) {
+  const t = useT();
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <HeadlineTile label="Dossiers traités" value={headline.traites} caption={`rapport déposé · ${periodLabel}`} />
+      <HeadlineTile label={t('Dossiers traités')} value={headline.traites} caption={`${t('rapport déposé')} · ${periodLabel}`} />
       <HeadlineTile
-        label="Respect des délais"
+        label={t('Respect des délais')}
         value={headline.respectPct == null ? '—' : `${headline.respectPct} %`}
-        title="Assignations chiffrage · terrain · création, 24 h ouvrées"
+        title={t('Assignations chiffrage · terrain · création, 24 h ouvrées')}
         caption={
           headline.respectPct == null
-            ? `aucune assignation décidée${headline.respectPending > 0 ? ` · ${headline.respectPending} en attente` : ''} · ${periodLabel}`
-            : `${headline.respectOnTime} en délai · ${headline.respectLate} hors délai${headline.respectPending > 0 ? ` · ${headline.respectPending} en attente` : ''} · ${periodLabel}`
+            ? `${t('aucune assignation décidée')}${headline.respectPending > 0 ? ` · ${headline.respectPending} ${t('en attente')}` : ''} · ${periodLabel}`
+            : `${headline.respectOnTime} ${t('en délai')} · ${headline.respectLate} ${t('hors délai')}${headline.respectPending > 0 ? ` · ${headline.respectPending} ${t('en attente')}` : ''} · ${periodLabel}`
         }
       />
-      <HeadlineTile label="En attente" value={headline.enAttente} caption="sans rapport déposé · aujourd'hui" />
+      <HeadlineTile label={t('En attente')} value={headline.enAttente} caption={`${t('sans rapport déposé')} · ${t("aujourd'hui")}`} />
       {/* Exception tile — the status colour only when there IS an exception (Few:
           bright colour for highlighting only; no red/green pair), and a jump to the list. */}
       <Card className="min-w-0 p-0">
@@ -933,9 +938,9 @@ function HeadlineRow({
           type="button"
           onClick={onJumpToAging}
           className="block w-full rounded-xl p-4 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          title="Voir la liste « À traiter aujourd'hui »"
+          title={t("Voir la liste « À traiter aujourd'hui »")}
         >
-          <p className="t-label">En retard aujourd'hui</p>
+          <p className="t-label">{t("En retard aujourd'hui")}</p>
           <p
             className={cn(
               'mt-2 text-[36px] font-semibold leading-none',
@@ -944,7 +949,7 @@ function HeadlineRow({
           >
             {headline.enRetard}
           </p>
-          <p className="t-caption mt-2">assignations au-delà de 24 h ouvrées · maintenant</p>
+          <p className="t-caption mt-2">{t('assignations au-delà de 24 h ouvrées · maintenant')}</p>
         </button>
       </Card>
     </div>
@@ -999,6 +1004,7 @@ function KpiCard({
   onSelectHorsDelai: () => void;
   onSelectNonRealise: () => void;
 }) {
+  const t = useT();
   const denominator = total <= 0 ? 1 : total;
   const pctEnDelai = (realiseEnDelai / denominator) * 100;
   const pctHorsDelai = (horsDelai / denominator) * 100;
@@ -1019,14 +1025,14 @@ function KpiCard({
           headline row), sans semibold, proportional figures (tabular only in columns). */}
       <p className="mt-2 text-2xl font-semibold leading-none text-ink">
         {realiseEnDelai}
-        <span className="t-caption ml-1.5 font-normal">en délai</span>
+        <span className="t-caption ml-1.5 font-normal">{t('en délai')}</span>
       </p>
       <div className="mt-3 space-y-1.5">
         {/* Magnitude in the accent hue, not a status green: ten green bars on one
             screen would leave nothing to highlight (Few). Amber is the page's one
             status colour — the exception. */}
         <KpiBarRow
-          label="en délai"
+          label={t('en délai')}
           count={realiseEnDelai}
           pct={pctEnDelai}
           fillClass="bg-chart-1"
@@ -1034,8 +1040,8 @@ function KpiCard({
         />
         {hasSla ? (
           <KpiBarRow
-            label="hors délai"
-            title="Délai de 24 h ouvrées dépassé — assignation clôturée ou non"
+            label={t('hors délai')}
+            title={t('Délai de 24 h ouvrées dépassé — assignation clôturée ou non')}
             count={horsDelai}
             pct={pctHorsDelai}
             fillClass="bg-status-warning-fg"
@@ -1045,14 +1051,14 @@ function KpiCard({
           // No SLA on this stage: say so instead of a false amber zero (keeps tile height).
           <div className="flex items-center gap-2 text-[11px] text-ink-4">
             <span className="inline-block h-2 w-2 shrink-0 rounded-sm bg-surface-3" aria-hidden />
-            <span className="t-caption text-ink-4">Pas de délai défini</span>
+            <span className="t-caption text-ink-4">{t('Pas de délai défini')}</span>
           </div>
         )}
         {nonRealise != null && (
           // Backlog measure (Kanban WIP): counted as of today, not over the period.
           <KpiBarRow
-            label="en attente"
-            title="Non réalisé à ce jour (hors période)"
+            label={t('en attente')}
+            title={t('Non réalisé à ce jour (hors période)')}
             count={nonRealise}
             pct={pctNonRealise}
             fillClass="bg-ink-4"
@@ -1109,6 +1115,7 @@ function KpiBarRow({
  * the planification date-block pattern (tinted block + rim as the row anchor).
  */
 function AgingCard({ items, className }: { items: AgingItem[]; className?: string }) {
+  const t = useT();
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
   /* Owner rollup (owner ruling 2026-09-02, «À traiter» option 2 — support-desk
      queue practice: the LIST stays flat and oldest-first, grouping lives in a
@@ -1132,7 +1139,7 @@ function AgingCard({ items, className }: { items: AgingItem[]; className?: strin
     <Card id="a-traiter" className={cn('overflow-hidden', className)}>
       <CardHeader className="gap-2 space-y-0">
         <CardTitle className="flex items-center gap-2">
-          <span>À traiter aujourd'hui</span>
+          <span>{t("À traiter aujourd'hui")}</span>
           <span className="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium tabular-nums text-ink-2">
             {items.length}
           </span>
@@ -1154,7 +1161,7 @@ function AgingCard({ items, className }: { items: AgingItem[]; className?: strin
                     : 'bg-surface-2 text-ink-2 hover:bg-surface-3',
                 )}
               >
-                <span className={cn(!k && 'italic')}>{k || 'non affecté'}</span>
+                <span className={cn(!k && 'italic')}>{k || t('non affecté')}</span>
                 <span className="font-semibold tabular-nums">{n}</span>
               </button>
             ))}
@@ -1165,8 +1172,8 @@ function AgingCard({ items, className }: { items: AgingItem[]; className?: strin
         {items.length === 0 ? (
           <EmptyState
             icon={<CheckCircle2 />}
-            title="Rien en retard"
-            description="Aucune étape n'a dépassé 24 h ouvrées."
+            title={t('Rien en retard')}
+            description={t("Aucune étape n'a dépassé 24 h ouvrées.")}
             dashed={false}
             className="border-0 bg-transparent py-8 [&>div:first-child]:bg-status-success-bg [&>div:first-child]:text-status-success-fg"
           />
@@ -1195,20 +1202,20 @@ function AgingCard({ items, className }: { items: AgingItem[]; className?: strin
                         <span className="text-base font-semibold leading-none tabular-nums">
                           {formatBusinessHours(item.ageHours)}
                         </span>
-                        <span className="mt-1 text-[11px] leading-none">ouvrées</span>
+                        <span className="mt-1 text-[11px] leading-none">{t('ouvrées')}</span>
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="t-mono font-semibold">{dossierRef(item.dossier)}</span>
                           {assure && <span className="truncate text-sm text-ink-2">{assure}</span>}
                           <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-ink-2">
-                            {item.kind === 'chiffrage' ? 'Chiffrage · ' : 'Terrain · '}
-                            {STEP_LABELS_SHORT[item.step]}
+                            {item.kind === 'chiffrage' ? `${t('Chiffrage')} · ` : `${t('Terrain')} · `}
+                            {t(STEP_LABELS_SHORT[item.step])}
                           </span>
                         </div>
                         <p className="t-caption mt-0.5 truncate">
-                          {item.owner ? <>{item.kind === 'chiffrage' ? 'chiffreur' : 'agent'} <b className="font-medium text-ink-2">{item.owner}</b> · </> : null}
-                          depuis {format(item.since, 'dd/MM HH:mm')}
+                          {item.owner ? <>{item.kind === 'chiffrage' ? t('chiffreur') : t('agent')} <b className="font-medium text-ink-2">{item.owner}</b> · </> : null}
+                          {t('depuis')} {format(item.since, 'dd/MM HH:mm')}
                           {item.dossier.compagnie ? ` · ${item.dossier.compagnie}` : ''}
                         </p>
                       </div>
@@ -1219,7 +1226,7 @@ function AgingCard({ items, className }: { items: AgingItem[]; className?: strin
               })}
             </ul>
             {rest > 0 && (
-              <p className="t-caption border-t border-hairline px-6 py-3 tabular-nums">+{rest} autres</p>
+              <p className="t-caption border-t border-hairline px-6 py-3 tabular-nums">+{rest} {t('autres')}</p>
             )}
           </>
         )}
@@ -1230,26 +1237,27 @@ function AgingCard({ items, className }: { items: AgingItem[]; className?: strin
 
 /** « Délais par étape » — claims-operations KPI: cycle time by stage (median, business hours). */
 function CycleTimeCard({ rows, periodLabel }: { rows: CycleTimeRow[]; periodLabel: string }) {
+  const t = useT();
   return (
     <Card className="overflow-hidden">
       <CardHeader>
-        <CardTitle>Délais par étape</CardTitle>
-        <p className="t-caption">Heures ouvrées entre le déclencheur et la réalisation · {periodLabel}</p>
+        <CardTitle>{t('Délais par étape')}</CardTitle>
+        <p className="t-caption">{t('Heures ouvrées entre le déclencheur et la réalisation')} · {periodLabel}</p>
       </CardHeader>
       <CardContent className="p-0">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Étape</TableHead>
-              <TableHead className="text-right">Médiane</TableHead>
-              <TableHead className="text-right">Dossiers</TableHead>
+              <TableHead>{t('Étape')}</TableHead>
+              <TableHead className="text-right">{t('Médiane')}</TableHead>
+              <TableHead className="text-right">{t('Dossiers')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((r) => (
               <TableRow key={r.key}>
                 <TableCell className={cn(r.key === 'total' && 'font-medium')}>
-                  {r.key === 'total' ? 'Total (création → rapport)' : STEP_LABELS[r.key]}
+                  {r.key === 'total' ? t('Total (création → rapport)') : t(STEP_LABELS[r.key])}
                 </TableCell>
                 <TableCell className="text-right font-semibold tabular-nums">
                   {r.medianHours == null ? (
@@ -1270,15 +1278,16 @@ function CycleTimeCard({ rows, periodLabel }: { rows: CycleTimeRow[]; periodLabe
 
 /** « Créés vs déposés par semaine » — dataviz: trend over time → line; ≥ 2 series → legend. */
 function TrendCard({ points }: { points: WeekPoint[] }) {
+  const t = useT();
   if (points.length < 2) return null;
   const config = {
-    crees: { label: 'Créés', color: 'hsl(var(--chart-1))' },
-    deposes: { label: 'Rapports déposés', color: 'hsl(var(--chart-2))' },
+    crees: { label: t('Créés'), color: 'hsl(var(--chart-1))' },
+    deposes: { label: t('Rapports déposés'), color: 'hsl(var(--chart-2))' },
   };
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Créés vs déposés par semaine</CardTitle>
+        <CardTitle>{t('Créés vs déposés par semaine')}</CardTitle>
       </CardHeader>
       <CardContent>
         <ChartContainer config={config} className="h-64 w-full">
@@ -1338,38 +1347,39 @@ function CompagnieView({
   loading: boolean;
   periodLabel: string;
 }) {
+  const t = useT();
   if (loading) return <TablePaperSkeleton />;
   if (rows.length === 0) {
     return (
       <EmptyState
         icon={<Building2 />}
-        title="Aucune compagnie à afficher"
-        description="Aucun dossier n'est rattaché à une compagnie dans votre périmètre."
+        title={t('Aucune compagnie à afficher')}
+        description={t("Aucun dossier n'est rattaché à une compagnie dans votre périmètre.")}
       />
     );
   }
 
   return (
-    <Card>
+    <Card data-tour="mon-compagnie-table">
       <CardHeader>
-        <CardTitle>Répartition par compagnie</CardTitle>
+        <CardTitle>{t('Répartition par compagnie')}</CardTitle>
         <p className="t-caption">Étapes franchies en délai · {periodLabel}</p>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
-        <Table regionLabel="Répartition par compagnie">
+        <Table regionLabel={t('Répartition par compagnie')}>
           <TableHeader>
             <TableRow>
-              <TableHead className={STICKY_HEAD}>Compagnie</TableHead>
+              <TableHead className={STICKY_HEAD}>{t('Compagnie')}</TableHead>
               {STEP_KEYS.map((key) => (
                 <TableHead key={key} className="text-right">
-                  {STEP_LABELS_SHORT[key]}
+                  {t(STEP_LABELS_SHORT[key])}
                 </TableHead>
               ))}
-              <TableHead className="text-right" title={`Part des assignations à temps · ${periodLabel}`}>
-                Respect
+              <TableHead className="text-right" title={`${t('Part des assignations à temps')} · ${periodLabel}`}>
+                {t('Respect')}
               </TableHead>
-              <TableHead className="text-right" title="Dossiers sans rapport déposé · à ce jour">
-                En attente
+              <TableHead className="text-right" title={t('Dossiers sans rapport déposé · à ce jour')}>
+                {t('En attente')}
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -1406,42 +1416,43 @@ function UserView({
   userLookup: UserLookup;
   periodLabel: string;
 }) {
+  const t = useT();
   if (loading) return <TablePaperSkeleton />;
   if (rows.length === 0) {
     return (
       <EmptyState
         icon={<Users />}
-        title="Aucune activité utilisateur"
-        description="Aucun utilisateur n'a réalisé d'étape dans la plage sélectionnée."
+        title={t('Aucune activité utilisateur')}
+        description={t("Aucun utilisateur n'a réalisé d'étape dans la plage sélectionnée.")}
       />
     );
   }
 
   return (
-    <Card>
+    <Card data-tour="mon-user-table">
       <CardHeader>
-        <CardTitle>Activité par utilisateur</CardTitle>
+        <CardTitle>{t('Activité par utilisateur')}</CardTitle>
         <p className="t-caption">Étapes franchies en délai · {periodLabel}</p>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
-        <Table regionLabel="Activité par utilisateur">
+        <Table regionLabel={t('Activité par utilisateur')}>
           <TableHeader>
             <TableRow>
-              <TableHead className={cn(STICKY_HEAD, 'min-w-[14rem]')}>Utilisateur</TableHead>
+              <TableHead className={cn(STICKY_HEAD, 'min-w-[14rem]')}>{t('Utilisateur')}</TableHead>
               {STEP_KEYS.map((key) => (
                 <TableHead key={key} className="text-right">
-                  {STEP_LABELS_SHORT[key]}
+                  {t(STEP_LABELS_SHORT[key])}
                 </TableHead>
               ))}
-              <TableHead className="text-right">Total</TableHead>
-              <TableHead className="text-right" title={`Part des assignations à temps · ${periodLabel}`}>
-                Respect
+              <TableHead className="text-right">{t('Total')}</TableHead>
+              <TableHead className="text-right" title={`${t('Part des assignations à temps')} · ${periodLabel}`}>
+                {t('Respect')}
               </TableHead>
               <TableHead
                 className="text-right"
-                title="Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape"
+                title={t("Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape")}
               >
-                Ouverts (touchés)
+                {t('Ouverts (touchés)')}
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -1463,7 +1474,7 @@ function UserView({
                   <TableCell
                     className="text-right"
                     style={tabular}
-                    title="Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape"
+                    title={t("Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape")}
                   >
                     {r.ouverts || <span className="text-ink-4">—</span>}
                   </TableCell>

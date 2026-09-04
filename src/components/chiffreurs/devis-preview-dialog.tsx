@@ -21,6 +21,8 @@ import { useStamps, loadStampImage } from '@/hooks/use-stamps';
 import { renderDevisPdf } from '@/lib/devis-pdf';
 import type { DevisSnapshot } from '@/lib/devis-schema';
 import { useFirestore } from '@/firebase';
+import { useT } from '@/i18n';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 export interface DevisPreviewDialogProps {
   open: boolean;
@@ -98,6 +100,7 @@ export function DevisPreviewDialog({
 }: DevisPreviewDialogProps) {
   const { stamps } = useStamps({ mineOnly: true });
   const db = useFirestore();
+  const t = useT();
   const [selectedStampId, setSelectedStampId] = useState<string>(NONE_VALUE);
   const [currentBlob, setCurrentBlob] = useState<Blob | null>(null);
   const [rendering, setRendering] = useState(false);
@@ -194,7 +197,7 @@ export function DevisPreviewDialog({
         if (cancelled) return;
         console.error('DevisPreviewDialog renderDevisPdf failed', err);
         setRenderError(
-          err instanceof Error ? err.message : 'Erreur lors du rendu du PDF.'
+          err instanceof Error ? err.message : t('Erreur lors du rendu du PDF.')
         );
       } finally {
         if (!cancelled) setRendering(false);
@@ -237,7 +240,7 @@ export function DevisPreviewDialog({
         if (cancelled) return;
         console.error('DevisPreviewDialog pdf.js parse failed', err);
         setRenderError(
-          err instanceof Error ? err.message : 'Erreur lors de l\'affichage du PDF.'
+          err instanceof Error ? err.message : t('Erreur lors de l\'affichage du PDF.')
         );
       }
     })();
@@ -288,7 +291,7 @@ export function DevisPreviewDialog({
         if (cancelled) return;
         console.error('DevisPreviewDialog pdf.js paint failed', err);
         setRenderError(
-          err instanceof Error ? err.message : 'Erreur lors de l\'affichage du PDF.'
+          err instanceof Error ? err.message : t('Erreur lors de l\'affichage du PDF.')
         );
       }
     })();
@@ -411,19 +414,19 @@ export function DevisPreviewDialog({
       {/* Dialog — element-specs §13 (M3 dialogs: `t-title` headline; confirm
           closest to the edge, dismissive `outline` to its left, two actions).
           Wide (4xl) because the body is a document viewer, not a form. */}
-      <DialogContent className="lg:max-w-4xl">
+      <DialogContent className="lg:max-w-4xl" data-tour="dev-preview" {...tourDialogGuard()}>
         <DialogHeader className="flex flex-row items-center justify-between gap-3 space-y-0 pr-8">
-          <DialogTitle className="t-title">Aperçu avant enregistrement</DialogTitle>
+          <DialogTitle className="t-title">{t('Aperçu avant enregistrement')}</DialogTitle>
           {/* Zoom pill — owner ruling: −/%/+, 25 % steps, % = fit, Ctrl + wheel
               ≈ ×1.3 per notch. */}
-          <div className="flex shrink-0 items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom" title="Ctrl + molette pour zoomer progressivement">
-            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière">
+          <div className="flex shrink-0 items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label={t('Zoom')} title={t('Ctrl + molette pour zoomer progressivement')}>
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label={t('Zoom arrière')}>
               <ZoomOut className="h-3.5 w-3.5" />
             </Button>
-            <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — ajuster à la largeur`}>
+            <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`${t('Zoom')} ${Math.round(zoom * 100)} % — ${t('ajuster à la largeur')}`}>
               {Math.round(zoom * 100)} %
             </button>
-            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom avant">
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label={t('Zoom avant')}>
               <ZoomIn className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -478,14 +481,14 @@ export function DevisPreviewDialog({
           {renderError && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card p-6 text-center">
               <p className="text-sm text-status-danger-fg">
-                Erreur lors du rendu du PDF : {renderError}
+                {t("Erreur lors du rendu du PDF :")} {renderError}
               </p>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setRenderTick((t) => t + 1)}
               >
-                Réessayer
+                {t('Réessayer')}
               </Button>
             </div>
           )}
@@ -537,7 +540,7 @@ export function DevisPreviewDialog({
 
         {isPlacing && selectedStampId !== NONE_VALUE && (
           <p className="t-caption">
-            Cliquez sur le rapport pour poser le tampon.
+            {t("Cliquez sur le rapport pour poser le tampon.")}
           </p>
         )}
 
@@ -547,17 +550,17 @@ export function DevisPreviewDialog({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 sm:min-w-[320px]">
             <label className="t-label whitespace-nowrap" htmlFor="devis-preview-stamp">
-              Tampon
+              {t("Tampon")}
             </label>
             <Select
               value={selectedStampId}
               onValueChange={setSelectedStampId}
             >
               <SelectTrigger id="devis-preview-stamp" className="w-full">
-                <SelectValue placeholder="Sans tampon" />
+                <SelectValue placeholder={t("Sans tampon")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE_VALUE}>Sans tampon</SelectItem>
+                <SelectItem value={NONE_VALUE}>{t('Sans tampon')}</SelectItem>
                 {stamps.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.name || s.id}
@@ -569,7 +572,7 @@ export function DevisPreviewDialog({
 
           <div className="flex items-center justify-end gap-2">
             <Button type="button" variant="outline" onClick={handleEdit}>
-              Modifier
+              {t('Modifier')}
             </Button>
             <Button
               type="button"
@@ -579,10 +582,10 @@ export function DevisPreviewDialog({
               {confirming ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Enregistrement…
+                  {t('Enregistrement…')}
                 </>
               ) : (
-                'Confirmer & enregistrer'
+                t('Confirmer & enregistrer')
               )}
             </Button>
           </div>
@@ -617,6 +620,7 @@ function StampOverlay({
   onDelete,
   getCanvas,
 }: StampOverlayProps) {
+  const t = useT();
   const [dragging, setDragging] = useState(false);
   const [resizing, setResizing] = useState(false);
 
@@ -837,22 +841,22 @@ function StampOverlay({
           <div
             onMouseDown={handleResizeStart('tl')}
             style={cornerHandleStyle('tl')}
-            aria-label="Redimensionner depuis le coin haut-gauche"
+            aria-label={t('Redimensionner depuis le coin haut-gauche')}
           />
           <div
             onMouseDown={handleResizeStart('tr')}
             style={cornerHandleStyle('tr')}
-            aria-label="Redimensionner depuis le coin haut-droit"
+            aria-label={t('Redimensionner depuis le coin haut-droit')}
           />
           <div
             onMouseDown={handleResizeStart('bl')}
             style={cornerHandleStyle('bl')}
-            aria-label="Redimensionner depuis le coin bas-gauche"
+            aria-label={t('Redimensionner depuis le coin bas-gauche')}
           />
           <div
             onMouseDown={handleResizeStart('br')}
             style={cornerHandleStyle('br')}
-            aria-label="Redimensionner depuis le coin bas-droit"
+            aria-label={t('Redimensionner depuis le coin bas-droit')}
           />
           <button
             type="button"
@@ -861,8 +865,8 @@ function StampOverlay({
               e.stopPropagation();
               onDelete();
             }}
-            aria-label="Retirer le tampon du rapport"
-            title="Retirer du rapport"
+            aria-label={t('Retirer le tampon du rapport')}
+            title={t('Retirer du rapport')}
             style={{
               position: 'absolute',
               top: -10,

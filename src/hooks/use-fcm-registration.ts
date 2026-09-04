@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { messagingSwUrl } from '@/firebase/sw-url';
 import { arrayUnion, doc, setDoc } from 'firebase/firestore';
 import { getToken, onMessage } from 'firebase/messaging';
 import { useFirebaseApp, useFirestore } from '@/firebase';
@@ -33,7 +34,7 @@ export function useFcmRegistration() {
         const messaging = await getMessagingIfSupported(app);
         if (!messaging || cancelled) return;
 
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        const registration = await navigator.serviceWorker.register(messagingSwUrl());
         if (cancelled) return;
 
         if (Notification.permission === 'default') {

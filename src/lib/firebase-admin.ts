@@ -42,3 +42,16 @@ export function adminAuth(): Auth {
 export function adminDb(): Firestore {
   return getFirestore(getAdminApp());
 }
+
+/**
+ * OAuth2 access token of the admin credential (service account / ADC).
+ * Lets server code call Google REST APIs — the demo-reset route feeds it to
+ * the seed module, which writes through the Firestore REST API.
+ */
+export async function adminAccessToken(): Promise<string> {
+  const cred = getAdminApp().options.credential;
+  if (!cred) throw new Error('No admin credential available');
+  const { access_token: token } = await cred.getAccessToken();
+  if (!token) throw new Error('Admin credential returned no access token');
+  return token;
+}

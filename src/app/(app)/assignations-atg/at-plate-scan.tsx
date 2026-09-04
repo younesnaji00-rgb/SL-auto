@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { apiFetch } from '@/lib/api-fetch';
+import { t } from '@/i18n';
 
 export interface PlateScanResult {
   /** Plate read off the photo (Latin letters, e.g. "12345-B-6"). */
@@ -49,10 +50,10 @@ export function usePlateScan(onPlate: (result: PlateScanResult) => void) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || `Erreur serveur (${res.status})`);
+        throw new Error(data?.error || `${t('Erreur serveur')} (${res.status})`);
       }
       if (!data?.registration) {
-        setError('Plaque illisible sur la photo. Rapprochez-vous et réessayez.');
+        setError(t('Plaque illisible sur la photo. Rapprochez-vous et réessayez.'));
         return;
       }
       onPlate({
@@ -61,7 +62,7 @@ export function usePlateScan(onPlate: (result: PlateScanResult) => void) {
       });
     } catch (err: any) {
       console.warn('[at-plate-scan] scan failed', err);
-      setError(err?.message || 'Échec de l’analyse de la photo. Réessayez.');
+      setError(err?.message || t('Échec de l’analyse de la photo. Réessayez.'));
     } finally {
       setScanning(false);
     }

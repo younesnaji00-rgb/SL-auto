@@ -16,6 +16,7 @@ import { useFirestore, useStorage } from '@/firebase';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
+import { useT } from '@/i18n';
 
 interface Annotation {
   id: string;
@@ -43,6 +44,7 @@ export default function ViewerPage() {
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
+  const t = useT();
 
   const chiffrageId = searchParams.get('chiffrageId') || '';
   const dossierId = searchParams.get('dossierId') || '';
@@ -225,7 +227,7 @@ export default function ViewerPage() {
         }
       } catch (e) {
         console.error(e);
-        toast({ variant: 'destructive', title: 'Erreur de chargement du fichier' });
+        toast({ variant: 'destructive', title: t('Erreur de chargement du fichier') });
       } finally {
         setLoading(false);
       }
@@ -299,7 +301,7 @@ export default function ViewerPage() {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-ink-3" />
-        <p className="t-caption">Chargement du document...</p>
+        <p className="t-caption">{t('Chargement du document...')}</p>
       </div>
     );
   }
@@ -314,21 +316,21 @@ export default function ViewerPage() {
       <TooltipProvider delayDuration={300}>
         <div className="z-40 flex min-h-[48px] shrink-0 flex-wrap items-center gap-2 glass-bar border-b border-hairline px-4 sm:px-6">
           <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4" /> Retour
+            <ArrowLeft className="h-4 w-4" /> {t('Retour')}
           </Button>
 
           <Separator orientation="vertical" className="h-6" aria-hidden />
 
           {/* Type filter */}
           <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
-            <SelectTrigger className="h-9 w-[150px] text-xs" aria-label="Type de document">
-              <SelectValue placeholder="Type de document" />
+            <SelectTrigger className="h-9 w-[150px] text-xs" aria-label={t('Type de document')} data-tour="view-doc-filter">
+              <SelectValue placeholder={t('Type de document')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">Tous les types ({allFiles.length})</SelectItem>
+              <SelectItem value="__all__">{t('Tous les types')} ({allFiles.length})</SelectItem>
               {Object.entries(fileTypeGroups).map(([key, group]) => (
                 <SelectItem key={key} value={key}>
-                  {group.label} ({group.indices.length})
+                  {t(group.label)} ({group.indices.length})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -336,14 +338,14 @@ export default function ViewerPage() {
 
           {/* File switcher */}
           <Select value={String(currentFileIndex)} onValueChange={(v) => setCurrentFileIndex(Number(v))}>
-            <SelectTrigger className="h-9 w-[220px] text-xs" aria-label="Fichier">
+            <SelectTrigger className="h-9 w-[220px] text-xs" aria-label={t('Fichier')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {filteredFileIndices.map((i) => (
                 <SelectItem key={i} value={String(i)}>
                   <span className="flex items-center gap-1.5 truncate">
-                    {allFiles[i].source === 'dossier' && <span className="shrink-0 rounded bg-surface-3 px-1 text-[11px] font-medium text-ink-2">Dossier</span>}
+                    {allFiles[i].source === 'dossier' && <span className="shrink-0 rounded bg-surface-3 px-1 text-[11px] font-medium text-ink-2">{t('Dossier')}</span>}
                     {allFiles[i].name}
                   </span>
                 </SelectItem>
@@ -357,8 +359,8 @@ export default function ViewerPage() {
           {/* Read-only chip — §11 (Carbon tag / dataviz: a status colour
               always ships with its icon AND label; read-only IS the exception
               here, so the warning pair is earned). */}
-          <Badge variant="warning" className="shrink-0 gap-1">
-            <Eye className="h-3 w-3" aria-hidden /> Lecture seule
+          <Badge variant="warning" className="shrink-0 gap-1" data-tour="view-readonly">
+            <Eye className="h-3 w-3" aria-hidden /> {t('Lecture seule')}
           </Badge>
 
           <Separator orientation="vertical" className="h-6" aria-hidden />
@@ -371,9 +373,10 @@ export default function ViewerPage() {
               className="gap-1.5"
               onClick={() => setComparisonOpen(v => !v)}
               aria-pressed={comparisonOpen}
+              data-tour="view-comparison"
             >
               <Columns2 className="h-4 w-4" />
-              Comparaison
+              {t('Comparaison')}
             </Button>
           )}
 
@@ -383,42 +386,42 @@ export default function ViewerPage() {
               Ctrl + wheel ≈ ×1.3 per notch; the shortcut is shown as a <Kbd>. */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom">
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière">
+              <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label={t('Zoom')} data-tour="view-zoom">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label={t('Zoom arrière')}>
                   <ZoomOut className="h-3.5 w-3.5" />
                 </Button>
-                <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — réinitialiser`}>
+                <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`${t('Zoom')} ${Math.round(zoom * 100)} % — ${t('réinitialiser')}`}>
                   {Math.round(zoom * 100)} %
                 </button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom avant">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label={t('Zoom avant')}>
                   <ZoomIn className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </TooltipTrigger>
             <TooltipContent className="flex items-center gap-2">
-              <span>Zoom — cliquer le % pour réinitialiser</span>
-              <Kbd>Ctrl</Kbd><span>+ molette</span>
+              <span>{t('Zoom — cliquer le % pour réinitialiser')}</span>
+              <Kbd>Ctrl</Kbd><span>{t('+ molette')}</span>
             </TooltipContent>
           </Tooltip>
 
           {/* Rotation — 36 px `ghost` icon buttons with tooltips (§18 / M3
               icon buttons: the tooltip names the action). */}
-          <div className="flex items-center gap-0.5" role="group" aria-label="Rotation">
+          <div className="flex items-center gap-0.5" role="group" aria-label={t("Rotation")}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setRotation(r => r - 90)} aria-label="Rotation −90°">
+                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setRotation(r => r - 90)} aria-label={t("Rotation −90°")}>
                   <RotateCcw className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Rotation −90°</TooltipContent>
+              <TooltipContent>{t("Rotation −90°")}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setRotation(r => r + 90)} aria-label="Rotation +90°">
+                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setRotation(r => r + 90)} aria-label={t("Rotation +90°")}>
                   <RotateCw className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Rotation +90°</TooltipContent>
+              <TooltipContent>{t("Rotation +90°")}</TooltipContent>
             </Tooltip>
           </div>
         </div>
@@ -482,7 +485,7 @@ export default function ViewerPage() {
                 style={{ display: 'block' }}
               />
               <div className="pointer-events-none absolute bottom-2 right-3 font-mono text-[11px] tabular-nums text-ink-4">
-                Page {i + 1} / {pageCount}
+                {t("Page")} {i + 1} / {pageCount}
               </div>
             </ReadOnlyPageWrapper>
           ))}
@@ -493,13 +496,13 @@ export default function ViewerPage() {
           keeps its status pair because the chip above already carries the icon. */}
       <div className="t-caption flex shrink-0 items-center justify-between glass-bar border-t border-hairline px-4 py-1.5">
         <div className="flex items-center gap-4">
-          <span className="tabular-nums">{annotations.length} annotation{annotations.length !== 1 ? 's' : ''}</span>
+          <span className="tabular-nums">{annotations.length} {annotations.length !== 1 ? t("annotations") : t("annotation")}</span>
           <span className="truncate">{fileName}</span>
         </div>
         <div className="flex items-center gap-4 tabular-nums">
-          <span className="font-semibold text-status-warning-fg">Lecture seule</span>
-          <span>Zoom : {Math.round(zoom * 100)} %</span>
-          {rotation !== 0 && <span>Rotation : {rotation}°</span>}
+          <span className="font-semibold text-status-warning-fg">{t("Lecture seule")}</span>
+          <span>{t("Zoom :")} {Math.round(zoom * 100)} %</span>
+          {rotation !== 0 && <span>{t("Rotation :")} {rotation}°</span>}
         </div>
       </div>
     </div>
@@ -559,6 +562,7 @@ const ReadOnlyPageWrapper = memo(function ReadOnlyPageWrapper({
 });
 
 const ReadOnlyAnnotation = memo(function ReadOnlyAnnotation({ annotation: a }: { annotation: Annotation }) {
+  const t = useT();
   const thickness = a.thickness || 3;
 
   return (
@@ -603,7 +607,7 @@ const ReadOnlyAnnotation = memo(function ReadOnlyAnnotation({ annotation: a }: {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={a.stampUrl}
-            alt="tampon"
+            alt={t('tampon')}
             className="w-full h-full object-contain"
             draggable={false}
           />

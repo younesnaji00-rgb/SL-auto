@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tech stack</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: radial-gradient(ellipse at top, #ffffff 0%, #fbf9f4 60%, #f3efe4 100%);
+    display: grid; place-items: center; color: #1f2937;
+  }
+  .wrap { width: 1560px; }
+  h2 { font-size: 52px; font-weight: 700; letter-spacing: -1px; margin-bottom: 10px; }
+  h2 em { color: #0f766e; font-style: normal; }
+  p.lead { color: #6b7280; font-size: 24px; margin-bottom: 48px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .card {
+    background: #fff; border: 1px solid rgba(15, 118, 110, 0.15); border-radius: 18px;
+    padding: 30px 32px; box-shadow: 0 10px 26px rgba(15, 118, 110, 0.08);
+    opacity: 0; animation: up .7s ease-out both;
+  }
+  .card:nth-child(1) { animation-delay: .2s } .card:nth-child(2) { animation-delay: .9s }
+  .card:nth-child(3) { animation-delay: 1.6s } .card:nth-child(4) { animation-delay: 2.4s }
+  .card:nth-child(5) { animation-delay: 3.2s } .card:nth-child(6) { animation-delay: 4.0s }
+  .card h3 { font-size: 27px; font-weight: 650; margin-bottom: 10px; color: #0f766e; }
+  .card p { font-size: 20px; line-height: 1.5; color: #4b5563; }
+  @keyframes up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h2>Under the hood — <em>a modern, serverless stack</em></h2>
+    <p class="lead">Enterprise-grade infrastructure with zero servers to manage.</p>
+    <div class="grid">
+      <div class="card"><h3>Next.js + TypeScript</h3><p>React app framework with server-side rendering, strict typing, and instant navigation.</p></div>
+      <div class="card"><h3>Firebase · Montréal 🇨🇦</h3><p>Authentication, real-time Firestore database, and file storage — hosted in Canada for data residency.</p></div>
+      <div class="card"><h3>Google Gemini AI</h3><p>Document intelligence: mission sheets, garage estimates, registrations, and plates read automatically.</p></div>
+      <div class="card"><h3>Cloud Run</h3><p>Serverless deployment that scales to zero when idle — infrastructure cost follows usage.</p></div>
+      <div class="card"><h3>Progressive Web App</h3><p>Installs on any device; offline-tolerant drafts and photo upload queues survive bad connections.</p></div>
+      <div class="card"><h3>White-label &amp; bilingual</h3><p>Your brand, your language, your market rules — English and French from a single code base.</p></div>
+    </div>
+  </div>
+</body>
+</html>

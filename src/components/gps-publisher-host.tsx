@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/i18n';
 import { useGpsPublisher } from '@/hooks/use-gps-publisher';
 import { useNativeBgGeolocation } from '@/hooks/use-native-bg-geolocation';
 import { useFcmRegistration } from '@/hooks/use-fcm-registration';
@@ -18,6 +19,7 @@ export function GpsPublisherHost() {
 }
 
 function GpsPublisherHostInner() {
+  const t = useT();
   const { permission, retry } = useGpsPublisher();
   // Inside the native Android shell this drives a background-capable foreground
   // service (every-minute tracking even when backgrounded / screen locked); on
@@ -39,28 +41,28 @@ function GpsPublisherHostInner() {
           surface a banner if the agent declined background permission. */}
       {native.isNative
         ? native.status === 'denied' && (
-            <div role="status" className="flex items-center gap-3 border-b border-status-warning-fg/30 bg-status-warning-bg px-4 py-2 text-[13px] text-status-warning-fg">
+            <div data-tour="atg-gps" role="status" className="flex items-center gap-3 border-b border-status-warning-fg/30 bg-status-warning-bg px-4 py-2 text-[13px] text-status-warning-fg">
               <MapPin className="h-4 w-4 shrink-0" />
               <span className="flex-1">
-                Le partage de position est désactivé. Autorisez la localisation « Toujours » dans les paramètres de l'application pour que la planification tienne compte de votre position.
+                {t("Le partage de position est désactivé. Autorisez la localisation « Toujours » dans les paramètres de l'application pour que la planification tienne compte de votre position.")}
               </span>
             </div>
           )
         : permission !== 'granted' &&
           permission !== 'unavailable' && (
-            <div role="status" className="flex items-center gap-3 border-b border-status-warning-fg/30 bg-status-warning-bg px-4 py-2 text-[13px] text-status-warning-fg">
+            <div data-tour="atg-gps" role="status" className="flex items-center gap-3 border-b border-status-warning-fg/30 bg-status-warning-bg px-4 py-2 text-[13px] text-status-warning-fg">
               <MapPin className="h-4 w-4 shrink-0" />
               {permission === 'denied' ? (
                 <span className="flex-1">
-                  Le partage de position est désactivé. La planification ne pourra pas tenir compte de votre position actuelle. Réactivez-le dans les paramètres du navigateur si nécessaire.
+                  {t('Le partage de position est désactivé. La planification ne pourra pas tenir compte de votre position actuelle. Réactivez-le dans les paramètres du navigateur si nécessaire.')}
                 </span>
               ) : (
                 <>
                   <span className="flex-1">
-                    Activez le partage de position pour aider la planification de vos missions.
+                    {t('Activez le partage de position pour aider la planification de vos missions.')}
                   </span>
                   <Button size="sm" variant="outline" className="h-7" onClick={retry}>
-                    Activer
+                    {t('Activer')}
                   </Button>
                 </>
               )}
@@ -88,6 +90,7 @@ function useIosInstallHint(): boolean {
 }
 
 function IosInstallHint() {
+  const t = useT();
   const [hidden, setHidden] = useState(false);
   if (hidden) return null;
   const dismiss = () => {
@@ -100,9 +103,9 @@ function IosInstallHint() {
     <div role="status" className="flex items-center gap-3 border-b border-status-info-fg/30 bg-status-info-bg px-4 py-2 text-[13px] text-status-info-fg">
       <Smartphone className="h-4 w-4 shrink-0" />
       <span className="flex-1">
-        Pour recevoir les notifications sur iPhone, ajoutez cette page à l'écran d'accueil : appuyez sur <strong>Partager</strong> puis <strong>Ajouter à l'écran d'accueil</strong>.
+        {t("Pour recevoir les notifications sur iPhone, ajoutez cette page à l'écran d'accueil : appuyez sur")} <strong>{t('Partager')}</strong> {t('puis')} <strong>{t("Ajouter à l'écran d'accueil")}</strong>.
       </span>
-      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={dismiss} aria-label="Fermer">
+      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={dismiss} aria-label={t('Fermer')}>
         <X className="h-4 w-4" />
       </Button>
     </div>

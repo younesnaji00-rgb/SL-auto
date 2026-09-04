@@ -27,7 +27,8 @@ import {
   fetchCompagnieLogo,
   type LoadedImage,
 } from './generate-rapport-shared';
-import { montantEnLettresDhs } from './number-to-words-fr';
+import { amountToWords } from './amount-to-words';
+import { BRAND } from './brand';
 import { scaleImageDown } from './rapport-car';
 import { parseFr, normalizeExtraColumns, type DevisRow, type DevisExtraColumn } from './devis-schema';
 import { parseAccordDocType } from './docType-accorde';
@@ -588,8 +589,8 @@ export async function resolveRapportData(
 
   // ── Expert identity (cabinet constants unless overridden) ──
   const experts = (d.experts as Record<string, { nom?: string; compagnie?: string }>) || {};
-  const expertNom = str(d.expertNom) || 'AISSAOUI SLAOUI OUADIE';
-  const cabinetNom = str(d.cabinetNom) || 'SL AUTO EXPERTISE';
+  const expertNom = str(d.expertNom) || BRAND.expertName;
+  const cabinetNom = str(d.cabinetNom) || BRAND.cabinetName;
   const expertAdverse = str(d.expertAdverse ?? experts['2eme']?.nom);
   const cabinetAdverse = str(d.cabinetAdverse ?? experts['2eme']?.compagnie);
 
@@ -639,7 +640,7 @@ export async function resolveRapportData(
 
   // ── Montant en lettres (computed from indemnisation; field overrides) ──
   const stored = str(d.montantEnLettres);
-  const montantEnLettres = stored || montantEnLettresDhs(indemnisation);
+  const montantEnLettres = stored || amountToWords(indemnisation);
 
   const refExpert = str(d.refExpert) || dossierId;
 

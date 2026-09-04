@@ -2,13 +2,7 @@
 
 import React, { useState, useMemo, use, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import {
-  ArrowLeft,
-  Bell,
-  Save,
-  History,
-  Mail,
-} from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDoc, useFirestore } from '@/firebase';
 import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/firestore';
@@ -17,11 +11,9 @@ import { RappelDraftContext, useRappelDraftStore, applyPendingToDossier } from '
 import { useToast } from '@/hooks/use-toast';
 import { PageLoader } from '@/components/ui/page-loader';
 import { ErrorState } from '@/components/ui/error-state';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { useDossierTabs } from '@/hooks/use-dossier-tabs';
-import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { useT } from '@/i18n';
 
 // ── Timeline ─────────────────────────────────────────────────────────────────
 import { Timeline } from '@/components/dossier-timeline/timeline';
@@ -47,6 +39,7 @@ import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
 
 // ── Historique (kept for drawer dialog; full drawer in task #17) ─────────────
 import HistoriqueTab from './historique-tab';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 // ── Modals ────────────────────────────────────────────────────────────────────
 import ModalPlanification from './modal-planification';
@@ -88,6 +81,7 @@ export default function DossierDetailPage({
   const { canWrite, profile } = useCurrentUser();
   const readOnly = !canWrite('dossiers');
   const { toast } = useToast();
+  const t = useT();
 
   // Active rappel-treatment session for this dossier (recipient-only).
   // Drives the sticky "Valider le traitement" banner. Looked up via the
@@ -226,9 +220,9 @@ export default function DossierDetailPage({
         }
       } catch {}
       setActiveRappel(null);
-      toast({ title: 'Traitement sauvegardé', description: 'Vos modifications ont été enregistrées pour le responsable.' });
+      toast({ title: t('Traitement sauvegardé'), description: t('Vos modifications ont été enregistrées pour le responsable.') });
     } catch {
-      toast({ title: 'Erreur', description: 'Impossible de sauvegarder le traitement.', variant: 'destructive' });
+      toast({ title: t('Erreur'), description: t('Impossible de sauvegarder le traitement.'), variant: 'destructive' });
     } finally {
       setValidating(false);
     }
@@ -268,12 +262,6 @@ export default function DossierDetailPage({
   const [isHistoriqueOpen, setHistoriqueOpen] = useState(false);
   const [isEmailDialogOpen, setEmailDialogOpen] = useState(false);
 
-  const renderAssure = (assure: any) => {
-    if (!assure) return 'N/A';
-    if (typeof assure === 'string') return assure;
-    return `${assure.nom || ''} ${assure.prenom || ''}`.trim() || 'N/A';
-  };
-
   const handleEditPlanification = (data: any) => {
     setPlanificationInitialData(data);
     setPlanificationModalOpen(true);
@@ -286,20 +274,20 @@ export default function DossierDetailPage({
   };
 
   if (loading) {
-    return <PageLoader label="Chargement du dossier…" />;
+    return <PageLoader label={t('Chargement du dossier…')} />;
   }
 
   if (!dossier) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-6">
         <ErrorState
-          title="Dossier introuvable"
-          description="Le dossier que vous recherchez n'existe pas ou a été supprimé."
+          title={t('Dossier introuvable')}
+          description={t("Le dossier que vous recherchez n'existe pas ou a été supprimé.")}
           className="max-w-md"
         />
         <Link href="/dossiers" className="mt-4">
           <Button variant="outline">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Retour à la liste
+            <ArrowLeft className="mr-2 h-4 w-4" /> {t('Retour à la liste')}
           </Button>
         </Link>
       </div>
@@ -330,7 +318,7 @@ export default function DossierDetailPage({
                 validating,
                 onSave: handleValiderTraitement,
                 onDiscard: () => {
-                  if (window.confirm('Abandonner les modifications non sauvegardées de cette session de rappel ?')) {
+                  if (window.confirm(t('Abandonner les modifications non sauvegardées de cette session de rappel ?'))) {
                     draftStore.discard();
                   }
                 },
@@ -362,9 +350,9 @@ export default function DossierDetailPage({
                 storageKey={stepTabsKey(id, 1)}
                 tabs={[
                   {
-                    value: 'informations', label: 'Informations', icon: <ClipboardList />,
+                    value: 'informations', label: t('Informations'), icon: <ClipboardList />,
                     badge: missingFields.length > 0
-                      ? { kind: 'warn', label: `${missingFields.length} champ${missingFields.length > 1 ? 's' : ''} manquant${missingFields.length > 1 ? 's' : ''}` }
+                      ? { kind: 'warn', label: `${missingFields.length} ${missingFields.length > 1 ? t('champs manquants') : t('champ manquant')}` }
                       : undefined,
                     content: (
                       <div className="space-y-6">
@@ -376,7 +364,7 @@ export default function DossierDetailPage({
                     ),
                   },
                   {
-                    value: 'documents', label: 'Pièces', icon: <FolderOpen />,
+                    value: 'documents', label: t('Pièces'), icon: <FolderOpen />,
                     badge: requiredDocs.loading
                       ? undefined
                       : { kind: requiredDocs.received >= requiredDocs.total ? 'ok' : 'progress', label: `${requiredDocs.received}/${requiredDocs.total}` },
@@ -391,9 +379,10 @@ export default function DossierDetailPage({
               <StepTabs
                 storageKey={stepTabsKey(id, 4)}
                 tabs={[
-                  { value: 'planification', label: 'Planification', icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" /> },
-                  { value: 'photos', label: 'Photos', icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="avant" /> },
-                  { value: 'observations', label: 'Observations', icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="Avant" /> },
+                  { value: 'planification', label: t('Planification'), icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" /> },
+                  { value: 'photos', label: t('Photos'), icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="avant" /> },
+                  // data-tour: the guided tour points at the observations pane here.
+                  { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <div data-tour="dosd-observations"><ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="Avant" /></div> },
                 ]}
               />
             ),
@@ -401,8 +390,8 @@ export default function DossierDetailPage({
               <StepTabs
                 storageKey={stepTabsKey(id, 6)}
                 tabs={[
-                  { value: 'documents', label: 'Documents', icon: <FolderOpen />, content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots /> },
-                  { value: 'observations', label: 'Observations', icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextAccord="1er accord" /> },
+                  { value: 'documents', label: t('Documents'), icon: <FolderOpen />, content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots /> },
+                  { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextAccord="1er accord" /> },
                 ]}
               />
             ),
@@ -410,9 +399,9 @@ export default function DossierDetailPage({
               <StepTabs
                 storageKey={stepTabsKey(id, 9)}
                 tabs={[
-                  { value: 'planification', label: 'Planification', icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="En cours" /> },
-                  { value: 'photos', label: 'Photos', icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="en_cours" /> },
-                  { value: 'observations', label: 'Observations', icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="En cours" /> },
+                  { value: 'planification', label: t('Planification'), icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="En cours" /> },
+                  { value: 'photos', label: t('Photos'), icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="en_cours" /> },
+                  { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="En cours" /> },
                 ]}
               />
             ),
@@ -420,8 +409,10 @@ export default function DossierDetailPage({
               <StepTabs
                 storageKey={stepTabsKey(id, 11)}
                 tabs={[
-                  { value: 'documents', label: 'Documents', icon: <FolderOpen />, content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" /> },
-                  { value: 'observations', label: 'Observations', icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextAccord="2ème accord ou +" /> },
+                  // data-tour: the guided tour explains the cardinal-accord
+                  // serialization on this wrapper.
+                  { value: 'documents', label: t('Documents'), icon: <FolderOpen />, content: <div data-tour="dosd-accord2"><Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" /></div> },
+                  { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextAccord="2ème accord ou +" /> },
                 ]}
               />
             ),
@@ -429,9 +420,9 @@ export default function DossierDetailPage({
               <StepTabs
                 storageKey={stepTabsKey(id, 10)}
                 tabs={[
-                  { value: 'planification', label: 'Planification', icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" /> },
-                  { value: 'photos', label: 'Photos', icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="apres" /> },
-                  { value: 'observations', label: 'Observations', icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="Après" /> },
+                  { value: 'planification', label: t('Planification'), icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" /> },
+                  { value: 'photos', label: t('Photos'), icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="apres" /> },
+                  { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="Après" /> },
                 ]}
               />
             ),
@@ -474,9 +465,14 @@ export default function DossierDetailPage({
         refExpert={viewDossier.refExpert as string | undefined}
       />
       <Sheet open={isHistoriqueOpen} onOpenChange={setHistoriqueOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-xl overflow-y-auto"
+          data-tour="dosd-historique-sheet"
+          {...tourDialogGuard()}
+        >
           <SheetHeader>
-            <SheetTitle>Historique</SheetTitle>
+            <SheetTitle>{t('Historique')}</SheetTitle>
           </SheetHeader>
           <div className="mt-4">
             <HistoriqueTab dossierId={id} />

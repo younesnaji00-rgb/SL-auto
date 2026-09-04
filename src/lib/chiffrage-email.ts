@@ -6,6 +6,9 @@
  * (see task #36) and any future email-dispatch surfaces.
  */
 
+import { BRAND } from './brand';
+import { getLocale } from '@/i18n';
+
 export interface BuildGmailComposeUrlOptions {
   to: string;
   subject: string;
@@ -46,12 +49,22 @@ export function buildAccordEmailTemplate(numero: string): {
   body: string;
 } {
   const ref = numero && numero.trim().length > 0 ? numero : '—';
+  if (getLocale() === 'en') {
+    return {
+      subject: `${BRAND.emailSubjectTag} Appraisal agreement - File No. ${ref}`,
+      body:
+        `Hello,\n\n` +
+        `Please find attached the appraisal agreement for file No. ${ref}.\n\n` +
+        `Best regards,\n\n` +
+        `${BRAND.emailSignature}`,
+    };
+  }
   return {
-    subject: `[SL-AUTO] Accord expertise - Dossier N° ${ref}`,
+    subject: `${BRAND.emailSubjectTag} Accord expertise - Dossier N° ${ref}`,
     body:
       `Madame, Monsieur,\n\n` +
       `Veuillez trouver ci-joint l'accord d'expertise concernant le dossier N° ${ref}.\n\n` +
       `Cordialement,\n\n` +
-      `L'équipe SL Auto Expertise`,
+      `${BRAND.emailSignature}`,
   };
 }

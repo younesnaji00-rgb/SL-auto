@@ -13,7 +13,6 @@ import { useRouter } from 'next/navigation';
 import { Bell, Check } from 'lucide-react';
 import { doc, writeBatch } from 'firebase/firestore';
 import { formatDistanceToNow } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -25,6 +24,7 @@ import { useRappels, type Rappel } from '@/hooks/use-rappels';
 import { useFirestore } from '@/firebase';
 import { useVisibleNav } from '@/hooks/use-visible-nav';
 import { cn } from '@/lib/utils';
+import { dateFnsLocale, useT } from '@/i18n';
 
 function toDate(v: any): Date | null {
   if (!v) return null;
@@ -47,6 +47,7 @@ export default function Notifications() {
 }
 
 function NotificationsInner() {
+  const t = useT();
   const router = useRouter();
   const db = useFirestore();
   const { rappels, loading } = useRappels();
@@ -87,8 +88,12 @@ function NotificationsInner() {
           variant="ghost"
           size="icon"
           className="relative h-9 w-9 text-ink-3 hover:text-ink"
-          aria-label={count > 0 ? `Rappels : ${count} non lu${count > 1 ? 's' : ''}` : 'Rappels'}
-          title="Rappels"
+          aria-label={
+            count > 0
+              ? `${t('Rappels')} : ${count} ${count > 1 ? t('non lus') : t('non lu')}`
+              : t('Rappels')
+          }
+          title={t('Rappels')}
         >
           <Bell className="h-[18px] w-[18px]" />
           {count > 0 && (
@@ -101,14 +106,18 @@ function NotificationsInner() {
       <DropdownMenuContent align="end" className="w-[22rem] p-0">
         <div className="flex items-center justify-between gap-2 border-b border-hairline px-4 py-3">
           <div>
-            <p className="t-heading">Rappels</p>
+            <p className="t-heading">{t('Rappels')}</p>
             <p className="t-caption">
-              {loading ? 'Chargement…' : count > 0 ? `${count} non lu${count > 1 ? 's' : ''}` : 'Aucun rappel en attente'}
+              {loading
+                ? t('Chargement…')
+                : count > 0
+                  ? `${count} ${count > 1 ? t('non lus') : t('non lu')}`
+                  : t('Aucun rappel en attente')}
             </p>
           </div>
           {count > 0 && (
             <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={markAllRead} disabled={marking}>
-              <Check className="h-3.5 w-3.5" /> Tout marquer comme lu
+              <Check className="h-3.5 w-3.5" /> {t('Tout marquer comme lu')}
             </Button>
           )}
         </div>
@@ -116,8 +125,8 @@ function NotificationsInner() {
           <div className="p-3">
             <EmptyState
               icon={<Bell />}
-              title="Aucun rappel"
-              description="Les rappels qui vous sont envoyés apparaîtront ici."
+              title={t('Aucun rappel')}
+              description={t('Les rappels qui vous sont envoyés apparaîtront ici.')}
               dashed={false}
               className="border-0 bg-transparent py-6"
             />
@@ -142,13 +151,13 @@ function NotificationsInner() {
                   >
                     <span className={cn('mt-1.5 h-2 w-2 rounded-full', isUnread ? 'bg-status-info-fg' : 'bg-surface-4')} aria-hidden />
                     <span className="min-w-0">
-                      <span className={cn('block truncate text-[13px]', isUnread ? 'font-semibold text-ink' : 'font-medium text-ink-2')}>{rappelLabel(r)}</span>
+                      <span className={cn('block truncate text-[13px]', isUnread ? 'font-semibold text-ink' : 'font-medium text-ink-2')}>{t(rappelLabel(r))}</span>
                       {r.observation && <span className="t-caption block truncate">{r.observation}</span>}
-                      {r.senderNom && <span className="t-caption block">De {r.senderNom}</span>}
+                      {r.senderNom && <span className="t-caption block">{t('De')} {r.senderNom}</span>}
                     </span>
                     {d && (
                       <span className="t-caption shrink-0 tabular-nums">
-                        {formatDistanceToNow(d, { locale: fr, addSuffix: false })}
+                        {formatDistanceToNow(d, { locale: dateFnsLocale(), addSuffix: false })}
                       </span>
                     )}
                   </button>
@@ -159,7 +168,7 @@ function NotificationsInner() {
         )}
         <div className="border-t border-hairline px-2 py-1.5">
           <Button variant="ghost" size="sm" className="w-full justify-center text-xs text-ink-2" asChild>
-            <Link href="/mes-rappels" onClick={() => setOpen(false)}>Voir tous les rappels</Link>
+            <Link href="/mes-rappels" onClick={() => setOpen(false)}>{t('Voir tous les rappels')}</Link>
           </Button>
         </div>
       </DropdownMenuContent>

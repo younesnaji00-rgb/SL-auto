@@ -13,6 +13,7 @@ import { Loader2, FileText } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { generateRapportPDF } from '@/lib/generate-rapport-pdf';
+import { useT } from '@/i18n';
 
 type ModalTelechargerProps = {
   open: boolean;
@@ -25,6 +26,7 @@ export default function ModalTelecharger({
   onOpenChange,
   dossierId,
 }: ModalTelechargerProps) {
+  const t = useT();
   const db = useFirestore();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -33,14 +35,14 @@ export default function ModalTelecharger({
     setIsLoading(true);
     try {
       await generateRapportPDF(db, dossierId);
-      toast({ title: 'Rapport PDF exporté avec succès.' });
+      toast({ title: t('Rapport PDF exporté avec succès.') });
       onOpenChange(false);
     } catch (error: any) {
       console.error('PDF generation error:', error);
       toast({
         variant: 'destructive',
-        title: "Erreur lors de l'exportation",
-        description: error?.message ?? 'Veuillez réessayer.',
+        title: t("Erreur lors de l'exportation"),
+        description: error?.message ?? t('Veuillez réessayer.'),
       });
     } finally {
       setIsLoading(false);
@@ -51,16 +53,16 @@ export default function ModalTelecharger({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Télécharger le rapport</DialogTitle>
+          <DialogTitle>{t('Télécharger le rapport')}</DialogTitle>
         </DialogHeader>
 
         <div className="py-2">
           <div className="flex items-start gap-3 rounded-lg bg-surface-2 p-3">
             <FileText className="mt-0.5 h-5 w-5 shrink-0 text-ink-3" />
             <div>
-              <p className="text-sm font-medium text-ink">Rapport de Chiffrage</p>
+              <p className="text-sm font-medium text-ink">{t('Rapport de Chiffrage')}</p>
               <p className="t-caption mt-0.5">
-                PDF avec véhicule, assuré, diagrammes de choc, pièces, main d'œuvre, récapitulatif et observation.
+                {t("PDF avec véhicule, assuré, diagrammes de choc, pièces, main d'œuvre, récapitulatif et observation.")}
               </p>
             </div>
           </div>
@@ -68,16 +70,16 @@ export default function ModalTelecharger({
 
         <DialogFooter className="gap-2 mt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
-            Annuler
+            {t('Annuler')}
           </Button>
           <Button onClick={handleDownload} disabled={isLoading}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Génération en cours...
+                {t('Génération en cours...')}
               </>
             ) : (
-              'Télécharger'
+              t('Télécharger')
             )}
           </Button>
         </DialogFooter>

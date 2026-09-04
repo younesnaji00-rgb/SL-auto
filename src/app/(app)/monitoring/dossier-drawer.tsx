@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale, t as tGlobal } from '@/i18n';
 import { ChevronRight, Inbox } from 'lucide-react';
 
 import {
@@ -46,7 +46,7 @@ const SYSTEM_LABELS: Record<string, string> = {
 const resolveUserName = (raw: string | null | undefined, lookup: UserLookup): string => {
   if (!raw) return '—';
   const trimmed = raw.trim();
-  if (SYSTEM_LABELS[trimmed]) return SYSTEM_LABELS[trimmed];
+  if (SYSTEM_LABELS[trimmed]) return tGlobal(SYSTEM_LABELS[trimmed]);
   const direct = lookup.byKey.get(trimmed);
   if (direct) return direct;
   const lower = lookup.byKey.get(trimmed.toLowerCase());
@@ -83,6 +83,7 @@ export function DossierDrawer({
   userLookup: UserLookup;
 }) {
   const router = useRouter();
+  const t = useT();
 
   const navigate = (id: string) => {
     onOpenChange(false);
@@ -92,29 +93,29 @@ export function DossierDrawer({
 
   const isNonRealise = mode === 'nonRealise';
   const isHorsDelai = mode === 'horsDelai';
-  const stepLabel = step ? STEP_LABELS[step] : 'Dossiers';
-  const modeLabel = isNonRealise ? 'non réalisé' : isHorsDelai ? 'hors délai' : 'réalisé';
-  const title = step ? `${stepLabel} — ${modeLabel}` : 'Dossiers';
+  const stepLabel = step ? t(STEP_LABELS[step]) : t('Dossiers');
+  const modeLabel = isNonRealise ? t('non réalisé') : isHorsDelai ? t('hors délai') : t('réalisé');
+  const title = step ? `${stepLabel} — ${modeLabel}` : t('Dossiers');
 
   const description = rows.length === 0
     ? (isNonRealise
-        ? 'Aucun dossier en attente sur cette étape.'
+        ? t('Aucun dossier en attente sur cette étape.')
         : isHorsDelai
-          ? 'Aucun dossier n’est hors délai sur cette étape.'
-          : 'Aucun dossier n’a franchi cette étape.')
-    : `${rows.length} dossier${rows.length > 1 ? 's' : ''} ${
+          ? t('Aucun dossier n’est hors délai sur cette étape.')
+          : t('Aucun dossier n’a franchi cette étape.'))
+    : `${rows.length} ${rows.length > 1 ? t('dossiers') : t('dossier')} ${
         isNonRealise
-          ? 'en attente sur cette étape'
+          ? t('en attente sur cette étape')
           : isHorsDelai
-            ? 'hors délai sur cette étape'
-            : 'ayant franchi cette étape'
+            ? t('hors délai sur cette étape')
+            : t('ayant franchi cette étape')
       }.`;
 
   const emptyDescription = isNonRealise
-    ? 'Tous les dossiers en périmètre ont franchi cette étape.'
+    ? t('Tous les dossiers en périmètre ont franchi cette étape.')
     : isHorsDelai
-      ? 'Tous les dossiers en périmètre sont dans les délais.'
-      : 'Aucun dossier n’est encore associé à cette étape.';
+      ? t('Tous les dossiers en périmètre sont dans les délais.')
+      : t('Aucun dossier n’est encore associé à cette étape.');
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -128,7 +129,7 @@ export function DossierDrawer({
           {rows.length === 0 ? (
             <EmptyState
               icon={<Inbox />}
-              title="Aucun dossier"
+              title={t('Aucun dossier')}
               description={emptyDescription}
             />
           ) : (
@@ -143,10 +144,10 @@ export function DossierDrawer({
                   <div className="truncate font-medium text-ink">{dossierIdentifier(dossier)}</div>
                   {!isNonRealise && (
                     <div className="t-caption mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span>par {resolveUserName(author, userLookup)}</span>
+                      <span>{t('par')} {resolveUserName(author, userLookup)}</span>
                       {doneAt && (
                         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                          {format(doneAt, 'dd/MM/yyyy HH:mm', { locale: fr })}
+                          {format(doneAt, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() })}
                         </span>
                       )}
                     </div>

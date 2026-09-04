@@ -39,6 +39,7 @@ import { scanAndPersistCarteGrise } from '@/lib/scan-carte-grise';
 import { isEditableDocType } from '@/lib/devis-schema';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 import { DOC_CLASSES, DOC_CLASS_LABELS, PREFILL_DOC_CLASSES, UNCLASSIFIED_LABEL, confidenceBand } from '@/lib/doc-classes';
+import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 import { cn } from '@/lib/utils';
 
 type ItemStatus = 'uploading' | 'classifying' | 'ready' | 'error';
@@ -96,7 +97,12 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-function isAccepted(f: File): boolean {
+/** HTML is accepted ONLY in tutorial mode: the demo kit's electronic mission
+ *  order is an .html file, and the guided tour asks the user to import it.
+ *  (Merge 2026-09-04 — the old dashed drop-zone widened its `accept` the same
+ *  way; SmartInbox replaced it and the allowance had to come along.) */
+function isAccepted(f: File, allowHtml = false): boolean {
+  if (allowHtml && (/\.html?$/i.test(f.name) || f.type === 'text/html')) return true;
   return f.type.startsWith('image/') || f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
 }
 
@@ -119,6 +125,8 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
   const { canWrite, profile } = useCurrentUser();
   const { toast } = useToast();
   const canEdit = !readOnly && canWrite('dossiers');
+  // Tutorial mode widens the picker to the demo kit's .html mission order.
+  const tutorialMode = useTutorialMode();
 
   const [items, setItems] = useState<InboxItem[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -226,7 +234,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
   const ingest = useCallback(
     async (files: File[], forcedType?: string) => {
       if (!canEdit || !db || !storage) return;
-      const accepted = files.filter(isAccepted).filter((f) => f.size <= MAX_BYTES);
+      const accepted = files.filter((f) => isAccepted(f, tutorialMode)).filter((f) => f.size <= MAX_BYTES);
       const rejected = files.length - accepted.length;
       if (rejected > 0) toast({ variant: 'destructive', title: `${rejected} fichier(s) ignoré(s)`, description: 'PDF ou image, 15 Mo maximum.' });
       if (accepted.length === 0) return;
@@ -410,7 +418,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           type="file"
           className="hidden"
           multiple
-          accept=".pdf,image/*"
+          accept={tutorialMode ? '.pdf,image/*,.html,.htm' : '.pdf,image/*'}
           onChange={(e) => {
             const files = Array.from(e.target.files || []);
             if (files.length) void ingest(files);

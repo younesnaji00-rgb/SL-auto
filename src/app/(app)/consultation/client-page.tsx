@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Search, AlertCircle, FolderOpen, Columns3, Download, Check, ChevronRight } from 'lucide-react';
 import { format, parseISO, isValid, isToday, startOfDay, startOfWeek, startOfMonth, endOfDay } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, STICKY_HEAD, STICKY_CELL, EmptyCell } from '@/components/ui/table';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -19,6 +18,7 @@ import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { useT, dateFnsLocale } from '@/i18n';
 import { StatusChip, statusTone } from '@/components/ui/status-chip';
 import { FilterChip } from '@/components/ui/filter-chip';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
@@ -122,6 +122,7 @@ const COLUMNS: ExportColumn[] = [
 const HIDEABLE_COLUMNS = COLUMNS.filter((c) => c.key !== 'refExpert');
 
 export default function ConsultationClientPage() {
+  const t = useT();
   const router = useRouter();
   const { openTab } = useDossierTabs();
   // Row click opens the dossier as a PREVIEW tab (VS Code semantics, same as
@@ -203,7 +204,7 @@ export default function ConsultationClientPage() {
   // (motion-spec addendum quater: segmented filters join the morph family).
   const applyPreset = (preset: 'jour' | 'semaine' | 'mois') => {
     const now = new Date();
-    const from = preset === 'jour' ? startOfDay(now) : preset === 'semaine' ? startOfWeek(now, { locale: fr }) : startOfMonth(now);
+    const from = preset === 'jour' ? startOfDay(now) : preset === 'semaine' ? startOfWeek(now, { locale: dateFnsLocale() }) : startOfMonth(now);
     setFilters({ dateFrom: format(from, 'yyyy-MM-dd'), dateTo: format(endOfDay(now), 'yyyy-MM-dd'), datePreset: preset });
   };
   const setDates = (patch: { dateFrom?: string; dateTo?: string }) => {
@@ -418,20 +419,20 @@ export default function ConsultationClientPage() {
   // No-results copy (§12: the filtered variant says WHICH filter to clear).
   //   inside « … » and before « : » per OQLF — the quote never strands.
   const activeFilterNames: string[] = [];
-  if (filters.search) activeFilterNames.push(`la recherche « ${filters.search} »`);
-  if (filters.nature !== 'Toutes') activeFilterNames.push(`la nature « ${filters.nature} »`);
-  if (filters.status !== 'Tous') activeFilterNames.push(`le statut « ${filters.status} »`);
-  if (filters.compagnie !== 'Toutes') activeFilterNames.push(`la compagnie « ${filters.compagnie} »`);
-  if (filters.typeDossier !== 'Tous') activeFilterNames.push(`le type de dossier « ${filters.typeDossier} »`);
+  if (filters.search) activeFilterNames.push(`${t('la recherche')} « ${filters.search} »`);
+  if (filters.nature !== 'Toutes') activeFilterNames.push(`${t('la nature')} « ${t(filters.nature)} »`);
+  if (filters.status !== 'Tous') activeFilterNames.push(`${t('le statut')} « ${t(filters.status)} »`);
+  if (filters.compagnie !== 'Toutes') activeFilterNames.push(`${t('la compagnie')} « ${t(filters.compagnie)} »`);
+  if (filters.typeDossier !== 'Tous') activeFilterNames.push(`${t('le type de dossier')} « ${t(filters.typeDossier)} »`);
   if (filters.dateFrom || filters.dateTo) {
     activeFilterNames.push(
-      `la période du ${filters.dateFrom ? fmtIsoDay(filters.dateFrom) : '—'} au ${filters.dateTo ? fmtIsoDay(filters.dateTo) : '—'}`,
+      `${t('la période du')} ${filters.dateFrom ? fmtIsoDay(filters.dateFrom) : '—'} ${t('au')} ${filters.dateTo ? fmtIsoDay(filters.dateTo) : '—'}`,
     );
   }
 
   // Real range printed in the footer caption (§6 / §23: never "· période").
   const rangeCaption = filters.dateFrom || filters.dateTo
-    ? ` · du ${filters.dateFrom ? fmtIsoDay(filters.dateFrom) : '—'} au ${filters.dateTo ? fmtIsoDay(filters.dateTo) : '—'}`
+    ? ` · ${t('du')} ${filters.dateFrom ? fmtIsoDay(filters.dateFrom) : '—'} ${t('au')} ${filters.dateTo ? fmtIsoDay(filters.dateTo) : '—'}`
     : '';
 
   // Success morph on the button itself (motion-spec §5 I1 idiom + §10:
@@ -458,7 +459,7 @@ export default function ConsultationClientPage() {
       {fetchError && (
         <Alert variant="danger">
           <AlertCircle />
-          <AlertTitle>Erreur de chargement</AlertTitle>
+          <AlertTitle>{t('Erreur de chargement')}</AlertTitle>
           <AlertDescription>{fetchError}</AlertDescription>
         </Alert>
       )}
@@ -487,9 +488,9 @@ export default function ConsultationClientPage() {
                     className="block w-full rounded-[inherit] p-4 text-left hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-pressed={filters.status === 'Tous' || undefined}
                   >
-                    <span className="t-label block">Total</span>
+                    <span className="t-label block">{t('Total')}</span>
                     <span className="mt-0.5 block text-2xl font-semibold leading-tight text-ink">{baseList.length}</span>
-                    <span className="t-caption mt-0.5 block">tous statuts</span>
+                    <span className="t-caption mt-0.5 block">{t('tous statuts')}</span>
                   </button>
                 </Card>
                 {topStatuses.map(([label, count]) => {
@@ -501,11 +502,11 @@ export default function ConsultationClientPage() {
                         onClick={() => (active ? clearFilter('status') : setFilters({ status: label }))}
                         className="block w-full rounded-[inherit] p-4 text-left hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         aria-pressed={active || undefined}
-                        title={active ? `Retirer le filtre « ${label} »` : `Filtrer sur « ${label} »`}
+                        title={active ? `${t('Retirer le filtre')} « ${t(label)} »` : `${t('Filtrer sur')} « ${t(label)} »`}
                       >
                         <span className="t-label flex items-center gap-1.5">
                           <span className={cn('h-2 w-2 shrink-0 rounded-full', DOT_BY_TONE[statusTone(label)])} aria-hidden />
-                          <span className="truncate">{label}</span>
+                          <span className="truncate">{t(label)}</span>
                         </span>
                         <span className="mt-0.5 block text-2xl font-semibold leading-tight text-ink">{count}</span>
                       </button>
@@ -525,13 +526,13 @@ export default function ConsultationClientPage() {
           « Colonnes » and « Exporter » are quiet workspace tools at the right
           end (same idiom as /dossiers) — never a filled button here (§2). */}
       <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative max-w-sm flex-grow max-sm:w-full">
+      <div className="flex flex-wrap items-center gap-2" data-tour="consult-filters">
+        <div className="relative max-w-sm flex-grow max-sm:w-full" data-tour="consult-search">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
           <Input
             className="pl-9"
-            placeholder="Réf., assuré, matricule…"
-            aria-label="Rechercher un dossier par référence, assuré ou matricule"
+            placeholder={t('Réf., assuré, matricule…')}
+            aria-label={t('Rechercher un dossier par référence, assuré ou matricule')}
             value={filters.search}
             onChange={e => setFilters({ search: e.target.value })}
             onKeyDown={e => {
@@ -548,23 +549,23 @@ export default function ConsultationClientPage() {
         </div>
 
         <Select value={filters.nature} onValueChange={v => setFilters({ nature: v })}>
-          <SelectTrigger className="w-[180px]" aria-label="Nature du dossier"><SelectValue placeholder="Nature du dossier" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]" aria-label={t('Nature du dossier')} data-tour="consult-nature"><SelectValue placeholder={t('Nature du dossier')} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="Toutes">Toutes les natures</SelectItem>
-            {filterNatures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
+            <SelectItem value="Toutes">{t('Toutes les natures')}</SelectItem>
+            {filterNatures.map(n => <SelectItem key={n.id} value={n.label}>{t(n.label)}</SelectItem>)}
           </SelectContent>
         </Select>
 
         <Select value={filters.status} onValueChange={v => setFilters({ status: v })}>
-          <SelectTrigger className="w-[180px]" aria-label="Statut"><SelectValue placeholder="Statut" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]" aria-label={t('Statut')} data-tour="consult-statut"><SelectValue placeholder={t('Statut')} /></SelectTrigger>
           <SelectContent className="max-h-[300px]">
-            <SelectItem value="Tous">Tous les statuts</SelectItem>
+            <SelectItem value="Tous">{t('Tous les statuts')}</SelectItem>
             {filterStatuses.map(s => (
               <SelectItem key={s.id} value={s.label}>
                 {/* Status dot always beside its label (§11: never colour alone). */}
                 <span className="flex items-center gap-2">
                   <span className={cn('h-2 w-2 shrink-0 rounded-full', DOT_BY_TONE[statusTone(s.label)])} aria-hidden />
-                  {s.label}
+                  {t(s.label)}
                 </span>
               </SelectItem>
             ))}
@@ -572,18 +573,18 @@ export default function ConsultationClientPage() {
         </Select>
 
         <Select value={filters.compagnie} onValueChange={v => setFilters({ compagnie: v })}>
-          <SelectTrigger className="w-[180px]" aria-label="Compagnie"><SelectValue placeholder="Compagnie" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]" aria-label={t('Compagnie')} data-tour="consult-compagnie"><SelectValue placeholder={t('Compagnie')} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
-            {filterCompagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
+            <SelectItem value="Toutes">{t('Toutes les compagnies')}</SelectItem>
+            {filterCompagnies.map(c => <SelectItem key={c.id} value={c.label}>{t(c.label)}</SelectItem>)}
           </SelectContent>
         </Select>
 
         <Select value={filters.typeDossier} onValueChange={v => setFilters({ typeDossier: v })}>
-          <SelectTrigger className="w-[180px]" aria-label="Type de dossier"><SelectValue placeholder="Type de dossier" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]" aria-label={t('Type de dossier')}><SelectValue placeholder={t('Type de dossier')} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="Tous">Tous les types</SelectItem>
-            {filterTypesDossier.map(t => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
+            <SelectItem value="Tous">{t('Tous les types')}</SelectItem>
+            {filterTypesDossier.map(td => <SelectItem key={td.id} value={td.label}>{t(td.label)}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -592,7 +593,7 @@ export default function ConsultationClientPage() {
             sliding tonal thumb carries the selection (SlidingThumb — the
             segmented-morph family, motion-spec addendum quater). */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative isolate flex h-9 items-center gap-0.5 rounded-md bg-surface-2 p-0.5" role="group" aria-label="Période de requête">
+          <div className="relative isolate flex h-9 items-center gap-0.5 rounded-md bg-surface-2 p-0.5" role="group" aria-label={t('Période de requête')}>
             <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[filters.datePreset]} />
             {([['jour', 'Jour'], ['semaine', 'Semaine'], ['mois', 'Mois']] as const).map(([key, label]) => (
               <Button
@@ -607,7 +608,7 @@ export default function ConsultationClientPage() {
                 aria-pressed={filters.datePreset === key}
                 onClick={() => applyPreset(key)}
               >
-                {label}
+                {t(label)}
               </Button>
             ))}
           </div>
@@ -623,9 +624,9 @@ export default function ConsultationClientPage() {
         <div className="ms-auto flex items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" title="Afficher / masquer des colonnes">
+              <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" title={t('Afficher / masquer des colonnes')}>
                 <Columns3 className="h-4 w-4" aria-hidden />
-                Colonnes
+                {t('Colonnes')}
                 {filters.hiddenCols.length > 0 && (
                   <span className="rounded-full bg-surface-3 px-1.5 text-xs tabular-nums text-ink-2">
                     {visibleColumns.length}/{COLUMNS.length}
@@ -648,14 +649,14 @@ export default function ConsultationClientPage() {
                   }}
                   onSelect={(e) => e.preventDefault()}
                 >
-                  {c.label}
+                  {t(c.label)}
                 </DropdownMenuCheckboxItem>
               ))}
               {filters.hiddenCols.length > 0 && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={() => clearFilter('hiddenCols')}>
-                    Tout afficher
+                    {t('Tout afficher')}
                   </DropdownMenuItem>
                 </>
               )}
@@ -665,9 +666,9 @@ export default function ConsultationClientPage() {
           {/* Export = the FILTERED rows in the VISIBLE column order, never the
               raw collection (Retool forums: the mismatch is the failure mode). */}
           {sortedList.length > 0 && (
-            <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" onClick={handleExport} disabled={exported} title="Exporter la liste filtrée en Excel">
+            <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" onClick={handleExport} disabled={exported} title={t('Exporter la liste filtrée en Excel')}>
               {exported ? <Check className="h-4 w-4" aria-hidden /> : <Download className="h-4 w-4" aria-hidden />}
-              {exported ? 'Exporté' : 'Exporter'}
+              {exported ? t('Exporté') : t('Exporter')}
             </Button>
           )}
         </div>
@@ -678,25 +679,25 @@ export default function ConsultationClientPage() {
           The count echo makes a restored filter scope visible at re-entry
           (NN/g scoped search: a silent default scope is the worst offender). */}
       {hasChipFilters && (
-        <div className="flex flex-wrap items-center gap-2" aria-label="Filtres actifs">
-          <span className="t-label">Filtres actifs</span>
+        <div className="flex flex-wrap items-center gap-2" aria-label={t('Filtres actifs')}>
+          <span className="t-label">{t('Filtres actifs')}</span>
           {filters.nature !== 'Toutes' && (
-            <FilterChip label={`Nature : ${filters.nature}`} onRemove={() => clearFilter('nature')} ariaLabel="Retirer le filtre nature" />
+            <FilterChip label={`${t('Nature :')} ${t(filters.nature)}`} onRemove={() => clearFilter('nature')} ariaLabel={t('Retirer le filtre nature')} />
           )}
           {filters.status !== 'Tous' && (
-            <FilterChip label={`Statut : ${filters.status}`} onRemove={() => clearFilter('status')} ariaLabel="Retirer le filtre statut" />
+            <FilterChip label={`${t('Statut :')} ${t(filters.status)}`} onRemove={() => clearFilter('status')} ariaLabel={t('Retirer le filtre statut')} />
           )}
           {filters.compagnie !== 'Toutes' && (
-            <FilterChip label={`Compagnie : ${filters.compagnie}`} onRemove={() => clearFilter('compagnie')} ariaLabel="Retirer le filtre compagnie" />
+            <FilterChip label={`${t('Compagnie :')} ${t(filters.compagnie)}`} onRemove={() => clearFilter('compagnie')} ariaLabel={t('Retirer le filtre compagnie')} />
           )}
           {filters.typeDossier !== 'Tous' && (
-            <FilterChip label={`Type : ${filters.typeDossier}`} onRemove={() => clearFilter('typeDossier')} ariaLabel="Retirer le filtre type de dossier" />
+            <FilterChip label={`${t('Type :')} ${t(filters.typeDossier)}`} onRemove={() => clearFilter('typeDossier')} ariaLabel={t('Retirer le filtre type de dossier')} />
           )}
           {filters.dateFrom && (
-            <FilterChip label={`Du : ${fmtIsoDay(filters.dateFrom)}`} onRemove={() => setDates({ dateFrom: '' })} ariaLabel="Retirer la date de début" />
+            <FilterChip label={`${t('Du :')} ${fmtIsoDay(filters.dateFrom)}`} onRemove={() => setDates({ dateFrom: '' })} ariaLabel={t('Retirer la date de début')} />
           )}
           {filters.dateTo && (
-            <FilterChip label={`Au : ${fmtIsoDay(filters.dateTo)}`} onRemove={() => setDates({ dateTo: '' })} ariaLabel="Retirer la date de fin" />
+            <FilterChip label={`${t('Au :')} ${fmtIsoDay(filters.dateTo)}`} onRemove={() => setDates({ dateTo: '' })} ariaLabel={t('Retirer la date de fin')} />
           )}
           <Button
             variant="link"
@@ -704,10 +705,10 @@ export default function ConsultationClientPage() {
             className="h-7 px-1 text-xs"
             onClick={clearChipFilters}
           >
-            Tout réinitialiser
+            {t('Tout réinitialiser')}
           </Button>
           <span className="t-caption tabular-nums">
-            {dossierList.length} sur {allDossiers.length} dossiers
+            {dossierList.length} {t('sur')} {allDossiers.length} {t('dossiers')}
           </span>
         </div>
       )}
@@ -725,50 +726,50 @@ export default function ConsultationClientPage() {
           (ter A: the identifier is the row's ONLY bold cell).
           Table and its footer caption form ONE group (12 px apart). */}
       <div className="space-y-3">
-      <Card className="overflow-hidden">
-        <Table regionLabel="Dossiers en consultation">
+      <Card className="overflow-hidden" data-tour="consult-table">
+        <Table regionLabel={t('Dossiers en consultation')}>
           <TableHeader>
             <TableRow>
               <TableHead className={STICKY_HEAD}>
-                <SortableHeader label="Réf. expert" sort={sortFor('refExpert')} onChange={onSortChange('refExpert')} />
+                <SortableHeader label={t('Réf. expert')} sort={sortFor('refExpert')} onChange={onSortChange('refExpert')} />
               </TableHead>
               {isVisible('assure') && (
                 <TableHead>
-                  <SortableHeader label="Assuré" sort={sortFor('assure')} onChange={onSortChange('assure')} />
+                  <SortableHeader label={t('Assuré')} sort={sortFor('assure')} onChange={onSortChange('assure')} />
                 </TableHead>
               )}
               {isVisible('matricule') && (
                 <TableHead>
-                  <SortableHeader label="Matricule" sort={sortFor('matricule')} onChange={onSortChange('matricule')} />
+                  <SortableHeader label={t('Matricule')} sort={sortFor('matricule')} onChange={onSortChange('matricule')} />
                 </TableHead>
               )}
               {isVisible('statut') && (
                 <TableHead>
-                  <SortableHeader label="Statut" sort={sortFor('statut')} onChange={onSortChange('statut')} />
+                  <SortableHeader label={t('Statut')} sort={sortFor('statut')} onChange={onSortChange('statut')} />
                 </TableHead>
               )}
               {isVisible('compagnie') && (
                 <TableHead>
-                  <SortableHeader label="Compagnie" sort={sortFor('compagnie')} onChange={onSortChange('compagnie')} />
+                  <SortableHeader label={t('Compagnie')} sort={sortFor('compagnie')} onChange={onSortChange('compagnie')} />
                 </TableHead>
               )}
               {isVisible('nature') && (
                 <TableHead>
-                  <SortableHeader label="Nature du dossier" sort={sortFor('nature')} onChange={onSortChange('nature')} />
+                  <SortableHeader label={t('Nature du dossier')} sort={sortFor('nature')} onChange={onSortChange('nature')} />
                 </TableHead>
               )}
               {isVisible('typeDossier') && (
                 <TableHead>
-                  <SortableHeader label="Type de dossier" sort={sortFor('typeDossier')} onChange={onSortChange('typeDossier')} />
+                  <SortableHeader label={t('Type de dossier')} sort={sortFor('typeDossier')} onChange={onSortChange('typeDossier')} />
                 </TableHead>
               )}
               {isVisible('dateRequete') && (
                 <TableHead>
-                  <SortableHeader label="Date de requête" sort={sortFor('dateRequete')} onChange={onSortChange('dateRequete')} />
+                  <SortableHeader label={t('Date de requête')} sort={sortFor('dateRequete')} onChange={onSortChange('dateRequete')} />
                 </TableHead>
               )}
               <TableHead className="w-10 text-right">
-                <span className="sr-only">Ouvrir</span>
+                <span className="sr-only">{t('Ouvrir')}</span>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -790,19 +791,19 @@ export default function ConsultationClientPage() {
                       chip filters, the pathway widens the scope instead. */}
                   <EmptyState
                     icon={<FolderOpen />}
-                    title={hasActiveFilters ? 'Aucun dossier ne correspond aux filtres' : 'Aucun dossier'}
+                    title={hasActiveFilters ? t('Aucun dossier ne correspond aux filtres') : t('Aucun dossier')}
                     description={
                       searchOnlyCount > 0
-                        ? `Aucun résultat pour ${activeFilterNames.join(', ')}. « ${filters.search} » existe dans ${searchOnlyCount} dossier${searchOnlyCount > 1 ? 's' : ''} hors de ces filtres.`
+                        ? `${t('Aucun résultat pour')} ${activeFilterNames.join(', ')}. « ${filters.search} » ${t('existe dans')} ${searchOnlyCount} ${searchOnlyCount > 1 ? t('dossiers hors de ces filtres.') : t('dossier hors de ces filtres.')}`
                         : hasActiveFilters
-                          ? `Aucun résultat pour ${activeFilterNames.join(', ')}.`
-                          : 'Aucun dossier n’a encore été créé.'
+                          ? `${t('Aucun résultat pour')} ${activeFilterNames.join(', ')}.`
+                          : t('Aucun dossier n’a encore été créé.')
                     }
                     action={
                       searchOnlyCount > 0 ? (
-                        <Button variant="tonal" onClick={clearChipFilters}>Rechercher partout</Button>
+                        <Button variant="tonal" onClick={clearChipFilters}>{t('Rechercher partout')}</Button>
                       ) : hasActiveFilters ? (
-                        <Button variant="tonal" onClick={clearAll}>Effacer les filtres</Button>
+                        <Button variant="tonal" onClick={clearAll}>{t('Effacer les filtres')}</Button>
                       ) : undefined
                     }
                     dashed={false}
@@ -831,7 +832,7 @@ export default function ConsultationClientPage() {
                       <Link
                         href={`/dossiers/${d.id}`}
                         className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label={`Ouvrir le dossier ${d.refExpert}`}
+                        aria-label={`${t('Ouvrir le dossier')} ${d.refExpert}`}
                       >
                         <Highlight text={d.refExpert} query={filters.search} />
                       </Link>
@@ -868,12 +869,12 @@ export default function ConsultationClientPage() {
                   {isVisible('compagnie') && (
                     <TableCell className="max-w-[14rem]">
                       {d.compagnie ? (
-                        <span className="block truncate" title={d.compagnie}>{d.compagnie}</span>
+                        <span className="block truncate" title={d.compagnie}>{t(d.compagnie)}</span>
                       ) : <EmptyCell />}
                     </TableCell>
                   )}
-                  {isVisible('nature') && <TableCell>{d.nature || <EmptyCell />}</TableCell>}
-                  {isVisible('typeDossier') && <TableCell>{d.typeDossier || <EmptyCell />}</TableCell>}
+                  {isVisible('nature') && <TableCell>{d.nature ? t(d.nature) : <EmptyCell />}</TableCell>}
+                  {isVisible('typeDossier') && <TableCell>{d.typeDossier ? t(d.typeDossier) : <EmptyCell />}</TableCell>}
                   {isVisible('dateRequete') && (
                     <TableCell>
                       {formatDate(d.dateRequete) ? (
@@ -883,7 +884,7 @@ export default function ConsultationClientPage() {
                               word marker, same as the chiffrage queue's Date
                               cell (addendum 2026-09-02). */}
                           {isToday(d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete)) && (
-                            <Badge variant="time">Aujourd’hui</Badge>
+                            <Badge variant="time">{t('Aujourd’hui')}</Badge>
                           )}
                         </span>
                       ) : <EmptyCell />}
@@ -897,7 +898,7 @@ export default function ConsultationClientPage() {
                       asChild
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <Link href={`/dossiers/${d.id}`} title="Ouvrir le dossier" aria-label={`Ouvrir le dossier ${d.refExpert || ''}`}>
+                      <Link href={`/dossiers/${d.id}`} title={t('Ouvrir le dossier')} aria-label={`${t('Ouvrir le dossier')} ${d.refExpert || ''}`}>
                         <ChevronRight className="h-4 w-4" />
                       </Link>
                     </Button>
@@ -918,14 +919,14 @@ export default function ConsultationClientPage() {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-2">
         {sortedList.length > visibleCount && (
           <Button variant="outline" size="sm" onClick={() => setVisibleCount(c => c + 50)}>
-            {`Afficher plus (${sortedList.length - visibleCount} restants)`}
+            {`${t('Afficher plus')} (${sortedList.length - visibleCount} ${t('restants')})`}
           </Button>
         )}
         <span className="t-caption tabular-nums">
           {sortedList.length > visibleCount ? (
-            <>Affichés <span className="font-semibold text-ink">{visibleCount}</span> sur <span className="font-semibold text-ink">{sortedList.length}</span>{' '}dossiers{rangeCaption}</>
+            <>{t('Affichés')} <span className="font-semibold text-ink">{visibleCount}</span> {t('sur')} <span className="font-semibold text-ink">{sortedList.length}</span>{' '}{t('dossiers')}{rangeCaption}</>
           ) : (
-            <>Total{' '}: <span className="font-semibold text-ink">{sortedList.length}</span>{' '}dossier{sortedList.length > 1 ? 's' : ''}{rangeCaption}</>
+            <>{t('Total')}{' '}: <span className="font-semibold text-ink">{sortedList.length}</span>{' '}{sortedList.length > 1 ? t('dossiers') : t('dossier')}{rangeCaption}</>
           )}
         </span>
       </div>

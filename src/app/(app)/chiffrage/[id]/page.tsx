@@ -15,6 +15,7 @@ import { Card } from '@/components/ui/card';
 import { FileType } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useT } from '@/i18n';
 import Loading from './loading';
 
 interface ChiffrageFileDoc {
@@ -40,6 +41,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
+  const t = useT();
 
   const [chiffrage, setChiffrage] = useState<ChiffrageDoc | null>(null);
   const [downloadUrls, setDownloadUrls] = useState<Record<number, string>>({});
@@ -56,7 +58,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
     const unsub = onSnapshot(chiffrageRef, (snap) => {
       if (!snap.exists()) {
         if (hasLoadedRef.current) {
-          toast({ variant: 'destructive', title: "Chiffrage introuvable." });
+          toast({ variant: 'destructive', title: t("Chiffrage introuvable.") });
           router.push("/dashboard");
         }
         return;
@@ -110,12 +112,13 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
       <PageHeader
         size="compact"
         backHref="/assignations-chiffrage"
-        backLabel="Assignations au chiffrage"
-        title={chiffrage.dossierNom || 'Sans réf.'}
-        subtitle={<>Correcteur assigné : <span className="font-semibold text-ink">{chiffrage.assignedChiffreurNom || '—'}</span></>}
+        backLabel={t('Assignations au chiffrage')}
+        title={chiffrage.dossierNom || t('Sans réf.')}
+        titleText={chiffrage.dossierNom || t('Sans réf.')}
+        subtitle={<>{t('Correcteur assigné :')} <span className="font-semibold text-ink">{chiffrage.assignedChiffreurNom || '—'}</span></>}
         meta={
           <Badge variant={done ? 'success' : 'neutral'}>
-            {done ? 'Terminé' : 'En cours'}
+            {done ? t('Terminé') : t('En cours')}
           </Badge>
         }
       />
@@ -124,7 +127,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
           was the "repeated title" anti-pattern (blueprint). */}
       {chiffrage.files.length > 0 && (
         <p className="t-caption">
-          Mode « Correction native » : utilisez l&apos;éditeur pour barrer les erreurs et ajouter vos corrections directement sur le document.
+          {t("Mode « Correction native » : utilisez l'éditeur pour barrer les erreurs et ajouter vos corrections directement sur le document.")}
         </p>
       )}
 
@@ -135,8 +138,8 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
           // gestionnaire. Flat well, not dashed — dashed is the drop cue.
           <EmptyState
             icon={<FileType />}
-            title="Aucun fichier"
-            description="Aucun fichier n'a encore été associé à ce chiffrage."
+            title={t("Aucun fichier")}
+            description={t("Aucun fichier n'a encore été associé à ce chiffrage.")}
             dashed={false}
           />
         )}
@@ -153,7 +156,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
               key={`${file.storagePath}-${i}`}
               role="button"
               tabIndex={0}
-              aria-label={`Ouvrir ${file.name} dans l'éditeur`}
+              aria-label={`${t("Ouvrir")} ${file.name} ${t("dans l'éditeur")}`}
               onClick={open}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -176,7 +179,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
                 ) : (
                   <div className="flex flex-col items-center gap-1">
                     <FileType className="h-8 w-8 text-ink-4" aria-hidden />
-                    <span className="t-label">{file.type === 'photo' ? 'Image' : 'PDF/Doc'}</span>
+                    <span className="t-label">{file.type === "photo" ? t("Image") : t("PDF/Doc")}</span>
                   </div>
                 )}
               </div>
@@ -192,7 +195,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
                     path); stopPropagation keeps it from also opening the editor. */}
                 {file.pdfUrl && (
                   <Button variant="outline" asChild onClick={(e) => e.stopPropagation()}>
-                    <a href={file.pdfUrl} target="_blank" rel="noopener noreferrer">Voir le PDF exporté</a>
+                    <a href={file.pdfUrl} target="_blank" rel="noopener noreferrer">{t("Voir le PDF exporté")}</a>
                   </Button>
                 )}
               </div>
@@ -206,17 +209,18 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
 
 /** Status chip (element-specs §11): one helper, same state → same pair; no pulse. */
 function StatusBadge({ status, hasAnnotations }: { status: string; hasAnnotations: boolean }) {
+  const t = useT();
   if (hasAnnotations) {
-    return <Badge variant="success">Corrigé</Badge>;
+    return <Badge variant="success">{t('Corrigé')}</Badge>;
   }
   if (status === 'processing') {
-    return <Badge variant="info">En traitement</Badge>;
+    return <Badge variant="info">{t("En traitement")}</Badge>;
   }
   if (status === 'error') {
-    return <Badge variant="danger">Erreur</Badge>;
+    return <Badge variant="danger">{t("Erreur")}</Badge>;
   }
   if (status === 'done') {
-    return <Badge variant="success">Terminé</Badge>;
+    return <Badge variant="success">{t('Terminé')}</Badge>;
   }
-  return <Badge variant="neutral">En attente</Badge>;
+  return <Badge variant="neutral">{t("En attente")}</Badge>;
 }

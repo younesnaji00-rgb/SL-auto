@@ -4,6 +4,7 @@ import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
 import { transliterateArabic } from '@/lib/transliterate-arabic';
 import { requireAuth, authErrorResponse } from '@/lib/require-auth';
+import { BRAND } from '@/lib/brand';
 
 /**
  * Carte Grise scanner — narrow extractor that pulls only the two registration
@@ -16,6 +17,32 @@ import { requireAuth, authErrorResponse } from '@/lib/require-auth';
  * the Carte Grise slot in the typed-documents grid can run a tight, fast scan
  * on upload and write the two plates straight onto the dossier.
  */
+
+// Market-specific prompt header (system line + task labels + plate formats).
+// MA is the original Moroccan prompt text, verbatim; CA covers provincial
+// registration documents (Ontario green permit, Quebec SAAQ certificate).
+const CG_MARKET_MA = `Tu es un système d'extraction de haute précision spécialisé dans les cartes grises marocaines.
+
+TÂCHE:
+Extraire UNIQUEMENT les deux numéros d'immatriculation présents sur l'image:
+- "registration" : le numéro d'immatriculation actuel/définitif. Libellés possibles: "Immatriculation", "N° d'immatriculation", "Numéro d'immatriculation", "Matricule".
+- "previousRegistration" : le numéro d'immatriculation antérieur, s'il est explicitement mentionné. Libellés possibles: "Immatriculation antérieure", "Ancien numéro", "Précédente immatriculation", "Ancienne immatriculation". Souvent ABSENT — dans ce cas mets null.
+
+FORMATS MAROCAINS:
+Les immatriculations suivent les formats: "12345-A-1", "12345|A|1", ou ancien format numérique. Copier EXACTEMENT le format du document, caractère par caractère, sans rien standardiser.`;
+
+const CG_MARKET_CA = `Tu es un système d'extraction de haute précision spécialisé dans les documents d'immatriculation de véhicules canadiens: permis vert de l'Ontario (vehicle permit), certificat d'immatriculation de la SAAQ (Québec), et documents équivalents des autres provinces. Ces documents portent aussi le NIV/VIN, le nom et l'adresse du propriétaire — ne les extrais PAS.
+
+TÂCHE:
+Extraire UNIQUEMENT les deux numéros de plaque présents sur l'image:
+- "registration" : le numéro de plaque actuel. Libellés possibles: "Plate number", "PLATE", "Numéro de plaque", "N° de plaque", "Immatriculation".
+- "previousRegistration" : le numéro de plaque antérieur, s'il est explicitement mentionné. Libellés possibles: "Previous plate", "Ancienne plaque", "Plaque antérieure". Souvent ABSENT — dans ce cas mets null.
+
+FORMATS CANADIENS:
+Les plaques canadiennes sont des chaînes alphanumériques de 2 à 8 caractères dont le format varie selon la province (ex: "CKXR 382" en Ontario, "F12 ABC" au Québec). Copier EXACTEMENT le format du document, caractère par caractère, sans rien standardiser.`;
+
+const CG_MARKET = BRAND.market === 'CA' ? CG_MARKET_CA : CG_MARKET_MA;
+
 export async function POST(req: NextRequest) {
   try {
     await requireAuth(req);
@@ -34,15 +61,7 @@ export async function POST(req: NextRequest) {
           config: { responseMimeType: 'application/json' },
           prompt: [
             {
-              text: `Tu es un système d'extraction de haute précision spécialisé dans les cartes grises marocaines.
-
-TÂCHE:
-Extraire UNIQUEMENT les deux numéros d'immatriculation présents sur l'image:
-- "registration" : le numéro d'immatriculation actuel/définitif. Libellés possibles: "Immatriculation", "N° d'immatriculation", "Numéro d'immatriculation", "Matricule".
-- "previousRegistration" : le numéro d'immatriculation antérieur, s'il est explicitement mentionné. Libellés possibles: "Immatriculation antérieure", "Ancien numéro", "Précédente immatriculation", "Ancienne immatriculation". Souvent ABSENT — dans ce cas mets null.
-
-FORMATS MAROCAINS:
-Les immatriculations suivent les formats: "12345-A-1", "12345|A|1", ou ancien format numérique. Copier EXACTEMENT le format du document, caractère par caractère, sans rien standardiser.
+              text: `${CG_MARKET}
 
 SCHÉMA JSON STRICT:
 {

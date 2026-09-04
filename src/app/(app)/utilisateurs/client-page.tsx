@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { BRAND } from '@/lib/brand';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -71,31 +72,34 @@ import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
+import { useT, t as translate } from '@/i18n';
 
-const userFormSchema = z.object({
-  nom: z.string().min(1, "Le nom complet est requis."),
-  password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères."),
+// Built lazily (at validation time) so zod error messages follow the active
+// locale — never call t() at module top level.
+const makeUserFormSchema = () => z.object({
+  nom: z.string().min(1, translate("Le nom complet est requis.")),
+  password: z.string().min(6, translate("Le mot de passe doit contenir au moins 6 caractères.")),
   confirmPassword: z.string(),
-  role: z.string().min(1, "Le rôle est requis."),
-  compagnies: z.array(z.string()).min(1, "Veuillez sélectionner au moins une compagnie."),
+  role: z.string().min(1, translate("Le rôle est requis.")),
+  compagnies: z.array(z.string()).min(1, translate("Veuillez sélectionner au moins une compagnie.")),
   zone: z.string().optional(),
   // Item 024 — cities the user covers. Multi-select (a user can be in
   // charge of multiple cities at once). Optional: empty = no site restriction.
   sites: z.array(z.string()).optional(),
 }).refine(data => data.password === data.confirmPassword, {
-  message: "Les mots de passe ne correspondent pas.",
+  message: translate("Les mots de passe ne correspondent pas."),
   path: ["confirmPassword"],
 }).superRefine((data, ctx) => {
   if (data.role === 'Agent de Terrain' && (!data.zone || data.zone.trim() === '')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "La zone est requise pour un Agent de Terrain.",
+      message: translate("La zone est requise pour un Agent de Terrain."),
       path: ['zone'],
     });
   }
 });
 
-type UserFormData = z.infer<typeof userFormSchema>;
+type UserFormData = z.infer<ReturnType<typeof makeUserFormSchema>>;
 
 /** Generate a deterministic email from the user's full name */
 function generateEmail(nom: string): string {
@@ -106,7 +110,7 @@ function generateEmail(nom: string): string {
     .replace(/[^a-z0-9\s]/g, '')     // remove special chars
     .trim()
     .replace(/\s+/g, '.');          // spaces → dots
-  return `${sanitized}@sl-auto.app`;
+  return `${sanitized}@${BRAND.authEmailDomain}`;
 }
 
 // Status chip helper — element-specs §11 (Carbon tag / dataviz: the same state
@@ -115,6 +119,7 @@ const statutVariant = (statut: string) => (statut === 'Actif' ? 'success' : 'dan
 
 
 export default function UtilisateursClientPage() {
+  const t = useT();
   const db = useFirestore();
   const app = useFirebaseApp();
   const router = useRouter();
@@ -163,7 +168,8 @@ export default function UtilisateursClientPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const form = useForm<UserFormData>({
-    resolver: zodResolver(userFormSchema),
+    resolver: (values, context, options) =>
+      zodResolver(makeUserFormSchema())(values, context, options),
     defaultValues: {
       nom: '',
       password: '',
@@ -184,7 +190,7 @@ export default function UtilisateursClientPage() {
       // Check if name already exists (case-insensitive via nomLowercase — task #45)
       const existingSnap = await getDocs(query(collection(db, 'users'), where('nomLowercase', '==', data.nom.trim().toLowerCase())));
       if (!existingSnap.empty) {
-        toast({ variant: 'destructive', title: 'Erreur', description: 'Un utilisateur avec ce nom existe déjà (insensible à la casse).' });
+        toast({ variant: 'destructive', title: t('Erreur'), description: t('Un utilisateur avec ce nom existe déjà (insensible à la casse).') });
         setIsSubmitting(false);
         return;
       }
@@ -271,16 +277,16 @@ export default function UtilisateursClientPage() {
       }
 
       toast({
-        title: "Utilisateur ajouté",
-        description: `${data.nom} a été ajouté avec succès.`,
+        title: t('Utilisateur ajouté'),
+        description: `${data.nom} ${t('a été ajouté avec succès.')}`,
       });
       form.reset();
     } catch (error: any) {
       console.error(error);
       if (error.code === 'auth/email-already-in-use') {
-        toast({ variant: 'destructive', title: 'Erreur', description: 'Un compte avec ce nom existe déjà dans le système d\'authentification.' });
+        toast({ variant: 'destructive', title: t('Erreur'), description: t('Un compte avec ce nom existe déjà dans le système d\'authentification.') });
       } else {
-        toast({ variant: 'destructive', title: "Erreur lors de la création", description: error.message || 'Erreur inconnue.' });
+        toast({ variant: 'destructive', title: t('Erreur lors de la création'), description: error.message || t('Erreur inconnue.') });
       }
     } finally {
       setIsSubmitting(false);
@@ -299,7 +305,7 @@ export default function UtilisateursClientPage() {
   const handleDelete = async (userId: string) => {
     const target = userList?.find((u: any) => u.id === userId);
     if (isLastAdmin(target)) {
-      toast({ variant: 'destructive', title: 'Suppression impossible', description: 'C’est le dernier compte Admin — créez-en un autre avant de supprimer celui-ci.' });
+      toast({ variant: 'destructive', title: t('Suppression impossible'), description: t('C’est le dernier compte Admin — créez-en un autre avant de supprimer celui-ci.') });
       setDeleteTarget(null);
       return;
     }
@@ -320,7 +326,7 @@ export default function UtilisateursClientPage() {
         }
       }
 
-      toast({ title: "Utilisateur supprimé" });
+      toast({ title: t('Utilisateur supprimé') });
     } catch (error) {
       console.error(error);
     } finally {
@@ -359,8 +365,8 @@ export default function UtilisateursClientPage() {
           count pill). No action here: the inline form's submit is the page
           primary (GOV.UK button: one default button per page). */}
       <PageHeader
-        title="Utilisateurs"
-        subtitle="Ajouter, gérer et assigner des rôles aux utilisateurs."
+        title={t('Utilisateurs')}
+        subtitle={t('Ajouter, gérer et assigner des rôles aux utilisateurs.')}
         count={loading ? undefined : filteredUsers.length}
       />
 
@@ -373,9 +379,9 @@ export default function UtilisateursClientPage() {
               {/* Content card — element-specs §5 (Material 3 cards: container +
                   one topic; NN/g cards: "a few short, related pieces"): glass
                   edge, 24 px padding, t-heading title, 16 px between blocks. */}
-              <Card>
+              <Card data-tour="usr-create">
                 <CardHeader>
-                  <CardTitle className="t-heading">Ajouter un utilisateur</CardTitle>
+                  <CardTitle className="t-heading">{t('Ajouter un utilisateur')}</CardTitle>
                 </CardHeader>
                 {/* Form — element-specs §9 + addendum 4 (GOV.UK: "size inputs
                     to known lengths"; NN/g: field width matches the input):
@@ -391,7 +397,7 @@ export default function UtilisateursClientPage() {
                     name="nom"
                     render={({ field }) => (
                       <FormItem className="space-y-1">
-                        <FormLabel>Nom complet</FormLabel>
+                        <FormLabel>{t('Nom complet')}</FormLabel>
                         <FormControl><Input {...field} autoComplete="off" /></FormControl>
                         <FormMessage />
                       </FormItem>
@@ -405,8 +411,8 @@ export default function UtilisateursClientPage() {
                     name="password"
                     render={({ field }) => (
                       <FormItem className="space-y-1">
-                        <FormLabel>Mot de passe</FormLabel>
-                        <p className="t-caption">Au moins 6 caractères</p>
+                        <FormLabel>{t('Mot de passe')}</FormLabel>
+                        <p className="t-caption">{t('Au moins 6 caractères')}</p>
                         <FormControl><Input type="password" autoComplete="new-password" className="max-w-[16rem]" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
@@ -417,7 +423,7 @@ export default function UtilisateursClientPage() {
                     name="confirmPassword"
                     render={({ field }) => (
                       <FormItem className="space-y-1">
-                        <FormLabel>Confirmez le mot de passe</FormLabel>
+                        <FormLabel>{t('Confirmez le mot de passe')}</FormLabel>
                         <FormControl><Input type="password" autoComplete="new-password" className="max-w-[16rem]" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
@@ -429,21 +435,21 @@ export default function UtilisateursClientPage() {
                     render={({ field }) => (
                       <FormItem className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <FormLabel>Rôle</FormLabel>
-                          <OptionsManagerModal collectionName="options_roles" title="Rôles" />
+                          <FormLabel>{t('Rôle')}</FormLabel>
+                          <OptionsManagerModal collectionName="options_roles" title={t('Rôles')} />
                         </div>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger className="max-w-[16rem]"><SelectValue placeholder="Sélectionnez un rôle" /></SelectTrigger>
+                            <SelectTrigger className="max-w-[16rem]" data-tour="usr-role"><SelectValue placeholder={t('Sélectionnez un rôle')} /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
+                            {roles.map(role => <SelectItem key={role.id} value={role.label}>{t(role.label)}</SelectItem>)}
                           </SelectContent>
                         </Select>
                         {/* What the chosen role can do, in plain French, right
                             where it is assigned (addendum ter E). */}
                         {ROLE_DESCRIPTIONS[field.value] && (
-                          <p className="t-caption max-w-[24rem]">{ROLE_DESCRIPTIONS[field.value]}</p>
+                          <p className="t-caption max-w-[24rem]">{t(ROLE_DESCRIPTIONS[field.value])}</p>
                         )}
                         <FormMessage />
                       </FormItem>
@@ -458,8 +464,8 @@ export default function UtilisateursClientPage() {
                     render={({ field }) => (
                       <FormItem className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <FormLabel>Compagnies d&apos;assurance</FormLabel>
-                          <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
+                          <FormLabel>{t("Compagnies d'assurance")}</FormLabel>
+                          <OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />
                         </div>
                         <MultiSelect
                           options={companyOptions}
@@ -477,8 +483,8 @@ export default function UtilisateursClientPage() {
                     render={({ field }) => (
                       <FormItem className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <FormLabel>Sites <span className="text-ink-4">(facultatif)</span></FormLabel>
-                          <OptionsManagerModal collectionName="options_sites" title="Sites" />
+                          <FormLabel>{t('Sites')} <span className="text-ink-4">({t('facultatif')})</span></FormLabel>
+                          <OptionsManagerModal collectionName="options_sites" title={t('Sites')} />
                         </div>
                         <MultiSelect
                           options={sitesOptions}
@@ -512,8 +518,8 @@ export default function UtilisateursClientPage() {
                         return (
                           <FormItem className="flex flex-col space-y-1">
                             <div className="flex items-center justify-between">
-                              <FormLabel>Zone</FormLabel>
-                              <OptionsManagerModal collectionName="options_zones" title="Zones" />
+                              <FormLabel>{t('Zone')}</FormLabel>
+                              <OptionsManagerModal collectionName="options_zones" title={t('Zones')} />
                             </div>
                             <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
                               <PopoverTrigger asChild>
@@ -525,7 +531,7 @@ export default function UtilisateursClientPage() {
                                     aria-expanded={zonePopoverOpen}
                                     className={cn("w-full justify-between font-normal", !selected && "text-ink-3")}
                                   >
-                                    {selected || 'Sélectionnez ou saisissez une zone'}
+                                    {selected || t('Sélectionnez ou saisissez une zone')}
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-ink-3" />
                                   </Button>
                                 </FormControl>
@@ -537,7 +543,7 @@ export default function UtilisateursClientPage() {
                                     <input
                                       value={zoneQuery}
                                       onChange={(e) => setZoneQuery(e.target.value)}
-                                      placeholder="Rechercher ou créer une zone"
+                                      placeholder={t('Rechercher ou créer une zone')}
                                       className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-ink-3"
                                       onKeyDown={(e) => {
                                         if (e.key === 'Enter' && trimmedQuery) {
@@ -551,7 +557,7 @@ export default function UtilisateursClientPage() {
                                   </div>
                                   <CommandList>
                                     {filteredZones.length === 0 && !trimmedQuery && (
-                                      <CommandEmpty>Aucune zone enregistrée. Tapez pour créer.</CommandEmpty>
+                                      <CommandEmpty>{t('Aucune zone enregistrée. Tapez pour créer.')}</CommandEmpty>
                                     )}
                                     {filteredZones.length > 0 && (
                                       <CommandGroup>
@@ -572,7 +578,7 @@ export default function UtilisateursClientPage() {
                                       </CommandGroup>
                                     )}
                                     {trimmedQuery && !exactMatch && (
-                                      <CommandGroup heading="Créer">
+                                      <CommandGroup heading={t('Créer')}>
                                         <CommandItem
                                           value={`__create__${trimmedQuery}`}
                                           onSelect={() => {
@@ -582,7 +588,7 @@ export default function UtilisateursClientPage() {
                                           }}
                                         >
                                           <Plus className="mr-2 h-4 w-4" />
-                                          Créer «{trimmedQuery}»
+                                          {t('Créer')} «{trimmedQuery}»
                                         </CommandItem>
                                       </CommandGroup>
                                     )}
@@ -603,7 +609,7 @@ export default function UtilisateursClientPage() {
                     button per screen). THE page primary; label verb + noun. */}
                 <CardFooter>
                   <Button type="submit" className="w-full" loading={isSubmitting}>
-                    {isSubmitting ? 'Création…' : "Ajouter l'utilisateur"}
+                    {isSubmitting ? t('Création…') : t("Ajouter l'utilisateur")}
                   </Button>
                 </CardFooter>
               </Card>
@@ -618,7 +624,7 @@ export default function UtilisateursClientPage() {
                 {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: ONE IconChip beside the
                     section that anchors the page. */}
                 <IconChip><UserIcon /></IconChip>
-                Gérer les utilisateurs
+                {t('Gérer les utilisateurs')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -626,23 +632,23 @@ export default function UtilisateursClientPage() {
                   search first, ≤ 3 promoted filters, applied filters as chips
                   + clear-all; NN/g: general → specific). No filled button. */}
               <div className="flex flex-wrap items-center gap-2">
-                <div className="relative min-w-0 flex-1 basis-56">
+                <div className="relative min-w-0 flex-1 basis-56" data-tour="usr-search">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
                   <Input
-                    placeholder="Nom, prénom ou email"
+                    placeholder={t('Nom, prénom ou email')}
                     className="pl-9"
                     value={filters.search}
                     onChange={e => setFilters({ search: e.target.value })}
-                    aria-label="Rechercher un utilisateur"
+                    aria-label={t('Rechercher un utilisateur')}
                   />
                 </div>
                 <Select value={filters.role} onValueChange={value => setFilters({ role: value })}>
-                  <SelectTrigger className="w-full sm:w-[200px]" aria-label="Filtrer par rôle">
-                    <SelectValue placeholder="Filtrer par rôle" />
+                  <SelectTrigger className="w-full sm:w-[200px]" aria-label={t('Filtrer par rôle')} data-tour="usr-filter-role">
+                    <SelectValue placeholder={t('Filtrer par rôle')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Tous">Tous les rôles</SelectItem>
-                    {roles.map(role => <SelectItem key={role.id} value={role.label}>{role.label}</SelectItem>)}
+                    <SelectItem value="Tous">{t('Tous les rôles')}</SelectItem>
+                    {roles.map(role => <SelectItem key={role.id} value={role.label}>{t(role.label)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -650,12 +656,12 @@ export default function UtilisateursClientPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   {filters.role !== 'Tous' && (
                     <Badge variant="neutral" className="h-6 gap-1 pr-1">
-                      Rôle : {filters.role}
+                      {t('Rôle :')} {t(filters.role)}
                       <button
                         type="button"
                         onClick={() => clearFilter('role')}
                         className="rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label="Retirer le filtre rôle"
+                        aria-label={t('Retirer le filtre rôle')}
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -663,19 +669,19 @@ export default function UtilisateursClientPage() {
                   )}
                   {filters.search && (
                     <Badge variant="neutral" className="h-6 gap-1 pr-1">
-                      Recherche : {filters.search}
+                      {t('Recherche :')} {filters.search}
                       <button
                         type="button"
                         onClick={() => setFilters({ search: '' })}
                         className="rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label="Effacer la recherche"
+                        aria-label={t('Effacer la recherche')}
                       >
                         <X className="h-3 w-3" />
                       </button>
                     </Badge>
                   )}
                   <Button variant="link" size="sm" className="h-6 px-1" onClick={clearAllFilters}>
-                    Effacer
+                    {t('Effacer')}
                   </Button>
                 </div>
               )}
@@ -686,21 +692,21 @@ export default function UtilisateursClientPage() {
                   skeleton instead of spinner). No numeric columns here. The
                   table sits in the card WITHOUT a second frame (§5): it bleeds
                   to the card edges under a hairline. */}
-              <div className="-mx-6 -mb-6 border-t border-hairline">
-                <Table regionLabel="Utilisateurs">
+              <div className="-mx-6 -mb-6 border-t border-hairline" data-tour="usr-table">
+                <Table regionLabel={t('Utilisateurs')}>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="pl-6">Nom</TableHead>
+                      <TableHead className="pl-6">{t('Nom')}</TableHead>
                       {/* The « Mot de passe » column was removed 2026-09-02
                           (owner: "implement everything"): a scannable table of
                           plaintext passwords is a shoulder-surfing risk with no
                           list-page job — the masked value + toggle lives on the
                           user's detail page. */}
-                      <TableHead>Rôle</TableHead>
-                      <TableHead>Zone</TableHead>
-                      <TableHead>Compagnies</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead className="w-24 pr-6 text-right"><span className="sr-only">Actions</span></TableHead>
+                      <TableHead>{t('Rôle')}</TableHead>
+                      <TableHead>{t('Zone')}</TableHead>
+                      <TableHead>{t('Compagnies')}</TableHead>
+                      <TableHead>{t('Statut')}</TableHead>
+                      <TableHead className="w-24 pr-6 text-right"><span className="sr-only">{t('Actions')}</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -720,13 +726,13 @@ export default function UtilisateursClientPage() {
                               says which filter to clear). */}
                           <EmptyState
                             icon={<UserIcon />}
-                            title={hasActiveFilters ? 'Aucun utilisateur ne correspond' : 'Ajouter le premier utilisateur'}
-                            description={hasActiveFilters ? 'Effacez la recherche ou le filtre de rôle.' : 'Le formulaire « Ajouter un utilisateur » crée le compte et son identifiant.'}
+                            title={hasActiveFilters ? t('Aucun utilisateur ne correspond') : t('Ajouter le premier utilisateur')}
+                            description={hasActiveFilters ? t('Effacez la recherche ou le filtre de rôle.') : t('Le formulaire « Ajouter un utilisateur » crée le compte et son identifiant.')}
                             action={
                               hasActiveFilters ? (
-                                <Button variant="tonal" onClick={clearAllFilters}>Effacer les filtres</Button>
+                                <Button variant="tonal" onClick={clearAllFilters}>{t('Effacer les filtres')}</Button>
                               ) : (
-                                <Button variant="tonal" onClick={() => form.setFocus('nom')}>Remplir le formulaire</Button>
+                                <Button variant="tonal" onClick={() => form.setFocus('nom')}>{t('Remplir le formulaire')}</Button>
                               )
                             }
                             dashed={false}
@@ -736,7 +742,7 @@ export default function UtilisateursClientPage() {
                       </TableRow>
                     ) : (
                       filteredUsers.map((user: any) => {
-                        const displayName = `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Sans nom';
+                        const displayName = `${user.prenom || ''} ${user.nom || ''}`.trim() || t('Sans nom');
                         const statut = user.statut || 'Actif';
                         const compagnies: string[] = user.compagnies || [];
                         return (
@@ -751,7 +757,7 @@ export default function UtilisateursClientPage() {
                             </TableCell>
                             <TableCell>
                               {/* Chips — §11: neutral for informational categories (role). */}
-                              {user.role ? <Badge variant="neutral">{user.role}</Badge> : emptyCell}
+                              {user.role ? <Badge variant="neutral">{t(user.role)}</Badge> : emptyCell}
                             </TableCell>
                             <TableCell>
                               {user.role === 'Agent de Terrain' && user.zone ? (
@@ -761,15 +767,15 @@ export default function UtilisateursClientPage() {
                             <TableCell className="whitespace-normal">
                               <div className="flex max-w-[260px] flex-wrap gap-1">
                                 {compagnies.length === 0 ? (
-                                  <span className="t-caption">Toutes</span>
+                                  <span className="t-caption">{t('Toutes')}</span>
                                 ) : compagnies.map((c: string, i: number) => (
-                                  <Badge key={i} variant="neutral" title={c}>{c}</Badge>
+                                  <Badge key={i} variant="neutral" title={c}>{t(c)}</Badge>
                                 ))}
                               </div>
                             </TableCell>
                             <TableCell>
                               {/* Status pair with a text label — never colour alone (§11). */}
-                              <Badge variant={statutVariant(statut)}>{statut}</Badge>
+                              <Badge variant={statutVariant(statut)}>{t(statut)}</Badge>
                             </TableCell>
                             <TableCell className="pr-6 text-right" onClick={(e) => e.stopPropagation()}>
                               {/* Row actions — §3/§8: ≤ 2 inline `ghost` icon buttons
@@ -780,12 +786,12 @@ export default function UtilisateursClientPage() {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-ink-3 hover:text-ink" asChild>
-                                      <Link href={`/utilisateurs/${user.id}`} aria-label={`Modifier ${displayName}`}>
+                                      <Link href={`/utilisateurs/${user.id}`} aria-label={`${t('Modifier')} ${displayName}`}>
                                         <Pencil className="h-4 w-4" />
                                       </Link>
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>Modifier</TooltipContent>
+                                  <TooltipContent>{t('Modifier')}</TooltipContent>
                                 </Tooltip>
                                 {canDelete && (
                                   <Tooltip>
@@ -799,17 +805,17 @@ export default function UtilisateursClientPage() {
                                           if (isLastAdmin(user)) return;
                                           setDeleteTarget({
                                             id: user.id,
-                                            nom: displayName === 'Sans nom' ? 'cet utilisateur' : displayName,
+                                            nom: displayName === t('Sans nom') ? t('cet utilisateur') : displayName,
                                             self: user.id === profile?.uid,
                                           });
                                         }}
-                                        aria-label={`Supprimer ${displayName}`}
+                                        aria-label={`${t('Supprimer')} ${displayName}`}
                                       >
                                         <Trash2 className="h-4 w-4" />
                                       </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                      {isLastAdmin(user) ? 'Impossible : dernier compte Admin' : 'Supprimer'}
+                                      {isLastAdmin(user) ? t('Impossible : dernier compte Admin') : t('Supprimer')}
                                     </TooltipContent>
                                   </Tooltip>
                                 )}
@@ -832,16 +838,16 @@ export default function UtilisateursClientPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer « {deleteTarget?.nom} » ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Supprimer')} « {deleteTarget?.nom} » ?</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget?.self && (
-                <span className="font-medium text-status-danger-fg">Il s’agit de votre propre compte — vous perdrez immédiatement l’accès. </span>
+                <span className="font-medium text-status-danger-fg">{t('Il s’agit de votre propre compte — vous perdrez immédiatement l’accès.')} </span>
               )}
-              Son compte, sa fiche et ses entrées dans les collections liées (agents / chiffreurs) seront retirés. Cette action est irréversible.
+              {t('Son compte, sa fiche et ses entrées dans les collections liées (agents / chiffreurs) seront retirés. Cette action est irréversible.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction
               className={buttonVariants({ variant: 'destructive' })}
               disabled={isDeleting}
@@ -850,7 +856,7 @@ export default function UtilisateursClientPage() {
                 if (deleteTarget) handleDelete(deleteTarget.id);
               }}
             >
-              {isDeleting ? 'Suppression…' : 'Supprimer'}
+              {isDeleting ? t('Suppression…') : t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

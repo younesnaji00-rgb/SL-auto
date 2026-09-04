@@ -16,11 +16,11 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import { ToastAction } from '@/components/ui/toast';
 import { format, startOfDay, endOfDay } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
+import { dateFnsLocale, t, useT } from '@/i18n';
 import { useRappels, useRappelsSent, type Rappel } from '@/hooks/use-rappels';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
@@ -55,7 +55,7 @@ function isToday(ts: any): boolean {
 function formatDate(ts: any): string {
   const d = toDate(ts);
   if (!d) return '—';
-  try { return format(d, 'dd/MM/yyyy HH:mm', { locale: fr }); } catch { return '—'; }
+  try { return format(d, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() }); } catch { return '—'; }
 }
 
 /** Queue cells: date only (dd/MM/yyyy per the dates-as-values ruling); the
@@ -63,7 +63,7 @@ function formatDate(ts: any): string {
 function formatDateShort(ts: any): string {
   const d = toDate(ts);
   if (!d) return '—';
-  try { return format(d, 'dd/MM/yyyy', { locale: fr }); } catch { return '—'; }
+  try { return format(d, 'dd/MM/yyyy', { locale: dateFnsLocale() }); } catch { return '—'; }
 }
 
 function tsMillis(ts: any): number {
@@ -133,7 +133,7 @@ function formatRecipients(names: string[]): string {
   if (names.length === 0) return '—';
   if (names.length === 1) return names[0];
   if (names.length === 2) return names.join(', ');
-  return `${names.length} destinataires`;
+  return `${names.length} ${t('destinataires')}`;
 }
 
 // ── Status chip (element-specs §11: Carbon tag / Carbon notification / dataviz
@@ -161,8 +161,9 @@ const RAPPEL_STATE_LABEL: Record<RappelState, string> = {
 };
 
 function StateChip({ rappel }: { rappel: Rappel }) {
+  const tr = useT();
   const s = rappelState(rappel);
-  return <Badge variant={RAPPEL_STATE_VARIANT[s]}>{RAPPEL_STATE_LABEL[s]}</Badge>;
+  return <Badge variant={RAPPEL_STATE_VARIANT[s]}>{tr(RAPPEL_STATE_LABEL[s])}</Badge>;
 }
 
 /**
@@ -170,12 +171,13 @@ function StateChip({ rappel }: { rappel: Rappel }) {
  * is something to see — a zero is plain muted ink, never a coloured chip).
  */
 function CountChip({ tone, value }: { tone: RappelState; value: number }) {
+  const tr = useT();
   if (value === 0) {
-    return <span className="t-caption tabular-nums text-ink-4">{RAPPEL_STATE_LABEL[tone]} 0</span>;
+    return <span className="t-caption tabular-nums text-ink-4">{tr(RAPPEL_STATE_LABEL[tone])} 0</span>;
   }
   return (
     <Badge variant={RAPPEL_STATE_VARIANT[tone]} className="tabular-nums">
-      {RAPPEL_STATE_LABEL[tone]} {value}
+      {tr(RAPPEL_STATE_LABEL[tone])} {value}
     </Badge>
   );
 }
@@ -211,6 +213,7 @@ export default function MesRappelsPage() {
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
+  const t = useT();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // The rappel whose treatment session is being inspected in the read-only
   // replay lightbox (null = closed). Works for both the recipient (own work)
@@ -378,8 +381,8 @@ export default function MesRappelsPage() {
   const restoreTreated = (r: Rappel) => {
     if (!db) return;
     updateDoc(doc(db, 'rappels', r.id), { resolvedAt: null })
-      .then(() => toast({ title: 'Rappel remis en attente' }))
-      .catch(() => toast({ title: 'Erreur', description: 'Impossible d’annuler', variant: 'destructive' }));
+      .then(() => toast({ title: t('Rappel remis en attente') }))
+      .catch(() => toast({ title: t('Erreur'), description: t('Impossible d’annuler'), variant: 'destructive' }));
   };
 
   const markTreated = (r: Rappel) => {
@@ -399,16 +402,16 @@ export default function MesRappelsPage() {
         }
         // Reversible → undo in the toast, never a confirm (addendum ter E).
         toast({
-          title: 'Rappel marqué comme traité',
+          title: t('Rappel marqué comme traité'),
           action: (
-            <ToastAction altText="Annuler" onClick={() => restoreTreated(r)}>
-              Annuler
+            <ToastAction altText={t('Annuler')} onClick={() => restoreTreated(r)}>
+              {t('Annuler')}
             </ToastAction>
           ),
         });
       })
       .catch(() => {
-        toast({ title: 'Erreur', description: 'Impossible de marquer comme traité', variant: 'destructive' });
+        toast({ title: t('Erreur'), description: t('Impossible de marquer comme traité'), variant: 'destructive' });
       });
   };
 
@@ -437,13 +440,13 @@ export default function MesRappelsPage() {
   const listActive = activeVue === 'recus' && queue.length > 0;
   useHotkeys(
     [
-      { keys: 'arrowdown', label: 'Rappel suivant', group: 'Mes rappels', handler: () => moveSelection(1), enabled: listActive },
-      { keys: 'j', label: 'Rappel suivant', group: 'Mes rappels', handler: () => moveSelection(1), enabled: listActive },
-      { keys: 'arrowup', label: 'Rappel précédent', group: 'Mes rappels', handler: () => moveSelection(-1), enabled: listActive },
-      { keys: 'k', label: 'Rappel précédent', group: 'Mes rappels', handler: () => moveSelection(-1), enabled: listActive },
-      { keys: 'enter', label: 'Ouvrir le dossier', group: 'Mes rappels', handler: () => { if (selected) openRappel(selected); }, enabled: activeVue === 'recus' && !!selected },
-      { keys: 't', label: 'Marquer traité', group: 'Mes rappels', handler: () => { if (selected && !selected.resolvedAt) markTreated(selected); }, enabled: activeVue === 'recus' && !!selected && !selected.resolvedAt },
-      { keys: 'escape', label: 'Fermer le détail', group: 'Mes rappels', handler: clearSelection, enabled: activeVue === 'recus' && !!selected },
+      { keys: 'arrowdown', label: t('Rappel suivant'), group: t('Mes rappels'), handler: () => moveSelection(1), enabled: listActive },
+      { keys: 'j', label: t('Rappel suivant'), group: t('Mes rappels'), handler: () => moveSelection(1), enabled: listActive },
+      { keys: 'arrowup', label: t('Rappel précédent'), group: t('Mes rappels'), handler: () => moveSelection(-1), enabled: listActive },
+      { keys: 'k', label: t('Rappel précédent'), group: t('Mes rappels'), handler: () => moveSelection(-1), enabled: listActive },
+      { keys: 'enter', label: t('Ouvrir le dossier'), group: t('Mes rappels'), handler: () => { if (selected) openRappel(selected); }, enabled: activeVue === 'recus' && !!selected },
+      { keys: 't', label: t('Marquer traité'), group: t('Mes rappels'), handler: () => { if (selected && !selected.resolvedAt) markTreated(selected); }, enabled: activeVue === 'recus' && !!selected && !selected.resolvedAt },
+      { keys: 'escape', label: t('Fermer le détail'), group: t('Mes rappels'), handler: clearSelection, enabled: activeVue === 'recus' && !!selected },
     ],
     [activeVue, segment, queue, selectedId, selected],
   );
@@ -466,21 +469,21 @@ export default function MesRappelsPage() {
       {/* Page header (element-specs §1: Polaris Page — title only, no page
           primary here: rappels are sent from a dossier, not from this list). */}
       <PageHeader
-        title={titleForRoute('/mes-rappels') ?? 'Mes rappels'}
+        title={t(titleForRoute('/mes-rappels') ?? 'Mes rappels')}
         tabs={
           // Raised-tab-on-track tabs (addendum 2026-09-02 §2, supersedes the
           // underline idiom): the recessed track, raised active card and 2 px
           // accent bar all come from the primitive — no local overrides.
-          <TabsList>
+          <TabsList data-tour="rap-tabs">
             {recusVisible && (
               <TabsTrigger value="recus" className="gap-1.5">
-                Reçus
+                {t('Reçus')}
                 {tabCount(unreadCount)}
               </TabsTrigger>
             )}
             {envoyesVisible && (
-              <TabsTrigger value="envoyes" className="gap-1.5">
-                Envoyés
+              <TabsTrigger data-tour="rap-tab-envoyes" value="envoyes" className="gap-1.5">
+                {t('Envoyés')}
                 {tabCount(pendingSentCount)}
               </TabsTrigger>
             )}
@@ -497,22 +500,25 @@ export default function MesRappelsPage() {
             // No action: a rappel can only be sent to you from a dossier.
             <EmptyState
               icon={<Inbox />}
-              title="Aucun rappel reçu"
-              description="Les rappels envoyés depuis un dossier apparaîtront ici."
+              title={t('Aucun rappel reçu')}
+              description={t('Les rappels envoyés depuis un dossier apparaîtront ici.')}
               dashed={false}
             />
           ) : (
             // Master-detail (addendum 2026-09-03 bis §A): slim queue table +
             // detail pane. Row click SELECTS; the ref cell keeps the session
             // handshake click-through; « Ouvrir le dossier » is explicit.
-            <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] xl:items-start">
+            // `rap-recus-table` is the tour's "the Reçus list exists" probe —
+            // it sits on the master-detail wrapper (same render condition the
+            // old single Card had).
+            <div data-tour="rap-recus-table" className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] xl:items-start">
               <div className="min-w-0 space-y-4">
                 {/* « À traiter / Traités » — a value picker, so segmented +
                     SlidingThumb (tabs are reserved for view switchers). Count
                     only on À traiter: a count must be able to hit zero. */}
                 <div
                   role="group"
-                  aria-label="État des rappels"
+                  aria-label={t('État des rappels')}
                   className="relative isolate flex h-9 w-fit items-center gap-0.5 rounded-md bg-surface-2 p-0.5"
                 >
                   <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[segment, aTraiter.length]} />
@@ -525,7 +531,7 @@ export default function MesRappelsPage() {
                     onClick={() => changeSegment('a-traiter')}
                     className="relative z-[1] h-8 gap-1.5 px-3 shadow-none"
                   >
-                    À traiter
+                    {t('À traiter')}
                     {tabCount(aTraiter.length)}
                   </Button>
                   <Button
@@ -537,7 +543,7 @@ export default function MesRappelsPage() {
                     onClick={() => changeSegment('traites')}
                     className="relative z-[1] h-8 px-3 shadow-none"
                   >
-                    Traités
+                    {t('Traités')}
                   </Button>
                 </div>
 
@@ -547,15 +553,15 @@ export default function MesRappelsPage() {
                     // achievement), one line, no theatrics.
                     <EmptyState
                       icon={<CheckCircle2 />}
-                      title="Tout est traité"
-                      description="Aucun rappel en attente — les nouveaux apparaîtront ici."
+                      title={t('Tout est traité')}
+                      description={t('Aucun rappel en attente — les nouveaux apparaîtront ici.')}
                       dashed={false}
                     />
                   ) : (
                     <EmptyState
                       icon={<Inbox />}
-                      title="Aucun rappel traité"
-                      description="Les rappels marqués comme traités apparaîtront ici."
+                      title={t('Aucun rappel traité')}
+                      description={t('Les rappels marqués comme traités apparaîtront ici.')}
                       dashed={false}
                     />
                   )
@@ -565,15 +571,18 @@ export default function MesRappelsPage() {
                   // Nouveau chip is the only filled info pair. Emphasis budget:
                   // ref (mono 600) + statut chip.
                   <Card className="overflow-hidden">
-                    <Table regionLabel="Rappels reçus">
+                    <Table regionLabel={t('Rappels reçus')}>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className={cn(STICKY_HEAD, 'min-w-[11rem]')}>Référence dossier</TableHead>
-                          <TableHead>Statut</TableHead>
-                          <TableHead>Observation</TableHead>
-                          <TableHead>Envoyé par</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
+                          <TableHead className={cn(STICKY_HEAD, 'min-w-[11rem]')}>{t('Référence dossier')}</TableHead>
+                          <TableHead data-tour="rap-statut">{t('Statut')}</TableHead>
+                          <TableHead>{t('Observation')}</TableHead>
+                          <TableHead>{t('Envoyé par')}</TableHead>
+                          <TableHead>{t('Date')}</TableHead>
+                          {/* `rap-travail` used to sit on a « Travail effectué »
+                              column the queue rework replaced with this actions
+                              column — the anchor rides the closest equivalent. */}
+                          <TableHead data-tour="rap-travail" className="text-right"><span className="sr-only">{t('Actions')}</span></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -588,7 +597,7 @@ export default function MesRappelsPage() {
                               className="cursor-pointer"
                               onClick={() => selectRappel(r)}
                             >
-                              <TableCell className={cn(STICKY_CELL, 'relative t-mono font-semibold')}>
+                              <TableCell data-tour="rap-row-ref" className={cn(STICKY_CELL, 'relative t-mono font-semibold')}>
                                 {/* Unread bar — region stimulus on the left
                                     scan rail (research: dots fail, bars work);
                                     teal = attention, never terracotta. */}
@@ -604,7 +613,7 @@ export default function MesRappelsPage() {
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); openRappel(r); }}
                                   className="rounded-sm text-left hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                  title="Ouvrir le dossier"
+                                  title={t('Ouvrir le dossier')}
                                 >
                                   {r.dossierRef || r.dossierId}
                                 </button>
@@ -631,7 +640,7 @@ export default function MesRappelsPage() {
                                   <span title={[formatDate(r.createdAt), relativeAge(r.createdAt)].filter(Boolean).join(' · ')}>
                                     {formatDateShort(r.createdAt)}
                                   </span>
-                                  {isToday(r.createdAt) && <Badge variant="time">Aujourd&apos;hui</Badge>}
+                                  {isToday(r.createdAt) && <Badge variant="time">{t("Aujourd'hui")}</Badge>}
                                 </span>
                               </TableCell>
                               <TableCell className="text-right">
@@ -646,7 +655,7 @@ export default function MesRappelsPage() {
                                     }}
                                   >
                                     <CheckCircle2 className="h-3.5 w-3.5" />
-                                    Marquer traité
+                                    {t('Marquer traité')}
                                   </Button>
                                 ) : (
                                   <EmptyValue />
@@ -685,8 +694,8 @@ export default function MesRappelsPage() {
           <Sheet open={!isXl && !!selected} onOpenChange={(o) => { if (!o) clearSelection(); }}>
             <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
               <SheetHeader className="sr-only">
-                <SheetTitle>Détail du rappel</SheetTitle>
-                <SheetDescription>Observation, travail effectué et actions du rappel sélectionné.</SheetDescription>
+                <SheetTitle>{t('Détail du rappel')}</SheetTitle>
+                <SheetDescription>{t('Observation, travail effectué et actions du rappel sélectionné.')}</SheetDescription>
               </SheetHeader>
               {selected && (
                 <div className="mt-2">
@@ -713,12 +722,12 @@ export default function MesRappelsPage() {
             // where rappels are sent from. `tonal` (the header has no primary).
             <EmptyState
               icon={<Send />}
-              title="Aucun rappel envoyé"
-              description="Les rappels que vous envoyez depuis un dossier apparaîtront ici."
+              title={t('Aucun rappel envoyé')}
+              description={t('Les rappels que vous envoyez depuis un dossier apparaîtront ici.')}
               dashed={false}
               action={
                 <Button variant="tonal" asChild>
-                  <Link href="/dossiers">Ouvrir les dossiers</Link>
+                  <Link href="/dossiers">{t('Ouvrir les dossiers')}</Link>
                 </Button>
               }
             />
@@ -727,15 +736,15 @@ export default function MesRappelsPage() {
             // aria-expanded), text left, the two numeric columns (Dossiers,
             // Statut counts) right-aligned with tabular digits and their
             // headers aligned the same way (Polaris: never centred).
-            <Card className="overflow-hidden">
-              <Table regionLabel="Rappels envoyés">
+            <Card data-tour="rap-envoyes-table" className="overflow-hidden">
+              <Table regionLabel={t('Rappels envoyés')}>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-10"><span className="sr-only">Détails</span></TableHead>
-                    <TableHead>Destinataire(s)</TableHead>
-                    <TableHead className="text-right">Dossiers</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Statut</TableHead>
+                    <TableHead className="w-10"><span className="sr-only">{t('Détails')}</span></TableHead>
+                    <TableHead>{t('Destinataire(s)')}</TableHead>
+                    <TableHead className="text-right">{t('Dossiers')}</TableHead>
+                    <TableHead>{t('Date')}</TableHead>
+                    <TableHead className="text-right">{t('Statut')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -745,6 +754,7 @@ export default function MesRappelsPage() {
                     return (
                       <React.Fragment key={g.key}>
                         <TableRow
+                          data-tour="rap-envoyes-group"
                           className="cursor-pointer"
                           onClick={() => toggleExpand(g.key)}
                         >
@@ -754,7 +764,7 @@ export default function MesRappelsPage() {
                               size="icon"
                               className="h-8 w-8"
                               aria-expanded={isOpen}
-                              aria-label={isOpen ? 'Réduire le détail' : 'Voir le détail'}
+                              aria-label={isOpen ? t('Réduire le détail') : t('Voir le détail')}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 toggleExpand(g.key);
@@ -766,7 +776,7 @@ export default function MesRappelsPage() {
                           <TableCell className="font-medium" title={g.recipientNames.join(', ')}>
                             {formatRecipients(g.recipientNames)}
                             <span className="t-caption ml-2 tabular-nums">
-                              {total} rappel{total > 1 ? 's' : ''}
+                              {total} {total > 1 ? t('rappels') : t('rappel')}
                             </span>
                           </TableCell>
                           <TableCell className="text-right tabular-nums">{g.dossierCount}</TableCell>
@@ -786,15 +796,15 @@ export default function MesRappelsPage() {
                           <TableRow className="bg-surface-2 hover:bg-surface-2">
                             <TableCell colSpan={5} className="whitespace-normal p-0">
                               <div className="px-4 py-2">
-                                <Table regionLabel={`Détail des rappels — ${formatRecipients(g.recipientNames)}`}>
+                                <Table regionLabel={`${t('Détail des rappels')} — ${formatRecipients(g.recipientNames)}`}>
                                   <TableHeader className="bg-transparent">
                                     <TableRow className="hover:bg-transparent">
-                                      <TableHead className="static bg-transparent">Dossier</TableHead>
-                                      <TableHead className="static bg-transparent">Destinataire</TableHead>
-                                      <TableHead className="static bg-transparent">Date</TableHead>
-                                      <TableHead className="static bg-transparent">Suivi</TableHead>
-                                      <TableHead className="static bg-transparent">Statut</TableHead>
-                                      <TableHead className="static bg-transparent text-right">Travail effectué</TableHead>
+                                      <TableHead className="static bg-transparent">{t('Dossier')}</TableHead>
+                                      <TableHead className="static bg-transparent">{t('Destinataire')}</TableHead>
+                                      <TableHead className="static bg-transparent">{t('Date')}</TableHead>
+                                      <TableHead className="static bg-transparent">{t('Suivi')}</TableHead>
+                                      <TableHead className="static bg-transparent">{t('Statut')}</TableHead>
+                                      <TableHead className="static bg-transparent text-right">{t('Travail effectué')}</TableHead>
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
@@ -812,12 +822,14 @@ export default function MesRappelsPage() {
                                             // Status colour never alone (element-specs §11): icon + label.
                                             <span className="inline-flex items-center gap-1 text-status-success-fg">
                                               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                                              Sauvegardé le {formatDate(r.resolvedAt)}
+                                              {t('Sauvegardé le')} {formatDate(r.resolvedAt)}
                                             </span>
                                           ) : (r.seenAt || r.read) ? (
-                                            <span className="text-ink-2">Consulté{r.seenAt ? ` le ${formatDate(r.seenAt)}` : ''}</span>
+                                            <span className="text-ink-2">
+                                              {r.seenAt ? `${t('Consulté le')} ${formatDate(r.seenAt)}` : t('Consulté')}
+                                            </span>
                                           ) : (
-                                            <span className="text-ink-4">Non consulté</span>
+                                            <span className="text-ink-4">{t('Non consulté')}</span>
                                           )}
                                         </TableCell>
                                         <TableCell>
@@ -829,10 +841,11 @@ export default function MesRappelsPage() {
                                               variant="ghost"
                                               size="sm"
                                               className="gap-1.5"
+                                              data-tour="rap-detail-btn"
                                               onClick={() => setReplayRappel(r)}
                                             >
                                               <ScrollText className="h-3.5 w-3.5" />
-                                              Voir le détail
+                                              {t('Voir le détail')}
                                             </Button>
                                           ) : (
                                             <EmptyValue />

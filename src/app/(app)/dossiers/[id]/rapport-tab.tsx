@@ -53,6 +53,7 @@ import { ValiderDossierButton } from '@/components/dossiers/valider-dossier-butt
 import CarSvgTop from '@/components/car-svg-top';
 import CarSvgBottom from '@/components/car-svg-bottom';
 import { apiFetch } from '@/lib/api-fetch';
+import { useT } from '@/i18n';
 
 // Browser-tab trigger (owner rulings 2026-09-02 + ter), styled to match
 // components/dossier-timeline/step-tabs.tsx: `.tab-slope` (globals.css)
@@ -81,6 +82,7 @@ export default function RapportTab({
    */
   readOnly?: boolean;
 }) {
+  const t = useT();
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -216,7 +218,7 @@ export default function RapportTab({
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || 'Erreur lors du scan');
+        throw new Error(err.error || t('Erreur lors du scan'));
       }
 
       const { data } = await res.json();
@@ -264,12 +266,12 @@ export default function RapportTab({
       await logWorkflow(db, dossierId, 'Rapport mis à jour', userEmail, userId, 'done', { details: `Importation IA : ${data.pieces?.length || 0} pièce(s) extraite(s)` }, profile?.nom);
 
       toast({
-        title: 'Importation réussie',
-        description: `${data.pieces?.length || 0} pièce(s) extraite(s) par l'IA.`,
+        title: t('Importation réussie'),
+        description: `${data.pieces?.length || 0} ${t("pièce(s) extraite(s) par l'IA.")}`,
       });
     } catch (error: any) {
       console.error('Scan rapport error:', error);
-      toast({ variant: 'destructive', title: "Erreur lors de l'importation", description: error.message });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'importation"), description: error.message });
     } finally {
       setIsScanning(false);
       if (scanInputRef.current) scanInputRef.current.value = '';
@@ -323,10 +325,10 @@ export default function RapportTab({
           await logWorkflow(db, dossierId, 'Rapport déposé', userEmail, userId, 'done', { details: `Type: ${type}` }, profile?.nom);
         } catch { /* silent */ }
       }
-      toast({ title: 'Rapport généré' });
+      toast({ title: t('Rapport généré') });
       setTypeDialogOpen(false);
     } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
+      toast({ variant: 'destructive', title: t('Erreur'), description: e.message });
     } finally {
       setIsGenerating(false);
     }
@@ -348,7 +350,7 @@ export default function RapportTab({
       {/* HEADER WITH GÉNÉRER LE RAPPORT BUTTON */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
-          <p className="text-sm text-ink-3">Diagramme des points de choc et génération du PDF final.</p>
+          <p className="text-sm text-ink-3">{t('Diagramme des points de choc et génération du PDF final.')}</p>
         </div>
         <div className="flex items-center gap-2">
           {!readOnly && (
@@ -360,20 +362,20 @@ export default function RapportTab({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span>
+                <span data-tour="dosd-rapport-generer">
                   <Button
                     onClick={handleOpenTypeDialog}
                     disabled={isGenerating || !alreadyValidated || !!readOnly}
                     className="gap-2"
                   >
                     {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-                    Générer le rapport
+                    {t('Générer le rapport')}
                   </Button>
                 </span>
               </TooltipTrigger>
               {!alreadyValidated && (
                 <TooltipContent>
-                  En attente de validation du directeur des opérations ou de l'administrateur
+                  {t("En attente de validation du directeur des opérations ou de l'administrateur")}
                 </TooltipContent>
               )}
             </Tooltip>
@@ -390,7 +392,7 @@ export default function RapportTab({
 
       {/* POINTS DE CHOC */}
       <Card>
-        <CardHeader className="border-b border-hairline"><CardTitle>Points de choc</CardTitle></CardHeader>
+        <CardHeader className="border-b border-hairline"><CardTitle>{t('Points de choc')}</CardTitle></CardHeader>
         <CardContent className="p-5">
           {/* Vue dessus / dessous as sloped browser tabs (styled like step-tabs).
               Zone-selection state lives in THIS component (pointsChoc /
@@ -400,16 +402,16 @@ export default function RapportTab({
           <TabsPrimitive.Root defaultValue="dessus" className="w-full">
             <TabsPrimitive.List
               ref={diagramMorphRef}
-              aria-label="Vue du diagramme"
+              aria-label={t('Vue du diagramme')}
               className="relative isolate -mx-2 flex items-end gap-4 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
             >
               <TabsPrimitive.Trigger value="dessus" className={DIAGRAM_TAB_TRIGGER}>
-                Vue dessus <ChangeBadge status={pointsChocStatus} />
+                {t('Vue dessus')} <ChangeBadge status={pointsChocStatus} />
                 <span className={DIAGRAM_TAB_BAR} aria-hidden />
                 <span className="tab-feet" aria-hidden />
               </TabsPrimitive.Trigger>
               <TabsPrimitive.Trigger value="dessous" className={DIAGRAM_TAB_TRIGGER}>
-                Vue dessous <ChangeBadge status={pointsChocDessousStatus} />
+                {t('Vue dessous')} <ChangeBadge status={pointsChocDessousStatus} />
                 <span className={DIAGRAM_TAB_BAR} aria-hidden />
                 <span className="tab-feet" aria-hidden />
               </TabsPrimitive.Trigger>

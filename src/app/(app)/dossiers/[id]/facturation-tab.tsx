@@ -10,10 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { updateDoc, serverTimestamp, type DocumentReference } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/firebase';
+import { useT } from '@/i18n';
+import { BRAND } from '@/lib/brand';
 
 export default function FacturationTab({ dossier, dossierRef }: { dossier: any; dossierRef: DocumentReference }) {
     const { toast } = useToast();
     const auth = useAuth();
+    const t = useT();
     const [isSaving, setIsSaving] = useState(false);
     const [values, setValues] = useState({
         montantHT: 0,
@@ -48,7 +51,7 @@ export default function FacturationTab({ dossier, dossierRef }: { dossier: any; 
                 payload.authorFactureValide = auth?.currentUser?.email || 'Admin';
             }
             await updateDoc(dossierRef, payload);
-            toast({ title: "Facturation enregistrée" });
+            toast({ title: t('Facturation enregistrée') });
         } catch (e) {
             console.error(e);
         } finally {
@@ -58,20 +61,20 @@ export default function FacturationTab({ dossier, dossierRef }: { dossier: any; 
 
     return (
         <Card>
-            <CardHeader><CardTitle>Informations de Facturation</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('Informations de Facturation')}</CardTitle></CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="space-y-2"><Label>Montant HT (MAD)</Label><Input type="number" value={values.montantHT} onChange={e => handleUpdate('montantHT', e.target.value)} /></div>
-                    <div className="space-y-2"><Label>TVA (%)</Label><Input type="number" value={values.tva} onChange={e => handleUpdate('tva', e.target.value)} /></div>
-                    <div className="space-y-2"><Label>Montant TTC (MAD)</Label><Input type="number" value={values.montantTTC.toFixed(2)} readOnly className="bg-muted" /></div>
+                    <div className="space-y-2"><Label>{`${t('Montant HT')} (${BRAND.currencyLabel})`}</Label><Input type="number" value={values.montantHT} onChange={e => handleUpdate('montantHT', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('TVA (%)')}</Label><Input type="number" value={values.tva} onChange={e => handleUpdate('tva', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{`${t('Montant TTC')} (${BRAND.currencyLabel})`}</Label><Input type="number" value={values.montantTTC.toFixed(2)} readOnly className="bg-muted" /></div>
                     <div className="space-y-2">
-                        <Label>Statut Paiement</Label>
+                        <Label>{t('Statut Paiement')}</Label>
                         <Select value={values.statutPaiement} onValueChange={v => handleUpdate('statutPaiement', v)}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="Non payé">Non payé</SelectItem>
-                                <SelectItem value="Payé partiellement">Payé partiellement</SelectItem>
-                                <SelectItem value="Payé">Payé</SelectItem>
+                                <SelectItem value="Non payé">{t('Non payé')}</SelectItem>
+                                <SelectItem value="Payé partiellement">{t('Payé partiellement')}</SelectItem>
+                                <SelectItem value="Payé">{t('Payé')}</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -79,7 +82,7 @@ export default function FacturationTab({ dossier, dossierRef }: { dossier: any; 
                 <div className="flex justify-end pt-4">
                     <Button onClick={handleSave} loading={isSaving}>
                         {!isSaving && <Save className="mr-2 h-4 w-4" />}
-                        {isSaving ? 'Enregistrement...' : 'Sauvegarder'}
+                        {isSaving ? t('Enregistrement...') : t('Sauvegarder')}
                     </Button>
                 </div>
             </CardContent>

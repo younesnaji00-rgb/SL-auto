@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { useAuth, useCollection, useFirestore } from '@/firebase';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { materializeMissing2emeSlots } from '@/lib/cardinal-materialize';
@@ -102,6 +103,7 @@ function useSectionOpen(dossierId: string, key: 'photos'): [boolean, (v: boolean
 }
 
 export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, requireFirstAccordFilled, showReformeSlots, hideInbox, docsOverride, photosOverride }: Step4PiecesProps) {
+  const t = useT();
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
   // Subscribe to documents so we can gate the "Envoyer / Assigner au
@@ -155,21 +157,21 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
   const gateReason = !allRequiredFilled ? (
     <>
       {missingRequired.length > 0 && (
-        <>Documents requis manquants&nbsp;: {missingRequired.join(', ')}.</>
+        <>{t('Documents requis manquants')}&nbsp;: {missingRequired.map((s) => t(s)).join(', ')}.</>
       )}
       {missingRequired.length > 0 && !garageFilled && <br />}
       {!garageFilled && (
-        <>Au moins un Devis Garage ou une Facture Garage est requis.</>
+        <>{t('Au moins un Devis Garage ou une Facture Garage est requis.')}</>
       )}
     </>
   ) : (
-    <>Au moins un 1er accord ou une 1ère proposition doit être rempli avant d&apos;assigner.</>
+    <>{t("Au moins un 1er accord ou une 1ère proposition doit être rempli avant d'assigner.")}</>
   );
 
-  const gatedButton = (label: string) => {
+  const gatedButton = (label: string, tour?: string) => {
     const node = (
-      <Button size="sm" onClick={handleSendToChiffrage} disabled={assignerDisabled} className="gap-1.5">
-        <Send className="h-3.5 w-3.5" /> {label}
+      <Button size="sm" onClick={handleSendToChiffrage} disabled={assignerDisabled} className="gap-1.5" data-tour={tour}>
+        <Send className="h-3.5 w-3.5" /> {t(label)}
       </Button>
     );
     if (!assignerDisabled) return node;
@@ -190,7 +192,7 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
     return (
       <div className="space-y-4">
         {showAssigner && (
-          <div className="flex justify-end">{gatedButton('Assigner au chiffrage')}</div>
+          <div className="flex justify-end">{gatedButton('Assigner au chiffrage', 'dosd-assign-chiffrage')}</div>
         )}
         <TypedDocumentsGrid
           dossierId={dossierId}
@@ -221,15 +223,20 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
           !readOnly && (!hideInbox || onSendToChiffrage) ? (
             <>
               {!hideInbox && (
-                <SmartInbox
-                  buttonLabel="Ajouter des pièces"
-                  dossierId={dossierId}
-                  dossier={dossier}
-                  readOnly={readOnly}
-                  emphasis={allRequiredFilled ? 'tonal' : 'primary'}
-                  icon={<Upload className="h-4 w-4" />}
-                  className="space-y-0"
-                />
+                // `dosd-docs-import-tab` (tour anchor) used to sit on the
+                // "Importer un document" tab; the merged surface replaced the
+                // tabs with this picker, so the anchor rides it.
+                <span data-tour="dosd-docs-import-tab" className="inline-flex">
+                  <SmartInbox
+                    buttonLabel={t('Ajouter des pièces')}
+                    dossierId={dossierId}
+                    dossier={dossier}
+                    readOnly={readOnly}
+                    emphasis={allRequiredFilled ? 'tonal' : 'primary'}
+                    icon={<Upload className="h-4 w-4" />}
+                    className="space-y-0"
+                  />
+                </span>
               )}
               {onSendToChiffrage && gatedButton('Envoyer vers chiffrage')}
             </>
@@ -242,7 +249,7 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
           <CollapsibleTrigger asChild>
             <button type="button" className="flex items-center gap-2 mb-3 w-full">
               <Camera className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-base font-semibold">Photos</h3>
+              <h3 className="text-base font-semibold">{t('Photos')}</h3>
               <ChevronDown className={cn('h-4 w-4 ml-auto transition-transform', !photosOpen && '-rotate-90')} />
             </button>
           </CollapsibleTrigger>

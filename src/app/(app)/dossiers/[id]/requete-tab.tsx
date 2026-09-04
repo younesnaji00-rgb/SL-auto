@@ -20,7 +20,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { cn } from '@/lib/utils';
 import { getStatusDotColor } from '@/lib/status-colors';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { dateFnsLocale, useT } from '@/i18n';
 
 export default function RequeteTab({ dossier, dossierRef }: { dossier: any; dossierRef: DocumentReference }) {
   const { canWrite, profile } = useCurrentUser();
@@ -28,6 +28,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
     const db = useFirestore();
     const auth = useAuth();
     const { toast } = useToast();
+    const t = useT();
 
     // Single source of truth: Firestore. Filter inactive entries client-side.
     const { options: dbCompagnies } = useOptions('compagnies');
@@ -146,11 +147,11 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
             }
             await logHistorique(db, dossierId, 'Mise à jour requête', userEmail, 'Informations générales du dossier mises à jour.', 'autre', profile?.nom);
 
-            toast({ title: "Requête mise à jour" });
+            toast({ title: t('Requête mise à jour') });
             setEditing(false);
         } catch (error: any) {
             console.error(error);
-            toast({ title: 'Erreur', description: String(error), variant: 'destructive' });
+            toast({ title: t('Erreur'), description: String(error), variant: 'destructive' });
             const permissionError = new FirestorePermissionError({
                 path: dossierRef.path,
                 operation: 'update',
@@ -171,7 +172,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
         if (!date) return '-';
         const d = date.toDate ? date.toDate() : new Date(date);
         try {
-            return format(d, 'dd/MM/yyyy', { locale: fr });
+            return format(d, 'dd/MM/yyyy', { locale: dateFnsLocale() });
         } catch {
             return '-';
         }
@@ -194,17 +195,17 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
                 {!editing ? (
                     <button type="button" onClick={() => setEditing(true)}
                         className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold">
-                        <Pencil className="h-3.5 w-3.5 text-primary" /> Modifier
+                        <Pencil className="h-3.5 w-3.5 text-primary" /> {t('Modifier')}
                     </button>
                 ) : (
                     <>
                         <button type="button" onClick={handleSave} disabled={saving}
                             className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-colors font-semibold shadow-sm">
-                            {saving ? <Check className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />} Enregistrer
+                            {saving ? <Check className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />} {t('Enregistrer')}
                         </button>
                         <button type="button" onClick={handleCancel}
                             className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full border border-border hover:bg-accent transition-colors font-semibold">
-                            <X className="h-3.5 w-3.5 text-muted-foreground" /> Annuler
+                            <X className="h-3.5 w-3.5 text-muted-foreground" /> {t('Annuler')}
                         </button>
                     </>
                 )}
@@ -212,89 +213,89 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
             )}
 
             <Card className="border-primary/5 shadow-sm">
-                <CardHeader className="bg-heading-bg py-3"><CardTitle className="text-sm font-bold uppercase tracking-wider">Informations Dossier</CardTitle></CardHeader>
+                <CardHeader className="bg-heading-bg py-3"><CardTitle className="text-sm font-bold uppercase tracking-wider">{t('Informations Dossier')}</CardTitle></CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-6 pt-6">
-                    <Field 
-                      label="Compagnie" 
+                    <Field
+                      label={t('Compagnie')}
                       value={formValues.compagnie}
-                      managerModal={<OptionsManagerModal collectionName="compagnies" title="Compagnies" />}
+                      managerModal={<OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />}
                     >
                         <Select value={formValues.compagnie} onValueChange={(v) => handleFormChange('compagnie', v)}>
-                            <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
+                            <SelectTrigger className="h-9"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                             <SelectContent>
                               {compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </Field>
-                    <Field 
-                      label="Type de dossier" 
+                    <Field
+                      label={t('Type de dossier')}
                       value={formValues.typeDossier}
-                      managerModal={<OptionsManagerModal collectionName="options_types_dossier" title="Types de dossier" />}
+                      managerModal={<OptionsManagerModal collectionName="options_types_dossier" title={t('Types de dossier')} />}
                     >
                         <Select value={formValues.typeDossier} onValueChange={(v) => handleFormChange('typeDossier', v)}>
-                            <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
+                            <SelectTrigger className="h-9"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                             <SelectContent>
                                 {dossierTypes.map(t => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </Field>
-                    <Field 
-                      label="Nature du dossier" 
+                    <Field
+                      label={t('Nature du dossier')}
                       value={formValues.nature}
-                      managerModal={<OptionsManagerModal collectionName="options_natures" title="Natures" />}
+                      managerModal={<OptionsManagerModal collectionName="options_natures" title={t('Natures')} />}
                     >
                         <Select value={formValues.nature} onValueChange={(v) => handleFormChange('nature', v)}>
-                            <SelectTrigger className="h-9"><SelectValue placeholder="Choisir" /></SelectTrigger>
+                            <SelectTrigger className="h-9"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                             <SelectContent>
                                 {natures.map(n => <SelectItem key={n.id} value={n.label}>{n.label}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </Field>
-                    <Field 
-                      label="Statut" 
-                      value={formValues.statut}
-                      managerModal={<OptionsManagerModal collectionName="options_statuts" title="Statuts" />}
+                    <Field
+                      label={t('Statut')}
+                      value={t(formValues.statut)}
+                      managerModal={<OptionsManagerModal collectionName="options_statuts" title={t('Statuts')} />}
                     >
                         <Select value={formValues.statut} onValueChange={(v) => handleFormChange('statut', v)}>
-                            <SelectTrigger className="h-9"><SelectValue placeholder="Choisir un statut" /></SelectTrigger>
+                            <SelectTrigger className="h-9"><SelectValue placeholder={t('Choisir un statut')} /></SelectTrigger>
                             <SelectContent className="max-h-[300px]">
-                                {statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{s.label}</span></SelectItem>)}
+                                {statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{t(s.label)}</span></SelectItem>)}
                             </SelectContent>
                         </Select>
                     </Field>
-                    <Field label="Réf Expert" value={formValues.refExpert}>
+                    <Field label={t('Réf Expert')} value={formValues.refExpert}>
                         <Input className="h-9" value={formValues.refExpert} onChange={(e) => handleFormChange('refExpert', e.target.value)} />
                     </Field>
-                    <Field label="Référence compagnie" value={formValues.referenceCompagnie}>
+                    <Field label={t('Référence compagnie')} value={formValues.referenceCompagnie}>
                         <Input className="h-9" value={formValues.referenceCompagnie} onChange={(e) => handleFormChange('referenceCompagnie', e.target.value)} />
                     </Field>
-                    <Field label="Matricule" value={formValues.matricule}>
+                    <Field label={t('Matricule')} value={formValues.matricule}>
                         <Input className="h-9" value={formValues.matricule} onChange={(e) => handleFormChange('matricule', e.target.value)} />
                     </Field>
-                    <Field label="N° de Police" value={formValues.policeNumber}>
+                    <Field label={t('N° de Police')} value={formValues.policeNumber}>
                         <Input className="h-9" value={formValues.policeNumber} onChange={(e) => handleFormChange('policeNumber', e.target.value)} />
                     </Field>
                     {editing ? (
                         <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase text-muted-foreground">Date Sinistre</Label>
+                            <Label className="text-xs font-bold uppercase text-muted-foreground">{t('Date Sinistre')}</Label>
                             <DatePicker 
                                 value={formValues.dateSinistre} 
                                 onChange={(d) => handleFormChange('dateSinistre', d)} 
                             />
                         </div>
                     ) : (
-                        <Field label="Date Sinistre" value={formatDateDisplay(formValues.dateSinistre)}>{null}</Field>
+                        <Field label={t('Date Sinistre')} value={formatDateDisplay(formValues.dateSinistre)}>{null}</Field>
                     )}
                     {editing ? (
                         <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase text-muted-foreground">Date Requête</Label>
+                            <Label className="text-xs font-bold uppercase text-muted-foreground">{t('Date Requête')}</Label>
                             <DatePicker 
                                 value={formValues.dateRequete} 
                                 onChange={(d) => handleFormChange('dateRequete', d)} 
                             />
                         </div>
                     ) : (
-                        <Field label="Date Requête" value={formatDateDisplay(formValues.dateRequete)}>{null}</Field>
+                        <Field label={t('Date Requête')} value={formatDateDisplay(formValues.dateRequete)}>{null}</Field>
                     )}
                 </CardContent>
             </Card>
@@ -303,32 +304,32 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
                 <CardHeader className="bg-heading-bg py-3">
                     <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
                         <User className="h-4 w-4 text-primary" />
-                        Informations Assuré
+                        {t('Informations Assuré')}
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-6 pt-6">
-                    <Field label="Nom" value={formValues.assure.nom}>
+                    <Field label={t('Nom')} value={formValues.assure.nom}>
                         <Input className="h-9" value={formValues.assure.nom} onChange={(e) => handleAssureChange('nom', e.target.value)} />
                     </Field>
-                    <Field label="Prénom" value={formValues.assure.prenom}>
+                    <Field label={t('Prénom')} value={formValues.assure.prenom}>
                         <Input className="h-9" value={formValues.assure.prenom} onChange={(e) => handleAssureChange('prenom', e.target.value)} />
                     </Field>
-                    <Field label="Téléphone" value={formValues.assure.telephone}>
+                    <Field label={t('Téléphone')} value={formValues.assure.telephone}>
                         <Input className="h-9" value={formValues.assure.telephone} onChange={(e) => handleAssureChange('telephone', e.target.value)} />
                     </Field>
                     <Field label="WhatsApp" value={formValues.assure.whatsapp}>
                         <Input className="h-9" value={formValues.assure.whatsapp} onChange={(e) => handleAssureChange('whatsapp', e.target.value)} />
                     </Field>
-                    <Field label="Téléphone 2" value={formValues.assure.telephone2}>
+                    <Field label={t('Téléphone 2')} value={formValues.assure.telephone2}>
                         <Input className="h-9" value={formValues.assure.telephone2} onChange={(e) => handleAssureChange('telephone2', e.target.value)} />
                     </Field>
-                    <Field label="Email" value={formValues.assure.email}>
+                    <Field label={t('Email')} value={formValues.assure.email}>
                         <Input type="email" className="h-9" value={formValues.assure.email} onChange={(e) => handleAssureChange('email', e.target.value)} />
                     </Field>
-                    <Field label="Adresse" value={formValues.assure.adresse}>
+                    <Field label={t('Adresse')} value={formValues.assure.adresse}>
                         <Input className="h-9" value={formValues.assure.adresse} onChange={(e) => handleAssureChange('adresse', e.target.value)} />
                     </Field>
-                    <Field label="CIN" value={formValues.assure.cin}>
+                    <Field label={t('CIN')} value={formValues.assure.cin}>
                         <Input className="h-9" value={formValues.assure.cin} onChange={(e) => handleAssureChange('cin', e.target.value)} />
                     </Field>
                 </CardContent>

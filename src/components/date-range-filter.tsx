@@ -2,12 +2,12 @@
 
 import * as React from 'react';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { CalendarIcon, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { dateFnsLocale, useT } from '@/i18n';
 
 interface DateRangeFilterProps {
   dateFrom: string;
@@ -17,6 +17,7 @@ interface DateRangeFilterProps {
 }
 
 function DatePickerButton({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  const t = useT();
   const [open, setOpen] = React.useState(false);
   const selected = value ? new Date(value) : undefined;
 
@@ -38,7 +39,7 @@ function DatePickerButton({ value, onChange, placeholder }: { value: string; onC
             )}
           >
             <CalendarIcon className="mr-2 h-3.5 w-3.5 shrink-0 text-ink-3" />
-            {value ? format(new Date(value), 'dd MMM yyyy', { locale: fr }) : <span>{placeholder}</span>}
+            {value ? format(new Date(value), 'dd MMM yyyy', { locale: dateFnsLocale() }) : <span>{placeholder}</span>}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
@@ -62,7 +63,7 @@ function DatePickerButton({ value, onChange, placeholder }: { value: string; onC
       {value && (
         <button
           type="button"
-          aria-label="Effacer la date"
+          aria-label={t('Effacer la date')}
           onClick={() => onChange('')}
           className="flex h-9 w-7 shrink-0 items-center justify-center rounded-r-md bg-card text-ink-3 shadow-rim transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
@@ -74,12 +75,13 @@ function DatePickerButton({ value, onChange, placeholder }: { value: string; onC
 }
 
 export function DateRangeFilter({ dateFrom, dateTo, onDateFromChange, onDateToChange }: DateRangeFilterProps) {
+  const t = useT();
   return (
     <div className="flex items-center gap-2">
-      <span className="t-label whitespace-nowrap">Du</span>
-      <DatePickerButton value={dateFrom} onChange={onDateFromChange} placeholder="Début" />
-      <span className="t-label whitespace-nowrap">Au</span>
-      <DatePickerButton value={dateTo} onChange={onDateToChange} placeholder="Fin" />
+      <span className="t-label whitespace-nowrap">{t('Du')}</span>
+      <DatePickerButton value={dateFrom} onChange={onDateFromChange} placeholder={t('Début')} />
+      <span className="t-label whitespace-nowrap">{t('Au')}</span>
+      <DatePickerButton value={dateTo} onChange={onDateToChange} placeholder={t('Fin')} />
     </div>
   );
 }

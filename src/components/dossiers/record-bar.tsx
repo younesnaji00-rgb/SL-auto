@@ -130,9 +130,13 @@ export function RecordBar({
   const showPrimary = !readOnly && !!action.kind;
 
   return (
+    // Tour anchors (merge 2026-09-04): the dossier-detail tutorial anchored
+    // these on the old page header, which this record bar replaced. Names are
+    // unchanged so src/lib/tutorial/pages/dossier-detail.ts still resolves.
     <div
       className="sticky top-0 z-40 flex min-h-[48px] items-center gap-2 glass-bar border-b border-hairline px-3 sm:px-5"
       data-record-bar
+      data-tour="dosd-header"
     >
       <Tooltip>
         <TooltipTrigger asChild>
@@ -198,7 +202,11 @@ export function RecordBar({
         {dossier?.matricule && (
           <span className="t-mono hidden text-ink-3 lg:inline">{dossier.matricule}</span>
         )}
-        <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut), 'shrink-0')}>
+        <Badge
+          variant="outline"
+          className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut), 'shrink-0')}
+          data-tour="dosd-statut"
+        >
           {statut}
         </Badge>
         {dossier?.lastObservation?.text && (
@@ -229,7 +237,13 @@ export function RecordBar({
               <Undo2 className="h-3 w-3" />
             </Button>
           )}
-          <Button size="sm" className="h-6 gap-1 px-2 text-[11px]" onClick={rappel.onSave} disabled={rappel.validating}>
+          <Button
+            size="sm"
+            className="h-6 gap-1 px-2 text-[11px]"
+            onClick={rappel.onSave}
+            disabled={rappel.validating}
+            data-tour="dosd-rappel-save"
+          >
             <Save className="h-3 w-3" />
             {rappel.validating ? 'Enregistrement…' : 'Sauvegarder'}
           </Button>
@@ -274,7 +288,10 @@ export function RecordBar({
               <Mail className="mr-2 h-4 w-4" /> Envoyer un email
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onSelect={onHistorique}>
+          {/* NOTE (merge 2026-09-04): Historique moved from a visible header
+              button into this ⋯ menu, so the anchor only exists while the menu
+              is open — the tour needs a preceding "open ⋯" step. */}
+          <DropdownMenuItem onSelect={onHistorique} data-tour="dosd-historique">
             <History className="mr-2 h-4 w-4" /> Historique
           </DropdownMenuItem>
           {onDelete && (

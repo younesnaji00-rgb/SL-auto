@@ -23,7 +23,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import {
-  Calendar, ChevronDown, Clock, Columns3, List, Map as MapIcon, Navigation, Search, SlidersHorizontal, TriangleAlert,
+  Calendar, ChevronDown, Clock, Columns3, List, Map as MapIcon, Monitor, Navigation, Search, SlidersHorizontal, Smartphone, TriangleAlert,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,10 +42,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { format, startOfDay, addDays } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import { isAtgCompletedStatus } from '@/lib/status-machine';
+import { BRAND } from '@/lib/brand';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
@@ -204,6 +205,7 @@ function DeadlineChip({
   completed?: boolean;
   calm?: boolean;
 }) {
+  const t = useT();
   const [, setTick] = useState(0);
   useEffect(() => {
     if (completed) return;
@@ -215,13 +217,13 @@ function DeadlineChip({
   const { remaining, expired, pending, elapsedHours, percent } = getDeadlineInfo(dateRDV, createdAt, holidays);
   const lateness = expired ? formatBusinessLateness(elapsedHours - DEADLINE_HOURS) : '';
   if (pending) {
-    return <Badge variant="outline" className="text-ink-2">En attente</Badge>;
+    return <Badge variant="outline" className="text-ink-2">{t('En attente')}</Badge>;
   }
   if (expired) {
     return (
       <Badge variant={calm ? 'danger' : 'dangerSolid'}>
         <TriangleAlert aria-hidden />
-        {lateness ? `En retard ${lateness}` : 'En retard'}
+        {lateness ? `${t('En retard')} ${lateness}` : t('En retard')}
       </Badge>
     );
   }
@@ -237,10 +239,11 @@ function DeadlineChip({
  * so it stays QUIET (colour is for the done state only).
  */
 function PhotosChip({ count }: { count: number }) {
+  const t = useT();
   if (count > 0) {
-    return <Badge variant="success">{count} photo{count > 1 ? 's' : ''}</Badge>;
+    return <Badge variant="success">{count} {count > 1 ? t('photos') : t('photo')}</Badge>;
   }
-  return <Badge variant="outline" className="text-ink-3">0 photo</Badge>;
+  return <Badge variant="outline" className="text-ink-3">0 {t('photo')}</Badge>;
 }
 
 function missionToCategory(typeMission: string): PhotoCategory {
@@ -300,12 +303,13 @@ function getDeadlineInfo(
  * selection indicators"). Counts stay neutral pills (§11).
  */
 function MissionTabs({ active, counts, onChange, className }: { active: string; counts: Record<string, number>; onChange: (id: string) => void; className?: string }) {
+  const t = useT();
   return (
     <Tabs value={active} onValueChange={onChange}>
-      <TabsList aria-label="Type de mission" className={className}>
+      <TabsList aria-label={t('Type de mission')} className={className}>
         {MISSION_TABS.map((tab) => (
           <TabsTrigger key={tab.id} value={tab.id}>
-            {tab.label}
+            {t(tab.label)}
             <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
               {counts[tab.id] || 0}
             </span>
@@ -321,12 +325,13 @@ function MissionTabs({ active, counts, onChange, className }: { active: string; 
  * that switches a VIEW draws the browser-tab shape — this one included).
  */
 function MissionSegments({ active, counts, onChange, className }: { active: string; counts: Record<string, number>; onChange: (id: string) => void; className?: string }) {
+  const t = useT();
   return (
     <Tabs value={active} onValueChange={onChange}>
-      <TabsList aria-label="Type de mission" className={cn('grid w-full grid-cols-3', className)}>
+      <TabsList aria-label={t('Type de mission')} className={cn('grid w-full grid-cols-3', className)}>
         {MISSION_TABS.map((tab) => (
           <TabsTrigger key={tab.id} value={tab.id} className="h-9 gap-1.5 px-2 text-sm">
-            {tab.label}
+            {t(tab.label)}
             <span className="text-[11px] tabular-nums text-ink-3 group-data-[state=active]:text-ink-2">{counts[tab.id] || 0}</span>
           </TabsTrigger>
         ))}
@@ -357,6 +362,7 @@ function ScopeSegments({
   fullWidth?: boolean;
   className?: string;
 }) {
+  const t = useT();
   const pill = (n: number) => (
     <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
       {n}
@@ -379,7 +385,7 @@ function ScopeSegments({
   return (
     <div
       role="group"
-      aria-label="Missions à afficher"
+      aria-label={t('Missions à afficher')}
       className={cn(
         'relative isolate flex h-9 items-center gap-0.5 rounded-md bg-surface-2 p-0.5',
         fullWidth ? 'w-full' : 'w-fit',
@@ -387,8 +393,8 @@ function ScopeSegments({
       )}
     >
       <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[value, counts.a_traiter, counts.tous]} />
-      {seg('a_traiter', 'À traiter')}
-      {seg('tous', 'Tous')}
+      {seg('a_traiter', t('À traiter'))}
+      {seg('tous', t('Tous'))}
     </div>
   );
 }
@@ -421,35 +427,36 @@ function TriageStrip({
   onJumpNext: (() => void) | null;
   className?: string;
 }) {
+  const t = useT();
   const chip = 'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent px-2.5 py-1 text-xs font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   return (
-    <div className={cn('flex flex-wrap items-center gap-2', className)} role="group" aria-label="Résumé des missions">
+    <div className={cn('flex flex-wrap items-center gap-2', className)} role="group" aria-label={t('Résumé des missions')}>
       <button
         type="button"
         onClick={() => onJumpGroup('expired')}
         className={cn(chip, lateCount > 0
           ? 'bg-status-danger-bg font-semibold text-status-danger-fg hover:brightness-[0.97]'
           : 'border-hairline-strong bg-transparent text-ink-3 hover:bg-surface-2')}
-        title="Voir les missions en retard"
+        title={t('Voir les missions en retard')}
       >
         {lateCount > 0 && <TriangleAlert className="h-3.5 w-3.5" aria-hidden />}
-        En retard {lateCount}
+        {t('En retard')} {lateCount}
       </button>
       <button
         type="button"
         onClick={() => onJumpGroup('today')}
         className={cn(chip, 'bg-tertiary-bg text-tertiary-deep hover:brightness-[0.97]')}
-        title="Voir les missions d'aujourd'hui"
+        title={t("Voir les missions d'aujourd'hui")}
       >
-        {"Aujourd'hui"} {todayCount}
+        {t("Aujourd'hui")} {todayCount}
       </button>
       <button
         type="button"
         onClick={() => onJumpGroup('future')}
         className={cn(chip, 'bg-surface-3 text-ink-2 hover:bg-surface-4')}
-        title="Voir les missions à venir"
+        title={t('Voir les missions à venir')}
       >
-        À venir {futureCount}
+        {t('À venir')} {futureCount}
       </button>
       {nextTime && (
         <button
@@ -457,15 +464,15 @@ function TriageStrip({
           onClick={onJumpNext ?? undefined}
           disabled={!onJumpNext}
           className={cn(chip, 'bg-tertiary-bg text-tertiary-deep hover:brightness-[0.97] disabled:pointer-events-none')}
-          title="Prochaine mission planifiée"
+          title={t('Prochaine mission planifiée')}
         >
           <Clock className="h-3.5 w-3.5" aria-hidden />
-          Prochaine {nextTime}
+          {t('Prochaine')} {nextTime}
         </button>
       )}
       {unassignedCount > 0 && (
-        <span className={cn(chip, 'bg-status-warning-bg text-status-warning-fg')} title="Missions sans agent assigné">
-          Sans agent {unassignedCount}
+        <span className={cn(chip, 'bg-status-warning-bg text-status-warning-fg')} title={t('Missions sans agent assigné')}>
+          {t('Sans agent')} {unassignedCount}
         </span>
       )}
     </div>
@@ -473,6 +480,7 @@ function TriageStrip({
 }
 
 export default function AssignationsATGPage() {
+  const t = useT();
   const db = useFirestore();
   const router = useRouter();
   const { profile } = useCurrentUser();
@@ -863,13 +871,27 @@ export default function AssignationsATGPage() {
     if (addrs.length > MAX_STOPS) {
       route = addrs.slice(0, MAX_STOPS);
       toast({
-        title: `${addrs.length - MAX_STOPS} arrêt(s) ignoré(s)`,
-        description: `Google Maps accepte au maximum ${MAX_STOPS} étapes par itinéraire. Les premières (par ordre chronologique) ont été conservées.`,
+        title: `${addrs.length - MAX_STOPS} ${t('arrêt(s) ignoré(s)')}`,
+        description: `${t('Google Maps accepte au maximum')} ${MAX_STOPS} ${t('étapes par itinéraire. Les premières (par ordre chronologique) ont été conservées.')}`,
       });
     }
+    // Open the tab SYNCHRONOUSLY (window.open after an await is no longer a
+    // user gesture — popup blockers kill it), and navigate it to a working
+    // Maps URL IMMEDIATELY: parking it on about:blank while geolocation
+    // resolves left users staring at a blank tab whenever the later
+    // handle-write failed (COOP/permission-prompt cases).
+    const win = window.open(buildMultiStopMapsUrl(route), '_blank');
+    // Then read the agent's live coords and upgrade the tab to an explicit
+    // `origin` — "My+Location" is unreliable; a literal lat,lng always works.
     const origin = await readCurrentPositionString();
-    const url = buildMultiStopMapsUrl(route, origin ?? undefined);
-    window.open(url, '_blank', 'noopener,noreferrer');
+    if (origin) {
+      const url = buildMultiStopMapsUrl(route, origin);
+      try {
+        if (win && !win.closed) win.location.href = url;
+      } catch {
+        // Handle severed (COOP) — the tab already shows the My+Location route.
+      }
+    }
   };
 
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
@@ -881,13 +903,13 @@ export default function AssignationsATGPage() {
     const date = toDate(ts);
     if (!date) return null;
     try {
-      return group === 'today' ? format(date, 'HH:mm') : format(date, 'd MMM HH:mm', { locale: fr });
+      return group === 'today' ? format(date, 'HH:mm') : format(date, 'd MMM HH:mm', { locale: dateFnsLocale() });
     } catch { return null; }
   };
   const formatFullDate = (ts: any) => {
     const date = toDate(ts);
     if (!date) return null;
-    try { return format(date, 'd MMM yyyy HH:mm', { locale: fr }); } catch { return null; }
+    try { return format(date, 'd MMM yyyy HH:mm', { locale: dateFnsLocale() }); } catch { return null; }
   };
 
   const isATG = profile?.role === 'Agent de Terrain';
@@ -897,6 +919,26 @@ export default function AssignationsATGPage() {
   const showAgentColumn = !isATG;
   const colCount = showAgentColumn ? 8 : 7;
   const isMobile = useIsMobile();
+
+  // Demo: prospects sit at a PC but should still SEE the agent's phone UI —
+  // a header button flips this page into the mobile layout (framed like a
+  // phone) and back. Persisted so the choice survives navigation.
+  const [phoneView, setPhoneView] = useState(false);
+  useEffect(() => {
+    try {
+      setPhoneView(window.localStorage.getItem(`${BRAND.storagePrefix}.atgPhoneView`) === '1');
+    } catch { /* non-fatal */ }
+  }, []);
+  const togglePhoneView = () => {
+    setPhoneView((v) => {
+      const next = !v;
+      try {
+        window.localStorage.setItem(`${BRAND.storagePrefix}.atgPhoneView`, next ? '1' : '');
+      } catch { /* non-fatal */ }
+      return next;
+    });
+  };
+  const effectiveMobile = isMobile || (BRAND.id === 'demo' && phoneView);
 
   const activeFilterCount =
     (compagnieFilter !== 'Toutes' ? 1 : 0) +
@@ -968,14 +1010,14 @@ export default function AssignationsATGPage() {
   const emptyState = (
     <EmptyState
       icon={<Calendar />}
-      title={activeFilterCount > 0 ? 'Aucune mission pour ces filtres' : `Aucune mission ${activeTab.toLowerCase()}`}
+      title={activeFilterCount > 0 ? t('Aucune mission pour ces filtres') : `${t('Aucune mission')} ${t(activeTab).toLowerCase()}`}
       description={activeFilterCount > 0
-        ? 'Élargissez la période ou réinitialisez les filtres pour revoir vos missions.'
+        ? t('Élargissez la période ou réinitialisez les filtres pour revoir vos missions.')
         : canUseAtFlows
-          ? 'Scannez une plaque pour lancer le flux terrain — les nouvelles assignations apparaîtront ici en temps réel.'
-          : 'Les nouvelles assignations apparaîtront ici en temps réel.'}
+          ? t('Scannez une plaque pour lancer le flux terrain — les nouvelles assignations apparaîtront ici en temps réel.')
+          : t('Les nouvelles assignations apparaîtront ici en temps réel.')}
       action={activeFilterCount > 0 ? (
-        <Button variant="tonal" onClick={() => { clearFilter('keyword'); resetFilters(); }}>Réinitialiser les filtres</Button>
+        <Button variant="tonal" onClick={() => { clearFilter('keyword'); resetFilters(); }}>{t('Réinitialiser les filtres')}</Button>
       ) : undefined}
       dashed={false}
       className="border-0 bg-transparent py-10"
@@ -989,7 +1031,7 @@ export default function AssignationsATGPage() {
     const addressableCount = group.items.filter(p => p.adresse?.trim()).length;
     const open = openSections[group.key];
     return (
-      <div className={cn('flex min-h-[48px] items-center gap-3 bg-surface-2 py-2', dense ? 'rounded-lg border border-hairline px-4' : 'border-b border-hairline px-6')}>
+      <div data-tour={`atg-group-${group.key}`} className={cn('flex min-h-[48px] items-center gap-3 bg-surface-2 py-2', dense ? 'rounded-lg border border-hairline px-4' : 'border-b border-hairline px-6')}>
         <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform', open ? 'rotate-0' : '-rotate-90')} aria-hidden />
           {group.key === 'today' && (
@@ -997,12 +1039,12 @@ export default function AssignationsATGPage() {
               <Calendar />
             </IconChip>
           )}
-          <h2 className="t-heading truncate">{group.label}</h2>
+          <h2 className="t-heading truncate">{t(group.label)}</h2>
           <Badge variant={group.tone}>{group.items.length}</Badge>
         </CollapsibleTrigger>
         {!dense && (
           <SortableHeader
-            label="Délai"
+            label={t('Délai')}
             sort={deadlineSortByGroup[group.key]}
             onChange={(next) => setDeadlineSortByGroup(prev => ({ ...prev, [group.key]: next }))}
             className="text-xs"
@@ -1010,6 +1052,7 @@ export default function AssignationsATGPage() {
         )}
         <Button
           type="button"
+          data-tour="atg-route"
           size="sm"
           variant="secondary"
           className="shrink-0"
@@ -1018,10 +1061,10 @@ export default function AssignationsATGPage() {
             e.stopPropagation();
             openRouteForItems(group.items);
           }}
-          title="Ouvrir l'itinéraire dans Google Maps"
+          title={t("Ouvrir l'itinéraire dans Google Maps")}
         >
           <Navigation />
-          Itinéraire
+          {t('Itinéraire')}
         </Button>
       </div>
     );
@@ -1033,14 +1076,14 @@ export default function AssignationsATGPage() {
   const renderTableHeader = () => (
     <TableHeader>
       <TableRow>
-        <TableHead className={STICKY_HEAD}>Dossier</TableHead>
-        <TableHead>Assuré</TableHead>
-        <TableHead>Date RDV</TableHead>
-        <TableHead>Photos</TableHead>
-        <TableHead>Compagnie</TableHead>
-        {showAgentColumn && <TableHead>Agent</TableHead>}
-        <TableHead>Lieu</TableHead>
-        <TableHead className="w-[1%]"><span className="sr-only">Actions</span></TableHead>
+        <TableHead className={STICKY_HEAD}>{t('Dossier')}</TableHead>
+        <TableHead>{t('Assuré')}</TableHead>
+        <TableHead>{t('Date RDV')}</TableHead>
+        <TableHead>{t('Photos')}</TableHead>
+        <TableHead>{t('Compagnie')}</TableHead>
+        {showAgentColumn && <TableHead>{t('Agent')}</TableHead>}
+        <TableHead>{t('Lieu')}</TableHead>
+        <TableHead className="w-[1%]"><span className="sr-only">{t('Actions')}</span></TableHead>
       </TableRow>
     </TableHeader>
   );
@@ -1072,6 +1115,7 @@ export default function AssignationsATGPage() {
       <TableRow
         key={key}
         id={`atg-row-${key}`}
+        data-tour="atg-row"
         className="group cursor-pointer"
         tabIndex={0}
         data-state={selected ? 'selected' : undefined}
@@ -1087,7 +1131,7 @@ export default function AssignationsATGPage() {
                 checked={selected}
                 onCheckedChange={(c) => toggleSelected(key, c === true)}
                 onClick={(e) => e.stopPropagation()}
-                aria-label={`Sélectionner ${p.dossierNom || p.dossierId}`}
+                aria-label={`${t('Sélectionner')} ${p.dossierNom || p.dossierId}`}
                 className={cn(
                   'transition-opacity',
                   selectedKeys.size > 0 || selected ? 'opacity-100' : 'opacity-0 focus-visible:opacity-100 group-hover:opacity-100',
@@ -1145,7 +1189,7 @@ export default function AssignationsATGPage() {
     const warmTime = groupKey !== 'expired' && !!rdv;
     const checkinTime = p.checkinAt ? toDate(p.checkinAt) : null;
     return (
-      <li key={key} id={`atg-row-${key}`}>
+      <li key={key} id={`atg-row-${key}`} data-tour="atg-row">
         <div
           role="button"
           tabIndex={0}
@@ -1187,11 +1231,11 @@ export default function AssignationsATGPage() {
           </div>
           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
             <div className="min-w-0">
-              <dt className="t-label">Zone</dt>
+              <dt className="t-label">{t('Zone')}</dt>
               <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{p.zone || <span className="font-normal text-ink-4">—</span>}</dd>
             </div>
             <div className="min-w-0">
-              <dt className="t-label">Adresse</dt>
+              <dt className="t-label">{t('Adresse')}</dt>
               <dd className="mt-0.5 text-sm">
                 {p.adresse ? (
                   <button
@@ -1211,8 +1255,8 @@ export default function AssignationsATGPage() {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <AssurePhoneLink telephone={telephone} className="min-h-[44px]" />
             {wa && (
-              <Button asChild variant="ghost" size="icon" className="h-11 w-11 text-ink-3" title="Écrire sur WhatsApp">
-                <a href={wa} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} aria-label="Écrire sur WhatsApp">
+              <Button asChild variant="ghost" size="icon" className="h-11 w-11 text-ink-3" title={t('Écrire sur WhatsApp')}>
+                <a href={wa} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} aria-label={t('Écrire sur WhatsApp')}>
                   <MessageCircle className="h-5 w-5" />
                 </a>
               </Button>
@@ -1228,7 +1272,7 @@ export default function AssignationsATGPage() {
               <EnRouteButton telephone={telephone} rdvTime={rdv ? format(rdv, 'HH:mm') : null} className="h-11" />
               <CheckinButton dossierId={p.dossierId} planifId={p.id} checkedIn={!!p.checkinAt} className="h-11" />
               {checkinTime && (
-                <Badge variant="success">Arrivé · {format(checkinTime, 'HH:mm')}</Badge>
+                <Badge variant="success">{t('Arrivé')} · {format(checkinTime, 'HH:mm')}</Badge>
               )}
             </div>
           )}
@@ -1277,13 +1321,13 @@ export default function AssignationsATGPage() {
   );
 
   const paletteActions = useMemo<PaletteAction[]>(() => [
-    { id: 'late', label: 'Voir les missions en retard', hint: `${lateCount}`, run: () => jumpToGroup('expired') },
-    { id: 'today', label: "Voir les missions d'aujourd'hui", hint: `${todayCount}`, run: () => jumpToGroup('today') },
-    { id: 'lens', label: lens === 'carte' ? 'Afficher la liste' : 'Afficher la carte', run: () => setFilters({ lens: lens === 'carte' ? 'liste' : 'carte' }) },
-    { id: 'tab-avant', label: 'Onglet Avant', hint: `${countByType['Avant'] || 0}`, run: () => setFilters({ activeTab: 'Avant' }) },
-    { id: 'tab-encours', label: 'Onglet En cours', hint: `${countByType['En cours'] || 0}`, run: () => setFilters({ activeTab: 'En cours' }) },
-    { id: 'tab-apres', label: 'Onglet Après', hint: `${countByType['Après'] || 0}`, run: () => setFilters({ activeTab: 'Après' }) },
-    { id: 'reset', label: 'Réinitialiser les filtres', run: () => { clearFilter('keyword'); resetFilters(); } },
+    { id: 'late', label: t('Voir les missions en retard'), hint: `${lateCount}`, run: () => jumpToGroup('expired') },
+    { id: 'today', label: t("Voir les missions d'aujourd'hui"), hint: `${todayCount}`, run: () => jumpToGroup('today') },
+    { id: 'lens', label: lens === 'carte' ? t('Afficher la liste') : t('Afficher la carte'), run: () => setFilters({ lens: lens === 'carte' ? 'liste' : 'carte' }) },
+    { id: 'tab-avant', label: `${t('Onglet')} ${t('Avant')}`, hint: `${countByType['Avant'] || 0}`, run: () => setFilters({ activeTab: 'Avant' }) },
+    { id: 'tab-encours', label: `${t('Onglet')} ${t('En cours')}`, hint: `${countByType['En cours'] || 0}`, run: () => setFilters({ activeTab: 'En cours' }) },
+    { id: 'tab-apres', label: `${t('Onglet')} ${t('Après')}`, hint: `${countByType['Après'] || 0}`, run: () => setFilters({ activeTab: 'Après' }) },
+    { id: 'reset', label: t('Réinitialiser les filtres'), run: () => { clearFilter('keyword'); resetFilters(); } },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [lateCount, todayCount, lens, countByType]);
 
@@ -1337,10 +1381,10 @@ export default function AssignationsATGPage() {
         if (!db) return;
         try {
           await addDoc(collection(db, 'location_requests'), { agentUid: uid, requestedAt: serverTimestamp() });
-          toast({ title: 'Demande envoyée', description: "La position s'actualisera dès que l'appareil de l'agent répond." });
+          toast({ title: t('Demande envoyée'), description: t("La position s'actualisera dès que l'appareil de l'agent répond.") });
         } catch (e) {
           console.error('[map] location request failed:', e);
-          toast({ title: 'Demande impossible', description: 'Réessayez dans un instant.', variant: 'destructive' });
+          toast({ title: t('Demande impossible'), description: t('Réessayez dans un instant.'), variant: 'destructive' });
         }
       }
     : undefined;
@@ -1366,18 +1410,30 @@ export default function AssignationsATGPage() {
     />
   );
 
-  if (isMobile) {
+  if (effectiveMobile) {
     return (
-      <div>
+      <div className={cn(!isMobile && 'mx-auto min-h-screen w-full max-w-[430px] border-x border-hairline bg-background shadow-xl')}>
         {/* Mobile sticky header (element-specs §23) */}
         <header className="sticky top-0 z-30 flex h-12 items-center gap-3 glass-bar border-b border-hairline">
-          <h1 className="t-heading flex-1 truncate">Mes missions</h1>
+          {!isMobile && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 gap-1.5"
+              onClick={togglePhoneView}
+              data-tour="atg-desktop-toggle"
+            >
+              <Monitor className="h-3.5 w-3.5" aria-hidden />
+              {t('Vue bureau')}
+            </Button>
+          )}
+          <h1 className="t-heading flex-1 truncate">{t('Mes missions')}</h1>
           <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
             {filteredPlanifications.length}
           </span>
           <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="relative h-9 w-9 shrink-0" aria-label={activeFilterCount > 0 ? `Filtres (${activeFilterCount} actifs)` : 'Filtres'}>
+              <Button data-tour="atg-filters" variant="outline" size="icon" className="relative h-9 w-9 shrink-0" aria-label={activeFilterCount > 0 ? `${t('Filtres')} (${activeFilterCount} ${t('actifs')})` : t('Filtres')}>
                 <SlidersHorizontal className="h-4 w-4" />
                 {activeFilterCount > 0 && (
                   <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-surface-3 px-1 text-[11px] font-medium tabular-nums text-ink-2 shadow-rim">
@@ -1388,30 +1444,30 @@ export default function AssignationsATGPage() {
             </SheetTrigger>
             <SheetContent side="bottom" className="flex h-[calc(70vh/var(--app-zoom))] flex-col p-0">
               <SheetHeader className="border-b border-hairline px-4 py-3">
-                <SheetTitle>Filtres</SheetTitle>
+                <SheetTitle>{t('Filtres')}</SheetTitle>
               </SheetHeader>
               <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
                 <div className="space-y-1">
-                  <label className="t-label" htmlFor="atg-search">Recherche</label>
+                  <label className="t-label" htmlFor="atg-search">{t('Recherche')}</label>
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
                     <Input
                       id="atg-search"
                       value={keyword}
                       onChange={(e) => setFilters({ keyword: e.target.value })}
-                      placeholder="Réf., assuré, adresse, plaque…"
+                      placeholder={t('Réf., assuré, adresse, plaque…')}
                       className="pl-8"
                     />
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <span className="t-label">Compagnie</span>
+                  <span className="t-label">{t('Compagnie')}</span>
                   <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
-                    <SelectTrigger className="w-full" aria-label="Compagnie">
-                      <SelectValue placeholder="Compagnie" />
+                    <SelectTrigger className="w-full" aria-label={t('Compagnie')}>
+                      <SelectValue placeholder={t('Compagnie')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
+                      <SelectItem value="Toutes">{t('Toutes les compagnies')}</SelectItem>
                       {compagnieOptions.map(([name, count]) => (
                         <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                       ))}
@@ -1420,13 +1476,13 @@ export default function AssignationsATGPage() {
                 </div>
                 {canSeeNameFilter && (
                   <div className="space-y-1">
-                    <span className="t-label">Agent</span>
+                    <span className="t-label">{t('Agent')}</span>
                     <Select value={agentFilter} onValueChange={v => setFilters({ agentFilter: v })}>
-                      <SelectTrigger className="w-full" aria-label="Agent">
-                        <SelectValue placeholder="Agent" />
+                      <SelectTrigger className="w-full" aria-label={t('Agent')}>
+                        <SelectValue placeholder={t('Agent')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Tous">Tous les agents</SelectItem>
+                        <SelectItem value="Tous">{t('Tous les agents')}</SelectItem>
                         {agentOptions.map(([name, count]) => (
                           <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                         ))}
@@ -1435,7 +1491,7 @@ export default function AssignationsATGPage() {
                   </div>
                 )}
                 <div className="space-y-1">
-                  <span className="t-label">Période</span>
+                  <span className="t-label">{t('Période')}</span>
                   <DateRangeFilter
                     dateFrom={dateFrom}
                     dateTo={dateTo}
@@ -1446,10 +1502,10 @@ export default function AssignationsATGPage() {
               </div>
               <div className="flex gap-2 border-t border-hairline p-3">
                 <Button variant="ghost" className="flex-1" onClick={resetFilters}>
-                  Réinitialiser
+                  {t('Réinitialiser')}
                 </Button>
                 <Button className="flex-1" onClick={() => setIsFilterSheetOpen(false)}>
-                  Appliquer
+                  {t('Appliquer')}
                 </Button>
               </div>
             </SheetContent>
@@ -1459,24 +1515,25 @@ export default function AssignationsATGPage() {
         {/* Greeting bar — caption row with the real date. */}
         <div className="flex h-10 items-center justify-between border-b border-hairline text-sm">
           <span className="truncate text-ink-3">
-            Bonjour <span className="font-semibold text-ink">{profile?.prenom || profile?.nom || 'agent'}</span>
+            {t('Bonjour')} <span className="font-semibold text-ink">{profile?.prenom || profile?.nom || t('agent')}</span>
             {' · '}
-            {format(new Date(), 'EEE d MMM', { locale: fr })}
+            {format(new Date(), 'EEE d MMM', { locale: dateFnsLocale() })}
           </span>
           <span className="shrink-0 tabular-nums text-ink-2">
-            {filteredPlanifications.length} mission{filteredPlanifications.length > 1 ? 's' : ''}
+            {filteredPlanifications.length} {filteredPlanifications.length > 1 ? t('missions') : t('mission')}
           </span>
         </div>
 
-        {/* AT self-service — the ONE filled button on the page. */}
-        {canUseAtFlows && (
-          <div className="py-3">
+        {/* AT self-service — the ONE filled button on the page.
+            Hidden on the demo brand: the showcase drops the plate-scan flow. */}
+        {canUseAtFlows && BRAND.id !== 'demo' && (
+          <div data-tour="atg-scan" className="py-3">
             <AtScanPlaqueFlow buttonClassName="w-full" buttonSize="lg" />
           </div>
         )}
 
         {/* Mission-type segments — sticky under the header. */}
-        <div className="sticky top-12 z-20 glass-bar border-b border-hairline py-2">
+        <div data-tour="atg-tabs" className="sticky top-12 z-20 glass-bar border-b border-hairline py-2">
           <MissionSegments active={activeTab} counts={countByType} onChange={(id) => setFilters({ activeTab: id })} />
         </div>
 
@@ -1513,7 +1570,7 @@ export default function AssignationsATGPage() {
         ) : filteredPlanifications.length === 0 ? (
           <div className="pt-4">{emptyState}</div>
         ) : (
-          <div className="space-y-4 pt-2">
+          <div data-tour="atg-groups" className="space-y-4 pt-2">
             {visibleGroups.map((group) => (
               <div key={group.key} id={`atg-group-${group.key}`}>
                 <Collapsible
@@ -1543,24 +1600,47 @@ export default function AssignationsATGPage() {
       {/* Page header (element-specs §1): plural title, count pill, ONE filled
           button (the scan), tabs row + lens switch, filters row. */}
       <PageHeader
-        title={titleForRoute('/assignations-atg') ?? 'Missions terrain'}
+        title={titleForRoute('/assignations-atg') ?? t('Missions terrain')}
         count={filteredPlanifications.length}
-        actions={canUseAtFlows ? <AtScanPlaqueFlow /> : undefined}
+        actions={(BRAND.id === 'demo' || canUseAtFlows) ? (
+          <>
+            {/* Demo: flip the page into the agent's phone layout. */}
+            {BRAND.id === 'demo' && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={togglePhoneView}
+                data-tour="atg-phone-toggle"
+              >
+                <Smartphone className="h-3.5 w-3.5" aria-hidden />
+                {t('Vue téléphone')}
+              </Button>
+            )}
+            {canUseAtFlows && BRAND.id !== 'demo' && (
+              <div data-tour="atg-scan" className="flex items-center">
+                <AtScanPlaqueFlow />
+              </div>
+            )}
+          </>
+        ) : undefined}
         tabs={
           <>
-            <MissionTabs active={activeTab} counts={countByType} onChange={(id) => setFilters({ activeTab: id })} />
+            <div data-tour="atg-tabs">
+              <MissionTabs active={activeTab} counts={countByType} onChange={(id) => setFilters({ activeTab: id })} />
+            </div>
             {/* List ⇄ map lens (Option B): a VIEW switch, so it draws the
                 browser-tab shape like every other view switcher (§4). */}
             <div className="ml-auto">
               <Tabs value={lens} onValueChange={(v) => setFilters({ lens: v as 'liste' | 'carte' })}>
-                <TabsList aria-label="Affichage des missions">
+                <TabsList aria-label={t('Affichage des missions')}>
                   <TabsTrigger value="liste" className="gap-1.5">
                     <List className="h-4 w-4 text-ink-3" aria-hidden />
-                    Liste
+                    {t('Liste')}
                   </TabsTrigger>
                   <TabsTrigger value="carte" className="gap-1.5">
                     <MapIcon className="h-4 w-4 text-ink-3" aria-hidden />
-                    Carte
+                    {t('Carte')}
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -1568,9 +1648,9 @@ export default function AssignationsATGPage() {
           </>
         }
         filters={
-          <div className="flex w-full flex-wrap items-end gap-x-4 gap-y-3">
+          <div data-tour="atg-filters" className="flex w-full flex-wrap items-end gap-x-4 gap-y-3">
             <div className="flex flex-col gap-1">
-              <label className="t-label" htmlFor="atg-search-desktop">Recherche</label>
+              <label className="t-label" htmlFor="atg-search-desktop">{t('Recherche')}</label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" aria-hidden />
                 <Input
@@ -1583,13 +1663,13 @@ export default function AssignationsATGPage() {
               </div>
             </div>
             <div className="flex flex-col gap-1">
-              <span className="t-label">Compagnie</span>
+              <span className="t-label">{t('Compagnie')}</span>
               <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
-                <SelectTrigger className="h-9 w-[180px]" aria-label="Compagnie">
-                  <SelectValue placeholder="Compagnie" />
+                <SelectTrigger className="h-9 w-[180px]" aria-label={t('Compagnie')}>
+                  <SelectValue placeholder={t('Compagnie')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
+                  <SelectItem value="Toutes">{t('Toutes les compagnies')}</SelectItem>
                   {compagnieOptions.map(([name, count]) => (
                     <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                   ))}
@@ -1598,13 +1678,13 @@ export default function AssignationsATGPage() {
             </div>
             {canSeeNameFilter && (
               <div className="flex flex-col gap-1">
-                <span className="t-label">Agent</span>
+                <span className="t-label">{t('Agent')}</span>
                 <Select value={agentFilter} onValueChange={v => setFilters({ agentFilter: v })}>
-                  <SelectTrigger className="h-9 w-[180px]" aria-label="Agent">
-                    <SelectValue placeholder="Agent" />
+                  <SelectTrigger className="h-9 w-[180px]" aria-label={t('Agent')}>
+                    <SelectValue placeholder={t('Agent')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Tous">Tous les agents</SelectItem>
+                    <SelectItem value="Tous">{t('Tous les agents')}</SelectItem>
                     {agentOptions.map(([name, count]) => (
                       <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                     ))}
@@ -1613,12 +1693,12 @@ export default function AssignationsATGPage() {
               </div>
             )}
             <div className="flex flex-col gap-1">
-              <span className="t-label">Période</span>
+              <span className="t-label">{t('Période')}</span>
               <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
             </div>
             {activeFilterCount > 0 && (
               <Button variant="ghost" size="sm" onClick={() => { clearFilter('keyword'); resetFilters(); }}>
-                Réinitialiser
+                {t('Réinitialiser')}
               </Button>
             )}
             <div className="ml-auto flex items-center gap-3">
@@ -1627,20 +1707,20 @@ export default function AssignationsATGPage() {
                   picked") — same « Affichage » control as the dossiers list. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" title="Densité d'affichage">
+                  <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" title={t("Densité d'affichage")}>
                     <Columns3 className="h-4 w-4" aria-hidden />
-                    Affichage
+                    {t('Affichage')}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel className="t-label font-normal">Densité des lignes</DropdownMenuLabel>
+                  <DropdownMenuLabel className="t-label font-normal">{t('Densité des lignes')}</DropdownMenuLabel>
                   <DropdownMenuRadioGroup
                     value={density}
                     onValueChange={(v) => setFilters({ density: v as 'normale' | 'compacte' })}
                   >
                     {([['compacte', 'Compacte'], ['normale', 'Normale']] as const).map(([value, label]) => (
                       <DropdownMenuRadioItem key={value} value={value} onSelect={(e) => e.preventDefault()}>
-                        {label}
+                        {t(label)}
                       </DropdownMenuRadioItem>
                     ))}
                   </DropdownMenuRadioGroup>
@@ -1649,7 +1729,7 @@ export default function AssignationsATGPage() {
               <span className="hidden items-center gap-1 text-xs text-ink-3 xl:inline-flex" aria-hidden>
                 <Kbd>Ctrl</Kbd>
                 <Kbd>K</Kbd>
-                rechercher
+                {t('rechercher')}
               </span>
             </div>
           </div>
@@ -1674,7 +1754,7 @@ export default function AssignationsATGPage() {
         )
       ) : loading ? (
         <Card className="overflow-hidden">
-          <Table regionLabel="Chargement des missions">
+          <Table regionLabel={t('Chargement des missions')}>
             {renderTableHeader()}
             <TableBody>
               {Array.from({ length: 5 }).map((_, i) => (
@@ -1690,7 +1770,7 @@ export default function AssignationsATGPage() {
       ) : filteredPlanifications.length === 0 ? (
         <Card className="overflow-hidden">{emptyState}</Card>
       ) : (
-        <div className="space-y-6">
+        <div data-tour="atg-groups" className="space-y-6">
           {visibleGroups.map((group) => (
             <div key={group.key} id={`atg-group-${group.key}`} className="scroll-mt-16">
               <Collapsible
@@ -1701,7 +1781,7 @@ export default function AssignationsATGPage() {
                 <Card className="overflow-hidden" data-table-density={density === 'compacte' ? 'compacte' : undefined}>
                   {renderGroupHeader(group, false)}
                   <CollapsibleContent>
-                    <Table regionLabel={`Missions ${group.label}`}>
+                    <Table regionLabel={`${t('Missions')} ${t(group.label)}`}>
                       {renderTableHeader()}
                       <TableBody>
                         {sortGroupItems(group.items, deadlineSortByGroup[group.key]).map((p) => renderRow(p, group.key))}
@@ -1719,13 +1799,13 @@ export default function AssignationsATGPage() {
       {canReassign && selectedKeys.size > 0 && (
         <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-hairline bg-card px-4 py-2 shadow-rim">
           <span className="text-sm font-medium tabular-nums text-ink">
-            {selectedKeys.size} sélectionnée{selectedKeys.size > 1 ? 's' : ''}
+            {selectedKeys.size} {selectedKeys.size > 1 ? t('sélectionnées') : t('sélectionnée')}
           </span>
           <ReassignPopover targets={selectedTargets} onDone={() => setSelectedKeys(new Set())}>
-            <Button variant="secondary" size="sm">Réassigner</Button>
+            <Button variant="secondary" size="sm">{t('Réassigner')}</Button>
           </ReassignPopover>
           <Button variant="ghost" size="sm" onClick={() => setSelectedKeys(new Set())}>
-            Effacer
+            {t('Effacer')}
           </Button>
         </div>
       )}

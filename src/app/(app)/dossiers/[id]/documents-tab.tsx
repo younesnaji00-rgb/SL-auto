@@ -95,6 +95,7 @@ import {
 } from '@/components/documents/typed-doc';
 import { reclassifyDocuments } from '@/components/documents/reclassify';
 import JSZip from 'jszip';
+import { useT } from '@/i18n';
 
 type DocumentsTabProps = {
   dossierId: string;
@@ -132,6 +133,7 @@ const SOCKET_GRID_CLASS = 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 
 const noop = () => {};
 
 export default function DocumentsTab({ dossierId, title = 'Documents', primaryAction, showRequirements = true, docsOverride, photosOverride }: DocumentsTabProps) {
+  const t = useT();
   const db = useFirestore();
   const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('dossiers');
@@ -376,14 +378,14 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
         await logHistorique(db, dossierId, 'Upload document', userEmail, `Document "${file.name}" uploadé.`, 'document', profile?.nom);
         await logWorkflow(db, dossierId, 'Nouveau document ajouté', userEmail, userId, 'done', { details: `Document "${file.name}" ajouté (par gestionnaire)` }, profile?.nom);
       }
-      toast({ title: files.length === 1 ? 'Document uploadé avec succès' : `${files.length} documents uploadés` });
+      toast({ title: files.length === 1 ? t('Document uploadé avec succès') : `${files.length} ${t('documents uploadés')}` });
       return true;
     } catch (error: any) {
       console.error('Upload error:', error);
       toast({
         variant: 'destructive',
-        title: "Erreur lors de l'upload",
-        description: error.message || 'Une erreur inconnue est survenue.',
+        title: t("Erreur lors de l'upload"),
+        description: error.message || t('Une erreur inconnue est survenue.'),
       });
       return false;
     } finally {
@@ -398,8 +400,8 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
     if (uploadType === 'Devis' && devisVariant === 'counter' && !canSelectCounter) {
       toast({
         variant: 'destructive',
-        title: 'Devis original manquant',
-        description: "Uploadez d'abord un devis original avant d'ajouter un contre-devis.",
+        title: t('Devis original manquant'),
+        description: t("Uploadez d'abord un devis original avant d'ajouter un contre-devis."),
       });
       return;
     }
@@ -447,13 +449,13 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
       }
       await deleteDoc(doc(db, 'dossiers', dossierId, 'documents', document.id));
       await logHistorique(db, dossierId, 'Suppression document', userEmail, `Document "${document.nom || 'inconnu'}" supprimé.`, 'document', profile?.nom);
-      toast({ title: 'Document supprimé avec succès' });
+      toast({ title: t('Document supprimé avec succès') });
     } catch (error: any) {
       console.error('Document delete error:', error);
       toast({
         variant: 'destructive',
-        title: 'Erreur lors de la suppression',
-        description: error?.message || 'Vérifiez les permissions de stockage.',
+        title: t('Erreur lors de la suppression'),
+        description: error?.message || t('Vérifiez les permissions de stockage.'),
       });
     } finally {
       setIsDeleting(null);
@@ -481,15 +483,15 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
       });
       toast({
         title: res.mode === 'swap'
-          ? `Documents échangés : ${sourceType} ↔ ${targetType}`
-          : `Document déplacé vers « ${targetType} »`,
+          ? `${t('Documents échangés :')} ${sourceType} ↔ ${targetType}`
+          : `${t('Document déplacé vers')} « ${targetType} »`,
       });
     } catch (error: any) {
       console.error('Reclassify error:', error);
       toast({
         variant: 'destructive',
-        title: 'Erreur lors du reclassement',
-        description: error?.message || 'Impossible de déplacer le document.',
+        title: t('Erreur lors du reclassement'),
+        description: error?.message || t('Impossible de déplacer le document.'),
       });
     }
   };
@@ -651,12 +653,12 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
       const docCount = fetched.filter((f) => f.ok).length;
       toast({
         title: includePhotos
-          ? `Archive téléchargée (${docCount} document(s), ${photoCount} photo(s))`
-          : `Archive téléchargée (${docCount} document(s) dans ${folderSet.size} dossier(s))`,
+          ? `${t('Archive téléchargée')} (${docCount} document(s), ${photoCount} photo(s))`
+          : `${t('Archive téléchargée')} (${docCount} document(s) ${t('dans')} ${folderSet.size} ${t('dossier(s)')})`,
       });
     } catch (e) {
       console.error('Batch download error:', e);
-      toast({ variant: 'destructive', title: 'Erreur lors du téléchargement' });
+      toast({ variant: 'destructive', title: t('Erreur lors du téléchargement') });
     } finally {
       setIsBatchDownloading(false);
     }
@@ -734,7 +736,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
       {/* Toolbar: title · count · search ─ Sélectionner · types · primary */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <h3 className="t-heading">{title}</h3>
+          <h3 className="t-heading">{t(title)}</h3>
           <span className="inline-flex h-5 min-w-[1.5rem] items-center justify-center rounded-full bg-surface-2 px-2 text-xs font-medium tabular-nums text-ink-2">
             {sortedDocs.length}
           </span>
@@ -744,8 +746,8 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher un fichier ou un type…"
-            aria-label="Rechercher un fichier ou un type de document"
+            placeholder={t('Rechercher un fichier ou un type…')}
+            aria-label={t('Rechercher un fichier ou un type de document')}
             className="h-9 border-hairline bg-card pl-8 md:text-[13px]"
           />
         </div>
@@ -753,14 +755,14 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
             <Button variant="ghost" size="sm" onClick={() => setSelectionMode(true)}>
               <CheckSquare className="h-4 w-4" />
-              Sélectionner
+              {t('Sélectionner')}
             </Button>
             <OptionsManagerModal
               collectionName="options_types_documents"
-              title="Types de documents"
+              title={t('Types de documents')}
               defaultValues={[...defaultDocTypes]}
               trigger={(
-                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-ink-3 hover:text-ink" aria-label="Gérer les types de documents" title="Types de documents">
+                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-ink-3 hover:text-ink" aria-label={t('Gérer les types de documents')} title={t('Types de documents')}>
                   <Settings className="h-4 w-4" />
                 </Button>
               )}
@@ -772,9 +774,9 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
 
       {/* Batch-action well (replaces the toolbar actions while active) */}
       {selectionMode && (
-        <Card variant="flat" className="flex flex-wrap items-center justify-between gap-2 px-4 py-2" role="region" aria-label="Sélection de documents">
+        <Card variant="flat" className="flex flex-wrap items-center justify-between gap-2 px-4 py-2" role="region" aria-label={t('Sélection de documents')}>
           <span className="t-body font-medium tabular-nums">
-            {selectedCount} document{selectedCount > 1 ? 's' : ''} sélectionné{selectedCount > 1 ? 's' : ''}
+            {selectedCount} {selectedCount > 1 ? t('documents sélectionnés') : t('document sélectionné')}
           </span>
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -783,7 +785,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
               onClick={allVisibleSelected ? deselectAllVisible : selectAllVisible}
               disabled={selectableVisible.length === 0}
             >
-              {allVisibleSelected ? 'Tout désélectionner' : 'Sélectionner tout'}
+              {allVisibleSelected ? t('Tout désélectionner') : t('Sélectionner tout')}
             </Button>
             <Button
               size="sm"
@@ -791,20 +793,20 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
               disabled={selectedCount === 0 || !!isBatchDownloading}
             >
               {isBatchDownloading === 'docs' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Télécharger ({selectedCount})
+              {t('Télécharger')} ({selectedCount})
             </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={() => handleDownloadSelected(true)}
               disabled={selectedCount === 0 || !!isBatchDownloading}
-              title="Inclure les photos avant / en cours / après dans le zip"
+              title={t('Inclure les photos avant / en cours / après dans le zip')}
             >
               {isBatchDownloading === 'docs+photos' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Inclure photos ({selectedCount})
+              {t('Inclure photos')} ({selectedCount})
             </Button>
             <Button variant="ghost" size="sm" onClick={exitSelectionMode} disabled={!!isBatchDownloading}>
-              Annuler
+              {t('Annuler')}
             </Button>
           </div>
         </Card>
@@ -818,7 +820,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
           {missingCount > 0 ? (
             <>
               <span className="font-medium">
-                {missingCount} pièce{missingCount > 1 ? 's' : ''} requise{missingCount > 1 ? 's' : ''} manquante{missingCount > 1 ? 's' : ''}
+                {missingCount} {missingCount > 1 ? t('pièces requises manquantes') : t('pièce requise manquante')}
               </span>
               {' : '}
               {requiredStatus.missingLabels.map((label, i) => (
@@ -835,7 +837,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
               ))}
             </>
           ) : (
-            <>Toutes les pièces requises sont déposées.</>
+            <>{t('Toutes les pièces requises sont déposées.')}</>
           )}
         </RequiredSummaryLine>
       )}
@@ -847,8 +849,8 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
       ) : (
         <div className="space-y-6">
           {/* Pièces requises — always shown, sockets carry the state. */}
-          <section className="space-y-3" aria-label="Pièces requises">
-            <h4 className={SECTION_LABEL_CLASS}>Pièces requises</h4>
+          <section className="space-y-3" aria-label={t('Pièces requises')}>
+            <h4 className={SECTION_LABEL_CLASS}>{t('Pièces requises')}</h4>
             <div className={SOCKET_GRID_CLASS}>
               {visRequired.map((x) => renderSocket(x.spec, x.docs))}
             </div>
@@ -856,8 +858,8 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
 
           {/* Autres documents — types holding files + the "Autre type…" socket. */}
           {showOthersGroup && (
-            <section className="space-y-3 border-t border-hairline pt-5" aria-label="Autres documents">
-              <h4 className={SECTION_LABEL_CLASS}>Autres documents</h4>
+            <section className="space-y-3 border-t border-hairline pt-5" aria-label={t('Autres documents')}>
+              <h4 className={SECTION_LABEL_CLASS}>{t('Autres documents')}</h4>
               <div className={SOCKET_GRID_CLASS}>
                 {visOthers.map((x) => renderSocket(x.spec, x.docs))}
                 {canEdit && !isSearching && (
@@ -865,13 +867,13 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
                     type="button"
                     onClick={() => openImport()}
                     className={cn(SOCKET_BASE_CLASS, SOCKET_OPEN_CLASS)}
-                    aria-label="Ajouter un document d'un autre type"
+                    aria-label={t("Ajouter un document d'un autre type")}
                   >
                     <Plus className="h-5 w-5 text-ink-3 transition-colors duration-150 group-hover/socket:text-ink" aria-hidden />
                     <span className="t-body-sm font-medium text-ink-2 transition-colors duration-150 group-hover/socket:text-ink">
-                      Autre type…
+                      {t('Autre type…')}
                     </span>
-                    <span className="t-caption">Choisir la catégorie</span>
+                    <span className="t-caption">{t('Choisir la catégorie')}</span>
                   </button>
                 )}
               </div>
@@ -880,7 +882,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
 
           {isSearching && visOthers.length === 0 && (
             <p className="t-caption">
-              Aucun autre document ne correspond à «&nbsp;{search.trim()}&nbsp;».
+              {t('Aucun autre document ne correspond à')} «&nbsp;{search.trim()}&nbsp;».
             </p>
           )}
         </div>
@@ -890,28 +892,28 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
       <Dialog open={isUploadModalOpen} onOpenChange={setUploadModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Catégorie du document</DialogTitle>
+            <DialogTitle>{t('Catégorie du document')}</DialogTitle>
             <DialogDescription>
               {selectedFiles.length === 1 ? (
-                <>Fichier : <span className="font-semibold text-ink">{selectedFiles[0]?.name}</span></>
+                <>{t('Fichier :')} <span className="font-semibold text-ink">{selectedFiles[0]?.name}</span></>
               ) : (
-                <><span className="font-semibold text-ink">{selectedFiles.length} fichiers</span> seront uploadés avec ce type.</>
+                <><span className="font-semibold text-ink">{selectedFiles.length} {t('fichiers')}</span> {t('seront uploadés avec ce type.')}</>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Type de document</label>
-                <OptionsManagerModal collectionName="options_types_documents" title="Types de documents" defaultValues={[...defaultDocTypes]} />
+                <label className="text-sm font-medium">{t('Type de document')}</label>
+                <OptionsManagerModal collectionName="options_types_documents" title={t('Types de documents')} defaultValues={[...defaultDocTypes]} />
               </div>
               <Select value={uploadType} onValueChange={setUploadType} disabled={isUploading}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choisir une catégorie" />
+                  <SelectValue placeholder={t('Choisir une catégorie')} />
                 </SelectTrigger>
                 <SelectContent>
                   {uploadTypeOptions.map((label) => (
-                    <SelectItem key={`type-${label}`} value={label}>{label}</SelectItem>
+                    <SelectItem key={`type-${label}`} value={label}>{t(label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -919,7 +921,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
 
             {uploadType === 'Devis' && (
               <div className="space-y-2 border-t border-hairline pt-1">
-                <Label className="text-xs font-semibold">Variante du devis</Label>
+                <Label className="text-xs font-semibold">{t('Variante du devis')}</Label>
                 <RadioGroup
                   value={devisVariant}
                   onValueChange={(v) => setDevisVariant(v as 'original' | 'counter')}
@@ -929,9 +931,9 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
                   <label className="flex cursor-pointer items-start gap-2">
                     <RadioGroupItem value="original" id="dv-original" className="mt-0.5" />
                     <div className="flex-1">
-                      <div className="text-sm font-medium">Devis original</div>
+                      <div className="text-sm font-medium">{t('Devis original')}</div>
                       <div className="t-caption">
-                        Lignes et prix imprimés. Extraction complète par l&apos;IA au moment du chiffrage.
+                        {t("Lignes et prix imprimés. Extraction complète par l'IA au moment du chiffrage.")}
                       </div>
                     </div>
                   </label>
@@ -939,14 +941,14 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
                     <RadioGroupItem value="counter" id="dv-counter" className="mt-0.5" disabled={!canSelectCounter} />
                     <div className="flex-1">
                       <div className={cn('text-sm font-medium', !canSelectCounter && 'text-ink-3')}>
-                        Contre-devis / accord
+                        {t('Contre-devis / accord')}
                         {/* Red dot = the red "contre-proposition" column added in chiffrage. */}
                         <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-status-danger-fg align-middle" />
                       </div>
                       <div className="t-caption">
                         {canSelectCounter
-                          ? "Prix de contre-proposition (annotés à la main ou en surimpression). Ajoute une colonne rouge au devis lors du chiffrage."
-                          : "Vous devez d'abord uploader un devis original pour ce dossier."}
+                          ? t("Prix de contre-proposition (annotés à la main ou en surimpression). Ajoute une colonne rouge au devis lors du chiffrage.")
+                          : t("Vous devez d'abord uploader un devis original pour ce dossier.")}
                       </div>
                     </div>
                   </label>
@@ -954,16 +956,16 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
 
                 {devisVariant === 'counter' && canSelectCounter && (
                   <div className="space-y-1 pt-2">
-                    <Label className="text-xs font-semibold">Label du round</Label>
+                    <Label className="text-xs font-semibold">{t('Label du round')}</Label>
                     <Input
                       value={counterRoundLabel}
                       onChange={(e) => setCounterRoundLabel(e.target.value)}
-                      placeholder="1er accord"
+                      placeholder={t('1er accord')}
                       className="h-8 text-xs"
                       disabled={isUploading}
                     />
                     <div className="t-caption">
-                      Devient le nom de la colonne rouge (ex : « 1er accord », « Expert arbitre »).
+                      {t('Devient le nom de la colonne rouge (ex : « 1er accord », « Expert arbitre »).')}
                     </div>
                   </div>
                 )}
@@ -973,7 +975,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
             {isUploading && (
               <div className="flex items-center gap-2 text-primary">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Envoi en cours...</span>
+                <span className="text-sm">{t('Envoi en cours...')}</span>
               </div>
             )}
           </div>
@@ -986,7 +988,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
               }}
               disabled={isUploading}
             >
-              Annuler
+              {t('Annuler')}
             </Button>
             <Button
               onClick={handleUpload}
@@ -998,7 +1000,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
               }
             >
               {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {isUploading ? 'Transfert...' : 'Uploader'}
+              {isUploading ? t('Transfert...') : t('Uploader')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1016,13 +1018,13 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce document ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Supprimer ce document ?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.nom && <span className="font-semibold">{deleteTarget.nom}</span>} sera supprimé définitivement du stockage et du dossier. Cette action est irréversible.
+              {deleteTarget?.nom && <span className="font-semibold">{deleteTarget.nom}</span>} {t('sera supprimé définitivement du stockage et du dossier. Cette action est irréversible.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={!!isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={!!isDeleting}>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={!!isDeleting}
@@ -1031,7 +1033,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
                 if (deleteTarget) handleDelete(deleteTarget);
               }}
             >
-              Supprimer
+              {t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

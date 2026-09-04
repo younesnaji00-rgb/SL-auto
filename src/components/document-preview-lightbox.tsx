@@ -25,6 +25,8 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Download, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { TransformWrapper, TransformComponent, useControls, useTransformEffect } from 'react-zoom-pan-pinch';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 /**
  * Zoom toolbar rendered inside the TransformWrapper (hooks need its context):
@@ -32,6 +34,7 @@ import { cn } from '@/lib/utils';
  * wrapper to zoom gradually (a few % per notch) instead of jumping.
  */
 function ZoomControls() {
+  const t = useT();
   const { zoomIn, zoomOut, resetTransform } = useControls();
   const [scale, setScale] = React.useState(1);
   useTransformEffect(({ state }) => {
@@ -41,16 +44,16 @@ function ZoomControls() {
     <div
       className="pointer-events-auto absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-card/95 px-1 py-0.5 shadow-raised ring-1 ring-hairline"
       role="group"
-      aria-label="Zoom"
-      title="Molette pour zoomer progressivement, double-clic pour agrandir"
+      aria-label={t('Zoom')}
+      title={t('Molette pour zoomer progressivement, double-clic pour agrandir')}
     >
-      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomOut(0.3, 150)} aria-label="Zoom arrière" disabled={scale <= 1}>
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomOut(0.3, 150)} aria-label={t('Zoom arrière')} disabled={scale <= 1}>
         <ZoomOut className="h-4 w-4" />
       </Button>
-      <button type="button" className="t-caption min-w-[3.25rem] rounded px-1 text-center tabular-nums hover:bg-surface-2" onClick={() => resetTransform(150)} aria-label={`Zoom ${Math.round(scale * 100)} % — réinitialiser`}>
+      <button type="button" className="t-caption min-w-[3.25rem] rounded px-1 text-center tabular-nums hover:bg-surface-2" onClick={() => resetTransform(150)} aria-label={`${t('Zoom')} ${Math.round(scale * 100)} % — ${t('réinitialiser')}`}>
         {Math.round(scale * 100)} %
       </button>
-      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomIn(0.3, 150)} aria-label="Zoom avant" disabled={scale >= 8}>
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomIn(0.3, 150)} aria-label={t('Zoom avant')} disabled={scale >= 8}>
         <ZoomIn className="h-4 w-4" />
       </Button>
     </div>
@@ -76,6 +79,8 @@ interface DocumentPreviewLightboxProps {
   pages?: DocumentPreviewLightboxDoc[];
   /** Called when the user pages; the host updates `doc`. */
   onPageChange?: (doc: DocumentPreviewLightboxDoc, index: number) => void;
+  /** Optional tour anchor stamped on the dialog (guided walkthroughs). */
+  dataTour?: string;
 }
 
 function isImageName(name: string): boolean {
@@ -85,7 +90,8 @@ function isImageName(name: string): boolean {
 /** A4 portrait width/height — default for PDFs and unknown documents. */
 const A4_RATIO = 210 / 297;
 
-export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pages, onPageChange }: DocumentPreviewLightboxProps) {
+export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pages, onPageChange, dataTour }: DocumentPreviewLightboxProps) {
+  const t = useT();
   const isImage = doc ? isImageName(doc.nom) : false;
   // width / height of the media. Owner ruling 2026-09-02: the window must
   // open AT its final size — no zoom-past-and-snap-back. So the ratio is
@@ -174,6 +180,8 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
       <DialogContent
         hideCloseButton
         calm
+        data-tour={dataTour}
+        {...tourDialogGuard()}
         className={cn(
           // Below lg the dialog base renders a full-width bottom sheet; the
           // orientation-aware sizing only applies to the centred lg+ modal
@@ -201,12 +209,12 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
         <DialogHeader className="flex shrink-0 flex-row items-center justify-between gap-2 border-b px-4 py-3">
           <DialogTitle className="flex-1 truncate text-sm">{doc.nom}</DialogTitle>
           {pageList && (
-            <div className="flex shrink-0 items-center gap-1" aria-label="Pages du document">
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goTo(pageIndex - 1)} title="Page précédente" aria-label="Page précédente">
+            <div className="flex shrink-0 items-center gap-1" aria-label={t('Pages du document')}>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goTo(pageIndex - 1)} title={t('Page précédente')} aria-label={t('Page précédente')}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="t-caption tabular-nums" aria-live="polite">{pageIndex + 1} / {pageList.length}</span>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goTo(pageIndex + 1)} title="Page suivante" aria-label="Page suivante">
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goTo(pageIndex + 1)} title={t('Page suivante')} aria-label={t('Page suivante')}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -217,7 +225,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
               size="icon"
               className="h-7 w-7"
               onClick={() => onDownload(doc)}
-              title="Telecharger"
+              title={t('Télécharger')}
             >
               <Download className="h-4 w-4" />
             </Button>
@@ -228,7 +236,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
               size="icon"
               className="h-7 w-7 text-destructive hover:bg-destructive/10"
               onClick={() => onDelete(doc)}
-              title="Supprimer"
+              title={t('Supprimer')}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -238,7 +246,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
             size="icon"
             className="h-7 w-7"
             onClick={onClose}
-            title="Fermer"
+            title={t('Fermer')}
           >
             <X className="h-4 w-4" />
           </Button>

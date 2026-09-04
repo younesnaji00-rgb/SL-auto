@@ -29,6 +29,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useFirestore } from '@/firebase';
 import { reconcileCanonicalStatuts, reconcileOptionDefaults, getDefaultsFor } from '@/lib/seed-options';
+import { useT } from '@/i18n';
 
 interface OptionsManagerModalProps {
   collectionName: string;
@@ -43,13 +44,11 @@ export function OptionsManagerModal({
   defaultValues = [],
   trigger
 }: OptionsManagerModalProps) {
+  const t = useT();
   const { isAdmin, canDelete } = useCurrentUser();
   const { options, addOption, updateOption, deleteOption, loading } = useOptions(collectionName, defaultValues);
   const { toast } = useToast();
   const db = useFirestore();
-
-  // Only admins can manage options
-  if (!isAdmin) return null;
 
   const [newOption, setNewOption] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -66,10 +65,10 @@ export function OptionsManagerModal({
     try {
       await addOption(newOption);
       setNewOption('');
-      toast({ title: "Option ajoutée" });
+      toast({ title: t('Option ajoutée') });
     } catch (e) {
       console.error(e);
-      toast({ variant: 'destructive', title: "Erreur lors de l'ajout" });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'ajout") });
     } finally {
       setIsAdding(false);
     }
@@ -80,9 +79,9 @@ export function OptionsManagerModal({
     try {
       await updateOption(id, editLabel);
       setEditingId(null);
-      toast({ title: "Option mise à jour" });
+      toast({ title: t('Option mise à jour') });
     } catch (e) {
-      toast({ variant: 'destructive', title: "Erreur lors de la modification" });
+      toast({ variant: 'destructive', title: t('Erreur lors de la modification') });
     }
   };
 
@@ -92,13 +91,13 @@ export function OptionsManagerModal({
     try {
       const added = await reconcileCanonicalStatuts(db);
       if (added > 0) {
-        toast({ title: `${added} statut${added > 1 ? 's' : ''} canonique${added > 1 ? 's' : ''} ajouté${added > 1 ? 's' : ''}` });
+        toast({ title: `${added} ${added > 1 ? t('statuts canoniques ajoutés') : t('statut canonique ajouté')}` });
       } else {
-        toast({ title: 'Rien à synchroniser', description: 'Tous les statuts canoniques sont déjà présents.' });
+        toast({ title: t('Rien à synchroniser'), description: t('Tous les statuts canoniques sont déjà présents.') });
       }
     } catch (e: any) {
       console.error('[sync canonical statuts]', e);
-      toast({ variant: 'destructive', title: 'Erreur de synchronisation', description: e?.message });
+      toast({ variant: 'destructive', title: t('Erreur de synchronisation'), description: e?.message });
     } finally {
       setIsSyncing(false);
     }
@@ -110,13 +109,13 @@ export function OptionsManagerModal({
     try {
       const added = await reconcileOptionDefaults(db, collectionName);
       if (added > 0) {
-        toast({ title: `${added} option${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''}` });
+        toast({ title: `${added} ${added > 1 ? t('options ajoutées') : t('option ajoutée')}` });
       } else {
-        toast({ title: 'Rien à restaurer', description: 'Tous les défauts sont déjà présents.' });
+        toast({ title: t('Rien à restaurer'), description: t('Tous les défauts sont déjà présents.') });
       }
     } catch (e: any) {
       console.error('[restore defaults]', e);
-      toast({ variant: 'destructive', title: 'Erreur', description: e?.message });
+      toast({ variant: 'destructive', title: t('Erreur'), description: e?.message });
     } finally {
       setIsRestoring(false);
     }
@@ -126,15 +125,20 @@ export function OptionsManagerModal({
     setIsDeleting(id);
     try {
       await deleteOption(id);
-      toast({ title: "Option supprimée" });
+      toast({ title: t('Option supprimée') });
     } catch (e) {
       console.error(e);
-      toast({ variant: 'destructive', title: "Erreur lors de la suppression" });
+      toast({ variant: 'destructive', title: t('Erreur lors de la suppression') });
     } finally {
       setIsDeleting(null);
       setDeleteTarget(null);
     }
   };
+
+  // Only admins can manage options. The guard sits AFTER every hook so the
+  // hook order is unconditional (rules-of-hooks); it used to sit above the
+  // useState block, which crashed when `isAdmin` flipped after auth resolved.
+  if (!isAdmin) return null;
 
   return (
     <Dialog>
@@ -147,13 +151,13 @@ export function OptionsManagerModal({
       </DialogTrigger>
       <DialogContent className="sm:max-w-md" onPointerDown={(e) => e.stopPropagation()}>
         <DialogHeader>
-          <DialogTitle>Gérer : {title}</DialogTitle>
+          <DialogTitle>{t('Gérer :')} {t(title)}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="flex gap-2">
             <Input
-              placeholder="Nouvelle option..."
+              placeholder={t('Nouvelle option...')}
               value={newOption}
               onChange={(e) => setNewOption(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
@@ -165,12 +169,12 @@ export function OptionsManagerModal({
 
           <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
             {loading ? (
-              <div className="flex justify-center py-4"><InlineLoader label="Chargement des options…" /></div>
+              <div className="flex justify-center py-4"><InlineLoader label={t('Chargement des options…')} /></div>
             ) : options.length === 0 ? (
               <EmptyState
                 icon={<Settings />}
-                title="Aucune option"
-                description="Ajoutez votre première option avec le champ ci-dessus."
+                title={t('Aucune option')}
+                description={t('Ajoutez votre première option avec le champ ci-dessus.')}
                 dashed={false}
                 className="border-0 bg-transparent py-6"
               />
@@ -228,7 +232,7 @@ export function OptionsManagerModal({
         </div>
 
         <DialogFooter className="flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <p className="text-[11px] text-muted-foreground italic flex-1">Les modifications sont appliquées instantanément partout dans l&apos;application.</p>
+          <p className="text-[11px] text-muted-foreground italic flex-1">{t("Les modifications sont appliquées instantanément partout dans l'application.")}</p>
           {collectionName !== 'options_statuts' && !!getDefaultsFor(collectionName)?.length && (
             <Button
               type="button"
@@ -239,7 +243,7 @@ export function OptionsManagerModal({
               loading={isRestoring}
             >
               {isRestoring ? null : <RefreshCw className="h-3.5 w-3.5" />}
-              Restaurer les défauts
+              {t('Restaurer les défauts')}
             </Button>
           )}
           {collectionName === 'options_statuts' && (
@@ -252,7 +256,7 @@ export function OptionsManagerModal({
               loading={isSyncing}
             >
               {isSyncing ? null : <RefreshCw className="h-3.5 w-3.5" />}
-              Synchroniser les statuts canoniques
+              {t('Synchroniser les statuts canoniques')}
             </Button>
           )}
         </DialogFooter>
@@ -261,13 +265,13 @@ export function OptionsManagerModal({
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer « {deleteTarget?.label} » ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Supprimer')} « {deleteTarget?.label} » ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irréversible. Les enregistrements qui utilisent cette valeur conserveront l&apos;ancien texte, mais elle ne sera plus proposée dans les listes.
+              {t("Cette action est irréversible. Les enregistrements qui utilisent cette valeur conserveront l'ancien texte, mais elle ne sera plus proposée dans les listes.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={!!isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={!!isDeleting}>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={!!isDeleting}
@@ -276,7 +280,7 @@ export function OptionsManagerModal({
                 if (deleteTarget) handleDelete(deleteTarget.id);
               }}
             >
-              Supprimer
+              {t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -27,7 +27,7 @@ import { DateRangeFilter } from '@/components/date-range-filter';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { NAV_ITEMS, titleForRoute } from '@/lib/nav-groups';
 import { format, parseISO, isValid } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconChip } from '@/components/ui/icon-chip';
@@ -78,6 +78,7 @@ function LogoTile({
   size?: 'sm' | 'lg';
   className?: string;
 }) {
+  const t = useT();
   const pick = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -92,12 +93,13 @@ function LogoTile({
   return (
     <button
       type="button"
+      data-tour="cie-logo"
       onClick={(e) => {
         e.stopPropagation();
         pick();
       }}
-      title="Cliquez pour importer un logo"
-      aria-label={`Importer le logo de ${compagnie.nom}`}
+      title={t('Cliquez pour importer un logo')}
+      aria-label={`${t('Importer le logo de')} ${compagnie.nom}`}
       className={cn(
         'group/logo relative flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2 shadow-rim transition-colors hover:bg-surface-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         lg ? 'h-28 w-28' : 'h-12 w-12',
@@ -138,6 +140,7 @@ function CompagnieCardSkeleton() {
 }
 
 export default function CompagniesClientPage() {
+  const t = useT();
   const searchParams = useSearchParams();
   const router = useRouter();
   const selectedId = searchParams.get('selected');
@@ -173,9 +176,9 @@ export default function CompagniesClientPage() {
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
       await updateDoc(doc(db, 'compagnies', compagnieId), { logoUrl: url });
-      toast({ title: 'Logo mis à jour' });
+      toast({ title: t('Logo mis à jour') });
     } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
+      toast({ variant: 'destructive', title: t('Erreur'), description: e.message });
     }
   };
 
@@ -222,13 +225,14 @@ export default function CompagniesClientPage() {
   }, [dossiers]);
 
   const nav = NAV_ITEMS.find((i) => i.href === '/compagnies');
-  const pageTitle = titleForRoute('/compagnies') ?? 'Compagnies';
+  const pageTitle = t(titleForRoute('/compagnies') ?? 'Compagnies');
+  const pageSubtitle = nav?.subtitle ? t(nav.subtitle) : undefined;
 
   if (loadingCompagnies) {
     // Same anatomy as compagnies/loading.tsx (header + card grid).
     return (
       <div className="space-y-8" aria-busy="true" aria-live="polite">
-        <PageHeader title={pageTitle} subtitle={nav?.subtitle} noAutoFocus />
+        <PageHeader title={pageTitle} subtitle={pageSubtitle} noAutoFocus />
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <CompagnieCardSkeleton key={i} />
@@ -244,15 +248,15 @@ export default function CompagniesClientPage() {
         {/* Page header (element-specs §1: Polaris Page — plural object as the
             title, count pill; no page primary: compagnies are seeded, not
             created here). Title and subtitle come from nav-groups. */}
-        <PageHeader title={pageTitle} subtitle={nav?.subtitle} count={compagnies.length} />
+        <PageHeader title={pageTitle} subtitle={pageSubtitle} count={compagnies.length} />
 
         {compagnies.length === 0 ? (
           // Empty state (§12): state + reason; no action the reader can take
           // (access is granted by an admin on /utilisateurs).
           <EmptyState
             icon={<Building2 />}
-            title="Aucune compagnie accessible"
-            description="Aucune compagnie partenaire n'est visible avec vos permissions actuelles."
+            title={t('Aucune compagnie accessible')}
+            description={t("Aucune compagnie partenaire n'est visible avec vos permissions actuelles.")}
             dashed={false}
           />
         ) : (
@@ -263,13 +267,13 @@ export default function CompagniesClientPage() {
           // left edge in the company's own colour (per-company DATA, not a
           // design hue), faded watermark, logo tile + chevron row, name as the
           // card title, one-line description, "Gérer les sinistres" affordance.
-          <ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3" aria-label="Compagnies partenaires">
+          <ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3" aria-label={t('Compagnies partenaires')} data-tour="cie-grid">
             {compagnies.map((c) => (
               <li key={c.id} className="min-w-0">
                 <Card
                   role="link"
                   tabIndex={0}
-                  aria-label={`Ouvrir ${c.nom}`}
+                  aria-label={`${t('Ouvrir')} ${c.nom}`}
                   className="group relative cursor-pointer overflow-hidden border-l-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   style={{ borderLeftColor: c.couleur }}
                   onClick={() => router.push(`/compagnies?selected=${c.id}`)}
@@ -297,7 +301,7 @@ export default function CompagniesClientPage() {
                     <div className="min-w-0">
                       {/* Card title = t-title (20/600 Outfit — a title, not a number). */}
                       <h2 className="t-title truncate">{c.nom}</h2>
-                      <CardDescription className="t-caption mt-1">Visualiser l&apos;activité globale</CardDescription>
+                      <CardDescription className="t-caption mt-1">{t("Visualiser l'activité globale")}</CardDescription>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -305,7 +309,7 @@ export default function CompagniesClientPage() {
                         on a raised pill): the card itself is the link. */}
                     <span className="t-caption inline-flex w-fit items-center gap-2 rounded-full bg-surface-3 px-3 py-1.5 font-medium text-ink-2 shadow-rim">
                       <FileText className="h-3 w-3" aria-hidden />
-                      Gérer les sinistres
+                      {t('Gérer les sinistres')}
                     </span>
                   </CardContent>
                 </Card>
@@ -327,8 +331,8 @@ export default function CompagniesClientPage() {
   ];
   // Real range printed under each figure (§6 / §23: never "· période").
   const rangeCaption = dateFrom || dateTo
-    ? `du ${dateFrom ? fmtIsoDay(dateFrom) : '—'} au ${dateTo ? fmtIsoDay(dateTo) : '—'}`
-    : 'toutes périodes';
+    ? `${t('du')} ${dateFrom ? fmtIsoDay(dateFrom) : '—'} ${t('au')} ${dateTo ? fmtIsoDay(dateTo) : '—'}`
+    : t('toutes périodes');
 
   return (
     <div className="space-y-8">
@@ -352,15 +356,15 @@ export default function CompagniesClientPage() {
           backLabel={pageTitle}
           title={selectedCompagnie.nom}
           icon={<span className="block h-6 w-1 rounded-full" style={{ backgroundColor: selectedCompagnie.couleur }} aria-hidden />}
-          subtitle="Tableau de bord opérationnel"
+          subtitle={t('Tableau de bord opérationnel')}
           actions={
             <>
               <Button variant="outline" asChild>
-                <Link href="/dossiers">Tous les dossiers</Link>
+                <Link href="/dossiers">{t('Tous les dossiers')}</Link>
               </Button>
-              <Button onClick={() => setCreateOpen(true)}>
+              <Button data-tour="cie-new" onClick={() => setCreateOpen(true)}>
                 <Plus aria-hidden />
-                Nouveau dossier
+                {t('Nouveau dossier')}
               </Button>
             </>
           }
@@ -371,10 +375,10 @@ export default function CompagniesClientPage() {
           case, value in the UI sans semibold with proportional digits, caption
           with the real range; Carbon tile — padding 16, no decorative shadow;
           NN/g dashboards — at-a-glance). 36 px headline tier, Inter, never Outfit. */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" data-tour="cie-stats">
         {statTiles.map((stat) => (
           <Card key={stat.label} className="min-w-0 p-4">
-            <p className="t-label">{stat.label}</p>
+            <p className="t-label">{t(stat.label)}</p>
             <div className="mt-2 text-[36px] font-semibold leading-none text-ink">
               {loadingDossiers ? <Skeleton className="h-9 w-12" /> : stat.val}
             </div>
@@ -387,7 +391,7 @@ export default function CompagniesClientPage() {
           the card header, outside the collection; one frame around the table,
           no second frame). Hairline header row: t-heading + caption + the
           date-range filter; the table below follows §3. */}
-      <Card role="region" aria-label="Portefeuille dossiers" className="overflow-hidden">
+      <Card role="region" aria-label={t('Portefeuille dossiers')} className="overflow-hidden" data-tour="cie-table">
         <header className="flex min-h-[48px] flex-wrap items-center justify-between gap-4 border-b border-hairline px-6 py-4">
           {/* Section anchor (neutral since the time ruling; addendum 2026-09-02 §1b: ONE small IconChip beside
               the section title that anchors the page — terracotta as the
@@ -395,8 +399,8 @@ export default function CompagniesClientPage() {
           <div className="flex min-w-0 items-center gap-3">
             <IconChip><FolderOpen /></IconChip>
             <div className="min-w-0">
-              <h2 className="t-heading truncate">Portefeuille dossiers</h2>
-              <p className="t-caption truncate">Extraction en temps réel des missions {selectedCompagnie.nom}.</p>
+              <h2 className="t-heading truncate">{t('Portefeuille dossiers')}</h2>
+              <p className="t-caption truncate">{t('Extraction en temps réel des missions')} {selectedCompagnie.nom}.</p>
             </div>
           </div>
           <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
@@ -405,15 +409,15 @@ export default function CompagniesClientPage() {
             data, first column fixed when the table overflows; Carbon — 44 px
             rows, skeleton rows; NN/g — row is the link, chevron at the row
             end, sticky header, hover tint). Refs and plates in t-mono. */}
-        <Table regionLabel={`Dossiers ${selectedCompagnie.nom}`}>
+        <Table regionLabel={`${t('Dossiers')} ${selectedCompagnie.nom}`}>
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky left-0 z-[2] min-w-[9rem] border-r border-hairline bg-card">Réf. expert</TableHead>
-              <TableHead>Assuré</TableHead>
-              <TableHead>Matricule</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead>Création</TableHead>
-              <TableHead className="w-12 text-right"><span className="sr-only">Ouvrir</span></TableHead>
+              <TableHead className="sticky left-0 z-[2] min-w-[9rem] border-r border-hairline bg-card">{t('Réf. expert')}</TableHead>
+              <TableHead>{t('Assuré')}</TableHead>
+              <TableHead>{t('Matricule')}</TableHead>
+              <TableHead>{t('Statut')}</TableHead>
+              <TableHead>{t('Création')}</TableHead>
+              <TableHead className="w-12 text-right"><span className="sr-only">{t('Ouvrir')}</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -433,17 +437,17 @@ export default function CompagniesClientPage() {
                       dossier (the header's filled button stays the page primary). */}
                   <EmptyState
                     icon={<Inbox />}
-                    title={dateFrom || dateTo ? 'Aucun dossier sur cette période' : `Aucun dossier pour ${selectedCompagnie.nom}`}
+                    title={dateFrom || dateTo ? t('Aucun dossier sur cette période') : `${t('Aucun dossier pour')} ${selectedCompagnie.nom}`}
                     description={
                       dateFrom || dateTo
-                        ? `Aucun dossier ${selectedCompagnie.nom} ${rangeCaption}.`
-                        : "Aucun dossier n'est encore associé à cette compagnie."
+                        ? `${t('Aucun dossier')} ${selectedCompagnie.nom} ${rangeCaption}.`
+                        : t("Aucun dossier n'est encore associé à cette compagnie.")
                     }
                     action={
                       dateFrom || dateTo ? (
-                        <Button variant="tonal" onClick={() => setFilters({ dateFrom: '', dateTo: '' })}>Effacer la période</Button>
+                        <Button variant="tonal" onClick={() => setFilters({ dateFrom: '', dateTo: '' })}>{t('Effacer la période')}</Button>
                       ) : (
-                        <Button variant="tonal" onClick={() => setCreateOpen(true)}>Créer un dossier</Button>
+                        <Button variant="tonal" onClick={() => setCreateOpen(true)}>{t('Créer un dossier')}</Button>
                       )
                     }
                     dashed={false}
@@ -462,17 +466,17 @@ export default function CompagniesClientPage() {
                     <TableCell className="font-medium">{assure || <span className="text-ink-4">—</span>}</TableCell>
                     <TableCell className="t-mono">{d.matricule || <span className="text-ink-4">—</span>}</TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(d.statut || 'Nouveau')}>{d.statut || 'Nouveau'}</Badge>
+                      <Badge variant={statusVariant(d.statut || 'Nouveau')}>{t(d.statut || 'Nouveau')}</Badge>
                     </TableCell>
                     {/* Dates are values → full ink (addendum §3: darker values;
                         ink-2 columns were part of the "one gray sheet" read). */}
                     <TableCell>
-                      {d.dateRequete ? format(d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete), 'dd MMM yyyy', { locale: fr }) : <span className="text-ink-4">—</span>}
+                      {d.dateRequete ? format(d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete), 'dd MMM yyyy', { locale: dateFnsLocale() }) : <span className="text-ink-4">—</span>}
                     </TableCell>
                     <TableCell className="text-right">
                       {/* Row = link, chevron at the row end (§3 / DESIGN.md §4). */}
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-ink-3 hover:text-ink" asChild onClick={(e) => e.stopPropagation()}>
-                        <Link href={`/dossiers/${d.id}`} title="Ouvrir le dossier" aria-label={`Ouvrir le dossier ${d.refExpert || ''}`}>
+                        <Link href={`/dossiers/${d.id}`} title={t('Ouvrir le dossier')} aria-label={`${t('Ouvrir le dossier')} ${d.refExpert || ''}`}>
                           <ChevronRight className="h-4 w-4" />
                         </Link>
                       </Button>

@@ -9,6 +9,25 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import {BRAND} from '@/lib/brand';
+
+// Market-specific prompt fragments. MA is the original Moroccan company list,
+// verbatim; CA swaps in the Canadian insurers of the demo deployment.
+// (Not exported: 'use server' files may only export async functions.)
+const SEARCH_MARKET_MA = {
+  companyList: 'Allianz, RMA, Sanlam, Wafa, ATLANTA, CP, Fès RMA, Fès ATLANTASANAD, Fès Sanlam',
+  exampleCompanyA: 'Sanlam',
+  exampleCompanyB: 'ATLANTA',
+};
+
+const SEARCH_MARKET_CA = {
+  companyList:
+    'Intact Assurance, Desjardins Assurances, Aviva Canada, TD Assurance, belairdirect, Wawanesa, Co-operators, Allstate Canada',
+  exampleCompanyA: 'Intact Assurance',
+  exampleCompanyB: 'Desjardins Assurances',
+};
+
+const SEARCH_MARKET = BRAND.market === 'CA' ? SEARCH_MARKET_CA : SEARCH_MARKET_MA;
 
 const GenAISearchDashboardInputSchema = z.object({
   query: z.string().describe('The natural language query from the user.'),
@@ -39,7 +58,7 @@ The dashboard has the following main sections:
 - "Dossiers" (Folders): For managing documents, projects, or organized data.
 - "Utilisateurs" (Users): For managing user accounts, permissions, and profiles.
 - "Compagnies" (Companies): For managing client companies.
-  - Specific companies include: Allianz, RMA, Sanlam, Wafa, ATLANTA, CP, Fès RMA, Fès ATLANTASANAD, Fès Sanlam.
+  - Specific companies include: ${SEARCH_MARKET.companyList}.
 
 Based on the user's query, provide a clear, concise natural language suggestion for the most relevant action.
 If the query clearly points to a specific section or company, suggest navigating there.
@@ -49,8 +68,8 @@ Here are some examples:
 User Query: "Show me all active users"
 Suggested Action: "Navigate to the Users section to view and manage active users."
 
-User Query: "Where can I find reports for Sanlam?"
-Suggested Action: "Navigate to the Companies section, then select Sanlam to view its specific reports."
+User Query: "Where can I find reports for ${SEARCH_MARKET.exampleCompanyA}?"
+Suggested Action: "Navigate to the Companies section, then select ${SEARCH_MARKET.exampleCompanyA} to view its specific reports."
 
 User Query: "Dashboard overview"
 Suggested Action: "Navigate to the Tableau de bord section for a general overview."
@@ -61,8 +80,8 @@ Suggested Action: "Searching for invoices across all accessible sections. Consid
 User Query: "I need to add a new client"
 Suggested Action: "Navigate to the Companies section to add a new client."
 
-User Query: "What's the status of ATLANTA's accounts?"
-Suggested Action: "Navigate to the Companies section, then select ATLANTA to review its account status."
+User Query: "What's the status of ${SEARCH_MARKET.exampleCompanyB}'s accounts?"
+Suggested Action: "Navigate to the Companies section, then select ${SEARCH_MARKET.exampleCompanyB} to review its account status."
 
 Now, interpret the following query:
 

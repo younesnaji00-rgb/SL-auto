@@ -1,9 +1,11 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { t } from '@/i18n';
 import { format } from 'date-fns';
 import { getDoc, getDocs, doc, collection, query, where } from 'firebase/firestore';
 import { selectLatestAccord, devisRowToPiece } from './generate-rapport-shared';
 import type { DevisRow } from './devis-schema';
+import { BRAND } from './brand';
 
 export type Piece = {
   id: string;
@@ -26,10 +28,11 @@ export type Piece = {
 };
 
 // ── Constants ──────────────────────────────────────────────────────────
-const COMPANY_NAME = 'SL AUTO EXPERTISE';
-const COMPANY_ADDRESS = '219 BD MOHAMED ZERKTOUNI, Etage 6, Bureau 67, MAARIF - CASABLANCA 20060';
-const COMPANY_TEL = '05 22 64 60 01';
-const COMPANY_EMAIL = 'slautoexpertise@gmail.com';
+// Firm identity flows from the white-label brand config (src/lib/brand.ts).
+const COMPANY_NAME = BRAND.companyName;
+const COMPANY_ADDRESS = BRAND.companyAddress;
+const COMPANY_TEL = BRAND.companyTel;
+const COMPANY_EMAIL = BRAND.companyEmail;
 
 const NAVY = [17, 24, 57] as const;   // Dark navy for text
 const BORDER = [180, 180, 180] as const;
@@ -37,7 +40,7 @@ const HEADER_BG = [230, 235, 245] as const;
 
 // ── Helpers ────────────────────────────────────────────────────────────
 const fC = (val: number) =>
-  (val || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  (val || 0).toLocaleString(BRAND.numberLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const tsToStr = (ts: any): string => {
   if (!ts) return '';
@@ -234,8 +237,8 @@ export async function generateRapportPDF(
   };
 
   // Row 1: Ref Expert + Pour le compte de
-  drawLabelValue('Ref Expert :', refExpert, marginL, y, 24);
-  drawLabelValue('Pour le compte de :', dData.compagnie || '', 110, y, 36);
+  drawLabelValue(t('Ref Expert :'), refExpert, marginL, y, 24);
+  drawLabelValue(t('Pour le compte de :'), dData.compagnie || '', 110, y, 36);
   y += 5;
 
   // Bordered info box
@@ -245,14 +248,14 @@ export async function generateRapportPDF(
   pdf.rect(marginL, y, contentW, 16);
   y += 4;
 
-  drawLabelValue('N° Dossier :', dData.refExpert || dossierId, marginL + 2, y, 22);
-  drawLabelValue('Date Sinistre :', tsToStr(dData.dateSinistre), 110, y, 26);
+  drawLabelValue(t('N° Dossier :'), dData.refExpert || dossierId, marginL + 2, y, 22);
+  drawLabelValue(t('Date Sinistre :'), tsToStr(dData.dateSinistre), 110, y, 26);
   y += 5;
-  drawLabelValue('Type Dossier :', dData.typeDossier || '', marginL + 2, y, 24);
-  drawLabelValue('Date Requête :', tsToStr(dData.dateRequete), 110, y, 26);
+  drawLabelValue(t('Type Dossier :'), dData.typeDossier || '', marginL + 2, y, 24);
+  drawLabelValue(t('Date Requête :'), tsToStr(dData.dateRequete), 110, y, 26);
   y += 5;
   drawLabelValue('', '', marginL + 2, y);
-  drawLabelValue('Ref Compagnie :', dData.referenceCompagnie || '', 110, y, 28);
+  drawLabelValue(t('Ref Compagnie :'), dData.referenceCompagnie || '', 110, y, 28);
   y = infoBoxY + 16 + 4;
 
   // ── Assuré Section ─────────────────────────────────────────────────
@@ -267,94 +270,96 @@ export async function generateRapportPDF(
     return yy + 6;
   };
 
-  y = drawSectionHeader(`Assuré    Nom et Prenom : ${a.prenom || ''} ${a.nom || ''}`.trim(), y);
+  y = drawSectionHeader(`${t('Assuré')}    ${t('Nom et Prenom :')} ${a.prenom || ''} ${a.nom || ''}`.trim(), y);
 
   pdf.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
   pdf.rect(marginL, y, contentW, 16);
   const assureBoxY = y;
   y += 4;
-  drawLabelValue('Véhicule :', `${v.marque || ''} ${v.modele || ''}`.trim(), marginL + 2, y, 20);
-  drawLabelValue("Cie d'assurances :", dData.compagnie || '', 110, y, 32);
+  drawLabelValue(t('Véhicule :'), `${v.marque || ''} ${v.modele || ''}`.trim(), marginL + 2, y, 20);
+  drawLabelValue(t("Cie d'assurances :"), dData.compagnie || '', 110, y, 32);
   y += 5;
-  drawLabelValue('Immatriculation :', v.immatriculation || '', marginL + 2, y, 28);
-  drawLabelValue('N° Police :', dData.policeNumber || '', 110, y, 20);
+  drawLabelValue(t('Immatriculation :'), v.immatriculation || '', marginL + 2, y, 28);
+  drawLabelValue(t('N° Police :'), dData.policeNumber || '', 110, y, 20);
   y += 5;
-  drawLabelValue('Type :', dData.typeDossier || '', marginL + 2, y, 14);
-  drawLabelValue('Agent/Courtier :', dData.intermediaireNom || '', 110, y, 28);
+  drawLabelValue(t('Type :'), dData.typeDossier || '', marginL + 2, y, 14);
+  drawLabelValue(t('Agent/Courtier :'), dData.intermediaireNom || '', 110, y, 28);
   y = assureBoxY + 16 + 3;
 
   // ── Adversaire Section (conditional) ───────────────────────────────
   if (hasAdversaire) {
     const advName = `${dData.adversePrenom || ''} ${dData.adverseNom || adv.assure || ''}`.trim();
-    y = drawSectionHeader(`Adversaire    Nom et Prenom : ${advName}`, y);
+    y = drawSectionHeader(`${t('Adversaire')}    ${t('Nom et Prenom :')} ${advName}`, y);
 
     pdf.rect(marginL, y, contentW, 11);
     const advBoxY = y;
     y += 4;
-    drawLabelValue('Véhicule :', adv.marque || '', marginL + 2, y, 20);
-    drawLabelValue("Cie d'assurances :", dData.adverseCompagnie || adv.compagnie || '', 110, y, 32);
+    drawLabelValue(t('Véhicule :'), adv.marque || '', marginL + 2, y, 20);
+    drawLabelValue(t("Cie d'assurances :"), dData.adverseCompagnie || adv.compagnie || '', 110, y, 32);
     y += 5;
-    drawLabelValue('Immatriculation :', dData.adverseMatricule || adv.matricule || '', marginL + 2, y, 28);
-    drawLabelValue('N° Police :', adv.police || '', 110, y, 20);
+    drawLabelValue(t('Immatriculation :'), dData.adverseMatricule || adv.matricule || '', marginL + 2, y, 28);
+    drawLabelValue(t('N° Police :'), adv.police || '', 110, y, 20);
     y = advBoxY + 11 + 3;
   }
 
   // ── Réparateur Section ─────────────────────────────────────────────
   if (dData.garageName) {
-    y = drawSectionHeader('Réparateur', y);
+    y = drawSectionHeader(t('Réparateur'), y);
     pdf.rect(marginL, y, contentW, 6);
     y += 4;
-    drawLabelValue('Raison sociale :', dData.garageName || '', marginL + 2, y, 28);
-    drawLabelValue('Garage Agréé :', dData.repairerType || '', 110, y, 26);
+    drawLabelValue(t('Raison sociale :'), dData.garageName || '', marginL + 2, y, 28);
+    drawLabelValue(t('Garage Agréé :'), dData.repairerType || '', 110, y, 26);
     y += 5;
   }
 
   // ── Caractéristiques techniques ────────────────────────────────────
   if (y > 220) { pdf.addPage(); y = 15; }
 
-  y = drawSectionHeader('Caractéristiques techniques du véhicule expertisé', y);
+  y = drawSectionHeader(t('Caractéristiques techniques du véhicule expertisé'), y);
   const techBoxH = 30;
   pdf.rect(marginL, y, contentW * 0.65, techBoxH);
   pdf.rect(marginL + contentW * 0.65, y, contentW * 0.35, techBoxH);
 
   // Tech details left
   let techY = y + 4;
-  drawLabelValue('Véhicule :', `${v.marque || ''} ${v.modele || ''}`.trim(), marginL + 2, techY, 28);
-  drawLabelValue('Type Mine :', '', 100, techY, 20);
+  drawLabelValue(t('Véhicule :'), `${v.marque || ''} ${v.modele || ''}`.trim(), marginL + 2, techY, 28);
+  drawLabelValue(t('Type Mine :'), '', 100, techY, 20);
   techY += 5;
-  drawLabelValue('Immatriculation :', v.immatriculation || '', marginL + 2, techY, 28);
-  drawLabelValue('N° Série :', v.serie || '', 100, techY, 18);
+  drawLabelValue(t('Immatriculation :'), v.immatriculation || '', marginL + 2, techY, 28);
+  drawLabelValue(t('N° Série :'), v.serie || '', 100, techY, 18);
   techY += 5;
-  drawLabelValue('Puissance fiscale :', v.puissance || '', marginL + 2, techY, 30);
-  drawLabelValue('kilométrage :', v.km ? `${v.km}` : '', 100, techY, 22);
+  drawLabelValue(t('Puissance fiscale :'), v.puissance || '', marginL + 2, techY, 30);
+  drawLabelValue(t('kilométrage :'), v.km ? `${v.km}` : '', 100, techY, 22);
   techY += 5;
-  drawLabelValue('Date mise en Cir :', v.mec ? tsToStr(v.mec) : '', marginL + 2, techY, 30);
-  drawLabelValue('Energie :', v.energie || '', 100, techY, 18);
+  drawLabelValue(t('Date mise en Cir :'), v.mec ? tsToStr(v.mec) : '', marginL + 2, techY, 30);
+  drawLabelValue(t('Energie :'), v.energie || '', 100, techY, 18);
   techY += 5;
-  drawLabelValue('Etat général :', '', marginL + 2, techY, 24);
+  drawLabelValue(t('Etat général :'), '', marginL + 2, techY, 24);
 
   // Véhicule Vu right side
   const vuX = marginL + contentW * 0.65 + 2;
   pdf.setFontSize(8);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  pdf.text('Véhicule Vu', vuX + 15, y + 4, { align: 'center' });
+  pdf.text(t('Véhicule Vu'), vuX + 15, y + 4, { align: 'center' });
 
   const vuStartY = y + 7;
   pdf.setFontSize(7);
   pdf.setFont('helvetica', 'normal');
-  pdf.text('Avant', vuX, vuStartY);
-  pdf.text('Travaux', vuX, vuStartY + 3);
+  const vuLabel = (label: string, yy: number) => {
+    // Two stacked 3mm lines (matches the original "Avant"/"Travaux" layout).
+    const lines = pdf.splitTextToSize(t(label), 17) as string[];
+    lines.slice(0, 2).forEach((ln, i) => pdf.text(ln, vuX, yy + i * 3));
+  };
+  vuLabel('Avant Travaux', vuStartY);
   pdf.line(vuX + 18, vuStartY - 1, vuX + contentW * 0.35 - 4, vuStartY - 1);
   pdf.line(vuX + 18, vuStartY + 4, vuX + contentW * 0.35 - 4, vuStartY + 4);
 
-  pdf.text('En Cours', vuX, vuStartY + 10);
-  pdf.text('Travaux', vuX, vuStartY + 13);
+  vuLabel('En Cours Travaux', vuStartY + 10);
   pdf.line(vuX + 18, vuStartY + 9, vuX + contentW * 0.35 - 4, vuStartY + 9);
   pdf.line(vuX + 18, vuStartY + 14, vuX + contentW * 0.35 - 4, vuStartY + 14);
 
-  pdf.text('Après', vuX, vuStartY + 20);
-  pdf.text('Travaux', vuX, vuStartY + 23);
+  vuLabel('Après Travaux', vuStartY + 20);
   pdf.line(vuX + 18, vuStartY + 19, vuX + contentW * 0.35 - 4, vuStartY + 19);
   pdf.line(vuX + 18, vuStartY + 24, vuX + contentW * 0.35 - 4, vuStartY + 24);
 
@@ -368,7 +373,7 @@ export async function generateRapportPDF(
   pdf.setFontSize(9);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  pdf.text('Point de choc', marginL + contentW / 2, y + 5, { align: 'center' });
+  pdf.text(t('Point de choc'), marginL + contentW / 2, y + 5, { align: 'center' });
 
   // Draw simplified car outline
   const carX = marginL + contentW / 2 - 20;
@@ -426,7 +431,7 @@ export async function generateRapportPDF(
   pdf.setFontSize(9);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  pdf.text('Conclusions (Montants exprimés en DHS)', marginL, y + 4);
+  pdf.text(`${t('Conclusions (Montants exprimés en')} ${BRAND.currencyLabel})`, marginL, y + 4);
   y += 7;
 
   // Deductions table (left) + Totals table (right)
@@ -434,11 +439,11 @@ export async function generateRapportPDF(
     startY: y,
     margin: { left: marginL },
     tableWidth: contentW,
-    head: [['A déduire', '', 'HT', 'TVA', 'TTC']],
+    head: [[t('A déduire'), '', t('HT'), t('TVA'), t('TTC')]],
     body: [
-      [`Vetusté :`, fC(totalVetuste), 'Fourniture', fC(fHT), fC(fTVA), fC(fHT + fTVA)],
-      ['TVA :', fC(grandTVA), "Main d'oeuvre", fC(mHT), fC(mTVA), fC(mHT + mTVA)],
-      ['Franchise :', fC(franchise), 'Totale', fC(grandHT), fC(grandTVA), fC(grandTTC)],
+      [t('Vetusté :'), fC(totalVetuste), t('Fourniture'), fC(fHT), fC(fTVA), fC(fHT + fTVA)],
+      [t('TVA :'), fC(grandTVA), t("Main d'oeuvre"), fC(mHT), fC(mTVA), fC(mHT + mTVA)],
+      [t('Franchise :'), fC(franchise), t('Totale'), fC(grandHT), fC(grandTVA), fC(grandTTC)],
     ],
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [NAVY[0], NAVY[1], NAVY[2]], textColor: [255, 255, 255] },
@@ -460,7 +465,7 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
   const indemnisation = grandTTC - franchise;
-  pdf.text(`Montant d'indemnisation :   ${fC(indemnisation)}`, marginL + contentW / 2, y, { align: 'center' });
+  pdf.text(`${t("Montant d'indemnisation :")}   ${fC(indemnisation)}`, marginL + contentW / 2, y, { align: 'center' });
   y += 8;
 
   // Legal closing text
@@ -469,8 +474,8 @@ export async function generateRapportPDF(
   pdf.setFontSize(8);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(40, 40, 40);
-  const closingText = `Arrêté le présent rapport d'expertise à la somme de : ${montantEnLettres ? montantEnLettres.toUpperCase() + ' DHS' : fC(indemnisation) + ' DHS'}
-En foi de quoi,le présent rapport est établi en unique original pour servir et valoir ce que de droit, et sous réserves des droits des parties`;
+  const closingText = `${t("Arrêté le présent rapport d'expertise à la somme de :")} ${montantEnLettres ? montantEnLettres.toUpperCase() + ' ' + BRAND.currencyLabel : fC(indemnisation) + ' ' + BRAND.currencyLabel}
+${t('En foi de quoi,le présent rapport est établi en unique original pour servir et valoir ce que de droit, et sous réserves des droits des parties')}`;
   const splitClosing = pdf.splitTextToSize(closingText, contentW);
   pdf.text(splitClosing, marginL, y);
   y += splitClosing.length * 4 + 8;
@@ -478,7 +483,7 @@ En foi de quoi,le présent rapport est établi en unique original pour servir et
   // Signature
   pdf.setFontSize(9);
   pdf.setFont('helvetica', 'normal');
-  pdf.text('Signature', marginR - 20, y, { align: 'center' });
+  pdf.text(t('Signature'), marginR - 20, y, { align: 'center' });
   y += 4;
   pdf.setFont('helvetica', 'bold');
   pdf.text('SLAUTO', marginR - 20, y, { align: 'center' });
@@ -505,7 +510,7 @@ En foi de quoi,le présent rapport est établi en unique original pour servir et
 
   pdf.setFontSize(9);
   pdf.setFont('helvetica', 'bold');
-  pdf.text(`REF EXPERT : ${refExpert}`, pageW / 2, y + 14, { align: 'center' });
+  pdf.text(`${t('REF EXPERT :')} ${refExpert}`, pageW / 2, y + 14, { align: 'center' });
   y += 24;
 
   // ── Detail Fournitures table ───────────────────────────────────────
@@ -523,7 +528,7 @@ En foi de quoi,le présent rapport est établi en unique original pour servir et
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-    pdf.text(`Detail Fournitures :    ${chocName}`, marginL, y);
+    pdf.text(`${t('Detail Fournitures :')}    ${t(chocName)}`, marginL, y);
     y += 4;
 
     let groupHT = 0;
@@ -543,7 +548,7 @@ En foi de quoi,le présent rapport est établi en unique original pour servir et
     autoTable(pdf, {
       startY: y,
       margin: { left: marginL, right: pageW - marginR },
-      head: [['Designation', 'Type Pièce', 'Opé', 'Vet', 'Qte', 'P.U.HT', 'Total HT']],
+      head: [[t('Designation'), t('Type Pièce'), t('Opé'), t('Vet'), t('Qte'), t('P.U.HT'), t('Total HT')]],
       body: rows,
       styles: { fontSize: 7.5, cellPadding: 1.5 },
       headStyles: { fillColor: [NAVY[0], NAVY[1], NAVY[2]], textColor: [255, 255, 255], fontSize: 8 },
@@ -564,7 +569,7 @@ En foi de quoi,le présent rapport est établi en unique original pour servir et
       startY: y,
       margin: { left: marginL, right: pageW - marginR },
       body: [
-        ['Totale', `Vétusté : ${fC(groupVetuste)}`, `Ht : ${fC(groupHT)}`, `TVA : ${fC(groupTVA)}`, `TTC : ${fC(groupHT + groupTVA)}`],
+        [t('Totale'), `${t('Vétusté :')} ${fC(groupVetuste)}`, `${t('Ht :')} ${fC(groupHT)}`, `${t('TVA :')} ${fC(groupTVA)}`, `${t('TTC :')} ${fC(groupHT + groupTVA)}`],
       ],
       styles: { fontSize: 8, fontStyle: 'bold', cellPadding: 2 },
       theme: 'grid',
@@ -583,7 +588,7 @@ En foi de quoi,le présent rapport est établi en unique original pour servir et
   pdf.setFontSize(10);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  pdf.text("Main d'oeuvre :    Choc 1", marginL, y);
+  pdf.text(`${t("Main d'oeuvre :")}    ${t('Choc 1')}`, marginL, y);
   y += 4;
 
   const mdoLabels: Record<string, string> = { tolerie: 'Tolerie', peinture: 'Peinture', mecanique: 'Mecanique', electrique: 'Electrique' };
@@ -594,13 +599,13 @@ En foi de quoi,le présent rapport est établi en unique original pour servir et
     const rowTVA = 0; // As shown in template
     mdoTotalHT += rowHT;
     mdoTotalTVA += rowTVA;
-    return [mdoLabels[key] || key, val.nbrH || 0, val.pu || 0, fC(rowHT), fC(rowTVA), fC(rowHT + rowTVA)];
+    return [t(mdoLabels[key] || key), val.nbrH || 0, val.pu || 0, fC(rowHT), fC(rowTVA), fC(rowHT + rowTVA)];
   });
 
   autoTable(pdf, {
     startY: y,
     margin: { left: marginL, right: pageW - marginR },
-    head: [['Main d\'oeuvre', 'NBR Heurs', 'Taux HT', 'Montant HT', 'TVA', 'Montant TTC']],
+    head: [[t('Main d\'oeuvre'), t('NBR Heurs'), t('Taux HT'), t('Montant HT'), t('TVA'), t('Montant TTC')]],
     body: mdoRows,
     styles: { fontSize: 7.5, cellPadding: 1.5 },
     headStyles: { fillColor: [NAVY[0], NAVY[1], NAVY[2]], textColor: [255, 255, 255], fontSize: 8 },
@@ -621,7 +626,7 @@ En foi de quoi,le présent rapport est établi en unique original pour servir et
     startY: y,
     margin: { left: marginL, right: pageW - marginR },
     body: [
-      ['', 'Totale', `Ht : ${fC(mdoTotalHT)}`, `TVA : ${fC(mdoTotalTVA)}`, `TTC : ${fC(mdoTotalHT + mdoTotalTVA)}`],
+      ['', t('Totale'), `${t('Ht :')} ${fC(mdoTotalHT)}`, `${t('TVA :')} ${fC(mdoTotalTVA)}`, `${t('TTC :')} ${fC(mdoTotalHT + mdoTotalTVA)}`],
     ],
     styles: { fontSize: 8, fontStyle: 'bold', cellPadding: 2 },
     theme: 'grid',
@@ -636,7 +641,7 @@ En foi de quoi,le présent rapport est établi en unique original pour servir et
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
   pdf.setDrawColor(NAVY[0], NAVY[1], NAVY[2]);
-  pdf.text('Observation', marginL, y);
+  pdf.text(t('Observation'), marginL, y);
   pdf.line(marginL, y + 1, marginL + 20, y + 1);
   y += 6;
 
@@ -668,10 +673,10 @@ En foi de quoi,le présent rapport est établi en unique original pour servir et
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(6);
     pdf.text(COMPANY_ADDRESS, marginL, 288);
-    pdf.text(`Tele : ${COMPANY_TEL} / Email : ${COMPANY_EMAIL}`, marginL, 291);
+    pdf.text(`${t('Tele :')} ${COMPANY_TEL} / ${t('Email :')} ${COMPANY_EMAIL}`, marginL, 291);
 
     pdf.setFontSize(7);
-    pdf.text(`Rapport établi le : ${today}`, marginR, 288, { align: 'right' });
+    pdf.text(`${t('Rapport établi le :')} ${today}`, marginR, 288, { align: 'right' });
   }
 
   // ── Save ───────────────────────────────────────────────────────────

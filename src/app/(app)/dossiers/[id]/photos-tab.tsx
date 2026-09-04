@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { format as dateFormat } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import {
   Upload,
   Loader2,
@@ -82,12 +82,13 @@ type PartitionMode = 'date' | 'location';
  *  attach per strip (owner 2026-09-02: every tab strip animates; this one
  *  renders once per category section). */
 function PartitionTabs({ value, onChange }: { value: PartitionMode; onChange: (m: PartitionMode) => void }) {
+  const t = useT();
   const morphRef = useTabSlopeMorphRef();
   return (
     <div
       ref={morphRef}
       role="tablist"
-      aria-label="Mode de regroupement des photos"
+      aria-label={t('Mode de regroupement des photos')}
       className="relative isolate -mx-2 mb-4 flex items-end gap-4 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
     >
       {([
@@ -111,7 +112,7 @@ function PartitionTabs({ value, onChange }: { value: PartitionMode; onChange: (m
           )}
         >
           <Icon className="h-4 w-4" />
-          {label}
+          {t(label)}
           <span
             aria-hidden
             className={cn(
@@ -177,6 +178,7 @@ export default function PhotosTab({
   // Mounted inside a step facet tab (`onlyCategory` set): the photos already
   // have their own tab, so date/location groups open EXPANDED by default.
   const defaultGroupsOpen = Boolean(onlyCategory);
+  const t = useT();
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -279,8 +281,8 @@ export default function PhotosTab({
     if (available === 0) {
       toast({
         variant: 'destructive',
-        title: 'Limite atteinte',
-        description: `Limite de ${photoCap} photos atteinte pour cette section.`,
+        title: t('Limite atteinte'),
+        description: `${t('Limite de')} ${photoCap} ${t('photos atteinte pour cette section.')}`,
       });
       return;
     }
@@ -290,8 +292,8 @@ export default function PhotosTab({
       if (files.length > available) {
         toast({
           variant: 'destructive',
-          title: 'Limite de photos',
-          description: `${files.length - available} photo(s) ignorée(s) — la limite de ${photoCap} par section a été atteinte.`,
+          title: t('Limite de photos'),
+          description: `${files.length - available} ${t('photo(s) ignorée(s) — la limite de')} ${photoCap} ${t('par section a été atteinte.')}`,
         });
       }
       // Fire all uploads in parallel. Use allSettled so one failure doesn't abort the batch.
@@ -351,13 +353,13 @@ export default function PhotosTab({
 
       if (failed === 0) {
         toast({
-          title: successful === 1 ? 'Photo uploadée' : `${successful} photos uploadées`,
+          title: successful === 1 ? t('Photo uploadée') : `${successful} ${t('photos uploadées')}`,
         });
       } else {
         toast({
           variant: 'destructive',
-          title: `${failed} échec(s)`,
-          description: `${successful}/${results.length} photos uploadées.`,
+          title: `${failed} ${t('échec(s)')}`,
+          description: `${successful}/${results.length} ${t('photos uploadées.')}`,
         });
         results.forEach((r, i) => {
           if (r.status === 'rejected') console.error(`Upload failed for ${fileList[i].name}:`, r.reason);
@@ -365,7 +367,7 @@ export default function PhotosTab({
       }
     } catch (err: any) {
       console.error('Upload error:', err);
-      toast({ variant: 'destructive', title: "Erreur lors de l'upload", description: err.message });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'upload"), description: err.message });
     } finally {
       setIsUploading(null);
       const input = fileInputRefs.current[cat];
@@ -396,10 +398,10 @@ export default function PhotosTab({
       await logWorkflow(db, dossierId, 'Photo supprimée', userEmail, userId, 'done', {
         details: `Photo "${photo.name || 'inconnue'}" supprimée (par gestionnaire)`,
       }, profile?.nom);
-      toast({ title: 'Photo supprimée' });
+      toast({ title: t('Photo supprimée') });
     } catch (err: any) {
       console.error('Delete error:', err);
-      toast({ variant: 'destructive', title: 'Erreur lors de la suppression' });
+      toast({ variant: 'destructive', title: t('Erreur lors de la suppression') });
     } finally {
       setIsDeleting(null);
     }
@@ -419,7 +421,7 @@ export default function PhotosTab({
       window.URL.revokeObjectURL(blobUrl);
     } catch (e) {
       console.error('Download error:', e);
-      toast({ variant: 'destructive', title: 'Erreur lors du téléchargement' });
+      toast({ variant: 'destructive', title: t('Erreur lors du téléchargement') });
     }
   };
 
@@ -427,10 +429,10 @@ export default function PhotosTab({
     if (!db || !editName.trim()) return;
     try {
       await updateDoc(doc(db, 'dossiers', dossierId, 'photos', photo.id), { name: editName.trim() });
-      toast({ title: 'Photo renommée' });
+      toast({ title: t('Photo renommée') });
     } catch (e) {
       console.error('Rename error:', e);
-      toast({ variant: 'destructive', title: 'Erreur lors du renommage' });
+      toast({ variant: 'destructive', title: t('Erreur lors du renommage') });
     } finally {
       setEditingId(null);
       setEditName('');
@@ -459,7 +461,7 @@ export default function PhotosTab({
           {photo.pendingUpload ? (
             <div className="flex h-full w-full flex-col items-center justify-center bg-status-warning-bg text-status-warning-fg">
               <Upload className="mb-2 h-8 w-8" />
-              <span className="text-xs font-medium">En attente</span>
+              <span className="text-xs font-medium">{t('En attente')}</span>
             </div>
           ) : (
             <img
@@ -487,7 +489,7 @@ export default function PhotosTab({
                 variant="secondary"
                 className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
                 onClick={() => handleDownload(photo)}
-                title="Telecharger"
+                title={t('Telecharger')}
               >
                 <Download className="h-3.5 w-3.5" />
               </Button>
@@ -499,7 +501,7 @@ export default function PhotosTab({
                   setEditingId(photo.id);
                   setEditName(photo.name);
                 }}
-                title="Renommer"
+                title={t('Renommer')}
               >
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
@@ -510,7 +512,7 @@ export default function PhotosTab({
                   className="h-7 w-7 rounded-full shadow-lg"
                   disabled={isDeleting === photo.id}
                   onClick={() => handleDelete(photo)}
-                  title="Supprimer"
+                  title={t('Supprimer')}
                 >
                   {isDeleting === photo.id ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -563,7 +565,7 @@ export default function PhotosTab({
               </p>
               {photo.uploadedAt?.toDate && (
                 <p className="t-caption mt-0.5 tabular-nums">
-                  {dateFormat(photo.uploadedAt.toDate(), 'd MMM HH:mm', { locale: fr })}
+                  {dateFormat(photo.uploadedAt.toDate(), 'd MMM HH:mm', { locale: dateFnsLocale() })}
                 </p>
               )}
             </>
@@ -577,7 +579,7 @@ export default function PhotosTab({
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-sm text-ink-3">
         <Loader2 className="h-8 w-8 animate-spin" />
-        <p>Chargement des photos...</p>
+        <p>{t('Chargement des photos...')}</p>
       </div>
     );
   }
@@ -595,7 +597,7 @@ export default function PhotosTab({
             return (
               <TabsTrigger key={cat.id} value={cat.id} className="gap-2">
                 <Camera className="h-3.5 w-3.5" />
-                {cat.label}
+                {t(cat.label)}
                 <span className="rounded-full bg-surface-3 px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-2">
                   {count}/{photoCap}
                 </span>
@@ -608,14 +610,14 @@ export default function PhotosTab({
         {visibleCategories.map((cat) => {
           const catPhotos = photosForCategory(cat.id);
           return (
-            <TabsContent key={cat.id} value={cat.id} className={onlyCategory ? 'mt-0' : 'mt-4'}>
+            <TabsContent key={cat.id} value={cat.id} className={onlyCategory ? 'mt-0' : 'mt-4'} data-tour={`dosd-photos-${cat.id}`}>
               {/* Upload header */}
               <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
                 {onlyCategory ? (
-                  <span className="t-caption tabular-nums">{catPhotos.length}/{photoCap} photos</span>
+                  <span className="t-caption tabular-nums">{catPhotos.length}/{photoCap} {t('photos')}</span>
                 ) : (
                 <h3 className="t-heading flex items-center gap-2">
-                  {cat.fullLabel}
+                  {t(cat.fullLabel)}
                   <span className="rounded-full bg-surface-3 px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-2">
                     {catPhotos.length}/{photoCap}
                   </span>
@@ -645,7 +647,7 @@ export default function PhotosTab({
                       ) : (
                         <Upload className="h-3.5 w-3.5" />
                       )}
-                      Ajouter
+                      {t('Ajouter')}
                     </Button>
                   )}
                 </div>
@@ -669,8 +671,8 @@ export default function PhotosTab({
                 >
                   <ImageIcon className="h-12 w-12 text-ink-4" />
                   <div>
-                    <p className="t-heading">Aucune photo</p>
-                    {canEdit && <p className="t-caption mt-1">Déposez ou sélectionnez des photos pour cette section.</p>}
+                    <p className="t-heading">{t('Aucune photo')}</p>
+                    {canEdit && <p className="t-caption mt-1">{t('Déposez ou sélectionnez des photos pour cette section.')}</p>}
                   </div>
                   {canEdit && (
                     <Button
@@ -689,7 +691,7 @@ export default function PhotosTab({
                       ) : (
                         <Upload className="h-3 w-3" />
                       )}
-                      Ajouter
+                      {t('Ajouter')}
                     </Button>
                   )}
                 </div>
@@ -707,7 +709,7 @@ export default function PhotosTab({
                   defaultExpanded={defaultGroupsOpen}
                   gridItems
                   groupLabel={(day, count) =>
-                    `${dateFormat(day, 'd MMMM yyyy', { locale: fr })} — ${count} photo${count > 1 ? 's' : ''}`
+                    `${dateFormat(day, 'd MMMM yyyy', { locale: dateFnsLocale() })} — ${count} photo${count > 1 ? 's' : ''}`
                   }
                   renderItem={(photo) => renderPhotoCard(photo)}
                 />
@@ -777,7 +779,7 @@ export default function PhotosTab({
               <button
                 type="button"
                 onClick={() => setPreviewPhoto(null)}
-                aria-label="Fermer"
+                aria-label={t('Fermer')}
                 className="absolute right-3 top-2.5 z-50 h-9 w-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
               >
                 <X className="h-5 w-5" />
@@ -818,7 +820,7 @@ export default function PhotosTab({
                         <button
                           type="button"
                           onClick={() => goto(-1)}
-                          aria-label="Photo précédente"
+                          aria-label={t('Photo précédente')}
                           className="absolute left-4 top-1/2 -translate-y-1/2 z-40 h-12 w-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
                         >
                           <ChevronLeft className="h-7 w-7" />
@@ -828,7 +830,7 @@ export default function PhotosTab({
                         <button
                           type="button"
                           onClick={() => goto(1)}
-                          aria-label="Photo suivante"
+                          aria-label={t('Photo suivante')}
                           className="absolute right-4 top-1/2 -translate-y-1/2 z-40 h-12 w-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
                         >
                           <ChevronRight className="h-7 w-7" />
@@ -839,7 +841,7 @@ export default function PhotosTab({
                         <button
                           type="button"
                           onClick={() => zoomOut()}
-                          aria-label="Dézoomer"
+                          aria-label={t('Dézoomer')}
                           className="h-9 w-9 rounded-full text-white hover:bg-white/20 flex items-center justify-center"
                         >
                           <ZoomOut className="h-4 w-4" />
@@ -856,7 +858,7 @@ export default function PhotosTab({
                             resetTransform(200, 'easeOut');
                             centerView(1, 200, 'easeOut');
                           }}
-                          aria-label="Ajuster à l'écran"
+                          aria-label={t("Ajuster à l'écran")}
                           className="h-9 w-9 rounded-full text-white hover:bg-white/20 flex items-center justify-center"
                         >
                           <Maximize2 className="h-4 w-4" />
@@ -864,7 +866,7 @@ export default function PhotosTab({
                         <button
                           type="button"
                           onClick={() => zoomIn()}
-                          aria-label="Zoomer"
+                          aria-label={t('Zoomer')}
                           className="h-9 w-9 rounded-full text-white hover:bg-white/20 flex items-center justify-center"
                         >
                           <ZoomIn className="h-4 w-4" />
@@ -899,6 +901,7 @@ function PhotosByLocation({
   /** Groups open by default (used when the photos live in their own step tab). */
   defaultExpanded?: boolean;
 }) {
+  const t = useT();
   const groups = React.useMemo(() => {
     const map = new Map<string, { key: string; label: string; items: Photo[] }>();
     photos.forEach((photo) => {
@@ -963,7 +966,7 @@ function PhotosByLocation({
                   isUnknown && 'italic text-ink-3',
                 )}
               >
-                {group.label} — {count} photo{count > 1 ? 's' : ''}
+                {isUnknown ? t('Sans localisation') : group.label} — {count} photo{count > 1 ? 's' : ''}
               </span>
             </button>
             {open && (

@@ -11,7 +11,6 @@ import {
 } from 'firebase/firestore';
 import { Check, Eye, FileIcon, FileText, Loader2, ScanSearch, Trash2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,6 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { useToast } from '@/hooks/use-toast';
+import { useT, dateFnsLocale } from '@/i18n';
 import { useFirestore, useStorage, useAuth, useDoc } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
@@ -133,7 +133,7 @@ function formatDate(ts: any, pattern = 'dd/MM/yyyy HH:mm'): string {
   try {
     const date = ts?.toDate ? ts.toDate() : new Date(ts);
     if (Number.isNaN(date.getTime())) return '';
-    return format(date, pattern, { locale: fr });
+    return format(date, pattern, { locale: dateFnsLocale() });
   } catch {
     return '';
   }
@@ -152,6 +152,7 @@ export default function Step1Import({
   const auth = useAuth();
   const { canWrite, canDelete, profile } = useCurrentUser();
   const { toast } = useToast();
+  const t = useT();
 
   const canEdit = !readOnly && canWrite('dossiers');
   // Inert on the live page; tints the import source doc in the rappel replica.
@@ -209,14 +210,14 @@ export default function Step1Import({
           body: JSON.stringify({ files: payload }),
         });
 
-        if (!response.ok) throw new Error('Erreur lors du scan');
+        if (!response.ok) throw new Error(t('Erreur lors du scan'));
         const { data, fieldsFound } = await response.json();
 
         if (!data || !fieldsFound) {
           toast({
-            title: 'Aucune donnée extraite',
+            title: t('Aucune donnée extraite'),
             description:
-              "L'IA n'a pas pu extraire d'informations de ce document.",
+              t("L'IA n'a pas pu extraire d'informations de ce document."),
           });
           setLastFilledCount(0);
           // Still mark this as the scan source so Step 1 shows which document
@@ -333,38 +334,38 @@ export default function Step1Import({
         ]);
         const toastParts = [
           filledFields.length > 0
-            ? `${filledFields.length} champ(s) pré-rempli(s)`
+            ? `${filledFields.length} ${t('champ(s) pré-rempli(s)')}`
             : null,
           overwrittenFields.length > 0
-            ? `${overwrittenFields.length} écrasé(s)`
+            ? `${overwrittenFields.length} ${t('écrasé(s)')}`
             : null,
         ].filter(Boolean);
         toast({
-          title: 'Scan terminé',
+          title: t('Scan terminé'),
           description:
             written > 0
-              ? `${toastParts.join(', ')}. Vérifiez à l'étape Information.${buffered ? ' (Publié après « Sauvegarder » — rappel en cours.)' : ''}`
-              : "Aucune valeur extraite par l'IA.",
+              ? `${toastParts.join(', ')}. ${t("Vérifiez à l'étape Information.")}${buffered ? ` ${t('(Publié après « Sauvegarder » — rappel en cours.)')}` : ''}`
+              : t("Aucune valeur extraite par l'IA."),
         });
       } catch (err: any) {
         console.error('[Step1Import] scan error:', err);
         toast({
           variant: 'destructive',
-          title: 'Erreur de scan',
-          description: err?.message || 'Impossible de scanner le document.',
+          title: t('Erreur de scan'),
+          description: err?.message || t('Impossible de scanner le document.'),
         });
       } finally {
         setIsScanning(false);
       }
     },
-    [db, dossier, dossierId, dossierRef, toast, writeDossierDoc, buffered, draft, profile?.nom]
+    [db, dossier, dossierId, dossierRef, toast, writeDossierDoc, buffered, draft, profile?.nom, t]
   );
 
   const handleDeleteImportDoc = useCallback(async () => {
     if (!importDocRef || !db) return;
     if (
       !window.confirm(
-        'Supprimer ce document et permettre un nouveau scan ?'
+        t('Supprimer ce document et permettre un nouveau scan ?')
       )
     )
       return;
@@ -393,18 +394,18 @@ export default function Step1Import({
           profile?.nom,
         );
       }
-      toast({ title: 'Document source supprimé' });
+      toast({ title: t('Document source supprimé') });
     } catch (err: any) {
       console.error('[Step1Import] delete import doc error:', err);
       toast({
         variant: 'destructive',
-        title: 'Erreur lors de la suppression',
-        description: err?.message || 'Impossible de supprimer le document.',
+        title: t('Erreur lors de la suppression'),
+        description: err?.message || t('Impossible de supprimer le document.'),
       });
     } finally {
       setIsDeletingImport(false);
     }
-  }, [db, dossierId, dossierRef, importDocRef, toast, auth, writeDossierDoc, buffered, draft, profile?.nom]);
+  }, [db, dossierId, dossierRef, importDocRef, toast, auth, writeDossierDoc, buffered, draft, profile?.nom, t]);
 
   const busy = isUploading || isScanning;
   const hasImportDoc = Boolean(importDocId);
@@ -412,6 +413,7 @@ export default function Step1Import({
   const lightbox = (
     <DocumentPreviewLightbox
       doc={previewDoc}
+      dataTour="dosd-import-preview"
       onClose={() => setPreviewDoc(null)}
       onDelete={() => {
         handleDeleteImportDoc();
@@ -434,7 +436,7 @@ export default function Step1Import({
             dossier={dossier}
             readOnly={readOnly}
             prefilling={isScanning}
-            buttonLabel="Pré-remplir depuis un document"
+            buttonLabel={t('Pré-remplir depuis un document')}
             emphasis={hasImportDoc ? 'tonal' : 'primary'}
             icon={null}
             onPrefill={async (files, sourceDocId) => {
@@ -445,21 +447,21 @@ export default function Step1Import({
         )}
         {!hasImportDoc ? (
           <span className="t-caption text-ink-3">
-            Déposez la lettre de mission pour pré-remplir les informations.
+            {t('Déposez la lettre de mission pour pré-remplir les informations.')}
           </span>
         ) : importDocLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin text-ink-3" aria-label="Chargement du document source" />
+          <Loader2 className="h-4 w-4 animate-spin text-ink-3" aria-label={t('Chargement du document source')} />
         ) : !importDoc ? (
-          <span className="t-caption text-ink-3">Document source introuvable.</span>
+          <span className="t-caption text-ink-3">{t('Document source introuvable.')}</span>
         ) : (
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Check className="h-4 w-4 shrink-0 text-status-success-fg" aria-hidden />
             <span className="t-caption truncate" title={name}>
-              Pré-rempli depuis {name}
+              {t('Pré-rempli depuis')} {name}
               {day ? ` · ${day}` : ''}
             </span>
             {d?.pendingUpload && (
-              <span className="rounded-full bg-status-warning-bg px-1.5 py-0.5 text-[11px] text-status-warning-fg">En attente</span>
+              <span className="rounded-full bg-status-warning-bg px-1.5 py-0.5 text-[11px] text-status-warning-fg">{t('En attente')}</span>
             )}
             {canPreview && (
               <Button
@@ -469,7 +471,7 @@ export default function Step1Import({
                 className="h-7 gap-1 px-2 text-xs text-ink-3 hover:text-ink"
                 onClick={() => setPreviewDoc({ url: url as string, nom: name })}
               >
-                <Eye className="h-3.5 w-3.5" /> Aperçu
+                <Eye className="h-3.5 w-3.5" /> {t('Aperçu')}
               </Button>
             )}
             {canDelete && (
@@ -480,10 +482,10 @@ export default function Step1Import({
                 className="h-7 gap-1 px-2 text-xs text-ink-3 hover:text-destructive"
                 onClick={handleDeleteImportDoc}
                 disabled={isDeletingImport || busy}
-                title="Supprimer pour nouveau scan"
+                title={t('Supprimer pour nouveau scan')}
               >
                 {isDeletingImport ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                Retirer
+                {t('Retirer')}
               </Button>
             )}
           </div>
@@ -496,24 +498,29 @@ export default function Step1Import({
   return (
     <div className="space-y-4">
       {canEdit && (
-        <SmartInbox
-          dossierId={dossierId}
-          dossier={dossier}
-          readOnly={readOnly}
-          prefilling={isScanning}
-          onPrefill={async (files, sourceDocId) => {
-            const userEmail = auth?.currentUser?.email || 'Admin';
-            await runScanAndMerge(files, userEmail, sourceDocId);
-          }}
-        />
+        // `dosd-import-drop` (tour anchor) used to sit on the dashed drop
+        // Card; the « Boîte de dépôt » picker replaced it, so the anchor
+        // rides the picker.
+        <div data-tour="dosd-import-drop">
+          <SmartInbox
+            dossierId={dossierId}
+            dossier={dossier}
+            readOnly={readOnly}
+            prefilling={isScanning}
+            onPrefill={async (files, sourceDocId) => {
+              const userEmail = auth?.currentUser?.email || 'Admin';
+              await runScanAndMerge(files, userEmail, sourceDocId);
+            }}
+          />
+        </div>
       )}
 
       {lastFilledCount !== null && lastFilledCount > 0 && (
         <div className="flex items-center gap-2 rounded-lg bg-status-warning-bg p-3 text-sm text-status-warning-fg">
           <ScanSearch className="h-4 w-4 shrink-0" />
           <span>
-            <strong>{lastFilledCount} champ(s)</strong> pré-rempli(s) par
-            l&apos;IA. Vérifiez à l&apos;étape <em>Information</em>.
+            <strong>{lastFilledCount} {t('champ(s)')}</strong>{' '}
+            {t("pré-rempli(s) par l'IA. Vérifiez à l'étape Information.")}
           </span>
         </div>
       )}
@@ -526,7 +533,7 @@ export default function Step1Import({
         <CardContent className="p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h3 className="t-heading flex items-center gap-2">
-              Document source du pré-remplissage
+              {t('Document source du pré-remplissage')}
               {hasImportDoc && (
                 <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium tabular-nums text-ink-2">1</span>
               )}
@@ -536,10 +543,9 @@ export default function Step1Import({
           {!hasImportDoc ? (
             <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
               <FileText className="h-10 w-10 text-ink-4" />
-              <p className="t-heading">Aucun document importé</p>
+              <p className="t-heading">{t('Aucun document importé')}</p>
               <p className="t-caption max-w-[48ch]">
-                Déposez votre lettre de mission, constat ou document
-                d&apos;assurance pour lancer le pré-remplissage par l&apos;IA.
+                {t("Déposez votre lettre de mission, constat ou document d'assurance pour lancer le pré-remplissage par l'IA.")}
               </p>
             </div>
           ) : importDocLoading ? (
@@ -549,9 +555,9 @@ export default function Step1Import({
           ) : !importDoc ? (
             <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
               <FileText className="h-8 w-8 text-ink-4" />
-              <p className="t-heading">Document source introuvable</p>
+              <p className="t-heading">{t('Document source introuvable')}</p>
               <p className="t-caption max-w-[48ch]">
-                Il a peut-être été supprimé depuis l&apos;étape Pièces jointes.
+                {t("Il a peut-être été supprimé depuis l'étape Pièces jointes.")}
               </p>
             </div>
           ) : (
@@ -585,7 +591,7 @@ export default function Step1Import({
                         variant="outline"
                         className="shrink-0 border-transparent bg-status-warning-bg text-[11px] text-status-warning-fg"
                       >
-                        En attente
+                        {t('En attente')}
                       </Badge>
                     )}
                     {canPreview && (
@@ -594,8 +600,9 @@ export default function Step1Import({
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 shrink-0 text-ink-3 hover:text-ink"
+                        data-tour="dosd-import-eye"
                         onClick={() => setPreviewDoc({ url: url as string, nom: name })}
-                        title="Aperçu"
+                        title={t('Aperçu')}
                       >
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
@@ -608,7 +615,7 @@ export default function Step1Import({
                         className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
                         onClick={handleDeleteImportDoc}
                         disabled={isDeletingImport}
-                        title="Supprimer pour nouveau scan"
+                        title={t('Supprimer pour nouveau scan')}
                       >
                         {isDeletingImport ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -625,8 +632,7 @@ export default function Step1Import({
 
           {hasImportDoc && (
             <p className="t-caption mt-4">
-              Les autres pièces jointes sont gérées dans l&apos;étape 4
-              « Pièces jointes ».
+              {t("Les autres pièces jointes sont gérées dans l'étape 4 « Pièces jointes ».")}
             </p>
           )}
         </CardContent>

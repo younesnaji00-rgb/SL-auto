@@ -24,8 +24,8 @@ import {
 } from '@/components/ui/select';
 import { format } from 'date-fns';
 import { StatusChip } from '@/components/ui/status-chip';
-import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { dateFnsLocale, useT, t as tGlobal } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { useHotkeys } from '@/hooks/use-hotkeys';
@@ -80,8 +80,8 @@ type RenderRow =
   | { kind: 'item'; entry: QueueEntry; idx: number };
 
 function formatRemaining(hours: number): string {
-  if (hours >= 1) return `${Math.floor(hours)} h restantes`;
-  return `${Math.max(1, Math.round(hours * 60))} min restantes`;
+  if (hours >= 1) return `${Math.floor(hours)} ${tGlobal('h restantes')}`;
+  return `${Math.max(1, Math.round(hours * 60))} ${tGlobal('min restantes')}`;
 }
 
 // A6 — case/diacritic-insensitive search normalization.
@@ -90,6 +90,7 @@ function normalize(s: string): string {
 }
 
 export default function AssignationsChiffragePage() {
+  const t = useT();
   const db = useFirestore();
   const router = useRouter();
   const { profile } = useCurrentUser();
@@ -219,7 +220,7 @@ export default function AssignationsChiffragePage() {
   const formatDate = (ts: any) => {
     const date = toDate(ts);
     if (!date) return null;
-    try { return format(date, "d MMM yyyy 'à' HH:mm", { locale: fr }); }
+    try { return format(date, "d MMM yyyy 'à' HH:mm", { locale: dateFnsLocale() }); }
     catch { return null; }
   };
 
@@ -409,28 +410,28 @@ export default function AssignationsChiffragePage() {
   // arrow/j/k bindings run with allowInInput so ↑/↓ retarget the peek (A8);
   // Échap inside the peek is Radix's own close.
   useHotkeys([
-    { keys: 'arrowdown', label: 'Ligne suivante', group: HOTKEY_GROUP, allowInInput: peekOpen, handler: () => moveFocus(1) },
-    { keys: 'j', label: 'Ligne suivante', group: HOTKEY_GROUP, allowInInput: peekOpen, handler: () => moveFocus(1) },
-    { keys: 'arrowup', label: 'Ligne précédente', group: HOTKEY_GROUP, allowInInput: peekOpen, handler: () => moveFocus(-1) },
-    { keys: 'k', label: 'Ligne précédente', group: HOTKEY_GROUP, allowInInput: peekOpen, handler: () => moveFocus(-1) },
+    { keys: 'arrowdown', label: t('Ligne suivante'), group: t(HOTKEY_GROUP), allowInInput: peekOpen, handler: () => moveFocus(1) },
+    { keys: 'j', label: t('Ligne suivante'), group: t(HOTKEY_GROUP), allowInInput: peekOpen, handler: () => moveFocus(1) },
+    { keys: 'arrowup', label: t('Ligne précédente'), group: t(HOTKEY_GROUP), allowInInput: peekOpen, handler: () => moveFocus(-1) },
+    { keys: 'k', label: t('Ligne précédente'), group: t(HOTKEY_GROUP), allowInInput: peekOpen, handler: () => moveFocus(-1) },
     {
       keys: 'enter',
-      label: 'Ouvrir le chiffrage en surbrillance',
-      group: HOTKEY_GROUP,
+      label: t('Ouvrir le chiffrage en surbrillance'),
+      group: t(HOTKEY_GROUP),
       enabled: !!focusedEntry,
       handler: () => { if (focusedEntry) openChiffrage(focusedEntry.item); },
     },
     {
       keys: 'space',
-      label: 'Aperçu du chiffrage en surbrillance',
-      group: HOTKEY_GROUP,
+      label: t('Aperçu du chiffrage en surbrillance'),
+      group: t(HOTKEY_GROUP),
       enabled: !!focusedEntry,
       handler: () => setPeekOpen(true),
     },
     {
       keys: 'escape',
-      label: 'Quitter la surbrillance',
-      group: HOTKEY_GROUP,
+      label: t('Quitter la surbrillance'),
+      group: t(HOTKEY_GROUP),
       enabled: focusIdx !== null && !peekOpen,
       handler: () => setFocusIdx(null),
     },
@@ -448,13 +449,13 @@ export default function AssignationsChiffragePage() {
         <DeadlineBar
           percent={100}
           overdue={false}
-          completedLabel={`Chiffré le ${format(entry.completed, 'dd/MM/yyyy HH:mm')}`}
+          completedLabel={`${t('Chiffré le')} ${format(entry.completed, 'dd/MM/yyyy HH:mm')}`}
         />
       );
     }
     if (entry.overdue) {
       const late = formatBusinessLateness(entry.elapsedHours - DEADLINE_HOURS);
-      return <Badge variant="danger">{late ? `En retard ${late}` : 'En retard'}</Badge>;
+      return <Badge variant="danger">{late ? `${t('En retard')} ${late}` : t('En retard')}</Badge>;
     }
     if (entry.remainingHours <= WARNING_HOURS) {
       return <Badge variant="warning">{formatRemaining(entry.remainingHours)}</Badge>;
@@ -489,7 +490,7 @@ export default function AssignationsChiffragePage() {
     const obs = dossierObs[c.dossierId];
     return {
       id: c.id,
-      dossierRef: c.dossierNom || 'Sans réf.',
+      dossierRef: c.dossierNom || t('Sans réf.'),
       assure: renderAssure(dossierAssure[c.dossierId]),
       statut: dossierStatuts[c.dossierId] || 'Nouveau',
       matricule: dossierMatricule[c.dossierId] || '',
@@ -511,7 +512,7 @@ export default function AssignationsChiffragePage() {
           count pill, filters row below; no page action — the queue's work
           happens row by row). */}
       <PageHeader
-        title={titleForRoute('/assignations-chiffrage') ?? 'Assignations au chiffrage'}
+        title={titleForRoute('/assignations-chiffrage') ?? t('Assignations au chiffrage')}
         count={scopedChiffrages.length}
         meta={
           // A5 — quiet load summary (attention R5: periphery informs without
@@ -519,10 +520,10 @@ export default function AssignationsChiffragePage() {
           !loading && (nbRetard > 0 || nbAujourdhui > 0) ? (
             <span className="t-caption tabular-nums">
               {nbRetard > 0 && (
-                <span className="font-medium text-status-danger-fg">{nbRetard} en retard</span>
+                <span className="font-medium text-status-danger-fg">{nbRetard} {t('en retard')}</span>
               )}
               {nbRetard > 0 && nbAujourdhui > 0 && ' · '}
-              {nbAujourdhui > 0 && <>{nbAujourdhui} aujourd&apos;hui</>}
+              {nbAujourdhui > 0 && <>{nbAujourdhui} {t("aujourd'hui")}</>}
             </span>
           ) : undefined
         }
@@ -539,10 +540,10 @@ export default function AssignationsChiffragePage() {
                 computed after the other filters so the figures always match
                 what each segment would show. */}
             <div className="flex flex-col gap-1">
-              <span className="t-label">Afficher</span>
+              <span className="t-label">{t('Afficher')}</span>
               <div
                 role="group"
-                aria-label="Portée de la file"
+                aria-label={t('Portée de la file')}
                 className="relative isolate flex h-9 w-fit items-center gap-0.5 rounded-md bg-surface-2 p-0.5"
               >
                 <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[queueScope, nbATraiter, filteredChiffrages.length]} />
@@ -560,7 +561,7 @@ export default function AssignationsChiffragePage() {
                       queueScope === key && 'text-accent-foreground hover:bg-transparent hover:text-accent-foreground',
                     )}
                   >
-                    {label}
+                    {t(label)}
                     <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
                       {count}
                     </span>
@@ -569,26 +570,26 @@ export default function AssignationsChiffragePage() {
               </div>
             </div>
             <div className="flex flex-col gap-1">
-              <span className="t-label">Recherche</span>
+              <span className="t-label">{t('Recherche')}</span>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
                 <Input
                   value={q}
                   onChange={(e) => setFilters({ q: e.target.value })}
-                  placeholder="Réf., assuré, plaque…"
-                  aria-label="Rechercher dans la file"
+                  placeholder={t('Réf., assuré, plaque…')}
+                  aria-label={t('Rechercher dans la file')}
                   className="h-9 w-[220px] pl-8"
                 />
               </div>
             </div>
             <div className="flex flex-col gap-1">
-              <span className="t-label">Compagnie</span>
+              <span className="t-label">{t('Compagnie')}</span>
               <Select value={compagnieFilter} onValueChange={v => setFilters({ compagnieFilter: v })}>
-                <SelectTrigger className="h-9 w-[180px]" aria-label="Compagnie">
-                  <SelectValue placeholder="Compagnie" />
+                <SelectTrigger className="h-9 w-[180px]" aria-label={t('Compagnie')} data-tour="ach-compagnie">
+                  <SelectValue placeholder={t('Compagnie')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Toutes">Toutes les compagnies</SelectItem>
+                  <SelectItem value="Toutes">{t('Toutes les compagnies')}</SelectItem>
                   {compagnieOptions.map(([name, count]) => (
                     <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                   ))}
@@ -597,13 +598,13 @@ export default function AssignationsChiffragePage() {
             </div>
             {canSeeNameFilter && (
               <div className="flex flex-col gap-1">
-                <span className="t-label">Chiffreur</span>
+                <span className="t-label">{t('Chiffreur')}</span>
                 <Select value={chiffreurFilter} onValueChange={v => setFilters({ chiffreurFilter: v })}>
-                  <SelectTrigger className="h-9 w-[180px]" aria-label="Chiffreur">
-                    <SelectValue placeholder="Chiffreur" />
+                  <SelectTrigger className="h-9 w-[180px]" aria-label={t('Chiffreur')} data-tour="ach-chiffreur">
+                    <SelectValue placeholder={t('Chiffreur')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Tous">Tous les chiffreurs</SelectItem>
+                    <SelectItem value="Tous">{t('Tous les chiffreurs')}</SelectItem>
                     {chiffreurOptions.map(([name, count]) => (
                       <SelectItem key={name} value={name}>{name} ({count})</SelectItem>
                     ))}
@@ -612,26 +613,26 @@ export default function AssignationsChiffragePage() {
               </div>
             )}
             <div className="flex flex-col gap-1">
-              <span className="t-label">Type de réforme</span>
+              <span className="t-label">{t('Type de réforme')}</span>
               <Select value={typeReformeFilter} onValueChange={v => setFilters({ typeReformeFilter: v })}>
-                <SelectTrigger className="h-9 w-[160px]" aria-label="Type de réforme">
-                  <SelectValue placeholder="Type de réforme" />
+                <SelectTrigger className="h-9 w-[160px]" aria-label={t('Type de réforme')} data-tour="ach-reforme">
+                  <SelectValue placeholder={t('Type de réforme')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Tous">Tous les types</SelectItem>
-                  {REFORME_TYPES.map(t => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  <SelectItem value="Tous">{t('Tous les types')}</SelectItem>
+                  {REFORME_TYPES.map(rt => (
+                    <SelectItem key={rt} value={rt}>{t(rt)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="t-label">Période</span>
+            <div className="flex flex-col gap-1" data-tour="ach-dates">
+              <span className="t-label">{t('Période')}</span>
               <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
             </div>
             {hasActiveFilter && (
               <Button variant="ghost" size="sm" onClick={resetFilters}>
-                Réinitialiser
+                {t('Réinitialiser')}
               </Button>
             )}
           </div>
@@ -641,21 +642,21 @@ export default function AssignationsChiffragePage() {
       {/* Data table (element-specs §3 + A4 column order: identifier → deadline
           → status, decision columns adjacent and left-of-centre; « Assigné
           par » lives in the peek). The Card is the table's only frame. */}
-      <Card className="overflow-hidden">
-        <Table regionLabel="Assignations au chiffrage">
+      <Card className="overflow-hidden" data-tour="ach-table">
+        <Table regionLabel={t('Assignations au chiffrage')}>
           <TableHeader>
             <TableRow>
-              <TableHead className={STICKY_HEAD}>Dossier</TableHead>
-              <TableHead>
-                <SortableHeader label="Délai" sort={deadlineSort} onChange={setDeadlineSort} />
+              <TableHead className={STICKY_HEAD}>{t('Dossier')}</TableHead>
+              <TableHead data-tour="ach-delai">
+                <SortableHeader label={t('Délai')} sort={deadlineSort} onChange={setDeadlineSort} />
               </TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead>Nom d&apos;assuré</TableHead>
-              <TableHead>Immatriculation</TableHead>
-              {showChiffreurColumn && <TableHead>Chiffreur</TableHead>}
-              <TableHead>Nature du dossier</TableHead>
-              <TableHead>Observations</TableHead>
-              <TableHead>Date</TableHead>
+              <TableHead>{t('Statut')}</TableHead>
+              <TableHead>{t("Nom d'assuré")}</TableHead>
+              <TableHead>{t('Immatriculation')}</TableHead>
+              {showChiffreurColumn && <TableHead>{t('Chiffreur')}</TableHead>}
+              <TableHead>{t('Nature du dossier')}</TableHead>
+              <TableHead>{t('Observations')}</TableHead>
+              <TableHead>{t('Date')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody ref={tbodyRef}>
@@ -677,12 +678,12 @@ export default function AssignationsChiffragePage() {
                       the fix — clear the filters — as its ONE `tonal` action. */}
                   <EmptyState
                     icon={<Calculator />}
-                    title={hasActiveFilter ? 'Aucun chiffrage pour ces filtres' : 'Aucun chiffrage assigné'}
+                    title={hasActiveFilter ? t('Aucun chiffrage pour ces filtres') : t('Aucun chiffrage assigné')}
                     description={hasActiveFilter
-                      ? 'Élargissez la période ou réinitialisez les filtres pour revoir la file.'
-                      : 'Les nouvelles assignations de chiffrage apparaîtront ici.'}
+                      ? t('Élargissez la période ou réinitialisez les filtres pour revoir la file.')
+                      : t('Les nouvelles assignations de chiffrage apparaîtront ici.')}
                     action={hasActiveFilter ? (
-                      <Button variant="tonal" onClick={resetFilters}>Réinitialiser les filtres</Button>
+                      <Button variant="tonal" onClick={resetFilters}>{t('Réinitialiser les filtres')}</Button>
                     ) : undefined}
                     dashed={false}
                     className="border-0 bg-transparent py-10"
@@ -698,7 +699,7 @@ export default function AssignationsChiffragePage() {
                     <TableRow key={`band-${row.band}`} className="hover:bg-transparent">
                       <TableCell colSpan={colCount} className="h-auto pb-1.5 pt-5">
                         <span className="inline-flex items-center gap-2">
-                          <span className="t-label">{row.band}</span>
+                          <span className="t-label">{t(row.band)}</span>
                           <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
                             {row.count}
                           </span>
@@ -746,11 +747,12 @@ export default function AssignationsChiffragePage() {
                         href={`/assignations-chiffrage/${c.id}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          openTab(c.id, c.dossierNom || `Chiffrage ${c.id.slice(0, 6)}`);
+                          openTab(c.id, c.dossierNom || `${t('Chiffrage')} ${c.id.slice(0, 6)}`);
                         }}
                         className="t-mono font-semibold hover:underline"
+                        data-tour="ach-row"
                       >
-                        {c.dossierNom || 'Sans réf.'}
+                        {c.dossierNom || t('Sans réf.')}
                       </Link>
                     </TableCell>
                     {/* A2 — deadline: countdown text, chip only at threshold. */}
@@ -773,8 +775,8 @@ export default function AssignationsChiffragePage() {
                           variant="ghost"
                           size="sm"
                           onClick={(e) => { e.stopPropagation(); setObsHistoryDossier({ id: c.dossierId, refExpert: c.dossierNom }); }}
-                          title={obs?.text || "Voir l'historique des observations"}
-                          aria-label={`Voir les ${obsCount} observation${obsCount > 1 ? 's' : ''}`}
+                          title={obs?.text || t("Voir l'historique des observations")}
+                          aria-label={`${t('Voir les')} ${obsCount} ${obsCount > 1 ? t('observations') : t('observation')}`}
                         >
                           <MessageSquare />
                           <span className="tabular-nums">{obsCount}</span>
@@ -787,7 +789,7 @@ export default function AssignationsChiffragePage() {
                           time chip with a label (§11) instead of tinting the row. */}
                       <span className="inline-flex flex-wrap items-center gap-2">
                         <span className="font-semibold tabular-nums">{dateLabel ?? emptyCell}</span>
-                        {today && <Badge variant="time">Aujourd&apos;hui</Badge>}
+                        {today && <Badge variant="time">{t("Aujourd'hui")}</Badge>}
                       </span>
                     </TableCell>
                   </TableRow>

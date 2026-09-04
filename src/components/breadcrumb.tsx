@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { EXTRA_ROUTES, labelForRoute } from '@/lib/nav-groups';
 import { usePageChrome } from '@/components/layout/page-chrome';
+import { useT } from '@/i18n';
 
 /** Firestore-id-like segments (16+ alphanumeric chars) or `[uid]`-style ids. */
 const isIdSegment = (segment: string): boolean => /^[A-Za-z0-9_-]{16,}$/.test(segment);
@@ -59,6 +60,7 @@ export function useCrumbs(): Crumb[] {
 
 const Breadcrumb = () => {
   const crumbs = useCrumbs();
+  const t = useT();
   // Top-level pages: the H1 is the location; a one-item breadcrumb is noise.
   if (crumbs.length <= 1) return null;
 
@@ -68,7 +70,7 @@ const Breadcrumb = () => {
     // page) should not be a link"; ">"-style separators; never wrap; on
     // phones only the parent level (see MobileUpCrumb in header.tsx).
     // Type = t-caption (12 px ink-3) so it never competes with the H1.
-    <nav aria-label="Fil d'Ariane" className="flex min-w-0">
+    <nav aria-label={t("Fil d'Ariane")} className="flex min-w-0">
       <ol className="t-caption flex min-w-0 items-center gap-1.5 whitespace-nowrap">
         {crumbs.map((c, index) => (
           <React.Fragment key={c.href}>
@@ -80,11 +82,11 @@ const Breadcrumb = () => {
             <li className="min-w-0">
               {c.isCurrent ? (
                 <span className="block truncate font-medium text-ink" aria-current="page">
-                  {c.label}
+                  {t(c.label)}
                 </span>
               ) : (
                 <Link href={c.href} className="block truncate rounded-sm py-1 transition-colors hover:text-ink">
-                  {c.label}
+                  {t(c.label)}
                 </Link>
               )}
             </li>

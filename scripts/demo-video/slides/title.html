@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Appraisio</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: radial-gradient(ellipse at top, #ffffff 0%, #fbf9f4 60%, #f3efe4 100%);
+    display: grid; place-items: center; color: #1f2937;
+  }
+  .wrap { text-align: center; animation: rise 1.2s ease-out both; }
+  .mark {
+    width: 120px; height: 120px; margin: 0 auto 36px; border-radius: 28px;
+    background: linear-gradient(135deg, #0f766e, #115e59);
+    display: grid; place-items: center; color: #fff;
+    font-size: 64px; font-weight: 700;
+    box-shadow: 0 24px 60px rgba(15, 118, 110, 0.35);
+    animation: pop 0.9s cubic-bezier(.2,.9,.3,1.2) both;
+  }
+  h1 { font-size: 84px; font-weight: 700; letter-spacing: -2px; }
+  h1 span { color: #0f766e; }
+  p.tag { margin-top: 20px; font-size: 30px; color: #6b7280; font-weight: 400; }
+  p.sub { margin-top: 56px; font-size: 21px; color: #9ca3af; letter-spacing: 3px; text-transform: uppercase;
+          opacity: 0; animation: fade 1s ease-out 1.4s both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+  @keyframes pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+  @keyframes fade { to { opacity: 1; } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="mark">A</div>
+    <h1>Apprais<span>io</span></h1>
+    <p class="tag">Claims management &amp; appraisal workflow — in one place</p>
+    <p class="sub">Built for independent auto appraisal firms</p>
+  </div>
+</body>
+</html>

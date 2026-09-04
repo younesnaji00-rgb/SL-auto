@@ -30,6 +30,7 @@ import {
   type ParsedAccordDocType,
   type AccordeSourceDocType,
 } from '@/lib/docType-accorde';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { useTabSlopeMorph } from '@/hooks/use-tab-morph';
 import { useEdgeScroll } from '@/hooks/use-edge-scroll';
@@ -80,6 +81,11 @@ export interface DocumentsFilterPanelProps {
   canImport: boolean;
   /** Invoked when user clicks the "Importer" button (opens the file picker). */
   onImportClick?: () => void;
+  /**
+   * Keep the preview card's header (its title) even when no import button is
+   * rendered. Without it the header only exists to host that button.
+   */
+  alwaysShowHeader?: boolean;
   /** Whether the user can delete documents (renders the trash button). */
   canDelete?: boolean;
   /** Document currently being deleted (for spinner). */
@@ -289,6 +295,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     loading,
     canImport,
     onImportClick,
+    alwaysShowHeader = false,
     canDelete = false,
     isDeleting = null,
     selectionMode = false,
@@ -299,6 +306,8 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     onDeleteDocument,
     className,
   } = props;
+
+  const t = useT();
 
   // Per-type counts for the left filter card
   const typeCounts = useMemo(() => {
@@ -473,20 +482,20 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
   // are banned). Restored `Upload` icon from 3d5629a.
   const importButton = onImportClick ? (
     canImport ? (
-      <Button onClick={onImportClick} className="gap-1.5">
-        <Upload className="h-4 w-4" /> Importer
+      <Button onClick={onImportClick} className="gap-1.5" data-tour="chd-doc-import">
+        <Upload className="h-4 w-4" /> {t("Importer")}
       </Button>
     ) : (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span tabIndex={0}>
+            <span tabIndex={0} data-tour="chd-doc-import">
               <Button disabled className="gap-1.5">
-                <Upload className="h-4 w-4" /> Importer
+                <Upload className="h-4 w-4" /> {t("Importer")}
               </Button>
             </span>
           </TooltipTrigger>
-          <TooltipContent>Import non disponible pour le chiffreur</TooltipContent>
+          <TooltipContent>{t('Import non disponible pour le chiffreur')}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
     )
@@ -498,10 +507,10 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
           rows). Level 1 = « Tous » + the plain types + one tab per garage
           family; the search field sits at the right end of the same rail so
           it never scrolls away with the tabs. */}
-      <div className="flex items-end gap-3 border-b border-hairline">
-        <FilterTabStrip label="Filtrer par type de document" activeKey={selectedType}>
+      <div className="flex items-end gap-3 border-b border-hairline" data-tour="chd-doc-types">
+        <FilterTabStrip label={t("Filtrer par type de document")} activeKey={selectedType}>
           <FilterTab
-            label="Tous les documents"
+            label={t("Tous les documents")}
             count={documents.length}
             selected={selectedType === ALL_TYPES_KEY}
             onSelect={() => onSelectedTypeChange(ALL_TYPES_KEY)}
@@ -512,7 +521,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                 .map((row) => (
                   <FilterTab
                     key={row.label}
-                    label={row.label}
+                    label={t(row.label)}
                     count={row.count}
                     selected={selectedType === row.label}
                     onSelect={() => onSelectedTypeChange(row.label)}
@@ -525,7 +534,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                   .map((row) => (
                     <FilterTab
                       key={row.label}
-                      label={row.label}
+                      label={t(row.label)}
                       count={row.count}
                       selected={selectedType === row.label}
                       onSelect={() => onSelectedTypeChange(row.label)}
@@ -536,7 +545,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                   // the selection — the version sub-strip says which one.
                   <FilterTab
                     key={fam.parent}
-                    label={fam.parent}
+                    label={t(fam.parent)}
                     count={fam.totalCount}
                     selected={activeFamily?.parent === fam.parent}
                     onSelect={() => onSelectedTypeChange(fam.parent)}
@@ -548,11 +557,11 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
         <div className="relative mb-1.5 w-[170px] shrink-0">
           <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" aria-hidden />
           <Input
-            placeholder="Devis, facture…"
+            placeholder={t("Devis, facture…")}
             value={typeSearch}
             onChange={(e) => onTypeSearchChange(e.target.value)}
             className="h-8 pl-7 text-xs"
-            aria-label="Rechercher un type de document"
+            aria-label={t("Rechercher un type de document")}
           />
         </div>
       </div>
@@ -562,15 +571,15 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
           Only when there is more than one version to choose from. */}
       {versionTabs.length > 1 && (
         <FilterTabStrip
-          label={`Versions — ${activeFamily?.parent ?? ''}`}
+          label={`${t("Versions")} — ${activeFamily?.parent ?? ""}`}
           activeKey={selectedType}
           className="border-b border-hairline pt-1"
         >
           {versionTabs.map((tab) => (
             <FilterTab
               key={tab.label}
-              label={tab.display}
-              title={tab.label}
+              label={t(tab.display)}
+              title={t(tab.label)}
               count={tab.count}
               dense
               selected={selectedType === tab.label}
@@ -582,11 +591,11 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
 
       {/* Panel — the tab's content surface. Named once by the active tab, so
           the header carries only the count and the section CTA. */}
-      <Card className="mt-4 overflow-hidden">
+      <Card className="mt-4 overflow-hidden" data-tour="chd-doc-grid">
         {importButton && (
           <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
             <p className="t-caption tabular-nums">
-              {visibleDocs.length} document{visibleDocs.length > 1 ? 's' : ''}
+              {visibleDocs.length} {visibleDocs.length > 1 ? t("documents") : t("document")}
             </p>
             {importButton}
           </header>
@@ -609,8 +618,8 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
             <EmptyState
               dashed={false}
               icon={<FileText />}
-              title={selectedType === ALL_TYPES_KEY ? 'Aucun document' : `Aucun document « ${selectedType} »`}
-              description={selectedType === ALL_TYPES_KEY ? 'Les documents importés apparaîtront ici.' : 'Choisissez un autre type ou « Tous les documents ».'}
+              title={selectedType === ALL_TYPES_KEY ? t('Aucun document') : `${t('Aucun document')} « ${t(selectedType)} »`}
+              description={selectedType === ALL_TYPES_KEY ? t('Les documents importés apparaîtront ici.') : t('Choisissez un autre type ou « Tous les documents ».')}
             />
           ) : (
             // Thumbnails only (no meta band), so the grid packs tighter as it
@@ -697,7 +706,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                             e.stopPropagation();
                             if (canOpen && onOpenDocument) onOpenDocument(item);
                           }}
-                          title="Apercu"
+                          title={t("Apercu")}
                           aria-label={`Aperçu de ${name}`}
                           disabled={!canOpen}
                         >
@@ -712,7 +721,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                             e.stopPropagation();
                             if (canOpen && onDownloadDocument) onDownloadDocument(item);
                           }}
-                          title="Telecharger"
+                          title={t("Telecharger")}
                           aria-label={`Télécharger ${name}`}
                           disabled={!canOpen}
                         >
@@ -728,7 +737,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                               e.stopPropagation();
                               onDeleteDocument?.(item);
                             }}
-                            title="Supprimer"
+                            title={t("Supprimer")}
                             aria-label={`Supprimer ${name}`}
                             disabled={isDeleting === item.id || !!item.pendingUpload}
                           >
@@ -744,7 +753,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                       {/* Status badge §11: warning pair + label (pending IS an exception). */}
                       {item.pendingUpload && (
                         <Badge variant="warning" className="absolute left-1 top-1">
-                          En attente
+                          {t("En attente")}
                         </Badge>
                       )}
                     </div>

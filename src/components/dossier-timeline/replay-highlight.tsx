@@ -11,6 +11,7 @@
  * can be tinted green (added) / yellow (modified) / red (removed).
  */
 import React, { createContext, useContext } from 'react';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 export type ChangeStatus = 'added' | 'modified' | 'removed' | null;
@@ -63,6 +64,7 @@ export function highlightClass(status: ChangeStatus): string {
 
 /** Small inline "ajouté/modifié/supprimé" tag. Renders nothing when status is null. */
 export function ChangeBadge({ status, className }: { status: ChangeStatus; className?: string }) {
+  const t = useT();
   if (!status) return null;
   return (
     <span
@@ -72,7 +74,7 @@ export function ChangeBadge({ status, className }: { status: ChangeStatus; class
         className,
       )}
     >
-      {STATUS_LABEL[status]}
+      {t(STATUS_LABEL[status])}
     </span>
   );
 }

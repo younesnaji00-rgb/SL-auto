@@ -4,12 +4,34 @@ import { formatFr, numOrNull, qteFromScan } from '@/lib/devis-schema';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
 import { requireAuth, authErrorResponse } from '@/lib/require-auth';
+import { BRAND } from '@/lib/brand';
 
 /**
  * AI Devis Scanner API.
  * Extracts structured devis data (garage header + line items) from a devis PDF/image.
  * Returns JSON matching the StructuredDevis shape (header + rows).
  */
+
+// Market-specific prompt fragments. MA is the original Moroccan prompt text,
+// verbatim; CA swaps in Canadian sales taxes (GST/QST/HST) and CAD amounts.
+// Same JSON schema in both markets — "tva" stays the tax-rate field name.
+const DEVIS_MARKET_MA = {
+  country: 'au Maroc',
+  garages: 'garages marocains',
+  taxes: `TVA au Maroc: 0% ou 20%.`,
+  currency: `Montants en dirhams marocains (MAD), format français "1 234,50" ou "1234.50".`,
+  tvaRates: `(0, 20, 7, 10)`,
+};
+
+const DEVIS_MARKET_CA = {
+  country: 'au Canada',
+  garages: 'garages canadiens',
+  taxes: `Taxes de vente au Canada: TPS/GST 5% + TVQ/QST 9,975% (Québec) ou TVH/HST 13% (Ontario). La colonne de taxe d'une ligne peut afficher l'un de ces taux.`,
+  currency: `Montants en dollars canadiens (CAD), format "1 234,50", "1,234.50" ou "1234.50".`,
+  tvaRates: `(0, 5, 9.975, 13, 14.975)`,
+};
+
+const DEVIS_MARKET = BRAND.market === 'CA' ? DEVIS_MARKET_CA : DEVIS_MARKET_MA;
 export async function POST(req: NextRequest) {
   try {
     await requireAuth(req);
@@ -26,15 +48,15 @@ export async function POST(req: NextRequest) {
       config: { responseMimeType: 'application/json' },
       prompt: [
         {
-          text: `Tu es un système d'extraction de données de haute précision spécialisé dans les DEVIS et FACTURES DE GARAGE automobiles au Maroc. Tu travailles pour un cabinet d'expertise d'assurance. La précision est CRITIQUE.
+          text: `Tu es un système d'extraction de données de haute précision spécialisé dans les DEVIS et FACTURES DE GARAGE automobiles ${DEVIS_MARKET.country}. Tu travailles pour un cabinet d'expertise d'assurance. La précision est CRITIQUE.
 
 CONTEXTE:
-- Les documents sont soit des devis de réparation, soit des factures émises par des garages marocains (carrosserie/mécanique). Tu traites les deux types avec le même schéma — la structure du tableau de lignes est identique.
+- Les documents sont soit des devis de réparation, soit des factures émises par des ${DEVIS_MARKET.garages} (carrosserie/mécanique). Tu traites les deux types avec le même schéma — la structure du tableau de lignes est identique.
 - En-tête typique: logo du garage, numéro (devis ou facture), date, informations du véhicule (Marque, Matricule, Modèle ou Date MEC, Kilométrage, N° de chassis), client (garage/société ou particulier), adresse, ICE (identifiant commun de l'entreprise), téléphone, compagnie d'assurance.
 - Tableau des lignes: REF, Désignation, TYPE, T.V.A (%), Qté, P.U H.T, Total H.T.
 - REF est souvent la nature de l'opération: "CHANGE", "REPAR", "PEINTURE", etc.
-- TVA au Maroc: 0% ou 20%.
-- Montants en dirhams marocains (MAD), format français "1 234,50" ou "1234.50".
+- ${DEVIS_MARKET.taxes}
+- ${DEVIS_MARKET.currency}
 - Pour une facture, le numéro extrait dans "devisNumero" est en réalité le numéro de facture (le champ porte le nom historique mais accepte les deux).
 
 TÂCHE:
@@ -81,7 +103,7 @@ RÈGLES STRICTES:
 2. Extrais CHAQUE ligne du tableau individuellement (y compris les lignes dupliquées).
 3. Pour "ref": si le document affiche "CHANGE" ou équivalent, copie le tel quel. Sinon laisse vide.
 4. Pour "type": souvent vide ou contient un code ("ORG", "ADP", etc.). Copie tel quel.
-5. "tva" est un nombre (0, 20, 7, 10). Si affiché "0%", renvoie 0. Si la cellule est VIDE (aucun pourcentage affiché — typique des lignes de main d'œuvre), renvoie null.
+5. "tva" est un nombre ${DEVIS_MARKET.tvaRates}. Si affiché "0%", renvoie 0. Si la cellule est VIDE (aucun pourcentage affiché — typique des lignes de main d'œuvre), renvoie null.
 6. "qte" et "puHT" sont des nombres. Convertis "1 234,50" en 1234.50. Si la cellule "qte" est VIDE (typique des lignes de main d'œuvre / forfait), renvoie null — ne mets JAMAIS 0 à la place d'une case vide.
 7. Ne calcule PAS Total H.T — il sera recalculé.
 8. Pour le header: "dateDevis" au format "DD/MM/YYYY" tel qu'affiché. "modele" peut être soit un nom de modèle, soit une date de mise en circulation — copie ce qui est affiché.

@@ -33,6 +33,9 @@ import {
   type ExpertInfo,
 } from '@/lib/create-empty-dossier';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
+import { useT } from '@/i18n';
+import { BRAND } from '@/lib/brand';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 // Radix Select disallows empty-string values on <SelectItem>.
 const NONE_VALUE = '__none__';
@@ -60,6 +63,7 @@ export function CreateDossierDialog({
   onCreated,
   initialCompagnie,
 }: CreateDossierDialogProps) {
+  const t = useT();
   const { toast } = useToast();
   const auth = useAuth();
   const db = useFirestore();
@@ -135,7 +139,7 @@ export function CreateDossierDialog({
   const handleConfirm = async () => {
     const fbUser = auth?.currentUser;
     if (!fbUser || !db) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Utilisateur non connecté.' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: t('Utilisateur non connecté.') });
       return;
     }
     try {
@@ -180,8 +184,8 @@ export function CreateDossierDialog({
       console.error('Create dossier error:', e);
       toast({
         variant: 'destructive',
-        title: 'Erreur',
-        description: e?.message || 'Impossible de créer le dossier',
+        title: t('Erreur'),
+        description: e?.message || t('Impossible de créer le dossier'),
       });
     } finally {
       setIsCreating(false);
@@ -195,26 +199,26 @@ export function CreateDossierDialog({
       {/* Dialog — element-specs §13 (M3 dialogs: brief headline + one line of
           supporting text; ≤ 560 px for a form; confirm at the edge with the
           dismissive `outline` to its left; bottom sheet below `lg`). */}
-      <DialogContent className="max-h-[calc(85vh/var(--app-zoom))] overflow-y-auto lg:max-w-lg">
+      <DialogContent className="max-h-[calc(85vh/var(--app-zoom))] overflow-y-auto lg:max-w-lg" {...tourDialogGuard()}>
         <DialogHeader>
-          <DialogTitle className="t-title">Nouveau dossier</DialogTitle>
+          <DialogTitle className="t-title">{t('Nouveau dossier')}</DialogTitle>
           <DialogDescription>
-            Choisissez la compagnie et votre rôle d'expert. Les informations des autres experts peuvent être renseignées ici ou plus tard dans le dossier.
+            {t("Choisissez la compagnie et votre rôle d'expert. Les informations des autres experts peuvent être renseignées ici ou plus tard dans le dossier.")}
           </DialogDescription>
         </DialogHeader>
 
         {/* Form — element-specs §9 (GOV.UK: visible label above each 40 px
             control, rows 16 apart, placeholder only as a format cue). */}
         <div className="grid gap-4 py-2">
-          <div className="grid gap-1">
-            <Label htmlFor="create-compagnie">Compagnie</Label>
+          <div className="grid gap-1" data-tour="dos-create-compagnie">
+            <Label htmlFor="create-compagnie">{t('Compagnie')}</Label>
             <Select
               value={compagnie}
               onValueChange={setCompagnie}
               disabled={isCreating}
             >
               <SelectTrigger id="create-compagnie">
-                <SelectValue placeholder="Choisir une compagnie" />
+                <SelectValue placeholder={t('Choisir une compagnie')} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NONE_VALUE}>—</SelectItem>
@@ -227,8 +231,8 @@ export function CreateDossierDialog({
             </Select>
           </div>
 
-          <div className="grid gap-1">
-            <Label>Rôle</Label>
+          <div className="grid gap-1" data-tour="dos-create-role">
+            <Label>{t('Rôle')}</Label>
             <RadioGroup
               value={expertRole}
               onValueChange={(v) => setExpertRole(v as ExpertRole)}
@@ -242,7 +246,7 @@ export function CreateDossierDialog({
                   className="flex cursor-pointer items-center gap-3 rounded-md border border-hairline bg-card p-3 transition-colors hover:bg-surface-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-accent/40"
                 >
                   <RadioGroupItem value={role} id={`role-${role}`} />
-                  <span className="text-sm font-medium text-ink">{EXPERT_ROLE_LABELS[role]}</span>
+                  <span className="text-sm font-medium text-ink">{t(EXPERT_ROLE_LABELS[role])}</span>
                 </label>
               ))}
             </RadioGroup>
@@ -253,13 +257,13 @@ export function CreateDossierDialog({
           {rolesToRender.map((role) => (
             <section
               key={role}
-              aria-label={EXPERT_ROLE_LABELS[role]}
+              aria-label={t(EXPERT_ROLE_LABELS[role])}
               className="grid gap-4 rounded-lg bg-surface-2 p-4"
             >
-              <h3 className="t-heading">{EXPERT_ROLE_LABELS[role]}</h3>
+              <h3 className="t-heading">{t(EXPERT_ROLE_LABELS[role])}</h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-1">
-                  <Label htmlFor={`${role}-nom`}>Nom complet</Label>
+                  <Label htmlFor={`${role}-nom`}>{t('Nom complet')}</Label>
                   <Input
                     id={`${role}-nom`}
                     value={experts[role].nom}
@@ -268,18 +272,18 @@ export function CreateDossierDialog({
                   />
                 </div>
                 <div className="grid gap-1">
-                  <Label htmlFor={`${role}-telephone`}>Téléphone</Label>
+                  <Label htmlFor={`${role}-telephone`}>{t('Téléphone')}</Label>
                   <Input
                     id={`${role}-telephone`}
                     type="tel"
-                    placeholder="+212 6 12 34 56 78"
+                    placeholder={BRAND.phonePlaceholder}
                     value={experts[role].telephone}
                     onChange={(e) => updateExpert(role, 'telephone', e.target.value)}
                     disabled={isCreating}
                   />
                 </div>
                 <div className="grid gap-1">
-                  <Label htmlFor={`${role}-email`}>Email</Label>
+                  <Label htmlFor={`${role}-email`}>{t('Email')}</Label>
                   <Input
                     id={`${role}-email`}
                     type="email"
@@ -289,7 +293,7 @@ export function CreateDossierDialog({
                   />
                 </div>
                 <div className="grid gap-1">
-                  <Label htmlFor={`${role}-compagnie`}>Compagnie</Label>
+                  <Label htmlFor={`${role}-compagnie`}>{t('Compagnie')}</Label>
                   <Input
                     id={`${role}-compagnie`}
                     value={experts[role].compagnie}
@@ -306,10 +310,10 @@ export function CreateDossierDialog({
             action stays visible (outline, not ghost). */}
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={handleCancel} disabled={isCreating}>
-            Annuler
+            {t('Annuler')}
           </Button>
-          <Button onClick={handleConfirm} loading={isCreating}>
-            Créer
+          <Button onClick={handleConfirm} loading={isCreating} data-tour="dos-create-submit">
+            {t('Créer')}
           </Button>
         </DialogFooter>
       </DialogContent>

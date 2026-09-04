@@ -37,12 +37,14 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import Logo from '@/components/logo';
+import { LanguageSwitcher } from '@/components/language-switcher';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useRappels } from '@/hooks/use-rappels';
 import { useVisibleNav } from '@/hooks/use-visible-nav';
 import { useWorkspaceStore, TAB_KINDS } from '@/hooks/use-workspace-tabs';
 import { userInitials } from '@/components/layout/user-menu';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 
 /**
  * The single source of the active row's SURFACE (tint + light rim + 2px teal
@@ -120,6 +122,7 @@ const AppSidebar = () => {
   const { rappels } = useRappels();
   const { recents } = useWorkspaceStore();
   const { profile } = useCurrentUser();
+  const t = useT();
 
   const unreadRappelsCount = rappels.filter((r) => !r.read && !r.resolvedAt).length;
   const closeOnMobile = () => {
@@ -130,7 +133,7 @@ const AppSidebar = () => {
     r.kind === 'dossier' ? isVisible('/dossiers') : isVisible('/assignations-chiffrage'),
   ).slice(0, 5);
 
-  const displayName = profile ? `${profile.prenom ?? ''} ${profile.nom ?? ''}`.trim() || 'Profil' : 'Profil';
+  const displayName = profile ? `${profile.prenom ?? ''} ${profile.nom ?? ''}`.trim() || t('Profil') : t('Profil');
   const isProfilActive = pathname === '/profil' || pathname.startsWith('/profil/');
 
   return (
@@ -151,12 +154,12 @@ const AppSidebar = () => {
               size="icon"
               className="h-8 w-8 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
               onClick={toggleSidebar}
-              aria-label={isCollapsed ? 'Agrandir la barre latérale' : 'Réduire la barre latérale'}
+              aria-label={isCollapsed ? t('Agrandir la barre latérale') : t('Réduire la barre latérale')}
             >
               <PanelLeft className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right">{isCollapsed ? 'Agrandir' : 'Réduire'}</TooltipContent>
+          <TooltipContent side="right">{isCollapsed ? t('Agrandir') : t('Réduire')}</TooltipContent>
         </Tooltip>
       </SidebarHeader>
 
@@ -164,19 +167,21 @@ const AppSidebar = () => {
         <ActiveRowIndicator deps={[pathname, isCollapsed, visibleRecents.length]} />
         {navGroups.map((group) => (
           <SidebarGroup key={group.label}>
-            {!isCollapsed && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
+            {!isCollapsed && <SidebarGroupLabel>{t(group.label)}</SidebarGroupLabel>}
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => {
                   const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(`${item.href}/`)) || (item.href !== '/dashboard' && pathname === item.href);
                   const Icon = item.icon;
-                  const tooltip = item.label;
+                  const tooltip = t(item.label);
                   return (
                     <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton asChild isActive={isActive} tooltip={tooltip}>
+                      {/* `data-tour="nav-<href>"` anchors the guided tours to
+                          each destination — never rename these. */}
+                      <SidebarMenuButton asChild isActive={isActive} tooltip={tooltip} data-tour={`nav-${item.href}`}>
                         <NextLink href={item.href} onClick={closeOnMobile} aria-current={isActive ? 'page' : undefined}>
                           <Icon />
-                          <span>{item.label}</span>
+                          <span>{t(item.label)}</span>
                         </NextLink>
                       </SidebarMenuButton>
                       {item.href === '/mes-rappels' && unreadRappelsCount > 0 && (
@@ -194,7 +199,7 @@ const AppSidebar = () => {
 
         {visibleRecents.length > 0 && (
           <SidebarGroup>
-            {!isCollapsed && <SidebarGroupLabel>Récents</SidebarGroupLabel>}
+            {!isCollapsed && <SidebarGroupLabel>{t('Récents')}</SidebarGroupLabel>}
             <SidebarGroupContent>
               <SidebarMenu>
                 {visibleRecents.map((r) => {
@@ -220,7 +225,9 @@ const AppSidebar = () => {
 
       <SidebarFooter className={cn('shrink-0 border-t border-sidebar-border bg-sidebar p-2', isCollapsed && 'items-center')}>
         {/* Profil row at the bottom of the nav (owner ruling 2026-09-03) with
-            a quiet icon-only Aide menu beside it. */}
+            a quiet icon-only Aide menu beside it. The guided-tour entry point
+            is the single bottom-right "?" button (TutorialLauncher) — no
+            duplicate here. */}
         <div className={cn('flex gap-1', isCollapsed ? 'flex-col items-center' : 'flex-row items-center')}>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -240,21 +247,23 @@ const AppSidebar = () => {
                 {!isCollapsed && <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{displayName}</span>}
               </NextLink>
             </TooltipTrigger>
-            <TooltipContent side="right">Profil</TooltipContent>
+            <TooltipContent side="right">{t('Profil')}</TooltipContent>
           </Tooltip>
+          {/* Brand-gated EN/FR switcher (hidden on single-language brands). */}
+          <LanguageSwitcher className="h-8 shrink-0 justify-center text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 shrink-0 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                aria-label="Aide"
+                aria-label={t('Aide')}
               >
                 <HelpCircle className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" className="w-56">
-              <DropdownMenuLabel>Aide</DropdownMenuLabel>
+              <DropdownMenuLabel>{t('Aide')}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {footerItems.map((item) => {
                 const Icon = item.icon;
@@ -262,7 +271,7 @@ const AppSidebar = () => {
                   <DropdownMenuItem key={item.href} asChild>
                     <NextLink href={item.href} onClick={closeOnMobile}>
                       <Icon className="mr-2 h-4 w-4" />
-                      {item.label}
+                      {t(item.label)}
                     </NextLink>
                   </DropdownMenuItem>
                 );

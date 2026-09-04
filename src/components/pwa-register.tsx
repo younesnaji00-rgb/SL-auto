@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { messagingSwUrl } from '@/firebase/sw-url';
 
 /**
  * Registers the combined FCM + PWA service worker as early as possible so the
@@ -19,7 +20,7 @@ export function PwaRegister() {
 
     const onLoad = () => {
       navigator.serviceWorker
-        .register('/firebase-messaging-sw.js')
+        .register(messagingSwUrl())
         .catch((err) => console.warn('[pwa] SW registration failed:', err));
     };
 

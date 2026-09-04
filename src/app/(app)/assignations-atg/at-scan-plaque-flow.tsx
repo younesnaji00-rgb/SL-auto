@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useFirestore } from '@/firebase';
+import { useT } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { matchDossiersByPlate } from '@/lib/plate-match';
 import { cn } from '@/lib/utils';
@@ -49,6 +50,7 @@ export default function AtScanPlaqueFlow({
   /** `lg` on phones (thumb-sized target); `default` (40 px) in the desktop header. */
   buttonSize?: 'default' | 'lg';
 }) {
+  const t = useT();
   const db = useFirestore();
   const { profile } = useCurrentUser();
   const router = useRouter();
@@ -87,8 +89,12 @@ export default function AtScanPlaqueFlow({
   }, [wanted, loaded, db]);
 
   // A new shot surfaces the progress dialog and clears the previous result.
+  // It also arms the dossier fetch: the scan button is not the only way a
+  // photo reaches the input (the guided tour feeds it directly), and without
+  // `wanted` the match effect below would wait on a list that never loads.
   useEffect(() => {
     if (scanning) {
+      setWanted(true);
       setScan(null);
       setChosen(null);
       setResultOpen(true);
@@ -151,26 +157,26 @@ export default function AtScanPlaqueFlow({
   // §14: status colour always with a text label; no coloured banner).
   const scanOutcome = () => {
     if (!scan || chosen) return null;
-    const uncertain = scan.confidence === 'low' ? ' (lecture incertaine — vérifiez)' : '';
+    const uncertain = scan.confidence === 'low' ? ` ${t('(lecture incertaine — vérifiez)')}` : '';
     let tone: 'success' | 'warning' | 'danger' = 'success';
     let short: string;
     let msg: string;
     if (scan.matches.length > 1) {
-      short = `${scan.matches.length} dossiers`;
-      msg = `${scan.matches.length} dossiers portent cette plaque${uncertain}. Sélectionnez le bon ci-dessous.`;
+      short = `${scan.matches.length} ${t('dossiers')}`;
+      msg = `${scan.matches.length} ${t('dossiers portent cette plaque')}${uncertain}. ${t('Sélectionnez le bon ci-dessous.')}`;
     } else if (scan.fuzzy.length > 0) {
       tone = 'warning';
-      short = 'Aucune correspondance exacte';
-      msg = `Aucune correspondance exacte${uncertain}. Vérifiez les correspondances possibles ci-dessous, ou reprenez la photo.`;
+      short = t('Aucune correspondance exacte');
+      msg = `${t('Aucune correspondance exacte')}${uncertain}. ${t('Vérifiez les correspondances possibles ci-dessous, ou reprenez la photo.')}`;
     } else {
       tone = 'danger';
-      short = 'Aucun dossier';
-      msg = `Aucun dossier ne correspond à cette plaque${uncertain}. Le dossier n'existe peut-être pas encore — reprenez la photo ou contactez votre gestionnaire.`;
+      short = t('Aucun dossier');
+      msg = `${t('Aucun dossier ne correspond à cette plaque')}${uncertain}. ${t("Le dossier n'existe peut-être pas encore — reprenez la photo ou contactez votre gestionnaire.")}`;
     }
     return (
       <div className="space-y-1.5" aria-live="polite">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="t-label">Plaque détectée</span>
+          <span className="t-label">{t('Plaque détectée')}</span>
           <span className="t-mono font-semibold">{scan.plate}</span>
           <Badge variant={tone}>{short}</Badge>
         </div>
@@ -195,7 +201,7 @@ export default function AtScanPlaqueFlow({
         className={cn('gap-2', buttonClassName)}
       >
         {!scanning && <Camera />}
-        Scanner la plaque
+        {t('Scanner la plaque')}
       </Button>
 
       {/* Dialog (element-specs §13: Material 3 dialogs ✓ brief headline + one
@@ -210,16 +216,16 @@ export default function AtScanPlaqueFlow({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Scanner la plaque</DialogTitle>
+            <DialogTitle>{t('Scanner la plaque')}</DialogTitle>
             <DialogDescription>
-              Le dossier est identifié par la photo de la plaque, puis choisissez l&apos;action.
+              {t("Le dossier est identifié par la photo de la plaque, puis choisissez l'action.")}
             </DialogDescription>
           </DialogHeader>
 
           {busy ? (
             <div className="flex items-center justify-center gap-2 py-6 text-sm text-ink-3" aria-live="polite">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              {scanning ? 'Lecture de la plaque...' : 'Chargement des dossiers...'}
+              {scanning ? t('Lecture de la plaque...') : t('Chargement des dossiers...')}
             </div>
           ) : chosen ? (
             <>
@@ -229,32 +235,32 @@ export default function AtScanPlaqueFlow({
               <dl className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-lg bg-surface-2 p-4">
                 {scan && (
                   <div className="min-w-0">
-                    <dt className="t-label">Plaque détectée</dt>
+                    <dt className="t-label">{t('Plaque détectée')}</dt>
                     <dd className="t-mono mt-0.5 font-semibold">{scan.plate}</dd>
                   </div>
                 )}
                 <div className="min-w-0">
-                  <dt className="t-label">Dossier</dt>
+                  <dt className="t-label">{t('Dossier')}</dt>
                   <dd className="t-mono mt-0.5 truncate font-semibold">{chosen.refExpert || chosen.id}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="t-label">Assuré</dt>
+                  <dt className="t-label">{t('Assuré')}</dt>
                   <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{assureLabel(chosen)}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="t-label">Compagnie</dt>
+                  <dt className="t-label">{t('Compagnie')}</dt>
                   <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{chosen.compagnie || <span className="font-normal text-ink-4">—</span>}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="t-label">Immatriculation</dt>
+                  <dt className="t-label">{t('Immatriculation')}</dt>
                   <dd className="t-mono mt-0.5 font-semibold">{chosen.matricule || chosen.vehicule?.immatriculation || <span className="font-normal text-ink-4">—</span>}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="t-label">Statut</dt>
+                  <dt className="t-label">{t('Statut')}</dt>
                   <dd className="mt-0.5">
                     {/* Status chip (§11) — same helper/pair as everywhere else. */}
                     <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(chosen.statut || 'Nouveau'))}>
-                      {chosen.statut || 'Nouveau'}
+                      {t(chosen.statut || 'Nouveau')}
                     </Badge>
                   </dd>
                 </div>
@@ -265,7 +271,7 @@ export default function AtScanPlaqueFlow({
               <div className="grid grid-cols-1 gap-2">
                 <Button type="button" onClick={() => handlePhotos(chosen)} className="w-full gap-2">
                   <Camera />
-                  Ajouter photos / documents
+                  {t('Ajouter photos / documents')}
                 </Button>
                 <Button
                   type="button"
@@ -274,7 +280,7 @@ export default function AtScanPlaqueFlow({
                   className="w-full gap-2"
                 >
                   <Calendar />
-                  Planifier la mission
+                  {t('Planifier la mission')}
                 </Button>
               </div>
 
@@ -288,7 +294,7 @@ export default function AtScanPlaqueFlow({
                     className="gap-1.5"
                   >
                     <ArrowLeft />
-                    Autres résultats
+                    {t('Autres résultats')}
                   </Button>
                 ) : (
                   <span />
@@ -301,7 +307,7 @@ export default function AtScanPlaqueFlow({
                   className="gap-1.5"
                 >
                   <Camera />
-                  Reprendre la photo
+                  {t('Reprendre la photo')}
                 </Button>
               </div>
             </>
@@ -319,7 +325,7 @@ export default function AtScanPlaqueFlow({
                   <ul className="divide-y divide-hairline">
                     {scan && scan.matches.length === 0 && scan.fuzzy.length > 0 && (
                       <li className="t-label px-4 py-2">
-                        Correspondances possibles
+                        {t('Correspondances possibles')}
                       </li>
                     )}
                     {displayed.map((d) => (
@@ -334,7 +340,7 @@ export default function AtScanPlaqueFlow({
                               {d.refExpert || d.id}
                             </span>
                             <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'), 'shrink-0')}>
-                              {d.statut || 'Nouveau'}
+                              {t(d.statut || 'Nouveau')}
                             </Badge>
                           </div>
                           <div className="mt-0.5 flex items-baseline justify-between gap-2 text-sm text-ink-2">
@@ -354,7 +360,7 @@ export default function AtScanPlaqueFlow({
                   agent is choosing, not committing. */}
               <Button type="button" variant="ghost" onClick={trigger} className="w-full gap-2">
                 <Camera />
-                Reprendre la photo
+                {t('Reprendre la photo')}
               </Button>
             </>
           )}
@@ -362,7 +368,7 @@ export default function AtScanPlaqueFlow({
           {/* Footer (§13): a single dismissive `outline` action nearest the edge. */}
           <DialogFooter>
             <Button variant="outline" onClick={closeAll}>
-              Fermer
+              {t('Fermer')}
             </Button>
           </DialogFooter>
         </DialogContent>

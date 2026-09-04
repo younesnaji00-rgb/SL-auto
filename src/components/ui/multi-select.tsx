@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/command';
 import { Command as CommandPrimitive } from 'cmdk';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 
 type Option = Record<'value' | 'label', string>;
 
@@ -28,6 +29,7 @@ export function MultiSelect({
   className?: string;
   [key: string]: any;
 }) {
+  const t = useT();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [open, setOpen] = React.useState(false);
   const [inputValue, setInputValue] = React.useState('');
@@ -77,7 +79,7 @@ export function MultiSelect({
                 {option?.label}
                 <button
                   type="button"
-                  aria-label={`Retirer ${option?.label ?? value}`}
+                  aria-label={`${t('Retirer')} ${option?.label ?? value}`}
                   className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
@@ -101,7 +103,7 @@ export function MultiSelect({
             onValueChange={setInputValue}
             onBlur={() => setOpen(false)}
             onFocus={() => setOpen(true)}
-            placeholder="Sélectionner…"
+            placeholder={t('Sélectionner…')}
             className="ml-2 flex-1 bg-transparent outline-none placeholder:text-ink-3"
             {...props}
           />

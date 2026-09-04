@@ -47,7 +47,7 @@ import { collection, onSnapshot, query, orderBy, collectionGroup } from 'firebas
 import { useFirestore } from '@/firebase';
 import { format, startOfDay, endOfDay, isWithinInterval, isSameDay, startOfToday, startOfWeek, startOfMonth } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, LabelList, Pie, PieChart } from 'recharts';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { Input } from '@/components/ui/input';
@@ -60,6 +60,7 @@ import { landingPathFor } from '@/lib/role-landing';
 const DASHBOARD_ALLOWED_ROLES = ['Admin', "Responsable d'équipe"];
 
 export default function DashboardPage() {
+  const t = useT();
   const { profile, loading: userLoading } = useCurrentUser();
   const router = useRouter();
   const role = profile?.role;
@@ -73,13 +74,14 @@ export default function DashboardPage() {
   }, [userLoading, role, isAllowed, router]);
 
   if (userLoading || (role && !isAllowed)) {
-    return <div className="py-12 text-sm text-muted-foreground">Chargement...</div>;
+    return <div className="py-12 text-sm text-muted-foreground">{t('Chargement...')}</div>;
   }
 
   return <DashboardPageInner />;
 }
 
 function DashboardPageInner() {
+  const t = useT();
   const db = useFirestore();
   const { profile } = useCurrentUser();
   const [dossiers, setDossiers] = useState<any[]>([]);
@@ -343,7 +345,7 @@ function DashboardPageInner() {
   const compagnieData = useMemo(() => {
     const byCompagnie: Record<string, number> = {};
     filteredDossiers.forEach((d) => {
-      const key = d.compagnie || 'Inconnue';
+      const key = d.compagnie || t('Inconnue');
       byCompagnie[key] = (byCompagnie[key] || 0) + 1;
     });
     // dataviz "compare magnitude → bar, ONE hue": identity is on the axis,
@@ -355,15 +357,15 @@ function DashboardPageInner() {
         value,
         fill: 'hsl(var(--chart-1))',
       }));
-  }, [filteredDossiers]);
+  }, [filteredDossiers, t]);
 
   const barChartConfig = useMemo(() => {
-    const config: any = { value: { label: 'Dossiers', color: 'hsl(var(--chart-1))' } };
+    const config: any = { value: { label: t('Dossiers'), color: 'hsl(var(--chart-1))' } };
     compagnieData.forEach((item) => {
       config[item.name] = { label: item.name, color: 'hsl(var(--chart-1))' };
     });
     return config;
-  }, [compagnieData]);
+  }, [compagnieData, t]);
 
   // Status badge styles are imported from @/lib/status-colors
 
@@ -379,7 +381,7 @@ function DashboardPageInner() {
   const formatDate = (val: any) => {
     if (!val) return '-';
     const date = val.toDate ? val.toDate() : new Date(val);
-    try { return format(date, 'dd/MM HH:mm', { locale: fr }); }
+    try { return format(date, 'dd/MM HH:mm', { locale: dateFnsLocale() }); }
     catch { return '-'; }
   };
 
@@ -392,7 +394,7 @@ function DashboardPageInner() {
   if (loading) {
     return (
       <div className="flex-1 space-y-8" aria-busy="true">
-        <PageHeader title="Tableau de bord" size="compact" />
+        <PageHeader title={t('Tableau de bord')} size="compact" />
         <div className="paper-featured p-6">
           <div className="grid gap-6 sm:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -428,18 +430,18 @@ function DashboardPageInner() {
     userFilter: string, setUserFilter: (v: string) => void,
     natureFilter: string, setNatureFilter: (v: string) => void,
   ) => (
-    <Card className="h-fit">
+    <Card data-tour={`dash-changements-${panelKey}`} className="h-fit">
       <CardHeader>
         {/* Activity feed header (Atlassian activity feed / Material list header):
             t-heading title, filter label quiet, count as a NEUTRAL pill (no status colour). */}
         <CardTitle className="t-heading flex items-center gap-2">
           <Activity className="h-4 w-4 text-ink-3" aria-hidden />
-          <span>Changements récents <span className="font-normal text-ink-3">/ {actionFilterLabels[actionFilter]}</span></span>
+          <span>{t('Changements récents')} <span className="font-normal text-ink-3">/ {t(actionFilterLabels[actionFilter])}</span></span>
           <span className="ml-1 rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium tabular-nums text-ink-2">{logs.length}</span>
         </CardTitle>
       </CardHeader>
       {/* Nested-solid rule (blueprint §3): a flat surface-2 well inside paper, solid h-8 controls. */}
-      <div className="mx-6 rounded-lg bg-surface-2 p-3">
+      <div data-tour={`dash-chg-filtres-${panelKey}`} className="mx-6 rounded-lg bg-surface-2 p-3">
         <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
           <DatePicker
             value={dateFilter ? new Date(dateFilter) : null}
@@ -453,29 +455,29 @@ function DashboardPageInner() {
                 setDateFilter('');
               }
             }}
-            placeholder="Filtrer par date"
+            placeholder={t('Filtrer par date')}
             className="h-8 text-xs"
           />
           <Select value={actionFilter} onValueChange={setActionFilter}>
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Type de changement" />
+              <SelectValue placeholder={t('Type de changement')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tous les changements</SelectItem>
-              <SelectItem value="statut">Changements de statut</SelectItem>
-              <SelectItem value="planification">Planification</SelectItem>
-              <SelectItem value="chiffrage">Chiffrage</SelectItem>
-              <SelectItem value="document">Documents / Photos / Rapports</SelectItem>
-              <SelectItem value="atg">Agent de Terrain</SelectItem>
-              <SelectItem value="reclamation">Réclamations</SelectItem>
+              <SelectItem value="all">{t('Tous les changements')}</SelectItem>
+              <SelectItem value="statut">{t('Changements de statut')}</SelectItem>
+              <SelectItem value="planification">{t('Planification')}</SelectItem>
+              <SelectItem value="chiffrage">{t('Chiffrage')}</SelectItem>
+              <SelectItem value="document">{t('Documents / Photos / Rapports')}</SelectItem>
+              <SelectItem value="atg">{t('Agent de Terrain')}</SelectItem>
+              <SelectItem value="reclamation">{t('Réclamations')}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={userFilter} onValueChange={setUserFilter}>
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Tous les utilisateurs" />
+              <SelectValue placeholder={t('Tous les utilisateurs')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tous les utilisateurs</SelectItem>
+              <SelectItem value="all">{t('Tous les utilisateurs')}</SelectItem>
               {uniqueUsers.map((user) => (
                 <SelectItem key={`${panelKey}-${user}`} value={user}>{user}</SelectItem>
               ))}
@@ -483,12 +485,12 @@ function DashboardPageInner() {
           </Select>
           <Select value={natureFilter} onValueChange={setNatureFilter}>
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Toutes les natures" />
+              <SelectValue placeholder={t('Toutes les natures')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Toutes les natures</SelectItem>
+              <SelectItem value="all">{t('Toutes les natures')}</SelectItem>
               {uniqueNatures.map((nature) => (
-                <SelectItem key={`${panelKey}-nature-${nature}`} value={nature}>{nature}</SelectItem>
+                <SelectItem key={`${panelKey}-nature-${nature}`} value={nature}>{t(nature)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -506,7 +508,7 @@ function DashboardPageInner() {
                 setNatureFilter('all');
               }}
             >
-              <X className="mr-1 h-3 w-3" /> Réinitialiser
+              <X className="mr-1 h-3 w-3" /> {t('Réinitialiser')}
             </Button>
           </div>
         )}
@@ -516,8 +518,8 @@ function DashboardPageInner() {
           {logs.length === 0 ? (
             <EmptyState
               icon={<Inbox />}
-              title="Aucune activité récente"
-              description="Les changements apparaîtront ici au fil de l'activité."
+              title={t('Aucune activité récente')}
+              description={t("Les changements apparaîtront ici au fil de l'activité.")}
               dashed={false}
               className="border-0 bg-transparent py-6"
             />
@@ -547,7 +549,7 @@ function DashboardPageInner() {
                             <Plus className="h-2.5 w-2.5" strokeWidth={3} />
                           </span>
                         )}
-                        {log.action}
+                        {t(log.action)}
                       </p>
                       <span className="t-caption ml-2 whitespace-nowrap rounded bg-surface-2 px-1.5 py-0.5 font-medium tabular-nums text-ink-3">
                         {formatDate(log.date)}
@@ -579,13 +581,13 @@ function DashboardPageInner() {
 
   // ── Sub-renders ─────────────────────────────────────────────────────
   const filteredStatusRows = statusBarData.filter((item) =>
-    item.name.toLowerCase().includes(statusFilterSearch.toLowerCase().trim())
+    t(item.name).toLowerCase().includes(statusFilterSearch.toLowerCase().trim())
   );
 
   const filteredCount = filteredDossiers.length;
   const rangeLabel = (!dateFromFilter && !dateToFilter)
-    ? 'au total'
-    : `du ${dateFromFilter ? format(dateFromFilter, 'dd/MM/yyyy', { locale: fr }) : '—'} au ${dateToFilter ? format(dateToFilter, 'dd/MM/yyyy', { locale: fr }) : '—'}`;
+    ? t('au total')
+    : `${t('du')} ${dateFromFilter ? format(dateFromFilter, 'dd/MM/yyyy', { locale: dateFnsLocale() }) : '—'} ${t('au')} ${dateToFilter ? format(dateToFilter, 'dd/MM/yyyy', { locale: dateFnsLocale() }) : '—'}`;
 
   // Period presets — which one (if any) matches the current range exactly.
   // Apple HIG segmented control / Material 3 segmented buttons: exactly one
@@ -595,14 +597,14 @@ function DashboardPageInner() {
     if (!dateFromFilter || !dateToFilter) return null;
     if (!isSameDay(dateToFilter, today)) return null;
     if (isSameDay(dateFromFilter, today)) return 'jour';
-    if (isSameDay(dateFromFilter, startOfWeek(today, { locale: fr }))) return 'semaine';
+    if (isSameDay(dateFromFilter, startOfWeek(today, { locale: dateFnsLocale() }))) return 'semaine';
     if (isSameDay(dateFromFilter, startOfMonth(today))) return 'mois';
     return null;
   })();
   const periodSegments: { key: 'jour' | 'semaine' | 'mois'; label: string; apply: () => void }[] = [
-    { key: 'jour', label: "Aujourd'hui", apply: () => { setDateFromFilter(today); setDateToFilter(today); } },
-    { key: 'semaine', label: 'Semaine', apply: () => { setDateFromFilter(startOfWeek(today, { locale: fr })); setDateToFilter(today); } },
-    { key: 'mois', label: 'Mois', apply: () => { setDateFromFilter(startOfMonth(today)); setDateToFilter(today); } },
+    { key: 'jour', label: t("Aujourd'hui"), apply: () => { setDateFromFilter(today); setDateToFilter(today); } },
+    { key: 'semaine', label: t('Semaine'), apply: () => { setDateFromFilter(startOfWeek(today, { locale: dateFnsLocale() })); setDateToFilter(today); } },
+    { key: 'mois', label: t('Mois'), apply: () => { setDateFromFilter(startOfMonth(today)); setDateToFilter(today); } },
   ];
 
   // The ONE featured (terracotta) surface on this page: the headline figures
@@ -617,27 +619,27 @@ function DashboardPageInner() {
               ≥ 48 px in the UI sans (Inter), never the display face. */}
           <div className="grid flex-1 grid-cols-1 gap-5 sm:grid-cols-3 sm:divide-x sm:divide-on-ink/15">
             <div className="sm:pr-6">
-              <p className="t-label text-on-ink/70">Dossiers créés</p>
+              <p className="t-label text-on-ink/70">{t('Dossiers créés')}</p>
               <p className="mt-1 font-body text-[48px] font-semibold leading-none text-on-ink">{filteredCount}</p>
               <p className="t-caption mt-1 text-on-ink/70">{rangeLabel}</p>
             </div>
             <div className="sm:px-6">
-              <p className="t-label text-on-ink/70">Statuts actifs</p>
+              <p className="t-label text-on-ink/70">{t('Statuts actifs')}</p>
               <p className="mt-1 text-[36px] font-semibold leading-none text-on-ink">{statusChartData.length}</p>
-              <p className="t-caption mt-1 text-on-ink/70">sur {statusBarData.length} statuts</p>
+              <p className="t-caption mt-1 text-on-ink/70">{t('sur')} {statusBarData.length} {t('statuts')}</p>
             </div>
             <div className="sm:pl-6">
-              <p className="t-label text-on-ink/70">Compagnies</p>
+              <p className="t-label text-on-ink/70">{t('Compagnies')}</p>
               <p className="mt-1 text-[36px] font-semibold leading-none text-on-ink">{compagnieData.length}</p>
               <p className="t-caption mt-1 text-on-ink/70">
-                {compagnieData[0] ? `${compagnieData[0].name} en tête` : 'aucune donnée'}
+                {compagnieData[0] ? `${compagnieData[0].name} ${t('en tête')}` : t('aucune donnée')}
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap items-end gap-2">
+          <div data-tour="dash-etat-periode" className="flex shrink-0 flex-wrap items-end gap-2">
             {/* Segmented control (Apple HIG / Material 3 segmented buttons): equal
                 segments in one track, the selected one is the raised light pane. */}
-            <div className="grid grid-cols-3 items-center gap-0.5 rounded-md bg-on-ink/10 p-0.5" role="group" aria-label="Période">
+            <div className="grid grid-cols-3 items-center gap-0.5 rounded-md bg-on-ink/10 p-0.5" role="group" aria-label={t('Période')}>
               {periodSegments.map((segment) => {
                 const isActive = activePreset === segment.key;
                 return (
@@ -659,20 +661,20 @@ function DashboardPageInner() {
               })}
             </div>
             <div className="space-y-1">
-              <label className="t-label text-on-ink/70">Du</label>
+              <label className="t-label text-on-ink/70">{t('Du')}</label>
               <DatePicker
                 value={dateFromFilter ?? null}
                 onChange={(d) => setDateFromFilter(d ?? undefined)}
-                placeholder="Date de début"
+                placeholder={t('Date de début')}
                 className="h-8 w-36 text-xs"
               />
             </div>
             <div className="space-y-1">
-              <label className="t-label text-on-ink/70">Au</label>
+              <label className="t-label text-on-ink/70">{t('Au')}</label>
               <DatePicker
                 value={dateToFilter ?? null}
                 onChange={(d) => setDateToFilter(d ?? undefined)}
-                placeholder="Date de fin"
+                placeholder={t('Date de fin')}
                 className="h-8 w-36 text-xs"
               />
             </div>
@@ -687,7 +689,7 @@ function DashboardPageInner() {
                   setDateToFilter(undefined);
                 }}
               >
-                <X className="mr-1 h-3.5 w-3.5" /> Effacer
+                <X className="mr-1 h-3.5 w-3.5" /> {t('Effacer')}
               </Button>
             )}
           </div>
@@ -697,15 +699,15 @@ function DashboardPageInner() {
   );
 
   const filterCard = (
-    <Card className="h-fit overflow-hidden">
+    <Card data-tour="dash-etat-card" className="h-fit overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle>Dossiers par état</CardTitle>
+        <CardTitle>{t('Dossiers par état')}</CardTitle>
         {/* Blueprint §6: inputs are solid fields, never underline / transparent. */}
         <div className="relative w-[180px] max-w-full">
           <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" aria-hidden />
           <Input
-            placeholder="Rechercher..."
-            aria-label="Rechercher un statut"
+            placeholder={t('Rechercher...')}
+            aria-label={t('Rechercher un statut')}
             value={statusFilterSearch}
             onChange={(e) => setStatusFilterSearch(e.target.value)}
             className="h-8 rounded-md border border-input bg-card pl-7 text-xs"
@@ -716,8 +718,8 @@ function DashboardPageInner() {
         {filteredStatusRows.length === 0 ? (
           <EmptyState
             icon={<Search />}
-            title="Aucun statut"
-            description="Affinez votre recherche pour voir les statuts."
+            title={t('Aucun statut')}
+            description={t('Affinez votre recherche pour voir les statuts.')}
             dashed={false}
             className="border-0 bg-transparent py-8"
           />
@@ -737,7 +739,7 @@ function DashboardPageInner() {
                       isSelected ? 'border-l-2 border-l-primary bg-accent/50' : 'border-l-2 border-l-transparent hover:bg-surface-2',
                     )}
                   >
-                    <span className={cn('truncate', isSelected ? 'font-semibold text-ink' : isEmpty ? 'text-ink-3' : 'text-ink-2')}>{item.name}</span>
+                    <span className={cn('truncate', isSelected ? 'font-semibold text-ink' : isEmpty ? 'text-ink-3' : 'text-ink-2')}>{t(item.name)}</span>
                     {/* Material 3 list trailing supporting text / NN/g faceted filter counts:
                         the count is a status-pair chip (blueprint status pairs), neutral when empty. */}
                     <span className={cn(
@@ -758,16 +760,16 @@ function DashboardPageInner() {
   );
 
   const pieCard = (
-    <Card className="h-fit">
+    <Card data-tour="dash-pie" className="h-fit">
       <CardHeader>
-        <CardTitle>Volume par statut</CardTitle>
+        <CardTitle>{t('Volume par statut')}</CardTitle>
       </CardHeader>
       <CardContent>
         {statusChartData.length === 0 ? (
           <EmptyState
             icon={<PieChartIcon />}
-            title="Aucune donnée"
-            description="Les statistiques apparaîtront dès qu'un dossier sera créé."
+            title={t('Aucune donnée')}
+            description={t("Les statistiques apparaîtront dès qu'un dossier sera créé.")}
             dashed={false}
             className="border-0 bg-transparent py-10"
           />
@@ -828,7 +830,7 @@ function DashboardPageInner() {
               {pieData.map((item) => (
                 <li key={item.name} className="t-caption flex items-center gap-1.5">
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.fill }} aria-hidden />
-                  <span>{item.name}</span>
+                  <span>{t(item.name)}</span>
                   <span className="font-semibold tabular-nums text-ink">{item.value}</span>
                 </li>
               ))}
@@ -840,20 +842,20 @@ function DashboardPageInner() {
   );
 
   const filteredTableCard = (
-    <Card className="h-fit overflow-hidden">
+    <Card data-tour="dash-status-table" className="h-fit overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         {/* NN/g data tables: the title names the table once; status as a chip; count quiet. */}
         <CardTitle className="t-heading flex items-center gap-2">
-          <span>Dossiers</span>
+          <span>{t('Dossiers')}</span>
           {selectedStatus && (
             <span className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(selectedStatus))}>
-              {selectedStatus}
+              {t(selectedStatus)}
             </span>
           )}
           <span className="t-caption tabular-nums">{dossiersByStatus.length}</span>
         </CardTitle>
         <Button variant="ghost" size="sm" onClick={() => setSelectedStatus(null)}>
-          <X className="mr-1 h-4 w-4" /> Fermer
+          <X className="mr-1 h-4 w-4" /> {t('Fermer')}
         </Button>
       </CardHeader>
       <CardContent className="p-0">
@@ -862,13 +864,13 @@ function DashboardPageInner() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Réf.</TableHead>
-                <TableHead>Assuré</TableHead>
-                <TableHead>Compagnie</TableHead>
-                <TableHead>Nature du dossier</TableHead>
-                <TableHead>Matricule</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead className="text-right">Date</TableHead>
+                <TableHead>{t('Réf.')}</TableHead>
+                <TableHead>{t('Assuré')}</TableHead>
+                <TableHead>{t('Compagnie')}</TableHead>
+                <TableHead>{t('Nature du dossier')}</TableHead>
+                <TableHead>{t('Matricule')}</TableHead>
+                <TableHead>{t('Statut')}</TableHead>
+                <TableHead className="text-right">{t('Date')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -877,7 +879,7 @@ function DashboardPageInner() {
                   <TableCell colSpan={7} className="p-0">
                     <EmptyState
                       icon={<FolderOpen />}
-                      title="Aucun dossier avec ce statut"
+                      title={t('Aucun dossier avec ce statut')}
                       dashed={false}
                       className="border-0 bg-transparent py-10"
                     />
@@ -899,7 +901,7 @@ function DashboardPageInner() {
                     <TableCell className="t-mono text-ink-2">{dossier.matricule || emptyCell}</TableCell>
                     <TableCell>
                       <span className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(dossier.statut))}>
-                        {!dossier.statut || dossier.statut === 'Création dossier' ? 'Création de mission' : dossier.statut}
+                        {!dossier.statut || dossier.statut === 'Création dossier' ? t('Création de mission') : t(dossier.statut)}
                       </span>
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-ink-3">
@@ -917,7 +919,7 @@ function DashboardPageInner() {
 
   return (
     <div className="flex-1 space-y-8">
-      <PageHeader title="Tableau de bord" size="compact" />
+      <PageHeader title={t('Tableau de bord')} size="compact" />
 
       {/* 1 — the featured surface: headline figures + period */}
       {headlineCard}
@@ -952,16 +954,16 @@ function DashboardPageInner() {
           changements2NatureFilter, setChangements2NatureFilter,
         )}
         <div className="space-y-6">
-          <Card className="h-fit">
+          <Card data-tour="dash-compagnie" className="h-fit">
             <CardHeader>
-              <CardTitle>Répartition par compagnie</CardTitle>
+              <CardTitle>{t('Répartition par compagnie')}</CardTitle>
             </CardHeader>
             <CardContent>
               {compagnieData.length === 0 ? (
                 <EmptyState
                   icon={<BarChart3 />}
-                  title="Aucune donnée"
-                  description="La répartition apparaîtra dès qu'un dossier sera créé."
+                  title={t('Aucune donnée')}
+                  description={t("La répartition apparaîtra dès qu'un dossier sera créé.")}
                   dashed={false}
                   className="border-0 bg-transparent py-10"
                 />

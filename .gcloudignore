@@ -1,0 +1,17 @@
+# Keep the Cloud Build upload small — the nested dev working copy and
+# node_modules would otherwise add gigabytes.
+.git
+.gitignore
+node_modules
+.next
+SL-auto-main/
+android/
+capacitor-webdir/
+functions/node_modules
+functions/lib
+evals/
+tests/
+docs/
+.plan/
+*.log
+tsconfig.tsbuildinfo

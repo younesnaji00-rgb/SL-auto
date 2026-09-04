@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { ChevronDown } from 'lucide-react';
+import { useT } from '@/i18n';
 import {
   SlotCard,
   type ExtraSlotKind,
@@ -100,6 +101,7 @@ export function FamilyRow({
   dossierId,
   onDocDrop,
 }: FamilyRowProps) {
+  const t = useT();
   const storageKey = `docfam-collapsed:${dossierId ?? 'dossier'}:${group.parent}`;
   const [collapsed, setCollapsed] = React.useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -132,7 +134,7 @@ export function FamilyRow({
   return (
     <section
       className="space-y-3 border-t border-hairline pt-5 first:border-t-0 first:pt-0"
-      aria-label={group.parent}
+      aria-label={t(group.parent)}
     >
       {/* Navy header band — the page's third colour. Whole band toggles the
           collapse; `topAction` sits outside the toggle button. */}
@@ -141,7 +143,7 @@ export function FamilyRow({
           type="button"
           onClick={toggleCollapsed}
           aria-expanded={!collapsed}
-          aria-label={`${collapsed ? 'Développer' : 'Réduire'} ${group.parent}`}
+          aria-label={`${collapsed ? t('Développer') : t('Réduire')} ${t(group.parent)}`}
           className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
           <ChevronDown
@@ -151,21 +153,21 @@ export function FamilyRow({
             )}
             aria-hidden
           />
-          <h3 className="min-w-0 truncate text-[13px] font-semibold text-ink" title={group.parent}>
-            {group.parent}
+          <h3 className="min-w-0 truncate text-[13px] font-semibold text-ink" title={t(group.parent)}>
+            {t(group.parent)}
           </h3>
           {/* Ordinal medallion — extra garages carry their round number. */}
           {group.parentOrdinal >= 2 && (
             <span
               className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-tertiary-bg text-[11px] font-semibold tabular-nums text-tertiary-deep"
-              title={`Garage ${group.parentOrdinal}`}
-              aria-label={`Garage numéro ${group.parentOrdinal}`}
+              title={`${t('Garage')} ${group.parentOrdinal}`}
+              aria-label={`${t('Garage numéro')} ${group.parentOrdinal}`}
             >
               {group.parentOrdinal}
             </span>
           )}
           <span className="shrink-0 rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums text-ink-2">
-            {receivedCount}/{visibleSlots.length} reçu{receivedCount > 1 ? 's' : ''}
+            {receivedCount}/{visibleSlots.length} {receivedCount > 1 ? t('reçus') : t('reçu')}
           </span>
         </button>
         {topAction && (

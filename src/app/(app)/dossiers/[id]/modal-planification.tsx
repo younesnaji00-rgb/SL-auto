@@ -26,7 +26,7 @@ import { collection, addDoc, updateDoc, doc, setDoc, serverTimestamp, Timestamp,
 import { useFirestore, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfToday, formatDistanceToNow } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { logHistorique, logWorkflow } from './log-historique';
 import { addObservation } from './log-observation';
 import { useOptions, type Option } from '@/hooks/use-options';
@@ -41,6 +41,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { formatDurationFr } from '@/lib/atg-feasibility';
 import { MapPin } from 'lucide-react';
 import { apiFetch } from '@/lib/api-fetch';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
+import { BRAND } from '@/lib/brand';
+import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 
 /** Narrows a free-form typeMission string to the canonical tri-state, or null. */
 function normalizeTypeMission(
@@ -80,15 +83,25 @@ type ModalPlanificationProps = {
 };
 
 export default function ModalPlanification({ open, onOpenChange, initialData, dossierId, dossierData, defaultTypeMission, defaultAgentTerrain }: ModalPlanificationProps) {
+  const t = useT();
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
   const { profile } = useCurrentUser();
   const isCurrentUserAT = profile?.role === 'Agent de Terrain';
+  // Tutorial mode (demo brand, or a guided tour running for an allowed
+  // role): the user's own browser position plays the field
+  // agent's live GPS (disclosed in the UI) — the demo agents have no
+  // connected phone, and the feature deserves to be SEEN.
+  const tutorialMode = useTutorialMode();
+  const demoSelfAsAgent = tutorialMode && !isCurrentUserAT;
   const [loading, setLoading] = useState(false);
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
   const [selfLocation, setSelfLocation] = useState<{ lat: number; lng: number; updatedAtMs: number } | null>(null);
+  const [selfLocationPending, setSelfLocationPending] = useState(false);
 
+  // Field agents planning their OWN mission: their position is the subject of
+  // the form, so it is read as soon as the dialog opens.
   useEffect(() => {
     if (!open || !isCurrentUserAT) return;
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
@@ -103,6 +116,22 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     );
     return () => { cancelled = true; };
   }, [open, isCurrentUserAT]);
+
+  // Demo brand: the demo user's browser position stands in for the agent's
+  // live GPS — but ONLY once they explicitly ask for it. Merely opening the
+  // appointment dialog must never raise a browser permission prompt.
+  const requestSelfLocation = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    setSelfLocationPending(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setSelfLocationPending(false);
+        setSelfLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, updatedAtMs: Date.now() });
+      },
+      () => setSelfLocationPending(false),
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
+    );
+  };
 
   const { options: dbRDVTypes } = useOptions('options_types_rdv');
   const rdvTypes = useMemo(() => dbRDVTypes.filter(o => o.active !== false), [dbRDVTypes]);
@@ -195,15 +224,26 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   }, [initialData, open, defaultTypeMission, defaultAgentTerrain]);
 
   const agentLive = useAgentLiveLocation(formData.agentTerrain);
-  const effectiveLocation = isCurrentUserAT ? selfLocation : agentLive.location;
-  const effectiveIsFresh = isCurrentUserAT ? !!selfLocation : agentLive.isFresh;
+  // Demo brand: fall back to the demo user's own position when the agent
+  // has no fresh GPS fix (always the case for the seeded demo agents).
+  const demoSelfLocationActive =
+    demoSelfAsAgent && !agentLive.isFresh && !!selfLocation;
+  const effectiveLocation = isCurrentUserAT
+    ? selfLocation
+    : demoSelfLocationActive
+      ? selfLocation
+      : agentLive.location;
+  const effectiveIsFresh = isCurrentUserAT
+    ? !!selfLocation
+    : demoSelfLocationActive || agentLive.isFresh;
 
   // True when an agent is selected but their fresh GPS position is not
   // available (denied / no last-known location / no UID match). Drives both
   // the existing "Position non disponible" alert and the manual fallback
   // <Input> row that lets the gestionnaire type a location by hand.
   const isAgentLocationUnavailable =
-    !!formData.agentTerrain && !agentLive.isFresh && !!agentLive.agentUid;
+    !!formData.agentTerrain && !agentLive.isFresh && !!agentLive.agentUid &&
+    !demoSelfLocationActive;
 
   // Resolve the displayed coords (the agent's live position, or — when the
   // current user is the AT — their own browser position) to a human-readable
@@ -329,7 +369,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         } catch (logErr) {
           console.warn('[modal-planification] history/workflow logging failed (non-fatal):', logErr);
         }
-        toast({ title: "Planification mise à jour" });
+        toast({ title: t('Planification mise à jour') });
       } else {
         await addDoc(collection(db, 'dossiers', dossierId, 'planifications'), {
           ...payload,
@@ -364,7 +404,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         } catch (logErr) {
           console.warn('[modal-planification] history/workflow logging failed (non-fatal):', logErr);
         }
-        toast({ title: "Nouvelle planification créée" });
+        toast({ title: t('Nouvelle planification créée') });
       }
 
       // Dossier statut bump — best-effort, isolated from the primary save so
@@ -396,7 +436,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
       onOpenChange(false);
     } catch (error: any) {
       console.error('Planification save error:', error);
-      toast({ variant: 'destructive', title: 'Erreur lors de la sauvegarde' });
+      toast({ variant: 'destructive', title: t('Erreur lors de la sauvegarde') });
     } finally {
       setLoading(false);
     }
@@ -404,18 +444,22 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent
+        className="sm:max-w-[550px] max-h-[88vh] overflow-y-auto"
+        data-tour="plan-dialog"
+        {...tourDialogGuard()}
+      >
         <DialogHeader>
-          <DialogTitle>{initialData ? 'Modifier la Planification' : 'Nouvelle Planification'}</DialogTitle>
-          <DialogDescription>Remplissez les informations pour programmer la mission de terrain.</DialogDescription>
+          <DialogTitle>{initialData ? t('Modifier la Planification') : t('Nouvelle Planification')}</DialogTitle>
+          <DialogDescription>{t('Remplissez les informations pour programmer la mission de terrain.')}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-6 py-4">
           <div className={(defaultTypeMission || isCurrentUserAT) ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4"}>
             {!isCurrentUserAT && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Agent de Terrain</Label>
-                <OptionsManagerModal collectionName="options_agents" title="Agents de terrain" />
+                <Label>{t('Agent de Terrain')}</Label>
+                <OptionsManagerModal collectionName="options_agents" title={t('Agents de terrain')} />
               </div>
               <Select
                 value={agentZoneFilter === '' ? '__all__' : agentZoneFilter}
@@ -436,13 +480,13 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 }}
               >
                 <SelectTrigger className="h-8 text-xs text-muted-foreground">
-                  <SelectValue placeholder="Filtrer par zone" />
+                  <SelectValue placeholder={t('Filtrer par zone')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">Toutes les zones</SelectItem>
+                  <SelectItem value="__all__">{t('Toutes les zones')}</SelectItem>
                   {availableAgentZones.length === 0 && (
                     <div className="px-2 py-1.5 text-[11px] italic text-muted-foreground">
-                      Aucune zone définie. Renseignez la zone via Agents de terrain.
+                      {t('Aucune zone définie. Renseignez la zone via Agents de terrain.')}
                     </div>
                   )}
                   {availableAgentZones.map((zone) => (
@@ -453,7 +497,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 </SelectContent>
               </Select>
               <Select value={formData.agentTerrain} onValueChange={(v) => setFormData({...formData, agentTerrain: v})}>
-                <SelectTrigger><SelectValue placeholder="Choisir un agent" /></SelectTrigger>
+                <SelectTrigger data-tour="plan-agent"><SelectValue placeholder={t('Choisir un agent')} /></SelectTrigger>
                 <SelectContent>
                   {filteredAgents.map(agent => {
                     const rawCount = agentWorkload[agent.label] || 0;
@@ -476,14 +520,14 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                             &mdash;{' '}
                             {zone
                               ? zone
-                              : <span className="italic">Zone non définie</span>}
+                              : <span className="italic">{t('Zone non définie')}</span>}
                             {' · '}
                             {selectedDayStartMs != null ? (
                               <span className="tabular-nums">
-                                {count} planif{count > 1 ? 's' : ''} le {format(formData.dateRDV!, 'dd/MM')}
+                                {count} {count > 1 ? t('planifs') : t('planif')} {t('le')} {format(formData.dateRDV!, 'dd/MM')}
                               </span>
                             ) : (
-                              <span className="italic">sélectionnez une date</span>
+                              <span className="italic">{t('sélectionnez une date')}</span>
                             )}
                           </span>
                         </span>
@@ -497,14 +541,14 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             {!defaultTypeMission && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Type de RDV</Label>
-                  <OptionsManagerModal collectionName="options_types_rdv" title="Types de RDV" />
+                  <Label>{t('Type de RDV')}</Label>
+                  <OptionsManagerModal collectionName="options_types_rdv" title={t('Types de RDV')} />
                 </div>
                 <Select value={formData.typeMission} onValueChange={(v) => setFormData({...formData, typeMission: v})}>
-                  <SelectTrigger><SelectValue placeholder="Choisir un type" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('Choisir un type')} /></SelectTrigger>
                   <SelectContent>
                     {rdvTypes.map(type => (
-                      <SelectItem key={type.id} value={type.label}>{type.label}</SelectItem>
+                      <SelectItem key={type.id} value={type.label}>{t(type.label)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -513,16 +557,16 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Date RDV</Label>
+            <div className="space-y-2" data-tour="plan-date">
+              <Label>{t('Date RDV')}</Label>
               <DatePicker
                 value={formData.dateRDV}
                 onChange={(d) => setFormData({...formData, dateRDV: d})}
                 disabledDates={(date) => date < startOfToday()}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Heure RDV</Label>
+            <div className="space-y-2" data-tour="plan-time">
+              <Label>{t('Heure RDV')}</Label>
               <div className="relative">
                 <Clock className="absolute left-3 top-3 h-4 w-4 text-primary" />
                 <Input 
@@ -535,10 +579,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Adresse complète</Label>
+          <div className="space-y-2" data-tour="plan-adresse">
+            <Label>{t('Adresse complète')}</Label>
             <Input
-              placeholder="Adresse du rendez-vous..."
+              placeholder={t('Adresse du rendez-vous...')}
               className="h-10"
               value={formData.adresse}
               onChange={(e) => setFormData({...formData, adresse: e.target.value})}
@@ -562,8 +606,8 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Observation</Label>
+          <div className="space-y-2" data-tour="plan-observation">
+            <Label>{t('Observation')}</Label>
             <div className="flex items-center gap-2">
               <Select
                 value={formData.observation}
@@ -574,22 +618,22 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                   <SelectValue
                     placeholder={
                       observationPresetsLoading
-                        ? 'Chargement…'
+                        ? t('Chargement…')
                         : activeObservationPresets.length === 0
-                          ? 'Aucune observation disponible'
-                          : 'Aucune observation'
+                          ? t('Aucune observation disponible')
+                          : t('Aucune observation')
                     }
                   />
                 </SelectTrigger>
                 <SelectContent>
                   {activeObservationPresets.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.label}>{opt.label}</SelectItem>
+                    <SelectItem key={opt.id} value={opt.label}>{t(opt.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <OptionsManagerModal
                 collectionName="options_observations"
-                title="Observations"
+                title={t('Observations')}
                 defaultValues={['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre']}
               />
             </div>
@@ -597,34 +641,38 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
               <Textarea
                 value={formData.observationCustomText}
                 onChange={(e) => setFormData({ ...formData, observationCustomText: e.target.value })}
-                placeholder="Écrivez une observation personnalisée…"
+                placeholder={t('Écrivez une observation personnalisée…')}
                 rows={2}
                 className="text-sm"
               />
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label>Observation personnalisée</Label>
-            <Textarea
-              placeholder="Ajouter une observation personnalisée (facultatif)…"
-              value={formData.observationPersonnalisee}
-              onChange={(e) => setFormData({ ...formData, observationPersonnalisee: e.target.value })}
-            />
-          </div>
+          {/* Redundant for the demo: picking « Autre » already reveals a
+              free-text field right above. */}
+          {BRAND.id !== 'demo' && (
+            <div className="space-y-2">
+              <Label>{t('Observation personnalisée')}</Label>
+              <Textarea
+                placeholder={t('Ajouter une observation personnalisée (facultatif)…')}
+                value={formData.observationPersonnalisee}
+                onChange={(e) => setFormData({ ...formData, observationPersonnalisee: e.target.value })}
+              />
+            </div>
+          )}
 
           {feasibilityPastRdv && (
             <Alert variant="warning">
-              <AlertTitle>RDV déjà passé</AlertTitle>
+              <AlertTitle>{t('RDV déjà passé')}</AlertTitle>
               <AlertDescription>
-                L'heure de RDV ({formData.timeRDV}) est déjà dépassée. L'agent ne pourra pas s'y rendre à temps.
+                {t("L'heure de RDV")} ({formData.timeRDV}) {t("est déjà dépassée. L'agent ne pourra pas s'y rendre à temps.")}
               </AlertDescription>
             </Alert>
           )}
 
           {(isCurrentUserAT || formData.agentTerrain) && effectiveIsFresh && effectiveLocation && (
-            <Alert variant="info">
-              <AlertTitle>{isCurrentUserAT ? 'Votre position actuelle' : "Position actuelle de l'agent"}</AlertTitle>
+            <Alert variant="info" data-tour="plan-agent-loc">
+              <AlertTitle>{isCurrentUserAT ? t('Votre position actuelle') : t("Position actuelle de l'agent")}</AlertTitle>
               <AlertDescription>
                 {agentAddress ? (
                   <p className="text-sm">{agentAddress}</p>
@@ -633,9 +681,14 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                     {effectiveLocation.lat.toFixed(5)}, {effectiveLocation.lng.toFixed(5)}
                   </p>
                 )}
-                {!isCurrentUserAT && agentLive.location && (
+                {demoSelfLocationActive && (
                   <p className="text-sm italic text-muted-foreground mt-1">
-                    Mise à jour {formatDistanceToNow(new Date(agentLive.location.updatedAtMs), { addSuffix: true, locale: fr })}
+                    {t('Démo : la position affichée est celle de votre navigateur — en production, celle du téléphone de l’agent.')}
+                  </p>
+                )}
+                {!isCurrentUserAT && !demoSelfLocationActive && agentLive.location && (
+                  <p className="text-sm italic text-muted-foreground mt-1">
+                    {t('Mise à jour')} {formatDistanceToNow(new Date(agentLive.location.updatedAtMs), { addSuffix: true, locale: dateFnsLocale() })}
                   </p>
                 )}
                 <a
@@ -645,20 +698,38 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                   className="inline-flex items-center gap-1 text-sm text-primary underline mt-2"
                 >
                   <MapPin className="h-3 w-3" />
-                  Voir sur Google Maps
+                  {t('Voir sur Google Maps')}
                 </a>
               </AlertDescription>
             </Alert>
           )}
 
           {!isCurrentUserAT && isAgentLocationUnavailable && (
-            <Alert variant="info">
-              <AlertTitle>Position de l'agent non disponible</AlertTitle>
+            <Alert variant="info" data-tour="plan-agent-loc">
+              <AlertTitle>{t("Position de l'agent non disponible")}</AlertTitle>
               <AlertDescription>
                 <p className="mb-2">
-                  Aucune position récente de {formData.agentTerrain}. La vérification d'itinéraire ne peut pas tenir compte de sa position actuelle.
+                  {t('Aucune position récente de')} {formData.agentTerrain}. {t("La vérification d'itinéraire ne peut pas tenir compte de sa position actuelle.")}
                 </p>
-                {agentLive.requestState === 'idle' && (
+                {/* Demo: the agents have no connected phone, so this button
+                    stands in the demo user's own browser position — and the
+                    permission prompt only fires on this explicit click. */}
+                {demoSelfAsAgent ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={selfLocationPending}
+                    onClick={requestSelfLocation}
+                  >
+                    {selfLocationPending ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <MapPin className="h-4 w-4 mr-1" />
+                    )}
+                    {t("Demander la localisation de l'AT")}
+                  </Button>
+                ) : agentLive.requestState === 'idle' ? (
                   <Button
                     type="button"
                     size="sm"
@@ -666,18 +737,18 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                     onClick={() => void agentLive.requestLocation()}
                   >
                     <MapPin className="h-4 w-4 mr-1" />
-                    Demander la localisation de l'AT
+                    {t("Demander la localisation de l'AT")}
                   </Button>
-                )}
+                ) : null}
                 {(agentLive.requestState === 'pending' || agentLive.requestState === 'sent') && (
                   <span className="text-sm italic">
                     <Loader2 className="inline h-3 w-3 animate-spin mr-1" />
-                    Demande envoyée — en attente de la position…
+                    {t('Demande envoyée — en attente de la position…')}
                   </span>
                 )}
                 {agentLive.requestState === 'error' && (
                   <span className="text-sm text-destructive">
-                    Échec de l'envoi de la demande. Réessayez.
+                    {t("Échec de l'envoi de la demande. Réessayez.")}
                   </span>
                 )}
               </AlertDescription>
@@ -687,11 +758,11 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           {!isCurrentUserAT && isAgentLocationUnavailable && (
             <div className="space-y-2">
               <Label htmlFor="agent-location-manuel">
-                Localisation de l'agent (manuelle)
+                {t("Localisation de l'agent (manuelle)")}
               </Label>
               <Input
                 id="agent-location-manuel"
-                placeholder="Saisir une localisation à la main (facultatif)…"
+                placeholder={t('Saisir une localisation à la main (facultatif)…')}
                 className="h-10"
                 value={formData.agentLocationManuel}
                 onChange={(e) =>
@@ -703,38 +774,38 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
 
           {feasibilityUnavailable && (
             <Alert variant="warning">
-              <AlertTitle>Vérification d'itinéraire indisponible</AlertTitle>
+              <AlertTitle>{t("Vérification d'itinéraire indisponible")}</AlertTitle>
               <AlertDescription>
-                Impossible de vérifier la faisabilité du planning de l'agent pour cette journée. La sauvegarde reste possible.
+                {t("Impossible de vérifier la faisabilité du planning de l'agent pour cette journée. La sauvegarde reste possible.")}
               </AlertDescription>
             </Alert>
           )}
 
           {feasibilityConflicts.length > 0 && (
             <Alert variant="warning">
-              <AlertTitle>Conflit de planning détecté</AlertTitle>
+              <AlertTitle>{t('Conflit de planning détecté')}</AlertTitle>
               <AlertDescription>
                 <p className="mb-2">
-                  Le planning de {formData.agentTerrain || "l'agent"} pour cette journée est mathématiquement infaisable :
+                  {t('Le planning de')} {formData.agentTerrain || t("l'agent")} {t('pour cette journée est mathématiquement infaisable :')}
                 </p>
                 <ul className="list-disc pl-5 space-y-1">
                   {feasibilityConflicts.map((c, i) => (
                     <li key={i}>
                       {c.fromIsOrigin ? (
                         <>
-                          RDV {c.toLabel} : depuis la position actuelle de l'agent, arrivée prévue à <strong>{format(new Date(c.arrivalMs), 'HH:mm')}</strong>
-                          {' '}({formatDurationFr(c.travelSeconds)} de trajet).
-                          {' '}Retard de {formatDurationFr(c.shortfallSeconds)} sur le RDV.
+                          {t('RDV')} {c.toLabel} : {t("depuis la position actuelle de l'agent, arrivée prévue à")} <strong>{format(new Date(c.arrivalMs), 'HH:mm')}</strong>
+                          {' '}({formatDurationFr(c.travelSeconds)} {t('de trajet')}).
+                          {' '}{t('Retard de')} {formatDurationFr(c.shortfallSeconds)} {t('sur le RDV.')}
                         </>
                       ) : (
                         <>
-                          RDV {c.toLabel} : arrivée prévue à <strong>{format(new Date(c.arrivalMs), 'HH:mm')}</strong>
+                          {t('RDV')} {c.toLabel} : {t('arrivée prévue à')} <strong>{format(new Date(c.arrivalMs), 'HH:mm')}</strong>
                           {c.sameStop ? (
-                            <>{' '}— même adresse : {formatDurationFr(c.serviceSeconds)} sur place pour le véhicule précédent.</>
+                            <>{' '}— {t('même adresse :')} {formatDurationFr(c.serviceSeconds)} {t('sur place pour le véhicule précédent.')}</>
                           ) : (
-                            <>{' '}— {formatDurationFr(c.serviceSeconds)} sur place à {c.fromAddress} + {formatDurationFr(c.travelSeconds)} de trajet.</>
+                            <>{' '}— {formatDurationFr(c.serviceSeconds)} {t('sur place à')} {c.fromAddress} + {formatDurationFr(c.travelSeconds)} {t('de trajet.')}</>
                           )}
-                          {' '}Retard de {formatDurationFr(c.shortfallSeconds)} sur le RDV.
+                          {' '}{t('Retard de')} {formatDurationFr(c.shortfallSeconds)} {t('sur le RDV.')}
                         </>
                       )}
                     </li>
@@ -746,10 +817,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            Annuler
+            {t('Annuler')}
           </Button>
-          <Button onClick={handleSave} disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : 'Enregistrer'}
+          <Button onClick={handleSave} disabled={loading} data-tour="plan-save">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : t('Enregistrer')}
           </Button>
         </DialogFooter>
       </DialogContent>

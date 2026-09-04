@@ -45,6 +45,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { parseAccordDocType } from '@/lib/docType-accorde';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from './replay-highlight';
 import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
@@ -235,6 +236,7 @@ export function SlotCard({
   selected,
   onToggleSelect,
 }: SlotCardProps) {
+  const t = useT();
   void userRole; // accepted for prop compatibility; roles gate via callbacks
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -362,6 +364,26 @@ export function SlotCard({
     onDrop: handleDrop,
   };
 
+  // Tutorial anchors on the slots the guided demo imports into. Applied to
+  // every socket state (filled / empty / locked) so the tour finds the
+  // element whichever state the slot happens to be in.
+  const slotTour =
+    slot === 'Devis Garage' && !extraSlotKind
+      ? 'dosd-devis-slot'
+      : slot === "Note d'honoraire"
+        ? 'dosd-honoraire-slot'
+        : slot === 'PV-Constat / Récépissé de police'
+          ? 'dosd-slot-pv'
+          : slot === 'Carte grise'
+            ? 'dosd-slot-carte'
+            : slot === "Attestation d'assurance"
+              ? 'dosd-slot-attestation'
+              : slot === 'Kilométrage'
+                ? 'dosd-slot-km'
+                : slot === 'Numéro de chassis'
+                  ? 'dosd-slot-vin'
+                  : undefined;
+
   // ── Drag source (filled tiles): the whole tile is the drag image.
   const draggable = filled && docDndEnabled;
   const handleDragStart = (e: React.DragEvent<HTMLElement>) => {
@@ -370,7 +392,7 @@ export function SlotCard({
     if (rootRef.current) e.dataTransfer.setDragImage(rootRef.current, 24, 24);
   };
   const dragSourceProps = draggable
-    ? { draggable: true, onDragStart: handleDragStart, title: 'Glisser vers un autre emplacement pour reclasser' }
+    ? { draggable: true, onDragStart: handleDragStart, title: t('Glisser vers un autre emplacement pour reclasser') }
     : {};
 
   // Slot controls (rename · cardinal + · extra +) — original placement rules.
@@ -385,8 +407,8 @@ export function SlotCard({
           type="button"
           className={HEADER_ICON_BUTTON_CLASS}
           onClick={onRenameExtraSlot}
-          title="Renommer"
-          aria-label="Renommer le slot"
+          title={t('Renommer')}
+          aria-label={t('Renommer le slot')}
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
@@ -400,10 +422,10 @@ export function SlotCard({
           className={HEADER_ICON_BUTTON_CLASS}
           title={
             cardinalPimpleDisabled
-              ? "En attente de chiffrage : remplissez ce slot avant de créer le suivant."
-              : "Créer le cardinal suivant"
+              ? t('En attente de chiffrage : remplissez ce slot avant de créer le suivant.')
+              : t('Créer le cardinal suivant')
           }
-          aria-label="Créer le cardinal suivant"
+          aria-label={t('Créer le cardinal suivant')}
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
@@ -425,8 +447,8 @@ export function SlotCard({
             type="button"
             onClick={() => extraSlotInputRef.current?.click()}
             className={HEADER_ICON_BUTTON_CLASS}
-            title={baseExtraKind === 'devis' ? 'Ajouter un devis (nouveau garage)' : 'Ajouter une facture (nouveau garage)'}
-            aria-label={baseExtraKind === 'devis' ? 'Ajouter un devis' : 'Ajouter une facture'}
+            title={baseExtraKind === 'devis' ? t('Ajouter un devis (nouveau garage)') : t('Ajouter une facture (nouveau garage)')}
+            aria-label={baseExtraKind === 'devis' ? t('Ajouter un devis') : t('Ajouter une facture')}
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
@@ -442,7 +464,7 @@ export function SlotCard({
           checked={!!selected}
           onCheckedChange={onToggleSelect}
           disabled={!anySelectable}
-          aria-label={`Sélectionner ${slot}`}
+          aria-label={`${t('Sélectionner')} ${t(slot)}`}
         />
       </div>
     ) : null;
@@ -453,7 +475,7 @@ export function SlotCard({
     dragKind && DRAG_OVER_CLASS,
     selectable && selected && 'ring-2 ring-primary',
   );
-  const docDropCaption = dragKind === 'doc' ? <DropCaption label={filled ? 'Échanger' : 'Déplacer ici'} /> : null;
+  const docDropCaption = dragKind === 'doc' ? <DropCaption label={filled ? t('Échanger') : t('Déplacer ici')} /> : null;
 
   // ── State 1b: filled, multi-page (n ≥ 2) ──────────────────────────────────
   if (pages.length >= 2) {
@@ -465,7 +487,7 @@ export function SlotCard({
       parsedAccord && typeof latest.uploadedByName === 'string' ? latest.uploadedByName.trim() : '';
 
     return (
-      <div id={id} ref={rootRef} className={tileClass} {...dropProps}>
+      <div id={id} ref={rootRef} className={tileClass} data-tour={slotTour} {...dropProps}>
         {/* The only "received" signal — a 2 px success edge. No chip. */}
         <div aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-status-success-fg/60" />
 
@@ -491,7 +513,7 @@ export function SlotCard({
             type="button"
             onClick={() => onPreview(pages[0], pages)}
             className="grid h-full w-full grid-cols-2 gap-px text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={`Aperçu — ${slot} (${n} pages)`}
+            aria-label={`${t('Aperçu')} — ${t(slot)} (${n} ${t('pages')})`}
           >
             <span className="relative block h-full overflow-hidden bg-surface-2">
               <PageThumb doc={pages[0]} />
@@ -509,24 +531,24 @@ export function SlotCard({
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink-solid/60 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
             <span className="inline-flex h-7 items-center gap-1.5 rounded-md bg-card px-2 text-xs font-medium text-ink">
               <Eye className="h-3.5 w-3.5" aria-hidden />
-              Aperçu
+              {t('Aperçu')}
             </span>
           </div>
         </div>
 
         {/* Document title + pages meta */}
         <div className="min-w-0 px-2.5 pb-1 pt-1.5">
-          <p className="t-body-sm truncate font-medium" title={slot}>{slot}</p>
+          <p className="t-body-sm truncate font-medium" title={t(slot)}>{t(slot)}</p>
           {meta && <p className="t-caption truncate tabular-nums">{meta}</p>}
           {chiffreurName && (
-            <p className="t-caption truncate" title={`Chiffré par ${chiffreurName}`}>
-              Chiffré par {chiffreurName}
+            <p className="t-caption truncate" title={`${t('Chiffré par')} ${chiffreurName}`}>
+              {t('Chiffré par')} {chiffreurName}
             </p>
           )}
         </div>
 
         {/* Pager — numbered pills with per-page actions */}
-        <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2" aria-label="Pages">
+        <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2" aria-label={t('Pages')}>
           {pages.map((p, i) => {
             const name = docDisplayName(p);
             const clickable = !!p.url && !p.pendingUpload;
@@ -538,7 +560,7 @@ export function SlotCard({
                   <button
                     type="button"
                     className={cn(PAGE_PILL_CLASS, highlightClass(replayStatus))}
-                    aria-label={`Page ${i + 1} — ${name}`}
+                    aria-label={`${t('Page')} ${i + 1} — ${name}`}
                     title={name}
                   >
                     {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : i + 1}
@@ -547,11 +569,11 @@ export function SlotCard({
                 <DropdownMenuContent align="start">
                   <DropdownMenuItem disabled={!clickable} onSelect={() => onPreview(p, pages)}>
                     <Eye className="h-3.5 w-3.5" />
-                    Aperçu
+                    {t('Aperçu')}
                   </DropdownMenuItem>
                   <DropdownMenuItem disabled={!clickable} onSelect={() => { if (p.url) downloadFileFromUrl(p.url, name); }}>
                     <Download className="h-3.5 w-3.5" />
-                    Télécharger
+                    {t('Télécharger')}
                   </DropdownMenuItem>
                   {canDeleteDoc(p) && (
                     <>
@@ -562,7 +584,7 @@ export function SlotCard({
                         onSelect={() => onDelete(p)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        Supprimer
+                        {t('Supprimer')}
                       </DropdownMenuItem>
                     </>
                   )}
@@ -590,13 +612,13 @@ export function SlotCard({
     const meta = docMetaLine(primary);
 
     return (
-      <div id={id} ref={rootRef} className={tileClass} {...dropProps}>
+      <div id={id} ref={rootRef} className={tileClass} data-tour={slotTour} {...dropProps}>
         {/* The only "received" signal — a 2 px success edge. No chip. */}
         <div aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-status-success-fg/60" />
 
         {/* Slot label + optional version chip + controls */}
         <div className="flex items-center gap-1 px-2.5 pb-1 pt-2">
-          <span className="t-caption min-w-0 flex-1 truncate font-medium" title={slot}>{slot}</span>
+          <span className="t-caption min-w-0 flex-1 truncate font-medium" title={t(slot)}>{t(slot)}</span>
           {versionChip}
           {controls}
         </div>
@@ -617,8 +639,8 @@ export function SlotCard({
               className="h-7 w-7"
               onClick={() => primaryClickable && onPreview(primary, pages)}
               disabled={!primaryClickable}
-              title="Aperçu"
-              aria-label={`Aperçu — ${primaryName}`}
+              title={t('Aperçu')}
+              aria-label={`${t('Aperçu')} — ${primaryName}`}
             >
               <Eye className="h-3.5 w-3.5" />
             </Button>
@@ -629,8 +651,8 @@ export function SlotCard({
               className="h-7 w-7"
               onClick={() => primary.url && downloadFileFromUrl(primary.url, primaryName)}
               disabled={!primaryClickable}
-              title="Télécharger"
-              aria-label={`Télécharger — ${primaryName}`}
+              title={t('Télécharger')}
+              aria-label={`${t('Télécharger')} — ${primaryName}`}
             >
               <Download className="h-3.5 w-3.5" />
             </Button>
@@ -642,8 +664,8 @@ export function SlotCard({
                 className="h-7 w-7"
                 onClick={() => onDelete(primary)}
                 disabled={primaryDeleting || !!primary.pendingUpload}
-                title="Supprimer"
-                aria-label={`Supprimer — ${primaryName}`}
+                title={t('Supprimer')}
+                aria-label={`${t('Supprimer')} — ${primaryName}`}
               >
                 {primaryDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               </Button>
@@ -663,12 +685,12 @@ export function SlotCard({
             <ChangeBadge status={primaryReplay} className="shrink-0" />
           </button>
           {primary.pendingUpload && (
-            <p className="t-caption text-status-warning-fg">En attente…</p>
+            <p className="t-caption text-status-warning-fg">{t('En attente…')}</p>
           )}
           {meta && <p className="t-caption truncate tabular-nums">{meta}</p>}
           {chiffreurName && (
-            <p className="t-caption truncate" title={`Chiffré par ${chiffreurName}`}>
-              Chiffré par {chiffreurName}
+            <p className="t-caption truncate" title={`${t('Chiffré par')} ${chiffreurName}`}>
+              {t('Chiffré par')} {chiffreurName}
             </p>
           )}
         </div>
@@ -680,7 +702,7 @@ export function SlotCard({
   // ── State 2: empty uploadable ("open socket") ─────────────────────────────
   if (uploadAllowed) {
     return (
-      <div id={id} className="relative" {...dropProps}>
+      <div id={id} className="relative" data-tour={slotTour} {...dropProps}>
         <input
           ref={inputRef}
           type="file"
@@ -695,7 +717,7 @@ export function SlotCard({
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={isUploading}
-          aria-label={`Déposer un document — ${slot}`}
+          aria-label={`${t('Déposer un document')} — ${t(slot)}`}
           className={cn(
             SOCKET_BASE_CLASS,
             SOCKET_OPEN_CLASS,
@@ -710,12 +732,12 @@ export function SlotCard({
           )}
           <span
             className="t-body-sm w-full truncate font-medium text-ink-2 transition-colors duration-150 group-hover/socket:text-ink"
-            title={slot}
+            title={t(slot)}
           >
-            {slot}
+            {t(slot)}
           </span>
-          <span className="t-caption">{isUploading ? 'Envoi…' : emptyCaption}</span>
-          {hint && !isUploading && <span className="t-caption w-full truncate text-ink-4" title={hint}>{hint}</span>}
+          <span className="t-caption">{isUploading ? t('Envoi…') : t(emptyCaption)}</span>
+          {hint && !isUploading && <span className="t-caption w-full truncate text-ink-4" title={t(hint)}>{t(hint)}</span>}
         </button>
         {controls && (
           <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-0.5">{controls}</div>
@@ -728,20 +750,20 @@ export function SlotCard({
   // ── State 3: locked ("locked slot") — never a drop target ─────────────────
   const lockText =
     parsedAccord || isReformeSlot
-      ? 'En attente de chiffrage'
+      ? t('En attente de chiffrage')
       : isRapportSlot
-        ? "Généré depuis l'étape Rapport"
-        : 'Aucun document';
+        ? t("Généré depuis l'étape Rapport")
+        : t('Aucun document');
 
   return (
-    <div id={id} className="relative">
+    <div id={id} className="relative" data-tour={slotTour}>
       {/* Lighter than a disabled button (user ruling 2026-09-01): near-white
           fill + faint SOLID edge + lock. Dashed stays reserved for "drop here". */}
       <div className={cn(SOCKET_BASE_CLASS, 'border border-hairline bg-card/60')}>
         <Lock className="h-5 w-5 text-ink-4" aria-hidden />
-        <span className="t-body-sm w-full truncate font-medium text-ink-3" title={slot}>{slot}</span>
+        <span className="t-body-sm w-full truncate font-medium text-ink-3" title={t(slot)}>{t(slot)}</span>
         <span className="t-caption text-ink-4">{lockText}</span>
-        {hint && <span className="t-caption w-full truncate text-ink-4" title={hint}>{hint}</span>}
+        {hint && <span className="t-caption w-full truncate text-ink-4" title={t(hint)}>{t(hint)}</span>}
         {/* Round 9 item 004 — per-slot Éditer button on pending
             accord/proposition slots (chiffreur side). */}
         {onEdit && !!parsedAccord && (
@@ -751,9 +773,10 @@ export function SlotCard({
             variant="outline"
             className="mt-1 h-7 gap-1.5 text-xs"
             onClick={onEdit}
+            data-tour="slot-editer"
           >
             <Pencil className="h-3 w-3" />
-            Éditer
+            {t('Éditer')}
           </Button>
         )}
       </div>

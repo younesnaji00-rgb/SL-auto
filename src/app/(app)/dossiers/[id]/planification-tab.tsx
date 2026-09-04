@@ -9,7 +9,7 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { format, isPast } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 
@@ -48,6 +48,7 @@ export default function PlanificationTab({
   typeFilter,
   plansOverride,
 }: PlanificationTabProps) {
+  const t = useT();
   const db = useFirestore();
   const [plans, setPlans] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -83,7 +84,7 @@ export default function PlanificationTab({
 
   const formatTimestamp = (ts: any) => {
     const d = toDate(ts);
-    return d ? format(d, "d MMMM yyyy 'à' HH:mm", { locale: fr }) : 'N/A';
+    return d ? format(d, "d MMMM yyyy 'à' HH:mm", { locale: dateFnsLocale() }) : 'N/A';
   };
 
   if (loading) {
@@ -101,20 +102,38 @@ export default function PlanificationTab({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h3 className="t-heading flex items-center gap-2">
-          Visites planifiées
+          {t('Visites planifiées')}
           {visiblePlans.length > 0 && <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium tabular-nums text-ink-2">{visiblePlans.length}</span>}
         </h3>
-        <Button size="sm" variant={visiblePlans.length === 0 ? 'default' : 'outline'} className="h-8 gap-1.5" onClick={() => onNewPlanification(typeFilter)}>
-          <Plus className="h-3.5 w-3.5" /> Nouvelle planification
+        <Button
+          size="sm"
+          variant={visiblePlans.length === 0 ? 'default' : 'outline'}
+          className="h-8 gap-1.5"
+          onClick={() => onNewPlanification(typeFilter)}
+          data-tour={typeFilter === 'Avant' ? 'dosd-planif-new' : undefined}
+        >
+          <Plus className="h-3.5 w-3.5" /> {t('Nouvelle planification')}
         </Button>
       </div>
 
       {visiblePlans.length === 0 ? (
         <EmptyState
           icon={<CalendarIcon />}
-          title="Aucune visite planifiée"
-          description={typeFilter ? `Programmez la visite « ${typeFilter.toLowerCase()} » pour assigner un agent de terrain.` : "Ce dossier n'a pas encore de mission planifiée."}
-          action={<Button size="sm" onClick={() => onNewPlanification(typeFilter)}>Programmer une visite</Button>}
+          title={t('Aucune visite planifiée')}
+          description={
+            typeFilter
+              ? `${t('Programmez la visite')} « ${t(typeFilter).toLowerCase()} » ${t('pour assigner un agent de terrain.')}`
+              : t("Ce dossier n'a pas encore de mission planifiée.")
+          }
+          action={
+            <Button
+              size="sm"
+              onClick={() => onNewPlanification(typeFilter)}
+              data-tour={typeFilter === 'Avant' ? 'dosd-planif-new' : undefined}
+            >
+              {t('Programmer une visite')}
+            </Button>
+          }
         />
       ) : (
         // Rows on hairlines; each row is self-contained — all details inline.
@@ -142,7 +161,7 @@ export default function PlanificationTab({
                     upcoming ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled' : 'bg-surface-3 text-ink-2 shadow-rim',
                   )}
                 >
-                  <span className="text-[11px] font-medium uppercase leading-none">{rdv ? format(rdv, 'MMM', { locale: fr }).replace('.', '') : '—'}</span>
+                  <span className="text-[11px] font-medium uppercase leading-none">{rdv ? format(rdv, 'MMM', { locale: dateFnsLocale() }).replace('.', '') : '—'}</span>
                   <span className="font-headline text-xl font-semibold leading-tight">{rdv ? format(rdv, 'd') : '—'}</span>
                   <span className="text-[11px] leading-none">{rdv ? format(rdv, 'HH:mm') : ''}</span>
                 </div>
@@ -152,39 +171,39 @@ export default function PlanificationTab({
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                       <span className={cn('inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium', TYPE_CHIP[plan.typeMission] ?? 'bg-surface-3 text-ink-2')}>
-                        Visite {plan.typeMission ? String(plan.typeMission).toLowerCase() : '—'}
+                        {t('Visite')} {plan.typeMission ? t(String(plan.typeMission)).toLowerCase() : '—'}
                       </span>
-                      {latest && <Badge variant="outline" className="h-5 text-[11px] font-medium text-ink-2">Dernière</Badge>}
-                      {rdv && <span className={cn('text-sm', upcoming ? 'font-medium text-ink' : 'text-ink-3')}>{format(rdv, 'EEEE d MMMM yyyy', { locale: fr })}</span>}
+                      {latest && <Badge variant="outline" className="h-5 text-[11px] font-medium text-ink-2">{t('Dernière')}</Badge>}
+                      {rdv && <span className={cn('text-sm', upcoming ? 'font-medium text-ink' : 'text-ink-3')}>{format(rdv, 'EEEE d MMMM yyyy', { locale: dateFnsLocale() })}</span>}
                       <ChangeBadge status={replayStatus} />
                     </div>
                     <Button variant="ghost" size="sm" className="h-8 shrink-0 gap-1.5 text-xs text-ink-3 hover:text-ink" onClick={() => onEditPlanification(plan)}>
-                      <Pencil className="h-3 w-3" /> Modifier
+                      <Pencil className="h-3 w-3" /> {t('Modifier')}
                     </Button>
                   </div>
 
                   <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
                     <div>
-                      <dt className="t-label">Agent de terrain</dt>
+                      <dt className="t-label">{t('Agent de terrain')}</dt>
                       <dd className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-ink">
                         <User className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-                        {plan.agentTerrain || <span className="font-normal text-ink-3">Non assigné</span>}
+                        {plan.agentTerrain || <span className="font-normal text-ink-3">{t('Non assigné')}</span>}
                       </dd>
                     </div>
                     <div>
-                      <dt className="t-label">Zone d&apos;intervention</dt>
+                      <dt className="t-label">{t("Zone d'intervention")}</dt>
                       <dd className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-ink">
                         <MapPin className="h-3.5 w-3.5 shrink-0 text-ink-3" />
                         {plan.zone || <span className="font-normal text-ink-3">—</span>}
                       </dd>
                     </div>
                     <div className="sm:col-span-2">
-                      <dt className="t-label">Adresse complète</dt>
+                      <dt className="t-label">{t('Adresse complète')}</dt>
                       <dd className="mt-0.5 text-sm text-ink">{plan.adresse || <span className="text-ink-3">—</span>}</dd>
                     </div>
                     {plan.telephone && (
                       <div>
-                        <dt className="t-label">Téléphone</dt>
+                        <dt className="t-label">{t('Téléphone')}</dt>
                         <dd className="mt-0.5 flex items-center gap-1.5 text-sm tabular-nums text-ink">
                           <Phone className="h-3.5 w-3.5 shrink-0 text-ink-3" />
                           <a href={`tel:${plan.telephone}`} className="hover:underline">{plan.telephone}</a>
@@ -195,7 +214,7 @@ export default function PlanificationTab({
 
                   {plan.observation && (
                     <div className="rounded-md bg-surface-2 px-3 py-2">
-                      <p className="t-label flex items-center gap-1"><Info className="h-3 w-3" /> Observation</p>
+                      <p className="t-label flex items-center gap-1"><Info className="h-3 w-3" /> {t('Observation')}</p>
                       <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">{plan.observation}</p>
                     </div>
                   )}
@@ -203,9 +222,9 @@ export default function PlanificationTab({
                   {(plan.createdAt || plan.modifiedByName) && (
                     <p className="t-caption flex flex-wrap items-center gap-1 tabular-nums">
                       <Clock className="h-3 w-3 shrink-0" />
-                      {plan.createdAt ? <>Créée le {formatTimestamp(plan.createdAt)}</> : null}
+                      {plan.createdAt ? <>{t('Créée le')} {formatTimestamp(plan.createdAt)}</> : null}
                       {plan.createdAt && plan.modifiedByName ? <span aria-hidden>·</span> : null}
-                      {plan.modifiedByName ? <>modifiée par {plan.modifiedByName}</> : null}
+                      {plan.modifiedByName ? <>{t('modifiée par')} {plan.modifiedByName}</> : null}
                     </p>
                   )}
                 </div>

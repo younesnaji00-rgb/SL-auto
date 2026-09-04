@@ -24,6 +24,7 @@ import { useTabSlopeMorphRef } from '@/hooks/use-tab-morph';
 import { useFirestore, useStorage, useCollection } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
+import { useT } from '@/i18n';
 
 type Mode = 'photos' | 'documents';
 
@@ -43,6 +44,7 @@ interface ReferencePanelProps {
 }
 
 export default function ReferencePanel({ dossierId, isOpen, onClose, className, initialDocType }: ReferencePanelProps) {
+  const t = useT();
   const [split, setSplit] = useState(false);
 
   if (!isOpen) return null;
@@ -53,19 +55,19 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className, 
           on glass) + §1: one `t-heading` naming the panel, tool icons
           (`ghost`, aria-pressed on the split toggle) at the right end. */}
       <div className="flex min-h-[40px] shrink-0 items-center justify-between gap-2 border-b border-hairline px-4 py-1.5">
-        <h2 className="t-heading truncate">Comparaison</h2>
+        <h2 className="t-heading truncate">{t("Comparaison")}</h2>
         <div className="flex items-center gap-1">
           <Button
             variant={split ? 'tonal' : 'ghost'}
             size="icon"
             className="h-7 w-7"
             onClick={() => setSplit((s) => !s)}
-            title={split ? 'Fermer le second panneau' : 'Diviser le panneau pour comparer 2 documents'}
+            title={split ? t('Fermer le second panneau') : t('Diviser le panneau pour comparer 2 documents')}
             aria-pressed={split}
           >
             {split ? <Minimize2 className="h-3.5 w-3.5" /> : <Rows2 className="h-3.5 w-3.5" />}
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Fermer" aria-label="Fermer">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title={t("Fermer")} aria-label={t("Fermer")}>
             <X className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -148,6 +150,7 @@ function ReferencePane({
   /** Optional doc type to auto-select on first load (forces `documents` mode). */
   initialDocType?: string;
 }) {
+  const t = useT();
   const db = useFirestore();
   const storage = useStorage();
   const [mode, setMode] = useState<Mode>(initialDocType ? 'documents' : 'photos');
@@ -263,7 +266,7 @@ function ReferencePane({
           `ghost` icon buttons with aria-pressed on the toggle (§18). */}
       <div className="flex min-h-[32px] shrink-0 items-center justify-between gap-2 border-b border-hairline px-3 py-0.5">
         <span className="t-label truncate">
-          {label ?? ''}
+          {label ? t(label) : ''}
           {selectedName && <span className="text-ink-2">{label ? ' · ' : ''}{selectedName}</span>}
         </span>
         <div className="flex shrink-0 items-center gap-0.5">
@@ -273,8 +276,8 @@ function ReferencePane({
             className="h-6 w-6 text-ink-3 hover:text-ink"
             onClick={() => viewerUrl && setPreview({ url: viewerUrl, nom: selectedName || 'document' })}
             disabled={!viewerUrl}
-            title="Ouvrir en plein écran"
-            aria-label="Ouvrir en plein écran"
+            title={t("Ouvrir en plein écran")}
+            aria-label={t("Ouvrir en plein écran")}
           >
             <Eye className="h-3.5 w-3.5" />
           </Button>
@@ -283,7 +286,7 @@ function ReferencePane({
             size="icon"
             className="h-6 w-6 text-ink-3 hover:text-ink"
             onClick={() => setListOpen((o) => !o)}
-            title={listOpen ? 'Reduire la liste' : 'Afficher la liste'}
+            title={listOpen ? t("Reduire la liste") : t("Afficher la liste")}
             aria-pressed={listOpen}
           >
             {listOpen ? <ChevronsUp className="h-3.5 w-3.5" /> : <ChevronsDown className="h-3.5 w-3.5" />}
@@ -296,11 +299,11 @@ function ReferencePane({
         <div ref={modeMorphRef} className={cn(PANE_TABLIST_CLASS, 'mx-2 my-2')} role="tablist">
           <PaneTab active={mode === 'photos'} onClick={() => setMode('photos')}>
             <ImageIcon className="h-3.5 w-3.5" />
-            Photos ({photos?.length || 0})
+            {t("Photos")} ({photos?.length || 0})
           </PaneTab>
           <PaneTab active={mode === 'documents'} onClick={() => setMode('documents')}>
             <FileText className="h-3.5 w-3.5" />
-            Documents ({documents?.length || 0})
+            {t("Documents")} ({documents?.length || 0})
           </PaneTab>
         </div>
       )}
@@ -316,13 +319,13 @@ function ReferencePane({
                 onClick={() => setPhotoSubTab(key)}
                 className="min-h-[28px] py-1 text-xs"
               >
-                {categoryLabels[key]} ({groupedPhotos[key].length})
+                {t(categoryLabels[key])} ({groupedPhotos[key].length})
               </PaneTab>
             ))}
           </div>
           <div className="max-h-[220px] overflow-y-auto">
             {groupedPhotos[photoSubTab].length === 0 ? (
-              <div className="t-caption px-3 py-8 text-center">Aucune photo</div>
+              <div className="t-caption px-3 py-8 text-center">{t("Aucune photo")}</div>
             ) : (
               <div className="grid grid-cols-2 gap-1.5 p-2 sm:grid-cols-3">
                 {groupedPhotos[photoSubTab].map((p: any) => (
@@ -346,7 +349,7 @@ function ReferencePane({
         <div className="max-h-[260px] overflow-auto border-b border-hairline">
           {(() => {
             if (!documents || documents.length === 0) {
-              return <div className="t-caption px-3 py-4 text-center">Aucun document</div>;
+              return <div className="t-caption px-3 py-4 text-center">{t("Aucun document")}</div>;
             }
             const groups: Record<string, any[]> = {};
             for (const d of documents) {
@@ -360,7 +363,7 @@ function ReferencePane({
                   <div key={type}>
                     {/* Group label: t-label on the surface-2 step (no uppercase band). */}
                     <div className="t-label bg-surface-2 px-3 py-1">
-                      {type} ({items.length})
+                      {t(type)} ({items.length})
                     </div>
                     {items.map((d: any) => (
                       <button
@@ -375,10 +378,10 @@ function ReferencePane({
                           setSelectedId(d.id);
                           setListOpen(false);
                         }}
-                        title={d.nom || d.name || 'Document'}
+                        title={d.nom || d.name || t('Document')}
                       >
                         <FileText className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-                        <span className="whitespace-nowrap">{d.nom || d.name || 'Document'}</span>
+                        <span className="whitespace-nowrap">{d.nom || d.name || t("Document")}</span>
                       </button>
                     ))}
                   </div>
@@ -398,14 +401,14 @@ function ReferencePane({
           <div className="p-6 text-center">
             <ChevronsUp className="mx-auto mb-2 h-6 w-6 text-on-ink/40" aria-hidden />
             <p className="text-xs text-on-ink/70">
-              Sélectionnez un élément ci-dessus pour le visualiser
+              {t("Sélectionnez un élément ci-dessus pour le visualiser")}
             </p>
           </div>
         ) : isLoadingUrl ? (
-          <div className="animate-pulse text-xs text-on-ink/70">Chargement...</div>
+          <div className="animate-pulse text-xs text-on-ink/70">{t("Chargement...")}</div>
         ) : viewerUrl ? (
           isImageFile(selectedName) ? (
-            <ZoomableImage src={viewerUrl} alt={selectedItem?.name || 'Référence'} />
+            <ZoomableImage src={viewerUrl} alt={selectedItem?.name || t("Référence")} />
           ) : isPdfFile(selectedName) ? (
             // C2 — pdfjs canvas viewer with the image chrome (zoom/rotate/
             // page nav) replaces the dead-zoom iframe; the iframe stays as
@@ -413,12 +416,12 @@ function ReferencePane({
             // (chiffrage-redesign-spec).
             <PdfCanvas
               src={viewerUrl}
-              title={selectedItem?.nom || selectedItem?.name || 'Document'}
+              title={selectedItem?.nom || selectedItem?.name || t("Document")}
               fallback={
                 <iframe
                   src={viewerUrl}
                   className="h-full w-full border-none"
-                  title={selectedItem?.nom || 'Document'}
+                  title={selectedItem?.nom || t("Document")}
                 />
               }
             />
@@ -426,11 +429,11 @@ function ReferencePane({
             <iframe
               src={viewerUrl}
               className="h-full w-full border-none"
-              title={selectedItem?.nom || 'Document'}
+              title={selectedItem?.nom || t("Document")}
             />
           )
         ) : (
-          <p className="text-xs text-on-ink/70">Impossible de charger le fichier</p>
+          <p className="text-xs text-on-ink/70">{t("Impossible de charger le fichier")}</p>
         )}
       </div>
 
@@ -554,6 +557,7 @@ function PhotoThumb({
   selected: boolean;
   onClick: () => void;
 }) {
+  const t = useT();
   const storage = useStorage();
   const [url, setUrl] = useState<string | null>(photo.url || null);
   useEffect(() => {
@@ -576,11 +580,11 @@ function PhotoThumb({
         selected && 'ring-2 ring-ring hover:ring-ring'
       )}
       aria-pressed={selected}
-      title={photo.name || 'Photo'}
+      title={photo.name || t("Photo")}
     >
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={photo.name || 'Photo'} className="h-full w-full object-cover" />
+        <img src={url} alt={photo.name || t("Photo")} className="h-full w-full object-cover" />
       ) : (
         <div className="flex h-full w-full items-center justify-center text-[11px] text-ink-4">…</div>
       )}

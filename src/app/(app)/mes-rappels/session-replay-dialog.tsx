@@ -17,7 +17,7 @@ import { scrollBehavior } from '@/lib/motion';
 import { useFirestore, useDoc, useCollection } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { dateFnsLocale, useT } from '@/i18n';
 import type { Rappel } from '@/hooks/use-rappels';
 import { tsToMillis, classifyDossierChanges, diffCollectionById, docPathStatus, type CollectionDiff } from '@/lib/rappel-snapshot';
 import { loadReplaySnapshots, type ReplaySnapshots, SNAP_SUBCOLLECTIONS } from '@/lib/rappel-session';
@@ -30,6 +30,7 @@ import {
 import { DOSSIER_TIMELINE_STEPS } from '@/components/dossier-timeline/timeline';
 import { TimelineBar } from '@/components/dossier-timeline/timeline-bar';
 import { getStepStatuses, type StepState } from '@/lib/dossier-steps';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 // The real dossier-timeline components — rendered read-only + live so the
 // AFTER pane is the exact detail page (every field, photo, table), not an
@@ -112,7 +113,7 @@ function fmtDateTime(ts: any): string {
   const ms = tsToMillis(ts);
   if (!ms) return '—';
   try {
-    return format(new Date(ms), 'dd/MM/yyyy HH:mm', { locale: fr });
+    return format(new Date(ms), 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() });
   } catch {
     return '—';
   }
@@ -225,18 +226,20 @@ function ReplayStepBar({
 
 /** Step-section shell — same anatomy in both panes so the anchors line up. */
 function StepSectionHeader({ position, label }: { position: number; label: string }) {
+  const t = useT();
   return (
     <div className="mb-4 flex items-center gap-2">
       <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[11px] font-semibold tabular-nums text-ink-2 shadow-rim">
         {position}
       </span>
-      <h3 className="t-title">{label}</h3>
+      <h3 className="t-title">{t(label)}</h3>
     </div>
   );
 }
 
 export default function SessionReplayDialog({ rappel, open, onOpenChange }: Props) {
   const db = useFirestore();
+  const t = useT();
   const id = rappel?.dossierId ?? null;
   const startTs = rappel?.sessionStartedAt ?? null;
   const endTs = rappel?.resolvedAt ?? null;
@@ -621,38 +624,43 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
       {/* Effectively full-screen: the primitive's `lg:max-w-lg` must be beaten
           with the SAME `lg:` modifier (tailwind-merge only dedupes identical
           modifiers, so a bare max-w-none would lose to it in the cascade). */}
-      <DialogContent calm className="lg:max-w-none max-lg:w-full w-[calc((100vw-24px)/var(--app-zoom))] h-[calc((100vh-24px)/var(--app-zoom))] p-0 gap-0 flex flex-col overflow-hidden">
+      <DialogContent
+        data-tour="rap-replay"
+        {...tourDialogGuard()}
+        calm
+        className="lg:max-w-none max-lg:w-full w-[calc((100vw-24px)/var(--app-zoom))] h-[calc((100vh-24px)/var(--app-zoom))] p-0 gap-0 flex flex-col overflow-hidden"
+      >
         {/* Header: `t-title` headline (the ref stays in t-mono — numbers never
             in the display face) + one `t-caption` line of session facts. */}
-        <DialogHeader className="shrink-0 space-y-1.5 border-b border-hairline px-6 py-4">
+        <DialogHeader data-tour="rap-replay-head" className="shrink-0 space-y-1.5 border-b border-hairline px-6 py-4">
           <DialogTitle className="t-title flex flex-wrap items-center gap-2">
-            Traitement du dossier{' '}
+            {t('Traitement du dossier')}{' '}
             <span className="t-mono text-base font-semibold">{rappel?.dossierRef || id}</span>
             {/* Read-only marker (§11): neutral pair, icon + label. */}
             <Badge variant="neutral" className="ml-1 gap-1 font-normal">
-              <Eye className="h-3 w-3" aria-hidden /> Lecture seule
+              <Eye className="h-3 w-3" aria-hidden /> {t('Lecture seule')}
             </Badge>
           </DialogTitle>
           <DialogDescription asChild>
             <div className="t-caption flex flex-wrap items-center gap-x-4 gap-y-1">
               {rappel?.recipientNom && (
                 <span>
-                  Gestionnaire : <span className="font-medium text-ink">{rappel.recipientNom}</span>
+                  {t('Gestionnaire :')} <span className="font-medium text-ink">{rappel.recipientNom}</span>
                 </span>
               )}
               <span className="inline-flex items-center gap-1">
                 <CalendarClock className="h-3.5 w-3.5" aria-hidden />
-                Début : <span className="font-medium text-ink">{fmtDateTime(startTs)}</span>
+                {t('Début :')} <span className="font-medium text-ink">{fmtDateTime(startTs)}</span>
               </span>
               <span className="inline-flex items-center gap-1">
                 {endTs ? (
                   <>
                     <CheckCircle2 className="h-3.5 w-3.5 text-status-success-fg" aria-hidden />
-                    Sauvegardé : <span className="font-medium text-ink">{fmtDateTime(endTs)}</span>
+                    {t('Sauvegardé :')} <span className="font-medium text-ink">{fmtDateTime(endTs)}</span>
                   </>
                 ) : (
                   // Status pair with its label (§11) — the treatment is still open.
-                  <Badge variant="warning">Traitement en cours</Badge>
+                  <Badge variant="warning">{t('Traitement en cours')}</Badge>
                 )}
               </span>
             </div>
@@ -686,33 +694,31 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
             <div className="shrink-0 px-3 pt-3 sm:px-6">
               {snapsLoading ? (
                 <div className="t-caption flex items-center gap-2 rounded-[10px] bg-surface-2 px-3 py-2" aria-busy="true">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden /> Analyse des modifications du gestionnaire…
+                  <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden /> {t('Analyse des modifications du gestionnaire…')}
                 </div>
               ) : !hasBaseline ? (
                 <Alert variant="warning">
                   <AlertTriangle />
                   <AlertDescription>
-                    Aucun instantané de départ n&apos;a été enregistré pour ce traitement&nbsp;: les modifications
-                    ne peuvent pas être mises en évidence. Le gestionnaire doit ouvrir le dossier depuis
-                    «&nbsp;Mes rappels&nbsp;» pour démarrer une session.
+                    {t("Aucun instantané de départ n'a été enregistré pour ce traitement : les modifications ne peuvent pas être mises en évidence. Le gestionnaire doit ouvrir le dossier depuis « Mes rappels » pour démarrer une session.")}
                   </AlertDescription>
                 </Alert>
               ) : summary.total === 0 ? (
                 <Alert>
                   <Info />
-                  <AlertDescription>Aucune modification détectée pendant ce traitement.</AlertDescription>
+                  <AlertDescription>{t('Aucune modification détectée pendant ce traitement.')}</AlertDescription>
                 </Alert>
               ) : (
-                <div className="t-caption flex flex-wrap items-center gap-2 rounded-[10px] bg-surface-2 px-3 py-2">
-                  <span className="font-medium text-ink">Modifications du gestionnaire&nbsp;:</span>
+                <div data-tour="rap-replay-summary" className="t-caption flex flex-wrap items-center gap-2 rounded-[10px] bg-surface-2 px-3 py-2">
+                  <span className="font-medium text-ink">{t('Modifications du gestionnaire :')}</span>
                   {summary.added > 0 && (
-                    <Badge variant="success">{summary.added} ajout{summary.added > 1 ? 's' : ''}</Badge>
+                    <Badge variant="success">{summary.added} {summary.added > 1 ? t('ajouts') : t('ajout')}</Badge>
                   )}
                   {summary.modified > 0 && (
-                    <Badge variant="warning">{summary.modified} modification{summary.modified > 1 ? 's' : ''}</Badge>
+                    <Badge variant="warning">{summary.modified} {summary.modified > 1 ? t('modifications') : t('modification')}</Badge>
                   )}
                   {summary.removed > 0 && (
-                    <Badge variant="danger">{summary.removed} suppression{summary.removed > 1 ? 's' : ''}</Badge>
+                    <Badge variant="danger">{summary.removed} {summary.removed > 1 ? t('suppressions') : t('suppression')}</Badge>
                   )}
                 </div>
               )}
@@ -740,10 +746,10 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                   <div className="min-w-0">
                     <p className="t-body-sm flex items-center gap-1.5 font-semibold text-ink">
                       <History className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden />
-                      Avant le rappel — document d&apos;origine
+                      {t("Avant le rappel — document d'origine")}
                     </p>
                     <p className="t-caption mt-0.5 text-ink-3">
-                      L&apos;état du dossier tel qu&apos;il était à l&apos;envoi du rappel&nbsp;: une copie figée, non modifiable.
+                      {t("L'état du dossier tel qu'il était à l'envoi du rappel : une copie figée, non modifiable.")}
                     </p>
                   </div>
                   <button
@@ -752,7 +758,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                     className="t-caption inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-ink-3 transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
                     aria-expanded={avantOpen}
                   >
-                    {avantOpen ? 'Masquer' : 'Afficher'}
+                    {avantOpen ? t('Masquer') : t('Afficher')}
                     <ChevronDown
                       className={cn('h-3.5 w-3.5 transition-transform', avantOpen && 'rotate-180')}
                       aria-hidden
@@ -779,8 +785,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                     // The step shells stay so the scroll anchors still line up.
                     <div className="px-3 py-4 sm:px-4">
                       <p className="t-caption mb-2 text-ink-3">
-                        Aucun instantané de départ n&apos;a été enregistré pour cette session&nbsp;:
-                        les valeurs d&apos;origine ne sont pas disponibles.
+                        {t("Aucun instantané de départ n'a été enregistré pour cette session : les valeurs d'origine ne sont pas disponibles.")}
                       </p>
                       {DOSSIER_TIMELINE_STEPS.map((step, idx) => (
                         <section
@@ -803,8 +808,7 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                         <div className="px-3 py-4 sm:px-4">
                           {beforeSubsMissing && (
                             <p className="t-caption mb-2 text-ink-3">
-                              Certaines listes (documents, photos, planifications…) n&apos;ont pas
-                              été enregistrées dans l&apos;instantané de départ et apparaissent vides.
+                              {t("Certaines listes (documents, photos, planifications…) n'ont pas été enregistrées dans l'instantané de départ et apparaissent vides.")}
                             </p>
                           )}
                           {DOSSIER_TIMELINE_STEPS.map((step, idx) => (
@@ -835,25 +839,25 @@ export default function SessionReplayDialog({ rappel, open, onOpenChange }: Prop
                   <div className="min-w-0">
                     <p className="t-body-sm flex items-center gap-1.5 font-semibold text-ink">
                       <Pencil className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden />
-                      Après le rappel — document modifié
+                      {t('Après le rappel — document modifié')}
                     </p>
                     <p className="t-caption mt-0.5 text-ink-3">
-                      Le dossier tel qu&apos;il est aujourd&apos;hui&nbsp;: ce que le gestionnaire a changé pendant le traitement est surligné.
+                      {t("Le dossier tel qu'il est aujourd'hui : ce que le gestionnaire a changé pendant le traitement est surligné.")}
                     </p>
                   </div>
                   {hasBaseline && (
-                    <div className="flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 pt-0.5" aria-label="Légende des surlignages">
+                    <div className="flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 pt-0.5" aria-label={t('Légende des surlignages')}>
                       <span className="t-caption inline-flex items-center gap-1">
                         <span className="h-2.5 w-2.5 rounded-[3px] bg-status-success-bg ring-1 ring-inset ring-status-success-fg/30" aria-hidden />
-                        ajouté
+                        {t('ajouté')}
                       </span>
                       <span className="t-caption inline-flex items-center gap-1">
                         <span className="h-2.5 w-2.5 rounded-[3px] bg-status-warning-bg ring-1 ring-inset ring-status-warning-fg/30" aria-hidden />
-                        modifié
+                        {t('modifié')}
                       </span>
                       <span className="t-caption inline-flex items-center gap-1">
                         <span className="h-2.5 w-2.5 rounded-[3px] bg-status-danger-bg ring-1 ring-inset ring-status-danger-fg/30" aria-hidden />
-                        supprimé
+                        {t('supprimé')}
                       </span>
                     </div>
                   )}

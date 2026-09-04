@@ -25,6 +25,7 @@ import { useChiffrageTabs } from '@/hooks/use-chiffrage-tabs';
 import { addObservation } from '@/app/(app)/dossiers/[id]/log-observation';
 import ObservationsTab from '@/components/observations-tab';
 import { ReformeDialog } from '@/components/chiffreurs/reforme-dialog';
+import { BRAND } from '@/lib/brand';
 import {
   EnvoyerParMailDialog,
   type EnvoyerParMailDialogDoc,
@@ -46,6 +47,7 @@ import {
 } from '@/lib/queue-session';
 import { apiFetch } from '@/lib/api-fetch';
 import Loading from './loading';
+import { useT } from '@/i18n';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -76,6 +78,7 @@ const CATEGORY_TO_TYPE: Record<string, string> = {
 
 export default function AssignationChiffrageDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const t = useT();
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
@@ -141,13 +144,13 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     if (!db || !id) return;
     const unsub = onSnapshot(doc(db, 'chiffrages', id), (snap) => {
       if (!snap.exists()) {
-        toast({ variant: 'destructive', title: 'Assignation introuvable.' });
+        toast({ variant: 'destructive', title: t('Assignation introuvable.') });
         router.push('/assignations-chiffrage');
         return;
       }
       const data = snap.data() as ChiffrageDoc;
       setChiffrage(data);
-      const label = data.dossierNom || `Chiffrage ${id.slice(0, 6)}`;
+      const label = data.dossierNom || `${t('Chiffrage')} ${id.slice(0, 6)}`;
       openTab(id, label);
       refreshTabLabel(id, label);
       setLoading(false);
@@ -307,8 +310,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const handleImportClick = () => {
     toast({
       variant: 'default',
-      title: 'Import non disponible',
-      description: 'Import non disponible pour le chiffreur.',
+      title: t('Import non disponible'),
+      description: t('Import non disponible pour le chiffreur.'),
     });
   };
 
@@ -348,7 +351,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     if (!db || !chiffrage?.dossierId) return;
     const selected = accordDocs.find((d) => d.id === payload.documentId);
     if (!selected) {
-      toast({ variant: 'destructive', title: 'Document introuvable.' });
+      toast({ variant: 'destructive', title: t('Document introuvable.') });
       return;
     }
 
@@ -404,15 +407,15 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       );
 
       toast({
-        title: 'Mail envoyé',
-        description: `Accord envoyé à ${payload.recipient}.`,
+        title: t('Mail envoyé'),
+        description: `${t('Accord envoyé à')} ${payload.recipient}.`,
       });
     } catch (err: any) {
       console.error('Failed to send accord mail:', err);
       toast({
         variant: 'destructive',
-        title: "Échec de l'envoi",
-        description: err?.message || 'Impossible d\'envoyer le mail.',
+        title: t("Échec de l'envoi"),
+        description: err?.message || t("Impossible d'envoyer le mail."),
       });
       // Re-throw so the dialog keeps the form open for another attempt.
       throw err;
@@ -444,77 +447,85 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           queue spine ‹ n/N › (spec B5) then Réforme `outline`; "Envoyer par
           mail" is the page's only `default` and sits LAST. Chips (§11):
           dossier status pair, plate (neutral, mono), correction state
-          (success once done, info while open). */}
-      <PageHeader
-        size="compact"
-        backHref="/assignations-chiffrage"
-        backLabel="Assignations au chiffrage"
-        title={chiffrage.dossierNom || 'Sans réf.'}
-        subtitle={
-          <>
-            Correcteur : <span className="font-semibold text-ink">{chiffrage.assignedChiffreurNom || '—'}</span>
-            {assure && <> · {assure}</>}
-            {dossier?.compagnie && <> · {dossier.compagnie}</>}
-          </>
-        }
-        meta={
-          <>
-            <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(dossierStatut))}>
-              {dossierStatut}
-            </Badge>
-            {plate && <Badge variant="neutral" className="font-mono">{plate}</Badge>}
-            <Badge variant={chiffrageDone ? 'success' : 'info'}>
-              {chiffrageDone ? 'Correction terminée' : 'Correction en cours'}
-            </Badge>
-          </>
-        }
-        actions={
-          <>
-            {/* Queue spine (B5): hidden when the queue page stored no order. */}
-            {queueCtx && (
-              <div className="mr-1 flex items-center gap-0.5">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                  disabled={!queueCtx.prevId}
-                  onClick={() => queueCtx.prevId && goToChiffrage(queueCtx.prevId)}
-                  aria-label="Chiffrage précédent"
-                  title="Chiffrage précédent"
-                >
-                  <ChevronLeft />
+          (success once done, info while open).
+          The tour anchor `chd-header` lives on a plain wrapper because
+          PageHeader does not forward arbitrary DOM props. */}
+      <div data-tour="chd-header">
+        <PageHeader
+          size="compact"
+          backHref="/assignations-chiffrage"
+          backLabel={t('Assignations au chiffrage')}
+          title={chiffrage.dossierNom || t('Sans réf.')}
+          titleText={chiffrage.dossierNom || t('Sans réf.')}
+          subtitle={
+            <>
+              {t('Correcteur :')} <span className="font-semibold text-ink">{chiffrage.assignedChiffreurNom || '—'}</span>
+              {assure && <> · {assure}</>}
+              {dossier?.compagnie && <> · {dossier.compagnie}</>}
+            </>
+          }
+          meta={
+            <>
+              <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(dossierStatut))}>
+                {t(dossierStatut)}
+              </Badge>
+              {plate && <Badge variant="neutral" className="font-mono">{plate}</Badge>}
+              <Badge variant={chiffrageDone ? 'success' : 'info'}>
+                {chiffrageDone ? t('Correction terminée') : t('Correction en cours')}
+              </Badge>
+            </>
+          }
+          actions={
+            <>
+              {/* Queue spine (B5): hidden when the queue page stored no order. */}
+              {queueCtx && (
+                <div className="mr-1 flex items-center gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    disabled={!queueCtx.prevId}
+                    onClick={() => queueCtx.prevId && goToChiffrage(queueCtx.prevId)}
+                    aria-label={t('Chiffrage précédent')}
+                    title={t('Chiffrage précédent')}
+                  >
+                    <ChevronLeft />
+                  </Button>
+                  <span
+                    className="t-caption px-1 tabular-nums"
+                    aria-label={`${t('Position')} ${queueCtx.index + 1} ${t('sur')} ${queueCtx.total}`}
+                  >
+                    {queueCtx.index + 1} / {queueCtx.total}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    disabled={!queueCtx.nextId}
+                    onClick={() => queueCtx.nextId && goToChiffrage(queueCtx.nextId)}
+                    aria-label={t('Chiffrage suivant')}
+                    title={t('Chiffrage suivant')}
+                  >
+                    <ChevronRight />
+                  </Button>
+                </div>
+              )}
+              {showReforme && (
+                <Button variant="outline" data-tour="chd-reforme" onClick={() => setReformeOpen(true)}>
+                  <Scale />
+                  {t('Réforme')}
                 </Button>
-                <span className="t-caption px-1 tabular-nums" aria-label={`Position ${queueCtx.index + 1} sur ${queueCtx.total}`}>
-                  {queueCtx.index + 1} / {queueCtx.total}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                  disabled={!queueCtx.nextId}
-                  onClick={() => queueCtx.nextId && goToChiffrage(queueCtx.nextId)}
-                  aria-label="Chiffrage suivant"
-                  title="Chiffrage suivant"
-                >
-                  <ChevronRight />
+              )}
+              {showMailPrimary && (
+                <Button variant="default" data-tour="chd-mail" onClick={() => setMailDialogOpen(true)}>
+                  <Mail />
+                  {t('Envoyer par mail')}
                 </Button>
-              </div>
-            )}
-            {showReforme && (
-              <Button variant="outline" onClick={() => setReformeOpen(true)}>
-                <Scale />
-                Réforme
-              </Button>
-            )}
-            {showMailPrimary && (
-              <Button variant="default" onClick={() => setMailDialogOpen(true)}>
-                <Mail />
-                Envoyer par mail
-              </Button>
-            )}
-          </>
-        }
-      />
+              )}
+            </>
+          }
+        />
+      </div>
 
       {/* Mode traitement strip (spec B6): slim glass row under the header.
           One-shot fade-in only (motion-spec: transform/opacity, ease token,
@@ -526,31 +537,31 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           {showCompletionBanner ? (
             queueCtx?.nextId ? (
               <>
-                <span className="t-body-sm font-medium">Chiffrage terminé</span>
+                <span className="t-body-sm font-medium">{t('Chiffrage terminé')}</span>
                 <span className="flex-1" aria-hidden />
                 <Button variant="tonal" size="sm" onClick={() => goToChiffrage(queueCtx.nextId!)}>
-                  Dossier suivant
+                  {t('Dossier suivant')}
                   <ChevronRight />
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setBanniereRestee(true)}>
-                  Rester
+                  {t('Rester')}
                 </Button>
               </>
             ) : (
               <>
-                <span className="t-body-sm font-medium">File terminée</span>
+                <span className="t-body-sm font-medium">{t('File terminée')}</span>
                 <span className="flex-1" aria-hidden />
                 <Button variant="ghost" size="sm" onClick={() => router.push('/assignations-chiffrage')}>
-                  Retour à la file
+                  {t('Retour à la file')}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setBanniereRestee(true)}>
-                  Rester
+                  {t('Rester')}
                 </Button>
               </>
             )
           ) : (
             <>
-              <span className="t-body-sm font-medium">Mode traitement</span>
+              <span className="t-body-sm font-medium">{t('Mode traitement')}</span>
               {queueCtx && (
                 <span className="t-caption tabular-nums">
                   {queueCtx.index + 1} / {queueCtx.total}
@@ -558,10 +569,10 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
               )}
               <span className="flex-1" aria-hidden />
               <Button variant="ghost" size="sm" disabled={!queueCtx?.nextId} onClick={handleSkip}>
-                Passer
+                {t('Passer')}
               </Button>
               <Button variant="ghost" size="sm" onClick={handleQuitTraitement}>
-                Quitter le mode
+                {t('Quitter le mode')}
               </Button>
             </>
           )}
@@ -573,7 +584,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           families as aligned row bands. Plain section: `t-heading` title
           (element-specs §5 — no card around papers). */}
       {orderedFamilies.length > 0 && (
-        <section className="space-y-4" aria-label="Devis et factures">
+        <section className="space-y-4" aria-label={t('Devis et factures')} data-tour="chd-familles">
           {/* The page's ONE neutral IconChip (addendum 1b) beside the title of
               the section that anchors the chiffreur's work — away from the
               status chips in the header meta. */}
@@ -581,7 +592,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             <IconChip>
               <FileText />
             </IconChip>
-            <h2 className="t-heading">Devis &amp; factures</h2>
+            <h2 className="t-heading">{t('Devis & factures')}</h2>
           </div>
           <AccordPipeline
             families={orderedFamilies}
@@ -606,7 +617,10 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         onTypeSearchChange={setTypeSearch}
         loading={docsLoading}
         canImport={false}
-        onImportClick={handleImportClick}
+        // Demo: the greyed-out "Importer" button only ever surfaced a tooltip
+        // saying it does nothing — drop it, keeping the card header.
+        onImportClick={BRAND.id === 'demo' ? undefined : handleImportClick}
+        alwaysShowHeader
         canDelete={false}
         onOpenDocument={handleOpenDocument}
         onDownloadDocument={handleDownloadDocument}
@@ -615,7 +629,9 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       {/* Observations LAST (spec B4 — workspace R8: the pipeline is the
           actionable object; the thread stays collapsible, unseen count on
           the collapsed bar). */}
-      <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />
+      <div data-tour="chd-observations">
+        <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />
+      </div>
 
       {/* Réforme Modal */}
       {chiffrage.dossierId && (

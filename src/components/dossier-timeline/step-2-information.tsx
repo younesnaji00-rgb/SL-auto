@@ -36,10 +36,10 @@ import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { useCollection, useFirestore } from '@/firebase';
 import { getMissingRequiredFields } from '@/lib/required-fields';
+import { useT } from '@/i18n';
 
 // Back-compat: callers that imported the helper from this module keep working.
 export { getMissingRequiredFields } from '@/lib/required-fields';
-
 
 export interface Step2InformationProps {
   dossierId: string;
@@ -58,6 +58,7 @@ export default function Step2Information({
   onEditPlanification,
   onNewPlanification,
 }: Step2InformationProps) {
+  const t = useT();
   const missing = useMemo(() => getMissingRequiredFields(dossier), [dossier]);
 
   const [showCompare, setShowCompare] = useState(false);
@@ -138,10 +139,10 @@ export default function Step2Information({
   const banner = missing.length > 0 && (
     <RequiredSummaryLine state="missing">
       <span className="font-medium">
-        {missing.length} champ{missing.length > 1 ? 's' : ''} requis manquant{missing.length > 1 ? 's' : ''}
+        {missing.length} {missing.length > 1 ? t('champs requis manquants') : t('champ requis manquant')}
       </span>
       {' : '}
-      {missing.join(', ')}
+      {missing.map((label) => t(label)).join(', ')}
     </RequiredSummaryLine>
   );
 
@@ -152,6 +153,7 @@ export default function Step2Information({
       type="button"
       variant={showCompare ? 'default' : 'outline'}
       size="sm"
+      data-tour="dosd-compare-btn"
       onClick={toggleCompare}
       className="h-7 gap-1.5 px-2.5 text-xs"
     >
@@ -160,20 +162,22 @@ export default function Step2Information({
       ) : (
         <Columns2 className="h-3.5 w-3.5" />
       )}
-      <span className="hidden sm:inline">{showCompare ? 'Fermer la comparaison' : 'Comparer'}</span>
-      <span className="sm:hidden">{showCompare ? 'Fermer' : 'Comparer'}</span>
+      <span className="hidden sm:inline">{showCompare ? t('Fermer la comparaison') : t('Comparer')}</span>
+      <span className="sm:hidden">{showCompare ? t('Fermer') : t('Comparer')}</span>
     </Button>
   );
 
   const informationContent = (
-    <InformationTab
-      dossier={dossier}
-      dossierRef={dossierRef}
-      dossierId={dossierId}
-      onEditPlanification={onEditPlanification}
-      onNewPlanification={onNewPlanification}
-      headerActions={toggleButton}
-    />
+    <div data-tour="dosd-info-form">
+      <InformationTab
+        dossier={dossier}
+        dossierRef={dossierRef}
+        dossierId={dossierId}
+        onEditPlanification={onEditPlanification}
+        onNewPlanification={onNewPlanification}
+        headerActions={toggleButton}
+      />
+    </div>
   );
 
   // Keep the pane mounted while it animates out; the columns animate from
@@ -262,24 +266,25 @@ export default function Step2Information({
             horizontal scrollbar. */}
         <Card
           variant="outline"
+          data-tour="dosd-compare-panel"
           className="absolute inset-x-0 top-0 flex max-h-full flex-col gap-2 overflow-hidden p-3"
         >
           {/* Pane header — label + file name · zoom · eye (lightbox) · close. */}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="t-label">Document source</p>
+              <p className="t-label">{t('Document source')}</p>
               {selectedFileName && (
                 <p className="t-caption truncate" title={selectedFileName}>{selectedFileName}</p>
               )}
             </div>
-            <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="Zoom" title="Ctrl + molette pour zoomer progressivement">
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-ink-3 hover:text-ink" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} disabled={!selectedUrl || zoom <= 0.5} aria-label="Zoom arrière">
+            <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label={t('Zoom')} title={t('Ctrl + molette pour zoomer progressivement')}>
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-ink-3 hover:text-ink" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} disabled={!selectedUrl || zoom <= 0.5} aria-label={t('Zoom arrière')}>
                 <ZoomOut className="h-3.5 w-3.5" />
               </Button>
-              <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-2" onClick={() => setZoom(1)} title="Ajuster à la largeur" aria-label={`Zoom ${Math.round(zoom * 100)} % — ajuster à la largeur`}>
+              <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-2" onClick={() => setZoom(1)} title={t('Ajuster à la largeur')} aria-label={`${t('Zoom')} ${Math.round(zoom * 100)} % — ${t('ajuster à la largeur')}`}>
                 {Math.round(zoom * 100)} %
               </button>
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-ink-3 hover:text-ink" onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))} disabled={!selectedUrl || zoom >= 4} aria-label="Zoom avant">
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-ink-3 hover:text-ink" onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))} disabled={!selectedUrl || zoom >= 4} aria-label={t('Zoom avant')}>
                 <ZoomIn className="h-3.5 w-3.5" />
               </Button>
               <Button
@@ -289,8 +294,8 @@ export default function Step2Information({
                 className="ml-1 h-7 w-7 text-ink-3 hover:text-ink"
                 onClick={() => selectedUrl && setPreview({ url: selectedUrl, nom: selectedFileName || 'scan' })}
                 disabled={!selectedUrl}
-                aria-label="Ouvrir en plein écran"
-                title="Ouvrir en plein écran"
+                aria-label={t('Ouvrir en plein écran')}
+                title={t('Ouvrir en plein écran')}
               >
                 <Eye className="h-3.5 w-3.5" />
               </Button>
@@ -300,7 +305,7 @@ export default function Step2Information({
                 size="icon"
                 className="h-7 w-7 text-ink-3 hover:text-ink"
                 onClick={toggleCompare}
-                aria-label="Fermer la comparaison"
+                aria-label={t('Fermer la comparaison')}
               >
                 <X className="h-3.5 w-3.5" />
               </Button>
@@ -309,7 +314,7 @@ export default function Step2Information({
           {scanDocs.length > 1 && (
             <Select value={selectedScanId ?? undefined} onValueChange={(v) => setSelectedScanId(v)}>
               <SelectTrigger className="h-8 w-full text-xs">
-                <SelectValue placeholder="Sélectionner un scan" />
+                <SelectValue placeholder={t('Sélectionner un scan')} />
               </SelectTrigger>
               <SelectContent>
                 {scanDocs.map((d: any) => (
@@ -349,8 +354,8 @@ export default function Step2Information({
             ) : (
               <div className="t-caption flex h-full min-h-[12rem] items-center justify-center p-6 text-center">
                 {scanDocs.length === 0
-                  ? 'Aucun document source dans ce dossier.'
-                  : 'Sélectionnez un scan pour le visualiser.'}
+                  ? t('Aucun document source dans ce dossier.')
+                  : t('Sélectionnez un scan pour le visualiser.')}
               </div>
             )}
           </div>

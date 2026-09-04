@@ -9,6 +9,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { useT } from '@/i18n';
 
 /**
  * Task #33 — post-scan warning dialog.
@@ -38,14 +39,15 @@ export function ScanWarningDialog({
   calculationErrors,
   onCancel,
 }: ScanWarningDialogProps) {
+  const t = useT();
   const hasErrors = Array.isArray(calculationErrors) && calculationErrors.length > 0;
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Vérification du scan</AlertDialogTitle>
+          <AlertDialogTitle>{t('Vérification du scan')}</AlertDialogTitle>
           <AlertDialogDescription>
-            Le scan est sujet à des erreurs. Merci de vérifier manuellement chaque ligne. Une fois terminé, cliquez sur le bouton « J&apos;ai vérifié » dans la barre d&apos;outils pour déverrouiller le tableau.
+            {t("Le scan est sujet à des erreurs. Merci de vérifier manuellement chaque ligne. Une fois terminé, cliquez sur le bouton « J'ai vérifié » dans la barre d'outils pour déverrouiller le tableau.")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         {hasErrors && (
@@ -56,7 +58,7 @@ export function ScanWarningDialog({
           </ul>
         )}
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => onCancel?.()}>Annuler</AlertDialogCancel>
+          <AlertDialogCancel onClick={() => onCancel?.()}>{t('Annuler')}</AlertDialogCancel>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

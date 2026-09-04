@@ -209,9 +209,5 @@ export type User = {
     compagnies: string[];
 };
 
-export const users: User[] = [
-    { id: 'USR-001', nom: 'Admin User', email: 'admin@dashflow.com', role: 'Admin', compagnies: ['Allianz', 'RMA', 'Sanlam'] },
-    { id: 'USR-002', nom: 'GOTTA El Mehdi', email: 'mehdi@dashflow.com', role: 'Gestionnaire', compagnies: ['Wafa', 'ATLANTA'] },
-    { id: 'USR-003', nom: 'Agent Smith', email: 'smith@dashflow.com', role: 'Agent de Terrain', compagnies: ['CP'] },
-    { id: 'USR-004', nom: 'John Chiffreur', email: 'john@dashflow.com', role: 'Chiffreur', compagnies: ['Fès RMA', 'Fès Sanlam'] },
-];
+// (Prototype-era mock users removed — real users live in Firestore.)
+export const users: User[] = [];

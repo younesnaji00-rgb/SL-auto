@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import ConsultationClientPage from './client-page';
+import { useT } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { getDefaultRouteForRole, NAV_ITEMS, titleForRoute } from '@/lib/nav-groups';
 import { PageSkeleton } from '@/components/ui/page-skeleton';
@@ -18,6 +19,7 @@ const CONSULTATION_ALLOWED_ROLES = [
 ];
 
 export default function ConsultationPage() {
+  const t = useT();
   const { profile, loading: userLoading } = useCurrentUser();
   const router = useRouter();
 
@@ -43,7 +45,10 @@ export default function ConsultationPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={titleForRoute('/consultation') ?? 'Consultation'} subtitle={nav?.subtitle} />
+      <PageHeader
+        title={t(titleForRoute('/consultation') ?? 'Consultation')}
+        subtitle={nav?.subtitle ? t(nav.subtitle) : undefined}
+      />
       <ConsultationClientPage />
     </div>
   );

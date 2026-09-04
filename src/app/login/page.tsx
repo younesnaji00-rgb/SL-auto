@@ -1,6 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { BRAND } from '@/lib/brand';
+import { LanguageSwitcher } from '@/components/language-switcher';
+import { TutorialLauncher } from '@/components/tutorial/tutorial-launcher';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { RolesGuideDialog } from '@/components/roles-guide-dialog';
+import { useT } from '@/i18n';
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { collection, query, where, getDocs, setDoc, doc, serverTimestamp, updateDoc, deleteDoc, runTransaction } from 'firebase/firestore';
@@ -8,6 +14,7 @@ import { useAuth, useFirestore } from '@/firebase';
 import { SINGLE_SESSION_ROLES } from '@/lib/dossiers-data';
 import { landingPathFor } from '@/lib/role-landing';
 import { collectSessionMeta, isSessionClaimable, timestampToMillis } from '@/lib/session-meta';
+import { trialStatus } from '@/lib/trial';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -22,11 +29,11 @@ function generateEmail(nom: string): string {
   const sanitized = nom
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9\s]/g, '')
     .trim()
     .replace(/\s+/g, '.');
-  return `${sanitized}@sl-auto.app`;
+  return `${sanitized}@${BRAND.authEmailDomain}`;
 }
 
 // Single-session enforcement (BLOCK model): for the basic roles in
@@ -87,6 +94,7 @@ export default function LoginPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  const t = useT();
 
   // Single-session eviction notice: if the previous tab was signed out
   // because another device claimed the session, show one informational toast.
@@ -98,20 +106,28 @@ export default function LoginPage() {
       // force-disconnect, displacement, sign-out in another tab, cross-tab
       // identity guard), so don't assert a specific one.
       toast({
-        title: 'Session fermée',
-        description: 'Votre session a été fermée. Veuillez vous reconnecter.',
+        title: t('Session fermée'),
+        description: t('Votre session a été fermée. Veuillez vous reconnecter.'),
         variant: 'destructive',
       });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const [nom, setNom] = useState('');
   const [password, setPassword] = useState('');
+  // Demo entry: one-click role buttons by default; classic form on demand
+  // (trial prospects with their own accounts).
+  const isDemo = BRAND.id === 'demo';
+  const [showClassicForm, setShowClassicForm] = useState(!isDemo);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   // Success morph state — true from sign-in success until navigation.
   const [loginSuccess, setLoginSuccess] = useState(false);
+  // Demo brand: a gestionnaire login restarts the showcase — the server
+  // wipes walkthrough leftovers and re-seeds the sample data while this
+  // flag drives the "preparing your demo" message.
+  const [preparing, setPreparing] = useState(false);
 
   // Redirect already-authenticated users to dashboard, BUT only when the
   // live Firebase Auth user matches this tab's expected identity. If another
@@ -185,11 +201,11 @@ export default function LoginPage() {
     setSetupError('');
 
     if (setupPassword.length < 6) {
-      setSetupError('Le mot de passe doit contenir au moins 6 caractères.');
+      setSetupError(t('Le mot de passe doit contenir au moins 6 caractères.'));
       return;
     }
     if (setupPassword !== setupConfirm) {
-      setSetupError('Les mots de passe ne correspondent pas.');
+      setSetupError(t('Les mots de passe ne correspondent pas.'));
       return;
     }
 
@@ -230,7 +246,7 @@ export default function LoginPage() {
       window.sessionStorage.removeItem(EXPECTED_UID_KEY);
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
-      setSetupError(err.message || 'Erreur lors de la création du compte.');
+      setSetupError(err.message || t('Erreur lors de la création du compte.'));
     } finally {
       setSetupLoading(false);
     }
@@ -238,11 +254,16 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    await doLogin(nom, password);
+  };
+
+  // Shared by the classic form and the demo one-click role buttons.
+  const doLogin = async (nomValue: string, passwordValue: string) => {
     setError('');
     setLoading(true);
 
     try {
-      const trimmed = nom.trim();
+      const trimmed = nomValue.trim();
       const lower = trimmed.toLowerCase();
       let snap = await getDocs(
         query(collection(db, 'users'), where('nomLowercase', '==', lower))
@@ -260,7 +281,7 @@ export default function LoginPage() {
       }
 
       if (snap.empty) {
-        setError('Utilisateur introuvable. Vérifiez votre nom (insensible à la casse).');
+        setError(t('Utilisateur introuvable. Vérifiez votre nom (insensible à la casse).'));
         setLoading(false);
         return;
       }
@@ -270,13 +291,24 @@ export default function LoginPage() {
       const email = userData.email;
 
       if (!email) {
-        setError('Aucun identifiant associé à cet utilisateur.');
+        setError(t('Aucun identifiant associé à cet utilisateur.'));
         setLoading(false);
         return;
       }
 
       if (userData.statut === 'Inactif') {
-        setError('Votre compte est désactivé. Contactez un administrateur.');
+        setError(t('Votre compte est désactivé. Contactez un administrateur.'));
+        setLoading(false);
+        return;
+      }
+
+      // Account-based free trial (white-label demo): block an expired account
+      // HERE, before signIn — nothing is authenticated yet and no single-
+      // session claim exists, so there is nothing to unwind or sign out.
+      // Exempt accounts and never-started trials pass through (see
+      // src/lib/trial.ts).
+      if (trialStatus(userData).expired) {
+        setError(t('Votre période d’essai est terminée. Contactez-nous pour continuer.'));
         setLoading(false);
         return;
       }
@@ -309,7 +341,20 @@ export default function LoginPage() {
         window.localStorage.removeItem(SESSION_STORAGE_KEY);
       }
 
-      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const cred = await signInWithEmailAndPassword(auth, email, passwordValue);
+
+      // Account-based free trial: the FIRST login starts the clock. Merge-
+      // write only the timestamp (never touches the rest of the doc); skipped
+      // for exempt accounts and for brands without a trial. Runs after signIn
+      // because Firestore rules require auth for writes. Best-effort — a
+      // failed stamp just retries at the next login.
+      if (BRAND.trialDays != null && !userData.trialExempt && !userData.trialStartedAt) {
+        await setDoc(
+          doc(db, 'users', cred.user.uid),
+          { trialStartedAt: serverTimestamp() },
+          { merge: true },
+        ).catch((err) => console.warn('trialStartedAt stamp failed:', err));
+      }
 
       if (isBasicRole) {
         // Capture the device + public IP for the admin session card. Collected
@@ -359,8 +404,9 @@ export default function LoginPage() {
             window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
             window.localStorage.removeItem(SESSION_STORAGE_KEY);
             setError(
-              "Ce compte est déjà connecté sur un autre appareil. Déconnectez-vous d'abord de cet appareil pour pouvoir vous connecter ici. " +
-                "Si l'autre appareil n'est plus utilisé, réessayez dans une à deux minutes, ou demandez à un administrateur de déconnecter votre session.",
+              t("Ce compte est déjà connecté sur un autre appareil. Déconnectez-vous d'abord de cet appareil pour pouvoir vous connecter ici.") +
+                ' ' +
+                t("Si l'autre appareil n'est plus utilisé, réessayez dans une à deux minutes, ou demandez à un administrateur de déconnecter votre session."),
             );
             setLoading(false);
             return;
@@ -384,7 +430,48 @@ export default function LoginPage() {
         deleteDoc(doc(db, 'users', cred.user.uid, 'session_meta', 'current')).catch(() => {});
       }
 
+      // Demo restart: logging in as the GESTIONNAIRE resets the showcase —
+      // every entry from the previous run (created files, reminders,
+      // estimating assignments) is deleted and the sample data re-seeded.
+      // Blocking here (with a message) keeps the first screen clean; a
+      // failure or timeout never blocks the login itself.
+      if (BRAND.id === 'demo' && userData.role === 'Gestionnaire') {
+        setPreparing(true);
+        try {
+          const idToken = await cred.user.getIdToken();
+          const ctrl = new AbortController();
+          const timer = window.setTimeout(() => ctrl.abort(), 30_000);
+          await fetch('/api/demo-reset', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${idToken}` },
+            signal: ctrl.signal,
+          });
+          window.clearTimeout(timer);
+        } catch {
+          // Non-fatal: the demo simply keeps its previous data.
+        }
+        // The walkthrough state must restart with the data: saved tour
+        // positions point at dossiers that no longer exist.
+        try {
+          const prefix = `${BRAND.storagePrefix}.tour.`;
+          const stale: string[] = [];
+          for (let i = 0; i < window.localStorage.length; i++) {
+            const k = window.localStorage.key(i);
+            if (k && k.startsWith(prefix)) stale.push(k);
+          }
+          for (const k of stale) window.localStorage.removeItem(k);
+        } catch { /* non-fatal */ }
+        setPreparing(false);
+      }
+
       window.sessionStorage.removeItem(LOGIN_IN_FLIGHT_KEY);
+      // Fresh sign-in marker: the tutorial launcher offers the guided tour
+      // on the landing page after EVERY login (demo brand only reads it).
+      if (BRAND.showTutorials) {
+        try {
+          window.sessionStorage.setItem(`${BRAND.storagePrefix}.tour.justLoggedIn`, '1');
+        } catch { /* non-fatal */ }
+      }
       // Success morph (motion-spec §5 / §1.2: login is an F3 moment — the
       // one daily event allowed a small ceremony): ✓ « Connecté » held
       // briefly before the app opens. Content swap only, no motion — safe
@@ -399,13 +486,13 @@ export default function LoginPage() {
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
       if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('Mot de passe incorrect.');
+        setError(t('Mot de passe incorrect.'));
       } else if (err.code === 'auth/user-not-found') {
-        setError('Utilisateur introuvable.');
+        setError(t('Utilisateur introuvable.'));
       } else if (err.code === 'auth/too-many-requests') {
-        setError('Trop de tentatives. Réessayez plus tard.');
+        setError(t('Trop de tentatives. Réessayez plus tard.'));
       } else {
-        setError('Erreur de connexion. Réessayez.');
+        setError(t('Erreur de connexion. Réessayez.'));
       }
     } finally {
       setLoading(false);
@@ -415,7 +502,7 @@ export default function LoginPage() {
   if (checkingAuth || checkingSetup) {
     return (
       <div className={`flex min-h-screen items-center justify-center ${PAGE_BACKGROUND}`}>
-        <PageLoader label="Chargement…" />
+        <PageLoader label={t('Chargement…')} />
       </div>
     );
   }
@@ -429,9 +516,9 @@ export default function LoginPage() {
           <div className="flex flex-col items-center gap-4 text-center">
             <Logo />
             <div className="space-y-1">
-              <h1 className="t-title">Configuration initiale</h1>
+              <h1 className="t-title">{t('Configuration initiale')}</h1>
               <p className="t-body-sm text-ink-3">
-                Aucun utilisateur n&apos;existe encore. Créez le compte administrateur pour commencer.
+                {t("Aucun utilisateur n'existe encore. Créez le compte administrateur pour commencer.")}
               </p>
             </div>
           </div>
@@ -440,7 +527,7 @@ export default function LoginPage() {
           <form onSubmit={handleSetup} className="mt-6 space-y-6">
             <div className="space-y-4">
             <div className="space-y-1">
-              <FieldLabel htmlFor="setup-name">Nom complet de l&apos;administrateur</FieldLabel>
+              <FieldLabel htmlFor="setup-name">{t("Nom complet de l'administrateur")}</FieldLabel>
               <Input
                 id="setup-name"
                 value={setupName}
@@ -450,19 +537,19 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-1">
-              <FieldLabel htmlFor="setup-password">Mot de passe</FieldLabel>
+              <FieldLabel htmlFor="setup-password">{t('Mot de passe')}</FieldLabel>
               <Input
                 id="setup-password"
                 type="password"
-                placeholder="Minimum 6 caractères"
+                placeholder={t('Minimum 6 caractères')}
                 value={setupPassword}
                 onChange={e => setSetupPassword(e.target.value)}
                 required
               />
-              <p className="t-caption">Au moins 6 caractères.</p>
+              <p className="t-caption">{t('Au moins 6 caractères.')}</p>
             </div>
             <div className="space-y-1">
-              <FieldLabel htmlFor="setup-confirm">Confirmez le mot de passe</FieldLabel>
+              <FieldLabel htmlFor="setup-confirm">{t('Confirmez le mot de passe')}</FieldLabel>
               <Input
                 id="setup-confirm"
                 type="password"
@@ -481,7 +568,7 @@ export default function LoginPage() {
             )}
 
             <Button type="submit" className="w-full" loading={setupLoading}>
-              {setupLoading ? 'Création…' : 'Créer le compte Admin'}
+              {setupLoading ? t('Création…') : t('Créer le compte Admin')}
             </Button>
           </form>
         </Card>
@@ -490,23 +577,86 @@ export default function LoginPage() {
   }
 
   // ===== NORMAL LOGIN =====
+  const demoEntry = isDemo && !showClassicForm;
+
   return (
-    <div className={`flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
+    <div className={`relative flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
+      {/* Theme + language controls (white-label: the switcher only renders for
+          brands that allow more than one locale). Tour anchor: login-lang. */}
+      <div className="absolute right-4 top-4 flex items-center gap-1" data-tour="login-lang">
+        <ThemeToggle />
+        <LanguageSwitcher />
+      </div>
+      <TutorialLauncher />
       {/* Login card — element-specs §20 (GOV.UK create accounts: "solely about that task"; NN/g: single column, labels above, one submit): one glass card ≤ 400 px, 24–32 px padding. */}
       <Card className="w-full max-w-[400px] p-6 sm:p-8">
         <div className="flex flex-col items-center gap-4 text-center">
           <Logo />
           <div className="space-y-1">
-            <h1 className="t-title">Connexion</h1>
-            <p className="t-body-sm text-ink-3">Entrez vos identifiants pour accéder au système.</p>
+            <h1 className="t-title">{demoEntry ? t('Explorer la démo') : t('Connexion')}</h1>
+            <p className="t-body-sm text-ink-3">
+              {demoEntry
+                ? t('Choisissez un rôle — aucun compte, aucun engagement.')
+                : t('Entrez vos identifiants pour accéder au système.')}
+            </p>
           </div>
         </div>
-        {/* Addendum 4: fields grouped tight (16 px rows), the submit a
-            group-gap (24 px) below; widths come from the ≤ 400 px card. */}
+        {demoEntry ? (
+          // Demo entry — one click per role, no credentials to type. The
+          // Lionheart demo depends on this block; keep its tour anchors.
+          <div className="mt-6 space-y-4" data-tour="login-roles-grid">
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { name: 'Admin Demo', label: 'Admin', desc: t('Supervision et réglages') },
+                { name: 'Manager Demo', label: 'Manager', desc: t('Pilote les dossiers') },
+                { name: 'Estimator Demo', label: 'Estimator', desc: t('Vérifie les devis') },
+                { name: 'Field Agent Demo', label: 'Field Agent', desc: t('Photos sur le terrain') },
+              ].map((r) => (
+                <button
+                  key={r.name}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => doLogin(r.name, 'Demo2026!')}
+                  className="rounded-xl bg-surface-2 p-3 text-center shadow-rim transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                >
+                  <span className="t-body block font-semibold">{r.label}</span>
+                  <span className="t-caption mt-0.5 block">{r.desc}</span>
+                </button>
+              ))}
+            </div>
+            {loading && (
+              <p className="t-caption text-center">
+                {preparing
+                  ? t('Préparation de votre démo : les données d’exemple se réinitialisent…')
+                  : t('Connexion…')}
+              </p>
+            )}
+            {error && (
+              <Alert variant="danger">
+                <AlertCircle aria-hidden />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <p className="t-caption text-center">
+              {t('Conseil : essayez « Field Agent » depuis un téléphone, et les autres rôles depuis un ordinateur.')}
+            </p>
+            <div className="flex flex-col items-center gap-1.5">
+              <RolesGuideDialog
+                trigger={
+                  <button type="button" data-tour="login-roles" className="text-sm font-semibold text-primary hover:underline">
+                    {t('Découvrir les rôles ici')}
+                  </button>
+                }
+              />
+            </div>
+          </div>
+        ) : (
+        /* Addendum 4: fields grouped tight (16 px rows), the submit a
+           group-gap (24 px) below; widths come from the ≤ 400 px card. */
         <form onSubmit={handleLogin} className="mt-6 space-y-6">
           <div className="space-y-4">
-          <div className="space-y-1">
-            <FieldLabel htmlFor="nom">Nom complet</FieldLabel>
+          <div className="space-y-1" data-tour="login-nom">
+            <FieldLabel htmlFor="nom">{t('Nom complet')}</FieldLabel>
             <Input
               id="nom"
               value={nom}
@@ -515,8 +665,8 @@ export default function LoginPage() {
               autoFocus
             />
           </div>
-          <div className="space-y-1">
-            <FieldLabel htmlFor="password">Mot de passe</FieldLabel>
+          <div className="space-y-1" data-tour="login-password">
+            <FieldLabel htmlFor="password">{t('Mot de passe')}</FieldLabel>
             <div className="relative">
               <Input
                 id="password"
@@ -535,7 +685,7 @@ export default function LoginPage() {
                 size="icon"
                 className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-ink-3 shadow-none hover:text-ink"
                 onClick={() => setShowPassword(v => !v)}
-                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                aria-label={showPassword ? t('Masquer le mot de passe') : t('Afficher le mot de passe')}
                 aria-pressed={showPassword}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
@@ -555,11 +705,35 @@ export default function LoginPage() {
             {loginSuccess ? (
               <>
                 <Check className="h-4 w-4" aria-hidden />
-                Connecté
+                {t('Connecté')}
               </>
-            ) : loading ? 'Connexion…' : 'Se connecter'}
+            ) : loading
+              ? preparing
+                ? t('Préparation de votre démo…')
+                : t('Connexion…')
+              : t('Se connecter')}
           </Button>
+
+          {BRAND.id === 'demo' && (
+            <div className="space-y-1 rounded-md bg-surface-2 p-3 text-xs text-ink-2 shadow-rim" data-tour="login-demo">
+              <p className="t-body font-semibold">{t('Comptes de démonstration')}</p>
+              <p>Admin Demo · Manager Demo · Estimator Demo · Field Agent Demo</p>
+              <p>{t('Mot de passe')} : Demo2026!</p>
+              <RolesGuideDialog
+                trigger={
+                  <button
+                    type="button"
+                    data-tour="login-roles"
+                    className="pt-1 font-semibold text-primary hover:underline"
+                  >
+                    {t('Découvrir les rôles ici')}
+                  </button>
+                }
+              />
+            </div>
+          )}
         </form>
+        )}
       </Card>
     </div>
   );

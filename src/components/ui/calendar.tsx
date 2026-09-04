@@ -13,10 +13,11 @@ import {
   isToday,
   isWeekend,
   format,
+  addDays,
   addMonths,
   subMonths,
 } from "date-fns"
-import { fr } from "date-fns/locale"
+import { dateFnsLocale, useLocale, useT } from "@/i18n"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
@@ -29,14 +30,21 @@ export interface CalendarProps {
   disabled?: (date: Date) => boolean
 }
 
-const WEEKDAYS = ["Lu", "Ma", "Me", "Je", "Ve", "Sa", "Di"]
-
 function Calendar({
   selected,
   onSelect,
   className,
   disabled,
 }: CalendarProps) {
+  const { locale } = useLocale()
+  const t = useT()
+  const weekdays = React.useMemo(() => {
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
+    return Array.from({ length: 7 }, (_, i) =>
+      format(addDays(weekStart, i), "EEEEEE", { locale: dateFnsLocale() })
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale])
   const [currentMonth, setCurrentMonth] = React.useState(
     selected ? startOfMonth(selected) : startOfMonth(new Date())
   )
@@ -63,13 +71,13 @@ function Calendar({
           buttons at the right end. */}
       <div className="mb-3 flex items-center justify-between gap-2">
         <span className="t-heading capitalize">
-          {format(currentMonth, "MMMM yyyy", { locale: fr })}
+          {format(currentMonth, "MMMM yyyy", { locale: dateFnsLocale() })}
         </span>
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={handlePrevMonth}
-            aria-label="Mois précédent"
+            aria-label={t("Mois précédent")}
             className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -77,7 +85,7 @@ function Calendar({
           <button
             type="button"
             onClick={handleNextMonth}
-            aria-label="Mois suivant"
+            aria-label={t("Mois suivant")}
             className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
           >
             <ChevronRight className="h-4 w-4" />
@@ -85,9 +93,10 @@ function Calendar({
         </div>
       </div>
 
-      {/* Weekday headers — t-label, sentence case (never uppercase) */}
+      {/* Weekday headers — t-label, sentence case (never uppercase).
+          Labels come from the active date-fns locale (EN/FR). */}
       <div className="mb-1 grid grid-cols-7">
-        {WEEKDAYS.map((day) => (
+        {weekdays.map((day) => (
           <div key={day} className="t-label py-2 text-center">
             {day}
           </div>

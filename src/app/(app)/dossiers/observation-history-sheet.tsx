@@ -13,6 +13,7 @@ import {
   formatDateTime,
   toDateSafe,
 } from './status-history-sheet';
+import { useT } from '@/i18n';
 
 type ObservationHistorySheetProps = {
   open: boolean;
@@ -21,6 +22,7 @@ type ObservationHistorySheetProps = {
 };
 
 export default function ObservationHistorySheet({ open, onOpenChange, dossier }: ObservationHistorySheetProps) {
+  const t = useT();
   const db = useFirestore();
 
   const historyQuery = useMemo(() => {
@@ -42,14 +44,14 @@ export default function ObservationHistorySheet({ open, onOpenChange, dossier }:
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <HistorySheetContent
-        title="Observations du dossier"
-        description="Historique des observations"
+        title={t('Observations du dossier')}
+        description={t('Historique des observations')}
         refExpert={dossier.refExpert}
       >
         {loading ? (
           <HistoryLoading />
         ) : !sortedEntries || sortedEntries.length === 0 ? (
-          <HistoryEmpty title="Aucune observation" description="Les observations saisies sur le dossier apparaissent ici." />
+          <HistoryEmpty title={t('Aucune observation')} description={t('Les observations saisies sur le dossier apparaissent ici.')} />
         ) : (
           <ul className="divide-y divide-hairline">
             {sortedEntries.map((e: any) => (
@@ -58,7 +60,7 @@ export default function ObservationHistorySheet({ open, onOpenChange, dossier }:
                   <span className="text-sm font-semibold text-ink">
                     <UserNameLink entry={{ userNom: e.author, user: e.authorEmail }} />
                   </span>
-                  {e.authorRole && <span className="t-caption">{e.authorRole}</span>}
+                  {e.authorRole && <span className="t-caption">{t(e.authorRole)}</span>}
                   <span className="t-caption tabular-nums">· {formatDateTime(e.createdAt)}</span>
                 </div>
                 {/* The observation itself is the value: warning pair, like the list chip. */}

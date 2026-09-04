@@ -1,5 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { t, intlLocale } from '@/i18n';
+import { BRAND } from './brand';
 import {
   type DevisSnapshot,
   type EditableDocType,
@@ -83,7 +85,7 @@ export function renderDevisPdf(
   pdf.setFontSize(22);
   pdf.setFont('helvetica', 'italic');
   pdf.setTextColor(20, 20, 20);
-  pdf.text(opts?.titleOverride ?? 'Devis', margin + 2, margin + 10);
+  pdf.text(t(opts?.titleOverride ?? 'Devis'), margin + 2, margin + 10);
 
   // Devis N° + Date on the right
   const rightX = pageW - margin;
@@ -93,8 +95,8 @@ export function renderDevisPdf(
   pdf.rect(pageW - margin - 80, topBoxY, 80, 18);
   pdf.line(pageW - margin - 80, topBoxY + 9, pageW - margin, topBoxY + 9);
   pdf.setFont('helvetica', 'bold');
-  pdf.text('Devis N°', pageW - margin - 77, topBoxY + 5.5);
-  pdf.text('Date', pageW - margin - 77, topBoxY + 14.5);
+  pdf.text(t('Devis N°'), pageW - margin - 77, topBoxY + 5.5);
+  pdf.text(t('Date'), pageW - margin - 77, topBoxY + 14.5);
   pdf.setFont('helvetica', 'normal');
   pdf.text(`: ${devis.header.devisNumero || ''}`, pageW - margin - 55, topBoxY + 5.5);
   pdf.text(`: ${devis.header.dateDevis || ''}`, pageW - margin - 55, topBoxY + 14.5);
@@ -109,19 +111,19 @@ export function renderDevisPdf(
 
   pdf.setFontSize(9);
   const leftRows: Array<[string, string]> = [
-    ['Marque', devis.header.marque],
-    ['Matricule', devis.header.matricule],
-    ['Modele', devis.header.modele],
-    ['Kilometrage', devis.header.kilometrage],
-    ['N° de chassis', devis.header.chassis],
-    ['expert', devis.header.expert],
+    [t('Marque'), devis.header.marque],
+    [t('Matricule'), devis.header.matricule],
+    [t('Modele'), devis.header.modele],
+    [t('Kilometrage'), devis.header.kilometrage],
+    [t('N° de chassis'), devis.header.chassis],
+    [t('expert'), devis.header.expert],
   ];
   const rightRows: Array<[string, string]> = [
-    ['Client', devis.header.client],
-    ['Adresse', devis.header.adresse],
-    ['ICE', devis.header.ice],
-    ['Telephone', devis.header.telephone],
-    ['Assurances', devis.header.assurances],
+    [t('Client'), devis.header.client],
+    [t('Adresse'), devis.header.adresse],
+    [t('ICE'), devis.header.ice],
+    [t('Telephone'), devis.header.telephone],
+    [t('Assurances'), devis.header.assurances],
   ];
 
   const drawRows = (rows: Array<[string, string]>, x0: number, y0: number, width: number) => {
@@ -238,10 +240,10 @@ export function renderDevisPdf(
   // editor's last column when the user clicks Sauvegarder.
   const accordTripleHeaders: string[] = accordExtras.flatMap((c) => {
     if (collapseAccord) {
-      return [c.kind === 'accord' ? 'Prix Total Accordé' : 'Prix Total Proposé'];
+      return [c.kind === 'accord' ? t('Prix Total Accordé') : t('Prix Total Proposé')];
     }
     const suffix = c.kind === 'accord' ? 'accordé' : 'proposé';
-    return [c.label, `Total HT ${suffix}`, `Prix TTC ${suffix}`];
+    return [t(c.label), t(`Total HT ${suffix}`), t(`Prix TTC ${suffix}`)];
   });
 
   // Proposition-only: append an extra empty column at the right edge to let a
@@ -256,17 +258,17 @@ export function renderDevisPdf(
   // remain omitted.
   const head: string[][] = [
     [
-      'REF',
-      'Designation',
-      'TYPE',
-      'T.V.A',
-      'Qte',
-      'P.U H.T',
-      'Total H.T',
-      'Prix en TTC',
-      ...(hasObservations ? ['Observation'] : []),
+      t('REF'),
+      t('Designation'),
+      t('TYPE'),
+      t('T.V.A'),
+      t('Qte'),
+      t('P.U H.T'),
+      t('Total H.T'),
+      t('Prix en TTC'),
+      ...(hasObservations ? [t('Observation')] : []),
       ...accordTripleHeaders,
-      ...(isProposition ? ['Accord 2eme expert'] : []),
+      ...(isProposition ? [t('Accord 2eme expert')] : []),
     ],
   ];
 
@@ -287,7 +289,7 @@ export function renderDevisPdf(
       puHtCell,
       totalHtCell,
       prixTtcCell,
-      ...(hasObservations ? [r.observation ? OBSERVATION_LABELS[r.observation] : ''] : []),
+      ...(hasObservations ? [r.observation ? t(OBSERVATION_LABELS[r.observation]) : ''] : []),
     ];
     accordExtras.forEach((c) => {
       const pu = c.values[r.id] || '';
@@ -373,7 +375,7 @@ export function renderDevisPdf(
     // Sans TVA: collapse to a single Total H.T row (7mm tall, no horizontal divider).
     pdf.rect(totalsX, totalsY, totalsW, 7);
     pdf.line(totalsX + 38, totalsY, totalsX + 38, totalsY + 7);
-    pdf.text('Total H.T', totalsX + 2, totalsY + 5);
+    pdf.text(t('Total H.T'), totalsX + 2, totalsY + 5);
     pdf.setFont('helvetica', 'normal');
     pdf.text(formatFr(sumHT(devis.rows)), totalsX + totalsW - 2, totalsY + 5, { align: 'right' });
   } else {
@@ -381,8 +383,8 @@ export function renderDevisPdf(
     pdf.line(totalsX, totalsY + 7, totalsX + totalsW, totalsY + 7);
     pdf.line(totalsX + 38, totalsY, totalsX + 38, totalsY + 14);
 
-    pdf.text('Total H.T', totalsX + 2, totalsY + 5);
-    pdf.text('Total TTC Expert', totalsX + 2, totalsY + 12);
+    pdf.text(t('Total H.T'), totalsX + 2, totalsY + 5);
+    pdf.text(t('Total TTC Expert'), totalsX + 2, totalsY + 12);
 
     pdf.setFont('helvetica', 'normal');
     pdf.text(formatFr(sumHT(devis.rows)), totalsX + totalsW - 2, totalsY + 5, { align: 'right' });
@@ -395,10 +397,10 @@ export function renderDevisPdf(
     pdf.setFont('helvetica', 'italic');
     pdf.setFontSize(7);
     pdf.setTextColor(120, 120, 120);
-    const ts = opts.versionTimestamp ? opts.versionTimestamp.toLocaleString('fr-FR') : '';
+    const ts = opts.versionTimestamp ? opts.versionTimestamp.toLocaleString(intlLocale()) : '';
     const author = opts.author || '';
     pdf.text(
-      `Version generee le ${ts}${author ? ` par ${author}` : ''} — SL Auto Expertise`,
+      `${t('Version generee le')} ${ts}${author ? ` ${t('par')} ${author}` : ''} — ${BRAND.companyName}`,
       margin,
       pdf.internal.pageSize.getHeight() - 6
     );

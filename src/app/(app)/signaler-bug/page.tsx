@@ -37,7 +37,7 @@ import { useFirestore, useAuth, useCollection, useStorage } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { scrollBehavior } from '@/lib/motion';
 import VoiceRecorder from '@/components/voice-recorder';
@@ -101,10 +101,11 @@ const RowsSkeleton = ({ rows, bubbles }: { rows: number; bubbles?: boolean }) =>
 /* ------------------------------------------------------------------ */
 
 export default function SignalerBugPage() {
+  const t = useT();
   const { profile, firebaseUser, isAdmin } = useCurrentUser();
 
   if (!profile || !firebaseUser) {
-    return <PageLoader label="Chargement…" />;
+    return <PageLoader label={t('Chargement…')} />;
   }
 
   if (isAdmin) {
@@ -116,8 +117,8 @@ export default function SignalerBugPage() {
       {/* Page header — element-specs §1: title + one-line subtitle, no action
           (the primary « Envoyer » lives at the end of the compose bar). */}
       <PageHeader
-        title="Signaler un bug"
-        subtitle="Décrivez le problème rencontré. Vous pouvez envoyer des messages, joindre des fichiers ou enregistrer un message vocal."
+        title={t('Signaler un bug')}
+        subtitle={t('Décrivez le problème rencontré. Vous pouvez envoyer des messages, joindre des fichiers ou enregistrer un message vocal.')}
       />
       {/* Content card — element-specs §5: the thread is the page's one glass
           block; the compose bar sits inside it under a hairline. */}
@@ -137,6 +138,7 @@ export default function SignalerBugPage() {
 /* ------------------------------------------------------------------ */
 
 function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }) {
+  const t = useT();
   const db = useFirestore();
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
 
@@ -158,30 +160,30 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
   const formatDate = (ts: any) => {
     if (!ts) return '';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
-    return format(date, 'd MMM HH:mm', { locale: fr });
+    return format(date, 'd MMM HH:mm', { locale: dateFnsLocale() });
   };
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Signaler un bug" count={loading ? undefined : (conversations?.length || 0)} subtitle="Conversations des utilisateurs" />
+      <PageHeader title={t('Signaler un bug')} count={loading ? undefined : (conversations?.length || 0)} subtitle={t('Conversations des utilisateurs')} />
 
       <div className="grid min-h-[calc((100dvh-200px)/var(--app-zoom))] grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
         {/* Inbox rows — element-specs §4 (Material 3 lists: leading avatar,
             label, supporting text, trailing text; two-line 56 px rows,
             hairlines only, whole row clickable, selected row on surface-3). */}
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden" data-tour="bug-inbox">
           {loading ? (
             <RowsSkeleton rows={5} />
           ) : !conversations || conversations.length === 0 ? (
             <EmptyState
               icon={<Inbox />}
-              title="Aucun rapport de bug"
-              description="Les conversations apparaîtront ici dès qu'un utilisateur signalera un problème."
+              title={t('Aucun rapport de bug')}
+              description={t("Les conversations apparaîtront ici dès qu'un utilisateur signalera un problème.")}
               dashed={false}
               className="bg-transparent py-12"
             />
           ) : (
-            <ul className="divide-y divide-hairline" aria-label="Conversations">
+            <ul className="divide-y divide-hairline" aria-label={t('Conversations')}>
               {conversations.map((c) => {
                 const active = selectedUid === c.id;
                 return (
@@ -209,20 +211,20 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
                             </span>
                           </div>
                           <div className="flex items-center justify-between gap-2">
-                            <p className={cn('t-caption truncate', c.unreadByAdmin > 0 && 'font-medium text-ink-2')}>{c.lastMessage || 'Message vocal'}</p>
+                            <p className={cn('t-caption truncate', c.unreadByAdmin > 0 && 'font-medium text-ink-2')}>{c.lastMessage || t('Message vocal')}</p>
                             {/* Unread count — §11 count pill (surface-3 / ink-2,
                                 tabular digits), labelled for assistive tech. */}
                             {c.unreadByAdmin > 0 && (
                               <span
                                 className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-semibold tabular-nums text-ink-2"
-                                aria-label={`${c.unreadByAdmin} non lu${c.unreadByAdmin > 1 ? 's' : ''}`}
+                                aria-label={`${c.unreadByAdmin} ${c.unreadByAdmin > 1 ? t('non lus') : t('non lu')}`}
                               >
                                 {c.unreadByAdmin}
                               </span>
                             )}
                           </div>
                           {/* Role chip — §11: neutral for informational categories. */}
-                          {c.recipientRole && <Badge variant="neutral" className="mt-1">{c.recipientRole}</Badge>}
+                          {c.recipientRole && <Badge variant="neutral" className="mt-1">{t(c.recipientRole)}</Badge>}
                         </div>
                       </div>
                     </button>
@@ -243,7 +245,7 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
                   size="icon"
                   className="h-8 w-8 lg:hidden"
                   onClick={() => setSelectedUid(null)}
-                  aria-label="Retour aux conversations"
+                  aria-label={t('Retour aux conversations')}
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
@@ -256,7 +258,7 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
                   <p className="t-body truncate font-semibold">{selected?.recipientNom}</p>
                   <p className="t-mono truncate text-xs text-ink-3">{selected?.recipientEmail}</p>
                 </div>
-                {selected?.recipientRole && <Badge variant="neutral" className="ml-auto">{selected.recipientRole}</Badge>}
+                {selected?.recipientRole && <Badge variant="neutral" className="ml-auto">{t(selected.recipientRole)}</Badge>}
               </div>
               <ChatThread
                 conversationUid={selectedUid}
@@ -267,8 +269,8 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
           ) : (
             <EmptyState
               icon={<MessageSquare />}
-              title="Sélectionnez une conversation"
-              description="Les messages de l'utilisateur s'afficheront ici."
+              title={t('Sélectionnez une conversation')}
+              description={t("Les messages de l'utilisateur s'afficheront ici.")}
               dashed={false}
               className="flex-1 bg-transparent"
             />
@@ -292,6 +294,7 @@ function ChatThread({
   currentUser: any;
   profile: any;
 }) {
+  const t = useT();
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
@@ -406,7 +409,7 @@ function ChatThread({
       console.error('Bug report send error:', error);
       toast({
         variant: 'destructive',
-        title: "Erreur lors de l'envoi",
+        title: t("Erreur lors de l'envoi"),
         description: error.message,
       });
     } finally {
@@ -427,14 +430,14 @@ function ChatThread({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
     } catch {
-      toast({ variant: 'destructive', title: 'Erreur lors du téléchargement' });
+      toast({ variant: 'destructive', title: t('Erreur lors du téléchargement') });
     }
   };
 
   const formatDate = (ts: any) => {
     if (!ts) return '';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
-    return format(date, "d MMM yyyy 'à' HH:mm", { locale: fr });
+    return format(date, "d MMM yyyy 'à' HH:mm", { locale: dateFnsLocale() });
   };
 
   const currentEmail = currentUser.email || '';
@@ -454,14 +457,14 @@ function ChatThread({
           timestamp, then the body). Own messages are told apart by alignment
           and the surface step, not by the accent (rule 4: teal is for the
           primary action, active nav, links and focus only). */}
-      <div className="max-h-[calc((100dvh-340px)/var(--app-zoom))] flex-1 space-y-4 overflow-y-auto p-4">
+      <div className="max-h-[calc((100dvh-340px)/var(--app-zoom))] flex-1 space-y-4 overflow-y-auto p-4" data-tour="bug-thread">
         {loading ? (
           <RowsSkeleton rows={3} bubbles />
         ) : !messages || messages.length === 0 ? (
           <EmptyState
             icon={<Bug />}
-            title="Aucun message pour le moment"
-            description="Décrivez le problème rencontré ci-dessous."
+            title={t('Aucun message pour le moment')}
+            description={t('Décrivez le problème rencontré ci-dessous.')}
             dashed={false}
             className="bg-transparent py-10"
           />
@@ -478,7 +481,7 @@ function ChatThread({
                 <div className={cn('max-w-[75%] space-y-1', isOwn && 'flex flex-col items-end')}>
                   <div className={cn('flex flex-wrap items-center gap-2', isOwn && 'flex-row-reverse')}>
                     <span className="t-body font-semibold">{msg.auteurNom}</span>
-                    {msg.auteurRole && <Badge variant="neutral">{msg.auteurRole}</Badge>}
+                    {msg.auteurRole && <Badge variant="neutral">{t(msg.auteurRole)}</Badge>}
                     <span className="t-caption tabular-nums">{formatDate(msg.date)}</span>
                   </div>
 
@@ -527,7 +530,7 @@ function ChatThread({
           the ONE primary « Envoyer »); §9: the textarea is a flat solid field.
           The primary stays enabled (GOV.UK: avoid disabled buttons) — an empty
           send is simply a no-op. */}
-      <div className="space-y-3 border-t border-hairline p-4">
+      <div className="space-y-3 border-t border-hairline p-4" data-tour="bug-compose">
         {selectedFile && (
           <div className="flex flex-wrap gap-2">
             <span className="inline-flex h-7 max-w-[240px] items-center gap-1 rounded-full bg-surface-2 pl-3 pr-1 text-xs text-ink-2 shadow-rim">
@@ -536,7 +539,7 @@ function ChatThread({
                 type="button"
                 className="rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink"
                 onClick={() => setSelectedFile(null)}
-                aria-label="Retirer la pièce jointe"
+                aria-label={t('Retirer la pièce jointe')}
               >
                 <X className="h-3 w-3" />
               </button>
@@ -547,24 +550,24 @@ function ChatThread({
         {voiceBlob ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm text-ink-2">
-              <span>Message vocal prêt ({voiceBlob.duration}s)</span>
+              <span>{t('Message vocal prêt')} ({voiceBlob.duration}s)</span>
               <Button variant="ghost" size="sm" onClick={() => setVoiceBlob(null)}>
-                Annuler
+                {t('Annuler')}
               </Button>
             </div>
             <Button onClick={handleSend} loading={isSending}>
-              {isSending ? 'Envoi…' : 'Envoyer'}
+              {isSending ? t('Envoi…') : t('Envoyer')}
             </Button>
           </div>
         ) : (
           <>
             <Textarea
-              placeholder="Décrivez le problème…"
+              placeholder={t('Décrivez le problème…')}
               className="min-h-[80px] resize-none"
               value={text}
               onChange={(e) => setText(e.target.value)}
               disabled={isSending}
-              aria-label="Votre message"
+              aria-label={t('Votre message')}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -573,7 +576,7 @@ function ChatThread({
               }}
             />
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1" data-tour="bug-tools">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -582,13 +585,13 @@ function ChatThread({
                       className="text-ink-3 hover:text-ink"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isSending}
-                      aria-label="Joindre un fichier"
+                      aria-label={t('Joindre un fichier')}
                       type="button"
                     >
                       <Paperclip className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Joindre un fichier</TooltipContent>
+                  <TooltipContent>{t('Joindre un fichier')}</TooltipContent>
                 </Tooltip>
                 <VoiceRecorder
                   onRecorded={(blob, duration) => setVoiceBlob({ blob, duration })}
@@ -597,7 +600,7 @@ function ChatThread({
                 />
               </div>
               <Button onClick={handleSend} loading={isSending}>
-                {isSending ? 'Envoi…' : 'Envoyer'}
+                {isSending ? t('Envoi…') : t('Envoyer')}
               </Button>
             </div>
           </>

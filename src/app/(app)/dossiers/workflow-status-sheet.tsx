@@ -16,6 +16,7 @@ import {
   HistorySheetContent,
   formatDateTime,
 } from './status-history-sheet';
+import { useT } from '@/i18n';
 
 type WorkflowStatusSheetProps = {
   open: boolean;
@@ -25,6 +26,7 @@ type WorkflowStatusSheetProps = {
 
 /** Step state as a status-pair chip (success = done, warning = pending). */
 function WorkflowChip({ status }: { status: 'done' | 'pending' }) {
+  const t = useT();
   const done = status === 'done';
   return (
     <span
@@ -34,12 +36,13 @@ function WorkflowChip({ status }: { status: 'done' | 'pending' }) {
       )}
     >
       {done ? <CheckCircle2 className="h-3 w-3" aria-hidden /> : <Clock className="h-3 w-3" aria-hidden />}
-      {done ? 'Terminé' : 'En attente'}
+      {done ? t('Terminé') : t('En attente')}
     </span>
   );
 }
 
 export default function WorkflowStatusSheet({ open, onOpenChange, dossier }: WorkflowStatusSheetProps) {
+  const t = useT();
   const db = useFirestore();
 
   const workflowQuery = useMemo(() => {
@@ -57,31 +60,31 @@ export default function WorkflowStatusSheet({ open, onOpenChange, dossier }: Wor
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <HistorySheetContent
-        title="Workflow du dossier"
-        description="Suivi en temps réel de l'état d'avancement."
+        title={t('Workflow du dossier')}
+        description={t("Suivi en temps réel de l'état d'avancement.")}
         refExpert={dossier.refExpert}
       >
         {loading ? (
           <HistoryLoading />
         ) : !logs || logs.length === 0 ? (
-          <HistoryEmpty title="Aucun historique" description="Les actions du workflow apparaissent ici au fil du dossier." />
+          <HistoryEmpty title={t('Aucun historique')} description={t('Les actions du workflow apparaissent ici au fil du dossier.')} />
         ) : (
           <ul className="divide-y divide-hairline">
             {logs.map((log: any) => (
               <HistoryRow key={log.id} date={log.date}>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={cn('text-sm font-semibold', log.status === 'done' ? 'text-ink' : 'text-ink-2')}>{log.action}</span>
+                  <span className={cn('text-sm font-semibold', log.status === 'done' ? 'text-ink' : 'text-ink-2')}>{t(log.action)}</span>
                   <WorkflowChip status={log.status === 'done' ? 'done' : 'pending'} />
                 </div>
                 <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-                  <HistoryField label="Par">
+                  <HistoryField label={t('Par')}>
                     {log.userNom || log.user ? <UserNameLink entry={log} /> : <span className="font-normal text-ink-4">—</span>}
                   </HistoryField>
-                  <HistoryField label="Date">
+                  <HistoryField label={t('Date')}>
                     <span className="tabular-nums">{formatDateTime(log.date)}</span>
                   </HistoryField>
                   {log.details && (
-                    <HistoryField label="Détails" className="sm:col-span-2">
+                    <HistoryField label={t('Détails')} className="sm:col-span-2">
                       <span className="whitespace-pre-wrap break-words font-normal text-ink">{log.details}</span>
                     </HistoryField>
                   )}

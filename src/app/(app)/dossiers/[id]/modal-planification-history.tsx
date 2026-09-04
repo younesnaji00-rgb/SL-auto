@@ -24,7 +24,7 @@ import {
   Info 
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { useCollection, useFirestore, useAuth } from '@/firebase';
 import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc, getDocs, limit } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +36,7 @@ type ModalPlanificationHistoryProps = {
 };
 
 export default function ModalPlanificationHistory({ open, onOpenChange, dossierId }: ModalPlanificationHistoryProps) {
+  const t = useT();
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -90,11 +91,11 @@ export default function ModalPlanificationHistory({ open, onOpenChange, dossierI
         snapshotDate: snapshot.modifiedAt,
       });
 
-      toast({ title: "Planification restaurée avec succès" });
+      toast({ title: t('Planification restaurée avec succès') });
       onOpenChange(false);
     } catch (error) {
       console.error(error);
-      toast({ variant: "destructive", title: "Erreur lors de la restauration" });
+      toast({ variant: "destructive", title: t('Erreur lors de la restauration') });
     } finally {
       setRestoringId(null);
     }
@@ -103,7 +104,7 @@ export default function ModalPlanificationHistory({ open, onOpenChange, dossierI
   const formatTimestamp = (ts: any) => {
     if (!ts) return 'N/A';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
-    return format(date, "d MMMM yyyy 'à' HH:mm", { locale: fr });
+    return format(date, "d MMMM yyyy 'à' HH:mm", { locale: dateFnsLocale() });
   };
 
   return (
@@ -112,10 +113,10 @@ export default function ModalPlanificationHistory({ open, onOpenChange, dossierI
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <RotateCcw className="h-5 w-5 text-ink-3" />
-            Historique des versions
+            {t('Historique des versions')}
           </DialogTitle>
           <DialogDescription>
-            Consultez les versions précédentes et restaurez une ancienne planification.
+            {t('Consultez les versions précédentes et restaurez une ancienne planification.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -126,8 +127,8 @@ export default function ModalPlanificationHistory({ open, onOpenChange, dossierI
             </div>
           ) : !history || history.length === 0 ? (
             <div className="rounded-lg border border-dashed border-hairline-strong py-10 text-center">
-              <p className="t-heading">Aucun historique</p>
-              <p className="t-caption mt-1">Aucune version antérieure n&apos;a été enregistrée pour ce dossier.</p>
+              <p className="t-heading">{t('Aucun historique')}</p>
+              <p className="t-caption mt-1">{t("Aucune version antérieure n'a été enregistrée pour ce dossier.")}</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -136,20 +137,20 @@ export default function ModalPlanificationHistory({ open, onOpenChange, dossierI
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
                       <p className="text-sm font-semibold text-ink">
-                        Version du {formatTimestamp(entry.modifiedAt)}
+                        {t('Version du')} {formatTimestamp(entry.modifiedAt)}
                       </p>
                       <div className="t-caption flex items-center gap-2">
                         <User className="h-3 w-3" />
-                        {entry.modifiedByName || 'Utilisateur inconnu'}
+                        {entry.modifiedByName || t('Utilisateur inconnu')}
                         <Badge variant="outline" className="h-4 py-0 text-[11px] font-medium text-ink-2">
-                          {entry.action || 'Modification'}
+                          {t(entry.action || 'Modification')}
                         </Badge>
                       </div>
                     </div>
                     <div className="flex gap-2">
                       <Button variant="ghost" size="sm" className="text-ink-3 hover:text-ink" onClick={() => handleToggleExpand(entry.id)}>
                         {expandedId === entry.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        <span className="ml-1 text-xs">Détails</span>
+                        <span className="ml-1 text-xs">{t('Détails')}</span>
                       </Button>
                       <Button
                         variant="outline"
@@ -158,7 +159,7 @@ export default function ModalPlanificationHistory({ open, onOpenChange, dossierI
                         disabled={restoringId === entry.id}
                       >
                         <RotateCcw className="mr-1 h-3 w-3" />
-                        <span className="text-xs">Restaurer</span>
+                        <span className="text-xs">{t('Restaurer')}</span>
                       </Button>
                     </div>
                   </div>
@@ -166,28 +167,28 @@ export default function ModalPlanificationHistory({ open, onOpenChange, dossierI
                   {expandedId === entry.id && (
                     <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-hairline pt-4 text-sm text-ink animate-in fade-in-0 duration-150 ease-enter motion-reduce:animate-none">
                       <div className="space-y-1">
-                        <p className="t-label">Date RDV</p>
+                        <p className="t-label">{t('Date RDV')}</p>
                         <p className="flex items-center gap-2"><Calendar className="h-3 w-3 text-ink-3" /> {formatTimestamp(entry.dateRDV)}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="t-label">Type de RDV</p>
-                        <p className="capitalize">{entry.typeMission}</p>
+                        <p className="t-label">{t('Type de RDV')}</p>
+                        <p className="capitalize">{t(entry.typeMission || '')}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="t-label">Agent</p>
+                        <p className="t-label">{t('Agent')}</p>
                         <p>{entry.agentTerrain}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="t-label">Zone</p>
+                        <p className="t-label">{t('Zone')}</p>
                         <p className="flex items-center gap-2"><MapPin className="h-3 w-3 text-ink-3" /> {entry.zone}</p>
                       </div>
                       <div className="col-span-2 space-y-1">
-                        <p className="t-label">Adresse</p>
+                        <p className="t-label">{t('Adresse')}</p>
                         <p>{entry.adresse}</p>
                       </div>
                       {entry.observation && (
                         <div className="col-span-2 rounded-md bg-surface-2 p-3 text-xs italic text-ink-2">
-                          <p className="t-label mb-1 not-italic">Observation:</p>
+                          <p className="t-label mb-1 not-italic">{t('Observation:')}</p>
                           "{entry.observation}"
                         </div>
                       )}
@@ -200,7 +201,7 @@ export default function ModalPlanificationHistory({ open, onOpenChange, dossierI
         </ScrollArea>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Fermer</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('Fermer')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

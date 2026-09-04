@@ -13,12 +13,13 @@ import { cn } from '@/lib/utils';
 import { useCollection, useFirestore } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserNameLink } from '@/components/user-name-link';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { useT, dateFnsLocale } from '@/i18n';
+import { auditText } from '@/lib/audit-i18n';
 
 /* ------------------------------------------------------------------------- */
 /* Shared "list of events" pieces for the dossier history sheets             */
@@ -46,7 +47,7 @@ export function HistoryDateBlock({ date, className }: { date: Date | null; class
         className,
       )}
     >
-      <span className="text-[11px] font-medium leading-none">{date ? format(date, 'MMM', { locale: fr }).replace('.', '') : '—'}</span>
+      <span className="text-[11px] font-medium leading-none">{date ? format(date, 'MMM', { locale: dateFnsLocale() }).replace('.', '') : '—'}</span>
       <span className="font-headline text-xl font-semibold leading-tight">{date ? format(date, 'd') : '—'}</span>
       <span className="text-[11px] leading-none">{date ? format(date, 'HH:mm') : ''}</span>
     </div>
@@ -97,7 +98,7 @@ export function HistoryEmpty({ title, description }: { title: string; descriptio
 /** Full date+time in text ("dd/MM/yyyy HH:mm"), for the row's helper line. */
 export function formatDateTime(ts: any): string {
   const d = toDateSafe(ts);
-  return d ? format(d, 'dd/MM/yyyy HH:mm', { locale: fr }) : '—';
+  return d ? format(d, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() }) : '—';
 }
 
 /** Sheet chrome shared by the history sheets: title, ref, scrollable body. */
@@ -105,21 +106,25 @@ export function HistorySheetContent({
   title,
   description,
   refExpert,
+  dataTour,
   children,
 }: {
   title: string;
   description: string;
   refExpert?: string;
+  /** Guided-tour anchor for the sheet panel (driver.js steps target it). */
+  dataTour?: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
-    <SheetContent className="flex w-full flex-col lg:max-w-lg">
+    <SheetContent className="flex w-full flex-col lg:max-w-lg" data-tour={dataTour}>
       <SheetHeader className="pr-6">
         <SheetTitle className="t-heading">{title}</SheetTitle>
         <SheetDescription className="text-sm text-ink-3">
           {refExpert ? (
             <>
-              Dossier <span className="t-mono font-semibold">{refExpert}</span>
+              {t('Dossier')} <span className="t-mono font-semibold">{refExpert}</span>
             </>
           ) : (
             description
@@ -141,6 +146,7 @@ type StatusHistorySheetProps = {
 };
 
 export default function StatusHistorySheet({ open, onOpenChange, dossier }: StatusHistorySheetProps) {
+  const t = useT();
   const db = useFirestore();
 
   const historyQuery = useMemo(() => {
@@ -164,31 +170,32 @@ export default function StatusHistorySheet({ open, onOpenChange, dossier }: Stat
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <HistorySheetContent
-        title="États du dossier"
-        description="Historique des changements de statut"
+        title={t('États du dossier')}
+        description={t('Historique des changements de statut')}
         refExpert={dossier.refExpert}
+        dataTour="dos-status-sheet"
       >
         {loading ? (
           <HistoryLoading />
         ) : !sortedEntries || sortedEntries.length === 0 ? (
-          <HistoryEmpty title="Aucun changement de statut" description="Les statuts s'enregistrent ici au fil des étapes." />
+          <HistoryEmpty title={t('Aucun changement de statut')} description={t("Les statuts s'enregistrent ici au fil des étapes.")} />
         ) : (
           <ul className="divide-y divide-hairline">
             {sortedEntries.map((e: any) => (
               <HistoryRow key={e.id} date={e.date}>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(e.action))}>
-                    {e.action || '—'}
+                    {auditText(e.action, t) || '—'}
                   </Badge>
                   <span className="t-caption tabular-nums">{formatDateTime(e.date)}</span>
                 </div>
                 <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-                  <HistoryField label="Par">
+                  <HistoryField label={t('Par')}>
                     {e.userNom || e.user ? <UserNameLink entry={e} /> : <span className="font-normal text-ink-4">—</span>}
                   </HistoryField>
                   {e.details && (
-                    <HistoryField label="Message" className="sm:col-span-2">
-                      <span className="whitespace-pre-wrap break-words font-normal text-ink">{e.details}</span>
+                    <HistoryField label={t('Message')} className="sm:col-span-2">
+                      <span className="whitespace-pre-wrap break-words font-normal text-ink">{auditText(e.details, t)}</span>
                     </HistoryField>
                   )}
                 </dl>

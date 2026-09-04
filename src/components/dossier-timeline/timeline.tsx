@@ -10,6 +10,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Check, ChevronDown, Lock } from 'lucide-react';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { TimelineBar, StepStamp, StepStatusChip } from './timeline-bar';
 import { useCollapsedSteps } from '@/hooks/use-collapsed-steps';
@@ -30,6 +31,7 @@ export interface TimelineSectionProps {
 }
 
 function TimelineSection({ step, position, children, collapsed, onToggle, active = false, last = false }: TimelineSectionProps) {
+  const t = useT();
   const headingId = `step-${step.id}-heading`;
   const blocked = step.status === 'blocked';
   const done = step.status === 'done';
@@ -74,16 +76,17 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
             onClick={onToggle}
             aria-expanded={!collapsed}
             aria-controls={`step-${step.id}-content`}
+            data-tour={`dosd-sec-${step.id}`}
             className="-mx-2 flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1 text-left transition-colors hover:bg-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="t-label sr-only">Étape {position}</span>
+              <span className="t-label sr-only">{t('Étape')} {position}</span>
               <h2 id={headingId} tabIndex={-1} className={cn('outline-none', step.status === 'in_progress' || active ? 't-title' : 't-title text-ink-2')}>
-                {step.longLabel}
+                {t(step.longLabel)}
               </h2>
               <StepStatusChip status={step.status} label={step.statusLabel} />
               {step.doneAt && <StepStamp step={step} />}
-              {blocked && step.blockedReason && <span className="text-xs text-muted-foreground">{step.blockedReason}</span>}
+              {blocked && step.blockedReason && <span className="text-xs text-muted-foreground">{t(step.blockedReason)}</span>}
             </span>
             <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-250 ease-standard motion-reduce:transition-none', collapsed && '-rotate-90')} />
           </button>

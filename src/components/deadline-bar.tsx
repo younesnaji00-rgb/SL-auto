@@ -3,6 +3,7 @@
 import React from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 
 export interface DeadlineBarProps {
   /** Percent of the deadline consumed (0–100+). */
@@ -39,6 +40,8 @@ export function DeadlineBar({
   completedLabel,
   className,
 }: DeadlineBarProps) {
+  const t = useT();
+
   if (completedLabel) {
     return (
       <div className={cn('flex items-center gap-1.5 text-sm text-ink', className)}>
@@ -52,7 +55,9 @@ export function DeadlineBar({
   const late = !overdue && rounded >= 80;
   const fill = overdue ? 'bg-status-danger-fg' : late ? 'bg-status-warning-fg' : 'bg-chart-1';
   const text = overdue ? 'text-status-danger-fg' : late ? 'text-status-warning-fg' : 'text-ink-2';
-  const caption = overdue ? (lateness ? `En retard ${lateness}` : 'En retard') : (label ?? `${rounded} %`);
+  const caption = overdue
+    ? (lateness ? `${t('En retard')} ${lateness}` : t('En retard'))
+    : (label ?? `${rounded} %`);
 
   return (
     <div className={cn('flex min-w-[140px] flex-col gap-1', className)}>

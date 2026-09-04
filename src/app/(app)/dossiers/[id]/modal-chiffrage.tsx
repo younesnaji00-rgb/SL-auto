@@ -22,7 +22,9 @@ import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import { isEditableDocType, type EditableDocType } from '@/lib/devis-schema';
 import { useChiffreurs } from '@/hooks/use-chiffreurs';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 type ModalChiffrageProps = {
   open: boolean;
@@ -47,6 +49,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
   const auth = useAuth();
   const storage = useStorage();
   const { toast } = useToast();
+  const t = useT();
   const { profile } = useCurrentUser();
   const { chiffreurs, loading: loadingChiffreurs } = useChiffreurs();
 
@@ -95,7 +98,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
       setAvailablePhotos(photos);
       setAvailableDocs(docs);
     }).catch(() => {
-      toast({ variant: 'destructive', title: 'Erreur de chargement des fichiers' });
+      toast({ variant: 'destructive', title: t('Erreur de chargement des fichiers') });
     }).finally(() => setLoadingFiles(false));
   }, [open, db, dossierId]);
 
@@ -105,12 +108,12 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
     if (loadingChiffreurs || isSubmitting || !db || !dossierId) return;
 
     if (!selectedChiffreurId) {
-      toast({ variant: 'destructive', title: "Sélection requise", description: "Veuillez choisir un chiffreur dans la liste." });
+      toast({ variant: 'destructive', title: t('Sélection requise'), description: t('Veuillez choisir un chiffreur dans la liste.') });
       return;
     }
 
     if (totalFileCount === 0) {
-      toast({ variant: 'destructive', title: "Aucun fichier disponible", description: "Ce dossier ne contient aucun fichier à envoyer." });
+      toast({ variant: 'destructive', title: t('Aucun fichier disponible'), description: t('Ce dossier ne contient aucun fichier à envoyer.') });
       return;
     }
 
@@ -118,7 +121,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
     const user = auth?.currentUser;
 
     if (!chiffreur) {
-      toast({ variant: 'destructive', title: "Erreur", description: "Impossible de procéder. Données du chiffreur manquantes." });
+      toast({ variant: 'destructive', title: t('Erreur'), description: t('Impossible de procéder. Données du chiffreur manquantes.') });
       return;
     }
 
@@ -190,12 +193,12 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
         });
       }
 
-      toast({ title: "Dossier envoyé", description: `${selectedFiles.length} fichier(s) transmis au chiffreur.` });
+      toast({ title: t('Dossier envoyé'), description: `${selectedFiles.length} ${t('fichier(s) transmis au chiffreur.')}` });
       setSent(true);
       window.setTimeout(() => onOpenChange(false), 1200);
     } catch (error: any) {
       console.error('Assignment error:', error);
-      toast({ variant: 'destructive', title: "Erreur lors de l'envoi", description: error.message || "Une erreur est survenue." });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'envoi"), description: error.message || t('Une erreur est survenue.') });
     } finally {
       setIsSubmitting(false);
     }
@@ -203,18 +206,18 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] max-h-[calc(85vh/var(--app-zoom))] flex flex-col">
+      <DialogContent className="sm:max-w-[550px] max-h-[calc(85vh/var(--app-zoom))] flex flex-col" {...tourDialogGuard()}>
         <DialogHeader>
-          <DialogTitle>Envoyer vers Chiffrage</DialogTitle>
+          <DialogTitle>{t('Envoyer vers Chiffrage')}</DialogTitle>
           <DialogDescription>
-            Sélectionnez le chiffreur et les fichiers à transmettre.
+            {t('Sélectionnez le chiffreur et les fichiers à transmettre.')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4 flex-1 overflow-hidden">
           {/* Chiffreur selection */}
-          <div className="space-y-2">
-            <Label>Chiffreur responsable</Label>
+          <div className="space-y-2" data-tour="chif-choose">
+            <Label>{t('Chiffreur responsable')}</Label>
             <ChiffreurDialog
               selectedId={selectedChiffreurId}
               onSelectId={setSelectedChiffreurId}
@@ -223,16 +226,16 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
           {/* File summary */}
           <div className="space-y-2">
-            <Label>Fichiers à envoyer</Label>
+            <Label>{t('Fichiers à envoyer')}</Label>
             <div className="space-y-2 rounded-lg bg-surface-2 p-3">
               {loadingFiles ? (
                 <div className="flex items-center justify-center gap-2 py-4 text-sm text-ink-3">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Chargement des fichiers...
+                  {t('Chargement des fichiers...')}
                 </div>
               ) : totalFileCount === 0 ? (
                 <p className="t-caption py-4 text-center">
-                  Aucun fichier disponible dans ce dossier.
+                  {t('Aucun fichier disponible dans ce dossier.')}
                 </p>
               ) : (
                 <div className="flex items-center gap-4 text-sm text-ink">
@@ -248,7 +251,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
                       <span>{availableDocs.length} document{availableDocs.length > 1 ? 's' : ''}</span>
                     </div>
                   )}
-                  <span className="t-caption ml-auto">Tous les fichiers seront envoyés</span>
+                  <span className="t-caption ml-auto">{t('Tous les fichiers seront envoyés')}</span>
                 </div>
               )}
             </div>
@@ -256,10 +259,10 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
-          <Button onClick={handleAssign} disabled={sent || isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>{t('Annuler')}</Button>
+          <Button data-tour="chif-send" onClick={handleAssign} disabled={sent || isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0}>
             {sent ? <Check className="mr-2 h-4 w-4" /> : isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-            {sent ? 'Envoyé' : `Envoyer (${totalFileCount})`}
+            {sent ? t('Envoyé') : `${t('Envoyer')} (${totalFileCount})`}
           </Button>
         </DialogFooter>
       </DialogContent>

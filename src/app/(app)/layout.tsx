@@ -6,6 +6,7 @@ import AppSidebar from '@/components/layout/sidebar';
 import { CompagnieLogosPreload } from '@/components/layout/compagnie-logos-preload';
 import Header from '@/components/layout/header';
 import { OfflineIndicator } from '@/components/offline-indicator';
+import { TrialBanner } from '@/components/trial-banner';
 import { GpsPublisherHost } from '@/components/gps-publisher-host';
 import { CurrentUserProvider, useCurrentUser } from '@/hooks/use-current-user';
 import { WorkspaceTabsProvider } from '@/hooks/use-workspace-tabs';
@@ -15,7 +16,9 @@ import WorkspaceTabs from '@/components/layout/workspace-tabs';
 import MobileNav from '@/components/layout/mobile-nav';
 import { useRouter, usePathname } from 'next/navigation';
 import { PageLoader } from '@/components/ui/page-loader';
+import { TutorialLauncher } from '@/components/tutorial/tutorial-launcher';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 
 /** Routes that want to use the full inset width (no padding, no max-w cap). */
 const FULL_WIDTH_ROUTES = ['/devis-editor'];
@@ -30,6 +33,7 @@ const UNCAPPED_ROUTES = ['/dossiers'];
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { firebaseUser, loading } = useCurrentUser();
   const router = useRouter();
+  const t = useT();
 
   React.useEffect(() => {
     if (!loading && !firebaseUser) {
@@ -40,7 +44,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <PageLoader label="Chargement..." />
+        <PageLoader label={t('Chargement...')} />
       </div>
     );
   }
@@ -66,6 +70,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
       <AppSidebar />
       <SidebarInset className="flex h-svh flex-col overflow-hidden transition-[margin,width] duration-300 ease-standard motion-reduce:transition-none">
         <Header />
+        <TrialBanner />
         <OfflineIndicator />
         <GpsPublisherHost />
         <WorkspaceTabs />
@@ -89,6 +94,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
         <MobileNav />
+        <TutorialLauncher />
       </SidebarInset>
     </div>
   );

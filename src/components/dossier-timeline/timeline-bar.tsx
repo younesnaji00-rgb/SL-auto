@@ -16,8 +16,8 @@
 
 import React from 'react';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { Check, Lock } from 'lucide-react';
+import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { UserNameLink } from '@/components/user-name-link';
 import { displayUserName } from '@/lib/display-user';
@@ -56,7 +56,7 @@ export function StepStamp({
   const stacked = stackLongName && label.length > NAME_STACK_MIN && words.length >= 2;
   return (
     <span className={cn('t-caption inline-flex items-center gap-1 truncate tabular-nums', className)}>
-      {format(step.doneAt, 'dd/MM/yyyy HH:mm', { locale: fr })}
+      {format(step.doneAt, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() })}
       {step.doneBy && (
         <>
           <span aria-hidden>·</span>
@@ -75,6 +75,7 @@ export function StepStamp({
 }
 
 export function StepStatusChip({ status, label }: { status: StepStatus; label: string }) {
+  const t = useT();
   return (
     <span
       className={cn(
@@ -87,7 +88,7 @@ export function StepStatusChip({ status, label }: { status: StepStatus; label: s
         status === 'blocked' && 'border border-dashed border-hairline-strong text-ink-4',
       )}
     >
-      {label}
+      {t(label)}
     </span>
   );
 }
@@ -142,6 +143,7 @@ const REVEAL_INNER = (open: boolean, alwaysAtLg = false) =>
   );
 
 export function TimelineBar({ steps, activeId, onStepClick, className }: TimelineBarProps) {
+  const t = useT();
   // Space-stealing reveal (owner 2026-09-02: the hovered step's FULL name and
   // details must always fit): while one step is inspected, only the steps to
   // its RIGHT fold to their medallions on the same 200ms horizontal slide
@@ -357,7 +359,7 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
   }, [steps.length]);
 
   return (
-    <nav aria-label="Étapes du dossier" className={cn('relative w-full', className)}>
+    <nav aria-label={t('Étapes du dossier')} className={cn('relative w-full', className)} data-tour="dosd-timeline">
       <div ref={scrollRef} className="relative flex h-12 w-full items-center gap-0.5 overflow-x-auto px-3 [scrollbar-width:none] sm:px-5 [&::-webkit-scrollbar]:hidden">
         <div
           ref={indicatorRef}
@@ -386,8 +388,8 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                 // any step (their reveal shows the blocked reason), and
                 // only the click is inert.
                 aria-disabled={blocked || undefined}
-                title={`${step.longLabel} — ${step.statusLabel}`}
-                aria-label={`Étape ${idx + 1} : ${step.longLabel} — ${step.statusLabel}${blocked && step.blockedReason ? ` (${step.blockedReason})` : ''}`}
+                title={`${t(step.longLabel)} — ${t(step.statusLabel)}`}
+                aria-label={`${t('Étape')} ${idx + 1} : ${t(step.longLabel)} — ${t(step.statusLabel)}${blocked && step.blockedReason ? ` (${t(step.blockedReason)})` : ''}`}
                 onClick={() => {
                   if (!blocked) onStepClick(step.id);
                 }}
@@ -395,6 +397,7 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                 onMouseLeave={() => release(step.id)}
                 onFocus={() => inspect(step.id)}
                 onBlur={() => release(step.id)}
+                data-tour={`dosd-step-${step.id}`}
                 aria-current={isActive ? 'step' : undefined}
                 data-step-active={isActive || undefined}
                 className={cn(
@@ -418,7 +421,7 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                       isActive ? 'font-semibold text-ink' : step.status === 'done' ? 'font-medium text-ink-2' : blocked ? 'text-ink-4' : 'font-medium text-ink-3',
                     )}
                   >
-                    {step.label}
+                    {t(step.label)}
                   </span>
                 </span>
 
@@ -427,7 +430,7 @@ export function TimelineBar({ steps, activeId, onStepClick, className }: Timelin
                 <span className={REVEAL_OUTER(inspected)} aria-hidden>
                   <span className={cn(REVEAL_INNER(inspected), 'text-[11px] text-ink-3')}>
                     <span aria-hidden className="mr-1.5">·</span>
-                    {step.doneAt ? <StepStamp step={step} stackLongName /> : blocked ? step.blockedReason : step.statusLabel}
+                    {step.doneAt ? <StepStamp step={step} stackLongName /> : blocked ? t(step.blockedReason ?? '') : t(step.statusLabel)}
                   </span>
                 </span>
               </button>

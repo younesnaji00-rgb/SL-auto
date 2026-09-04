@@ -15,12 +15,12 @@ import {
   Dialog, DialogContent, DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  Loader2, Eye, ImageIcon, Camera, Trash2, FileText, ChevronDown, MapPin,
+  Loader2, Eye, ImageIcon, Camera, Trash2, FileText, ChevronDown, MapPin, Upload,
 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconChip } from '@/components/ui/icon-chip';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
@@ -38,6 +38,7 @@ import { useOptions } from '@/hooks/use-options';
 import { deriveStatus, isPlanificationStatus } from '@/lib/status-machine';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
 import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-grid';
+import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 import Loading from './loading';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
@@ -102,12 +103,14 @@ function normalizeType(type: string): string {
 
 export default function ATGDossierDetailPage({ params }: { params: Promise<{ dossierId: string }> }) {
   const { dossierId } = use(params);
+  const t = useT();
   const router = useRouter();
   const db = useFirestore();
   const storage = useStorage();
   const auth = useAuth();
   const { toast } = useToast();
   const { canWrite, canDelete, profile } = useCurrentUser();
+  const tutorialMode = useTutorialMode();
   const canEdit = canWrite('assignations-atg');
   const isATG = profile?.role === 'Agent de Terrain';
   // Admins and directeurs (canDelete) can always delete any photo. ATG may
@@ -150,6 +153,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const [deletingPreuve, setDeletingPreuve] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Demo brand: gallery import next to the camera — prospects demo from a
+  // desktop, where "take photos" has no camera to talk to.
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const preuveInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const docFileInputRef = useRef<HTMLInputElement>(null);
   const docCameraInputRef = useRef<HTMLInputElement>(null);
@@ -230,7 +236,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const formatDate = (ts: any) => {
     if (!ts) return null;
     const date = ts.toDate ? ts.toDate() : new Date(ts);
-    try { return format(date, "d MMM yyyy HH:mm", { locale: fr }); }
+    try { return format(date, "d MMM yyyy HH:mm", { locale: dateFnsLocale() }); }
     catch { return null; }
   };
 
@@ -267,10 +273,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         );
       }
 
-      toast({ title: 'Observation enregistrée' });
+      toast({ title: t('Observation enregistrée') });
       setEditingPlanId(null);
     } catch {
-      toast({ variant: 'destructive', title: "Erreur lors de l'enregistrement" });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'enregistrement") });
     }
   };
 
@@ -288,16 +294,16 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     if (available === 0) {
       toast({
         variant: 'destructive',
-        title: 'Limite atteinte',
-        description: `Limite de ${photoCap} photos atteinte pour cette section.`,
+        title: t('Limite atteinte'),
+        description: `${t('Limite de')} ${photoCap} ${t('photos atteinte pour cette section.')}`,
       });
       return;
     }
     if (files.length > available) {
       toast({
         variant: 'destructive',
-        title: 'Limite de photos',
-        description: `${files.length - available} photo(s) ignorée(s) — la limite de ${photoCap} par section a été atteinte.`,
+        title: t('Limite de photos'),
+        description: `${files.length - available} ${t('photo(s) ignorée(s) — la limite de')} ${photoCap} ${t('par section a été atteinte.')}`,
       });
       files = files.slice(0, available);
     }
@@ -339,9 +345,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       // Idempotent — re-uploads in the same category are no-ops because the
       // helper early-returns when currentStatut already equals the target.
       void maybeAdvanceToExpertise(db, dossierId, statutBeforeUpload, categoryAtUpload, userEmail);
-      toast({ title: `${files.length} photo${files.length > 1 ? 's' : ''} uploadée${files.length > 1 ? 's' : ''} avec succès` });
+      toast({ title: `${files.length} ${files.length > 1 ? t('photos uploadées avec succès') : t('photo uploadée avec succès')}` });
     } catch {
-      toast({ variant: 'destructive', title: "Erreur lors de l'upload" });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'upload") });
     } finally {
       setIsUploading(false);
     }
@@ -359,8 +365,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     if (!canDeletePhoto(photo)) {
       toast({
         variant: 'destructive',
-        title: 'Suppression refusée',
-        description: 'Vous ne pouvez supprimer que les photos que vous avez vous-même téléversées.',
+        title: t('Suppression refusée'),
+        description: t('Vous ne pouvez supprimer que les photos que vous avez vous-même téléversées.'),
       });
       return;
     }
@@ -374,10 +380,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       const userId = auth?.currentUser?.uid || 'unknown';
       await logHistorique(db, dossierId, 'Suppression photo Agent de Terrain', userEmail, `Photo "${photo.name || 'inconnue'}" supprimée.`, 'photo', profile?.nom);
       await logWorkflow(db, dossierId, 'Photo supprimée par Agent de Terrain', userEmail, userId, 'done', { details: `Photo "${photo.name || 'inconnue'}" supprimée` }, profile?.nom);
-      toast({ title: 'Photo supprimée' });
+      toast({ title: t('Photo supprimée') });
     } catch (err: any) {
       console.error('Delete error:', err);
-      toast({ variant: 'destructive', title: 'Erreur lors de la suppression' });
+      toast({ variant: 'destructive', title: t('Erreur lors de la suppression') });
     } finally {
       setIsDeletingPhoto(null);
     }
@@ -390,10 +396,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     // own uploads. Everyone else is blocked.
     const isOwnATGUpload = docItem.uploadSource === 'ATG' && docItem.uploadePar === auth?.currentUser?.email;
     if (!canDelete && !(isATG && isOwnATGUpload)) {
-      toast({ variant: 'destructive', title: 'Suppression refusée', description: 'Vous n\'avez pas la permission de supprimer ce document.' });
+      toast({ variant: 'destructive', title: t('Suppression refusée'), description: t('Vous n\'avez pas la permission de supprimer ce document.') });
       return;
     }
-    if (!window.confirm(`Supprimer le document "${docItem.nom || docItem.name || ''}" ?`)) return;
+    if (!window.confirm(`${t('Supprimer le document')} "${docItem.nom || docItem.name || ''}" ?`)) return;
     setIsDeletingDoc(docItem.id);
     try {
       if (docItem.storagePath) {
@@ -404,10 +410,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       const userId = auth?.currentUser?.uid || 'unknown';
       await logHistorique(db, dossierId, 'Suppression document Agent de Terrain', userEmail, `Document "${docItem.nom || docItem.name || 'inconnu'}" supprimé.`, 'document', profile?.nom);
       await logWorkflow(db, dossierId, 'Document supprimé par Agent de Terrain', userEmail, userId, 'done', { details: `Document "${docItem.nom || docItem.name || 'inconnu'}" supprimé` }, profile?.nom);
-      toast({ title: 'Document supprimé' });
+      toast({ title: t('Document supprimé') });
     } catch (err) {
       console.error('Delete doc error:', err);
-      toast({ variant: 'destructive', title: 'Erreur lors de la suppression du document' });
+      toast({ variant: 'destructive', title: t('Erreur lors de la suppression du document') });
     } finally {
       setIsDeletingDoc(null);
     }
@@ -416,7 +422,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   // Delete preuve photo
   const handleDeletePreuvePhoto = async (planId: string, url: string, idx: number) => {
     if (!db || !storage) return;
-    if (!window.confirm('Supprimer cette preuve ?')) return;
+    if (!window.confirm(t('Supprimer cette preuve ?'))) return;
     const key = `${planId}:${idx}`;
     setDeletingPreuve(key);
     try {
@@ -441,10 +447,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       await logHistorique(db, dossierId, 'Suppression preuve Agent de Terrain', userEmail, `Photo de preuve supprimée.`, 'planification', profile?.nom);
       const userId = auth?.currentUser?.uid || 'unknown';
       await logWorkflow(db, dossierId, 'Preuve supprimée par Agent de Terrain', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: 'Photo de preuve supprimée par Agent de Terrain' }, profile?.nom);
-      toast({ title: 'Preuve supprimée' });
+      toast({ title: t('Preuve supprimée') });
     } catch (err) {
       console.error('Delete preuve error:', err);
-      toast({ variant: 'destructive', title: 'Erreur lors de la suppression de la preuve' });
+      toast({ variant: 'destructive', title: t('Erreur lors de la suppression de la preuve') });
     } finally {
       setDeletingPreuve(null);
     }
@@ -480,10 +486,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       await logHistorique(db, dossierId, 'Preuve Agent de Terrain ajoutée', userEmail, `${newUrls.length} photo(s) de preuve ajoutée(s).`, 'planification', profile?.nom);
       const userId = auth?.currentUser?.uid || 'unknown';
       await logWorkflow(db, dossierId, 'Agent de Terrain : preuve ajoutée', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${newUrls.length} photo(s) de preuve ajoutée(s) par Agent de Terrain` }, profile?.nom);
-      toast({ title: 'Preuve(s) uploadée(s)' });
+      toast({ title: t('Preuve(s) uploadée(s)') });
     } catch (err) {
       console.error('Preuve upload error:', err);
-      toast({ variant: 'destructive', title: "Erreur lors de l'upload de preuve" });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'upload de preuve") });
     } finally {
       setUploadingPreuveId(null);
       const input = preuveInputRefs.current[planId];
@@ -530,10 +536,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         for (const f of list) {
           await uploadDocument(f, docUploadType);
         }
-        toast({ title: list.length === 1 ? 'Document uploadé avec succès' : `${list.length} documents uploadés` });
+        toast({ title: list.length === 1 ? t('Document uploadé avec succès') : `${list.length} ${t('documents uploadés')}` });
       } catch (error: any) {
         console.error('Document upload error:', error);
-        toast({ variant: 'destructive', title: "Erreur lors de l'upload du document", description: error.message || 'Une erreur est survenue.' });
+        toast({ variant: 'destructive', title: t("Erreur lors de l'upload du document"), description: error.message || t('Une erreur est survenue.') });
       } finally {
         setIsDocUploading(false);
         setDocUploadType('');
@@ -551,13 +557,13 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     setIsDocUploading(true);
     try {
       await uploadDocument(selectedDocFile, docUploadType);
-      toast({ title: 'Document uploadé avec succès' });
+      toast({ title: t('Document uploadé avec succès') });
       setDocUploadModalOpen(false);
       setSelectedDocFile(null);
       setDocUploadType('');
     } catch (error: any) {
       console.error('Document upload error:', error);
-      toast({ variant: 'destructive', title: "Erreur lors de l'upload du document", description: error.message || 'Une erreur est survenue.' });
+      toast({ variant: 'destructive', title: t("Erreur lors de l'upload du document"), description: error.message || t('Une erreur est survenue.') });
     } finally {
       setIsDocUploading(false);
     }
@@ -588,10 +594,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         { details: `Limite photo par section : ${next ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION}` },
         profile?.nom,
       );
-      toast({ title: next ? 'Proposition réforme activée' : 'Proposition réforme annulée' });
+      toast({ title: next ? t('Proposition réforme activée') : t('Proposition réforme annulée') });
     } catch (e) {
       console.error('propositionReforme toggle error:', e);
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de modifier la proposition réforme.' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: t('Impossible de modifier la proposition réforme.') });
     }
   };
 
@@ -603,7 +609,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const statut: string = dossier?.statut || 'Nouveau';
   const plate = dossier?.matricule || dossier?.vehicule?.immatriculation || '';
   const assure = assureName(dossier?.assure) || assureNom;
-  const cameraLabel = isUploading ? 'Upload en cours...' : 'Prendre des photos';
+  const cameraLabel = isUploading ? t('Upload en cours...') : t('Prendre des photos');
   const propositionReforme = !!(dossier as any)?.propositionReforme;
   const nextPlanId = (() => {
     // The next upcoming RDV of this mission gets the "Prochain" info chip.
@@ -632,7 +638,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   return (
     <div className="space-y-6">
       {/* Header stack */}
-      <div className="flex items-start gap-4">
+      <div data-tour="atgd-header" className="flex items-start gap-4">
         <div className="min-w-0 flex-1 space-y-4">
           {/* Page header (element-specs §1: Polaris Page ✓ breadcrumb back to
               the parent, compact t-title on a record page; meta chips §11 —
@@ -641,12 +647,12 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           <PageHeader
             size="compact"
             backHref="/assignations-atg"
-            backLabel="Missions terrain"
+            backLabel={t('Missions terrain')}
             title={dossier?.refExpert || dossierId}
             subtitle={[assure, dossier?.compagnie].filter(Boolean).join(' — ') || undefined}
             meta={
               <>
-                <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut))}>{statut}</Badge>
+                <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut))}>{t(statut)}</Badge>
                 {plate && <Badge variant="neutral" className="font-mono">{plate}</Badge>}
                 {dossier?.expertRank && <Badge variant="neutral">{dossier.expertRank}</Badge>}
               </>
@@ -660,7 +666,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           {filteredPlans.length === 0 ? (
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
               <div className="min-w-0">
-                <dt className="t-label">Téléphone</dt>
+                <dt className="t-label">{t('Téléphone')}</dt>
                 <dd className="mt-0.5 text-sm font-semibold text-ink">{phoneValue}</dd>
               </div>
             </dl>
@@ -669,7 +675,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               {filteredPlans.map((p: any) => (
                 <dl key={p.id} className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
                   <div className="min-w-0">
-                    <dt className="t-label">Rendez-vous</dt>
+                    <dt className="t-label">{t('Rendez-vous')}</dt>
                     {/* Date block = the warm anchor (addendum 1a): every RDV date
                         is the terracotta tint; the NEXT upcoming one is the page's
                         single SOLID block. Figures stay Inter 600 tabular (addendum 3). */}
@@ -688,15 +694,15 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                       ) : (
                         <span className="font-normal text-ink-4">—</span>
                       )}
-                      {p.id === nextPlanId && <Badge variant="time">Prochain</Badge>}
+                      {p.id === nextPlanId && <Badge variant="time">{t('Prochain')}</Badge>}
                     </dd>
                   </div>
                   <div className="min-w-0">
-                    <dt className="t-label">Zone</dt>
+                    <dt className="t-label">{t('Zone')}</dt>
                     <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{p.zone || <span className="font-normal text-ink-4">—</span>}</dd>
                   </div>
                   <div className="min-w-0">
-                    <dt className="t-label">Adresse</dt>
+                    <dt className="t-label">{t('Adresse')}</dt>
                     <dd className="mt-0.5 text-sm font-semibold text-ink">
                       {p.adresse ? (
                         <button
@@ -713,7 +719,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                     </dd>
                   </div>
                   <div className="min-w-0">
-                    <dt className="t-label">Téléphone</dt>
+                    <dt className="t-label">{t('Téléphone')}</dt>
                     <dd className="mt-0.5 text-sm font-semibold text-ink">{phoneValue}</dd>
                   </div>
                 </dl>
@@ -735,12 +741,14 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           panel auto-tags new obs with phaseATG=activeTab (round 8 Q-3 → A)
           and only shows obs (or legacy un-tagged AT/dossiers obs) for that
           phase. */}
-      <ObservationsTab
-        dossierId={dossierId}
-        section="assignations-atg"
-        variant="collapsible"
-        contextPhase={activeTab as 'Avant' | 'En cours' | 'Après'}
-      />
+      <div data-tour="atgd-observations">
+        <ObservationsTab
+          dossierId={dossierId}
+          section="assignations-atg"
+          variant="collapsible"
+          contextPhase={activeTab as 'Avant' | 'En cours' | 'Après'}
+        />
+      </div>
 
       {/* Photos & Documents toggle row — selectable tiles (Carbon tile ✓
           "single-select tiles when the user can only select one tile from a
@@ -748,9 +756,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           shadow, "do not mix tile variants in groups"; NN/g accordions ✓
           heading AND icon both toggle). Padding 16, rim, selected = 2 px
           `primary` ring, count as a neutral pill (§11). */}
-      <div className="grid grid-cols-2 gap-4" role="group" aria-label="Photos ou documents">
+      <div className="grid grid-cols-2 gap-4" role="group" aria-label={t('Photos ou documents')}>
         <button
           type="button"
+          data-tour="atgd-photos-toggle"
           onClick={() => { setIsPhotosOpen((v) => !v); setIsDocsOpen(false); }}
           aria-expanded={isPhotosOpen}
           aria-controls="atg-photos-panel"
@@ -760,13 +769,14 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           )}
         >
           <ImageIcon className={cn('h-5 w-5 shrink-0', isPhotosOpen ? 'text-ink' : 'text-ink-3')} aria-hidden />
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">Photos</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{t('Photos')}</span>
           <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">{photos.length}</span>
           <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform', isPhotosOpen ? 'rotate-180' : 'rotate-0')} aria-hidden />
         </button>
 
         <button
           type="button"
+          data-tour="atgd-docs-toggle"
           onClick={() => { setIsDocsOpen((v) => !v); setIsPhotosOpen(false); }}
           aria-expanded={isDocsOpen}
           aria-controls="atg-documents-panel"
@@ -776,7 +786,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           )}
         >
           <FileText className={cn('h-5 w-5 shrink-0', isDocsOpen ? 'text-ink' : 'text-ink-3')} aria-hidden />
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">Documents</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{t('Documents')}</span>
           <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">{documents.length}</span>
           <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform', isDocsOpen ? 'rotate-180' : 'rotate-0')} aria-hidden />
         </button>
@@ -787,7 +797,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         // Content card (element-specs §5: Material 3 cards ✓ container only,
         // padding 24, 16 between blocks; toolbar at the top with the page's ONE
         // `default` button at the right end — §8 GOV.UK "one default button").
-        <Card id="atg-photos-panel" role="region" aria-label={`Photos — ${activeTab}`}>
+        <Card id="atg-photos-panel" role="region" aria-label={`${t('Photos')} — ${t(activeTab)}`}>
           <CardContent className="space-y-4 p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-2">
@@ -796,27 +806,56 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                 <IconChip>
                   <ImageIcon />
                 </IconChip>
-                <h3 className="t-heading">Photos — {activeTab}</h3>
+                <h3 className="t-heading">{t('Photos')} — {t(activeTab)}</h3>
                 {/* Cap counter as a caption (§6: figures in Inter, tabular in a caption). */}
-                <span className="t-caption tabular-nums">{filteredPhotos.length}/{photoCap} photos</span>
+                <span className="t-caption tabular-nums">{filteredPhotos.length}/{photoCap} {t('photos')}</span>
               </div>
-              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end" data-tour="atgd-photo-actions">
                 {/* Proposition réforme (item 021). AT-only toggle; lifts photo cap
                     from 30 to 60 per section. Reversible → `outline` when off,
                     `tonal` (pressed) when on — never `destructive` (§8 GOV.UK:
                     warning buttons only for irreversible destruction). */}
                 {isATG && (
                   <Button
+                    data-tour="atgd-reforme"
                     variant={propositionReforme ? 'tonal' : 'outline'}
                     aria-pressed={propositionReforme}
                     disabled={!dossierRef}
                     onClick={togglePropositionReforme}
                   >
-                    {propositionReforme ? 'Annuler la réforme proposée' : 'Proposer une réforme'}
+                    {propositionReforme ? t('Annuler la réforme proposée') : t('Proposer une réforme')}
                   </Button>
+                )}
+                {/* Demo/tutorial brand: gallery import next to the camera — the
+                    guided tour (and desktop prospects) have no camera to talk to. */}
+                {canEdit && tutorialMode && (
+                  <>
+                    <Button
+                      data-tour="atgd-import"
+                      variant="outline"
+                      disabled={isUploading}
+                      onClick={() => galleryInputRef.current?.click()}
+                    >
+                      <Upload />
+                      {t('Importer des photos')}
+                    </Button>
+                    <input
+                      ref={galleryInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        if (files.length > 0) void handleUploadFiles(files);
+                        e.target.value = '';
+                      }}
+                    />
+                  </>
                 )}
                 {canEdit && (
                   <Button
+                    data-tour="atgd-camera"
                     variant="default"
                     disabled={isUploading}
                     loading={isUploading}
@@ -834,8 +873,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               // the toolbar primary above, so no second button here).
               <EmptyState
                 icon={<ImageIcon />}
-                title={`Aucune photo ${activeTab.toLowerCase()} pour le moment`}
-                description="Utilisez « Prendre des photos » pour capturer la première."
+                title={`${t('Aucune photo')} ${t(activeTab).toLowerCase()} ${t('pour le moment')}`}
+                description={t('Utilisez « Prendre des photos » pour capturer la première.')}
                 dashed={false}
               />
             ) : (
@@ -846,7 +885,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                 defaultExpanded={false}
                 gridItems
                 groupLabel={(day, count) =>
-                  `${format(day, 'd MMMM yyyy', { locale: fr })} — ${count} photo${count > 1 ? 's' : ''}`
+                  `${format(day, 'd MMMM yyyy', { locale: dateFnsLocale() })} — ${count} ${count > 1 ? t('photos') : t('photo')}`
                 }
                 renderItem={(photo) => (
                   // Photo tile (element-specs §21: filled socket = raised tile,
@@ -857,7 +896,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                     <button
                       type="button"
                       onClick={() => setPreviewPhoto(photo)}
-                      aria-label={`Agrandir ${photo.name}`}
+                      aria-label={`${t('Agrandir')} ${photo.name}`}
                       className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                     >
                       <img
@@ -878,10 +917,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                         className="absolute right-1 top-1 z-10 h-8 w-8 bg-card/90 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (window.confirm('Supprimer cette photo ?')) handleDeletePhoto(photo);
+                          if (window.confirm(t('Supprimer cette photo ?'))) handleDeletePhoto(photo);
                         }}
                         disabled={isDeletingPhoto === photo.id}
-                        aria-label="Supprimer la photo"
+                        aria-label={t('Supprimer la photo')}
                       >
                         {isDeletingPhoto === photo.id
                           ? <Loader2 className="animate-spin" />
@@ -901,9 +940,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
 
       {/* Documents panel (revealed when toggled) */}
       {isDocsOpen && (
-        <Card id="atg-documents-panel" role="region" aria-label="Pièces jointes">
+        <Card id="atg-documents-panel" data-tour="atgd-docs" role="region" aria-label={t('Pièces jointes')}>
           <CardContent className="space-y-4 p-6">
-            <h3 className="t-heading">Pièces jointes</h3>
+            <h3 className="t-heading">{t('Pièces jointes')}</h3>
             {/* Document sockets — shared component (§21), untouched. */}
             <TypedDocumentsGrid
               dossierId={dossierId}
@@ -935,12 +974,12 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       {previewPreuvePhotos && (
         <Dialog open onOpenChange={() => setPreviewPreuvePhotos(null)}>
           <DialogContent className="flex h-[calc(60vh/var(--app-zoom))] flex-col p-0 lg:max-w-2xl">
-            <DialogTitle className="sr-only">Photos de preuve</DialogTitle>
+            <DialogTitle className="sr-only">{t('Photos de preuve')}</DialogTitle>
             <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-ink-solid">
               <img
                 src={previewPreuvePhotos.urls[previewPreuvePhotos.index]}
                 className="max-h-full max-w-full object-contain"
-                alt={`Preuve ${previewPreuvePhotos.index + 1}`}
+                alt={`${t('Preuve')} ${previewPreuvePhotos.index + 1}`}
               />
             </div>
             {previewPreuvePhotos.urls.length > 1 && (
@@ -950,7 +989,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                     key={idx}
                     type="button"
                     onClick={() => setPreviewPreuvePhotos({ ...previewPreuvePhotos, index: idx })}
-                    aria-label={`Preuve ${idx + 1}`}
+                    aria-label={`${t('Preuve')} ${idx + 1}`}
                     aria-current={idx === previewPreuvePhotos.index}
                     className={cn(
                       'h-14 w-14 overflow-hidden rounded-md transition-opacity',

@@ -23,6 +23,7 @@ import { ref, getDownloadURL, uploadBytes } from 'firebase/storage';
 import { enqueueUpload } from '@/lib/offline/upload-queue';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type Tool = 'select' | 'line' | 'text' | 'stamp';
@@ -131,6 +132,7 @@ export default function EditorPage() {
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
+  const t = useT();
 
   const chiffrageId = searchParams.get('chiffrageId') || '';
   const dossierId = searchParams.get('dossierId') || '';
@@ -348,7 +350,7 @@ export default function EditorPage() {
         }
       } catch (e) {
         console.error(e);
-        toast({ variant: 'destructive', title: 'Erreur de chargement du fichier' });
+        toast({ variant: 'destructive', title: t('Erreur de chargement du fichier') });
       } finally {
         setLoading(false);
       }
@@ -668,11 +670,11 @@ export default function EditorPage() {
           updatedFiles[chiffrageFileIndex].annotations = annotations;
           updatedFiles[chiffrageFileIndex].status = 'done';
           await updateDoc(docRef, { files: updatedFiles, updatedAt: serverTimestamp() });
-          toast({ title: 'Sauvegardé avec succès' });
+          toast({ title: t('Sauvegardé avec succès') });
         }
       }
     } catch {
-      toast({ variant: 'destructive', title: 'Erreur de sauvegarde' });
+      toast({ variant: 'destructive', title: t('Erreur de sauvegarde') });
     } finally {
       setIsSaving(false);
     }
@@ -811,7 +813,7 @@ export default function EditorPage() {
               firestoreDocPath: `chiffrages`,
               firestoreMetadata: { _chiffrageId: chiffrageId, _fileIndex: currentFileIndex, _type: 'chiffrage-correction', annotations },
             });
-            toast({ title: 'Fichier mis en file d\'attente', description: 'Il sera synchronisé une fois en ligne.' });
+            toast({ title: t('Fichier mis en file d\'attente'), description: t('Il sera synchronisé une fois en ligne.') });
           }
         } else {
           await enqueueUpload({
@@ -823,7 +825,7 @@ export default function EditorPage() {
             firestoreDocPath: `chiffrages`,
             firestoreMetadata: { _chiffrageId: chiffrageId, _fileIndex: currentFileIndex, _type: 'chiffrage-correction', annotations },
           });
-          toast({ title: 'Fichier mis en file d\'attente', description: 'Il sera synchronisé une fois en ligne.' });
+          toast({ title: t('Fichier mis en file d\'attente'), description: t('Il sera synchronisé une fois en ligne.') });
         }
       }
 
@@ -833,10 +835,10 @@ export default function EditorPage() {
       a.download = `Correction_${fileName.split('.')[0]}.pdf`;
       a.click();
 
-      toast({ title: 'PDF exporté avec succès' });
+      toast({ title: t('PDF exporté avec succès') });
     } catch (e: any) {
       console.error(e);
-      toast({ variant: 'destructive', title: "Erreur d'exportation", description: e.message });
+      toast({ variant: 'destructive', title: t("Erreur d'exportation"), description: e.message });
     } finally {
       setIsExporting(false);
     }
@@ -876,7 +878,7 @@ export default function EditorPage() {
     );
   }
 
-  const toolLabel = tool === 'select' ? 'Sélection' : tool === 'text' ? 'Texte' : tool === 'stamp' ? 'Tampon' : 'Ligne';
+  const toolLabel = tool === "select" ? t("Sélection") : tool === "text" ? t("Texte") : tool === "stamp" ? t("Tampon") : t("Ligne");
 
   return (
     <div className="flex h-screen select-none flex-col bg-background">
@@ -891,21 +893,21 @@ export default function EditorPage() {
           `outline` and visible at every width. */}
       <div className="z-40 flex min-h-[48px] shrink-0 flex-wrap items-center gap-2 glass-bar border-b border-hairline px-4 sm:px-6">
         <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" /> Retour
+          <ArrowLeft className="h-4 w-4" /> {t("Retour")}
         </Button>
 
         <Separator orientation="vertical" className="h-6" aria-hidden />
 
         {/* Type filter */}
         <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
-          <SelectTrigger className="h-9 w-[150px] text-xs" aria-label="Type de document">
-            <SelectValue placeholder="Type de document" />
+          <SelectTrigger className="h-9 w-[150px] text-xs" aria-label={t("Type de document")} data-tour="edp-doc-filter">
+            <SelectValue placeholder={t("Type de document")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">Tous les types ({allFiles.length})</SelectItem>
+            <SelectItem value="__all__">{t('Tous les types')} ({allFiles.length})</SelectItem>
             {Object.entries(fileTypeGroups).map(([key, group]) => (
               <SelectItem key={key} value={key}>
-                {group.label} ({group.indices.length})
+                {t(group.label)} ({group.indices.length})
               </SelectItem>
             ))}
           </SelectContent>
@@ -913,14 +915,14 @@ export default function EditorPage() {
 
         {/* File switcher */}
         <Select value={String(currentFileIndex)} onValueChange={(v) => handleFileSwitch(Number(v))}>
-          <SelectTrigger className="h-9 w-[220px] text-xs" aria-label="Fichier">
+          <SelectTrigger className="h-9 w-[220px] text-xs" aria-label={t("Fichier")} data-tour="edp-file-switcher">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {filteredFileIndices.map((i) => (
               <SelectItem key={i} value={String(i)}>
                 <span className="flex items-center gap-1.5 truncate">
-                  {allFiles[i].source === 'dossier' && <span className="shrink-0 rounded bg-surface-3 px-1 text-[11px] font-medium text-ink-2">Dossier</span>}
+                  {allFiles[i].source === 'dossier' && <span className="shrink-0 rounded bg-surface-3 px-1 text-[11px] font-medium text-ink-2">{t("Dossier")}</span>}
                   {allFiles[i].name}
                 </span>
               </SelectItem>
@@ -932,8 +934,8 @@ export default function EditorPage() {
         )}
         {/* Read-only chip — §11 status pair + label (read-only IS the exception). */}
         {!isChiffrageFile && (
-          <Badge variant="warning" className="shrink-0" title="Fichier du dossier : les annotations ne sont pas enregistrées">
-            Lecture seule
+          <Badge variant="warning" className="shrink-0" title={t("Fichier du dossier : les annotations ne sont pas enregistrées")}>
+            {t("Lecture seule")}
           </Badge>
         )}
 
@@ -947,21 +949,22 @@ export default function EditorPage() {
             className="gap-1.5"
             onClick={() => setComparisonOpen(v => !v)}
             aria-pressed={comparisonOpen}
+            data-tour="edp-comparison"
           >
             <Columns2 className="h-4 w-4" />
-            Comparaison
+            {t("Comparaison")}
           </Button>
         )}
 
         <div className="flex-1" />
 
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleSave} loading={isSaving} disabled={!isChiffrageFile} title={!isChiffrageFile ? 'Lecture seule (fichier dossier)' : undefined}>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleSave} loading={isSaving} disabled={!isChiffrageFile} title={!isChiffrageFile ? t("Lecture seule (fichier dossier)") : undefined} data-tour="edp-save">
           {isSaving ? null : <Save className="h-4 w-4" />}
-          Enregistrer
+          {t("Enregistrer")}
         </Button>
-        <Button variant="default" size="sm" className="gap-1.5" onClick={handleExport} loading={isExporting}>
+        <Button variant="default" size="sm" className="gap-1.5" onClick={handleExport} loading={isExporting} data-tour="edp-export">
           {isExporting ? null : <Download className="h-4 w-4" />}
-          Exporter PDF
+          {t("Exporter PDF")}
         </Button>
       </div>
 
@@ -973,19 +976,19 @@ export default function EditorPage() {
           tonal fill + aria-pressed — two cues, never colour alone). */}
       <TooltipProvider delayDuration={300}>
         <div className="z-30 flex min-h-[40px] shrink-0 flex-wrap items-center gap-2 glass-bar border-b border-hairline px-4 py-0.5 sm:px-6">
-          <div className="flex items-center gap-0.5" role="group" aria-label="Outils">
-            <ToolButton label="Sélectionner / déplacer" active={tool === 'select'} onClick={() => setTool('select')}>
+          <div className="flex items-center gap-0.5" role="group" aria-label={t("Outils")}>
+            <ToolButton label={t("Sélectionner / déplacer")} active={tool === "select"} onClick={() => setTool("select")} data-tour="edp-tool-select">
               <MousePointer2 className="h-4 w-4" />
             </ToolButton>
-            <ToolButton label="Ajouter du texte" active={tool === 'text'} onClick={() => setTool('text')}>
+            <ToolButton label={t("Ajouter du texte")} active={tool === "text"} onClick={() => setTool("text")} data-tour="edp-tool-text">
               <Type className="h-4 w-4" />
             </ToolButton>
-            <ToolButton label="Tracer une ligne" active={tool === 'line'} onClick={() => setTool('line')}>
+            <ToolButton label={t("Tracer une ligne")} active={tool === "line"} onClick={() => setTool("line")} data-tour="edp-tool-line">
               <Minus className="h-4 w-4" />
             </ToolButton>
             <Popover>
               <PopoverTrigger asChild>
-                <ToolButton label="Tampon" active={tool === 'stamp'}>
+                <ToolButton label={t("Tampon")} active={tool === "stamp"} data-tour="edp-tool-stamp">
                   <Stamp className="h-4 w-4" />
                 </ToolButton>
               </PopoverTrigger>
@@ -997,7 +1000,7 @@ export default function EditorPage() {
                   no dashed panel). Empty = one line + that action (§12). */}
               <PopoverContent className="w-64 p-4" align="start">
                 <div className="space-y-3">
-                  <p className="t-label">Tampons</p>
+                  <p className="t-label">{t("Tampons")}</p>
                   {savedStamps.length > 0 ? (
                     <div className="grid grid-cols-3 gap-2">
                       {savedStamps.map(s => {
@@ -1021,7 +1024,7 @@ export default function EditorPage() {
                               type="button"
                               className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 shadow-rim-filled transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                               onClick={(e) => { e.stopPropagation(); handleDeleteStamp(s.id); }}
-                              aria-label={`Supprimer le tampon ${s.name}`}
+                              aria-label={`${t('Supprimer le tampon')} ${s.name}`}
                             >
                               <X className="h-2.5 w-2.5" />
                             </button>
@@ -1031,7 +1034,7 @@ export default function EditorPage() {
                       })}
                     </div>
                   ) : (
-                    <p className="t-caption py-2 text-center">Aucun tampon importé</p>
+                    <p className="t-caption py-2 text-center">{t("Aucun tampon importé")}</p>
                   )}
                   <input
                     ref={stampInputRef}
@@ -1054,7 +1057,7 @@ export default function EditorPage() {
                       void importStampFiles(Array.from(e.dataTransfer.files));
                     }}
                   >
-                    <Plus className="h-4 w-4" /> Ajouter un tampon
+                    <Plus className="h-4 w-4" /> {t("Ajouter un tampon")}
                   </Button>
                 </div>
               </PopoverContent>
@@ -1069,8 +1072,8 @@ export default function EditorPage() {
               are DOCUMENT ink (see DOCUMENT_INK_COLORS), not UI colour. Sliders — M3
               sliders (a label, immediate effect, the current value shown
               beside the handle): `t-label` + live tabular readout. */}
-          <div className="flex flex-wrap items-center gap-3" role="group" aria-label="Encre">
-            <div className="flex items-center gap-1.5" role="group" aria-label="Couleur">
+          <div className="flex flex-wrap items-center gap-3" role="group" aria-label={t("Encre")}>
+            <div className="flex items-center gap-1.5" role="group" aria-label={t("Couleur")} data-tour="edp-colors">
               {DOCUMENT_INK_COLORS.map(c => (
                 <button
                   key={c.value}
@@ -1084,15 +1087,15 @@ export default function EditorPage() {
                     color === c.value && 'ring-2 ring-ring ring-offset-2 ring-offset-card'
                   )}
                   style={{ backgroundColor: c.value }}
-                  title={c.name}
-                  aria-label={c.name}
+                  title={t(c.name)}
+                  aria-label={t(c.name)}
                   aria-pressed={color === c.value}
                 />
               ))}
             </div>
 
             <div className="flex items-center gap-1.5">
-              <span id="editor-text-size-label" className="t-label">Texte</span>
+              <span id="editor-text-size-label" className="t-label">{t("Texte")}</span>
               <Slider
                 value={[selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize]}
                 onValueChange={([v]) => {
@@ -1111,7 +1114,7 @@ export default function EditorPage() {
             </div>
 
             <div className="flex items-center gap-1.5">
-              <span id="editor-line-weight-label" className="t-label">Trait</span>
+              <span id="editor-line-weight-label" className="t-label">{t("Trait")}</span>
               <Slider
                 value={[selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness]}
                 onValueChange={([v]) => {
@@ -1136,41 +1139,41 @@ export default function EditorPage() {
               then the zoom pill (owner ruling: −/%/+, 25 % steps, % = fit,
               Ctrl + wheel ≈ ×1.3 per notch) and rotation. */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-0.5" role="group" aria-label="Annotations">
-              <ToolButton label="Supprimer la sélection" className="text-ink-3 hover:text-destructive" onClick={deleteSelected} disabled={!selectedId}>
+            <div className="flex items-center gap-0.5" role="group" aria-label={t("Annotations")}>
+              <ToolButton label={t("Supprimer la sélection")} className="text-ink-3 hover:text-destructive" onClick={deleteSelected} disabled={!selectedId}>
                 <Trash2 className="h-4 w-4" />
               </ToolButton>
-              <ToolButton label="Tout effacer" className="text-ink-3 hover:text-destructive" onClick={clearAll} disabled={annotations.length === 0}>
+              <ToolButton label={t("Tout effacer")} className="text-ink-3 hover:text-destructive" onClick={clearAll} disabled={annotations.length === 0}>
                 <Eraser className="h-4 w-4" />
               </ToolButton>
             </div>
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label="Zoom">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom arrière">
+                <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label={t("Zoom")} data-tour="edp-zoom">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label={t("Zoom arrière")}>
                     <ZoomOut className="h-3.5 w-3.5" />
                   </Button>
-                  <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`Zoom ${Math.round(zoom * 100)} % — réinitialiser`}>
+                  <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`${t('Zoom')} ${Math.round(zoom * 100)} % — ${t('réinitialiser')}`}>
                     {Math.round(zoom * 100)} %
                   </button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom avant">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label={t("Zoom avant")}>
                     <ZoomIn className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </TooltipTrigger>
               <TooltipContent className="flex items-center gap-2">
-                <span>Zoom — cliquer le % pour réinitialiser</span>
-                <Kbd>Ctrl</Kbd><span>+ molette</span>
+                <span>{t("Zoom — cliquer le % pour réinitialiser")}</span>
+                <Kbd>Ctrl</Kbd><span>{t("+ molette")}</span>
               </TooltipContent>
             </Tooltip>
 
-            <div className="flex items-center gap-0.5" role="group" aria-label="Rotation">
-              <ToolButton label="Rotation −90°" onClick={() => setRotation(r => (r - 90 + 360) % 360)}>
+            <div className="flex items-center gap-0.5" role="group" aria-label={t("Rotation")}>
+              <ToolButton label={t("Rotation −90°")} onClick={() => setRotation(r => (r - 90 + 360) % 360)}>
                 <RotateCcw className="h-4 w-4" />
               </ToolButton>
               <span className="t-caption w-7 text-center tabular-nums">{rotation}°</span>
-              <ToolButton label="Rotation +90°" onClick={() => setRotation(r => (r + 90) % 360)}>
+              <ToolButton label={t("Rotation +90°")} onClick={() => setRotation(r => (r + 90) % 360)}>
                 <RotateCw className="h-4 w-4" />
               </ToolButton>
             </div>
@@ -1269,16 +1272,16 @@ export default function EditorPage() {
       </div>
 
       {/* ── Status bar ──────────────────────────────────────────────────────── */}
-      <div className="flex shrink-0 items-center justify-between glass-bar border-t border-hairline px-4 py-1.5 text-xs text-ink-3">
+      <div className="flex shrink-0 items-center justify-between glass-bar border-t border-hairline px-4 py-1.5 text-xs text-ink-3" data-tour="edp-status">
         <div className="flex items-center gap-4">
-          <span className="tabular-nums">{annotations.length} élément{annotations.length !== 1 ? 's' : ''}</span>
-          {selectedId && <span className="font-semibold text-ink">1 sélectionné — glissez pour déplacer</span>}
+          <span className="tabular-nums">{annotations.length} {annotations.length !== 1 ? t('éléments') : t('élément')}</span>
+          {selectedId && <span className="font-semibold text-ink">{t('1 sélectionné — glissez pour déplacer')}</span>}
         </div>
         <div className="flex items-center gap-4 tabular-nums">
-          <span>Outil : {toolLabel}</span>
-          {!isChiffrageFile && <span className="font-semibold text-status-warning-fg">Lecture seule</span>}
-          <span>Zoom : {Math.round(zoom * 100)}%</span>
-          {rotation !== 0 && <span>Rotation : {rotation}°</span>}
+          <span>{t('Outil :')} {toolLabel}</span>
+          {!isChiffrageFile && <span className="font-semibold text-status-warning-fg">{t('Lecture seule')}</span>}
+          <span>{t('Zoom :')} {Math.round(zoom * 100)}%</span>
+          {rotation !== 0 && <span>{t('Rotation :')} {rotation}°</span>}
         </div>
       </div>
     </div>
@@ -1400,6 +1403,7 @@ interface AnnotationElementProps {
 }
 
 const AnnotationElement = memo(function AnnotationElement({ annotation: a, isSelected, tool, onMouseDown, onClick, onTextChange, onDelete }: AnnotationElementProps) {
+  const t = useT();
   const textRef = useRef<HTMLDivElement>(null);
 
   // Auto-focus when newly created (empty text)
@@ -1488,7 +1492,7 @@ const AnnotationElement = memo(function AnnotationElement({ annotation: a, isSel
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={a.stampUrl}
-            alt="tampon"
+            alt={t('tampon')}
             className="w-full h-full object-contain pointer-events-none"
             draggable={false}
           />
@@ -1504,7 +1508,7 @@ const AnnotationElement = memo(function AnnotationElement({ annotation: a, isSel
             isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}
           onClick={e => { e.stopPropagation(); onDelete(); }}
-          aria-label="Supprimer l'annotation"
+          aria-label={t("Supprimer l'annotation")}
         >
           ×
         </button>

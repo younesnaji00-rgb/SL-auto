@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Trash2, AlertCircle, Eye, History, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check, Columns3 } from 'lucide-react';
 import { format, formatDistanceToNowStrict, differenceInCalendarDays, isToday, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useT, dateFnsLocale } from '@/i18n';
 import { Input } from '@/components/ui/input';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, STICKY_HEAD, STICKY_CELL, EmptyCell } from '@/components/ui/table';
@@ -14,6 +14,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useDossiers } from '@/hooks/use-dossiers';
@@ -52,6 +53,8 @@ import { DossierKpiStrip } from '@/components/dossiers/dossier-kpi-strip';
 import { MoreHorizontal, ExternalLink } from 'lucide-react';
 import { getStatusDotColor } from '@/lib/status-colors';
 import { StatusChip } from '@/components/ui/status-chip';
+import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
+import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { SlidingThumb } from '@/components/ui/sliding-thumb';
@@ -71,7 +74,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { addDoc, collection, doc, updateDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 
 // Column order = five logical chunks on the hierarchical scan path (research
 // 2026-09-03, docs/research/dossiers-attention-efficiency.md): identity →
@@ -142,10 +144,12 @@ const normSearch = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g,
 
 export default function DossiersClientPage() {
   const router = useRouter();
+  const t = useT();
   const { toast } = useToast();
   const auth = useAuth();
   const db = useFirestore();
   const { profile, canWrite, canDelete } = useCurrentUser();
+  const tutorialMode = useTutorialMode();
   const canEditDossiers = canWrite('dossiers');
   const { openTab } = useDossierTabs();
 
@@ -298,6 +302,7 @@ export default function DossiersClientPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [workflowDossier, setWorkflowDossier] = useState<any>(null);
   const [assignmentDossier, setAssignmentDossier] = useState<any>(null);
+  const [rappelObservation, setRappelObservation] = useState('');
   const [statusHistoryDossier, setStatusHistoryDossier] = useState<any>(null);
   const [observationHistoryDossier, setObservationHistoryDossier] = useState<any>(null);
 
@@ -311,7 +316,6 @@ export default function DossiersClientPage() {
   const [gestLoading, setGestLoading] = useState(false);
   const [selectedGestUids, setSelectedGestUids] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
-  const [rappelObservation, setRappelObservation] = useState('');
 
   /** Whole days since a timestamp-ish value; null when absent/invalid. */
   const ageDays = (val: any): number | null => {
@@ -553,14 +557,14 @@ export default function DossiersClientPage() {
   // registry so the bindings appear in the « ? » sheet and stay quiet while
   // typing in a field or inside a dialog.
   useHotkeys([
-    { keys: 'arrowdown', label: 'Ligne suivante', group: 'Liste des dossiers', handler: () => moveFocus(1) },
-    { keys: 'j', label: 'Ligne suivante', group: 'Liste des dossiers', handler: () => moveFocus(1) },
-    { keys: 'arrowup', label: 'Ligne précédente', group: 'Liste des dossiers', handler: () => moveFocus(-1) },
-    { keys: 'k', label: 'Ligne précédente', group: 'Liste des dossiers', handler: () => moveFocus(-1) },
+    { keys: 'arrowdown', label: t('Ligne suivante'), group: t('Liste des dossiers'), handler: () => moveFocus(1) },
+    { keys: 'j', label: t('Ligne suivante'), group: t('Liste des dossiers'), handler: () => moveFocus(1) },
+    { keys: 'arrowup', label: t('Ligne précédente'), group: t('Liste des dossiers'), handler: () => moveFocus(-1) },
+    { keys: 'k', label: t('Ligne précédente'), group: t('Liste des dossiers'), handler: () => moveFocus(-1) },
     {
       keys: 'enter',
-      label: 'Ouvrir la ligne en surbrillance',
-      group: 'Liste des dossiers',
+      label: t('Ouvrir la ligne en surbrillance'),
+      group: t('Liste des dossiers'),
       enabled: !!focusedRow,
       handler: () => {
         if (!focusedRow) return;
@@ -570,15 +574,15 @@ export default function DossiersClientPage() {
     },
     {
       keys: 'x',
-      label: 'Sélectionner la ligne (mode rappel)',
-      group: 'Liste des dossiers',
+      label: t('Sélectionner la ligne (mode rappel)'),
+      group: t('Liste des dossiers'),
       enabled: exportMode && !!focusedRow,
       handler: () => { if (focusedRow) handleToggleRow(focusedRow.id); },
     },
     {
       keys: 'space',
-      label: "Aperçu de la ligne (ouvrir / fermer)",
-      group: 'Liste des dossiers',
+      label: t("Aperçu de la ligne (ouvrir / fermer)"),
+      group: t('Liste des dossiers'),
       enabled: !exportMode && !!focusedRow,
       handler: () => {
         if (!focusedRow) return;
@@ -587,30 +591,36 @@ export default function DossiersClientPage() {
     },
     {
       keys: 'escape',
-      label: "Fermer l'aperçu / quitter la surbrillance",
-      group: 'Liste des dossiers',
+      label: t("Fermer l'aperçu / quitter la surbrillance"),
+      group: t('Liste des dossiers'),
       enabled: peekId !== null || focusIdx !== null,
       handler: () => {
         if (peekId !== null) setPeekId(null);
         else setFocusIdx(null);
       },
     },
-  ], [moveFocus, focusedRow, focusIdx, peekId, exportMode, handleToggleRow, openDossier]);
+  ], [moveFocus, focusedRow, focusIdx, peekId, exportMode, handleToggleRow, openDossier, t]);
 
   useEffect(() => {
     if (!isSendToOpen || !db) return;
     setGestLoading(true);
     getDocs(query(collection(db, 'users'), where('role', '==', 'Gestionnaire')))
       .then((snap) => {
-        setGestionnaires(snap.docs.map((d) => ({
+        const list = snap.docs.map((d) => ({
           uid: d.id,
           nom: (d.data() as any).nom || '',
           prenom: (d.data() as any).prenom || '',
-        })));
+        }));
+        // Tutorial mode: the user explores alone, so let them address a rappel
+        // to THEMSELVES and play both sender and recipient in one browser.
+        if (tutorialMode && profile?.uid && !list.some((g) => g.uid === profile.uid)) {
+          list.unshift({ uid: profile.uid, nom: profile.nom || '', prenom: profile.prenom || '' });
+        }
+        setGestionnaires(list);
       })
       .catch((err) => console.warn('[mes-rappels] fetch gestionnaires failed', err))
       .finally(() => setGestLoading(false));
-  }, [isSendToOpen, db]);
+  }, [isSendToOpen, db, profile?.uid, profile?.nom, profile?.prenom, tutorialMode]);
 
   const handleSendRappel = async () => {
     if (!db || !profile || selectedRows.size === 0 || selectedGestUids.size === 0) return;
@@ -641,14 +651,14 @@ export default function DossiersClientPage() {
         }
       }
       await Promise.all(writes);
-      toast({ title: 'Rappels envoyés', description: `${writes.length} rappel(s) envoyé(s).` });
+      toast({ title: t('Rappels envoyés'), description: `${writes.length} ${t('rappel(s) envoyé(s).')}` });
       setIsSendToOpen(false);
       setSelectedGestUids(new Set());
-      setSelectedRows(new Set());
       setRappelObservation('');
+      setSelectedRows(new Set());
       setExportMode(false);
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message || "Impossible d'envoyer les rappels." });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err.message || t("Impossible d'envoyer les rappels.") });
     } finally {
       setSending(false);
     }
@@ -674,12 +684,12 @@ export default function DossiersClientPage() {
     const dossierRef = (dossier as any)?.refExpert || dossierId;
 
     setDeleteTarget(null);
-    toast({ title: 'Dossier supprimé', description: 'Le dossier et ses données ont été purgés.' });
+    toast({ title: t('Dossier supprimé'), description: t('Le dossier et ses données ont été purgés.') });
 
     void logWorkflow(db, dossierId, 'Suppression de dossier', userEmail, userId, 'done', { dossierRef, details: `Dossier "${dossierRef}" supprimé définitivement` }, profile?.nom);
     deleteDossier(dossierId).catch((err: any) => {
       console.error('Delete error:', err);
-      toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Suppression impossible' });
+      toast({ variant: 'destructive', title: t('Erreur'), description: err?.message || t('Suppression impossible') });
     });
   };
 
@@ -698,7 +708,7 @@ export default function DossiersClientPage() {
     const date = val.toDate ? val.toDate() : new Date(val);
     if (Number.isNaN(date.getTime())) return undefined;
     try {
-      return formatDistanceToNowStrict(date, { locale: fr, addSuffix: true });
+      return formatDistanceToNowStrict(date, { locale: dateFnsLocale(), addSuffix: true });
     } catch {
       return undefined;
     }
@@ -726,7 +736,7 @@ export default function DossiersClientPage() {
             key={key}
             className={cn(!exportMode && STICKY_CELL, 't-mono font-semibold', isFocused && '!bg-surface-2')}
           >
-            {d.refExpert || <span className="font-sans font-normal text-ink-4">Sans réf.</span>}
+            {d.refExpert || <span className="font-sans font-normal text-ink-4">{t('Sans réf.')}</span>}
           </TableCell>
         );
       case 'assure':
@@ -744,11 +754,12 @@ export default function DossiersClientPage() {
               setStatusHistoryDossier(d);
             }}
             className={cn('min-w-[200px]', !exportMode && 'cursor-pointer hover:bg-surface-3 transition-colors')}
-            title={!exportMode ? "Voir l'historique des statuts" : undefined}
+            title={!exportMode ? t("Voir l'historique des statuts") : undefined}
+            data-tour="dos-statut-cell"
           >
             {/* Shared app-wide status mapping (element-specs §11) — the
                 inline Badge-outline path was retired 2026-09-02. */}
-            <StatusChip status={d.statut} />
+            <StatusChip status={d.statut} data-tour="dos-statut-pill" />
           </TableCell>
         );
       case 'observation':
@@ -760,7 +771,7 @@ export default function DossiersClientPage() {
               setObservationHistoryDossier(d);
             }}
             className={cn(!exportMode && 'cursor-pointer hover:bg-surface-3 transition-colors')}
-            title={!exportMode ? "Voir l'historique des observations" : undefined}
+            title={!exportMode ? t("Voir l'historique des observations") : undefined}
           >
             {d.lastObservation?.text ? (
               // Warning pair chip — the only emphasis for an open observation
@@ -783,9 +794,9 @@ export default function DossiersClientPage() {
         return (
           <TableCell key={key} className="tabular-nums" title={relativeDate((d as any).createdAt)}>
             {late ? (
-              <Badge variant="danger" className="tabular-nums">{age} j</Badge>
+              <Badge variant="danger" className="tabular-nums">{age} {t('j')}</Badge>
             ) : (
-              <span className="text-ink-2">{age} j</span>
+              <span className="text-ink-2">{age} {t('j')}</span>
             )}
           </TableCell>
         );
@@ -822,9 +833,9 @@ export default function DossiersClientPage() {
         );
       }
       case 'nature':
-        return <TableCell key={key}>{cell(d.nature)}</TableCell>;
+        return <TableCell key={key}>{cell(d.nature ? t(d.nature) : '')}</TableCell>;
       case 'typeDossier':
-        return <TableCell key={key}>{cell(d.typeDossier)}</TableCell>;
+        return <TableCell key={key}>{cell(d.typeDossier ? t(d.typeDossier) : '')}</TableCell>;
       case 'matricule':
         return <TableCell key={key} className="t-mono">{cell(d.matricule)}</TableCell>;
       case 'matriculeAnterieur':
@@ -860,7 +871,7 @@ export default function DossiersClientPage() {
 
   const applyPreset = (preset: 'jour' | 'semaine' | 'mois') => {
     const now = new Date();
-    const from = preset === 'jour' ? startOfDay(now) : preset === 'semaine' ? startOfWeek(now, { locale: fr }) : startOfMonth(now);
+    const from = preset === 'jour' ? startOfDay(now) : preset === 'semaine' ? startOfWeek(now, { locale: dateFnsLocale() }) : startOfMonth(now);
     setFilters({ dateFrom: format(from, 'yyyy-MM-dd'), dateTo: format(endOfDay(now), 'yyyy-MM-dd'), datePreset: preset });
     setPage(1);
   };
@@ -876,15 +887,15 @@ export default function DossiersClientPage() {
           // anatomy (owner ruling §4: "every tab switch"; the Tabs primitive
           // carries .tab-slope). « À traiter » is the armed default view.
           <Tabs value={filters.scope} onValueChange={(v) => { setFilters({ scope: v as 'a-traiter' | 'tous' }); setPage(1); }}>
-            <TabsList aria-label="Portée de la liste">
+            <TabsList aria-label={t('Portée de la liste')}>
               <TabsTrigger value="a-traiter">
-                À traiter
+                {t('À traiter')}
                 <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
                   {loading ? '…' : kpi.aTraiter}
                 </span>
               </TabsTrigger>
               <TabsTrigger value="tous">
-                Tous
+                {t('Tous')}
                 <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
                   {loading ? '…' : kpi.total}
                 </span>
@@ -897,12 +908,12 @@ export default function DossiersClientPage() {
           // selection-mode entry is outline (blueprint §6: emphasis follows the job).
           exportMode ? undefined : (
             <>
-              <Button variant="outline" onClick={() => { setPeekId(null); setExportMode(true); }} title="Sélectionner des dossiers à rappeler">
-                Rappeler
+              <Button variant="outline" onClick={() => { setPeekId(null); setExportMode(true); }} title={t('Sélectionner des dossiers à rappeler')} data-tour="dos-rappeler">
+                {t('Rappeler')}
               </Button>
               {canEditDossiers && (
-                <Button className="font-semibold" onClick={handleOpenCreate} title="Nouveau dossier (C)">
-                  Nouveau dossier
+                <Button className="font-semibold" onClick={handleOpenCreate} title={t('Nouveau dossier (C)')} data-tour="dos-create">
+                  {t('Nouveau dossier')}
                 </Button>
               )}
             </>
@@ -912,7 +923,7 @@ export default function DossiersClientPage() {
       {fetchError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Erreur</AlertTitle>
+          <AlertTitle>{t('Erreur')}</AlertTitle>
           <AlertDescription>{fetchError}</AlertDescription>
         </Alert>
       )}
@@ -924,34 +935,34 @@ export default function DossiersClientPage() {
         tiles={[
           {
             key: 'a-traiter',
-            label: 'À traiter',
+            label: t('À traiter'),
             value: kpi.aTraiter,
-            caption: 'statut non terminé',
+            caption: t('statut non terminé'),
             active: filters.scope === 'a-traiter' && !filters.lateOnly,
             onClick: () => { setFilters({ scope: 'a-traiter', lateOnly: false }); setPage(1); },
           },
           {
             key: 'en-retard',
-            label: 'En retard',
+            label: t('En retard'),
             value: kpi.enRetard,
-            caption: `à traiter depuis ≥ ${LATE_AFTER_DAYS} j`,
+            caption: `${t('à traiter depuis ≥')} ${LATE_AFTER_DAYS} ${t('j')}`,
             danger: true,
             active: filters.lateOnly,
             onClick: () => { setFilters({ scope: 'a-traiter', lateOnly: true, sortByCreation: 'asc' }); setPage(1); },
           },
           {
             key: 'aujourdhui',
-            label: "Créés aujourd'hui",
+            label: t("Créés aujourd'hui"),
             value: kpi.aujourdHui,
-            caption: 'sur la journée',
+            caption: t('sur la journée'),
             active: filters.datePreset === 'jour',
             onClick: () => applyPreset('jour'),
           },
           {
             key: 'total',
-            label: 'Total',
+            label: t('Total'),
             value: kpi.total,
-            caption: 'tous statuts',
+            caption: t('tous statuts'),
             active: filters.scope === 'tous' && !hasAttributeFilters,
             onClick: () => {
               setFilters({ scope: 'tous', lateOnly: false, dateFrom: '', dateTo: '', datePreset: null });
@@ -969,14 +980,14 @@ export default function DossiersClientPage() {
           their column headers below. */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3" role="search">
         <div className="flex min-w-[240px] flex-1 basis-72 items-center gap-2 lg:max-w-xl">
-          <div className="relative flex-1">
+          <div className="relative flex-1" data-tour="dos-search">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
             <Input
               className="pl-9"
-              placeholder="Rechercher (réf, assuré, plaque…)"
+              placeholder={t('Rechercher (réf, assuré, plaque…)')}
               value={filters.search}
               onChange={e => setFilters({ search: e.target.value })}
-              aria-label="Rechercher un dossier"
+              aria-label={t('Rechercher un dossier')}
             />
           </div>
           {/* Merge over the defaults: a view saved before a filter key
@@ -994,7 +1005,7 @@ export default function DossiersClientPage() {
             never the accent fill — the page primary is « Nouveau dossier ». */}
         {/* Sliding tonal thumb carries the selection (motion-spec addendum
             ter) — the segment buttons stay ghost and only recolour. */}
-        <div className="relative isolate flex h-9 items-center gap-0.5 rounded-md bg-surface-2 p-0.5" role="group" aria-label="Période de création">
+        <div className="relative isolate flex h-9 items-center gap-0.5 rounded-md bg-surface-2 p-0.5" role="group" aria-label={t('Période de création')} data-tour="dos-date-presets">
           <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[filters.datePreset]} />
           {([['jour', 'Jour'], ['semaine', 'Semaine'], ['mois', 'Mois']] as const).map(([key, label]) => (
             <Button
@@ -1009,7 +1020,7 @@ export default function DossiersClientPage() {
               aria-pressed={filters.datePreset === key}
               onClick={() => applyPreset(key)}
             >
-              {label}
+              {t(label)}
             </Button>
           ))}
           <Button
@@ -1023,7 +1034,7 @@ export default function DossiersClientPage() {
             aria-pressed={filters.datePreset === 'personnalise'}
             onClick={() => setFilters({ datePreset: 'personnalise' })}
           >
-            Personnalisé
+            {t('Personnalisé')}
           </Button>
         </div>
 
@@ -1045,9 +1056,9 @@ export default function DossiersClientPage() {
               default keeps everything visible so nothing changes unasked). */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" title="Colonnes et densité d'affichage">
+              <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" title={t("Colonnes et densité d'affichage")}>
                 <Columns3 className="h-4 w-4" aria-hidden />
-                Affichage
+                {t('Affichage')}
                 {filters.hiddenCols.length > 0 && (
                   <span className="rounded-full bg-surface-3 px-1.5 text-xs tabular-nums text-ink-2">
                     {visibleColumns.length}/{EXPORT_COLUMNS.length}
@@ -1058,19 +1069,19 @@ export default function DossiersClientPage() {
             <DropdownMenuContent align="end" className="w-64">
               {/* Density — persisted per user ("the right row height is the
                   one each user picked", polish research 2026-09-03 §11). */}
-              <DropdownMenuLabel className="t-label font-normal">Densité des lignes</DropdownMenuLabel>
+              <DropdownMenuLabel className="t-label font-normal">{t('Densité des lignes')}</DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={filters.density}
                 onValueChange={(v) => setFilters({ density: v as 'compacte' | 'normale' | 'confortable' })}
               >
                 {([['compacte', 'Compacte'], ['normale', 'Normale'], ['confortable', 'Confortable']] as const).map(([value, label]) => (
                   <DropdownMenuRadioItem key={value} value={value} onSelect={(e) => e.preventDefault()}>
-                    {label}
+                    {t(label)}
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="t-label font-normal">Colonnes</DropdownMenuLabel>
+              <DropdownMenuLabel className="t-label font-normal">{t('Colonnes')}</DropdownMenuLabel>
               {HIDEABLE_COLUMNS.map((c) => (
                 <DropdownMenuCheckboxItem
                   key={c.key}
@@ -1085,14 +1096,14 @@ export default function DossiersClientPage() {
                   }}
                   onSelect={(e) => e.preventDefault()}
                 >
-                  {c.label}
+                  {t(c.label)}
                 </DropdownMenuCheckboxItem>
               ))}
               {filters.hiddenCols.length > 0 && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={() => clearFilter('hiddenCols')}>
-                    Tout afficher
+                    {t('Tout afficher')}
                   </DropdownMenuItem>
                 </>
               )}
@@ -1116,10 +1127,11 @@ export default function DossiersClientPage() {
                 });
                 setPage(1);
               }}
-              title="Réinitialiser tous les filtres"
+              title={t('Réinitialiser tous les filtres')}
+              data-tour="dos-reset"
             >
               <RotateCcw className="h-4 w-4" aria-hidden />
-              Réinitialiser
+              {t('Réinitialiser')}
             </Button>
           )}
         </div>
@@ -1128,37 +1140,39 @@ export default function DossiersClientPage() {
       {/* Active filters — removable chips (surface-3 / ink-2, ghost ×). */}
       {hasAttributeFilters && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="t-label">Filtres actifs</span>
+          <span className="t-label">{t('Filtres actifs')}</span>
           {filters.lateOnly && (
-            <FilterChip label={`En retard (≥ ${LATE_AFTER_DAYS} j)`} onRemove={() => clearFilter('lateOnly')} ariaLabel="Retirer le filtre en retard" />
+            <FilterChip label={`${t('En retard (≥')} ${LATE_AFTER_DAYS} ${t('j)')}`} onRemove={() => clearFilter('lateOnly')} ariaLabel={t('Retirer le filtre en retard')} />
           )}
           {filters.nature !== 'Toutes' && (
-            <FilterChip label={`Nature : ${filters.nature}`} onRemove={() => clearFilter('nature')} ariaLabel="Retirer le filtre nature" />
+            <span className="inline-flex" data-tour="dos-filter-chip-nature">
+              <FilterChip label={`${t('Nature :')} ${t(filters.nature)}`} onRemove={() => clearFilter('nature')} ariaLabel={t('Retirer le filtre nature')} />
+            </span>
           )}
           {filters.status !== 'Tous' && (
-            <FilterChip label={`Statut : ${filters.status}`} onRemove={() => clearFilter('status')} ariaLabel="Retirer le filtre statut" />
+            <FilterChip label={`${t('Statut :')} ${t(filters.status)}`} onRemove={() => clearFilter('status')} ariaLabel={t('Retirer le filtre statut')} />
           )}
           {filters.compagnie !== 'Toutes' && (
-            <FilterChip label={`Compagnie : ${filters.compagnie}`} onRemove={() => clearFilter('compagnie')} ariaLabel="Retirer le filtre compagnie" />
+            <FilterChip label={`${t('Compagnie :')} ${filters.compagnie}`} onRemove={() => clearFilter('compagnie')} ariaLabel={t('Retirer le filtre compagnie')} />
           )}
           {filters.observation !== 'Toutes' && (
-            <FilterChip label={`Observation : ${filters.observation}`} onRemove={() => clearFilter('observation')} ariaLabel="Retirer le filtre observation" />
+            <FilterChip label={`${t('Observation :')} ${t(filters.observation)}`} onRemove={() => clearFilter('observation')} ariaLabel={t('Retirer le filtre observation')} />
           )}
           {filters.creator !== 'Tous' && (
-            <FilterChip label={`Créé par : ${filters.creator}`} onRemove={() => clearFilter('creator')} ariaLabel="Retirer le filtre créé par" />
+            <FilterChip label={`${t('Créé par :')} ${filters.creator}`} onRemove={() => clearFilter('creator')} ariaLabel={t('Retirer le filtre créé par')} />
           )}
           {filters.dateFrom && (
             <FilterChip
-              label={`Du : ${filters.dateFrom}`}
+              label={`${t('Du :')} ${filters.dateFrom}`}
               onRemove={() => setFilters({ dateFrom: '', datePreset: filters.dateTo ? 'personnalise' : null })}
-              ariaLabel="Retirer la date de début"
+              ariaLabel={t('Retirer la date de début')}
             />
           )}
           {filters.dateTo && (
             <FilterChip
-              label={`Au : ${filters.dateTo}`}
+              label={`${t('Au :')} ${filters.dateTo}`}
               onRemove={() => setFilters({ dateTo: '', datePreset: filters.dateFrom ? 'personnalise' : null })}
-              ariaLabel="Retirer la date de fin"
+              ariaLabel={t('Retirer la date de fin')}
             />
           )}
           <Button
@@ -1173,7 +1187,7 @@ export default function DossiersClientPage() {
               });
             }}
           >
-            Tout réinitialiser
+            {t('Tout réinitialiser')}
           </Button>
         </div>
       )}
@@ -1184,27 +1198,31 @@ export default function DossiersClientPage() {
         // solid primary (the header actions are hidden in this mode). Enters
         // with the standard 200ms fade + small rise (owner 2026-09-02:
         // everything that appears after « Rappeler » animates).
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface-2 px-4 py-2 animate-in fade-in-0 slide-in-from-top-2 duration-300 ease-enter motion-reduce:animate-none">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface-2 px-4 py-2 animate-in fade-in-0 slide-in-from-top-2 duration-300 ease-enter motion-reduce:animate-none" data-tour="dos-export-bar">
           <span className="text-sm font-semibold tabular-nums text-ink">
-            {selectedRows.size} / {dossierList.length} dossier(s) sélectionné(s)
+            {selectedRows.size} / {dossierList.length} {t('dossier(s) sélectionné(s)')}
           </span>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={allVisibleSelected ? () => setSelectedRows(new Set()) : handleSelectAll}>
-              {allVisibleSelected ? 'Tout désélectionner' : 'Sélectionner tout'}
+              {allVisibleSelected ? t('Tout désélectionner') : t('Sélectionner tout')}
             </Button>
-            <Button size="sm" className="font-semibold" onClick={() => setIsSendToOpen(true)} disabled={selectedRows.size === 0}>
-              Envoyer à
+            <Button size="sm" className="font-semibold" onClick={() => setIsSendToOpen(true)} disabled={selectedRows.size === 0} data-tour="dos-send-to">
+              {t('Envoyer à')}
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleCancelExport}>
-              Annuler
+            <Button variant="ghost" size="sm" onClick={handleCancelExport} data-tour="dos-export-cancel">
+              {t('Annuler')}
             </Button>
           </div>
         </div>
       ) : null}
 
+      {/* relative wrapper so the tutorial can spotlight just the horizontal
+          scrollbar strip at the card's bottom edge (dos-hscroll) */}
+      <div className="relative">
       {/* Table paper: glass edge only, hairline rows, sticky header on card. */}
       <Card
         data-table-density={filters.density}
+        data-tour="dos-table"
         className="max-h-[calc((100dvh-280px)/var(--app-zoom))] overflow-x-auto overflow-y-auto [&>div]:overflow-visible"
       >
         <Table regionLabel="Liste des dossiers">
@@ -1237,7 +1255,7 @@ export default function DossiersClientPage() {
                             size="icon"
                             className={cn("h-6 w-6 -mr-1", active && "text-primary")}
                             onClick={(e) => e.stopPropagation()}
-                            title="Filtrer par nature"
+                            title={t('Filtrer par nature')}
                           >
                             <Filter className={cn("h-3.5 w-3.5", active && "fill-current")} />
                           </Button>
@@ -1253,7 +1271,7 @@ export default function DossiersClientPage() {
                                 filters.nature === 'Toutes' && "bg-surface-2 font-medium",
                               )}
                             >
-                              <span>Toutes les natures</span>
+                              <span>{t('Toutes les natures')}</span>
                               {filters.nature === 'Toutes' && <Check className="h-4 w-4 text-primary shrink-0" />}
                             </button>
                             {filterNatures.map(n => (
@@ -1266,7 +1284,7 @@ export default function DossiersClientPage() {
                                   filters.nature === n.label && "bg-surface-2 font-medium",
                                 )}
                               >
-                                <span className="truncate">{n.label}</span>
+                                <span className="truncate">{t(n.label)}</span>
                                 <span className="flex shrink-0 items-center gap-1.5">
                                   <span className="t-caption tabular-nums">{facetCounts.nature.get(n.label) ?? 0}</span>
                                   {filters.nature === n.label && <Check className="h-4 w-4 text-primary shrink-0" />}
@@ -1275,7 +1293,7 @@ export default function DossiersClientPage() {
                             ))}
                           </div>
                           <div className="flex justify-end">
-                            <OptionsManagerModal collectionName="options_natures" title="Natures" />
+                            <OptionsManagerModal collectionName="options_natures" title={t('Natures')} />
                           </div>
                         </PopoverContent>
                       </Popover>
@@ -1291,7 +1309,7 @@ export default function DossiersClientPage() {
                             size="icon"
                             className={cn("h-6 w-6 -mr-1", active && "text-primary")}
                             onClick={(e) => e.stopPropagation()}
-                            title="Filtrer par statut"
+                            title={t('Filtrer par statut')}
                           >
                             <Filter className={cn("h-3.5 w-3.5", active && "fill-current")} />
                           </Button>
@@ -1306,7 +1324,7 @@ export default function DossiersClientPage() {
                                 filters.status === 'Tous' && "bg-surface-2 font-medium",
                               )}
                             >
-                              <span>Tous les statuts</span>
+                              <span>{t('Tous les statuts')}</span>
                               {filters.status === 'Tous' && <Check className="h-4 w-4 text-primary shrink-0" />}
                             </button>
                             {filterStatuses.map(s => (
@@ -1321,7 +1339,7 @@ export default function DossiersClientPage() {
                               >
                                 <span className="flex min-w-0 items-center gap-2">
                                   <span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />
-                                  <span className="truncate">{s.label}</span>
+                                  <span className="truncate">{t(s.label)}</span>
                                 </span>
                                 <span className="flex shrink-0 items-center gap-1.5">
                                   <span className="t-caption tabular-nums">{facetCounts.status.get(s.label) ?? 0}</span>
@@ -1331,7 +1349,7 @@ export default function DossiersClientPage() {
                             ))}
                           </div>
                           <div className="flex justify-end">
-                            <OptionsManagerModal collectionName="options_statuts" title="Statuts" />
+                            <OptionsManagerModal collectionName="options_statuts" title={t('Statuts')} />
                           </div>
                         </PopoverContent>
                       </Popover>
@@ -1347,7 +1365,7 @@ export default function DossiersClientPage() {
                             size="icon"
                             className={cn("h-6 w-6 -mr-1", active && "text-primary")}
                             onClick={(e) => e.stopPropagation()}
-                            title="Filtrer par compagnie"
+                            title={t('Filtrer par compagnie')}
                           >
                             <Filter className={cn("h-3.5 w-3.5", active && "fill-current")} />
                           </Button>
@@ -1362,7 +1380,7 @@ export default function DossiersClientPage() {
                                 filters.compagnie === 'Toutes' && "bg-surface-2 font-medium",
                               )}
                             >
-                              <span>Toutes les compagnies</span>
+                              <span>{t('Toutes les compagnies')}</span>
                               {filters.compagnie === 'Toutes' && <Check className="h-4 w-4 text-primary shrink-0" />}
                             </button>
                             {filterCompagnies.map(c => (
@@ -1384,7 +1402,7 @@ export default function DossiersClientPage() {
                             ))}
                           </div>
                           <div className="flex justify-end">
-                            <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
+                            <OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />
                           </div>
                         </PopoverContent>
                       </Popover>
@@ -1400,7 +1418,7 @@ export default function DossiersClientPage() {
                             size="icon"
                             className={cn("h-6 w-6 -mr-1", active && "text-primary")}
                             onClick={(e) => e.stopPropagation()}
-                            title="Filtrer par observation"
+                            title={t('Filtrer par observation')}
                           >
                             <Filter className={cn("h-3.5 w-3.5", active && "fill-current")} />
                           </Button>
@@ -1415,7 +1433,7 @@ export default function DossiersClientPage() {
                                 filters.observation === 'Toutes' && "bg-surface-2 font-medium",
                               )}
                             >
-                              <span>Toutes les observations</span>
+                              <span>{t('Toutes les observations')}</span>
                               {filters.observation === 'Toutes' && <Check className="h-4 w-4 text-primary shrink-0" />}
                             </button>
                             {filterObservations.map(o => (
@@ -1428,7 +1446,7 @@ export default function DossiersClientPage() {
                                     filters.observation === o.label && "bg-surface-2 font-medium",
                                   )}
                                 >
-                                  <span className="truncate">{o.label}</span>
+                                  <span className="truncate">{t(o.label)}</span>
                                   <span className="flex shrink-0 items-center gap-1.5">
                                     <span className="t-caption tabular-nums">{facetCounts.observation.get(o.label) ?? 0}</span>
                                     {filters.observation === o.label && <Check className="h-4 w-4 text-primary shrink-0" />}
@@ -1477,7 +1495,7 @@ export default function DossiersClientPage() {
                             )}
                           </div>
                           <div className="flex justify-end">
-                            <OptionsManagerModal collectionName="options_observations" title="Observations" />
+                            <OptionsManagerModal collectionName="options_observations" title={t('Observations')} />
                           </div>
                         </PopoverContent>
                       </Popover>
@@ -1493,7 +1511,7 @@ export default function DossiersClientPage() {
                             size="icon"
                             className={cn("h-6 w-6 -mr-1", active && "text-primary")}
                             onClick={(e) => e.stopPropagation()}
-                            title="Filtrer par créateur"
+                            title={t('Filtrer par créateur')}
                           >
                             <Filter className={cn("h-3.5 w-3.5", active && "fill-current")} />
                           </Button>
@@ -1508,7 +1526,7 @@ export default function DossiersClientPage() {
                                 filters.creator === 'Tous' && "bg-surface-2 font-medium",
                               )}
                             >
-                              <span>Tous les créateurs</span>
+                              <span>{t('Tous les créateurs')}</span>
                               {filters.creator === 'Tous' && <Check className="h-4 w-4 text-primary shrink-0" />}
                             </button>
                             {filterCreators.length === 0 ? (
@@ -1550,6 +1568,7 @@ export default function DossiersClientPage() {
                       // Not in exportMode: the checkbox column sits first there.
                       !exportMode && col.key === 'refExpert' && STICKY_HEAD,
                     )}
+                    data-tour={col.key === 'nature' ? 'dos-col-nature' : col.key === 'statut' ? 'dos-col-statut' : undefined}
                   >
                     {/* Column tick boxes removed in Rappeler mode (owner
                         2026-09-02): they belonged to the retired Excel
@@ -1560,12 +1579,12 @@ export default function DossiersClientPage() {
                         // (there is always an order): the null step of the
                         // cycle re-enters as `asc` so the click toggles.
                         <SortableHeader
-                          label={col.label}
+                          label={t(col.label)}
                           sort={filters.sortByCreation}
                           onChange={(next) => setFilters({ sortByCreation: next === 'desc' ? 'desc' : 'asc' })}
                         />
                       ) : (
-                        <span>{col.label}</span>
+                        <span>{t(col.label)}</span>
                       )}
                       {filterBtn}
                     </div>
@@ -1574,7 +1593,7 @@ export default function DossiersClientPage() {
               })}
               {!exportMode && (
                 <TableHead className="sticky right-0 z-10 bg-card text-right shadow-[-4px_0_6px_-2px_hsl(var(--shadow-color)/0.08)]">
-                  Actions
+                  {t('Actions')}
                 </TableHead>
               )}
             </TableRow>
@@ -1593,15 +1612,15 @@ export default function DossiersClientPage() {
                 <TableCell colSpan={colCount} className="p-0">
                   <EmptyState
                     icon={<FolderOpen />}
-                    title="Aucun dossier trouvé"
+                    title={t('Aucun dossier trouvé')}
                     description={
                       (filters.search || filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.creator !== 'Tous' || filters.dateFrom || filters.dateTo)
-                        ? "Essayez d'ajuster les filtres pour voir plus de résultats."
-                        : 'Créez votre premier dossier pour commencer.'
+                        ? t("Essayez d'ajuster les filtres pour voir plus de résultats.")
+                        : t('Créez votre premier dossier pour commencer.')
                     }
                     action={canEditDossiers ? (
                       <Button onClick={handleOpenCreate} className="font-semibold">
-                        Nouveau dossier
+                        {t('Nouveau dossier')}
                       </Button>
                     ) : null}
                     dashed={false}
@@ -1616,6 +1635,8 @@ export default function DossiersClientPage() {
                 <TableRow
                   key={d.id}
                   data-row-idx={idx}
+                  data-tour="dos-row"
+                  data-dossier-id={d.id}
                   className={cn(
                     // Hover = surface-2 (table primitive); selected = accent tint.
                     // Keyboard focus = the same one-surface-step shift as hover
@@ -1667,7 +1688,7 @@ export default function DossiersClientPage() {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-ink-3 opacity-60 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-                              aria-label={`Actions pour ${d.refExpert || 'ce dossier'}`}
+                              aria-label={`${t('Actions pour')} ${d.refExpert || t('ce dossier')}`}
                               loading={deletingId === d.id}
                             >
                               {deletingId === d.id ? null : <MoreHorizontal className="h-4 w-4" />}
@@ -1675,20 +1696,20 @@ export default function DossiersClientPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56">
                             <DropdownMenuItem onSelect={() => openDossier(d, { preview: false })}>
-                              <Eye className="mr-2 h-4 w-4" /> Ouvrir
+                              <Eye className="mr-2 h-4 w-4" /> {t('Ouvrir')}
                             </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => openDossier(d, { preview: false, navigate: false })}>
-                              <ExternalLink className="mr-2 h-4 w-4" /> Ouvrir dans un onglet
+                              <ExternalLink className="mr-2 h-4 w-4" /> {t('Ouvrir dans un onglet')}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onSelect={() => setWorkflowDossier(d)}>
-                              <History className="mr-2 h-4 w-4" /> Workflow
+                              <History className="mr-2 h-4 w-4" /> {t('Workflow')}
                             </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => setStatusHistoryDossier(d)}>
-                              <History className="mr-2 h-4 w-4" /> Historique des statuts
+                              <History className="mr-2 h-4 w-4" /> {t('Historique des statuts')}
                             </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => setObservationHistoryDossier(d)}>
-                              <History className="mr-2 h-4 w-4" /> Historique des observations
+                              <History className="mr-2 h-4 w-4" /> {t('Historique des observations')}
                             </DropdownMenuItem>
                             {canDelete && (
                               <>
@@ -1697,7 +1718,7 @@ export default function DossiersClientPage() {
                                   className="text-destructive focus:text-destructive"
                                   onSelect={() => setDeleteTarget({ id: d.id, refExpert: (d as any).refExpert || d.id })}
                                 >
-                                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer
+                                  <Trash2 className="mr-2 h-4 w-4" /> {t('Supprimer')}
                                 </DropdownMenuItem>
                               </>
                             )}
@@ -1715,11 +1736,17 @@ export default function DossiersClientPage() {
           </TableBody>
         </Table>
       </Card>
+      <div
+        data-tour="dos-hscroll"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-4"
+      />
+      </div>
 
       {/* Pagination footer: caption count · rows-per-page · prev/next (NN/g data tables). */}
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-2" data-tour="dos-pagination">
         <div className="flex items-center gap-3">
-          <label htmlFor="dossiers-rows-per-page" className="t-caption">Lignes par page</label>
+          <label htmlFor="dossiers-rows-per-page" className="t-caption">{t('Lignes par page')}</label>
           <Select value={String(rowsPerPage)} onValueChange={v => { setFilters({ rowsPerPage: Number(v) }); setPage(1); }}>
             <SelectTrigger id="dossiers-rows-per-page" className="h-8 w-[76px] tabular-nums"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -1730,13 +1757,13 @@ export default function DossiersClientPage() {
             {/* Filtered ≠ unfiltered must be unmistakable (polish research
                 2026-09-03 §6): print the total next to the filtered count. */}
             {dossierList.length < allDossiers.length
-              ? `${dossierList.length} sur ${allDossiers.length} dossiers`
-              : `${dossierList.length} dossier${dossierList.length > 1 ? 's' : ''}`}
+              ? `${dossierList.length} ${t('sur')} ${allDossiers.length} ${t('dossiers')}`
+              : `${dossierList.length} ${dossierList.length > 1 ? t('dossiers') : t('dossier')}`}
           </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="t-caption tabular-nums">
-            Page {page} / {totalPages}
+            {t('Page')} {page} / {totalPages}
           </span>
           <Button
             variant="outline"
@@ -1744,7 +1771,7 @@ export default function DossiersClientPage() {
             className="h-8 w-8"
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page <= 1}
-            aria-label="Page précédente"
+            aria-label={t('Page précédente')}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -1754,7 +1781,7 @@ export default function DossiersClientPage() {
             className="h-8 w-8"
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
-            aria-label="Page suivante"
+            aria-label={t('Page suivante')}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -1791,15 +1818,15 @@ export default function DossiersClientPage() {
         dossier={observationHistoryDossier}
       />
       <Dialog open={isSendToOpen} onOpenChange={setIsSendToOpen}>
-        <DialogContent>
+        <DialogContent data-tour="dos-sendto-dialog" {...tourDialogGuard()}>
           <DialogHeader>
-            <DialogTitle>Envoyer à</DialogTitle>
-            <DialogDescription>Sélectionnez un ou plusieurs gestionnaires destinataires.</DialogDescription>
+            <DialogTitle>{t('Envoyer à')}</DialogTitle>
+            <DialogDescription>{t('Sélectionnez un ou plusieurs gestionnaires destinataires.')}</DialogDescription>
           </DialogHeader>
           <Textarea
             value={rappelObservation}
             onChange={(e) => setRappelObservation(e.target.value)}
-            placeholder="Observation (optionnel)"
+            placeholder={t('Observation (optionnel)')}
             rows={3}
             className="resize-none"
           />
@@ -1814,7 +1841,7 @@ export default function DossiersClientPage() {
               ))}
             </div>
           ) : gestionnaires.length === 0 ? (
-            <p className="text-sm text-ink-3 py-4">Aucun gestionnaire disponible.</p>
+            <p className="text-sm text-ink-3 py-4">{t('Aucun gestionnaire disponible.')}</p>
           ) : (
             <div className="space-y-1 max-h-[300px] overflow-y-auto py-2">
               {gestionnaires.map((g) => (
@@ -1829,15 +1856,18 @@ export default function DossiersClientPage() {
                       });
                     }}
                   />
-                  <span className="text-sm">{`${g.prenom} ${g.nom}`.trim() || '—'}</span>
+                  <span className="text-sm">
+                    {`${g.prenom} ${g.nom}`.trim() || '—'}
+                    {g.uid === profile?.uid ? ` (${t('vous')})` : ''}
+                  </span>
                 </label>
               ))}
             </div>
           )}
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsSendToOpen(false)}>Annuler</Button>
+            <Button variant="ghost" onClick={() => setIsSendToOpen(false)}>{t('Annuler')}</Button>
             <Button disabled={selectedGestUids.size === 0} loading={sending} onClick={handleSendRappel}>
-              Envoyer ({selectedGestUids.size})
+              {t('Envoyer')} ({selectedGestUids.size})
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1856,13 +1886,13 @@ export default function DossiersClientPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !deletingId && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce dossier ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Supprimer ce dossier ?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action supprime définitivement le dossier {deleteTarget?.refExpert ? <span className="font-semibold">{deleteTarget.refExpert}</span> : ''} ainsi que tous les documents, photos et l&apos;historique associés. Elle est irréversible.
+              {t('Cette action supprime définitivement le dossier')} {deleteTarget?.refExpert ? <span className="font-semibold">{deleteTarget.refExpert}</span> : ''} {t("ainsi que tous les documents, photos et l'historique associés. Elle est irréversible.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={!!deletingId}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={!!deletingId}>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction
               className={buttonVariants({ variant: 'destructive' })}
               disabled={!!deletingId}
@@ -1871,7 +1901,7 @@ export default function DossiersClientPage() {
                 if (deleteTarget) handleDeleteDossier(deleteTarget.id);
               }}
             >
-              Supprimer
+              {t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -52,6 +52,8 @@ import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import { saveGestionnaireDevisAsPieceJointe } from '@/lib/send-to-chiffrage';
 import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
 import { deriveStatus } from '@/lib/status-machine';
+import { BRAND } from '@/lib/brand';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import ReferencePanel from '@/app/editor/reference-panel';
 import { useSidebar } from '@/components/ui/sidebar';
@@ -132,6 +134,7 @@ export function DevisEditor({
   const db = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
+  const t = useT();
   const { profile, canWrite } = useCurrentUser();
   const canEdit = canWrite('assignations-chiffrage');
   const { setOpen: setAppSidebarOpen } = useSidebar();
@@ -218,7 +221,7 @@ export function DevisEditor({
     if (!db || !chiffrageId) return;
     const unsub = onSnapshot(doc(db, 'chiffrages', chiffrageId), (snap) => {
       if (!snap.exists()) {
-        toast({ variant: 'destructive', title: 'Assignation introuvable.' });
+        toast({ variant: 'destructive', title: t('Assignation introuvable.') });
         router.push('/assignations-chiffrage');
         return;
       }
@@ -239,7 +242,7 @@ export function DevisEditor({
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();
-  }, [db, chiffrageId, router, toast, isGestionnaire, docType]);
+  }, [db, chiffrageId, router, toast, isGestionnaire, docType, t]);
 
   useEffect(() => {
     if (!db || !dossierId) return;
@@ -415,23 +418,23 @@ export function DevisEditor({
         if (result.reason === 'no-original-for-counter') {
           toast({
             variant: 'destructive',
-            title: 'Devis original manquant',
-            description: "Un contre-devis a été uploadé mais aucun devis original n'existe pour ce dossier. Uploadez un original depuis la fiche dossier.",
+            title: t('Devis original manquant'),
+            description: t("Un contre-devis a été uploadé mais aucun devis original n'existe pour ce dossier. Uploadez un original depuis la fiche dossier."),
           });
           return;
         }
         if (result.reason === 'service-overloaded') {
           toast({
             variant: 'destructive',
-            title: 'Service IA surchargé',
-            description: 'Le service IA est momentanément surchargé. Réessayez dans quelques minutes.',
+            title: t('Service IA surchargé'),
+            description: t('Le service IA est momentanément surchargé. Réessayez dans quelques minutes.'),
           });
           return;
         }
         if (isManualRetry) {
-          toast({ variant: 'destructive', title: 'Extraction impossible', description: 'Veuillez saisir les donnees manuellement.' });
+          toast({ variant: 'destructive', title: t('Extraction impossible'), description: t('Veuillez saisir les donnees manuellement.') });
         } else {
-          toast({ title: 'Extraction auto indisponible', description: 'Remplissez manuellement ou reessayez.' });
+          toast({ title: t('Extraction auto indisponible'), description: t('Remplissez manuellement ou reessayez.') });
         }
         return;
       }
@@ -447,7 +450,7 @@ export function DevisEditor({
         const cols = normalizeExtraColumns(sd);
         setExtraColumns(cols);
         setVersions(sd.versions || []);
-        toast({ title: 'Extraction automatique terminee', description: `${sd.rows.length} ligne(s) detectee(s) depuis ${devisFileNames.length} ${typeLabel.lower}(s).` });
+        toast({ title: t('Extraction automatique terminee'), description: `${sd.rows.length} ${t('ligne(s) detectee(s) depuis')} ${devisFileNames.length} ${t(`${typeLabel.lower}(s)`)}.` });
         // Task #33: a fresh scan just populated editor state — lock edits and
         // surface the warning dialog until the chiffreur confirms review.
         // Task #35: feed the dialog the calculationErrors from the API so they
@@ -463,11 +466,11 @@ export function DevisEditor({
       }
     } catch (e: any) {
       console.error('[devis-editor] extraction failed', e);
-      toast({ variant: 'destructive', title: 'Extraction impossible', description: e?.message || '' });
+      toast({ variant: 'destructive', title: t('Extraction impossible'), description: e?.message || '' });
     } finally {
       setExtracting(false);
     }
-  }, [db, storage, chiffrageId, docType, dossierPrefill, toast, devisFileNames.length, typeLabel.lower]);
+  }, [db, storage, chiffrageId, docType, dossierPrefill, toast, devisFileNames.length, typeLabel.lower, t]);
 
   // Always keep an accord column in the chiffreur's table. Default kind is
   // 'accord'; the lightbox / column popover can flip to 'proposition-accord'.
@@ -653,7 +656,7 @@ export function DevisEditor({
   // ordinal, so the preview and the final doc stay aligned.
   const handleSave = async () => {
     if (!canEdit) {
-      toast({ variant: 'destructive', title: 'Action non autorisee' });
+      toast({ variant: 'destructive', title: t('Action non autorisee') });
       return;
     }
     // Task #7: vétusté is required for Adaptable / Originale rows. Block the
@@ -666,7 +669,7 @@ export function DevisEditor({
     if (missingVetuste) {
       toast({
         variant: 'destructive',
-        title: 'Vétusté manquante pour les pièces Adaptable / Originale',
+        title: t('Vétusté manquante pour les pièces Adaptable / Originale'),
       });
       return;
     }
@@ -771,7 +774,7 @@ export function DevisEditor({
   // persistence logic lives here, split by mode.
   const performPersist = async (blob: Blob, stampId: string | null) => {
     if (!canEdit) {
-      toast({ variant: 'destructive', title: 'Action non autorisee' });
+      toast({ variant: 'destructive', title: t('Action non autorisee') });
       return;
     }
     if (!db || !storage) return;
@@ -821,7 +824,7 @@ export function DevisEditor({
       if (isGestionnaire) {
         const activeDossierId = dossierIdProp || dossierId;
         if (!activeDossierId) {
-          toast({ variant: 'destructive', title: 'Dossier manquant', description: 'Impossible de sauvegarder sans dossier.' });
+          toast({ variant: 'destructive', title: t('Dossier manquant'), description: t('Impossible de sauvegarder sans dossier.') });
           return;
         }
         const result = await saveGestionnaireDevisAsPieceJointe({
@@ -858,14 +861,14 @@ export function DevisEditor({
             ),
           );
         }
-        toast({ title: `${targetDocType} enregistré`, description: 'Ajouté aux pièces jointes du dossier.' });
+        toast({ title: `${targetDocType} ${t("enregistré")}`, description: t("Ajouté aux pièces jointes du dossier.") });
         // C6 — gestionnaire branch succeeded: inline banner (no queue here).
         setSaveBanner({ nextId: null });
         return;
       }
 
       if (!chiffrageId) {
-        toast({ variant: 'destructive', title: 'Assignation manquante', description: 'Aucun chiffrage associé.' });
+        toast({ variant: 'destructive', title: t('Assignation manquante'), description: t('Aucun chiffrage associé.') });
         return;
       }
       const now = new Date();
@@ -900,7 +903,7 @@ export function DevisEditor({
           firestoreDocPath: 'chiffrages',
           firestoreMetadata: { _chiffrageId: chiffrageId, _type: 'devis-version', _docType: targetDocType, _versionId: versionId },
         });
-        toast({ title: 'Version mise en file d\'attente', description: 'Elle sera synchronisee une fois en ligne.' });
+        toast({ title: t('Version mise en file d\'attente'), description: t('Elle sera synchronisee une fois en ligne.') });
       }
 
       const newVersion: DevisVersion = {
@@ -1063,11 +1066,11 @@ export function DevisEditor({
       setSaveBanner({ nextId: queueCtx?.nextId ?? null });
 
       if (uploaded) {
-        toast({ title: `${targetDocType} enregistre`, description: 'Nouvelle version generee.' });
+        toast({ title: `${targetDocType} ${t('enregistre')}`, description: t('Nouvelle version generee.') });
       }
     } catch (e: any) {
       console.error('[devis-editor] save failed', e);
-      toast({ variant: 'destructive', title: 'Erreur de sauvegarde', description: e?.message || '' });
+      toast({ variant: 'destructive', title: t('Erreur de sauvegarde'), description: e?.message || '' });
     } finally {
       setSaving(false);
     }
@@ -1080,8 +1083,8 @@ export function DevisEditor({
   useHotkeys(
     [{
       keys: 'mod+s',
-      label: 'Enregistrer',
-      group: 'Éditeur de devis',
+      label: t("Enregistrer"),
+      group: t("Éditeur de devis"),
       allowInInput: true,
       handler: () => { if (!saving && !previewOpen) handleSave(); },
     }],
@@ -1100,10 +1103,10 @@ export function DevisEditor({
   // The source caption is printed ONCE, in the title block (§18: no repeated
   // caption). Gestionnaire = a new document; chiffreur = the merged sources.
   const sourceCaption = isGestionnaire
-    ? `Nouveau ${typeLabel.lower} — sera ajouté aux pièces jointes du dossier.`
+    ? `${t('Nouveau')} ${t(typeLabel.lower)} — ${t('sera ajouté aux pièces jointes du dossier.')}`
     : devisFileNames.length > 0
-      ? `${typeLabel.lower}(s) fusionne(s) : ${devisFileNames.join(' · ')}`
-      : `Aucun ${typeLabel.lower} dans cette assignation`;
+      ? `${t(typeLabel.lower)}${t('(s) fusionne(s) :')} ${devisFileNames.join(' · ')}`
+      : `${t('Aucun')} ${t(typeLabel.lower)} ${t('dans cette assignation')}`;
   // Emphasis follows the job (GOV.UK button: "the primary is the next thing
   // to do"): while the scan is unreviewed « J'ai vérifié » is THE filled
   // button and « Enregistrer » drops to tonal; once reviewed, « Enregistrer »
@@ -1122,7 +1125,7 @@ export function DevisEditor({
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         {!isGestionnaire && chiffrageId && (
           <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" asChild>
-            <Link href={`/assignations-chiffrage/${chiffrageId}`} aria-label="Retour" title="Retour">
+            <Link href={`/assignations-chiffrage/${chiffrageId}`} aria-label={t("Retour")} title={t("Retour")}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
@@ -1132,8 +1135,8 @@ export function DevisEditor({
             editor page) + the one source caption in `t-caption`. The merged
             count is a neutral count pill (§11: `bg-surface-3 text-ink-2`,
             tabular digits — a count is information, not a status). */}
-        <div className="min-w-0 flex-1">
-          <h1 className="t-title truncate">Editer les {typeLabel.plural}</h1>
+        <div className="min-w-0 flex-1" data-tour="dev-files">
+          <h1 className="t-title truncate">{t("Editer les")} {t(typeLabel.plural)}</h1>
           <div className="t-caption flex min-w-0 items-center gap-1.5" title={sourceCaption}>
             {!isGestionnaire && devisFileNames.length > 0 && (
               <Badge variant="neutral">{devisFileNames.length}</Badge>
@@ -1144,6 +1147,7 @@ export function DevisEditor({
         <Button
           variant={comparisonOpen ? 'tonal' : 'outline'}
           size="sm"
+          data-tour="dev-comparer"
           onClick={() => {
             const opening = !comparisonOpen;
             setComparisonOpen(opening);
@@ -1151,10 +1155,10 @@ export function DevisEditor({
           }}
           disabled={!dossierId}
           aria-pressed={comparisonOpen}
-          title={comparisonOpen ? 'Fermer la comparaison' : 'Ouvrir la comparaison'}
+          title={comparisonOpen ? t("Fermer la comparaison") : t("Ouvrir la comparaison")}
         >
           <Columns2 className="h-4 w-4" />
-          Comparer
+          {t("Comparer")}
         </Button>
         {/*
           Task #33 (revised): the post-scan warning dialog is now informational
@@ -1167,10 +1171,11 @@ export function DevisEditor({
           <Button
             variant="default"
             size="sm"
+            data-tour="dev-verify"
             onClick={() => setScanReviewed(true)}
-            title="Confirmer la vérification du scan et déverrouiller le tableau"
+            title={t('Confirmer la vérification du scan et déverrouiller le tableau')}
           >
-            J&apos;ai vérifié
+            {t("J'ai vérifié")}
           </Button>
         )}
         {/* Ré-extraire — restored as a visible `outline` button (3d5629a);
@@ -1179,18 +1184,19 @@ export function DevisEditor({
           <Button
             variant="outline"
             size="sm"
+            data-tour="dev-reextract"
             onClick={() => runExtraction(true)}
             loading={extracting}
             disabled={!canEdit || devisFileNames.length === 0}
-            title="Relancer l'extraction automatique (écrase les données)"
+            title={t("Relancer l'extraction automatique (écrase les données)")}
           >
             {extracting ? null : <RefreshCw className="h-4 w-4" />}
-            Ré-extraire
+            {t("Ré-extraire")}
           </Button>
         )}
-        <Button variant={reviewPending ? 'tonal' : 'default'} size="sm" onClick={handleSave} loading={saving} disabled={!canEdit}>
+        <Button variant={reviewPending ? "tonal" : "default"} size="sm" data-tour="dev-save" onClick={handleSave} loading={saving} disabled={!canEdit}>
           {saving ? null : <Save className="h-4 w-4" />}
-          Enregistrer
+          {t("Enregistrer")}
         </Button>
       </div>
 
@@ -1205,12 +1211,12 @@ export function DevisEditor({
         >
           <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
           <span className="text-sm font-medium">
-            {isGestionnaire ? 'Document enregistré' : 'Accord enregistré'}
+            {isGestionnaire ? t("Document enregistré") : t("Accord enregistré")}
           </span>
           <span className="flex-1" aria-hidden />
           {!isGestionnaire && chiffrageId && (
             <Button variant="ghost" size="sm" asChild>
-              <Link href={`/assignations-chiffrage/${chiffrageId}`}>Retour au dossier</Link>
+              <Link href={`/assignations-chiffrage/${chiffrageId}`}>{t("Retour au dossier")}</Link>
             </Button>
           )}
           {!isGestionnaire && saveBanner.nextId && (
@@ -1219,7 +1225,7 @@ export function DevisEditor({
               size="sm"
               onClick={() => router.push(`/assignations-chiffrage/${saveBanner.nextId}`)}
             >
-              Dossier suivant →
+              {t("Dossier suivant")} →
             </Button>
           )}
           <Button
@@ -1227,7 +1233,7 @@ export function DevisEditor({
             size="icon"
             className="h-7 w-7 shrink-0"
             onClick={() => setSaveBanner(null)}
-            aria-label="Fermer la confirmation"
+            aria-label={t("Fermer la confirmation")}
           >
             <X className="h-3.5 w-3.5" />
           </Button>
@@ -1237,7 +1243,7 @@ export function DevisEditor({
       {extracting && !saving && (
         <div className="t-caption flex items-center gap-2 rounded-lg bg-surface-2 px-4 py-2.5">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Extraction automatique en cours depuis {devisFileNames.length} {typeLabel.lower}(s)…
+          {t('Extraction automatique en cours depuis')} {devisFileNames.length} {t(`${typeLabel.lower}(s)`)}…
         </div>
       )}
 
@@ -1265,17 +1271,17 @@ export function DevisEditor({
       {/* Retractable (owner 2026-09-02): the whole identity card folds behind
           its header so the line-item table gets the vertical room; same 200ms
           disclosure animation as every Collapsible/Accordion. */}
-      <Card className="p-0">
+      <Card className="p-0" data-tour="dev-header">
         <Collapsible open={infoCardOpen} onOpenChange={setInfoCardOpen}>
           <CollapsibleTrigger asChild>
             <button
               type="button"
               className="flex w-full items-center justify-between gap-3 rounded-t-xl px-6 py-4 text-left transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={infoCardOpen ? 'Replier les informations' : 'Déplier les informations'}
+              aria-label={infoCardOpen ? t("Replier les informations") : t("Déplier les informations")}
             >
               <span className="flex items-center gap-2">
                 <IconChip><Car /></IconChip>
-                <span className="t-heading">Informations</span>
+                <span className="t-heading">{t("Informations")}</span>
               </span>
               <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform duration-250 ease-standard motion-reduce:transition-none', !infoCardOpen && '-rotate-90')} />
             </button>
@@ -1283,11 +1289,11 @@ export function DevisEditor({
           <CollapsibleContent>
         <div className="grid grid-cols-1 gap-x-6 gap-y-6 p-6 pt-2 md:grid-cols-2">
           <div className="flex flex-col gap-3">
-            <h3 className="t-heading">Véhicule</h3>
+            <h3 className="t-heading">{t("Véhicule")}</h3>
             {HEADER_FIELDS_LEFT.map((f) => (
               <HeaderField
                 key={f.key}
-                label={f.label}
+                label={t(f.label)}
                 value={header[f.key] || ''}
                 onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
                 disabled={!isEditable}
@@ -1298,11 +1304,11 @@ export function DevisEditor({
           </div>
           <div className="flex flex-col gap-3">
             {/* Second group label goes without a chip (terracotta is spent). */}
-            <h3 className="t-heading">Client</h3>
+            <h3 className="t-heading">{t("Client")}</h3>
             {HEADER_FIELDS_RIGHT.map((f) => (
               <HeaderField
                 key={f.key}
-                label={f.label}
+                label={t(f.label)}
                 value={header[f.key] || ''}
                 onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
                 disabled={!isEditable}
@@ -1313,18 +1319,18 @@ export function DevisEditor({
             {/* Short related fields share a row (§9: "code postal / ville" rule). */}
             <div className="grid grid-cols-2 gap-4">
               <HeaderField
-                label="Devis N°"
+                label={t("Devis N°")}
                 value={header.devisNumero}
                 onChange={(v) => setHeader((h) => ({ ...h, devisNumero: v }))}
                 disabled={!isEditable}
                 inputClassName="max-w-[14rem]"
               />
               <HeaderField
-                label="Date"
+                label={t("Date")}
                 value={header.dateDevis}
                 onChange={(v) => setHeader((h) => ({ ...h, dateDevis: v }))}
                 disabled={!isEditable}
-                placeholder="JJ/MM/AAAA"
+                placeholder={t("JJ/MM/AAAA")}
                 inputClassName="max-w-[12rem]"
               />
             </div>
@@ -1334,7 +1340,7 @@ export function DevisEditor({
         </Collapsible>
       </Card>
 
-      <div className="flex items-center gap-2 px-1">
+      <div className="flex items-center gap-2 px-1" data-tour="dev-sans-tva">
         <Checkbox
           id="sans-tva-toggle"
           checked={sansTva}
@@ -1342,7 +1348,7 @@ export function DevisEditor({
           disabled={!isEditable}
         />
         <label htmlFor="sans-tva-toggle" className="cursor-pointer select-none text-sm font-medium text-ink">
-          Sans TVA
+          {t("Sans TVA")}
         </label>
       </div>
 
@@ -1361,7 +1367,7 @@ export function DevisEditor({
           like P.U. and the totals, totals row right-aligned. The table sits in
           the card WITHOUT a second frame (§5). Rows are the 36 px compact size
           (dense editing), not 44. */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden" data-tour="dev-table">
         {/* ≈ 20 compact rows (36px) + sticky header. */}
         {/* C3 — spreadsheet keys are delegated here (Entrée ↓ / Échap revert
             in the cell components); wheel is inert on all cells because every
@@ -1381,9 +1387,9 @@ export function DevisEditor({
                         type="button"
                         disabled={!isEditable}
                         className="flex w-full items-center justify-between gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Définir Réparation/Remplacement pour toutes les lignes"
+                        title={t("Définir Réparation/Remplacement pour toutes les lignes")}
                       >
-                        <span>Réparation/Remplacement</span>
+                        <span>{t('Réparation/Remplacement')}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                       </button>
                     </PopoverTrigger>
@@ -1398,23 +1404,23 @@ export function DevisEditor({
                             setRefHeaderOpen(false);
                           }}
                         >
-                          {opt}
+                          {t(opt)}
                         </button>
                       ))}
                     </PopoverContent>
                   </Popover>
                 </th>
-                <th>Designation</th>
-                <th style={{ width: '90px' }}>
+                <th>{t('Designation')}</th>
+                <th style={{ width: '90px' }} data-tour="dev-col-type">
                   <Popover open={typeHeaderOpen} onOpenChange={setTypeHeaderOpen}>
                     <PopoverTrigger asChild>
                       <button
                         type="button"
                         disabled={!isEditable}
                         className="flex w-full items-center justify-between gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Définir Type pour toutes les lignes"
+                        title={t("Définir Type pour toutes les lignes")}
                       >
-                        <span>Type</span>
+                        <span>{t('Type')}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                       </button>
                     </PopoverTrigger>
@@ -1433,16 +1439,16 @@ export function DevisEditor({
                             setTypeHeaderOpen(false);
                           }}
                         >
-                          {opt}
+                          {t(opt)}
                         </button>
                       ))}
                     </PopoverContent>
                   </Popover>
                 </th>
                 {/* Numeric heads right-aligned with their data (§3). */}
-                <th style={{ width: '70px' }} className="text-right">Quantite</th>
-                <th style={{ width: '110px' }} className="text-right">P.U.H.T</th>
-                <th style={{ width: '120px' }} className="text-right">Total H.T</th>
+                <th style={{ width: "70px" }} className="text-right">{t("Quantite")}</th>
+                <th style={{ width: "110px" }} className="text-right">{t("P.U.H.T")}</th>
+                <th style={{ width: "120px" }} className="text-right">{t("Total H.T")}</th>
                 <th style={{ width: '70px' }} className="text-right">
                   <Popover open={tvaHeaderOpen} onOpenChange={setTvaHeaderOpen}>
                     <PopoverTrigger asChild>
@@ -1450,9 +1456,9 @@ export function DevisEditor({
                         type="button"
                         disabled={!isEditable}
                         className="flex w-full items-center justify-end gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Définir T.V.A pour toutes les lignes"
+                        title={t("Définir T.V.A pour toutes les lignes")}
                       >
-                        <span>T.V.A</span>
+                        <span>{t('T.V.A')}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                       </button>
                     </PopoverTrigger>
@@ -1473,17 +1479,17 @@ export function DevisEditor({
                           setTvaHeaderOpen(false);
                         }}
                       >
-                        Appliquer à toutes les lignes
+                        {t('Appliquer à toutes les lignes')}
                       </Button>
                     </PopoverContent>
                   </Popover>
                 </th>
-                <th style={{ width: '80px' }} className="text-right">
+                <th style={{ width: "80px" }} className="text-right" data-tour="dev-col-vetuste">
                   <div className="flex items-center justify-end gap-1">
-                    <span>Vetuste</span>
+                    <span>{t("Vetuste")}</span>
                     <button type="button" disabled={!isEditable}
                             className="flex h-4 w-4 items-center justify-center rounded text-ink-3 hover:bg-surface-3 hover:text-ink focus:bg-surface-3 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                            title="-5 sur toutes les lignes"
+                            title={t("-5 sur toutes les lignes")}
                             onClick={() => setRows((rs) => rs.map((r) => {
                               if (r.type === 'Occasion') return r;
                               const cur = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
@@ -1493,7 +1499,7 @@ export function DevisEditor({
                     </button>
                     <button type="button" disabled={!isEditable}
                             className="flex h-4 w-4 items-center justify-center rounded text-ink-3 hover:bg-surface-3 hover:text-ink focus:bg-surface-3 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                            title="+5 sur toutes les lignes"
+                            title={t("+5 sur toutes les lignes")}
                             onClick={() => setRows((rs) => rs.map((r) => {
                               if (r.type === 'Occasion') return r;
                               const cur = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
@@ -1503,7 +1509,7 @@ export function DevisEditor({
                     </button>
                   </div>
                 </th>
-                <th style={{ width: '120px' }} className="text-right">Prix en TTC</th>
+                <th style={{ width: '120px' }} className="text-right">{t('Prix en TTC')}</th>
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
                   const isAccord = col.kind === 'accord' || col.kind === 'proposition-accord';
@@ -1516,11 +1522,11 @@ export function DevisEditor({
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span className="cursor-help truncate">
-                              {`${col.label || (col.kind === 'accord' ? 'PUHT accordé' : 'PUHT proposé')}${col.kind === 'proposition-accord' ? propositionExpertSuffix : ''}`}
+                              {`${t(col.label || (col.kind === "accord" ? "PUHT accordé" : "PUHT proposé"))}${col.kind === "proposition-accord" ? propositionExpertSuffix : ""}`}
                             </span>
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-xs text-xs">
-                            Pour annuler, contactez le gestionnaire pour une nouvelle planification.
+                            {t('Pour annuler, contactez le gestionnaire pour une nouvelle planification.')}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -1533,9 +1539,9 @@ export function DevisEditor({
                           <button
                             type="button"
                             className="flex w-full items-center justify-between gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            title="Choisir un type d'accord"
+                            title={t("Choisir un type d'accord")}
                           >
-                            <span className="truncate">{`${col.label || 'Choisir un accord'}${col.kind === 'proposition-accord' ? propositionExpertSuffix : ''}`}</span>
+                            <span className="truncate">{`${t(col.label || 'Choisir un accord')}${col.kind === 'proposition-accord' ? propositionExpertSuffix : ''}`}</span>
                             <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                           </button>
                         </PopoverTrigger>
@@ -1548,7 +1554,7 @@ export function DevisEditor({
                               setAccordHeaderOpen((s) => ({ ...s, [col.id]: false }));
                             }}
                           >
-                            PUHT accordé
+                            {t('PUHT accordé')}
                           </button>
                           <button
                             type="button"
@@ -1561,7 +1567,7 @@ export function DevisEditor({
                               setAccordHeaderOpen((s) => ({ ...s, [col.id]: false }));
                             }}
                           >
-                            PUHT proposé
+                            {t('PUHT proposé')}
                           </button>
                         </PopoverContent>
                       </Popover>
@@ -1572,11 +1578,13 @@ export function DevisEditor({
                     const tripleSuffix = col.kind === 'accord' ? 'accordé' : 'proposé';
                     return (
                       <React.Fragment key={col.id}>
-                        <th style={{ width: '120px' }} className="text-right">
+                        {/* data-tour: the guided tour highlights the accord
+                            entry column itself, not the whole table. */}
+                        <th style={{ width: "120px" }} className="text-right" data-tour="dev-col-accord">
                           {puHeader}
                         </th>
-                        <th style={{ width: '130px' }} className="text-right">{`Total H.T ${tripleSuffix}`}</th>
-                        <th style={{ width: '130px' }} className="text-right">{`Prix Total ${col.kind === 'accord' ? 'Accordé' : 'Proposé'} SL Auto Expertise`}</th>
+                        <th style={{ width: '130px' }} className="text-right">{`${t("Total H.T")} ${t(tripleSuffix)}`}</th>
+                        <th style={{ width: '130px' }} className="text-right">{`${t("Prix Total")} ${col.kind === "accord" ? t("Accordé") : t("Proposé")} ${BRAND.companyName}`}</th>
                       </React.Fragment>
                     );
                   }
@@ -1588,14 +1596,14 @@ export function DevisEditor({
                     >
                       <div className="flex items-center gap-1">
                         {isCounter && <span className="inline-block h-1.5 w-1.5 rounded-full bg-status-danger-fg shrink-0" aria-hidden />}
-                        <span className="truncate">{col.label}</span>
+                        <span className="truncate">{t(col.label)}</span>
                         {isCounter && col.sourcePdfUrl && (
                           <a
                             href={col.sourcePdfUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-status-danger-fg hover:text-ink"
-                            title="Ouvrir le document source"
+                            title={t("Ouvrir le document source")}
                           >
                             <FileText className="h-3 w-3" />
                           </a>
@@ -1611,9 +1619,9 @@ export function DevisEditor({
                         type="button"
                         disabled={!isEditable}
                         className="flex w-full items-center justify-between gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Définir Observation pour toutes les lignes"
+                        title={t("Définir Observation pour toutes les lignes")}
                       >
-                        <span>Observation</span>
+                        <span>{t('Observation')}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                       </button>
                     </PopoverTrigger>
@@ -1626,7 +1634,7 @@ export function DevisEditor({
                           setObsHeaderOpen(false);
                         }}
                       >
-                        (aucune)
+                        {t('(aucune)')}
                       </button>
                       {OBSERVATION_OPTIONS.map((opt) => (
                         <button
@@ -1638,7 +1646,7 @@ export function DevisEditor({
                             setObsHeaderOpen(false);
                           }}
                         >
-                          {OBSERVATION_LABELS[opt]}
+                          {t(OBSERVATION_LABELS[opt])}
                         </button>
                       ))}
                     </PopoverContent>
@@ -1669,7 +1677,7 @@ export function DevisEditor({
                           </SelectTrigger>
                           <SelectContent>
                             {REF_OPTIONS.map((opt) => (
-                              <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                              <SelectItem key={opt} value={opt} className="text-xs">{t(opt)}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -1678,7 +1686,7 @@ export function DevisEditor({
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 shrink-0 text-ink-3 hover:text-ink"
-                            title="Effacer"
+                            title={t("Effacer")}
                             onClick={(e) => { e.stopPropagation(); updateRow(r.id, { ref: '' }); }}
                           >
                             <X className="h-3 w-3" />
@@ -1713,7 +1721,7 @@ export function DevisEditor({
                           </SelectTrigger>
                           <SelectContent>
                             {TYPE_OPTIONS.map((opt) => (
-                              <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                              <SelectItem key={opt} value={opt} className="text-xs">{t(opt)}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -1722,7 +1730,7 @@ export function DevisEditor({
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 shrink-0 text-ink-3 hover:text-ink"
-                            title="Effacer"
+                            title={t("Effacer")}
                             onClick={(e) => { e.stopPropagation(); updateRow(r.id, { type: '' }); }}
                           >
                             <X className="h-3 w-3" />
@@ -1776,7 +1784,7 @@ export function DevisEditor({
                         {vetusteMissing && (
                           <>
                             <span aria-hidden className="pointer-events-none absolute -right-1 -top-1 text-[11px] leading-none text-status-danger-fg">*</span>
-                            <span className="sr-only">Vétusté manquante</span>
+                            <span className="sr-only">{t('Vétusté manquante')}</span>
                           </>
                         )}
                       </div>
@@ -1811,8 +1819,8 @@ export function DevisEditor({
                                     updateExtraCell(col.id, r.id, '');
                                     toast({
                                       variant: 'destructive',
-                                      title: 'Valeur supérieure au P.U.H.T.',
-                                      description: 'La cellule a été effacée.',
+                                      title: t('Valeur supérieure au P.U.H.T.'),
+                                      description: t('La cellule a été effacée.'),
                                     });
                                   }
                                 }}
@@ -1864,13 +1872,13 @@ export function DevisEditor({
                         >
                           <SelectTrigger className="h-8 w-full rounded-md border-transparent bg-card px-1.5 text-xs text-ink focus:ring-1 focus:ring-ring focus:ring-offset-0">
                             <SelectValue placeholder="">
-                              {r.observation ? OBSERVATION_LABELS[r.observation] : ''}
+                              {r.observation ? t(OBSERVATION_LABELS[r.observation]) : ''}
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="__none__" className="text-xs text-ink-3">(aucune)</SelectItem>
                             {OBSERVATION_OPTIONS.map((opt) => (
-                              <SelectItem key={opt} value={opt} className="text-xs">{OBSERVATION_LABELS[opt]}</SelectItem>
+                              <SelectItem key={opt} value={opt} className="text-xs">{t(OBSERVATION_LABELS[opt])}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -1879,7 +1887,7 @@ export function DevisEditor({
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 shrink-0 text-ink-3 hover:text-ink"
-                            title="Effacer"
+                            title={t("Effacer")}
                             onClick={(e) => { e.stopPropagation(); updateRow(r.id, { observation: undefined }); }}
                           >
                             <X className="h-3 w-3" />
@@ -1890,7 +1898,7 @@ export function DevisEditor({
                     <td>
                       {canEdit && (
                         <div className="flex items-center gap-0.5 opacity-40 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-ink-3 hover:text-destructive" title="Supprimer" aria-label="Supprimer la ligne" onClick={() => deleteRow(r.id)}>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-ink-3 hover:text-destructive" title={t("Supprimer")} aria-label={t("Supprimer la ligne")} onClick={() => deleteRow(r.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -1916,7 +1924,7 @@ export function DevisEditor({
                   '[&>td]:px-1.5 [&>td]:py-2 [&>td]:border-t [&>td]:border-hairline-strong [&>td]:bg-surface-2',
                 )}
               >
-                <td className="font-normal text-ink-3">Total</td>
+                <td className="font-normal text-ink-3">{t("Total")}</td>
                 <td />
                 <td />
                 {/* Totals row right-aligned under its numeric columns (§3). */}
@@ -1971,7 +1979,7 @@ export function DevisEditor({
         <div className="border-t border-hairline px-2 py-1">
           <Button variant="ghost" size="sm" onClick={addRow} disabled={!isEditable}>
             <Plus className="h-4 w-4" />
-            Ajouter une ligne
+            {t("Ajouter une ligne")}
           </Button>
         </div>
         {/*
@@ -1979,12 +1987,12 @@ export function DevisEditor({
           Total TTC Expert (under Prix en TTC col). Task #16 collapsed the
           previous two-row TVA + TTC footer into this single row.
         */}
-        <div className="flex items-center justify-end gap-6 border-t border-hairline bg-surface-2 px-4 py-2 text-sm">
-          <span className="t-label">Total H.T</span>
+        <div className="flex items-center justify-end gap-6 border-t border-hairline bg-surface-2 px-4 py-2 text-sm" data-tour="dev-summary">
+          <span className="t-label">{t("Total H.T")}</span>
           <span className="w-28 text-right font-semibold tabular-nums text-ink">{formatFr(totals.ht)}</span>
           {!sansTva && (
             <>
-              <span className="t-label">Total TTC Expert</span>
+              <span className="t-label">{t("Total TTC Expert")}</span>
               <span className={cn('w-28 text-right font-semibold tabular-nums', totalTTCExpert == null ? 'text-ink-4' : 'text-ink')}>{totalTTCExpert == null ? '—' : formatFr(totalTTCExpert)}</span>
             </>
           )}
@@ -2033,7 +2041,7 @@ export function DevisEditor({
             {/* C1 — quiet 1 px hairline handle with a grabber-dot area that
                 stays mid-viewport; hover/drag tint per spec. */}
             <SplitSeparator
-              aria-label="Redimensionner la comparaison"
+              aria-label={t("Redimensionner la comparaison")}
               className="relative mx-1.5 w-2 shrink-0 rounded-full transition-colors duration-150 hover:bg-surface-3 data-[separator=active]:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div aria-hidden className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-hairline" />
@@ -2169,6 +2177,7 @@ function AccordPUInput({
   disabled?: boolean;
   error?: boolean;
 }) {
+  const t = useT();
   // C3 — Échap reverts to the pre-focus value (chiffrage-redesign-spec).
   const focusValueRef = useRef(value);
   return (
@@ -2184,7 +2193,7 @@ function AccordPUInput({
       onBlur={onBlurValidate}
       disabled={disabled}
       inputMode="decimal"
-      title={error ? 'La valeur ne peut pas dépasser le P.U.H.T.' : undefined}
+      title={error ? t('La valeur ne peut pas dépasser le P.U.H.T.') : undefined}
       className={cn(
         CELL_INPUT_CLASS,
         'text-right tabular-nums',
